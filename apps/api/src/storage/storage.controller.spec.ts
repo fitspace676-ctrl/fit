@@ -4,12 +4,13 @@ import { StorageController } from './storage.controller';
 import { StorageService, type SignedUpload } from './storage.service';
 
 const SIGNED: SignedUpload = {
-  key: 'avatars/abc.png',
+  key: 'gym-1/avatars/abc.png',
   url: 'https://signed.example/put',
   method: 'PUT',
   contentType: 'image/png',
-  expiresIn: 900,
-  publicUrl: 'https://cdn.example.com/avatars/abc.png',
+  contentLength: 2048,
+  expiresIn: 300,
+  publicUrl: 'https://cdn.example.com/gym-1/avatars/abc.png',
 };
 
 /** Controller backed by a StorageService stub (no real R2 client). */
@@ -20,53 +21,85 @@ function controller(): { ctrl: StorageController; createSignedUpload: ReturnType
   return { ctrl: new StorageController(service), createSignedUpload };
 }
 
+const BODY = {
+  contentType: 'image/png',
+  contentLength: 2048,
+  gymId: 'gym-1',
+  entity: 'avatars',
+  fileName: 'me.png',
+} as const;
+
 describe('StorageController', () => {
   it('returns the signed upload for a valid request', async () => {
     const { ctrl, createSignedUpload } = controller();
 
-    const result = await ctrl.create({
-      contentType: 'image/png',
-      fileName: 'me.png',
-      prefix: 'avatars',
-    });
+    const result = await ctrl.create({ ...BODY });
 
     expect(result).toEqual(SIGNED);
     expect(createSignedUpload).toHaveBeenCalledWith({
       contentType: 'image/png',
+      contentLength: 2048,
+      gymId: 'gym-1',
+      entity: 'avatars',
       fileName: 'me.png',
-      prefix: 'avatars',
     });
   });
 
-  it('trims and omits blank optional fields', async () => {
+  it('trims strings, omits a blank fileName, and coerces a numeric string length', async () => {
     const { ctrl, createSignedUpload } = controller();
 
-    await ctrl.create({ contentType: '  image/png  ', fileName: '   ', prefix: '' });
+    await ctrl.create({
+      contentType: '  image/png  ',
+      contentLength: '2048',
+      gymId: ' gym-1 ',
+      entity: 'avatars',
+      fileName: '   ',
+    });
 
     expect(createSignedUpload).toHaveBeenCalledWith({
       contentType: 'image/png',
+      contentLength: 2048,
+      gymId: 'gym-1',
+      entity: 'avatars',
       fileName: undefined,
-      prefix: undefined,
     });
   });
 
   it('rejects a missing contentType', async () => {
     const { ctrl } = controller();
 
-    await expect(ctrl.create({})).rejects.toBeInstanceOf(BadRequestException);
+    await expect(ctrl.create({ contentLength: 1, gymId: 'g', entity: 'a' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
-  it('rejects a non-string contentType', async () => {
-    const { ctrl } = controller();
-
-    await expect(ctrl.create({ contentType: 123 })).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('rejects a non-string optional field', async () => {
+  it('rejects a missing or non-numeric contentLength', async () => {
     const { ctrl } = controller();
 
     await expect(
-      ctrl.create({ contentType: 'image/png', prefix: { evil: true } }),
+      ctrl.create({ contentType: 'image/png', gymId: 'g', entity: 'a' }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      ctrl.create({ contentType: 'image/png', contentLength: 'huge', gymId: 'g', entity: 'a' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a missing gymId or entity', async () => {
+    const { ctrl } = controller();
+
+    await expect(
+      ctrl.create({ contentType: 'image/png', contentLength: 1, entity: 'a' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      ctrl.create({ contentType: 'image/png', contentLength: 1, gymId: 'g' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a non-string optional fileName', async () => {
+    const { ctrl } = controller();
+
+    await expect(ctrl.create({ ...BODY, fileName: { evil: true } })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });

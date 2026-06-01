@@ -37,9 +37,14 @@ export const envSchema = z.object({
   // Public base URL for objects (custom domain or r2.dev), used to build the
   // final object URL returned to clients. Unset → no public URL is reported.
   R2_PUBLIC_URL: z.string().url().optional(),
-  // Lifetime (seconds) of generated presigned URLs. Bounded to a week (the S3
-  // SigV4 maximum) so a typo can't mint an effectively unbounded URL.
-  R2_SIGNED_URL_TTL: z.coerce.number().int().positive().max(604800).default(900),
+  // Lifetime (seconds) of generated presigned URLs. Defaults to 5 minutes —
+  // long enough to start an upload, short enough to limit a leaked URL. Bounded
+  // to a week (the S3 SigV4 maximum) so a typo can't mint an unbounded URL.
+  R2_SIGNED_URL_TTL: z.coerce.number().int().positive().max(604800).default(300),
+  // Largest upload (bytes) a presigned PUT will accept. Enforced two ways: the
+  // API rejects an over-sized declared `contentLength` with 400, and the signed
+  // `Content-Length` binds the URL so the client can't upload more. Default 25 MiB.
+  R2_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(26_214_400),
 
   // ── Logging ──
   LOG_LEVEL: z.enum(LOG_LEVELS).optional(),

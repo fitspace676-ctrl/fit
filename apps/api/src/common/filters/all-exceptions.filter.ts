@@ -5,38 +5,63 @@ import type { Request, Response } from 'express';
 
 /** Stable shape returned for every error the API surfaces. */
 export interface ErrorResponseBody {
-  statusCode: number;
-  /** Short, machine-friendly reason phrase (e.g. `Bad Request`). */
-  error: string;
-  /** Human-readable message(s) safe to show a client. */
-  message: string | string[];
-  /** ISO-8601 timestamp of when the error was handled. */
-  timestamp: string;
-  /** Request path that produced the error. */
-  path: string;
-  /** Correlates the response with server logs / Sentry (from `x-request-id`). */
+  /**
+   * Machine-friendly error code clients can branch on, e.g. `VALIDATION_ERROR`,
+   * `NOT_FOUND`, `INTERNAL_ERROR`. Decoupled from the HTTP status so the wire
+   * contract stays stable even if a status is re-mapped.
+   */
+  code: string;
+  /** Human-readable message safe to show a client. */
+  message: string;
+  /**
+   * Structured detail items (e.g. per-field validation messages), or `null`
+   * when the error carries no extra detail.
+   */
+  details: string[] | null;
+  /** Correlates the response with server logs (from `x-request-id`). */
   requestId?: string;
+  /**
+   * Sentry event id for server (`5xx`) errors, surfaced so a user can quote it
+   * in a support ticket. Absent for client (`4xx`) errors and when Sentry is
+   * disabled (`SENTRY_DSN` unset).
+   */
+  sentryEventId?: string;
 }
 
 /** Request augmented by pino-http with a per-request `id`. */
 type RequestWithId = Request & { id?: string };
 
+/** Status at or above which an error is treated as an internal failure. */
+const SERVER_ERROR_THRESHOLD: number = HttpStatus.INTERNAL_SERVER_ERROR;
+
+/**
+ * Maps known HTTP statuses to a stable, machine-friendly error `code`. Statuses
+ * not listed fall back to `INTERNAL_ERROR` (>= 500) or `HTTP_ERROR` (other 4xx).
+ */
+const STATUS_TO_CODE: Readonly<Record<number, string>> = {
+  [HttpStatus.BAD_REQUEST]: 'VALIDATION_ERROR',
+  [HttpStatus.UNAUTHORIZED]: 'UNAUTHORIZED',
+  [HttpStatus.FORBIDDEN]: 'FORBIDDEN',
+  [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
+  [HttpStatus.CONFLICT]: 'CONFLICT',
+  [HttpStatus.UNPROCESSABLE_ENTITY]: 'VALIDATION_ERROR',
+};
+
 /**
  * Global exception filter.
  *
  * Catches *everything* that bubbles out of a handler and turns it into a
- * consistent {@link ErrorResponseBody}. Known {@link HttpException}s keep their
- * status and message; anything else becomes an opaque `500` so internal details
- * never leak to clients. Server errors (`>= 500`) are forwarded to Sentry
- * (no-op when `SENTRY_DSN` is unset — see `instrument.ts`); expected 4xx
- * client errors are not, to keep Sentry signal clean.
+ * consistent {@link ErrorResponseBody} of `{ code, message, details, requestId }`.
+ * Known {@link HttpException}s keep their status and message; anything else
+ * becomes an opaque `500` so internal details never leak to clients. Server
+ * errors (`>= 500`) are forwarded to Sentry (no-op when `SENTRY_DSN` is unset —
+ * see `instrument.ts`) and the resulting event id is attached to the body so a
+ * user can quote it in support; expected 4xx client errors are not captured, to
+ * keep Sentry signal clean.
  *
  * Replaces `@sentry/nestjs`'s `SentryGlobalFilter`: it performs the same Sentry
  * capture while additionally normalising the response body.
  */
-/** Status at or above which an error is treated as an internal failure. */
-const SERVER_ERROR_THRESHOLD: number = HttpStatus.INTERNAL_SERVER_ERROR;
-
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -46,69 +71,85 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<RequestWithId>();
 
-    const { status, error, message } = this.describe(exception);
+    const { status, code, message, details } = this.describe(exception);
 
+    let sentryEventId: string | undefined;
     if (status >= SERVER_ERROR_THRESHOLD) {
-      // Unexpected — capture the original exception and log a full stack.
-      Sentry.captureException(exception);
+      // Unexpected — capture the original exception and keep its event id so the
+      // client can quote it. `captureException` returns '' when Sentry is off.
+      sentryEventId = Sentry.captureException(exception) || undefined;
       this.logger.error(
         `${request.method} ${request.url} -> ${status}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
     } else {
       // Expected client error — a terse warning is enough.
-      this.logger.warn(`${request.method} ${request.url} -> ${status} ${error}`);
+      this.logger.warn(`${request.method} ${request.url} -> ${status} ${code}`);
     }
 
     const body: ErrorResponseBody = {
-      statusCode: status,
-      error,
+      code,
       message,
-      timestamp: new Date().toISOString(),
-      path: request.url,
+      details,
       requestId: request.id,
+      ...(sentryEventId ? { sentryEventId } : {}),
     };
 
     response.status(status).json(body);
   }
 
-  /** Map an arbitrary thrown value onto a status, reason phrase, and message. */
+  /** Map an arbitrary thrown value onto a status, code, message, and details. */
   private describe(exception: unknown): {
     status: number;
-    error: string;
-    message: string | string[];
+    code: string;
+    message: string;
+    details: string[] | null;
   } {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const payload = exception.getResponse();
+      const code = this.codeFor(status);
 
       // Nest puts `{ statusCode, error, message }` here for built-in
       // exceptions, or a bare string for `new HttpException('msg', status)`.
       if (typeof payload === 'string') {
-        return { status, error: exception.name, message: payload };
+        return { status, code, message: payload, details: null };
       }
 
       const record = payload as { error?: unknown; message?: unknown };
+      const arrayDetails = this.asStringArray(record.message);
+      if (arrayDetails) {
+        // class-validator surfaces one message per failed constraint.
+        return { status, code, message: 'Validation failed', details: arrayDetails };
+      }
+
       return {
         status,
-        error: typeof record.error === 'string' ? record.error : exception.name,
-        message: this.normaliseMessage(record.message) ?? exception.message,
+        code,
+        message: typeof record.message === 'string' ? record.message : exception.message,
+        details: null,
       };
     }
 
     // Anything non-HTTP is an internal failure — never echo its details.
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
-      error: 'Internal Server Error',
+      code: 'INTERNAL_ERROR',
       message: 'Internal server error',
+      details: null,
     };
   }
 
-  private normaliseMessage(value: unknown): string | string[] | undefined {
-    if (typeof value === 'string') return value;
+  private codeFor(status: number): string {
+    return (
+      STATUS_TO_CODE[status] ?? (status >= SERVER_ERROR_THRESHOLD ? 'INTERNAL_ERROR' : 'HTTP_ERROR')
+    );
+  }
+
+  private asStringArray(value: unknown): string[] | null {
     if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
       return value;
     }
-    return undefined;
+    return null;
   }
 }

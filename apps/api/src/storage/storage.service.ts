@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -10,21 +11,34 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env';
 
+/** Tenant id segment: lowercase alphanumerics + dashes (matches a gym slug/id). */
+const GYM_ID_PATTERN = /^[a-z0-9-]+$/;
+/** Entity segment: lowercase letters only (e.g. `avatars`, `products`, `logos`). */
+const ENTITY_PATTERN = /^[a-z]+$/;
+
 /** Parameters for minting a presigned upload URL. */
 export interface SignedUploadRequest {
   /** MIME type the client will send (becomes the object's `Content-Type`). */
   contentType: string;
+  /**
+   * Exact size (bytes) the client will upload. Rejected with 400 when it
+   * exceeds `R2_MAX_UPLOAD_BYTES`, and bound into the signature so the upload
+   * can't deviate from it.
+   */
+  contentLength: number;
+  /** Owning tenant — the first, isolating key segment. Must match `^[a-z0-9-]+$`. */
+  gymId: string;
+  /** Entity type — the second key segment (e.g. `avatars`). Must match `^[a-z]+$`. */
+  entity: string;
   /** Original filename — only its extension is used when deriving the key. */
   fileName?: string;
-  /** Key prefix / folder, e.g. `avatars`. Sanitised before use. */
-  prefix?: string;
   /** Override the signed-URL lifetime (seconds); defaults to `R2_SIGNED_URL_TTL`. */
   expiresIn?: number;
 }
 
-/** A presigned upload: PUT the file bytes to `url` with the given `contentType`. */
+/** A presigned upload: PUT the file bytes to `url` with the given headers. */
 export interface SignedUpload {
-  /** The object key within the bucket. */
+  /** The object key within the bucket (`{gymId}/{entity}/{uuid}{ext}`). */
   key: string;
   /** Presigned URL to `PUT` the object to. */
   url: string;
@@ -32,6 +46,8 @@ export interface SignedUpload {
   method: 'PUT';
   /** Required `Content-Type` header the upload must send to match the signature. */
   contentType: string;
+  /** Required `Content-Length` header the upload must send to match the signature. */
+  contentLength: number;
   /** Seconds until the presigned URL expires. */
   expiresIn: number;
   /** Public URL the object will be reachable at, or `null` if `R2_PUBLIC_URL` is unset. */
@@ -77,22 +93,32 @@ export class StorageService implements OnModuleDestroy {
   async createSignedUpload(request: SignedUploadRequest): Promise<SignedUpload> {
     const bucket = this.requireBucket();
     const contentType = request.contentType.trim();
-    const key = this.buildKey(contentType, request.fileName, request.prefix);
+    const contentLength = this.requireSize(request.contentLength);
+    const key = this.buildKey(request.gymId, request.entity, contentType, request.fileName);
     const expiresIn = this.resolveTtl(request.expiresIn);
 
+    // Signing `ContentLength` binds the URL to this exact size: R2 rejects a PUT
+    // whose `Content-Length` header differs, so an oversized upload can't slip
+    // past the 400 check above by lying about its size up front.
     const url = await getSignedUrl(
       this.client(),
-      new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: contentType,
+        ContentLength: contentLength,
+      }),
       { expiresIn },
     );
 
-    this.logger.debug(`Signed upload URL for ${key} (expires in ${expiresIn}s)`);
+    this.logger.debug(`Signed upload URL for ${key} (${contentLength}B, expires in ${expiresIn}s)`);
 
     return {
       key,
       url,
       method: 'PUT',
       contentType,
+      contentLength,
       expiresIn,
       publicUrl: this.publicUrl(key),
     };
@@ -149,37 +175,45 @@ export class StorageService implements OnModuleDestroy {
     return Math.min(Math.max(1, Math.floor(expiresIn)), 604800);
   }
 
+  /** Validate the declared upload size against the configured ceiling. */
+  private requireSize(contentLength: number): number {
+    if (!Number.isInteger(contentLength) || contentLength <= 0) {
+      throw new BadRequestException('contentLength must be a positive integer (bytes)');
+    }
+    if (contentLength > env.R2_MAX_UPLOAD_BYTES) {
+      throw new BadRequestException(
+        `File exceeds the ${env.R2_MAX_UPLOAD_BYTES}-byte upload limit`,
+      );
+    }
+    return contentLength;
+  }
+
   /**
-   * Derive a collision-resistant object key: `<prefix>/<uuid><ext>`. The
-   * extension comes from the filename when present, otherwise the MIME type;
-   * the prefix is sanitised to a safe slug so callers can't escape the bucket
-   * namespace.
+   * Derive a tenant-scoped, collision-resistant object key
+   * `{gymId}/{entity}/{uuid}{ext}`. Every object is prefixed by its owning
+   * `gymId`, so keys from different tenants can never collide. Segments are
+   * validated (not sanitised) so a caller can't escape the namespace or smuggle
+   * a different shape past the convention. The extension comes from the filename
+   * when present, otherwise the MIME type.
    */
-  private buildKey(contentType: string, fileName?: string, prefix?: string): string {
+  private buildKey(gymId: string, entity: string, contentType: string, fileName?: string): string {
+    const tenant = this.requireSegment(gymId, GYM_ID_PATTERN, 'gymId');
+    const kind = this.requireSegment(entity, ENTITY_PATTERN, 'entity');
     const ext = this.extensionFor(contentType, fileName);
-    const name = `${randomUUID()}${ext}`;
-    const folder = this.sanitisePrefix(prefix);
-    return folder ? `${folder}/${name}` : name;
+    return `${tenant}/${kind}/${randomUUID()}${ext}`;
+  }
+
+  private requireSegment(value: string, pattern: RegExp, field: string): string {
+    const trimmed = value.trim();
+    if (!pattern.test(trimmed)) {
+      throw new BadRequestException(`${field} must match ${pattern.source}`);
+    }
+    return trimmed;
   }
 
   private extensionFor(contentType: string, fileName?: string): string {
     const fromName = fileName ? extname(fileName).toLowerCase() : '';
     if (/^\.[a-z0-9]{1,8}$/.test(fromName)) return fromName;
     return MIME_EXTENSIONS[contentType.toLowerCase()] ?? '';
-  }
-
-  private sanitisePrefix(prefix?: string): string {
-    if (!prefix) return '';
-    return (
-      prefix
-        .toLowerCase()
-        .split('/')
-        .map((segment) => segment.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, ''))
-        // Drop empties and `.`/`..` (which collapse to '' above) — no traversal,
-        // no leading/duplicate slashes survive.
-        .filter(Boolean)
-        .join('/')
-        .slice(0, 128)
-    );
   }
 }

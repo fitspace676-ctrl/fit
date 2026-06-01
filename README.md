@@ -1,5 +1,7 @@
 # fit
 
+[![CI](https://github.com/fitspace676-ctrl/fit/actions/workflows/ci.yml/badge.svg)](https://github.com/fitspace676-ctrl/fit/actions/workflows/ci.yml)
+
 Monorepo for the **fit** platform, managed with [pnpm workspaces](https://pnpm.io/workspaces) and [Turborepo](https://turbo.build/repo).
 
 ## Prerequisites
