@@ -13,6 +13,7 @@
     "lint:fix": "turbo run lint:fix",
     "test": "turbo run test",
     "type-check": "turbo run type-check",
+    "fit": "tsx tools/cli/src/index.ts",
     "check:env-example": "tsx scripts/check-env-example.ts",
     "db:generate": "pnpm --filter @fit/db db:generate",
     "db:migrate": "pnpm --filter @fit/db db:migrate",

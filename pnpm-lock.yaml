@@ -416,6 +416,31 @@ importers:
         specifier: workspace:*
         version: link:../config
 
+  tools/cli:
+    dependencies:
+      '@fit/env':
+        specifier: workspace:*
+        version: link:../../packages/env
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@fit/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.6(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+
 packages:
 
   '@adobe/css-tools@4.5.0':
