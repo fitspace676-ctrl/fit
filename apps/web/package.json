@@ -3,13 +3,27 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "echo '[@fit/web] build: nothing to do yet'",
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
     "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "test": "echo '[@fit/web] test: nothing to do yet'",
-    "type-check": "tsc --noEmit",
-    "lint:fix": "eslint . --fix"
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2"
   }
 }
