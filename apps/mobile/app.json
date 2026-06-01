@@ -29,9 +29,23 @@
       "output": "static",
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-router", "expo-status-bar", "@sentry/react-native/expo"],
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "@sentry/react-native/expo",
+        { "organization": "forma-0r", "project": "fit-mobile", "url": "https://de.sentry.io/" }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d425affe-3cbe-46fc-82f6-6cf3beed154a"
+      }
+    },
+    "owner": "formacore"
   }
 }

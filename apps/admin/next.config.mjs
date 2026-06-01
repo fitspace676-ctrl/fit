@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs';
+
 /**
  * Allow `next/image` to optimise objects served from the Cloudflare R2 public
  * bucket. The exact host comes from `R2_PUBLIC_URL` (custom domain or `*.r2.dev`)
@@ -34,4 +36,16 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
 };
 
-export default nextConfig;
+// Upload source maps to Sentry at build time so production stack traces are
+// un-minified. The auth token comes from the `SENTRY_AUTH_TOKEN` build env var
+// (set in Vercel); without it the plugin no-ops the upload (non-fatal), so local
+// and unauthenticated builds still succeed.
+export default withSentryConfig(nextConfig, {
+  org: 'forma-0r',
+  project: 'fit-admin',
+  sentryUrl: 'https://de.sentry.io/',
+  silent: true,
+  widenClientFileUpload: true,
+  // Don't fail the build if Sentry source-map upload errors.
+  errorHandler: () => {},
+});
