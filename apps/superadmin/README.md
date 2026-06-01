@@ -11,27 +11,51 @@ the API side).
 tokens. Deploys to [Vercel](https://vercel.com/).
 
 > Distinct from `apps/admin` (tenant-scoped **gym** staff console). This is the
-> **platform** operator console. The `gyms` management page and full feature set
-> land in T2.12.
+> **platform** operator console — the `gyms` management page (T2.12) lists every
+> gym, toggles suspension, and impersonates owners.
 
 ## Auth
 
-The whole app is SUPER_ADMIN-gated at the middleware level (`middleware.ts`).
-That file is currently a **pass-through stub** so preview deploys render — the
-real session check + `SUPER_ADMIN` role assertion is implemented in **T2.12**.
+The whole app is SUPER_ADMIN-gated at the middleware level (`middleware.ts`): it
+verifies the shared `accessToken` cookie with the same HS256 check the API uses
+(Web Crypto, Edge-safe) and asserts the `SUPER_ADMIN` role, redirecting everyone
+else to `/403`. With `JWT_SECRET` unset the gate fails closed. There is no
+sign-in UI here — operators obtain a SUPER_ADMIN session via the shared-domain
+auth cookie. Server Components / Actions re-resolve the session with
+`getServerSession()` (`lib/session.ts`).
+
+## Gyms console (T2.12)
+
+`/gyms` server-renders `GET /admin/gyms` (cross-tenant, SUPER_ADMIN-only) and
+drives three operator actions through Server Actions that forward the operator's
+bearer token to the API:
+
+- **Suspend / reactivate** → `PATCH /admin/gyms/:id/status`. A suspended gym
+  blocks its staff + members from new sessions (login + the next refresh).
+- **Impersonate owner** → `POST /admin/gyms/:id/impersonate` returns a
+  short-lived, gym-scoped owner token; every call is audit-logged.
 
 ## Layout
 
 ```
 app/
-├── layout.tsx      # root layout — html/body shell, global styles
-├── page.tsx        # placeholder homepage
-├── error.tsx       # route-segment error boundary
-├── global-error.tsx# root error boundary
-└── globals.css     # Tailwind directives
-middleware.ts       # SUPER_ADMIN access gate (stub — see T2.12)
-tailwind.config.mjs # extends @fit/config/tailwind preset
-next.config.mjs     # Next.js config (lint handled by turbo)
+├── layout.tsx        # root layout — html/body shell, global styles
+├── page.tsx          # redirects to /gyms
+├── 403/page.tsx      # access-denied page (the only public route)
+├── gyms/
+│   ├── page.tsx       # server-rendered gym roster
+│   ├── gyms-table.tsx # client table — status toggle + impersonate
+│   └── actions.ts     # Server Actions (status update, impersonation)
+├── error.tsx         # route-segment error boundary
+├── global-error.tsx  # root error boundary
+└── globals.css       # Tailwind directives
+lib/
+├── auth-session.ts   # isomorphic session core (verify JWT, SUPER_ADMIN gate)
+├── session.ts        # getServerSession() for RSC / actions
+└── api.ts            # server-side @fit/api client (/admin/gyms)
+middleware.ts         # SUPER_ADMIN access gate
+tailwind.config.mjs   # extends @fit/config/tailwind preset
+next.config.mjs       # Next.js config (lint handled by turbo)
 ```
 
 ## Scripts

@@ -71,6 +71,9 @@ function setup() {
   const rotateRefreshToken = vi.fn<(token: string) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'access2', refreshToken: 'refresh2' }),
   );
+  const userIdForRefreshToken = vi.fn<(token: string) => Promise<string | null>>(() =>
+    Promise.resolve(null),
+  );
   const revokeRefreshToken = vi.fn<(token: string) => Promise<void>>(() => Promise.resolve());
   const revokeAllForUser = vi.fn<(userId: string) => Promise<void>>(() => Promise.resolve());
   const sendVerificationEmail = vi.fn<(...args: unknown[]) => Promise<void>>(() =>
@@ -86,13 +89,23 @@ function setup() {
     Promise.resolve({ appleId: 'ap-1', email: 'a@b.com', emailVerified: true }),
   );
 
+  // Gym-membership lookups backing the suspension gate. Default to "no
+  // memberships" so login/refresh succeed unless a test opts into a membership.
+  const gymMemberFindFirst = vi.fn<(args: unknown) => Promise<{ id: string } | null>>(() =>
+    Promise.resolve(null),
+  );
+
   const prisma = {
-    client: { user: { findUnique, create, update, updateMany } },
+    client: {
+      user: { findUnique, create, update, updateMany },
+      gymMember: { findFirst: gymMemberFindFirst },
+    },
   } as unknown as PrismaService;
   const redis = { client: { set, get, del } } as unknown as RedisService;
   const tokens = {
     issueTokenPair,
     rotateRefreshToken,
+    userIdForRefreshToken,
     revokeRefreshToken,
     revokeAllForUser,
   } as unknown as TokenService;
@@ -112,13 +125,29 @@ function setup() {
     del,
     issueTokenPair,
     rotateRefreshToken,
+    userIdForRefreshToken,
     revokeRefreshToken,
     revokeAllForUser,
     sendVerificationEmail,
     sendPasswordResetEmail,
     verifyIdToken,
     verifyAppleIdToken,
+    gymMemberFindFirst,
   };
+}
+
+/**
+ * Make `gymMemberFindFirst` model a specific membership picture: the first call
+ * (any membership) and the second (a membership in an ACTIVE gym) are answered
+ * in order, mirroring the two `findFirst`s `assertGymAccessNotSuspended` runs.
+ */
+function membership(
+  ctx: ReturnType<typeof setup>,
+  { hasAny, hasActive }: { hasAny: boolean; hasActive: boolean },
+): void {
+  ctx.gymMemberFindFirst
+    .mockResolvedValueOnce(hasAny ? { id: 'm-1' } : null)
+    .mockResolvedValueOnce(hasActive ? { id: 'm-1' } : null);
 }
 
 const VALID_REGISTER = { email: 'a@b.com', password: 'supersecret', name: 'Alice' };
@@ -413,6 +442,39 @@ describe('AuthService', () => {
       });
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
+
+    it('throws 403 GYM_SUSPENDED when every gym the member belongs to is suspended', async () => {
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: false });
+
+      const error = await ctx.service.login(VALID_LOGIN).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('still logs in a member who has at least one active gym', async () => {
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+
+      await expect(ctx.service.login(VALID_LOGIN)).resolves.toMatchObject({
+        accessToken: 'access',
+      });
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1');
+    });
+
+    it('logs in a platform user with no gym memberships (never gated)', async () => {
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: false, hasActive: false });
+
+      await expect(ctx.service.login(VALID_LOGIN)).resolves.toMatchObject({
+        accessToken: 'access',
+      });
+    });
   });
 
   describe('loginWithGoogle', () => {
@@ -616,6 +678,38 @@ describe('AuthService', () => {
 
       expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret');
       expect(pair).toEqual({ accessToken: 'access2', refreshToken: 'refresh2' });
+    });
+
+    it('blocks the rotation when the token owner has only suspended gyms', async () => {
+      ctx.userIdForRefreshToken.mockResolvedValue('user-1');
+      membership(ctx, { hasAny: true, hasActive: false });
+
+      const error = await ctx.service
+        .refresh({ refreshToken: 'rt-secret' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
+      // The presented token is left unspent so a later reactivation can refresh again.
+      expect(ctx.rotateRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('rotates when the token owner still has an active gym', async () => {
+      ctx.userIdForRefreshToken.mockResolvedValue('user-1');
+      membership(ctx, { hasAny: true, hasActive: true });
+
+      await ctx.service.refresh({ refreshToken: 'rt-secret' });
+
+      expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret');
+    });
+
+    it('rotates without a suspension check for an unknown/expired token (lets rotation 401)', async () => {
+      ctx.userIdForRefreshToken.mockResolvedValue(null);
+
+      await ctx.service.refresh({ refreshToken: 'rt-secret' });
+
+      expect(ctx.gymMemberFindFirst).not.toHaveBeenCalled();
+      expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret');
     });
   });
 

@@ -8,6 +8,7 @@ const { mockEnv } = vi.hoisted(() => {
 });
 vi.mock('../config/env', () => ({ env: mockEnv }));
 
+import { Role } from '@fit/db';
 import { TokenService, hashRefreshToken } from './token.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -348,6 +349,98 @@ describe('TokenService', () => {
       expect(revoke.data.revokedAt).toBeInstanceOf(Date);
       // No lookup needed — it targets the user's tokens directly.
       expect(refreshToken.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('signScopedAccessToken', () => {
+    it('stamps role + gymId claims and honours the supplied TTL', () => {
+      const { service } = setup();
+      const iat = nowSeconds();
+
+      const token = service.signScopedAccessToken(
+        { userId: 'owner-1', role: Role.OWNER, gymId: 'gym-1', ttlSeconds: 600 },
+        iat,
+      );
+
+      const [, payload] = token.split('.');
+      const claims = decodeSegment(payload!);
+      expect(claims).toMatchObject({
+        sub: 'owner-1',
+        type: 'access',
+        role: 'OWNER',
+        gymId: 'gym-1',
+        iss: 'fit',
+        iat,
+        exp: iat + 600,
+      });
+    });
+
+    it('produces a token the verifier accepts and the tenant middleware can read', () => {
+      const { service } = setup();
+      const token = service.signScopedAccessToken({
+        userId: 'owner-1',
+        role: Role.OWNER,
+        gymId: 'gym-1',
+        ttlSeconds: 600,
+      });
+
+      const verified = service.verifyAccessToken(token);
+      expect(verified.sub).toBe('owner-1');
+      expect(verified.role).toBe('OWNER');
+      expect(verified.gymId).toBe('gym-1');
+    });
+
+    it('throws 503 when no signing secret is configured', () => {
+      configure({ JWT_SECRET: undefined });
+      const { service } = setup();
+      expect(() =>
+        service.signScopedAccessToken({
+          userId: 'u',
+          role: Role.OWNER,
+          gymId: 'g',
+          ttlSeconds: 600,
+        }),
+      ).toThrow(ServiceUnavailableException);
+    });
+  });
+
+  describe('userIdForRefreshToken', () => {
+    it('returns the owner of a live token', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken({ userId: 'user-7' }));
+
+      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBe('user-7');
+      expect(refreshToken.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tokenHash: hashRefreshToken('rt-secret') } }),
+      );
+    });
+
+    it('returns null for an unknown token', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(null);
+      await expect(service.userIdForRefreshToken('nope')).resolves.toBeNull();
+    });
+
+    it('returns null for a revoked token', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: new Date() }));
+      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBeNull();
+    });
+
+    it('returns null for an expired token', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(
+        storedToken({ expiresAt: new Date(Date.now() - 1_000) }),
+      );
+      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBeNull();
+    });
+
+    it('does not spend or mutate the token', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken());
+      await service.userIdForRefreshToken('rt-secret');
+      expect(refreshToken.updateMany).not.toHaveBeenCalled();
+      expect(refreshToken.create).not.toHaveBeenCalled();
     });
   });
 });
