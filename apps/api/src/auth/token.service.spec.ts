@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ServiceUnavailableException } from '@nestjs/common';
+import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 
 const { mockEnv } = vi.hoisted(() => {
   const mockEnv: Record<string, unknown> = {};
@@ -28,10 +28,38 @@ function decodeSegment(segment: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 
+/** A persisted refresh-token row, as `findUnique` would return it. */
+interface StoredRefreshToken {
+  id: string;
+  userId: string;
+  familyId: string;
+  deviceFingerprint: string | null;
+  revokedAt: Date | null;
+  expiresAt: Date;
+}
+
+function storedToken(overrides: Partial<StoredRefreshToken> = {}): StoredRefreshToken {
+  return {
+    id: 'rt-1',
+    userId: 'user-1',
+    familyId: 'fam-1',
+    deviceFingerprint: 'device-xyz',
+    revokedAt: null,
+    expiresAt: new Date(Date.now() + 60_000),
+    ...overrides,
+  };
+}
+
 function setup() {
   const refreshToken = {
     create: vi.fn<(args: { data: Record<string, unknown> }) => Promise<{ id: string }>>(() =>
-      Promise.resolve({ id: 'rt-1' }),
+      Promise.resolve({ id: 'rt-new' }),
+    ),
+    findUnique: vi.fn<(args: unknown) => Promise<StoredRefreshToken | null>>(() =>
+      Promise.resolve(null),
+    ),
+    updateMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(() =>
+      Promise.resolve({ count: 1 }),
     ),
   };
   const prisma = { client: { refreshToken } } as unknown as PrismaService;
@@ -98,6 +126,124 @@ describe('TokenService', () => {
         ServiceUnavailableException,
       );
       expect(refreshToken.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rotateRefreshToken', () => {
+    it('spends the presented token and mints a successor in the same family', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken());
+
+      const pair = await service.rotateRefreshToken('presented-secret');
+
+      // Looked up by the presented token's hash, never its plaintext.
+      const lookup = refreshToken.findUnique.mock.calls[0]![0] as { where: { tokenHash: string } };
+      expect(lookup.where.tokenHash).toBe(hashRefreshToken('presented-secret'));
+
+      // The presented row was revoked, guarded on it still being unrevoked.
+      const spend = refreshToken.updateMany.mock.calls[0]![0] as {
+        where: { id: string; revokedAt: null };
+        data: { revokedAt: Date };
+      };
+      expect(spend.where).toEqual({ id: 'rt-1', revokedAt: null });
+      expect(spend.data.revokedAt).toBeInstanceOf(Date);
+
+      // A fresh access token plus a successor refresh token in the same family.
+      expect(pair.accessToken.split('.')).toHaveLength(3);
+      const { data } = refreshToken.create.mock.calls[0]![0];
+      expect(data.familyId).toBe('fam-1');
+      expect(data.userId).toBe('user-1');
+      expect(data.tokenHash).toBe(hashRefreshToken(pair.refreshToken));
+    });
+
+    it('rejects (and revokes the whole family) when an already-spent token is replayed', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: new Date() }));
+
+      const error = await service.rotateRefreshToken('reused-secret').catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect((error as UnauthorizedException).getResponse()).toMatchObject({
+        code: 'REFRESH_TOKEN_INVALID',
+      });
+      // The family was revoked and no successor minted.
+      const familyRevoke = refreshToken.updateMany.mock.calls[0]![0] as { where: unknown };
+      expect(familyRevoke.where).toEqual({ familyId: 'fam-1', revokedAt: null });
+      expect(refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('revokes the family when it loses the rotate race (zero rows spent)', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken());
+      refreshToken.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      const error = await service.rotateRefreshToken('raced-secret').catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      // First updateMany was the spend attempt; second is the family revoke.
+      const familyRevoke = refreshToken.updateMany.mock.calls[1]![0] as { where: unknown };
+      expect(familyRevoke.where).toEqual({ familyId: 'fam-1', revokedAt: null });
+      expect(refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown token without touching any family', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(null);
+
+      await expect(service.rotateRefreshToken('nope')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(refreshToken.updateMany).not.toHaveBeenCalled();
+      expect(refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an expired token', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(
+        storedToken({ expiresAt: new Date(Date.now() - 1_000) }),
+      );
+
+      await expect(service.rotateRefreshToken('expired')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(refreshToken.updateMany).not.toHaveBeenCalled();
+      expect(refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('throws ServiceUnavailable when unconfigured, before any DB work', async () => {
+      configure({ JWT_SECRET: undefined });
+      const { service, refreshToken } = setup();
+
+      await expect(service.rotateRefreshToken('x')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      expect(refreshToken.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('revokeRefreshToken', () => {
+    it('revokes the presented token family', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken({ familyId: 'fam-7' }));
+
+      await service.revokeRefreshToken('a-secret');
+
+      const lookup = refreshToken.findUnique.mock.calls[0]![0] as { where: { tokenHash: string } };
+      expect(lookup.where.tokenHash).toBe(hashRefreshToken('a-secret'));
+      const revoke = refreshToken.updateMany.mock.calls[0]![0] as {
+        where: unknown;
+        data: { revokedAt: unknown };
+      };
+      expect(revoke.where).toEqual({ familyId: 'fam-7', revokedAt: null });
+      expect(revoke.data.revokedAt).toBeInstanceOf(Date);
+    });
+
+    it('is a silent no-op for an unknown token', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(null);
+
+      await expect(service.revokeRefreshToken('unknown')).resolves.toBeUndefined();
+      expect(refreshToken.updateMany).not.toHaveBeenCalled();
     });
   });
 });
