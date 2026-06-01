@@ -40,6 +40,9 @@ export const envSchema = z.object({
   JWT_ACCESS_TTL: z.coerce.number().int().positive().default(900),
   // Refresh-token lifetime (seconds). Default 30 days.
   JWT_REFRESH_TTL: z.coerce.number().int().positive().default(2_592_000),
+  // Lifetime (seconds) of a SuperAdmin owner-impersonation token (T2.12). Kept
+  // deliberately short — support access must be time-limited. Default 10 minutes.
+  JWT_IMPERSONATION_TTL: z.coerce.number().int().positive().default(600),
 
   // ── Google OAuth (Sign in with Google) ──
   // Comma-separated list of accepted Google OAuth client IDs — the `aud` claim

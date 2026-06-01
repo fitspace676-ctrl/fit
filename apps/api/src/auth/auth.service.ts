@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { GymMemberStatus, Prisma, Role } from '@fit/db';
+import { GymMemberStatus, GymStatus, Prisma, Role } from '@fit/db';
 import type {
   AppleAuthInput,
   AppleProfile,
@@ -414,6 +414,8 @@ export class AuthService {
       });
     }
 
+    await this.assertGymAccessNotSuspended(user.id);
+
     return this.tokens.issueTokenPair(user.id);
   }
 
@@ -581,9 +583,47 @@ export class AuthService {
    * Exchange a refresh token for a fresh session, rotating the refresh token in
    * the process. Delegates the rotation + reuse-detection rules to
    * {@link TokenService.rotateRefreshToken}.
+   *
+   * Before rotating, the token's owner is gated against gym suspension (T2.12):
+   * a member whose every gym has been suspended cannot mint a new session, so a
+   * suspension takes effect on the member's next refresh (their short-lived
+   * access token expires shortly after). The presented token is left untouched
+   * when blocked — reactivating the gym lets the same token refresh again.
    */
   async refresh(input: RefreshInput): Promise<TokenPair> {
+    const userId = await this.tokens.userIdForRefreshToken(input.refreshToken);
+    if (userId) {
+      await this.assertGymAccessNotSuspended(userId);
+    }
     return this.tokens.rotateRefreshToken(input.refreshToken);
+  }
+
+  /**
+   * Refuse a session to a user whose gym access is wholly suspended.
+   *
+   * The rule: a user with at least one gym membership must have at least one in
+   * a non-suspended gym, or login/refresh is rejected with `403 GYM_SUSPENDED`.
+   * A user with no memberships at all (a platform-level account, e.g. a
+   * SUPER_ADMIN) is never gated — suspension is a tenant-level lock, not an
+   * account one. Access/refresh tokens here carry no gym claim, so "all my gyms
+   * are suspended" is the closest a session-level check can come to "this
+   * tenant is locked"; for a single-gym member — the common case — it is exact.
+   */
+  private async assertGymAccessNotSuspended(userId: string): Promise<void> {
+    const [anyMembership, activeMembership] = await Promise.all([
+      this.prisma.client.gymMember.findFirst({ where: { userId }, select: { id: true } }),
+      this.prisma.client.gymMember.findFirst({
+        where: { userId, gym: { status: GymStatus.ACTIVE } },
+        select: { id: true },
+      }),
+    ]);
+
+    if (anyMembership && !activeMembership) {
+      throw new ForbiddenException({
+        message: 'This gym has been suspended',
+        code: 'GYM_SUSPENDED',
+      });
+    }
   }
 
   /**
