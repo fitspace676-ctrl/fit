@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, createHash, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import type { TokenPair } from '@fit/types';
 import { env } from '../config/env';
@@ -13,12 +13,40 @@ function base64url(input: Buffer | string): string {
     .replace(/=+$/, '');
 }
 
+/** Decode a base64url segment back to its UTF-8 string. */
+function base64urlDecode(segment: string): string {
+  return Buffer.from(segment, 'base64url').toString('utf8');
+}
+
 /** Claims carried by an access token. */
 export interface AccessTokenClaims {
   /** Subject — the user id. */
   sub: string;
   /** Token kind, so a refresh token can never be replayed as an access token. */
   type: 'access';
+}
+
+/**
+ * The verified claim set returned by {@link TokenService.verifyAccessToken}.
+ *
+ * Beyond the API's own `{ sub, type }` access tokens, this also models the
+ * tenant claims the `fit` CLI mints on its test tokens (`role` + `gym`), which
+ * the tenant-scoping middleware reads to establish a request's gym + role. All
+ * tenant fields are optional: a vanilla session token carries none of them.
+ */
+export interface VerifiedAccessClaims {
+  /** Subject — the user id. */
+  sub: string;
+  /** Token kind when present; the CLI omits it, the API stamps `'access'`. */
+  type?: string;
+  /** Role claim, when the token carries one (e.g. CLI test tokens). */
+  role?: string;
+  /** Gym id claim — the tenant this token is scoped to, when present. */
+  gymId?: string;
+  /** Gym slug claim as minted by `fit token --gym <slug>`; alias for `gymId`. */
+  gym?: string;
+  /** Remaining standard claims (`iat`, `exp`, `iss`, …) passed through verbatim. */
+  [claim: string]: unknown;
 }
 
 /**
@@ -61,6 +89,64 @@ export class TokenService {
     const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
     const signature = base64url(createHmac('sha256', secret).update(signingInput).digest());
     return `${signingInput}.${signature}`;
+  }
+
+  /**
+   * Verify an access JWT and return its claims. Checks the HS256 signature
+   * (constant-time) against `JWT_SECRET`, that the token has not expired, and —
+   * when present — that the `type` claim is `access` so an opaque refresh token
+   * can never be smuggled in (they are not JWTs, but a future JWT refresh token
+   * still couldn't be replayed here). Tokens the `fit` CLI mints carry no
+   * `type`, which is accepted. Every failure collapses to a single `401` so the
+   * verifier reveals nothing about *why* a token was rejected.
+   *
+   * Throws {@link ServiceUnavailableException} when no signing secret is
+   * configured, mirroring issuance — a request can't be authenticated against a
+   * secret that doesn't exist.
+   */
+  verifyAccessToken(token: string): VerifiedAccessClaims {
+    const secret = this.requireSecret();
+
+    const parts = token.split('.');
+    const [encodedHeader, encodedPayload, providedSignature] = parts;
+    if (parts.length !== 3 || !encodedHeader || !encodedPayload || !providedSignature) {
+      throw invalidAccessToken();
+    }
+
+    const expected = base64url(
+      createHmac('sha256', secret).update(`${encodedHeader}.${encodedPayload}`).digest(),
+    );
+    // Constant-time compare so a forged token can't be tuned byte-by-byte from
+    // timing. `timingSafeEqual` throws on length mismatch — treat that as a
+    // failed verification rather than a 500.
+    const a = Buffer.from(providedSignature);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw invalidAccessToken();
+    }
+
+    let claims: VerifiedAccessClaims;
+    try {
+      const decoded: unknown = JSON.parse(base64urlDecode(encodedPayload));
+      if (typeof decoded !== 'object' || decoded === null) {
+        throw new Error('payload is not an object');
+      }
+      claims = decoded as VerifiedAccessClaims;
+    } catch {
+      throw invalidAccessToken();
+    }
+
+    if (typeof claims.sub !== 'string' || claims.sub.length === 0) {
+      throw invalidAccessToken();
+    }
+    if (claims.type !== undefined && claims.type !== 'access') {
+      throw invalidAccessToken();
+    }
+    if (typeof claims.exp === 'number' && claims.exp * 1000 <= Date.now()) {
+      throw invalidAccessToken();
+    }
+
+    return claims;
   }
 
   /**
@@ -214,5 +300,17 @@ function invalidRefreshToken(): UnauthorizedException {
   return new UnauthorizedException({
     message: 'Refresh token is invalid or has expired',
     code: 'REFRESH_TOKEN_INVALID',
+  });
+}
+
+/**
+ * The single `401` every access-token failure collapses to — bad signature,
+ * malformed payload, wrong `type`, and expiry are indistinguishable to the
+ * caller so the verifier can't be used to probe a token's exact defect.
+ */
+function invalidAccessToken(): UnauthorizedException {
+  return new UnauthorizedException({
+    message: 'Access token is invalid or has expired',
+    code: 'ACCESS_TOKEN_INVALID',
   });
 }
