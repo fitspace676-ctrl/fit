@@ -1,25 +1,24 @@
 // @fit/mobile — client-side auth helpers (mirror of apps/web/lib/auth.ts).
 //
-// Exchanges a Google ID token for a Fit session via the @fit/api auth endpoint.
-// The session is held in memory for now; durable secure storage (expo-secure-store)
-// is a separate concern that lands when the authenticated app shell is built.
+// Exchanges a provider ID token (or a password-reset token) for a Fit session
+// via the @fit/api auth endpoints and persists the resulting {@link TokenPair}
+// to the keychain through `auth-storage`, so the session survives an app
+// relaunch and is observable via `useAuth`.
+
+import { clearTokens, getSessionSnapshot, saveTokens, type TokenPair } from './auth-storage';
+
+// Re-exported so existing consumers (the sign-in hooks) keep importing the
+// session shape from here; it is defined in `auth-storage`, which owns persistence.
+export type { TokenPair };
 
 /** Base URL of the @fit/api backend (inlined at build via EXPO_PUBLIC_*). */
 const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
-/** A signed session: short-lived access JWT + opaque rotating refresh token. */
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-}
-
-let session: TokenPair | null = null;
-
 /**
  * Exchange a Google ID token (from Google Sign-In) for a Fit session. POSTs to
  * `POST /auth/google`; the API verifies the Google token and issues its own
- * {@link TokenPair}, which is cached in memory before returning. Throws with the
- * API's error message on a non-2xx response.
+ * {@link TokenPair}, which is persisted to the keychain before returning. Throws
+ * with the API's error message on a non-2xx response.
  */
 export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
   const response = await fetch(`${API_URL}/auth/google`, {
@@ -34,15 +33,15 @@ export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
   }
 
   const tokens = (await response.json()) as TokenPair;
-  session = tokens;
+  await saveTokens(tokens);
   return tokens;
 }
 
 /**
  * Exchange an Apple ID token (from `expo-apple-authentication`) for a Fit
  * session. POSTs to `POST /auth/apple`; the API verifies the Apple token and
- * issues its own {@link TokenPair}, cached in memory before returning. `name` is
- * available only on the first authorization (Apple omits it afterwards) and the
+ * issues its own {@link TokenPair}, persisted to the keychain before returning.
+ * `name` is available only on the first authorization (Apple omits it afterwards) and the
  * API uses it solely when creating a new account. Throws with the API's error
  * message on a non-2xx response.
  */
@@ -59,7 +58,7 @@ export async function loginWithApple(idToken: string, name?: string): Promise<To
   }
 
   const tokens = (await response.json()) as TokenPair;
-  session = tokens;
+  await saveTokens(tokens);
   return tokens;
 }
 
@@ -88,9 +87,9 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
 /**
  * Complete a password reset. POSTs the emailed `token` plus the new `password`
  * to `POST /auth/reset-password`; the API sets the new password, revokes all
- * existing sessions, and issues a fresh {@link TokenPair}, cached in memory
- * before returning (the caller walks away signed in). Throws with the API's
- * error message on a non-2xx response.
+ * existing sessions, and issues a fresh {@link TokenPair}, persisted to the
+ * keychain before returning (the caller walks away signed in). Throws with the
+ * API's error message on a non-2xx response.
  */
 export async function resetPassword(token: string, password: string): Promise<TokenPair> {
   const response = await fetch(`${API_URL}/auth/reset-password`, {
@@ -105,16 +104,20 @@ export async function resetPassword(token: string, password: string): Promise<To
   }
 
   const tokens = (await response.json()) as TokenPair;
-  session = tokens;
+  await saveTokens(tokens);
   return tokens;
 }
 
-/** The current in-memory session, or null when signed out. */
+/**
+ * The last-known session without an async keychain read, or null when signed
+ * out / before hydration. Reactive consumers should use the `useAuth` hook
+ * instead; this stays for callers that need a one-off synchronous peek.
+ */
 export function getSession(): TokenPair | null {
-  return session;
+  return getSessionSnapshot();
 }
 
-/** Drop the in-memory session (client-side sign-out). */
+/** Drop the persisted session (client-side sign-out). Prefer `useAuth().logout()`. */
 export function clearSession(): void {
-  session = null;
+  void clearTokens();
 }
