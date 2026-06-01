@@ -17,6 +17,9 @@ function setup() {
   const loginWithGoogle = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'ag', refreshToken: 'rg' }),
   );
+  const loginWithApple = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
+    Promise.resolve({ accessToken: 'aa', refreshToken: 'ra' }),
+  );
   const refresh = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'a2', refreshToken: 'r2' }),
   );
@@ -26,6 +29,7 @@ function setup() {
     verifyEmail,
     login,
     loginWithGoogle,
+    loginWithApple,
     refresh,
     logout,
   } as unknown as AuthService;
@@ -35,6 +39,7 @@ function setup() {
     verifyEmail,
     login,
     loginWithGoogle,
+    loginWithApple,
     refresh,
     logout,
   };
@@ -124,6 +129,26 @@ describe('AuthController', () => {
     it('rejects a missing id token with a 400', async () => {
       await expect(ctx.controller.google({})).rejects.toBeInstanceOf(BadRequestException);
       expect(ctx.loginWithGoogle).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/apple', () => {
+    it('parses the id token (and optional name) and delegates to the service', async () => {
+      const result = await ctx.controller.apple({ idToken: ' apple-id-token ', name: '  Alice  ' });
+
+      expect(result).toEqual({ accessToken: 'aa', refreshToken: 'ra' });
+      expect(ctx.loginWithApple).toHaveBeenCalledWith({ idToken: 'apple-id-token', name: 'Alice' });
+    });
+
+    it('accepts a body without a name', async () => {
+      await ctx.controller.apple({ idToken: 'apple-id-token' });
+
+      expect(ctx.loginWithApple).toHaveBeenCalledWith({ idToken: 'apple-id-token' });
+    });
+
+    it('rejects a missing id token with a 400', async () => {
+      await expect(ctx.controller.apple({})).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.loginWithApple).not.toHaveBeenCalled();
     });
   });
 

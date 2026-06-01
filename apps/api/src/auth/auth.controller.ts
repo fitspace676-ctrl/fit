@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  appleAuthSchema,
   googleAuthSchema,
   loginSchema,
   refreshSchema,
@@ -62,6 +63,14 @@ export class AuthController {
   async google(@Body() body: unknown): Promise<TokenPair> {
     const input = parse(googleAuthSchema, body);
     return this.auth.loginWithGoogle(input);
+  }
+
+  /** `POST /auth/apple` — verify an Apple ID token and issue a session. */
+  @Post('apple')
+  @HttpCode(HttpStatus.OK)
+  async apple(@Body() body: unknown): Promise<TokenPair> {
+    const input = parse(appleAuthSchema, body);
+    return this.auth.loginWithApple(input);
   }
 
   /** `POST /auth/refresh` — rotate the refresh token and issue a fresh session. */

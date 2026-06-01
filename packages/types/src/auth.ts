@@ -88,6 +88,40 @@ export interface GoogleProfile {
   name?: string;
 }
 
+/**
+ * Body for `POST /auth/apple`. Carries the Apple-issued ID token (a signed JWT)
+ * the web / mobile client obtained from Sign in with Apple. The API verifies the
+ * token against Apple's public keys, then issues its own session.
+ *
+ * Apple never includes the user's name in the ID token — it returns it once,
+ * out-of-band, on the first authorization — so the client forwards it in the
+ * optional `name` field, used only when creating a brand-new account.
+ */
+export const appleAuthSchema = z.object({
+  idToken: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(100).optional(),
+});
+
+export type AppleAuthInput = z.infer<typeof appleAuthSchema>;
+
+/**
+ * The verified subset of an Apple ID token's claims the API consumes once the
+ * token's signature, issuer, audience, and expiry have been validated.
+ *
+ * Unlike {@link GoogleProfile} the `email` is optional: Apple only includes it on
+ * the first authorization (and for some private-relay setups), so a returning
+ * sign-in is resolved by `appleId` alone. There is no `name` — Apple never puts
+ * it in the token.
+ */
+export interface AppleProfile {
+  /** Apple's stable, unique account identifier (the `sub` claim). */
+  appleId: string;
+  /** The account's email address, lower-cased — absent on returning sign-ins. */
+  email?: string;
+  /** Whether Apple has verified the address (`email_verified` claim). */
+  emailVerified: boolean;
+}
+
 /** Successful `POST /auth/register` response. */
 export interface RegisterResponse {
   message: string;

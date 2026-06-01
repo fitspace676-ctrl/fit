@@ -49,6 +49,14 @@ export const envSchema = z.object({
   // then returns 503, mirroring how JWT_SECRET / R2 degrade when unconfigured.
   GOOGLE_CLIENT_IDS: z.string().optional(),
 
+  // ── Apple OAuth (Sign in with Apple) ──
+  // Comma-separated list of accepted Apple client IDs — the `aud` claim of an
+  // inbound ID token must match one. Holds the web Services ID and the native
+  // app's bundle ID (Apple mints tokens for the Services ID on the web and for
+  // the bundle ID on iOS). Optional so the API boots without it; POST /auth/apple
+  // then returns 503, mirroring how GOOGLE_CLIENT_IDS / JWT_SECRET degrade.
+  APPLE_CLIENT_IDS: z.string().optional(),
+
   // ── Email verification ──
   // TTL (seconds) of a one-time email-verification token held in Redis.
   // Default 24 hours.
