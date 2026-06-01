@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import type { ForgotPasswordResponse, RegisterResponse, TokenPair } from '@fit/types';
+import type {
+  ForgotPasswordResponse,
+  RegisterGymResponse,
+  RegisterResponse,
+  TokenPair,
+} from '@fit/types';
 import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
 
@@ -32,8 +37,16 @@ function setup() {
     Promise.resolve({ accessToken: 'a2', refreshToken: 'r2' }),
   );
   const logout = vi.fn<(input: unknown) => Promise<void>>(() => Promise.resolve());
+  const registerGym = vi.fn<(input: unknown) => Promise<RegisterGymResponse>>(() =>
+    Promise.resolve({
+      gym: { id: 'gym-1', name: 'Downtown Strength', slug: 'downtown' },
+      owner: { id: 'owner-1', email: 'owner@example.com' },
+      message: 'gym created; owner onboarding email sent',
+    }),
+  );
   const auth = {
     register,
+    registerGym,
     verifyEmail,
     login,
     requestPasswordReset,
@@ -46,6 +59,7 @@ function setup() {
   return {
     controller: new AuthController(auth),
     register,
+    registerGym,
     verifyEmail,
     login,
     requestPasswordReset,
@@ -97,6 +111,46 @@ describe('AuthController', () => {
 
     it('rejects a non-object body', async () => {
       await expect(ctx.controller.register(null)).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('POST /auth/register-gym', () => {
+    it('parses + normalises the body and delegates to the service', async () => {
+      const result = await ctx.controller.registerGym({
+        name: '  Downtown Strength  ',
+        slug: '  Downtown  ',
+        ownerEmail: ' Owner@Example.com ',
+        ownerName: '  Olivia  ',
+        ownerPassword: 'supersecret',
+      });
+
+      expect(result).toMatchObject({ gym: { slug: 'downtown' } });
+      // name/slug trimmed, slug + email lower-cased before the service sees them.
+      expect(ctx.registerGym).toHaveBeenCalledWith({
+        name: 'Downtown Strength',
+        slug: 'downtown',
+        ownerEmail: 'owner@example.com',
+        ownerName: 'Olivia',
+        ownerPassword: 'supersecret',
+      });
+    });
+
+    it('rejects an invalid slug with a 400', async () => {
+      const error = await ctx.controller
+        .registerGym({ name: 'X', slug: 'Bad Slug!', ownerEmail: 'owner@example.com' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      const details = (error as BadRequestException).getResponse() as { message: string[] };
+      expect(details.message.join(' ')).toMatch(/slug/);
+      expect(ctx.registerGym).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing owner email with a 400', async () => {
+      await expect(
+        ctx.controller.registerGym({ name: 'X', slug: 'validslug' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.registerGym).not.toHaveBeenCalled();
     });
   });
 
