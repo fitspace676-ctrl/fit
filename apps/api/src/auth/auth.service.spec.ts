@@ -23,12 +23,13 @@ vi.mock('../config/env', () => ({ env: mockEnv }));
 vi.mock('argon2', () => ({ hash: argonHash, verify: argonVerify, argon2id: 2 }));
 
 import { AuthService, generateVerificationToken } from './auth.service';
-import type { GoogleProfile } from '@fit/types';
+import type { AppleProfile, GoogleProfile } from '@fit/types';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
 import type { TokenService } from './token.service';
 import type { EmailService } from './email.service';
 import type { GoogleOAuthService } from './google-oauth.service';
+import type { AppleOAuthService } from './apple-oauth.service';
 
 /** A user row as `login`'s `findUnique` projection returns it. */
 interface StoredUser {
@@ -69,6 +70,9 @@ function setup() {
   const verifyIdToken = vi.fn<(idToken: string) => Promise<GoogleProfile>>(() =>
     Promise.resolve({ googleId: 'g-1', email: 'a@b.com', emailVerified: true, name: 'Alice' }),
   );
+  const verifyAppleIdToken = vi.fn<(idToken: string) => Promise<AppleProfile>>(() =>
+    Promise.resolve({ appleId: 'ap-1', email: 'a@b.com', emailVerified: true }),
+  );
 
   const prisma = {
     client: { user: { findUnique, create, update, updateMany } },
@@ -81,8 +85,9 @@ function setup() {
   } as unknown as TokenService;
   const email = { sendVerificationEmail } as unknown as EmailService;
   const google = { verifyIdToken } as unknown as GoogleOAuthService;
+  const apple = { verifyIdToken: verifyAppleIdToken } as unknown as AppleOAuthService;
 
-  const service = new AuthService(prisma, redis, tokens, email, google);
+  const service = new AuthService(prisma, redis, tokens, email, google, apple);
   return {
     service,
     findUnique,
@@ -97,6 +102,7 @@ function setup() {
     revokeRefreshToken,
     sendVerificationEmail,
     verifyIdToken,
+    verifyAppleIdToken,
   };
 }
 
@@ -364,6 +370,117 @@ describe('AuthService', () => {
         code: 'GOOGLE_EMAIL_NOT_VERIFIED',
       });
       expect(ctx.findUnique).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('loginWithApple', () => {
+    const VALID = { idToken: 'apple-id-token', name: 'Alice' };
+
+    it('issues a session for an account already linked by appleId — without needing email', async () => {
+      // Returning sign-in: Apple omits email, but the appleId match short-circuits.
+      ctx.verifyAppleIdToken.mockResolvedValue({ appleId: 'ap-9', emailVerified: false });
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' });
+
+      const pair = await ctx.service.loginWithApple({ idToken: 'apple-id-token' });
+
+      expect(ctx.verifyAppleIdToken).toHaveBeenCalledWith('apple-id-token');
+      expect(ctx.findUnique).toHaveBeenCalledTimes(1);
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.update).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-9');
+      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+
+    it('links appleId onto an existing same-email account and stamps verification', async () => {
+      ctx.findUnique
+        .mockResolvedValueOnce(null) // by appleId — miss
+        .mockResolvedValueOnce({ id: 'user-7', emailVerifiedAt: null }); // by email — hit
+
+      const pair = await ctx.service.loginWithApple(VALID);
+
+      const update = ctx.update.mock.calls[0]![0] as {
+        where: { id: string };
+        data: { appleId: string; emailVerifiedAt: unknown };
+      };
+      expect(update.where).toEqual({ id: 'user-7' });
+      expect(update.data.appleId).toBe('ap-1');
+      expect(update.data.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-7');
+      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+
+    it('preserves an already-verified timestamp when linking', async () => {
+      const verifiedAt = new Date('2025-01-01');
+      ctx.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'user-7', emailVerifiedAt: verifiedAt });
+
+      await ctx.service.loginWithApple(VALID);
+
+      const update = ctx.update.mock.calls[0]![0] as { data: { emailVerifiedAt: unknown } };
+      expect(update.data.emailVerifiedAt).toBe(verifiedAt);
+    });
+
+    it('creates a verified OAuth-only account (using the forwarded name) when no user matches', async () => {
+      ctx.findUnique.mockResolvedValue(null); // both lookups miss
+      ctx.create.mockResolvedValue({ id: 'user-new' });
+
+      const pair = await ctx.service.loginWithApple(VALID);
+
+      const created = ctx.create.mock.calls[0]![0] as {
+        data: { email: string; name: string | null; appleId: string; emailVerifiedAt: unknown };
+      };
+      expect(created.data.email).toBe('a@b.com');
+      expect(created.data.appleId).toBe('ap-1');
+      expect(created.data.name).toBe('Alice');
+      expect(created.data.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(ctx.update).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-new');
+      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+
+    it('creates an account with a null name when none is forwarded', async () => {
+      ctx.findUnique.mockResolvedValue(null);
+      ctx.create.mockResolvedValue({ id: 'user-new' });
+
+      await ctx.service.loginWithApple({ idToken: 'apple-id-token' });
+
+      const created = ctx.create.mock.calls[0]![0] as { data: { name: string | null } };
+      expect(created.data.name).toBeNull();
+    });
+
+    it('rejects a new identity when Apple withholds the email', async () => {
+      ctx.verifyAppleIdToken.mockResolvedValue({ appleId: 'ap-1', emailVerified: false });
+      ctx.findUnique.mockResolvedValueOnce(null); // no appleId match
+
+      const error = await ctx.service.loginWithApple(VALID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'APPLE_EMAIL_UNAVAILABLE',
+      });
+      expect(ctx.findUnique).toHaveBeenCalledTimes(1); // email lookup never reached
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('rejects a new identity whose Apple email is unverified', async () => {
+      ctx.verifyAppleIdToken.mockResolvedValue({
+        appleId: 'ap-1',
+        email: 'a@b.com',
+        emailVerified: false,
+      });
+      ctx.findUnique.mockResolvedValueOnce(null); // no appleId match
+
+      const error = await ctx.service.loginWithApple(VALID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'APPLE_EMAIL_NOT_VERIFIED',
+      });
+      expect(ctx.create).not.toHaveBeenCalled();
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
   });

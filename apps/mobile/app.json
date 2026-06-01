@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fit.app"
+      "bundleIdentifier": "com.fit.app",
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "com.fit.app",
@@ -32,6 +33,7 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
+      "expo-apple-authentication",
       [
         "@sentry/react-native/expo",
         { "organization": "forma-0r", "project": "fit-mobile", "url": "https://de.sentry.io/" }

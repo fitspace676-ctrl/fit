@@ -19,6 +19,7 @@
   "dependencies": {
     "@sentry/react-native": "^8.13.0",
     "expo": "^56.0.0",
+    "expo-apple-authentication": "~56.0.4",
     "expo-auth-session": "~56.0.13",
     "expo-constants": "~56.0.16",
     "expo-crypto": "~56.0.4",

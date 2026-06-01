@@ -38,6 +38,31 @@ export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
   return tokens;
 }
 
+/**
+ * Exchange an Apple ID token (from `expo-apple-authentication`) for a Fit
+ * session. POSTs to `POST /auth/apple`; the API verifies the Apple token and
+ * issues its own {@link TokenPair}, cached in memory before returning. `name` is
+ * available only on the first authorization (Apple omits it afterwards) and the
+ * API uses it solely when creating a new account. Throws with the API's error
+ * message on a non-2xx response.
+ */
+export async function loginWithApple(idToken: string, name?: string): Promise<TokenPair> {
+  const response = await fetch(`${API_URL}/auth/apple`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(name ? { idToken, name } : { idToken }),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Apple sign-in failed (${response.status})`);
+  }
+
+  const tokens = (await response.json()) as TokenPair;
+  session = tokens;
+  return tokens;
+}
+
 /** The current in-memory session, or null when signed out. */
 export function getSession(): TokenPair | null {
   return session;

@@ -40,6 +40,31 @@ export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
   return tokens;
 }
 
+/**
+ * Exchange an Apple ID token (from Sign in with Apple JS) for a Fit session.
+ * POSTs to `POST /auth/apple`; the API verifies the Apple token and issues its
+ * own {@link TokenPair}, which we persist before returning. `name` is forwarded
+ * only on the first authorization (Apple omits it from the token and on returning
+ * sign-ins), and the API uses it solely when creating a new account. Throws with
+ * the API's error message on a non-2xx response.
+ */
+export async function loginWithApple(idToken: string, name?: string): Promise<TokenPair> {
+  const response = await fetch(`${API_URL}/auth/apple`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(name ? { idToken, name } : { idToken }),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Apple sign-in failed (${response.status})`);
+  }
+
+  const tokens = (await response.json()) as TokenPair;
+  storeTokens(tokens);
+  return tokens;
+}
+
 /** Persist a session to localStorage (no-op during SSR). */
 export function storeTokens(tokens: TokenPair): void {
   if (typeof window === 'undefined') return;

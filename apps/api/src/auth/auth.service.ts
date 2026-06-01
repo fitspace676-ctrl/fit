@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import type {
+  AppleAuthInput,
+  AppleProfile,
   GoogleAuthInput,
   LoginInput,
   RefreshInput,
@@ -19,6 +21,7 @@ import type {
 import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { AppleOAuthService } from './apple-oauth.service';
 import { EmailService } from './email.service';
 import { GoogleOAuthService } from './google-oauth.service';
 import { TokenService } from './token.service';
@@ -66,6 +69,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly email: EmailService,
     private readonly google: GoogleOAuthService,
+    private readonly apple: AppleOAuthService,
   ) {}
 
   /**
@@ -253,6 +257,90 @@ export class AuthService {
         email: profile.email,
         name: profile.name ?? null,
         googleId: profile.googleId,
+        emailVerifiedAt: new Date(),
+      },
+      select: { id: true },
+    });
+    return created.id;
+  }
+
+  /**
+   * Authenticate a "Sign in with Apple" flow and issue a session. The client
+   * (web or mobile) supplies the Apple-issued ID token; {@link AppleOAuthService}
+   * verifies its signature, issuer, audience, and expiry before we trust any
+   * claim. The verified Apple identity is then resolved to a local user and a
+   * {@link TokenPair} is issued.
+   *
+   * Apple's flow differs from Google's in two ways {@link resolveAppleUser}
+   * handles: the ID token omits the user's name (so the client forwards it in
+   * `input.name`, used only when creating an account), and a returning sign-in
+   * may carry no `email` (so a known user is matched by `appleId` alone — the
+   * email is only required to establish a *new* identity).
+   */
+  async loginWithApple(input: AppleAuthInput): Promise<TokenPair> {
+    const profile = await this.apple.verifyIdToken(input.idToken);
+    const userId = await this.resolveAppleUser(profile, input.name);
+    return this.tokens.issueTokenPair(userId);
+  }
+
+  /**
+   * Resolve a verified {@link AppleProfile} to a local user id, in precedence
+   * order: an account already linked by `appleId`; else — needing the
+   * (Apple-verified) email to establish identity — an existing same-email account
+   * the `appleId` is linked onto (stamping `emailVerifiedAt` if never verified
+   * locally); else a brand-new OAuth-only account (no password hash).
+   *
+   * A returning user is matched by `appleId` before email is even consulted, so
+   * the email Apple omits on later sign-ins is never needed. When no `appleId`
+   * matches we *do* need the email: an Apple account that withholds it (or whose
+   * address Apple reports unverified) can't be linked or created, so it is
+   * rejected rather than allowed to silently claim a local identity.
+   */
+  private async resolveAppleUser(profile: AppleProfile, fallbackName?: string): Promise<string> {
+    const byAppleId = await this.prisma.client.user.findUnique({
+      where: { appleId: profile.appleId },
+      select: { id: true },
+    });
+    if (byAppleId) {
+      return byAppleId.id;
+    }
+
+    // No linked account yet — we need a verified email to link or create one.
+    if (!profile.email) {
+      throw new ForbiddenException({
+        message: 'Apple did not provide an email to establish an account',
+        code: 'APPLE_EMAIL_UNAVAILABLE',
+      });
+    }
+    if (!profile.emailVerified) {
+      throw new ForbiddenException({
+        message: 'Apple account email is not verified',
+        code: 'APPLE_EMAIL_NOT_VERIFIED',
+      });
+    }
+
+    const byEmail = await this.prisma.client.user.findUnique({
+      where: { email: profile.email },
+      select: { id: true, emailVerifiedAt: true },
+    });
+    if (byEmail) {
+      // Link Apple onto the existing account. The email is Apple-verified, so a
+      // previously-unverified local account becomes verified by this sign-in.
+      await this.prisma.client.user.update({
+        where: { id: byEmail.id },
+        data: {
+          appleId: profile.appleId,
+          emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
+        },
+      });
+      return byEmail.id;
+    }
+
+    const created = await this.prisma.client.user.create({
+      data: {
+        email: profile.email,
+        name: fallbackName ?? null,
+        appleId: profile.appleId,
         emailVerifiedAt: new Date(),
       },
       select: { id: true },
