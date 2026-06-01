@@ -2,14 +2,40 @@
   "name": "@fit/mobile",
   "version": "0.0.0",
   "private": true,
+  "main": "expo-router/entry",
   "scripts": {
-    "build": "echo '[@fit/mobile] build: nothing to do yet'",
+    "start": "expo start",
+    "dev": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "build": "echo '[@fit/mobile] build: native artifacts are produced by EAS, not turbo — see eas.json'",
+    "build:preview": "eas build --profile preview --platform all",
+    "prebuild": "expo prebuild",
     "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "test": "echo '[@fit/mobile] test: nothing to do yet'",
-    "type-check": "tsc --noEmit",
-    "lint:fix": "eslint . --fix"
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "^56.0.0",
+    "expo-constants": "~56.0.16",
+    "expo-linking": "~56.0.13",
+    "expo-router": "~56.2.8",
+    "expo-status-bar": "~56.0.4",
+    "expo-system-ui": "~56.0.5",
+    "nativewind": "^4.2.4",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-reanimated": "4.3.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-worklets": "0.8.3",
+    "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "@types/react": "~19.2.14",
+    "babel-preset-expo": "~56.0.0",
+    "typescript": "^5.7.2"
   }
 }
