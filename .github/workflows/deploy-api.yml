@@ -1,0 +1,40 @@
+name: Deploy API
+
+# Auto-deploy the NestJS API to Railway whenever its code (or the things it
+# builds from) lands on main. This is the git-connected deploy path: the API
+# service is updated from the repo on every relevant push, mirroring how Vercel
+# auto-deploys the web apps.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/db/**'
+      - 'packages/env/**'
+      - 'railway.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch: {}
+
+# Avoid overlapping deploys of the same service.
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Railway up (api)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        run: railway up --service api --ci
+        env:
+          # Project-scoped token (production environment) stored as a repo secret.
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
