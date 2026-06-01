@@ -4,7 +4,15 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "generated/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "generated/**"],
+      "passThroughEnv": [
+        "SENTRY_AUTH_TOKEN",
+        "SENTRY_ORG",
+        "SENTRY_PROJECT",
+        "SENTRY_URL",
+        "SENTRY_DSN",
+        "SENTRY_ENVIRONMENT"
+      ]
     },
     "db:generate": {
       "cache": false
