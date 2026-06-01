@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import type { RegisterResponse, TokenPair } from '@fit/types';
+import type { ForgotPasswordResponse, RegisterResponse, TokenPair } from '@fit/types';
 import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
 
@@ -13,6 +13,14 @@ function setup() {
   );
   const login = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'a', refreshToken: 'r' }),
+  );
+  const requestPasswordReset = vi.fn<(input: unknown) => Promise<ForgotPasswordResponse>>(() =>
+    Promise.resolve({
+      message: 'If an account exists for that address, a reset link has been sent',
+    }),
+  );
+  const resetPassword = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
+    Promise.resolve({ accessToken: 'arp', refreshToken: 'rrp' }),
   );
   const loginWithGoogle = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'ag', refreshToken: 'rg' }),
@@ -28,6 +36,8 @@ function setup() {
     register,
     verifyEmail,
     login,
+    requestPasswordReset,
+    resetPassword,
     loginWithGoogle,
     loginWithApple,
     refresh,
@@ -38,6 +48,8 @@ function setup() {
     register,
     verifyEmail,
     login,
+    requestPasswordReset,
+    resetPassword,
     loginWithGoogle,
     loginWithApple,
     refresh,
@@ -115,6 +127,53 @@ describe('AuthController', () => {
         BadRequestException,
       );
       expect(ctx.login).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/forgot-password', () => {
+    it('normalises the email and delegates to the service', async () => {
+      const result = await ctx.controller.forgotPassword({ email: '  A@B.com ' });
+
+      expect(result).toEqual({
+        message: 'If an account exists for that address, a reset link has been sent',
+      });
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' });
+    });
+
+    it('rejects a malformed email with a 400', async () => {
+      await expect(ctx.controller.forgotPassword({ email: 'nope' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(ctx.requestPasswordReset).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/reset-password', () => {
+    it('parses the token + password and delegates to the service', async () => {
+      const result = await ctx.controller.resetPassword({
+        token: ' reset-tok ',
+        password: 'brand-new-secret',
+      });
+
+      expect(result).toEqual({ accessToken: 'arp', refreshToken: 'rrp' });
+      expect(ctx.resetPassword).toHaveBeenCalledWith({
+        token: 'reset-tok',
+        password: 'brand-new-secret',
+      });
+    });
+
+    it('rejects a too-short password with a 400', async () => {
+      await expect(
+        ctx.controller.resetPassword({ token: 'reset-tok', password: 'short' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.resetPassword).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing token with a 400', async () => {
+      await expect(
+        ctx.controller.resetPassword({ password: 'brand-new-secret' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.resetPassword).not.toHaveBeenCalled();
     });
   });
 

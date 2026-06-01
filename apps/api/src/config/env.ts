@@ -65,6 +65,15 @@ export const envSchema = z.object({
   // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/auth/verify`).
   EMAIL_VERIFICATION_URL: z.string().url().optional(),
 
+  // ── Password reset ──
+  // TTL (seconds) of a one-time password-reset token held in Redis. Shorter than
+  // email verification by design — a reset link grants account takeover, so it
+  // should live no longer than necessary. Default 1 hour.
+  PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(3_600),
+  // Base URL the reset token is appended to in the email deep link
+  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/auth/reset-password`).
+  PASSWORD_RESET_URL: z.string().url().optional(),
+
   // ── Email delivery (Resend — optional) ──
   // Unset disables outbound mail: registration still succeeds and the
   // verification link is logged instead of sent, so the API works in CI / local

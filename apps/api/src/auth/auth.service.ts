@@ -11,11 +11,14 @@ import * as argon2 from 'argon2';
 import type {
   AppleAuthInput,
   AppleProfile,
+  ForgotPasswordInput,
+  ForgotPasswordResponse,
   GoogleAuthInput,
   LoginInput,
   RefreshInput,
   RegisterInput,
   RegisterResponse,
+  ResetPasswordInput,
   TokenPair,
 } from '@fit/types';
 import { env } from '../config/env';
@@ -28,6 +31,9 @@ import { TokenService } from './token.service';
 
 /** Redis key namespace for one-time email-verification tokens. */
 const VERIFY_KEY_PREFIX = 'email-verify:';
+
+/** Redis key namespace for one-time password-reset tokens. */
+const RESET_KEY_PREFIX = 'password-reset:';
 
 /**
  * A valid argon2id digest of a throwaway string. `login` verifies the supplied
@@ -42,6 +48,11 @@ const DUMMY_PASSWORD_HASH =
 /** Build the Redis key holding the user id a verification token resolves to. */
 function verifyKey(token: string): string {
   return `${VERIFY_KEY_PREFIX}${token}`;
+}
+
+/** Build the Redis key holding the user id a reset token resolves to. */
+function resetKey(token: string): string {
+  return `${RESET_KEY_PREFIX}${token}`;
 }
 
 /**
@@ -147,6 +158,91 @@ export class AuthService {
       data: { emailVerifiedAt: new Date() },
     });
 
+    return this.tokens.issueTokenPair(userId);
+  }
+
+  /**
+   * Begin a password reset: mint a single-use token in Redis and email the user
+   * a reset deep link. The response is deliberately generic and identical
+   * whether or not the address matches an account, so the endpoint can't be used
+   * to enumerate registered emails. Delivery is best-effort for the same reason
+   * registration's is — the token already exists, so a transient mail failure is
+   * logged rather than surfaced (which would itself leak that the email exists).
+   */
+  async requestPasswordReset(input: ForgotPasswordInput): Promise<ForgotPasswordResponse> {
+    const user = await this.prisma.client.user.findUnique({
+      where: { email: input.email },
+      select: { id: true, name: true },
+    });
+
+    if (user) {
+      const token = generateVerificationToken();
+      await this.redis.client.set(resetKey(token), user.id, 'EX', env.PASSWORD_RESET_TTL);
+
+      try {
+        await this.email.sendPasswordResetEmail(input.email, token, user.name ?? undefined);
+      } catch (error) {
+        this.logger.error(
+          `Failed to send password-reset email to ${input.email}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
+    return { message: 'If an account exists for that address, a reset link has been sent' };
+  }
+
+  /**
+   * Complete a password reset: resolve the single-use token to a user, set the
+   * new argon2 password hash, delete the token (single-use), and issue a fresh
+   * session. Throws `400 TOKEN_INVALID_OR_EXPIRED` for an unknown / expired token.
+   *
+   * Two security properties beyond simply rewriting the hash: completing a reset
+   * proves control of the inbox, so an unverified account is stamped verified
+   * here (a user who reset but still couldn't log in would be a dead end); and
+   * every existing session is revoked before the new one is issued, so a reset
+   * cuts any session an attacker may hold — the whole point of resetting a
+   * possibly-compromised password.
+   */
+  async resetPassword(input: ResetPasswordInput): Promise<TokenPair> {
+    const key = resetKey(input.token);
+    const userId = await this.redis.client.get(key);
+    if (!userId) {
+      throw new BadRequestException({
+        message: 'Reset token is invalid or has expired',
+        code: 'TOKEN_INVALID_OR_EXPIRED',
+      });
+    }
+
+    // Delete first so a token can't be redeemed twice even if two requests race
+    // (DEL returns the number removed: 0 means another request already won).
+    const removed = await this.redis.client.del(key);
+    if (removed === 0) {
+      throw new BadRequestException({
+        message: 'Reset token is invalid or has expired',
+        code: 'TOKEN_INVALID_OR_EXPIRED',
+      });
+    }
+
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+
+    // Set the new hash, and stamp verification only when it was never set — a
+    // completed reset proves inbox control just as email verification does, but
+    // re-stamping an already-verified account would needlessly move the timestamp.
+    await this.prisma.client.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+    await this.prisma.client.user.updateMany({
+      where: { id: userId, emailVerifiedAt: null },
+      data: { emailVerifiedAt: new Date() },
+    });
+
+    // Revoke every existing session before minting the new one, so the reset
+    // logs out all other devices (including an attacker's) but the caller — who
+    // just proved inbox control — walks away signed in.
+    await this.tokens.revokeAllForUser(userId);
     return this.tokens.issueTokenPair(userId);
   }
 

@@ -246,4 +246,21 @@ describe('TokenService', () => {
       expect(refreshToken.updateMany).not.toHaveBeenCalled();
     });
   });
+
+  describe('revokeAllForUser', () => {
+    it('revokes every still-live token the user holds, across all families', async () => {
+      const { service, refreshToken } = setup();
+
+      await service.revokeAllForUser('user-1');
+
+      const revoke = refreshToken.updateMany.mock.calls[0]![0] as {
+        where: unknown;
+        data: { revokedAt: unknown };
+      };
+      expect(revoke.where).toEqual({ userId: 'user-1', revokedAt: null });
+      expect(revoke.data.revokedAt).toBeInstanceOf(Date);
+      // No lookup needed — it targets the user's tokens directly.
+      expect(refreshToken.findUnique).not.toHaveBeenCalled();
+    });
+  });
 });
