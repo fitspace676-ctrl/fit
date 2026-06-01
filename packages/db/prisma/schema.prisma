@@ -1,0 +1,53 @@
+// Prisma schema for @fit/db.
+//
+// This is the initial skeleton (T1.3): only the Gym and User models exist so
+// the rest of the platform has a stable foundation to build migrations on top
+// of. Domain models (workouts, memberships, billing, …) land in later tasks.
+//
+// Connection strings come from the environment (see packages/db/.env.example):
+//   DATABASE_URL — Postgres (Railway in prod, docker-compose for local dev)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A physical gym / tenant. The top-level entity most other records hang off.
+model Gym {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  @@map("gyms")
+}
+
+/// An application user. Optionally attached to a Gym; role gates permissions.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      UserRole @default(MEMBER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gym   Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
+  gymId String?
+
+  @@index([gymId])
+  @@map("users")
+}
+
+enum UserRole {
+  OWNER
+  TRAINER
+  MEMBER
+}
