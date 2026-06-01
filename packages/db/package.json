@@ -5,13 +5,24 @@
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {
-    "build": "echo '[@fit/db] build: nothing to do yet'",
+    "build": "prisma generate",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:status": "prisma migrate status",
     "lint": "eslint . --max-warnings 0",
     "test": "echo '[@fit/db] test: nothing to do yet'",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
   },
+  "dependencies": {
+    "@prisma/client": "^6.2.1"
+  },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "@types/node": "^22.10.0",
+    "prisma": "^6.2.1"
   }
 }

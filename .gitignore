@@ -32,6 +32,7 @@ next-env.d.ts
 
 # Prisma
 packages/db/prisma/*.db
+packages/db/generated/
 
 # Logs
 *.log

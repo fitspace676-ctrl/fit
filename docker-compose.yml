@@ -1,0 +1,51 @@
+# Local offline development stack for Fit.
+#
+# Mirrors the managed Postgres + Redis provisioned on Railway so the platform
+# can be developed and tested without network access to Railway.
+#
+#   docker compose up -d          # start Postgres + Redis in the background
+#   docker compose down           # stop (keeps data volumes)
+#   docker compose down -v        # stop and wipe data
+#
+# After the containers are healthy, point packages/db/.env at them:
+#   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/fit?schema=public"
+#   REDIS_URL="redis://localhost:6379"
+# then run `pnpm db:migrate` from the repo root.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fit
+    ports:
+      - '5432:5432'
+    volumes:
+      - fit-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d fit']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fit-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - fit-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  fit-postgres-data:
+  fit-redis-data:

@@ -48,6 +48,51 @@ fit/
 
 > The `apps/` and `packages/` directories currently hold placeholder stubs; each is fleshed out in a later task.
 
+## Database
+
+Persistence is Postgres (via [Prisma](https://www.prisma.io/) in `@fit/db`) plus
+Redis for caching/queues. Production runs both on [Railway](https://railway.app);
+local development can use either Railway or the bundled Docker stack.
+
+### Configure connection strings
+
+```bash
+cp .env.example .env.local                 # repo-level shared infra vars
+cp packages/db/.env.example packages/db/.env  # Prisma reads DATABASE_URL from here
+```
+
+Fill in `DATABASE_URL` and `REDIS_URL`:
+
+- **Railway** — in the Railway dashboard open the Postgres/Redis service →
+  **Variables** and copy the **public** proxy URLs (`DATABASE_PUBLIC_URL`,
+  `REDIS_PUBLIC_URL`). The public URLs are required when connecting from outside
+  Railway's private network (e.g. your laptop or CI).
+- **Local Docker** — use the defaults already present in the example files.
+
+`.env` / `.env.*` are gitignored; only the `.env.example` templates are committed.
+
+### Local offline dev (Docker fallback)
+
+When you can't reach Railway, run Postgres + Redis locally:
+
+```bash
+docker compose up -d          # start fit-postgres (:5432) and fit-redis (:6379)
+pnpm db:migrate               # apply migrations to the local database
+docker compose down           # stop (add -v to wipe data volumes)
+```
+
+### Database scripts
+
+Run from the repo root:
+
+| Command               | Description                                                    |
+| --------------------- | -------------------------------------------------------------- |
+| `pnpm db:generate`    | Generate the typed Prisma client into `packages/db/generated/` |
+| `pnpm db:migrate`     | Apply pending migrations (`prisma migrate deploy`)             |
+| `pnpm db:migrate:dev` | Create + apply a new migration in development                  |
+| `pnpm db:studio`      | Open Prisma Studio against the configured database             |
+| `pnpm db:status`      | Show migration status (`prisma migrate status`)                |
+
 ## Scripts
 
 Run from the repo root — Turbo fans each task out across all workspaces:

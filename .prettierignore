@@ -11,6 +11,9 @@ out/
 .expo/
 coverage/
 
+# Prisma generated client
+packages/db/generated/
+
 # Large planning document — kept verbatim, not Prettier-managed
 PROJECT_PLAN.md
 
