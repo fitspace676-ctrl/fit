@@ -26,6 +26,7 @@ vi.mock('../config/env', () => ({ env: mockEnv }));
 vi.mock('argon2', () => ({ hash: argonHash, verify: argonVerify, argon2id: 2 }));
 
 import { AuthService, generateVerificationToken } from './auth.service';
+import { Prisma } from '@fit/db';
 import type { AppleProfile, GoogleProfile } from '@fit/types';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
@@ -635,5 +636,219 @@ describe('generateVerificationToken', () => {
 
   it('produces a distinct token each call', () => {
     expect(generateVerificationToken()).not.toBe(generateVerificationToken());
+  });
+});
+
+/**
+ * `registerGym` touches more models than the shared `setup()` mocks (gym +
+ * gymMember inside a `$transaction`), so it gets its own self-contained fakes.
+ */
+function setupGym() {
+  const gymFindUnique = vi.fn<(args: unknown) => Promise<{ id: string } | null>>(() =>
+    Promise.resolve(null),
+  );
+  const userFindUnique = vi.fn<
+    (
+      args: unknown,
+    ) => Promise<{ id: string; emailVerifiedAt: Date | null; name: string | null } | null>
+  >(() => Promise.resolve(null));
+  const userCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'owner-1' }),
+  );
+  const gymCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'gym-1' }),
+  );
+  const gymMemberCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'member-1' }),
+  );
+
+  // The transaction runs its callback against a `tx` exposing the write fakes.
+  const tx = {
+    user: { create: userCreate },
+    gym: { create: gymCreate },
+    gymMember: { create: gymMemberCreate },
+  };
+  type Tx = typeof tx;
+  const $transaction = vi.fn(<T>(fn: (client: Tx) => Promise<T>) => fn(tx));
+
+  const set = vi.fn<(key: string, value: string, ex: string, ttl: number) => Promise<string>>(() =>
+    Promise.resolve('OK'),
+  );
+  const issueTokenPair = vi.fn();
+  const sendOwnerOnboardingEmail = vi.fn<(...args: unknown[]) => Promise<void>>(() =>
+    Promise.resolve(),
+  );
+
+  const prisma = {
+    client: {
+      gym: { findUnique: gymFindUnique, create: gymCreate },
+      user: { findUnique: userFindUnique, create: userCreate },
+      gymMember: { create: gymMemberCreate },
+      $transaction,
+    },
+  } as unknown as PrismaService;
+  const redis = { client: { set } } as unknown as RedisService;
+  const tokens = { issueTokenPair } as unknown as TokenService;
+  const email = { sendOwnerOnboardingEmail } as unknown as EmailService;
+  const google = {} as unknown as GoogleOAuthService;
+  const apple = {} as unknown as AppleOAuthService;
+
+  const service = new AuthService(prisma, redis, tokens, email, google, apple);
+  return {
+    service,
+    gymFindUnique,
+    userFindUnique,
+    userCreate,
+    gymCreate,
+    gymMemberCreate,
+    $transaction,
+    set,
+    sendOwnerOnboardingEmail,
+  };
+}
+
+const VALID_GYM = {
+  name: 'Downtown Strength',
+  slug: 'downtown',
+  ownerEmail: 'owner@example.com',
+  ownerName: 'Olivia Owner',
+  ownerPassword: 'supersecret',
+};
+
+describe('AuthService.registerGym', () => {
+  let ctx: ReturnType<typeof setupGym>;
+
+  beforeEach(() => {
+    ctx = setupGym();
+    argonHash.mockResolvedValue('argon2-hash');
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('creates a new owner, gym, and OWNER membership, then sends the onboarding email', async () => {
+    const result = await ctx.service.registerGym(VALID_GYM);
+
+    // Owner created with the hashed password and supplied name.
+    expect(argonHash).toHaveBeenCalledWith('supersecret', expect.objectContaining({ type: 2 }));
+    expect(ctx.userCreate).toHaveBeenCalledWith({
+      data: { email: 'owner@example.com', name: 'Olivia Owner', passwordHash: 'argon2-hash' },
+      select: { id: true },
+    });
+    expect(ctx.gymCreate).toHaveBeenCalledWith({
+      data: { name: 'Downtown Strength', slug: 'downtown', ownerId: 'owner-1' },
+      select: { id: true },
+    });
+    expect(ctx.gymMemberCreate).toHaveBeenCalledWith({
+      data: { userId: 'owner-1', gymId: 'gym-1', role: 'OWNER', status: 'ACTIVE' },
+    });
+
+    // Onboarding token stored under the same email-verify namespace verifyEmail consumes.
+    const [key, value, ex, ttl] = ctx.set.mock.calls[0]!;
+    expect(key).toMatch(/^email-verify:.+/);
+    expect(value).toBe('owner-1');
+    expect(ex).toBe('EX');
+    expect(ttl).toBe(86_400);
+
+    const token = key.slice('email-verify:'.length);
+    expect(ctx.sendOwnerOnboardingEmail).toHaveBeenCalledWith(
+      'owner@example.com',
+      token,
+      'Downtown Strength',
+      'Olivia Owner',
+    );
+
+    expect(result).toEqual({
+      gym: { id: 'gym-1', name: 'Downtown Strength', slug: 'downtown' },
+      owner: { id: 'owner-1', email: 'owner@example.com' },
+      message: 'gym created; owner onboarding email sent',
+    });
+  });
+
+  it('rejects a duplicate slug with 409 SLUG_TAKEN, without provisioning anything', async () => {
+    ctx.gymFindUnique.mockResolvedValue({ id: 'existing-gym' });
+
+    const error = await ctx.service.registerGym(VALID_GYM).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'SLUG_TAKEN' });
+    expect(ctx.$transaction).not.toHaveBeenCalled();
+    expect(ctx.userCreate).not.toHaveBeenCalled();
+    expect(ctx.set).not.toHaveBeenCalled();
+  });
+
+  it('reuses a verified existing owner without re-hashing or emailing', async () => {
+    ctx.userFindUnique.mockResolvedValue({
+      id: 'existing-owner',
+      emailVerifiedAt: new Date(),
+      name: 'Existing',
+    });
+
+    const result = await ctx.service.registerGym(VALID_GYM);
+
+    expect(argonHash).not.toHaveBeenCalled();
+    expect(ctx.userCreate).not.toHaveBeenCalled();
+    expect(ctx.gymCreate).toHaveBeenCalledWith({
+      data: { name: 'Downtown Strength', slug: 'downtown', ownerId: 'existing-owner' },
+      select: { id: true },
+    });
+    expect(ctx.set).not.toHaveBeenCalled();
+    expect(ctx.sendOwnerOnboardingEmail).not.toHaveBeenCalled();
+    expect(result.owner.id).toBe('existing-owner');
+    expect(result.message).toBe('gym created; owner can sign in with their existing account');
+  });
+
+  it('onboards an existing but unverified owner via email (no new account)', async () => {
+    ctx.userFindUnique.mockResolvedValue({
+      id: 'existing-owner',
+      emailVerifiedAt: null,
+      name: 'Existing',
+    });
+
+    const result = await ctx.service.registerGym(VALID_GYM);
+
+    expect(ctx.userCreate).not.toHaveBeenCalled();
+    expect(ctx.set).toHaveBeenCalled();
+    expect(ctx.sendOwnerOnboardingEmail).toHaveBeenCalledWith(
+      'owner@example.com',
+      expect.any(String),
+      'Downtown Strength',
+      'Existing',
+    );
+    expect(result.message).toBe('gym created; owner onboarding email sent');
+  });
+
+  it('creates the owner without a password hash when none is supplied', async () => {
+    const { ownerPassword: _omit, ...noPassword } = VALID_GYM;
+
+    await ctx.service.registerGym(noPassword);
+
+    expect(argonHash).not.toHaveBeenCalled();
+    expect(ctx.userCreate).toHaveBeenCalledWith({
+      data: { email: 'owner@example.com', name: 'Olivia Owner', passwordHash: null },
+      select: { id: true },
+    });
+  });
+
+  it('still resolves when the onboarding email fails to send', async () => {
+    ctx.sendOwnerOnboardingEmail.mockRejectedValue(new Error('resend down'));
+
+    const result = await ctx.service.registerGym(VALID_GYM);
+
+    expect(ctx.gymCreate).toHaveBeenCalled();
+    expect(ctx.set).toHaveBeenCalled();
+    expect(result.message).toBe('gym created; owner onboarding email sent');
+  });
+
+  it('maps a P2002 slug race to 409 SLUG_TAKEN', async () => {
+    const conflict = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+    ctx.$transaction.mockRejectedValue(conflict);
+
+    const error = await ctx.service.registerGym(VALID_GYM).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'SLUG_TAKEN' });
   });
 });

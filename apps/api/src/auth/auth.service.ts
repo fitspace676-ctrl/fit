@@ -8,6 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import { GymMemberStatus, Prisma, Role } from '@fit/db';
 import type {
   AppleAuthInput,
   AppleProfile,
@@ -16,6 +17,8 @@ import type {
   GoogleAuthInput,
   LoginInput,
   RefreshInput,
+  RegisterGymInput,
+  RegisterGymResponse,
   RegisterInput,
   RegisterResponse,
   ResetPasswordInput,
@@ -123,6 +126,136 @@ export class AuthService {
     }
 
     return { message: 'verification email sent' };
+  }
+
+  /**
+   * Provision a new gym tenant and onboard its first OWNER
+   * (`POST /auth/register-gym`).
+   *
+   * The gym (the tenant root), the owner {@link User}, and the OWNER
+   * {@link GymMember} are created together in a transaction so a half-provisioned
+   * tenant can never exist. The owner is resolved by email: an existing account
+   * is reused (we never touch its credentials — overwriting them would be an
+   * account-takeover vector), otherwise a new account is created with the
+   * optional supplied name/password. A slug already in use is rejected with
+   * `409 SLUG_TAKEN`; the pre-check is backed by the DB unique constraint so a
+   * race still collapses to the same error rather than a 500.
+   *
+   * This runs on the **unscoped** {@link PrismaService}: provisioning a tenant
+   * inherently precedes any tenant context (the route is excluded from
+   * `TenantMiddleware`), and `GymMember` is a tenant-scoped model that would fail
+   * closed under the tenant Prisma extension with no gym in scope.
+   *
+   * No session is issued. A not-yet-verified owner receives an onboarding email
+   * whose link runs the standard {@link verifyEmail} flow — verifying the address
+   * and issuing the first session — mirroring how plain registration defers the
+   * session to verification. An already-verified existing owner needs no email.
+   */
+  async registerGym(input: RegisterGymInput): Promise<RegisterGymResponse> {
+    const existingGym = await this.prisma.client.gym.findUnique({
+      where: { slug: input.slug },
+      select: { id: true },
+    });
+    if (existingGym) {
+      throw new ConflictException({ message: 'Gym slug is already taken', code: 'SLUG_TAKEN' });
+    }
+
+    const existingOwner = await this.prisma.client.user.findUnique({
+      where: { email: input.ownerEmail },
+      select: { id: true, emailVerifiedAt: true, name: true },
+    });
+
+    // Hash outside the transaction — argon2 is deliberately slow and there's no
+    // need to hold a DB transaction open across it.
+    const passwordHash =
+      !existingOwner && input.ownerPassword
+        ? await argon2.hash(input.ownerPassword, { type: argon2.argon2id })
+        : undefined;
+
+    let provisioned: { gymId: string; ownerId: string; ownerVerified: boolean };
+    try {
+      provisioned = await this.prisma.client.$transaction(async (tx) => {
+        let ownerId: string;
+        let ownerVerified: boolean;
+        if (existingOwner) {
+          ownerId = existingOwner.id;
+          ownerVerified = existingOwner.emailVerifiedAt !== null;
+        } else {
+          const created = await tx.user.create({
+            data: {
+              email: input.ownerEmail,
+              name: input.ownerName ?? null,
+              passwordHash: passwordHash ?? null,
+            },
+            select: { id: true },
+          });
+          ownerId = created.id;
+          ownerVerified = false;
+        }
+
+        const gym = await tx.gym.create({
+          data: { name: input.name, slug: input.slug, ownerId },
+          select: { id: true },
+        });
+
+        await tx.gymMember.create({
+          data: {
+            userId: ownerId,
+            gymId: gym.id,
+            role: Role.OWNER,
+            status: GymMemberStatus.ACTIVE,
+          },
+        });
+
+        return { gymId: gym.id, ownerId, ownerVerified };
+      });
+    } catch (error) {
+      // Lost the slug race against a concurrent provision — same outcome as the
+      // pre-check, surfaced identically rather than as an opaque 500.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException({ message: 'Gym slug is already taken', code: 'SLUG_TAKEN' });
+      }
+      throw error;
+    }
+
+    let message: string;
+    if (provisioned.ownerVerified) {
+      // The owner already proved inbox control on a prior account — nothing to
+      // onboard, they can sign in immediately.
+      message = 'gym created; owner can sign in with their existing account';
+    } else {
+      const token = generateVerificationToken();
+      await this.redis.client.set(
+        verifyKey(token),
+        provisioned.ownerId,
+        'EX',
+        env.EMAIL_VERIFICATION_TTL,
+      );
+
+      // Best-effort, exactly like registration: the gym + owner already exist, so
+      // a transient mail failure must not 500 a request that already succeeded.
+      try {
+        await this.email.sendOwnerOnboardingEmail(
+          input.ownerEmail,
+          token,
+          input.name,
+          existingOwner?.name ?? input.ownerName,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to send owner onboarding email to ${input.ownerEmail}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      message = 'gym created; owner onboarding email sent';
+    }
+
+    return {
+      gym: { id: provisioned.gymId, name: input.name, slug: input.slug },
+      owner: { id: provisioned.ownerId, email: input.ownerEmail },
+      message,
+    };
   }
 
   /**

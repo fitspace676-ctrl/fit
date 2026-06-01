@@ -15,10 +15,12 @@ import {
   googleAuthSchema,
   loginSchema,
   refreshSchema,
+  registerGymSchema,
   registerSchema,
   resetPasswordSchema,
   verifyEmailSchema,
   type ForgotPasswordResponse,
+  type RegisterGymResponse,
   type RegisterResponse,
   type TokenPair,
 } from '@fit/types';
@@ -42,6 +44,14 @@ export class AuthController {
   async register(@Body() body: unknown): Promise<RegisterResponse> {
     const input = parse(registerSchema, body);
     return this.auth.register(input);
+  }
+
+  /** `POST /auth/register-gym` — provision a gym tenant and onboard its owner. */
+  @Post('register-gym')
+  @HttpCode(HttpStatus.CREATED)
+  async registerGym(@Body() body: unknown): Promise<RegisterGymResponse> {
+    const input = parse(registerGymSchema, body);
+    return this.auth.registerGym(input);
   }
 
   /** `GET /auth/verify?token=…` — verify the email and issue the first session. */

@@ -3,6 +3,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
+import { GymsModule } from './gyms/gyms.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -26,7 +27,10 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link StorageModule} exposes the Cloudflare R2 signed-upload service and
  *   serves `POST /uploads`.
  * - {@link AuthModule} serves email/password registration + verification
- *   (`POST /auth/register`, `GET /auth/verify`).
+ *   (`POST /auth/register`, `GET /auth/verify`) and gym provisioning +
+ *   owner onboarding (`POST /auth/register-gym`).
+ * - {@link GymsModule} serves the SUPER_ADMIN-only platform gym roster
+ *   (`GET /gyms`).
  * - {@link TenantModule} provides tenant scoping (context, guard, scoped Prisma);
  *   {@link TenantMiddleware} establishes the request's tenant for every route
  *   except the public ones (`/auth/*`, `/health`, `/uploads`).
@@ -42,6 +46,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     HealthModule,
     StorageModule,
     AuthModule,
+    GymsModule,
     TenantModule,
     RbacModule,
   ],

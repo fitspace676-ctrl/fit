@@ -114,6 +114,61 @@ export class EmailService {
 
     this.logger.debug(`Password-reset email dispatched to ${to}`);
   }
+
+  /**
+   * Send the gym-owner onboarding email after a tenant is provisioned
+   * (`POST /auth/register-gym`). Carries the same single-use verification deep
+   * link plain registration uses — following it verifies the owner's address and
+   * issues their first session — but the copy is framed around the gym they now
+   * own rather than a bare account confirmation. Resolves once the mail is
+   * accepted by Resend (or immediately, having logged the link, when Resend is
+   * unconfigured); rejects when Resend returns an error.
+   */
+  async sendOwnerOnboardingEmail(
+    to: string,
+    token: string,
+    gymName: string,
+    name?: string,
+  ): Promise<void> {
+    const url = buildVerificationUrl(token);
+    const greeting = name ? `Hi ${name},` : 'Hi,';
+
+    if (!this.isConfigured) {
+      this.logger.warn(
+        `Resend not configured (RESEND_API_KEY unset) — owner onboarding link for ${to}: ${url}`,
+      );
+      return;
+    }
+
+    const html =
+      `<p>${greeting}</p>` +
+      `<p><strong>${gymName}</strong> is ready on Fit. Confirm your email to finish setting up your gym and sign in:</p>` +
+      `<p><a href="${url}">Verify your email &amp; get started</a></p>` +
+      `<p>This link expires in 24 hours. If you didn't create this gym, you can ignore this email.</p>`;
+    const text = `${greeting}\n\n${gymName} is ready on Fit. Confirm your email to finish setting up your gym and sign in:\n${url}\n\nThis link expires in 24 hours. If you didn't create this gym, you can ignore this email.`;
+
+    const response = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM,
+        to: [to],
+        subject: `Welcome to Fit — finish setting up ${gymName}`,
+        html,
+        text,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+    }
+
+    this.logger.debug(`Owner onboarding email dispatched to ${to}`);
+  }
 }
 
 /**

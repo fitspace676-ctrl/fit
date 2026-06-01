@@ -123,6 +123,62 @@ describe('EmailService.sendPasswordResetEmail', () => {
   });
 });
 
+describe('EmailService.sendOwnerOnboardingEmail', () => {
+  let fetchMock: ReturnType<typeof vi.fn<(url: string, init: RequestInit) => Promise<Response>>>;
+
+  beforeEach(() => {
+    configure();
+    fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response('{}', { status: 200 })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('does not send (only logs) when RESEND_API_KEY is unset', async () => {
+    const service = new EmailService();
+    expect(service.isConfigured).toBe(false);
+
+    await service.sendOwnerOnboardingEmail('owner@example.com', 'tok123', 'Downtown', 'Olivia');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('POSTs to Resend with a gym-framed subject, recipient, and the verification link', async () => {
+    configure({ RESEND_API_KEY: 're_123', WEB_URL: 'https://app.fit' });
+    const service = new EmailService();
+
+    await service.sendOwnerOnboardingEmail('owner@example.com', 'tok123', 'Downtown', 'Olivia');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.resend.com/emails');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_123');
+
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.to).toEqual(['owner@example.com']);
+    expect(body.subject).toBe('Welcome to Fit — finish setting up Downtown');
+    // Reuses the same verify deep link plain verification uses.
+    expect(String(body.html)).toContain('https://app.fit/auth/verify?token=tok123');
+    expect(String(body.html)).toContain('Downtown');
+    expect(String(body.text)).toContain('https://app.fit/auth/verify?token=tok123');
+  });
+
+  it('throws when Resend returns a non-2xx response', async () => {
+    configure({ RESEND_API_KEY: 're_123', WEB_URL: 'https://app.fit' });
+    fetchMock.mockResolvedValue(new Response('rate limited', { status: 429 }));
+    const service = new EmailService();
+
+    await expect(
+      service.sendOwnerOnboardingEmail('owner@example.com', 'tok123', 'Downtown'),
+    ).rejects.toThrow(/429/);
+  });
+});
+
 describe('buildVerificationUrl', () => {
   afterEach(() => configure());
 
