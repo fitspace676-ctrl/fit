@@ -12,10 +12,14 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:status": "prisma migrate status",
+    "db:seed": "prisma db seed",
     "lint": "eslint . --max-warnings 0",
     "test": "echo '[@fit/db] test: nothing to do yet'",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1"
@@ -23,6 +27,7 @@
   "devDependencies": {
     "@fit/config": "workspace:*",
     "@types/node": "^22.10.0",
-    "prisma": "^6.2.1"
+    "prisma": "^6.2.1",
+    "tsx": "^4.19.2"
   }
 }

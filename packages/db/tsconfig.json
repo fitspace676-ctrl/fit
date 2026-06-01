@@ -1,5 +1,11 @@
 {
   "extends": "@fit/config/tsconfig.base.json",
+  // The Prisma client entrypoint and the seed script use Node globals
+  // (`process`, `console`). Declare @types/node explicitly so type-checking is
+  // deterministic instead of relying on implicit @types auto-inclusion.
+  "compilerOptions": {
+    "types": ["node"]
+  },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "dist", "build", ".next", ".expo", ".turbo", "coverage"]
 }

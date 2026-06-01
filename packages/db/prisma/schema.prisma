@@ -1,8 +1,10 @@
 // Prisma schema for @fit/db.
 //
-// This is the initial skeleton (T1.3): only the Gym and User models exist so
-// the rest of the platform has a stable foundation to build migrations on top
-// of. Domain models (workouts, memberships, billing, …) land in later tasks.
+// T2.1 — the auth / multi-tenancy core. A `User` is a single auth identity
+// (email/password + OAuth). Gym-scoped roles live on `GymMember`, the join
+// between `User` and `Gym`, so one user can belong to many gyms with a
+// different role in each. `RefreshToken` backs rotating session refresh.
+// Domain models (workouts, billing, …) hang off these and land in later tasks.
 //
 // Connection strings come from the environment (see packages/db/.env.example):
 //   DATABASE_URL — Postgres (Railway in prod, docker-compose for local dev)
@@ -17,37 +19,96 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Roles a user can hold. SUPER_ADMIN is the only platform-wide role (not tied
+/// to a single gym); the rest gate permissions within one GymMember.
+enum Role {
+  SUPER_ADMIN
+  OWNER
+  MANAGER
+  RECEPTIONIST
+  TRAINER
+  MEMBER
+}
+
+/// Lifecycle of a user's membership in a gym.
+enum GymMemberStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
+/// `ownerId` references the owning User (set during provisioning, T2.11); kept
+/// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
 model Gym {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
+  ownerId   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users User[]
+  members GymMember[]
 
+  @@index([ownerId])
   @@map("gyms")
 }
 
-/// An application user. Optionally attached to a Gym; role gates permissions.
+/// An application user. Holds the auth identity (password hash + OAuth subject
+/// ids). Gym-scoped roles live on GymMember, not here, so a user can belong to
+/// N gyms with a different role in each.
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  role      UserRole @default(MEMBER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  googleId        String?   @unique
+  appleId         String?   @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  gym   Gym?    @relation(fields: [gymId], references: [id], onDelete: SetNull)
-  gymId String?
+  memberships   GymMember[]
+  refreshTokens RefreshToken[]
 
-  @@index([gymId])
   @@map("users")
 }
 
-enum UserRole {
-  OWNER
-  TRAINER
-  MEMBER
+/// Join table between User and Gym carrying the user's role and status within
+/// that gym. The composite unique on (userId, gymId) enforces one membership
+/// per user per gym while still allowing N gyms per user.
+model GymMember {
+  id       String          @id @default(cuid())
+  userId   String
+  gymId    String
+  role     Role            @default(MEMBER)
+  status   GymMemberStatus @default(ACTIVE)
+  joinedAt DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gymId])
+  @@index([gymId])
+  @@map("gym_members")
+}
+
+/// Rotating refresh-token record for session management. Tokens are persisted
+/// hashed (never plaintext); `familyId` groups a rotation lineage so a reused
+/// (already-rotated) token can be detected and the whole family revoked.
+model RefreshToken {
+  id                String    @id @default(cuid())
+  userId            String
+  tokenHash         String    @unique
+  deviceFingerprint String?
+  familyId          String
+  revokedAt         DateTime?
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
 }
