@@ -1,5 +1,16 @@
 {
   "extends": "@fit/config/tsconfig.base.json",
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "build", ".next", ".expo", ".turbo", "coverage"]
+  "compilerOptions": {
+    // NestJS relies on legacy parameter/property decorators and the metadata
+    // they emit for dependency injection. The shared base targets bundlers, so
+    // these decorator + CommonJS settings are layered on for the API service.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "verbatimModuleSyntax": false,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist", "build", ".turbo", "coverage"]
 }
