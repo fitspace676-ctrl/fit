@@ -1,0 +1,65 @@
+name: CI
+
+# Validate every push to main and every pull request targeting it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege default token.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Type-check · Lint · Format · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      # Turbo respects this for log noise; CI=true is set by the runner already.
+      TURBO_TELEMETRY_DISABLED: 1
+      # Prisma reads DATABASE_URL from the environment. `prisma generate`
+      # does not connect, but a value must be present to satisfy the schema's
+      # env("DATABASE_URL"). A dummy URL keeps generation hermetic in CI.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fit?schema=public
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
