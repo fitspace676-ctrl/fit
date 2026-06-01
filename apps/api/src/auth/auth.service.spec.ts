@@ -23,10 +23,12 @@ vi.mock('../config/env', () => ({ env: mockEnv }));
 vi.mock('argon2', () => ({ hash: argonHash, verify: argonVerify, argon2id: 2 }));
 
 import { AuthService, generateVerificationToken } from './auth.service';
+import type { GoogleProfile } from '@fit/types';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
 import type { TokenService } from './token.service';
 import type { EmailService } from './email.service';
+import type { GoogleOAuthService } from './google-oauth.service';
 
 /** A user row as `login`'s `findUnique` projection returns it. */
 interface StoredUser {
@@ -37,10 +39,13 @@ interface StoredUser {
 
 /** Build an AuthService with controllable collaborator fakes. */
 function setup() {
-  const findUnique = vi.fn<(args: unknown) => Promise<{ id: string } | StoredUser | null>>(() =>
-    Promise.resolve(null),
-  );
+  const findUnique = vi.fn<
+    (args: unknown) => Promise<{ id: string; emailVerifiedAt?: Date | null } | StoredUser | null>
+  >(() => Promise.resolve(null));
   const create = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'user-1' }),
+  );
+  const update = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
     Promise.resolve({ id: 'user-1' }),
   );
   const updateMany = vi.fn<(args: unknown) => Promise<{ count: number }>>(() =>
@@ -61,9 +66,12 @@ function setup() {
   const sendVerificationEmail = vi.fn<(...args: unknown[]) => Promise<void>>(() =>
     Promise.resolve(),
   );
+  const verifyIdToken = vi.fn<(idToken: string) => Promise<GoogleProfile>>(() =>
+    Promise.resolve({ googleId: 'g-1', email: 'a@b.com', emailVerified: true, name: 'Alice' }),
+  );
 
   const prisma = {
-    client: { user: { findUnique, create, updateMany } },
+    client: { user: { findUnique, create, update, updateMany } },
   } as unknown as PrismaService;
   const redis = { client: { set, get, del } } as unknown as RedisService;
   const tokens = {
@@ -72,12 +80,14 @@ function setup() {
     revokeRefreshToken,
   } as unknown as TokenService;
   const email = { sendVerificationEmail } as unknown as EmailService;
+  const google = { verifyIdToken } as unknown as GoogleOAuthService;
 
-  const service = new AuthService(prisma, redis, tokens, email);
+  const service = new AuthService(prisma, redis, tokens, email, google);
   return {
     service,
     findUnique,
     create,
+    update,
     updateMany,
     set,
     get,
@@ -86,6 +96,7 @@ function setup() {
     rotateRefreshToken,
     revokeRefreshToken,
     sendVerificationEmail,
+    verifyIdToken,
   };
 }
 
@@ -269,6 +280,90 @@ describe('AuthService', () => {
       expect((error as ForbiddenException).getResponse()).toMatchObject({
         code: 'EMAIL_NOT_VERIFIED',
       });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('loginWithGoogle', () => {
+    const VALID = { idToken: 'google-id-token' };
+
+    it('issues a session for an account already linked by googleId', async () => {
+      // First findUnique (by googleId) hits; the email lookup is never reached.
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' });
+
+      const pair = await ctx.service.loginWithGoogle(VALID);
+
+      expect(ctx.verifyIdToken).toHaveBeenCalledWith('google-id-token');
+      expect(ctx.findUnique).toHaveBeenCalledTimes(1);
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.update).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-9');
+      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+
+    it('links googleId onto an existing same-email account and stamps verification', async () => {
+      ctx.findUnique
+        .mockResolvedValueOnce(null) // by googleId — miss
+        .mockResolvedValueOnce({ id: 'user-7', emailVerifiedAt: null }); // by email — hit
+
+      const pair = await ctx.service.loginWithGoogle(VALID);
+
+      const update = ctx.update.mock.calls[0]![0] as {
+        where: { id: string };
+        data: { googleId: string; emailVerifiedAt: unknown };
+      };
+      expect(update.where).toEqual({ id: 'user-7' });
+      expect(update.data.googleId).toBe('g-1');
+      expect(update.data.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-7');
+      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+
+    it('preserves an already-verified timestamp when linking', async () => {
+      const verifiedAt = new Date('2025-01-01');
+      ctx.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'user-7', emailVerifiedAt: verifiedAt });
+
+      await ctx.service.loginWithGoogle(VALID);
+
+      const update = ctx.update.mock.calls[0]![0] as { data: { emailVerifiedAt: unknown } };
+      expect(update.data.emailVerifiedAt).toBe(verifiedAt);
+    });
+
+    it('creates a verified OAuth-only account when no user matches', async () => {
+      ctx.findUnique.mockResolvedValue(null); // both lookups miss
+      ctx.create.mockResolvedValue({ id: 'user-new' });
+
+      const pair = await ctx.service.loginWithGoogle(VALID);
+
+      const created = ctx.create.mock.calls[0]![0] as {
+        data: { email: string; name: string | null; googleId: string; emailVerifiedAt: unknown };
+      };
+      expect(created.data.email).toBe('a@b.com');
+      expect(created.data.googleId).toBe('g-1');
+      expect(created.data.name).toBe('Alice');
+      expect(created.data.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(ctx.update).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-new');
+      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+
+    it('rejects a Google account whose email is unverified', async () => {
+      ctx.verifyIdToken.mockResolvedValue({
+        googleId: 'g-1',
+        email: 'a@b.com',
+        emailVerified: false,
+      });
+
+      const error = await ctx.service.loginWithGoogle(VALID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'GOOGLE_EMAIL_NOT_VERIFIED',
+      });
+      expect(ctx.findUnique).not.toHaveBeenCalled();
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
   });

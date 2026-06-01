@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import type {
+  GoogleAuthInput,
   LoginInput,
   RefreshInput,
   RegisterInput,
@@ -19,6 +20,7 @@ import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { EmailService } from './email.service';
+import { GoogleOAuthService } from './google-oauth.service';
 import { TokenService } from './token.service';
 
 /** Redis key namespace for one-time email-verification tokens. */
@@ -63,6 +65,7 @@ export class AuthService {
     private readonly redis: RedisService,
     private readonly tokens: TokenService,
     private readonly email: EmailService,
+    private readonly google: GoogleOAuthService,
   ) {}
 
   /**
@@ -179,6 +182,82 @@ export class AuthService {
     }
 
     return this.tokens.issueTokenPair(user.id);
+  }
+
+  /**
+   * Authenticate a "Sign in with Google" flow and issue a session. The client
+   * (web or mobile) supplies the Google-issued ID token; {@link GoogleOAuthService}
+   * verifies its signature, issuer, audience, and expiry before we trust any
+   * claim. The verified Google identity is then resolved to a local user —
+   * matched by `googleId`, else linked onto an existing same-email account, else
+   * created — and a {@link TokenPair} is issued.
+   *
+   * Unlike email/password login this needs no separate verification step: Google
+   * only federates an address it has already verified, so a Google account whose
+   * `email_verified` claim is false is rejected with `403 GOOGLE_EMAIL_NOT_VERIFIED`
+   * rather than allowed to silently claim a local identity.
+   */
+  async loginWithGoogle(input: GoogleAuthInput): Promise<TokenPair> {
+    const profile = await this.google.verifyIdToken(input.idToken);
+
+    if (!profile.emailVerified) {
+      throw new ForbiddenException({
+        message: 'Google account email is not verified',
+        code: 'GOOGLE_EMAIL_NOT_VERIFIED',
+      });
+    }
+
+    const userId = await this.resolveGoogleUser(profile);
+    return this.tokens.issueTokenPair(userId);
+  }
+
+  /**
+   * Resolve a verified {@link GoogleProfile} to a local user id, in precedence
+   * order: an account already linked by `googleId`; else an existing account
+   * with the same (Google-verified) email, which we link the `googleId` onto —
+   * stamping `emailVerifiedAt` if it was never verified locally; else a brand-new
+   * OAuth-only account (no password hash).
+   */
+  private async resolveGoogleUser(profile: {
+    googleId: string;
+    email: string;
+    name?: string;
+  }): Promise<string> {
+    const byGoogleId = await this.prisma.client.user.findUnique({
+      where: { googleId: profile.googleId },
+      select: { id: true },
+    });
+    if (byGoogleId) {
+      return byGoogleId.id;
+    }
+
+    const byEmail = await this.prisma.client.user.findUnique({
+      where: { email: profile.email },
+      select: { id: true, emailVerifiedAt: true },
+    });
+    if (byEmail) {
+      // Link Google onto the existing account. The email is Google-verified, so
+      // a previously-unverified local account becomes verified by this sign-in.
+      await this.prisma.client.user.update({
+        where: { id: byEmail.id },
+        data: {
+          googleId: profile.googleId,
+          emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
+        },
+      });
+      return byEmail.id;
+    }
+
+    const created = await this.prisma.client.user.create({
+      data: {
+        email: profile.email,
+        name: profile.name ?? null,
+        googleId: profile.googleId,
+        emailVerifiedAt: new Date(),
+      },
+      select: { id: true },
+    });
+    return created.id;
   }
 
   /**

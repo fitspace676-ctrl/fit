@@ -41,6 +41,14 @@ export const envSchema = z.object({
   // Refresh-token lifetime (seconds). Default 30 days.
   JWT_REFRESH_TTL: z.coerce.number().int().positive().default(2_592_000),
 
+  // ── Google OAuth (Sign in with Google) ──
+  // Comma-separated list of accepted Google OAuth client IDs — the `aud` claim
+  // of an inbound ID token must match one of these. Typically holds the web,
+  // iOS, and Android client IDs (each platform's Google Sign-In mints tokens
+  // for its own client). Optional so the API boots without it; POST /auth/google
+  // then returns 503, mirroring how JWT_SECRET / R2 degrade when unconfigured.
+  GOOGLE_CLIENT_IDS: z.string().optional(),
+
   // ── Email verification ──
   // TTL (seconds) of a one-time email-verification token held in Redis.
   // Default 24 hours.

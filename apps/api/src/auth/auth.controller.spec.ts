@@ -14,12 +14,30 @@ function setup() {
   const login = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'a', refreshToken: 'r' }),
   );
+  const loginWithGoogle = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
+    Promise.resolve({ accessToken: 'ag', refreshToken: 'rg' }),
+  );
   const refresh = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'a2', refreshToken: 'r2' }),
   );
   const logout = vi.fn<(input: unknown) => Promise<void>>(() => Promise.resolve());
-  const auth = { register, verifyEmail, login, refresh, logout } as unknown as AuthService;
-  return { controller: new AuthController(auth), register, verifyEmail, login, refresh, logout };
+  const auth = {
+    register,
+    verifyEmail,
+    login,
+    loginWithGoogle,
+    refresh,
+    logout,
+  } as unknown as AuthService;
+  return {
+    controller: new AuthController(auth),
+    register,
+    verifyEmail,
+    login,
+    loginWithGoogle,
+    refresh,
+    logout,
+  };
 }
 
 describe('AuthController', () => {
@@ -92,6 +110,20 @@ describe('AuthController', () => {
         BadRequestException,
       );
       expect(ctx.login).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/google', () => {
+    it('parses the id token and delegates to the service', async () => {
+      const result = await ctx.controller.google({ idToken: ' google-id-token ' });
+
+      expect(result).toEqual({ accessToken: 'ag', refreshToken: 'rg' });
+      expect(ctx.loginWithGoogle).toHaveBeenCalledWith({ idToken: 'google-id-token' });
+    });
+
+    it('rejects a missing id token with a 400', async () => {
+      await expect(ctx.controller.google({})).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.loginWithGoogle).not.toHaveBeenCalled();
     });
   });
 
