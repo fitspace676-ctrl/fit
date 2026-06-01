@@ -108,15 +108,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const payload = exception.getResponse();
-      const code = this.codeFor(status);
 
       // Nest puts `{ statusCode, error, message }` here for built-in
       // exceptions, or a bare string for `new HttpException('msg', status)`.
       if (typeof payload === 'string') {
-        return { status, code, message: payload, details: null };
+        return { status, code: this.codeFor(status), message: payload, details: null };
       }
 
-      const record = payload as { error?: unknown; message?: unknown };
+      const record = payload as { error?: unknown; message?: unknown; code?: unknown };
+      // A handler may stamp a stable, domain-specific `code` (e.g. `EMAIL_TAKEN`)
+      // onto the exception body; honour it so the wire contract isn't limited to
+      // the status-derived defaults. Falls back to the status mapping otherwise.
+      const code = typeof record.code === 'string' ? record.code : this.codeFor(status);
       const arrayDetails = this.asStringArray(record.message);
       if (arrayDetails) {
         // class-validator surfaces one message per failed constraint.

@@ -1,2 +1,2 @@
-// @fit/types — placeholder. Real implementation lands in a later task.
-export {};
+// @fit/types — shared cross-boundary contracts (Zod schemas + inferred types).
+export * from './src/auth';
