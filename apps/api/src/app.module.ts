@@ -9,6 +9,7 @@ import { RedisModule } from './redis/redis.module';
 import { StorageModule } from './storage/storage.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { loggerConfig } from './common/logging';
+import { RbacModule } from './common/rbac/rbac.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { TenantMiddleware } from './common/tenant/tenant.middleware';
 
@@ -29,6 +30,8 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link TenantModule} provides tenant scoping (context, guard, scoped Prisma);
  *   {@link TenantMiddleware} establishes the request's tenant for every route
  *   except the public ones (`/auth/*`, `/health`, `/uploads`).
+ * - {@link RbacModule} provides the role/permission guards (`RolesGuard`,
+ *   `PermissionsGuard`) that gate handlers via `@Roles` / `@RequirePermissions`.
  */
 @Module({
   imports: [
@@ -40,6 +43,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     StorageModule,
     AuthModule,
     TenantModule,
+    RbacModule,
   ],
   providers: [
     TenantMiddleware,
