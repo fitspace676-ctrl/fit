@@ -1,0 +1,29 @@
+{
+  "name": "@fit/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "fit": "./bin/fit.mjs"
+  },
+  "scripts": {
+    "fit": "tsx src/index.ts",
+    "build": "echo '[@fit/cli] build: nothing to do yet'",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fit/env": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@fit/config": "workspace:*",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}
