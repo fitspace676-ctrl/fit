@@ -44,10 +44,8 @@ export default withSentryConfig(nextConfig, {
   org: 'forma-0r',
   project: 'fit-web',
   sentryUrl: 'https://de.sentry.io/',
-  silent: false,
+  silent: true,
   widenClientFileUpload: true,
-  // Don't fail the build if Sentry source-map upload errors; log instead.
-  errorHandler: (err) => {
-    console.warn('[sentry] source-map upload skipped:', err?.message ?? err);
-  },
+  // Don't fail the build if Sentry source-map upload errors.
+  errorHandler: () => {},
 });
