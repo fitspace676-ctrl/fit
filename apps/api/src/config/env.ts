@@ -27,6 +27,36 @@ export const envSchema = z.object({
   ADMIN_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().optional(),
 
+  // ── Auth / sessions ──
+  // HS256 secret the API signs session JWTs with. Optional so the API still
+  // boots in CI / local dev without it; token issuance then returns 503 (see
+  // TokenService) rather than minting tokens nothing can verify. The `fit` CLI
+  // reuses the same secret so its test tokens authenticate against the API.
+  JWT_SECRET: z.string().min(1).optional(),
+  // `iss` claim stamped on issued tokens (matches the CLI default).
+  JWT_ISSUER: z.string().default('fit'),
+  // Access-token lifetime (seconds). Short by design — refresh tokens carry the
+  // long-lived session. Default 15 minutes.
+  JWT_ACCESS_TTL: z.coerce.number().int().positive().default(900),
+  // Refresh-token lifetime (seconds). Default 30 days.
+  JWT_REFRESH_TTL: z.coerce.number().int().positive().default(2_592_000),
+
+  // ── Email verification ──
+  // TTL (seconds) of a one-time email-verification token held in Redis.
+  // Default 24 hours.
+  EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(86_400),
+  // Base URL the verification token is appended to in the email deep link
+  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/auth/verify`).
+  EMAIL_VERIFICATION_URL: z.string().url().optional(),
+
+  // ── Email delivery (Resend — optional) ──
+  // Unset disables outbound mail: registration still succeeds and the
+  // verification link is logged instead of sent, so the API works in CI / local
+  // dev without a Resend account.
+  RESEND_API_KEY: z.string().optional(),
+  // `From` address for transactional mail. Must be a verified Resend sender.
+  EMAIL_FROM: z.string().default('Fit <no-reply@fit.app>'),
+
   // ── Object storage (Cloudflare R2 — S3-compatible) ──
   // All optional: unset disables the signed-upload service (the endpoint then
   // returns 503) so the API still boots in CI / local dev without R2 creds.

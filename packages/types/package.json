@@ -11,6 +11,9 @@
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
   },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
   "devDependencies": {
     "@fit/config": "workspace:*"
   }

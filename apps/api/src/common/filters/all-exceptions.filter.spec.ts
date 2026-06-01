@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ArgumentsHost } from '@nestjs/common';
-import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
 import { AllExceptionsFilter, type ErrorResponseBody } from './all-exceptions.filter';
 
@@ -76,6 +76,19 @@ describe('AllExceptionsFilter', () => {
     expect(captured.body.code).toBe('VALIDATION_ERROR');
     expect(captured.body.message).toBe('Validation failed');
     expect(captured.body.details).toEqual(['email must be an email', 'password is too short']);
+  });
+
+  it('honours a domain-specific `code` stamped on the exception payload', () => {
+    const captured = {} as Captured;
+    filter.catch(
+      new ConflictException({ message: 'Email is already registered', code: 'EMAIL_TAKEN' }),
+      mockHost(mockResponse(captured)),
+    );
+
+    expect(captured.status).toBe(HttpStatus.CONFLICT);
+    expect(captured.body.code).toBe('EMAIL_TAKEN');
+    expect(captured.body.message).toBe('Email is already registered');
+    expect(captured.body.details).toBeNull();
   });
 
   it('maps a bare-string HttpException to its status and message', () => {
