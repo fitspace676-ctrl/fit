@@ -37,16 +37,26 @@ enum GymMemberStatus {
   SUSPENDED
 }
 
+/// Platform-level lifecycle of a whole gym (tenant). A `SUSPENDED` gym is gated
+/// at login/refresh so its staff + members can no longer obtain a session, and
+/// is toggled from the SuperAdmin console (T2.12). Distinct from
+/// {@link GymMemberStatus}, which is a single user's standing within one gym.
+enum GymStatus {
+  ACTIVE
+  SUSPENDED
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
 model Gym {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  slug      String   @unique
+  slug      String    @unique
   ownerId   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    GymStatus @default(ACTIVE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   members GymMember[]
 
@@ -111,4 +121,31 @@ model RefreshToken {
   @@index([userId])
   @@index([familyId])
   @@map("refresh_tokens")
+}
+
+/// Append-only record of privileged platform actions, written by the SuperAdmin
+/// console (T2.12). The first use is owner impersonation: every impersonation
+/// must leave exactly one row naming the actor (the SUPER_ADMIN) and the target
+/// gym + impersonated user, so support access is always accountable after the
+/// fact. Deliberately denormalised scalar ids (no FKs) so an audit entry
+/// survives the deletion of whatever it references — the trail must outlive the
+/// records it describes. `metadata` carries action-specific context as JSON.
+model AuditLog {
+  id        String   @id @default(cuid())
+  /// Action key, e.g. `gym.impersonate` or `gym.status.update`.
+  action    String
+  /// The user who performed the action (the SUPER_ADMIN operator).
+  actorId   String
+  /// The gym the action targeted, when applicable.
+  gymId     String?
+  /// The user the action targeted (e.g. the impersonated owner), when applicable.
+  targetId  String?
+  /// Action-specific context (previous/next status, issued-token TTL, …).
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([gymId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
