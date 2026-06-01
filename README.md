@@ -35,6 +35,7 @@ fit/
 │   └── api/        # @fit/api        — backend API service
 ├── packages/
 │   ├── db/         # @fit/db         — Prisma client + schema/migrations
+│   ├── env/        # @fit/env        — zod-based environment + secrets validation
 │   ├── ui-web/     # @fit/ui-web     — shared web UI components
 │   ├── ui-mobile/  # @fit/ui-mobile  — shared mobile UI components
 │   ├── types/      # @fit/types      — shared TypeScript types

@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
+import { env } from '../config/env';
 
 /**
  * Thin wrapper around a single shared ioredis connection.
@@ -14,8 +15,7 @@ export class RedisService implements OnModuleDestroy {
   readonly client: Redis;
 
   constructor() {
-    const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
-    this.client = new Redis(url, {
+    this.client = new Redis(env.REDIS_URL, {
       lazyConnect: true,
       maxRetriesPerRequest: 1,
       // Don't spam reconnect attempts in environments where Redis is absent;

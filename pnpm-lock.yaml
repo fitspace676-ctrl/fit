@@ -72,6 +72,9 @@ importers:
       '@fit/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@fit/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       '@nestjs/common':
         specifier: ^11.0.0
         version: 11.1.24(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -268,6 +271,25 @@ importers:
       prisma:
         specifier: ^6.2.1
         version: 6.19.3(typescript@6.0.3)
+
+  packages/env:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@fit/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.19
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.6(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
   packages/i18n:
     devDependencies:
@@ -7675,9 +7697,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

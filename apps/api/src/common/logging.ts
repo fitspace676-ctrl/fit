@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import * as Sentry from '@sentry/nestjs';
 import type { Params } from 'nestjs-pino';
+import { env } from '../config/env';
 
 /** Request augmented by pino-http (`id`) and the auth layer (`user`). */
 type LoggedRequest = IncomingMessage & {
@@ -28,11 +29,11 @@ function activeTraceId(): string | undefined {
  * auth layer populates `req.user`).
  */
 export function loggerConfig(): Params {
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = env.NODE_ENV === 'production';
 
   return {
     pinoHttp: {
-      level: process.env.LOG_LEVEL ?? (isProduction ? 'info' : 'debug'),
+      level: env.LOG_LEVEL ?? (isProduction ? 'info' : 'debug'),
       genReqId: (req: IncomingMessage, res: ServerResponse) => {
         const incoming = headerValue(req.headers[REQUEST_ID_HEADER]);
         const id = incoming ?? randomUUID();

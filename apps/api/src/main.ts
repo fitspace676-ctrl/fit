@@ -1,5 +1,10 @@
-// Sentry must be the first import so its instrumentation is installed before
-// any other module (Express, Prisma, etc.) is loaded.
+// Validate the environment first so misconfiguration (e.g. a missing
+// DATABASE_URL) fails the boot immediately with a clear error. This only loads
+// the env schema — no instrumented modules — so it stays ahead of Sentry.
+import { env } from './config/env';
+
+// Sentry must be imported before any other module (Express, Prisma, etc.) is
+// loaded so its instrumentation hooks are installed first.
 import './instrument';
 
 import { NestFactory } from '@nestjs/core';
@@ -20,9 +25,9 @@ function parseOrigins(raw: string | undefined): string[] {
  */
 function corsOrigins(): string[] {
   const origins = new Set<string>([
-    ...parseOrigins(process.env.WEB_URL),
-    ...parseOrigins(process.env.ADMIN_URL),
-    ...parseOrigins(process.env.CORS_ORIGINS),
+    ...parseOrigins(env.WEB_URL),
+    ...parseOrigins(env.ADMIN_URL),
+    ...parseOrigins(env.CORS_ORIGINS),
     'http://localhost:8081', // Expo / Metro dev server
   ]);
   return [...origins];
@@ -40,7 +45,7 @@ async function bootstrap(): Promise<void> {
   });
   app.enableShutdownHooks();
 
-  const port = Number(process.env.PORT ?? 3000);
+  const port = env.PORT;
   await app.listen(port);
 
   app.get(Logger).log(`API listening on port ${port}`, 'Bootstrap');
