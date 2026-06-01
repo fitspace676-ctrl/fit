@@ -28,6 +28,11 @@ function decodeSegment(segment: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 
+/** Current time in whole seconds — for building tokens with explicit exp claims. */
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
 /** A persisted refresh-token row, as `findUnique` would return it. */
 interface StoredRefreshToken {
   id: string;
@@ -96,6 +101,88 @@ describe('TokenService', () => {
       configure({ JWT_SECRET: undefined });
       const { service } = setup();
       expect(() => service.signAccessToken('user-1')).toThrow(ServiceUnavailableException);
+    });
+  });
+
+  describe('verifyAccessToken', () => {
+    it('round-trips a token minted by signAccessToken and returns its claims', () => {
+      const { service } = setup();
+      const token = service.signAccessToken('user-1');
+
+      const claims = service.verifyAccessToken(token);
+
+      expect(claims.sub).toBe('user-1');
+      expect(claims.type).toBe('access');
+      expect(claims.iss).toBe('fit');
+    });
+
+    it('accepts a CLI-style token carrying role + gym claims and no type', () => {
+      const { service } = setup();
+      // Mint the way the `fit token` CLI does: { sub, role, gym }, no `type`.
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString(
+        'base64url',
+      );
+      const payload = Buffer.from(
+        JSON.stringify({ sub: 'u-1', role: 'MANAGER', gym: 'gym-a', exp: nowSeconds() + 60 }),
+      ).toString('base64url');
+      const signature = createHmac('sha256', 'test-secret')
+        .update(`${header}.${payload}`)
+        .digest('base64url');
+
+      const claims = service.verifyAccessToken(`${header}.${payload}.${signature}`);
+
+      expect(claims.sub).toBe('u-1');
+      expect(claims.role).toBe('MANAGER');
+      expect(claims.gym).toBe('gym-a');
+    });
+
+    it('rejects a token signed with the wrong secret', () => {
+      const { service } = setup();
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString(
+        'base64url',
+      );
+      const payload = Buffer.from(JSON.stringify({ sub: 'u-1' })).toString('base64url');
+      const forged = createHmac('sha256', 'other-secret')
+        .update(`${header}.${payload}`)
+        .digest('base64url');
+
+      expect(() => service.verifyAccessToken(`${header}.${payload}.${forged}`)).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects an expired token', () => {
+      const { service } = setup();
+      const token = service.signAccessToken('user-1', nowSeconds() - 10_000);
+      expect(() => service.verifyAccessToken(token)).toThrow(UnauthorizedException);
+    });
+
+    it('rejects a non-access token type so a refresh JWT cannot be replayed', () => {
+      const { service } = setup();
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString(
+        'base64url',
+      );
+      const payload = Buffer.from(
+        JSON.stringify({ sub: 'u-1', type: 'refresh', exp: nowSeconds() + 60 }),
+      ).toString('base64url');
+      const signature = createHmac('sha256', 'test-secret')
+        .update(`${header}.${payload}`)
+        .digest('base64url');
+
+      expect(() => service.verifyAccessToken(`${header}.${payload}.${signature}`)).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects a malformed token', () => {
+      const { service } = setup();
+      expect(() => service.verifyAccessToken('not-a-jwt')).toThrow(UnauthorizedException);
+    });
+
+    it('throws ServiceUnavailable when JWT_SECRET is unset', () => {
+      configure({ JWT_SECRET: undefined });
+      const { service } = setup();
+      expect(() => service.verifyAccessToken('a.b.c')).toThrow(ServiceUnavailableException);
     });
   });
 
