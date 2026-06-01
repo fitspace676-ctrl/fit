@@ -12,3 +12,4 @@
 // offender, so a bad deploy fails fast instead of crashing deep in the stack.
 export { z } from 'zod';
 export { validateEnv, EnvValidationError } from './src/validate';
+export { infraEnvSchema, type InfraEnv, SECRET_INFRA_KEYS, isSecretInfraKey } from './src/infra';

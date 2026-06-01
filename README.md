@@ -42,6 +42,8 @@ fit/
 │   ├── utils/      # @fit/utils      — shared utilities
 │   ├── i18n/       # @fit/i18n       — translations and i18n helpers
 │   └── config/     # @fit/config     — shared tsconfig/eslint/prettier/tailwind presets
+├── tools/
+│   └── cli/        # @fit/cli        — the `fit` CLI (infra/env introspection)
 ├── pnpm-workspace.yaml
 ├── turbo.json
 └── package.json
@@ -111,3 +113,24 @@ Run from the repo root — Turbo fans each task out across all workspaces:
 `turbo.json` defines `build`, `lint`, `type-check`, `test`, `dev`, and `clean`. The
 build-dependent tasks declare `dependsOn: ["^build"]` so upstream workspace packages
 build before their consumers.
+
+## `fit` CLI
+
+`fit` is the single, scriptable source of truth for infra/env introspection. Any
+task that needs a runtime detail — a connection string, a service's health, a
+signed upload URL, a test token — fetches it from `fit` instead of hardcoding it.
+It wraps the vendor CLIs (`railway`, `vercel`, `wrangler`, `eas`, `prisma`) and
+reads env through the **same Zod schema as the apps** (`@fit/env`).
+
+Run it from anywhere in the repo (output is JSON by default; add `--pretty`):
+
+```bash
+pnpm fit env get DATABASE_URL          # one schema-validated value
+pnpm fit env check                     # validate the whole infra environment
+pnpm fit services health               # probe Postgres / Redis / API / R2
+pnpm fit token --role MANAGER --gym demo
+pnpm fit r2 config                     # storage config (credentials redacted)
+pnpm fit deploy web --env prod         # wraps the app's vendor CLI
+```
+
+See [`tools/cli/README.md`](tools/cli/README.md) for the full command catalog.
