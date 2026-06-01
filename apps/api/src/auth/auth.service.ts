@@ -1,7 +1,20 @@
 import { randomBytes } from 'node:crypto';
-import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as argon2 from 'argon2';
-import type { RegisterInput, RegisterResponse, TokenPair } from '@fit/types';
+import type {
+  LoginInput,
+  RefreshInput,
+  RegisterInput,
+  RegisterResponse,
+  TokenPair,
+} from '@fit/types';
 import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -11,23 +24,35 @@ import { TokenService } from './token.service';
 /** Redis key namespace for one-time email-verification tokens. */
 const VERIFY_KEY_PREFIX = 'email-verify:';
 
+/**
+ * A valid argon2id digest of a throwaway string. `login` verifies the supplied
+ * password against this when no account (or no password hash) matches, so an
+ * unknown email costs the same KDF work as a known one — closing the timing
+ * side channel that would otherwise let an attacker enumerate registered
+ * addresses. The string it hashes is irrelevant; only the constant work is.
+ */
+const DUMMY_PASSWORD_HASH =
+  '$argon2id$v=19$m=65536,t=3,p=4$jCFjgDT0SdnSZzDWAmc5IQ$lzgkwiupuASuJMpOlkrAgMK0D3FbA421Uqof/m7orCQ';
+
 /** Build the Redis key holding the user id a verification token resolves to. */
 function verifyKey(token: string): string {
   return `${VERIFY_KEY_PREFIX}${token}`;
 }
 
 /**
- * Email/password registration + verification.
+ * Email/password registration, verification, and session login.
  *
  * Registration ({@link register}) creates the {@link User} with an argon2 hash
  * and emits a single-use verification token (kept in Redis, never in the user
  * row) that the verification email links to. Verification ({@link verifyEmail})
  * consumes that token, stamps `emailVerifiedAt`, and issues the user's first
- * session — login (T2.3) refuses to authenticate until that stamp is set.
+ * session. {@link login} authenticates an existing user — refusing until that
+ * `emailVerifiedAt` stamp is set — and {@link refresh} / {@link logout} drive
+ * the rotating refresh-token lifecycle ({@link TokenService}).
  *
- * Both flows are written to not leak whether an email is registered beyond the
- * unavoidable `409` on a duplicate, and to keep verification tokens single-use
- * (deleted on success) and short-lived (Redis TTL).
+ * Every flow is written to not leak whether an email is registered beyond the
+ * unavoidable `409` on a duplicate: login spends constant KDF work on unknown
+ * accounts and collapses every credential failure to one `401`.
  */
 @Injectable()
 export class AuthService {
@@ -116,6 +141,61 @@ export class AuthService {
     });
 
     return this.tokens.issueTokenPair(userId);
+  }
+
+  /**
+   * Authenticate an email/password pair and issue a session. Verifies the
+   * password against the stored argon2 hash (or a dummy hash, in constant time,
+   * when no matching account exists) and collapses every credential failure —
+   * unknown email, OAuth-only account, wrong password — to a single
+   * `401 INVALID_CREDENTIALS` so the endpoint reveals nothing. A correct but
+   * unverified account is rejected with `403 EMAIL_NOT_VERIFIED`.
+   */
+  async login(input: LoginInput): Promise<TokenPair> {
+    const user = await this.prisma.client.user.findUnique({
+      where: { email: input.email },
+      select: { id: true, passwordHash: true, emailVerifiedAt: true },
+    });
+
+    // Always verify against *some* hash so a missing user / OAuth-only account
+    // takes the same time as a real one. `verify` returns false on mismatch and
+    // throws on a malformed digest — treat both as a failed login.
+    const passwordOk = await argon2
+      .verify(user?.passwordHash ?? DUMMY_PASSWORD_HASH, input.password)
+      .catch(() => false);
+
+    if (!user || !user.passwordHash || !passwordOk) {
+      throw new UnauthorizedException({
+        message: 'Email or password is incorrect',
+        code: 'INVALID_CREDENTIALS',
+      });
+    }
+
+    if (!user.emailVerifiedAt) {
+      throw new ForbiddenException({
+        message: 'Email address has not been verified',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
+
+    return this.tokens.issueTokenPair(user.id);
+  }
+
+  /**
+   * Exchange a refresh token for a fresh session, rotating the refresh token in
+   * the process. Delegates the rotation + reuse-detection rules to
+   * {@link TokenService.rotateRefreshToken}.
+   */
+  async refresh(input: RefreshInput): Promise<TokenPair> {
+    return this.tokens.rotateRefreshToken(input.refreshToken);
+  }
+
+  /**
+   * End the session the refresh token belongs to by revoking its whole family.
+   * Idempotent — an unknown / already-revoked token still resolves cleanly.
+   */
+  async logout(input: RefreshInput): Promise<void> {
+    await this.tokens.revokeRefreshToken(input.refreshToken);
   }
 }
 

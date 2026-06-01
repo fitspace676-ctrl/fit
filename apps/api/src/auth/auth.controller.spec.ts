@@ -11,8 +11,15 @@ function setup() {
   const verifyEmail = vi.fn<(token: string) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'a', refreshToken: 'r' }),
   );
-  const auth = { register, verifyEmail } as unknown as AuthService;
-  return { controller: new AuthController(auth), register, verifyEmail };
+  const login = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
+    Promise.resolve({ accessToken: 'a', refreshToken: 'r' }),
+  );
+  const refresh = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
+    Promise.resolve({ accessToken: 'a2', refreshToken: 'r2' }),
+  );
+  const logout = vi.fn<(input: unknown) => Promise<void>>(() => Promise.resolve());
+  const auth = { register, verifyEmail, login, refresh, logout } as unknown as AuthService;
+  return { controller: new AuthController(auth), register, verifyEmail, login, refresh, logout };
 }
 
 describe('AuthController', () => {
@@ -69,6 +76,49 @@ describe('AuthController', () => {
     it('rejects a missing token with a 400', async () => {
       await expect(ctx.controller.verify({})).rejects.toBeInstanceOf(BadRequestException);
       expect(ctx.verifyEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/login', () => {
+    it('normalises the body and delegates to the service', async () => {
+      const result = await ctx.controller.login({ email: 'A@B.com', password: 'supersecret' });
+
+      expect(result).toEqual({ accessToken: 'a', refreshToken: 'r' });
+      expect(ctx.login).toHaveBeenCalledWith({ email: 'a@b.com', password: 'supersecret' });
+    });
+
+    it('rejects a malformed body with a 400', async () => {
+      await expect(ctx.controller.login({ email: 'nope', password: '' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(ctx.login).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/refresh', () => {
+    it('parses the token and delegates to the service', async () => {
+      const result = await ctx.controller.refresh({ refreshToken: ' rt-secret ' });
+
+      expect(result).toEqual({ accessToken: 'a2', refreshToken: 'r2' });
+      expect(ctx.refresh).toHaveBeenCalledWith({ refreshToken: 'rt-secret' });
+    });
+
+    it('rejects a missing refresh token with a 400', async () => {
+      await expect(ctx.controller.refresh({})).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.refresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/logout', () => {
+    it('parses the token and delegates to the service', async () => {
+      await ctx.controller.logout({ refreshToken: 'rt-secret' });
+
+      expect(ctx.logout).toHaveBeenCalledWith({ refreshToken: 'rt-secret' });
+    });
+
+    it('rejects a missing refresh token with a 400', async () => {
+      await expect(ctx.controller.logout({})).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.logout).not.toHaveBeenCalled();
     });
   });
 });

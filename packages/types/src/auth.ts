@@ -36,6 +36,30 @@ export const verifyEmailSchema = z.object({
 
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 
+/**
+ * Body for `POST /auth/login`. Email is normalised the same way registration
+ * normalises it so the lookup matches the stored row. The password is only
+ * required to be non-empty here — the registration policy (length bounds) is
+ * irrelevant to verifying an already-stored credential, and re-asserting it
+ * would needlessly leak the policy to an attacker probing the endpoint.
+ */
+export const loginSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(1),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
+
+/**
+ * Body for `POST /auth/refresh` and `POST /auth/logout`. Carries the opaque
+ * refresh token the client received from a previous session-issuing call.
+ */
+export const refreshSchema = z.object({
+  refreshToken: z.string().trim().min(1),
+});
+
+export type RefreshInput = z.infer<typeof refreshSchema>;
+
 /** Successful `POST /auth/register` response. */
 export interface RegisterResponse {
   message: string;
@@ -43,7 +67,8 @@ export interface RegisterResponse {
 
 /**
  * A signed session: a short-lived access JWT plus an opaque, rotating refresh
- * token. Returned by `GET /auth/verify` (and, from T2.3 onward, by login).
+ * token. Returned by `GET /auth/verify`, `POST /auth/login`, and
+ * `POST /auth/refresh` (which rotates the refresh token on each call).
  */
 export interface TokenPair {
   accessToken: string;

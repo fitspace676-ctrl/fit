@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  loginSchema,
+  refreshSchema,
   registerSchema,
   verifyEmailSchema,
   type RegisterResponse,
@@ -43,6 +45,30 @@ export class AuthController {
   async verify(@Query() query: unknown): Promise<TokenPair> {
     const { token } = parse(verifyEmailSchema, query);
     return this.auth.verifyEmail(token);
+  }
+
+  /** `POST /auth/login` — authenticate an email/password pair and issue a session. */
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() body: unknown): Promise<TokenPair> {
+    const input = parse(loginSchema, body);
+    return this.auth.login(input);
+  }
+
+  /** `POST /auth/refresh` — rotate the refresh token and issue a fresh session. */
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() body: unknown): Promise<TokenPair> {
+    const input = parse(refreshSchema, body);
+    return this.auth.refresh(input);
+  }
+
+  /** `POST /auth/logout` — revoke the refresh token's family, ending the session. */
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(@Body() body: unknown): Promise<void> {
+    const input = parse(refreshSchema, body);
+    await this.auth.logout(input);
   }
 }
 
