@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import type { Role } from '@fit/db';
 import type { TokenPair } from '@fit/types';
 import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
@@ -83,6 +84,35 @@ export class TokenService {
       type: 'access',
       iat: issuedAt,
       exp: issuedAt + env.JWT_ACCESS_TTL,
+      iss: env.JWT_ISSUER,
+    };
+
+    const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
+    const signature = base64url(createHmac('sha256', secret).update(signingInput).digest());
+    return `${signingInput}.${signature}`;
+  }
+
+  /**
+   * Sign a **tenant-scoped** access JWT — one carrying `role` + `gymId` claims
+   * the {@link TenantMiddleware} reads to bind the request to a gym and role,
+   * the way the `fit` CLI's test tokens do. Used by SuperAdmin owner
+   * impersonation (T2.12) to mint a short-lived token that acts as a specific
+   * gym's OWNER. `ttlSeconds` overrides the default access-token lifetime so the
+   * impersonation token can be far shorter-lived than a normal session.
+   */
+  signScopedAccessToken(
+    params: { userId: string; role: Role; gymId: string; ttlSeconds: number },
+    issuedAt: number = Math.floor(Date.now() / 1000),
+  ): string {
+    const secret = this.requireSecret();
+    const header = { alg: 'HS256', typ: 'JWT' };
+    const payload = {
+      sub: params.userId,
+      type: 'access' as const,
+      role: params.role,
+      gymId: params.gymId,
+      iat: issuedAt,
+      exp: issuedAt + params.ttlSeconds,
       iss: env.JWT_ISSUER,
     };
 
@@ -213,6 +243,24 @@ export class TokenService {
       deviceFingerprint ?? existing.deviceFingerprint ?? undefined,
     );
     return { accessToken, refreshToken };
+  }
+
+  /**
+   * Resolve the user id a (still-live) refresh token belongs to, without
+   * spending it — `null` for an unknown, revoked, or expired token. Lets a
+   * caller make a pre-rotation decision keyed on the user (e.g. T2.12's
+   * gym-suspension gate) before {@link rotateRefreshToken} mutates anything; the
+   * single-use rotation rules still apply when the token is actually spent.
+   */
+  async userIdForRefreshToken(presentedToken: string): Promise<string | null> {
+    const existing = await this.prisma.client.refreshToken.findUnique({
+      where: { tokenHash: hashRefreshToken(presentedToken) },
+      select: { userId: true, revokedAt: true, expiresAt: true },
+    });
+    if (!existing || existing.revokedAt || existing.expiresAt.getTime() <= Date.now()) {
+      return null;
+    }
+    return existing.userId;
   }
 
   /**
