@@ -60,6 +60,34 @@ export const refreshSchema = z.object({
 
 export type RefreshInput = z.infer<typeof refreshSchema>;
 
+/**
+ * Body for `POST /auth/google`. Carries the Google-issued ID token (a signed
+ * JWT) the web / mobile client obtained from Google Sign-In. The API verifies
+ * the token against Google's public keys, then issues its own session — so the
+ * client never sees, and the API never trusts, anything but a Google-signed JWT.
+ */
+export const googleAuthSchema = z.object({
+  idToken: z.string().trim().min(1),
+});
+
+export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
+
+/**
+ * The verified subset of a Google ID token's claims the API consumes once the
+ * token's signature, issuer, audience, and expiry have been validated. `email`
+ * is normalised lower-case to match how local accounts store it.
+ */
+export interface GoogleProfile {
+  /** Google's stable, unique account identifier (the `sub` claim). */
+  googleId: string;
+  /** The account's email address, lower-cased. */
+  email: string;
+  /** Whether Google has verified the address (`email_verified` claim). */
+  emailVerified: boolean;
+  /** The account's display name, when Google supplies one. */
+  name?: string;
+}
+
 /** Successful `POST /auth/register` response. */
 export interface RegisterResponse {
   message: string;
