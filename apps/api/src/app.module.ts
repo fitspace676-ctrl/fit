@@ -4,6 +4,7 @@ import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
+import { StorageModule } from './storage/storage.module';
 import { loggerConfig } from './common/logging';
 
 /**
@@ -15,6 +16,8 @@ import { loggerConfig } from './common/logging';
  *   a per-request `requestId`.
  * - {@link RedisModule} exposes a shared Redis client; {@link HealthModule}
  *   serves `GET /health`.
+ * - {@link StorageModule} exposes the Cloudflare R2 signed-upload service and
+ *   serves `POST /uploads`.
  */
 @Module({
   imports: [
@@ -22,6 +25,7 @@ import { loggerConfig } from './common/logging';
     LoggerModule.forRoot(loggerConfig()),
     RedisModule,
     HealthModule,
+    StorageModule,
   ],
   providers: [
     {

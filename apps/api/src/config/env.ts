@@ -27,6 +27,20 @@ export const envSchema = z.object({
   ADMIN_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().optional(),
 
+  // ── Object storage (Cloudflare R2 — S3-compatible) ──
+  // All optional: unset disables the signed-upload service (the endpoint then
+  // returns 503) so the API still boots in CI / local dev without R2 creds.
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  // Public base URL for objects (custom domain or r2.dev), used to build the
+  // final object URL returned to clients. Unset → no public URL is reported.
+  R2_PUBLIC_URL: z.string().url().optional(),
+  // Lifetime (seconds) of generated presigned URLs. Bounded to a week (the S3
+  // SigV4 maximum) so a typo can't mint an effectively unbounded URL.
+  R2_SIGNED_URL_TTL: z.coerce.number().int().positive().max(604800).default(900),
+
   // ── Logging ──
   LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
 
