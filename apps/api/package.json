@@ -4,8 +4,12 @@
   "private": true,
   "scripts": {
     "build": "echo '[@fit/api] build: nothing to do yet'",
-    "lint": "echo '[@fit/api] lint: nothing to do yet'",
+    "lint": "eslint . --max-warnings 0",
     "test": "echo '[@fit/api] test: nothing to do yet'",
-    "type-check": "echo '[@fit/api] type-check: nothing to do yet'"
+    "type-check": "tsc --noEmit",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@fit/config": "workspace:*"
   }
 }

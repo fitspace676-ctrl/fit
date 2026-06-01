@@ -4,11 +4,11 @@ Monorepo for the **fit** platform, managed with [pnpm workspaces](https://pnpm.i
 
 ## Prerequisites
 
-| Tool   | Version  | Notes                                              |
-| ------ | -------- | -------------------------------------------------- |
-| Node   | `>=20`   | LTS recommended                                    |
-| pnpm   | `9.15.4` | Pinned via `packageManager`; use `corepack` to get it |
-| Turbo  | `^2.3.3` | Installed as a workspace dev dependency            |
+| Tool  | Version  | Notes                                                 |
+| ----- | -------- | ----------------------------------------------------- |
+| Node  | `>=20`   | LTS recommended                                       |
+| pnpm  | `9.15.4` | Pinned via `packageManager`; use `corepack` to get it |
+| Turbo | `^2.3.3` | Installed as a workspace dev dependency               |
 
 Enable pnpm through Corepack (ships with Node):
 
@@ -52,13 +52,13 @@ fit/
 
 Run from the repo root — Turbo fans each task out across all workspaces:
 
-| Command               | Description                                  |
-| --------------------- | -------------------------------------------- |
-| `pnpm build`          | `turbo run build` across all workspaces      |
-| `pnpm dev`            | `turbo run dev` (persistent, uncached)       |
-| `pnpm lint`           | `turbo run lint`                             |
-| `pnpm test`           | `turbo run test`                             |
-| `pnpm type-check`     | `turbo run type-check`                       |
+| Command           | Description                             |
+| ----------------- | --------------------------------------- |
+| `pnpm build`      | `turbo run build` across all workspaces |
+| `pnpm dev`        | `turbo run dev` (persistent, uncached)  |
+| `pnpm lint`       | `turbo run lint`                        |
+| `pnpm test`       | `turbo run test`                        |
+| `pnpm type-check` | `turbo run type-check`                  |
 
 ## Pipeline
 

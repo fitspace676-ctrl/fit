@@ -6,8 +6,12 @@
   "types": "./index.ts",
   "scripts": {
     "build": "echo '[@fit/utils] build: nothing to do yet'",
-    "lint": "echo '[@fit/utils] lint: nothing to do yet'",
+    "lint": "eslint . --max-warnings 0",
     "test": "echo '[@fit/utils] test: nothing to do yet'",
-    "type-check": "echo '[@fit/utils] type-check: nothing to do yet'"
+    "type-check": "tsc --noEmit",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@fit/config": "workspace:*"
   }
 }

@@ -2,12 +2,30 @@
   "name": "@fit/config",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "main": "./index.ts",
   "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./eslint": "./eslint.config.mjs",
+    "./prettier": "./prettier.config.mjs",
+    "./tailwind": "./tailwind.config.base.mjs",
+    "./tsconfig.base.json": "./tsconfig.base.json"
+  },
   "scripts": {
     "build": "echo '[@fit/config] build: nothing to do yet'",
-    "lint": "echo '[@fit/config] lint: nothing to do yet'",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "test": "echo '[@fit/config] test: nothing to do yet'",
-    "type-check": "echo '[@fit/config] type-check: nothing to do yet'"
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1"
   }
 }
