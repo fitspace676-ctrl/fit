@@ -1,0 +1,13 @@
+{
+  "name": "@fit/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "build": "echo '[@fit/i18n] build: nothing to do yet'",
+    "lint": "echo '[@fit/i18n] lint: nothing to do yet'",
+    "test": "echo '[@fit/i18n] test: nothing to do yet'",
+    "type-check": "echo '[@fit/i18n] type-check: nothing to do yet'"
+  }
+}

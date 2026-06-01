@@ -1,0 +1,13 @@
+{
+  "name": "@fit/ui-web",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "build": "echo '[@fit/ui-web] build: nothing to do yet'",
+    "lint": "echo '[@fit/ui-web] lint: nothing to do yet'",
+    "test": "echo '[@fit/ui-web] test: nothing to do yet'",
+    "type-check": "echo '[@fit/ui-web] type-check: nothing to do yet'"
+  }
+}

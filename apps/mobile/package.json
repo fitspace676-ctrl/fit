@@ -1,0 +1,11 @@
+{
+  "name": "@fit/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo '[@fit/mobile] build: nothing to do yet'",
+    "lint": "echo '[@fit/mobile] lint: nothing to do yet'",
+    "test": "echo '[@fit/mobile] test: nothing to do yet'",
+    "type-check": "echo '[@fit/mobile] type-check: nothing to do yet'"
+  }
+}

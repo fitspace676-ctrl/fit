@@ -1,0 +1,13 @@
+{
+  "name": "@fit/db",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "build": "echo '[@fit/db] build: nothing to do yet'",
+    "lint": "echo '[@fit/db] lint: nothing to do yet'",
+    "test": "echo '[@fit/db] test: nothing to do yet'",
+    "type-check": "echo '[@fit/db] type-check: nothing to do yet'"
+  }
+}

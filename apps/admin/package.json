@@ -1,0 +1,11 @@
+{
+  "name": "@fit/admin",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo '[@fit/admin] build: nothing to do yet'",
+    "lint": "echo '[@fit/admin] lint: nothing to do yet'",
+    "test": "echo '[@fit/admin] test: nothing to do yet'",
+    "type-check": "echo '[@fit/admin] type-check: nothing to do yet'"
+  }
+}
