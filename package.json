@@ -14,6 +14,7 @@
     "test": "turbo run test",
     "type-check": "turbo run type-check",
     "fit": "tsx tools/cli/src/index.ts",
+    "check:env-example": "tsx scripts/check-env-example.ts",
     "db:generate": "pnpm --filter @fit/db db:generate",
     "db:migrate": "pnpm --filter @fit/db db:migrate",
     "db:migrate:dev": "pnpm --filter @fit/db db:migrate:dev",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@fit/config": "workspace:*",
+    "@types/node": "^22.10.0",
     "eslint": "^9.17.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.3.0",

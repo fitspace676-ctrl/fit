@@ -5,8 +5,9 @@ import * as Sentry from '@sentry/nestjs';
 import { AllExceptionsFilter, type ErrorResponseBody } from './all-exceptions.filter';
 
 // `captureException` is the only Sentry surface the filter touches. ESM module
-// namespaces are not spy-able, so mock the whole module to a no-op stub.
-vi.mock('@sentry/nestjs', () => ({ captureException: vi.fn(() => '') }));
+// namespaces are not spy-able, so mock the whole module. It returns a fake
+// event id so we can assert it is threaded onto 5xx response bodies.
+vi.mock('@sentry/nestjs', () => ({ captureException: vi.fn(() => 'evt-abc123') }));
 
 interface Captured {
   status: number;
@@ -45,7 +46,7 @@ describe('AllExceptionsFilter', () => {
     vi.clearAllMocks();
   });
 
-  it('preserves the status, reason, and message of a built-in HttpException', () => {
+  it('maps a built-in HttpException to its status, code, message, and requestId', () => {
     const captured = {} as Captured;
     filter.catch(
       new BadRequestException('contentType is required'),
@@ -53,16 +54,28 @@ describe('AllExceptionsFilter', () => {
     );
 
     expect(captured.status).toBe(HttpStatus.BAD_REQUEST);
-    expect(captured.body).toMatchObject({
-      statusCode: HttpStatus.BAD_REQUEST,
-      error: 'Bad Request',
+    expect(captured.body).toEqual({
+      code: 'VALIDATION_ERROR',
       message: 'contentType is required',
-      path: '/widgets',
+      details: null,
       requestId: 'req-123',
     });
-    expect(typeof captured.body.timestamp).toBe('string');
-    // 4xx client errors are not noise-shipped to Sentry.
+    // 4xx client errors are not noise-shipped to Sentry, so carry no event id.
+    expect(captured.body.sentryEventId).toBeUndefined();
     expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it('surfaces class-validator messages as `details` with a VALIDATION_ERROR code', () => {
+    const captured = {} as Captured;
+    filter.catch(
+      new BadRequestException(['email must be an email', 'password is too short']),
+      mockHost(mockResponse(captured)),
+    );
+
+    expect(captured.status).toBe(HttpStatus.BAD_REQUEST);
+    expect(captured.body.code).toBe('VALIDATION_ERROR');
+    expect(captured.body.message).toBe('Validation failed');
+    expect(captured.body.details).toEqual(['email must be an email', 'password is too short']);
   });
 
   it('maps a bare-string HttpException to its status and message', () => {
@@ -73,19 +86,23 @@ describe('AllExceptionsFilter', () => {
     );
 
     expect(captured.status).toBe(HttpStatus.I_AM_A_TEAPOT);
+    expect(captured.body.code).toBe('HTTP_ERROR');
     expect(captured.body.message).toBe('teapot');
+    expect(captured.body.details).toBeNull();
   });
 
-  it('turns an unknown error into an opaque 500 and reports it to Sentry', () => {
+  it('turns an unknown error into an opaque 500, reports it, and attaches the event id', () => {
     const error = new Error('connection string leaked secret');
     const captured = {} as Captured;
     filter.catch(error, mockHost(mockResponse(captured)));
 
     expect(captured.status).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
-    expect(captured.body).toMatchObject({
-      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      error: 'Internal Server Error',
+    expect(captured.body).toEqual({
+      code: 'INTERNAL_ERROR',
       message: 'Internal server error',
+      details: null,
+      requestId: 'req-123',
+      sentryEventId: 'evt-abc123',
     });
     // The original (leaky) message must never reach the client.
     expect(captured.body.message).not.toContain('secret');

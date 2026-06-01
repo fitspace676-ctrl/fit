@@ -17,6 +17,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/react-native": "^8.13.0",
     "expo": "^56.0.0",
     "expo-constants": "~56.0.16",
     "expo-linking": "~56.0.13",

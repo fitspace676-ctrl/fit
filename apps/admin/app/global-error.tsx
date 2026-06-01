@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
+import { useEffect, useState } from 'react';
 
 /**
  * Root error boundary. Catches errors thrown in the root layout itself — the
@@ -15,10 +16,13 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [eventId, setEventId] = useState<string | null>(null);
+
   useEffect(() => {
-    // TODO(observability): forward to Sentry once the web SDK is wired up.
-    console.error(error);
+    setEventId(Sentry.captureException(error));
   }, [error]);
+
+  const reference = eventId || error.digest;
 
   return (
     <html lang="en">
@@ -28,9 +32,7 @@ export default function GlobalError({
           <p className="max-w-md text-slate-500">
             The admin console failed to load. Please try again.
           </p>
-          {error.digest ? (
-            <p className="text-xs text-slate-400">Reference: {error.digest}</p>
-          ) : null}
+          {reference ? <p className="text-xs text-slate-400">Reference: {reference}</p> : null}
           <button
             type="button"
             onClick={reset}
