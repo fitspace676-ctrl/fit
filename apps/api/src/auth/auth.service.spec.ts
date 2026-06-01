@@ -10,7 +10,10 @@ import type { TokenPair } from '@fit/types';
 // Mock the frozen env singleton so the verification TTL is deterministic, and
 // stub argon2 so tests neither load the native addon nor pay hashing cost.
 const { mockEnv, argonHash, argonVerify } = vi.hoisted(() => {
-  const mockEnv: Record<string, unknown> = { EMAIL_VERIFICATION_TTL: 86_400 };
+  const mockEnv: Record<string, unknown> = {
+    EMAIL_VERIFICATION_TTL: 86_400,
+    PASSWORD_RESET_TTL: 3_600,
+  };
   const argonHash = vi.fn<(password: string, opts?: unknown) => Promise<string>>(() =>
     Promise.resolve('argon2-hash'),
   );
@@ -41,7 +44,11 @@ interface StoredUser {
 /** Build an AuthService with controllable collaborator fakes. */
 function setup() {
   const findUnique = vi.fn<
-    (args: unknown) => Promise<{ id: string; emailVerifiedAt?: Date | null } | StoredUser | null>
+    (
+      args: unknown,
+    ) => Promise<
+      { id: string; emailVerifiedAt?: Date | null; name?: string | null } | StoredUser | null
+    >
   >(() => Promise.resolve(null));
   const create = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
     Promise.resolve({ id: 'user-1' }),
@@ -64,7 +71,11 @@ function setup() {
     Promise.resolve({ accessToken: 'access2', refreshToken: 'refresh2' }),
   );
   const revokeRefreshToken = vi.fn<(token: string) => Promise<void>>(() => Promise.resolve());
+  const revokeAllForUser = vi.fn<(userId: string) => Promise<void>>(() => Promise.resolve());
   const sendVerificationEmail = vi.fn<(...args: unknown[]) => Promise<void>>(() =>
+    Promise.resolve(),
+  );
+  const sendPasswordResetEmail = vi.fn<(...args: unknown[]) => Promise<void>>(() =>
     Promise.resolve(),
   );
   const verifyIdToken = vi.fn<(idToken: string) => Promise<GoogleProfile>>(() =>
@@ -82,8 +93,9 @@ function setup() {
     issueTokenPair,
     rotateRefreshToken,
     revokeRefreshToken,
+    revokeAllForUser,
   } as unknown as TokenService;
-  const email = { sendVerificationEmail } as unknown as EmailService;
+  const email = { sendVerificationEmail, sendPasswordResetEmail } as unknown as EmailService;
   const google = { verifyIdToken } as unknown as GoogleOAuthService;
   const apple = { verifyIdToken: verifyAppleIdToken } as unknown as AppleOAuthService;
 
@@ -100,7 +112,9 @@ function setup() {
     issueTokenPair,
     rotateRefreshToken,
     revokeRefreshToken,
+    revokeAllForUser,
     sendVerificationEmail,
+    sendPasswordResetEmail,
     verifyIdToken,
     verifyAppleIdToken,
   };
@@ -210,6 +224,116 @@ describe('AuthService', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(ctx.updateMany).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requestPasswordReset', () => {
+    it('mints a reset token and emails it when the account exists', async () => {
+      ctx.findUnique.mockResolvedValue({ id: 'user-1', name: 'Sam' });
+
+      const result = await ctx.service.requestPasswordReset({ email: 'a@b.com' });
+
+      expect(result).toEqual({
+        message: 'If an account exists for that address, a reset link has been sent',
+      });
+
+      // Token stored under password-reset:<token> -> userId with a 1h TTL.
+      const [key, value, ex, ttl] = ctx.set.mock.calls[0]!;
+      expect(key).toMatch(/^password-reset:.+/);
+      expect(value).toBe('user-1');
+      expect(ex).toBe('EX');
+      expect(ttl).toBe(3_600);
+
+      const emailedToken = key.slice('password-reset:'.length);
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith('a@b.com', emailedToken, 'Sam');
+    });
+
+    it('returns the same generic message without minting a token when no account exists', async () => {
+      ctx.findUnique.mockResolvedValue(null);
+
+      const result = await ctx.service.requestPasswordReset({ email: 'ghost@b.com' });
+
+      expect(result).toEqual({
+        message: 'If an account exists for that address, a reset link has been sent',
+      });
+      expect(ctx.set).not.toHaveBeenCalled();
+      expect(ctx.sendPasswordResetEmail).not.toHaveBeenCalled();
+    });
+
+    it('still resolves when the reset email fails to send (token already minted)', async () => {
+      ctx.findUnique.mockResolvedValue({ id: 'user-1', name: null });
+      ctx.sendPasswordResetEmail.mockRejectedValue(new Error('resend down'));
+
+      await expect(ctx.service.requestPasswordReset({ email: 'a@b.com' })).resolves.toEqual({
+        message: 'If an account exists for that address, a reset link has been sent',
+      });
+      // The token was still persisted despite the delivery failure.
+      expect(ctx.set).toHaveBeenCalled();
+    });
+  });
+
+  describe('resetPassword', () => {
+    const VALID_RESET = { token: 'reset-tok', password: 'brand-new-secret' };
+
+    it('consumes the token, sets the new hash, revokes all sessions, and issues a session', async () => {
+      ctx.get.mockResolvedValue('user-1');
+
+      const pair = await ctx.service.resetPassword(VALID_RESET);
+
+      expect(ctx.del).toHaveBeenCalledWith('password-reset:reset-tok');
+      expect(argonHash).toHaveBeenCalledWith(
+        'brand-new-secret',
+        expect.objectContaining({ type: 2 }),
+      );
+
+      // New hash written to the resolved user.
+      const update = ctx.update.mock.calls[0]![0] as {
+        where: { id: string };
+        data: { passwordHash: string };
+      };
+      expect(update.where).toEqual({ id: 'user-1' });
+      expect(update.data.passwordHash).toBe('argon2-hash');
+
+      // Verification is stamped only on a still-unverified row.
+      const stamp = ctx.updateMany.mock.calls[0]![0] as {
+        where: unknown;
+        data: { emailVerifiedAt: unknown };
+      };
+      expect(stamp.where).toEqual({ id: 'user-1', emailVerifiedAt: null });
+      expect(stamp.data.emailVerifiedAt).toBeInstanceOf(Date);
+
+      // All existing sessions are cut, then a fresh one is issued.
+      expect(ctx.revokeAllForUser).toHaveBeenCalledWith('user-1');
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1');
+      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+
+    it('throws 400 TOKEN_INVALID_OR_EXPIRED for an unknown / expired token', async () => {
+      ctx.get.mockResolvedValue(null);
+
+      const error = await ctx.service.resetPassword(VALID_RESET).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TOKEN_INVALID_OR_EXPIRED',
+      });
+      expect(ctx.del).not.toHaveBeenCalled();
+      expect(ctx.update).not.toHaveBeenCalled();
+      expect(ctx.revokeAllForUser).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('rejects a token already consumed by a racing request (DEL returns 0)', async () => {
+      ctx.get.mockResolvedValue('user-1');
+      ctx.del.mockResolvedValue(0);
+
+      const error = await ctx.service.resetPassword(VALID_RESET).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(argonHash).not.toHaveBeenCalled();
+      expect(ctx.update).not.toHaveBeenCalled();
+      expect(ctx.revokeAllForUser).not.toHaveBeenCalled();
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
   });

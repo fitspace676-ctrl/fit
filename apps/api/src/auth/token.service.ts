@@ -145,6 +145,19 @@ export class TokenService {
   }
 
   /**
+   * Revoke every still-live refresh token a user holds, across all families and
+   * devices. Used when an event invalidates all existing sessions at once — a
+   * password reset, where any session an attacker may hold must be cut along
+   * with the user's own. Idempotent: a user with no live tokens is a no-op.
+   */
+  async revokeAllForUser(userId: string): Promise<void> {
+    await this.prisma.client.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  /**
    * Persist a refresh token under `familyId` and return its plaintext secret
    * (stored only as a hash). Shared by issuance (new family) and rotation
    * (continuing an existing family).

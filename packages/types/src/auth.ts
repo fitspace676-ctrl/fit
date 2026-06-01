@@ -61,6 +61,31 @@ export const refreshSchema = z.object({
 export type RefreshInput = z.infer<typeof refreshSchema>;
 
 /**
+ * Body for `POST /auth/forgot-password`. Email is normalised the same way
+ * registration normalises it so the lookup matches the stored row. The endpoint
+ * never reveals whether the address is registered — it always returns the same
+ * generic acknowledgement — so no password policy is asserted here either.
+ */
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+/**
+ * Body for `POST /auth/reset-password`. Carries the single-use reset token from
+ * the emailed deep link plus the replacement password, which is held to the same
+ * length bounds registration enforces (the reset is where a password is *set*,
+ * so the registration policy applies — unlike login, which only verifies one).
+ */
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1),
+  password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+});
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+/**
  * Body for `POST /auth/google`. Carries the Google-issued ID token (a signed
  * JWT) the web / mobile client obtained from Google Sign-In. The API verifies
  * the token against Google's public keys, then issues its own session — so the
@@ -124,6 +149,15 @@ export interface AppleProfile {
 
 /** Successful `POST /auth/register` response. */
 export interface RegisterResponse {
+  message: string;
+}
+
+/**
+ * Successful `POST /auth/forgot-password` response. Deliberately generic: it is
+ * returned identically whether or not the email matched an account, so the
+ * endpoint can't be used to enumerate which addresses are registered.
+ */
+export interface ForgotPasswordResponse {
   message: string;
 }
 

@@ -11,11 +11,14 @@ import {
 import { z } from 'zod';
 import {
   appleAuthSchema,
+  forgotPasswordSchema,
   googleAuthSchema,
   loginSchema,
   refreshSchema,
   registerSchema,
+  resetPasswordSchema,
   verifyEmailSchema,
+  type ForgotPasswordResponse,
   type RegisterResponse,
   type TokenPair,
 } from '@fit/types';
@@ -55,6 +58,22 @@ export class AuthController {
   async login(@Body() body: unknown): Promise<TokenPair> {
     const input = parse(loginSchema, body);
     return this.auth.login(input);
+  }
+
+  /** `POST /auth/forgot-password` — mint a reset token and email the reset link. */
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() body: unknown): Promise<ForgotPasswordResponse> {
+    const input = parse(forgotPasswordSchema, body);
+    return this.auth.requestPasswordReset(input);
+  }
+
+  /** `POST /auth/reset-password` — consume a reset token, set the new password, and issue a session. */
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() body: unknown): Promise<TokenPair> {
+    const input = parse(resetPasswordSchema, body);
+    return this.auth.resetPassword(input);
   }
 
   /** `POST /auth/google` — verify a Google ID token and issue a session. */

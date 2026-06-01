@@ -8,7 +8,7 @@ import { TokenService } from './token.service';
 
 /**
  * Auth: serves email/password registration + verification, password login,
- * Google + Apple OAuth login, and refresh-token rotation.
+ * password reset, Google + Apple OAuth login, and refresh-token rotation.
  *
  * Depends on the globally-provided `PrismaService` and `RedisService`, so it
  * only needs to register its own providers — {@link AuthService} plus the
