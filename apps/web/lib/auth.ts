@@ -3,13 +3,28 @@
 // Thin wrapper over the @fit/api auth endpoints. The session a successful sign-in
 // returns is the same {@link TokenPair} every other auth route issues (access
 // JWT + rotating refresh token); we persist it to localStorage so the rest of the
-// app can attach the access token to API calls.
+// app can attach the access token to API calls, AND mirror the access token into
+// a cookie so the Next.js middleware / `getServerSession()` (which can't read
+// localStorage) can authenticate requests. The two stores are kept in lock-step
+// by {@link storeTokens} / {@link clearTokens}.
+
+import { ACCESS_TOKEN_COOKIE, readUnverifiedSession } from './auth-session';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 const ACCESS_TOKEN_KEY = 'fit.accessToken';
 const REFRESH_TOKEN_KEY = 'fit.refreshToken';
+
+/**
+ * Optional parent domain for the auth cookie (e.g. `.fit.ge`) so the session is
+ * shared across tenant subdomains and cleared everywhere on logout. Unset in
+ * local dev (the cookie stays host-only on `localhost`).
+ */
+const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
+
+/** Fallback cookie lifetime when the token carries no `exp` (seconds). */
+const DEFAULT_COOKIE_MAX_AGE = 3600;
 
 /** A signed session: short-lived access JWT + opaque rotating refresh token. */
 export interface TokenPair {
@@ -111,11 +126,12 @@ export async function resetPassword(token: string, password: string): Promise<To
   return tokens;
 }
 
-/** Persist a session to localStorage (no-op during SSR). */
+/** Persist a session to localStorage + the auth cookie (no-op during SSR). */
 export function storeTokens(tokens: TokenPair): void {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
   window.localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+  writeAccessCookie(tokens.accessToken);
 }
 
 /** Read the stored access token, or null when signed out / during SSR. */
@@ -124,9 +140,66 @@ export function getAccessToken(): string | null {
   return window.localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-/** Clear the persisted session (client-side sign-out). */
+/** Clear the persisted session — localStorage and the auth cookie (sign-out). */
 export function clearTokens(): void {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  clearAccessCookie();
+}
+
+/**
+ * Client-side sign-out. Drops every persisted credential so the next request
+ * fails the middleware gate and is redirected to `/login`. Setting
+ * {@link COOKIE_DOMAIN} clears the cookie across all subdomains. The refresh
+ * token's server-side revocation is handled separately by the auth API.
+ */
+export function logout(): void {
+  clearTokens();
+}
+
+/** Mirror the access token into the `accessToken` cookie the middleware reads. */
+function writeAccessCookie(accessToken: string): void {
+  const session = readUnverifiedSession(accessToken);
+  const exp = session ? extractExp(accessToken) : null;
+  const maxAge = exp ? Math.max(0, exp - Math.floor(Date.now() / 1000)) : DEFAULT_COOKIE_MAX_AGE;
+
+  const parts = [
+    `${ACCESS_TOKEN_COOKIE}=${encodeURIComponent(accessToken)}`,
+    'Path=/',
+    `Max-Age=${maxAge}`,
+    'SameSite=Lax',
+  ];
+  if (window.location.protocol === 'https:') parts.push('Secure');
+  if (COOKIE_DOMAIN) parts.push(`Domain=${COOKIE_DOMAIN}`);
+  document.cookie = parts.join('; ');
+}
+
+/** Expire the auth cookie on the current host and (if set) the parent domain. */
+function clearAccessCookie(): void {
+  const base = [`${ACCESS_TOKEN_COOKIE}=`, 'Path=/', 'Max-Age=0', 'SameSite=Lax'];
+  document.cookie = base.join('; ');
+  if (COOKIE_DOMAIN) {
+    document.cookie = [...base, `Domain=${COOKIE_DOMAIN}`].join('; ');
+  }
+}
+
+/** Read the `exp` (unix seconds) from a JWT payload, or null. */
+function extractExp(token: string): number | null {
+  const payload = token.split('.')[1];
+  if (!payload) return null;
+  try {
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const json = JSON.parse(
+      decodeURIComponent(
+        atob(b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '='))
+          .split('')
+          .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
+          .join(''),
+      ),
+    ) as { exp?: unknown };
+    return typeof json.exp === 'number' ? json.exp : null;
+  } catch {
+    return null;
+  }
 }
