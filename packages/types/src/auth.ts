@@ -42,10 +42,20 @@ export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
  * required to be non-empty here — the registration policy (length bounds) is
  * irrelevant to verifying an already-stored credential, and re-asserting it
  * would needlessly leak the policy to an attacker probing the endpoint.
+ *
+ * `gymSlug` is optional context, not a credential: when the sign-in happens on a
+ * tenant subdomain (`<slug>.fit.ge`) the client forwards that slug so the issued
+ * session binds to *that* gym rather than the user's earliest-joined "primary"
+ * one. It is held only to loose DNS-label shape (the real authority is whether
+ * the user actually has a membership in the named gym); an unknown or
+ * non-member slug is ignored and the session falls back to the primary gym, so a
+ * crafted value can never escalate scope. The full {@link gymSlugSchema} lives in
+ * `./gyms`, but is re-derived loosely here to avoid an import cycle.
  */
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
+  gymSlug: z.string().trim().toLowerCase().min(1).max(63).optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

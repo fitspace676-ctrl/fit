@@ -105,7 +105,9 @@ function setup() {
   const gymMemberFindMany = vi.fn<
     (
       args: unknown,
-    ) => Promise<{ gymId: string; role: Role; joinedAt: Date; gym: { status: string } }[]>
+    ) => Promise<
+      { gymId: string; role: Role; joinedAt: Date; gym: { status: string; slug?: string } }[]
+    >
   >(() => Promise.resolve([]));
 
   const prisma = {
@@ -545,6 +547,59 @@ describe('AuthService', () => {
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: 'gym-early',
         role: Role.MANAGER,
+        tokenVersion: 0,
+      });
+    });
+
+    it('binds to the subdomain gym when gymSlug names a membership (not the primary)', async () => {
+      // Signed in on `riverside.fit.ge` — bind to riverside even though downtown
+      // is the earliest-joined (primary) gym.
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.OWNER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+        {
+          gymId: 'gym-riverside',
+          role: Role.TRAINER,
+          joinedAt: new Date('2026-03-01'),
+          gym: { status: 'ACTIVE', slug: 'riverside' },
+        },
+      ]);
+
+      await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' });
+
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
+        gymId: 'gym-riverside',
+        role: Role.TRAINER,
+        tokenVersion: 0,
+      });
+    });
+
+    it('falls back to the primary gym when gymSlug names a gym the user is not a member of', async () => {
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.OWNER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      // `someone-elses-gym` isn't among the user's memberships → primary wins.
+      await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'someone-elses-gym' });
+
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
+        gymId: 'gym-downtown',
+        role: Role.OWNER,
         tokenVersion: 0,
       });
     });

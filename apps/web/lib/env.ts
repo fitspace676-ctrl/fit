@@ -12,6 +12,10 @@ import { validateEnv, z } from '@fit/env';
 export const env = validateEnv(
   z.object({
     NEXT_PUBLIC_API_URL: z.string().url().optional(),
+    // Platform root domain (`fit.ge`, or `localhost` in dev). The member site is
+    // served at `<slug>.<root>`; the active gym is derived from the request Host
+    // against this value. Unset → no tenant in scope (apex / preview URL).
+    NEXT_PUBLIC_ROOT_DOMAIN: z.string().optional(),
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
     NEXT_PUBLIC_APPLE_CLIENT_ID: z.string().optional(),
     NEXT_PUBLIC_APPLE_REDIRECT_URI: z.string().url().optional(),

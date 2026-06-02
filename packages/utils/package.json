@@ -16,7 +16,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@fit/i18n": "workspace:*"
+    "@fit/i18n": "workspace:*",
+    "@fit/types": "workspace:*"
   },
   "devDependencies": {
     "@fit/config": "workspace:*",
