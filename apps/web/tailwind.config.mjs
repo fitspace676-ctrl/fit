@@ -8,5 +8,5 @@ import preset from '@fit/config/tailwind';
  */
 export default {
   presets: [preset],
-  content: ['./app/**/*.{ts,tsx,mdx}', './components/**/*.{ts,tsx,mdx}'],
+  content: ['./app/**/*.{ts,tsx,mdx}', './components/**/*.{ts,tsx,mdx}', './src/**/*.{ts,tsx,mdx}'],
 };

@@ -17,8 +17,94 @@
     }
   },
   "home": {
-    "title": "Find your gym. Book your class.",
-    "subtitle": "Fit connects you with gyms, trainers, and classes near you — book and manage your membership in one place."
+    "hero": {
+      "badge": "Now live in Georgia",
+      "title": "Find your gym. Book your class.",
+      "subtitle": "Fit connects you with gyms, trainers, and classes near you — book and manage your membership in one place.",
+      "ctaPrimary": "Get started",
+      "ctaSecondary": "Browse classes"
+    },
+    "features": {
+      "title": "Everything you need to stay in shape",
+      "subtitle": "One app for members, trainers, and gyms — from discovery to check-in.",
+      "items": {
+        "discover": {
+          "title": "Discover gyms & studios",
+          "description": "Browse verified gyms and studios near you with photos, amenities, and real reviews."
+        },
+        "book": {
+          "title": "Book in seconds",
+          "description": "Reserve a class or a session in a couple of taps and get instant confirmation."
+        },
+        "train": {
+          "title": "Train with the best",
+          "description": "Find certified trainers, compare specialties, and book one-on-one sessions."
+        },
+        "membership": {
+          "title": "One membership, everywhere",
+          "description": "Manage your plan, track visits, and pay in one place — no paper cards."
+        }
+      }
+    },
+    "pricing": {
+      "title": "Simple, transparent pricing",
+      "subtitle": "Start free and upgrade as you grow. No hidden fees.",
+      "perMonth": "/mo",
+      "mostPopular": "Most popular",
+      "plans": {
+        "starter": {
+          "name": "Starter",
+          "price": "₾0",
+          "description": "For members getting started.",
+          "cta": "Get started",
+          "features": {
+            "0": "Discover gyms & classes",
+            "1": "Book up to 4 classes / mo",
+            "2": "Mobile check-in"
+          }
+        },
+        "pro": {
+          "name": "Pro",
+          "price": "₾49",
+          "description": "For regulars who train often.",
+          "cta": "Start free trial",
+          "features": {
+            "0": "Unlimited bookings",
+            "1": "Priority class waitlists",
+            "2": "Trainer sessions",
+            "3": "Visit history & stats"
+          }
+        },
+        "studio": {
+          "name": "Studio",
+          "price": "₾149",
+          "description": "For gyms and studios.",
+          "cta": "Contact sales",
+          "features": {
+            "0": "Member management",
+            "1": "Class scheduling",
+            "2": "Payments & payouts",
+            "3": "Analytics dashboard"
+          }
+        }
+      }
+    }
+  },
+  "footer": {
+    "tagline": "Book gyms, classes, and trainers across Georgia — all in one app.",
+    "product": "Product",
+    "company": "Company",
+    "legal": "Legal",
+    "links": {
+      "classes": "Classes",
+      "trainers": "Trainers",
+      "pricing": "Pricing",
+      "about": "About",
+      "contact": "Contact",
+      "privacy": "Privacy policy",
+      "terms": "Terms of service"
+    },
+    "copyright": "© {year} Fit. All rights reserved."
   },
   "auth": {
     "signInTitle": "Sign in to Fit",
