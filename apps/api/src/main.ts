@@ -10,6 +10,7 @@ import './instrument';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { isOriginAllowed } from './common/cors/allowed-origin';
 
 /** Parse a comma-separated origin list, dropping blanks. */
 function parseOrigins(raw: string | undefined): string[] {
@@ -20,8 +21,11 @@ function parseOrigins(raw: string | undefined): string[] {
 }
 
 /**
- * Allowed CORS origins: the web and admin clients (from env) plus the Expo dev
- * server. Extra origins can be supplied via `CORS_ORIGINS` (comma-separated).
+ * Explicitly allowed CORS origins: the web and admin clients (from env) plus the
+ * Expo dev server. Extra origins can be supplied via `CORS_ORIGINS`
+ * (comma-separated). Tenant subdomains (`<slug>.<root>`) are allowed on top of
+ * this list by {@link isOriginAllowed}, which suffix-matches `PLATFORM_ROOT_DOMAIN`
+ * so every gym's subdomain works without enumerating them here.
  */
 function corsOrigins(): string[] {
   const origins = new Set<string>([
@@ -39,8 +43,12 @@ async function bootstrap(): Promise<void> {
   // Route Nest's own logs through pino.
   app.useLogger(app.get(Logger));
 
+  const allowList = corsOrigins();
   app.enableCors({
-    origin: corsOrigins(),
+    // A function so each request's Origin is checked against the static list *and*
+    // the tenant-subdomain suffix rule — `string[]` alone can't match `*.<root>`.
+    origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) =>
+      cb(null, isOriginAllowed(origin, allowList, env.PLATFORM_ROOT_DOMAIN)),
     credentials: true,
   });
   app.enableShutdownHooks();
