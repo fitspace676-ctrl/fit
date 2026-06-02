@@ -47,11 +47,14 @@ describe('tenant isolation (integration)', () => {
     expect(rows.every((r) => r.gymId === gymA)).toBe(true);
   });
 
-  it('cannot reach gym-B rows even when it explicitly asks for gymB (filter is overwritten)', async () => {
+  it('cannot reach gym-B rows even when it explicitly asks for gymB (filter is overwritten to gymA)', async () => {
     const rows = await asTenant(state(gymA), () =>
       tenantPrisma.gymMember.findMany({ where: { gymId: gymB } }),
     );
-    expect(rows).toHaveLength(0);
+    // The injected gymId wins: the caller gets *their own* gym's rows, never
+    // gym B's — so gym B remains unreachable by construction.
+    expect(rows.every((r) => r.gymId === gymA)).toBe(true);
+    expect(rows.some((r) => r.gymId === gymB)).toBe(false);
   });
 
   it('overwrites the gym on create — a caller cannot insert into another tenant', async () => {
