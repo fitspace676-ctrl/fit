@@ -11,6 +11,7 @@ import { StorageModule } from './storage/storage.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { loggerConfig } from './common/logging';
+import { SubdomainTenantMiddleware } from './common/middleware/subdomain-tenant.middleware';
 import { PermissionsGuard } from './common/rbac/permissions.guard';
 import { RbacModule } from './common/rbac/rbac.module';
 import { TenantModule } from './common/tenant/tenant.module';
@@ -58,6 +59,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     RbacModule,
   ],
   providers: [
+    SubdomainTenantMiddleware,
     TenantMiddleware,
     {
       provide: APP_FILTER,
@@ -74,13 +76,23 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
 })
 export class AppModule implements NestModule {
   /**
-   * Apply {@link TenantMiddleware} to every route except the public ones: auth
-   * (must work before any session exists), the health probe, and uploads (which
-   * carries its own `gymId` in the body and predates tenant scoping). New
-   * protected routes are tenant-scoped automatically; existing controllers stay
-   * untouched, keeping the middleware transparent.
+   * Wire the two tenant middlewares, in order:
+   *
+   * 1. {@link SubdomainTenantMiddleware} runs on every route. For an
+   *    unauthenticated request on a `<slug>.fit.ge` subdomain it establishes the
+   *    tenant from the host; for everything else (a session-bearing request, or
+   *    no tenant subdomain) it is a pass-through.
+   * 2. {@link TenantMiddleware} establishes the tenant from the JWT on every
+   *    route except the public ones: auth (must work before any session exists),
+   *    the health probe, and uploads (which carries its own `gymId` and predates
+   *    tenant scoping). A session always wins over the subdomain, and an
+   *    unauthenticated request to a protected route is still rejected here.
+   *
+   * New protected routes are tenant-scoped automatically; existing controllers
+   * stay untouched, keeping both middlewares transparent.
    */
   configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(SubdomainTenantMiddleware).forRoutes('*');
     consumer
       .apply(TenantMiddleware)
       .exclude(

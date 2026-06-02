@@ -27,6 +27,13 @@ export const envSchema = z.object({
   ADMIN_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().optional(),
 
+  // ── Multi-tenancy (subdomain resolution) ──
+  // Root domain tenants live under as `<slug>.fit.ge`. The subdomain tenant
+  // middleware strips this suffix off the request `Host` to recover the tenant
+  // slug, so it must match the domain the gym subdomains are actually served on.
+  // Lower-cased + bare (no scheme/port); default matches production.
+  PLATFORM_ROOT_DOMAIN: z.string().trim().toLowerCase().default('fit.ge'),
+
   // ── Auth / sessions ──
   // HS256 secret the API signs session JWTs with. Optional so the API still
   // boots in CI / local dev without it; token issuance then returns 503 (see

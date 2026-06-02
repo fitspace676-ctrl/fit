@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import type { GymSummary, ListGymsResponse } from '@fit/types';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { GymStatus } from '@fit/db';
+import type { GymBySubdomainResponse, GymSummary, ListGymsResponse } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -42,5 +43,26 @@ export class GymsService {
     }));
 
     return { gyms };
+  }
+
+  /**
+   * Resolve a tenant subdomain slug to the minimal public view a visitor needs
+   * to enter a gym's site (`GET /gyms/by-subdomain/:slug`). Reads the unscoped
+   * client because this runs before any tenant is established (it is *how* a
+   * public request discovers its tenant). Only an `ACTIVE` gym resolves: an
+   * unknown or suspended slug is reported `404 GYM_NOT_FOUND`, so a suspended
+   * tenant disappears from the public surface and an absent one can't be probed
+   * apart from a suspended one.
+   */
+  async resolveBySubdomain(slug: string): Promise<GymBySubdomainResponse> {
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { slug },
+      select: { id: true, name: true, status: true },
+    });
+    if (!gym || gym.status !== GymStatus.ACTIVE) {
+      throw new NotFoundException({ message: 'Gym not found', code: 'GYM_NOT_FOUND' });
+    }
+
+    return { gymId: gym.id, name: gym.name, brand: null };
   }
 }

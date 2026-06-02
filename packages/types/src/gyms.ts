@@ -15,10 +15,41 @@ export const GYM_SLUG_MIN_LENGTH = 3;
 export const GYM_SLUG_MAX_LENGTH = 40;
 
 /**
+ * Subdomain labels a tenant may never claim, because they name platform-level
+ * hosts (`www.fit.ge`, `api.fit.ge`, the admin/operator consoles, …) or common
+ * infrastructure aliases. Provisioning one as a tenant slug would let a gym
+ * shadow a platform host, so the slug schema rejects them and the subdomain
+ * tenant middleware never resolves them to a tenant. Kept lower-case to match
+ * the normalised slug.
+ */
+export const RESERVED_SUBDOMAINS: readonly string[] = [
+  'www',
+  'app',
+  'api',
+  'admin',
+  'platform',
+  'superadmin',
+  'auth',
+  'login',
+  'mail',
+  'email',
+  'static',
+  'assets',
+  'cdn',
+  'status',
+  'help',
+  'support',
+  'docs',
+  'dashboard',
+];
+
+/**
  * A gym slug doubles as the tenant's subdomain (`<slug>.fit.ge`), so it is held
  * to DNS-label rules: lowercase alphanumerics and internal hyphens only, never
  * leading/trailing or doubled hyphens. Normalised to lower-case + trimmed so a
- * single tenant can't be provisioned twice under differing case.
+ * single tenant can't be provisioned twice under differing case. Reserved
+ * platform labels ({@link RESERVED_SUBDOMAINS}) are rejected so a tenant can't
+ * shadow a platform host.
  */
 export const gymSlugSchema = z
   .string()
@@ -29,7 +60,10 @@ export const gymSlugSchema = z
   .regex(
     /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
     'slug must be lowercase alphanumerics separated by single hyphens',
-  );
+  )
+  .refine((slug) => !RESERVED_SUBDOMAINS.includes(slug), {
+    message: 'slug is reserved for platform use',
+  });
 
 /**
  * Body for `POST /auth/register-gym`. Provisions a new tenant and onboards its
@@ -93,4 +127,22 @@ export interface GymSummary {
  */
 export interface ListGymsResponse {
   gyms: GymSummary[];
+}
+
+/**
+ * Successful `GET /gyms/by-subdomain/:slug` response — the public tenant lookup
+ * a subdomain (`<slug>.fit.ge`) resolves to. Deliberately minimal: it exposes
+ * only what an unauthenticated visitor needs to render a tenant's entry page,
+ * never the roster fields (`ownerId`, `memberCount`). A missing/unknown slug is
+ * a `404 { code: "GYM_NOT_FOUND" }`.
+ */
+export interface GymBySubdomainResponse {
+  gymId: string;
+  name: string;
+  /**
+   * Tenant branding (logo, colours). Not modelled until gym settings (T4.8), so
+   * `null` for now; the field is present so clients can bind to it without a
+   * contract change once branding lands.
+   */
+  brand: null;
 }
