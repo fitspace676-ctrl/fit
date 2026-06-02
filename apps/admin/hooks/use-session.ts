@@ -2,44 +2,48 @@
 
 // @fit/admin — client session hook.
 //
-// `useSession()` reads the `accessToken` cookie in the browser and decodes it
-// (without verifying — the client has no secret) into a {@link Session} for
-// rendering role-aware navigation. Authoritative checks always happen
-// server-side in middleware / `getServerSession()`, where the signature is
-// verified; this hook only drives what the UI shows.
+// `useSession()` resolves the current session by fetching the same-origin
+// `GET /api/session` route, which reads the **httpOnly** access cookie on the
+// server and returns the *verified* {@link Session} (the client can't read the
+// cookie itself, and has no secret to verify a token with). Drives role-aware
+// navigation; every privileged action is still re-checked server-side.
 
 import { useEffect, useState } from 'react';
-import { ACCESS_TOKEN_COOKIE, readUnverifiedSession, type Session } from '@/lib/auth-session';
+import type { Session } from '@/lib/auth-session';
 
 export interface UseSessionResult {
   user: Session | null;
   isLoading: boolean;
 }
 
-/** Read a cookie value by name from `document.cookie`, or `null`. */
-function readCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  const value = match?.[1];
-  return value === undefined ? null : decodeURIComponent(value);
-}
-
 /**
- * Resolve the current session client-side. `isLoading` is `true` until the
- * first effect runs (the cookie can only be read after mount, which also avoids
- * an SSR/CSR hydration mismatch). Re-reads when the tab regains focus so a
- * sign-in / sign-out in another tab is reflected.
+ * Resolve the current session client-side. `isLoading` is `true` until the first
+ * fetch resolves. Re-fetches when the tab regains focus so a sign-in / sign-out
+ * in another tab is reflected. Any failure resolves to "signed out".
  */
 export function useSession(): UseSessionResult {
   const [state, setState] = useState<UseSessionResult>({ user: null, isLoading: true });
 
   useEffect(() => {
-    const resolve = (): void => {
-      const token = readCookie(ACCESS_TOKEN_COOKIE);
-      setState({ user: token ? readUnverifiedSession(token) : null, isLoading: false });
+    let cancelled = false;
+
+    const resolve = async (): Promise<void> => {
+      try {
+        const res = await fetch('/api/session', { credentials: 'same-origin' });
+        const data = res.ok ? ((await res.json()) as { user: Session | null }) : { user: null };
+        if (!cancelled) setState({ user: data.user, isLoading: false });
+      } catch {
+        if (!cancelled) setState({ user: null, isLoading: false });
+      }
     };
-    resolve();
-    window.addEventListener('focus', resolve);
-    return () => window.removeEventListener('focus', resolve);
+
+    void resolve();
+    const onFocus = (): void => void resolve();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   return state;

@@ -12,8 +12,12 @@ import { Role } from '@fit/db';
  * knows to skip scoping rather than fail closed on the missing gym.
  */
 export interface TenantState {
-  /** The authenticated user id (JWT `sub`). */
-  userId: string;
+  /**
+   * The authenticated user id (JWT `sub`), or `null` for an unauthenticated
+   * request whose tenant was established from the subdomain rather than a
+   * session (see `SubdomainTenantMiddleware`).
+   */
+  userId: string | null;
   /** Tenant the request is scoped to; `null` only on a cross-tenant request. */
   gymId: string | null;
   /** The caller's role, used to gate the cross-tenant bypass. */
@@ -64,8 +68,12 @@ export class TenantContext {
     return state.gymId;
   }
 
-  /** The authenticated user id for the current request, or `undefined`. */
-  get userId(): string | undefined {
+  /**
+   * The authenticated user id for the current request. `undefined` when there is
+   * no tenant in scope, and `null` when the request is tenant-scoped but
+   * unauthenticated (subdomain-resolved).
+   */
+  get userId(): string | null | undefined {
     return this.current?.userId;
   }
 

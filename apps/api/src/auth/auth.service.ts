@@ -30,7 +30,7 @@ import { RedisService } from '../redis/redis.service';
 import { AppleOAuthService } from './apple-oauth.service';
 import { EmailService } from './email.service';
 import { GoogleOAuthService } from './google-oauth.service';
-import { TokenService } from './token.service';
+import { TokenService, type SessionClaims } from './token.service';
 
 /** Redis key namespace for one-time email-verification tokens. */
 const VERIFY_KEY_PREFIX = 'email-verify:';
@@ -132,129 +132,125 @@ export class AuthService {
    * Provision a new gym tenant and onboard its first OWNER
    * (`POST /auth/register-gym`).
    *
-   * The gym (the tenant root), the owner {@link User}, and the OWNER
+   * The gym (the tenant root), a *new* owner {@link User}, and the OWNER
    * {@link GymMember} are created together in a transaction so a half-provisioned
-   * tenant can never exist. The owner is resolved by email: an existing account
-   * is reused (we never touch its credentials — overwriting them would be an
-   * account-takeover vector), otherwise a new account is created with the
-   * optional supplied name/password. A slug already in use is rejected with
-   * `409 SLUG_TAKEN`; the pre-check is backed by the DB unique constraint so a
-   * race still collapses to the same error rather than a 500.
+   * tenant can never exist. The owner is always freshly created: an already
+   * registered `ownerEmail` is rejected with `409 EMAIL_TAKEN` rather than bound
+   * as the owner without its consent. A subdomain already in use is rejected with
+   * `409 SUBDOMAIN_TAKEN`. Both pre-checks are backed by the DB unique
+   * constraints, so a race still collapses to the same `409` (mapped from the
+   * violated target) rather than a `500`. The gym records who provisioned it in
+   * `createdByUserId` (the owner, for self-signup).
    *
    * This runs on the **unscoped** {@link PrismaService}: provisioning a tenant
    * inherently precedes any tenant context (the route is excluded from
    * `TenantMiddleware`), and `GymMember` is a tenant-scoped model that would fail
    * closed under the tenant Prisma extension with no gym in scope.
    *
-   * No session is issued. A not-yet-verified owner receives an onboarding email
-   * whose link runs the standard {@link verifyEmail} flow — verifying the address
-   * and issuing the first session — mirroring how plain registration defers the
-   * session to verification. An already-verified existing owner needs no email.
+   * No session is issued. The owner receives an onboarding email whose link runs
+   * the standard {@link verifyEmail} flow — verifying the address and issuing the
+   * first session — mirroring how plain registration defers the session to
+   * verification. A supplied `password` is set on the new account; when omitted
+   * the owner sets one later through the reset flow.
    */
   async registerGym(input: RegisterGymInput): Promise<RegisterGymResponse> {
-    const existingGym = await this.prisma.client.gym.findUnique({
-      where: { slug: input.slug },
-      select: { id: true },
-    });
+    const [existingGym, existingOwner] = await Promise.all([
+      this.prisma.client.gym.findUnique({
+        where: { slug: input.subdomainSlug },
+        select: { id: true },
+      }),
+      this.prisma.client.user.findUnique({
+        where: { email: input.ownerEmail },
+        select: { id: true },
+      }),
+    ]);
     if (existingGym) {
-      throw new ConflictException({ message: 'Gym slug is already taken', code: 'SLUG_TAKEN' });
+      throw new ConflictException({
+        message: 'Subdomain is already taken',
+        code: 'SUBDOMAIN_TAKEN',
+      });
     }
-
-    const existingOwner = await this.prisma.client.user.findUnique({
-      where: { email: input.ownerEmail },
-      select: { id: true, emailVerifiedAt: true, name: true },
-    });
+    if (existingOwner) {
+      throw new ConflictException({ message: 'Email is already registered', code: 'EMAIL_TAKEN' });
+    }
 
     // Hash outside the transaction — argon2 is deliberately slow and there's no
     // need to hold a DB transaction open across it.
-    const passwordHash =
-      !existingOwner && input.ownerPassword
-        ? await argon2.hash(input.ownerPassword, { type: argon2.argon2id })
-        : undefined;
+    const passwordHash = input.password
+      ? await argon2.hash(input.password, { type: argon2.argon2id })
+      : null;
 
-    let provisioned: { gymId: string; ownerId: string; ownerVerified: boolean };
+    let provisioned: { gymId: string; ownerId: string };
     try {
       provisioned = await this.prisma.client.$transaction(async (tx) => {
-        let ownerId: string;
-        let ownerVerified: boolean;
-        if (existingOwner) {
-          ownerId = existingOwner.id;
-          ownerVerified = existingOwner.emailVerifiedAt !== null;
-        } else {
-          const created = await tx.user.create({
-            data: {
-              email: input.ownerEmail,
-              name: input.ownerName ?? null,
-              passwordHash: passwordHash ?? null,
-            },
-            select: { id: true },
-          });
-          ownerId = created.id;
-          ownerVerified = false;
-        }
+        const owner = await tx.user.create({
+          data: {
+            email: input.ownerEmail,
+            name: input.ownerName ?? null,
+            passwordHash,
+          },
+          select: { id: true },
+        });
 
         const gym = await tx.gym.create({
-          data: { name: input.name, slug: input.slug, ownerId },
+          data: {
+            name: input.gymName,
+            slug: input.subdomainSlug,
+            ownerId: owner.id,
+            createdByUserId: owner.id,
+          },
           select: { id: true },
         });
 
         await tx.gymMember.create({
           data: {
-            userId: ownerId,
+            userId: owner.id,
             gymId: gym.id,
             role: Role.OWNER,
             status: GymMemberStatus.ACTIVE,
           },
         });
 
-        return { gymId: gym.id, ownerId, ownerVerified };
+        return { gymId: gym.id, ownerId: owner.id };
       });
     } catch (error) {
-      // Lost the slug race against a concurrent provision — same outcome as the
-      // pre-check, surfaced identically rather than as an opaque 500.
+      // Lost a unique-constraint race against a concurrent provision — surface
+      // the same 409 the pre-check would, mapped to whichever target collided.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException({ message: 'Gym slug is already taken', code: 'SLUG_TAKEN' });
+        throw conflictFromUniqueTarget(error);
       }
       throw error;
     }
 
-    let message: string;
-    if (provisioned.ownerVerified) {
-      // The owner already proved inbox control on a prior account — nothing to
-      // onboard, they can sign in immediately.
-      message = 'gym created; owner can sign in with their existing account';
-    } else {
-      const token = generateVerificationToken();
-      await this.redis.client.set(
-        verifyKey(token),
-        provisioned.ownerId,
-        'EX',
-        env.EMAIL_VERIFICATION_TTL,
-      );
+    const token = generateVerificationToken();
+    await this.redis.client.set(
+      verifyKey(token),
+      provisioned.ownerId,
+      'EX',
+      env.EMAIL_VERIFICATION_TTL,
+    );
 
-      // Best-effort, exactly like registration: the gym + owner already exist, so
-      // a transient mail failure must not 500 a request that already succeeded.
-      try {
-        await this.email.sendOwnerOnboardingEmail(
-          input.ownerEmail,
-          token,
-          input.name,
-          existingOwner?.name ?? input.ownerName,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Failed to send owner onboarding email to ${input.ownerEmail}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-      message = 'gym created; owner onboarding email sent';
+    // Best-effort, exactly like registration: the gym + owner already exist, so a
+    // transient mail failure must not 500 a request that already succeeded.
+    try {
+      await this.email.sendOwnerOnboardingEmail(
+        input.ownerEmail,
+        token,
+        input.gymName,
+        input.ownerName,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send owner onboarding email to ${input.ownerEmail}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
 
     return {
-      gym: { id: provisioned.gymId, name: input.name, slug: input.slug },
-      owner: { id: provisioned.ownerId, email: input.ownerEmail },
-      message,
+      gymId: provisioned.gymId,
+      subdomainSlug: input.subdomainSlug,
+      ownerUserId: provisioned.ownerId,
     };
   }
 
@@ -291,7 +287,7 @@ export class AuthService {
       data: { emailVerifiedAt: new Date() },
     });
 
-    return this.tokens.issueTokenPair(userId);
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
   /**
@@ -376,7 +372,7 @@ export class AuthService {
     // logs out all other devices (including an attacker's) but the caller — who
     // just proved inbox control — walks away signed in.
     await this.tokens.revokeAllForUser(userId);
-    return this.tokens.issueTokenPair(userId);
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
   /**
@@ -416,7 +412,7 @@ export class AuthService {
 
     await this.assertGymAccessNotSuspended(user.id);
 
-    return this.tokens.issueTokenPair(user.id);
+    return this.tokens.issueTokenPair(user.id, await this.resolveSessionScope(user.id));
   }
 
   /**
@@ -443,7 +439,11 @@ export class AuthService {
     }
 
     const userId = await this.resolveGoogleUser(profile);
-    return this.tokens.issueTokenPair(userId);
+    // Gate suspended tenants here too — otherwise a suspended gym's members
+    // could keep getting fresh sessions via social login while email/password
+    // login and refresh are blocked.
+    await this.assertGymAccessNotSuspended(userId);
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
   /**
@@ -511,7 +511,10 @@ export class AuthService {
   async loginWithApple(input: AppleAuthInput): Promise<TokenPair> {
     const profile = await this.apple.verifyIdToken(input.idToken);
     const userId = await this.resolveAppleUser(profile, input.name);
-    return this.tokens.issueTokenPair(userId);
+    // Gate suspended tenants here too (see loginWithGoogle) so social login can't
+    // sidestep a suspension that blocks email/password login and refresh.
+    await this.assertGymAccessNotSuspended(userId);
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
   /**
@@ -595,7 +598,63 @@ export class AuthService {
     if (userId) {
       await this.assertGymAccessNotSuspended(userId);
     }
-    return this.tokens.rotateRefreshToken(input.refreshToken);
+    // Re-resolve scope so a role change or gym suspension since the last refresh
+    // takes effect now. For an unknown/expired token `userId` is null and the
+    // rotation below rejects it before these placeholder claims are ever signed.
+    const scope: SessionClaims = userId
+      ? await this.resolveSessionScope(userId)
+      : { gymId: null, role: Role.MEMBER, tokenVersion: 0 };
+    return this.tokens.rotateRefreshToken(input.refreshToken, scope);
+  }
+
+  /**
+   * Resolve the tenant + role a freshly-issued session is scoped to.
+   *
+   * Every access token must carry the `gymId` + `role` claims the
+   * {@link TenantMiddleware} reads — without them the request resolves to the
+   * unscoped default (`MEMBER`, no gym), so tenant scoping fails closed and RBAC
+   * sees everyone as a `MEMBER`. We pick that scope from the user's gym
+   * memberships:
+   *
+   *   • A `SUPER_ADMIN` membership wins outright — it is a platform-wide role,
+   *     independent of any single gym's status.
+   *   • Otherwise the session binds to the user's "home" gym: the earliest-joined
+   *     active membership in an active gym. A user who belongs to several gyms
+   *     lands on one per session; an explicit gym switcher (re-scoping to another
+   *     of their gyms) is future work — there is no UI for it yet.
+   *   • A user with no active gym membership is a platform-level account: no
+   *     tenant, least privilege.
+   *
+   * Re-resolved on every refresh, so a role change or gym suspension takes effect
+   * within one access-token lifetime rather than only at the next full login.
+   */
+  private async resolveSessionScope(userId: string): Promise<SessionClaims> {
+    const [user, memberships] = await Promise.all([
+      this.prisma.client.user.findUnique({
+        where: { id: userId },
+        select: { tokenVersion: true },
+      }),
+      this.prisma.client.gymMember.findMany({
+        where: { userId, status: GymMemberStatus.ACTIVE },
+        select: { gymId: true, role: true, joinedAt: true, gym: { select: { status: true } } },
+      }),
+    ]);
+
+    const tokenVersion = user?.tokenVersion ?? 0;
+
+    const superAdmin = memberships.find((m) => m.role === Role.SUPER_ADMIN);
+    if (superAdmin) {
+      return { gymId: superAdmin.gymId, role: Role.SUPER_ADMIN, tokenVersion };
+    }
+
+    const primary = memberships
+      .filter((m) => m.gym.status === GymStatus.ACTIVE)
+      .sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())[0];
+    if (primary) {
+      return { gymId: primary.gymId, role: primary.role, tokenVersion };
+    }
+
+    return { gymId: null, role: Role.MEMBER, tokenVersion };
   }
 
   /**
@@ -605,9 +664,10 @@ export class AuthService {
    * a non-suspended gym, or login/refresh is rejected with `403 GYM_SUSPENDED`.
    * A user with no memberships at all (a platform-level account, e.g. a
    * SUPER_ADMIN) is never gated — suspension is a tenant-level lock, not an
-   * account one. Access/refresh tokens here carry no gym claim, so "all my gyms
-   * are suspended" is the closest a session-level check can come to "this
-   * tenant is locked"; for a single-gym member — the common case — it is exact.
+   * account one. This gate runs *before* {@link resolveSessionScope} pins the
+   * session to one gym, so it asks the session-level question "are all my gyms
+   * suspended?" rather than inspecting the about-to-be-issued gym claim; for a
+   * single-gym member — the common case — the two are equivalent.
    */
   private async assertGymAccessNotSuspended(userId: string): Promise<void> {
     const [anyMembership, activeMembership] = await Promise.all([
@@ -633,6 +693,25 @@ export class AuthService {
   async logout(input: RefreshInput): Promise<void> {
     await this.tokens.revokeRefreshToken(input.refreshToken);
   }
+}
+
+/**
+ * Map a `register-gym` P2002 (unique-constraint) race to the right `409`. Prisma
+ * reports the violated columns in `meta.target`; an `email` collision is
+ * `EMAIL_TAKEN`, anything else (the `slug` unique) is `SUBDOMAIN_TAKEN` — the
+ * same codes the pre-checks emit, so a race is indistinguishable from a miss.
+ */
+function conflictFromUniqueTarget(error: Prisma.PrismaClientKnownRequestError): ConflictException {
+  const target = error.meta?.target;
+  const fields = Array.isArray(target)
+    ? target.filter((t): t is string => typeof t === 'string').join(',')
+    : typeof target === 'string'
+      ? target
+      : '';
+  if (fields.includes('email')) {
+    return new ConflictException({ message: 'Email is already registered', code: 'EMAIL_TAKEN' });
+  }
+  return new ConflictException({ message: 'Subdomain is already taken', code: 'SUBDOMAIN_TAKEN' });
 }
 
 /**

@@ -1,30 +1,17 @@
 // @fit/web — client-side auth helpers.
 //
-// Thin wrapper over the @fit/api auth endpoints. The session a successful sign-in
-// returns is the same {@link TokenPair} every other auth route issues (access
-// JWT + rotating refresh token); we persist it to localStorage so the rest of the
-// app can attach the access token to API calls, AND mirror the access token into
-// a cookie so the Next.js middleware / `getServerSession()` (which can't read
-// localStorage) can authenticate requests. The two stores are kept in lock-step
-// by {@link storeTokens} / {@link clearTokens}.
-
-import { ACCESS_TOKEN_COOKIE, readUnverifiedSession } from './auth-session';
+// Thin wrapper over the @fit/api auth endpoints. A successful sign-in returns a
+// {@link TokenPair} (access JWT + rotating refresh token); rather than keep it in
+// JS-reachable storage (localStorage / a JS-written cookie, both readable by
+// XSS), we hand it to the same-origin `POST /api/session` route, which sets it as
+// **httpOnly** cookies the Next.js middleware / `getServerSession()` read. The
+// token therefore never lives anywhere client JS can read it.
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
-const ACCESS_TOKEN_KEY = 'fit.accessToken';
-const REFRESH_TOKEN_KEY = 'fit.refreshToken';
-
-/**
- * Optional parent domain for the auth cookie (e.g. `.fit.ge`) so the session is
- * shared across tenant subdomains and cleared everywhere on logout. Unset in
- * local dev (the cookie stays host-only on `localhost`).
- */
-const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
-
-/** Fallback cookie lifetime when the token carries no `exp` (seconds). */
-const DEFAULT_COOKIE_MAX_AGE = 3600;
+/** Same-origin route that owns the httpOnly session cookies. */
+const SESSION_ENDPOINT = '/api/session';
 
 /** A signed session: short-lived access JWT + opaque rotating refresh token. */
 export interface TokenPair {
@@ -51,7 +38,7 @@ export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
   }
 
   const tokens = (await response.json()) as TokenPair;
-  storeTokens(tokens);
+  await storeTokens(tokens);
   return tokens;
 }
 
@@ -76,7 +63,7 @@ export async function loginWithApple(idToken: string, name?: string): Promise<To
   }
 
   const tokens = (await response.json()) as TokenPair;
-  storeTokens(tokens);
+  await storeTokens(tokens);
   return tokens;
 }
 
@@ -122,84 +109,33 @@ export async function resetPassword(token: string, password: string): Promise<To
   }
 
   const tokens = (await response.json()) as TokenPair;
-  storeTokens(tokens);
+  await storeTokens(tokens);
   return tokens;
 }
 
-/** Persist a session to localStorage + the auth cookie (no-op during SSR). */
-export function storeTokens(tokens: TokenPair): void {
+/**
+ * Persist a session by handing the tokens to the same-origin `POST /api/session`
+ * route, which sets them as httpOnly cookies. The tokens are never written to
+ * localStorage or a JS-readable cookie, so client JS (and any XSS) can't read
+ * them back. No-op during SSR.
+ */
+export async function storeTokens(tokens: TokenPair): Promise<void> {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-  window.localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
-  writeAccessCookie(tokens.accessToken);
-}
-
-/** Read the stored access token, or null when signed out / during SSR. */
-export function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
-/** Clear the persisted session — localStorage and the auth cookie (sign-out). */
-export function clearTokens(): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
-  clearAccessCookie();
+  await fetch(SESSION_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(tokens),
+    credentials: 'same-origin',
+  });
 }
 
 /**
- * Client-side sign-out. Drops every persisted credential so the next request
- * fails the middleware gate and is redirected to `/login`. Setting
- * {@link COOKIE_DOMAIN} clears the cookie across all subdomains. The refresh
- * token's server-side revocation is handled separately by the auth API.
+ * Client-side sign-out. Asks `DELETE /api/session` to expire the httpOnly
+ * session cookies (across subdomains when a cookie domain is configured) so the
+ * next request fails the middleware gate and is redirected to `/login`. The
+ * refresh token's server-side revocation is handled separately by the auth API.
  */
-export function logout(): void {
-  clearTokens();
-}
-
-/** Mirror the access token into the `accessToken` cookie the middleware reads. */
-function writeAccessCookie(accessToken: string): void {
-  const session = readUnverifiedSession(accessToken);
-  const exp = session ? extractExp(accessToken) : null;
-  const maxAge = exp ? Math.max(0, exp - Math.floor(Date.now() / 1000)) : DEFAULT_COOKIE_MAX_AGE;
-
-  const parts = [
-    `${ACCESS_TOKEN_COOKIE}=${encodeURIComponent(accessToken)}`,
-    'Path=/',
-    `Max-Age=${maxAge}`,
-    'SameSite=Lax',
-  ];
-  if (window.location.protocol === 'https:') parts.push('Secure');
-  if (COOKIE_DOMAIN) parts.push(`Domain=${COOKIE_DOMAIN}`);
-  document.cookie = parts.join('; ');
-}
-
-/** Expire the auth cookie on the current host and (if set) the parent domain. */
-function clearAccessCookie(): void {
-  const base = [`${ACCESS_TOKEN_COOKIE}=`, 'Path=/', 'Max-Age=0', 'SameSite=Lax'];
-  document.cookie = base.join('; ');
-  if (COOKIE_DOMAIN) {
-    document.cookie = [...base, `Domain=${COOKIE_DOMAIN}`].join('; ');
-  }
-}
-
-/** Read the `exp` (unix seconds) from a JWT payload, or null. */
-function extractExp(token: string): number | null {
-  const payload = token.split('.')[1];
-  if (!payload) return null;
-  try {
-    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const json = JSON.parse(
-      decodeURIComponent(
-        atob(b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '='))
-          .split('')
-          .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
-          .join(''),
-      ),
-    ) as { exp?: unknown };
-    return typeof json.exp === 'number' ? json.exp : null;
-  } catch {
-    return null;
-  }
+export async function logout(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  await fetch(SESSION_ENDPOINT, { method: 'DELETE', credentials: 'same-origin' });
 }

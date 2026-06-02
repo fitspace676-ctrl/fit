@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { NotFoundException } from '@nestjs/common';
+import { GymStatus } from '@fit/db';
 import { GymsService } from './gyms.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -16,6 +18,21 @@ function setup(rows: GymRow[]) {
   const findMany = vi.fn<(args: unknown) => Promise<GymRow[]>>(() => Promise.resolve(rows));
   const prisma = { client: { gym: { findMany } } } as unknown as PrismaService;
   return { service: new GymsService(prisma), findMany };
+}
+
+/** A gym row as `resolveBySubdomain`'s `findUnique` projection returns it. */
+interface SubdomainRow {
+  id: string;
+  name: string;
+  status: GymStatus;
+}
+
+function setupBySubdomain(row: SubdomainRow | null) {
+  const findUnique = vi.fn<(args: unknown) => Promise<SubdomainRow | null>>(() =>
+    Promise.resolve(row),
+  );
+  const prisma = { client: { gym: { findUnique } } } as unknown as PrismaService;
+  return { service: new GymsService(prisma), findUnique };
 }
 
 describe('GymsService.list', () => {
@@ -74,5 +91,46 @@ describe('GymsService.list', () => {
   it('returns an empty list when there are no gyms', async () => {
     const { service } = setup([]);
     await expect(service.list()).resolves.toEqual({ gyms: [] });
+  });
+});
+
+describe('GymsService.resolveBySubdomain', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('returns the public view of an active gym, looked up by slug', async () => {
+    const { service, findUnique } = setupBySubdomain({
+      id: 'gym-1',
+      name: 'Downtown Strength',
+      status: GymStatus.ACTIVE,
+    });
+
+    await expect(service.resolveBySubdomain('downtown')).resolves.toEqual({
+      gymId: 'gym-1',
+      name: 'Downtown Strength',
+      brand: null,
+    });
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { slug: 'downtown' } }),
+    );
+  });
+
+  it('throws 404 GYM_NOT_FOUND for an unknown slug', async () => {
+    const { service } = setupBySubdomain(null);
+
+    const error = await service.resolveBySubdomain('ghost').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NotFoundException);
+    expect((error as NotFoundException).getResponse()).toMatchObject({ code: 'GYM_NOT_FOUND' });
+  });
+
+  it('throws 404 GYM_NOT_FOUND for a suspended gym (hidden from the public surface)', async () => {
+    const { service } = setupBySubdomain({
+      id: 'gym-9',
+      name: 'Closed Club',
+      status: GymStatus.SUSPENDED,
+    });
+
+    const error = await service.resolveBySubdomain('closed').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NotFoundException);
+    expect((error as NotFoundException).getResponse()).toMatchObject({ code: 'GYM_NOT_FOUND' });
   });
 });

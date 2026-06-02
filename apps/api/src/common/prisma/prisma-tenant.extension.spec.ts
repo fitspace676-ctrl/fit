@@ -25,6 +25,15 @@ describe('scopeArgs', () => {
     expect(result).toEqual({ where: { role: Role.TRAINER, gymId: 'gym-a' } });
   });
 
+  it('scopes AuditLog too — it carries a gymId', () => {
+    expect(scopeArgs('AuditLog', 'findMany', { where: { action: 'x' } }, state())).toEqual({
+      where: { action: 'x', gymId: 'gym-a' },
+    });
+    expect(scopeArgs('AuditLog', 'create', { data: { action: 'x' } }, state())).toEqual({
+      data: { action: 'x', gymId: 'gym-a' },
+    });
+  });
+
   it('appends gymId even when the read has no where at all', () => {
     expect(scopeArgs('GymMember', 'findMany', undefined, state())).toEqual({
       where: { gymId: 'gym-a' },

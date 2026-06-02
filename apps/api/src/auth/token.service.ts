@@ -19,21 +19,47 @@ function base64urlDecode(segment: string): string {
   return Buffer.from(segment, 'base64url').toString('utf8');
 }
 
+/**
+ * The tenant + role scope a session is bound to, stamped into every access
+ * token so the {@link TenantMiddleware} can establish a request's gym and role
+ * without a database read. Resolved from the user's gym membership at issuance
+ * (and re-resolved on each refresh, so a role or suspension change takes effect
+ * within one access-token lifetime). `gymId` is `null` for a platform-level
+ * account with no active gym membership.
+ */
+export interface SessionClaims {
+  /** The gym this session is scoped to, or `null` for a platform account. */
+  gymId: string | null;
+  /** The user's role in that gym (or `MEMBER` for a scopeless account). */
+  role: Role;
+  /** The user's session-invalidation counter at issuance (see `User.tokenVersion`). */
+  tokenVersion: number;
+}
+
 /** Claims carried by an access token. */
 export interface AccessTokenClaims {
   /** Subject — the user id. */
   sub: string;
   /** Token kind, so a refresh token can never be replayed as an access token. */
   type: 'access';
+  /** Role the request runs as. */
+  role: Role;
+  /** Session-invalidation counter stamped at issuance. */
+  tokenVersion: number;
+  /** Gym the session is scoped to; omitted entirely for a platform account. */
+  gymId?: string;
 }
 
 /**
  * The verified claim set returned by {@link TokenService.verifyAccessToken}.
  *
- * Beyond the API's own `{ sub, type }` access tokens, this also models the
- * tenant claims the `fit` CLI mints on its test tokens (`role` + `gym`), which
- * the tenant-scoping middleware reads to establish a request's gym + role. All
- * tenant fields are optional: a vanilla session token carries none of them.
+ * The API's own session tokens carry `{ sub, type, role, tokenVersion }` plus a
+ * `gymId` when the session is gym-scoped — the {@link TenantMiddleware} reads
+ * `role` + `gymId` to establish a request's gym and role. The `fit` CLI mints
+ * equivalent test tokens, using `gym` (a slug) as an alias for `gymId`. Every
+ * tenant field is still typed optional here: a platform-account token omits
+ * `gymId`, and a CLI token may omit `type`, so the verifier tolerates their
+ * absence rather than assuming a fixed shape.
  */
 export interface VerifiedAccessClaims {
   /** Subject — the user id. */
@@ -75,13 +101,27 @@ export class TokenService {
     return Boolean(env.JWT_SECRET);
   }
 
-  /** Sign an access JWT for `userId`, valid for `JWT_ACCESS_TTL` seconds. */
-  signAccessToken(userId: string, issuedAt: number = Math.floor(Date.now() / 1000)): string {
+  /**
+   * Sign an access JWT for `userId`, valid for `JWT_ACCESS_TTL` seconds, scoped
+   * to the supplied {@link SessionClaims}. The `role` + `gymId` (+ `tokenVersion`)
+   * claims are what the {@link TenantMiddleware} reads to bind the request to a
+   * gym and role — without them every request would resolve to the unscoped
+   * default (`MEMBER`, no gym), which is exactly the gap this closes. `gymId` is
+   * omitted from the payload for a platform account (`gymId: null`).
+   */
+  signAccessToken(
+    userId: string,
+    claims: SessionClaims,
+    issuedAt: number = Math.floor(Date.now() / 1000),
+  ): string {
     const secret = this.requireSecret();
     const header = { alg: 'HS256', typ: 'JWT' };
     const payload: AccessTokenClaims & { iat: number; exp: number; iss: string } = {
       sub: userId,
       type: 'access',
+      role: claims.role,
+      tokenVersion: claims.tokenVersion,
+      ...(claims.gymId ? { gymId: claims.gymId } : {}),
       iat: issuedAt,
       exp: issuedAt + env.JWT_ACCESS_TTL,
       iss: env.JWT_ISSUER,
@@ -184,8 +224,12 @@ export class TokenService {
    * new refresh-token lineage (its own `familyId`). The refresh secret is
    * returned once, in plaintext; only its hash is persisted.
    */
-  async issueTokenPair(userId: string, deviceFingerprint?: string): Promise<TokenPair> {
-    const accessToken = this.signAccessToken(userId);
+  async issueTokenPair(
+    userId: string,
+    claims: SessionClaims,
+    deviceFingerprint?: string,
+  ): Promise<TokenPair> {
+    const accessToken = this.signAccessToken(userId, claims);
     const refreshToken = await this.persistRefreshToken(userId, randomUUID(), deviceFingerprint);
     return { accessToken, refreshToken };
   }
@@ -203,7 +247,11 @@ export class TokenService {
    * fresh login. Unknown / expired / already-revoked tokens all surface as a
    * `401` so the endpoint never reveals which condition held.
    */
-  async rotateRefreshToken(presentedToken: string, deviceFingerprint?: string): Promise<TokenPair> {
+  async rotateRefreshToken(
+    presentedToken: string,
+    claims: SessionClaims,
+    deviceFingerprint?: string,
+  ): Promise<TokenPair> {
     // Fail fast and identically to issuance if we couldn't sign the successor.
     this.requireSecret();
 
@@ -236,7 +284,7 @@ export class TokenService {
       throw invalidRefreshToken();
     }
 
-    const accessToken = this.signAccessToken(existing.userId);
+    const accessToken = this.signAccessToken(existing.userId, claims);
     const refreshToken = await this.persistRefreshToken(
       existing.userId,
       existing.familyId,

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Role } from '@fit/db';
-import { Permission, ROLE_PERMISSIONS, roleHasPermission } from './permissions';
+import { Permission, ROLE_PERMISSIONS, roleHasPermission } from '@fit/types';
+
+/** Index the (literal-keyed) matrix by a Prisma role value for the coverage check. */
+const grantsFor = ROLE_PERMISSIONS as Record<string, readonly Permission[]>;
 
 describe('roleHasPermission', () => {
   it('grants SUPER_ADMIN every permission unconditionally', () => {
@@ -39,7 +42,7 @@ describe('ROLE_PERMISSIONS', () => {
   it('defines a grant list for every gym-scoped role (SUPER_ADMIN excluded)', () => {
     const gymRoles = Object.values(Role).filter((r) => r !== Role.SUPER_ADMIN);
     for (const role of gymRoles) {
-      expect(ROLE_PERMISSIONS[role]).toBeDefined();
+      expect(grantsFor[role]).toBeDefined();
     }
     expect(ROLE_PERMISSIONS).not.toHaveProperty(Role.SUPER_ADMIN);
   });

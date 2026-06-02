@@ -7,8 +7,15 @@ import { tenantStorage, type TenantState } from '../tenant/tenant.context';
  * leaves every other model untouched, so cross-tenant entities (`User`,
  * `RefreshToken`) and the tenant root (`Gym`, keyed by `id`) keep working
  * unscoped. Add a model here the moment it gains a `gymId` column.
+ *
+ * `AuditLog` carries a `gymId` and is listed so any *scoped*-client access is
+ * auto-constrained to the caller's gym. The SuperAdmin console writes/reads it
+ * cross-tenant through the unscoped {@link PrismaService} (deliberately, with an
+ * explicit `gymId`), which this set does not touch — but the moment a gym-scoped
+ * handler reaches for `auditLog`, isolation is already enforced rather than
+ * silently absent.
  */
-export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>(['GymMember']);
+export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>(['GymMember', 'AuditLog']);
 
 /** Read operations whose `where` is constrained to the current tenant. */
 const SCOPED_READS: ReadonlySet<string> = new Set([

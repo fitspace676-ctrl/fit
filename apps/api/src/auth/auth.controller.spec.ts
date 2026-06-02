@@ -39,9 +39,9 @@ function setup() {
   const logout = vi.fn<(input: unknown) => Promise<void>>(() => Promise.resolve());
   const registerGym = vi.fn<(input: unknown) => Promise<RegisterGymResponse>>(() =>
     Promise.resolve({
-      gym: { id: 'gym-1', name: 'Downtown Strength', slug: 'downtown' },
-      owner: { id: 'owner-1', email: 'owner@example.com' },
-      message: 'gym created; owner onboarding email sent',
+      gymId: 'gym-1',
+      subdomainSlug: 'downtown',
+      ownerUserId: 'owner-1',
     }),
   );
   const auth = {
@@ -117,27 +117,27 @@ describe('AuthController', () => {
   describe('POST /auth/register-gym', () => {
     it('parses + normalises the body and delegates to the service', async () => {
       const result = await ctx.controller.registerGym({
-        name: '  Downtown Strength  ',
-        slug: '  Downtown  ',
+        gymName: '  Downtown Strength  ',
+        subdomainSlug: '  Downtown  ',
         ownerEmail: ' Owner@Example.com ',
         ownerName: '  Olivia  ',
-        ownerPassword: 'supersecret',
+        password: 'supersecret',
       });
 
-      expect(result).toMatchObject({ gym: { slug: 'downtown' } });
-      // name/slug trimmed, slug + email lower-cased before the service sees them.
+      expect(result).toMatchObject({ subdomainSlug: 'downtown' });
+      // gymName/subdomainSlug trimmed, slug + email lower-cased before the service sees them.
       expect(ctx.registerGym).toHaveBeenCalledWith({
-        name: 'Downtown Strength',
-        slug: 'downtown',
+        gymName: 'Downtown Strength',
+        subdomainSlug: 'downtown',
         ownerEmail: 'owner@example.com',
         ownerName: 'Olivia',
-        ownerPassword: 'supersecret',
+        password: 'supersecret',
       });
     });
 
-    it('rejects an invalid slug with a 400', async () => {
+    it('rejects an invalid subdomain with a 400', async () => {
       const error = await ctx.controller
-        .registerGym({ name: 'X', slug: 'Bad Slug!', ownerEmail: 'owner@example.com' })
+        .registerGym({ gymName: 'X', subdomainSlug: 'Bad Slug!', ownerEmail: 'owner@example.com' })
         .catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(BadRequestException);
@@ -146,9 +146,18 @@ describe('AuthController', () => {
       expect(ctx.registerGym).not.toHaveBeenCalled();
     });
 
+    it('rejects a reserved subdomain with a 400', async () => {
+      const error = await ctx.controller
+        .registerGym({ gymName: 'X', subdomainSlug: 'admin', ownerEmail: 'owner@example.com' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(ctx.registerGym).not.toHaveBeenCalled();
+    });
+
     it('rejects a missing owner email with a 400', async () => {
       await expect(
-        ctx.controller.registerGym({ name: 'X', slug: 'validslug' }),
+        ctx.controller.registerGym({ gymName: 'X', subdomainSlug: 'validslug' }),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(ctx.registerGym).not.toHaveBeenCalled();
     });
