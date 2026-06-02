@@ -443,6 +443,10 @@ export class AuthService {
     }
 
     const userId = await this.resolveGoogleUser(profile);
+    // Gate suspended tenants here too — otherwise a suspended gym's members
+    // could keep getting fresh sessions via social login while email/password
+    // login and refresh are blocked.
+    await this.assertGymAccessNotSuspended(userId);
     return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
@@ -511,6 +515,9 @@ export class AuthService {
   async loginWithApple(input: AppleAuthInput): Promise<TokenPair> {
     const profile = await this.apple.verifyIdToken(input.idToken);
     const userId = await this.resolveAppleUser(profile, input.name);
+    // Gate suspended tenants here too (see loginWithGoogle) so social login can't
+    // sidestep a suspension that blocks email/password login and refresh.
+    await this.assertGymAccessNotSuspended(userId);
     return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 

@@ -680,6 +680,17 @@ describe('AuthService', () => {
       expect(ctx.findUnique).not.toHaveBeenCalled();
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
+
+    it('refuses a session when the resolved user has only suspended gyms', async () => {
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' }); // matched by googleId
+      membership(ctx, { hasAny: true, hasActive: false });
+
+      const error = await ctx.service.loginWithGoogle(VALID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
   });
 
   describe('loginWithApple', () => {
@@ -791,6 +802,18 @@ describe('AuthService', () => {
         code: 'APPLE_EMAIL_NOT_VERIFIED',
       });
       expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('refuses a session when the resolved user has only suspended gyms', async () => {
+      ctx.verifyAppleIdToken.mockResolvedValue({ appleId: 'ap-9', emailVerified: false });
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' }); // matched by appleId
+      membership(ctx, { hasAny: true, hasActive: false });
+
+      const error = await ctx.service.loginWithApple(VALID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
   });
