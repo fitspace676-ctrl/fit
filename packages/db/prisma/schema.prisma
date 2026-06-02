@@ -50,13 +50,17 @@ enum GymStatus {
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
 model Gym {
-  id        String    @id @default(cuid())
-  name      String
-  slug      String    @unique
-  ownerId   String?
-  status    GymStatus @default(ACTIVE)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  slug            String    @unique
+  ownerId         String?
+  /// The user who provisioned the gym (T2.11). Equals `ownerId` for owner
+  /// self-signup, but distinct when a SUPER_ADMIN creates a gym on an owner's
+  /// behalf. Nullable for rows that predate the column (seed/legacy).
+  createdByUserId String?
+  status          GymStatus @default(ACTIVE)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   members GymMember[]
 

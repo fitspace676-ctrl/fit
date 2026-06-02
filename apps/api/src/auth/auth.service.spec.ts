@@ -948,11 +948,11 @@ function setupGym() {
 }
 
 const VALID_GYM = {
-  name: 'Downtown Strength',
-  slug: 'downtown',
+  gymName: 'Downtown Strength',
+  subdomainSlug: 'downtown',
   ownerEmail: 'owner@example.com',
   ownerName: 'Olivia Owner',
-  ownerPassword: 'supersecret',
+  password: 'supersecret',
 };
 
 describe('AuthService.registerGym', () => {
@@ -974,8 +974,14 @@ describe('AuthService.registerGym', () => {
       data: { email: 'owner@example.com', name: 'Olivia Owner', passwordHash: 'argon2-hash' },
       select: { id: true },
     });
+    // Gym records who provisioned it (the owner, for self-signup).
     expect(ctx.gymCreate).toHaveBeenCalledWith({
-      data: { name: 'Downtown Strength', slug: 'downtown', ownerId: 'owner-1' },
+      data: {
+        name: 'Downtown Strength',
+        slug: 'downtown',
+        ownerId: 'owner-1',
+        createdByUserId: 'owner-1',
+      },
       select: { id: true },
     });
     expect(ctx.gymMemberCreate).toHaveBeenCalledWith({
@@ -998,67 +1004,42 @@ describe('AuthService.registerGym', () => {
     );
 
     expect(result).toEqual({
-      gym: { id: 'gym-1', name: 'Downtown Strength', slug: 'downtown' },
-      owner: { id: 'owner-1', email: 'owner@example.com' },
-      message: 'gym created; owner onboarding email sent',
+      gymId: 'gym-1',
+      subdomainSlug: 'downtown',
+      ownerUserId: 'owner-1',
     });
   });
 
-  it('rejects a duplicate slug with 409 SLUG_TAKEN, without provisioning anything', async () => {
+  it('rejects a duplicate subdomain with 409 SUBDOMAIN_TAKEN, without provisioning anything', async () => {
     ctx.gymFindUnique.mockResolvedValue({ id: 'existing-gym' });
 
     const error = await ctx.service.registerGym(VALID_GYM).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'SLUG_TAKEN' });
+    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'SUBDOMAIN_TAKEN' });
     expect(ctx.$transaction).not.toHaveBeenCalled();
     expect(ctx.userCreate).not.toHaveBeenCalled();
     expect(ctx.set).not.toHaveBeenCalled();
   });
 
-  it('reuses a verified existing owner without re-hashing or emailing', async () => {
+  it('rejects an already-registered email with 409 EMAIL_TAKEN, without provisioning anything', async () => {
     ctx.userFindUnique.mockResolvedValue({
       id: 'existing-owner',
       emailVerifiedAt: new Date(),
       name: 'Existing',
     });
 
-    const result = await ctx.service.registerGym(VALID_GYM);
+    const error = await ctx.service.registerGym(VALID_GYM).catch((e: unknown) => e);
 
-    expect(argonHash).not.toHaveBeenCalled();
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'EMAIL_TAKEN' });
+    expect(ctx.$transaction).not.toHaveBeenCalled();
     expect(ctx.userCreate).not.toHaveBeenCalled();
-    expect(ctx.gymCreate).toHaveBeenCalledWith({
-      data: { name: 'Downtown Strength', slug: 'downtown', ownerId: 'existing-owner' },
-      select: { id: true },
-    });
     expect(ctx.set).not.toHaveBeenCalled();
-    expect(ctx.sendOwnerOnboardingEmail).not.toHaveBeenCalled();
-    expect(result.owner.id).toBe('existing-owner');
-    expect(result.message).toBe('gym created; owner can sign in with their existing account');
-  });
-
-  it('onboards an existing but unverified owner via email (no new account)', async () => {
-    ctx.userFindUnique.mockResolvedValue({
-      id: 'existing-owner',
-      emailVerifiedAt: null,
-      name: 'Existing',
-    });
-
-    const result = await ctx.service.registerGym(VALID_GYM);
-
-    expect(ctx.userCreate).not.toHaveBeenCalled();
-    expect(ctx.set).toHaveBeenCalled();
-    expect(ctx.sendOwnerOnboardingEmail).toHaveBeenCalledWith(
-      'owner@example.com',
-      expect.any(String),
-      'Downtown Strength',
-      'Existing',
-    );
-    expect(result.message).toBe('gym created; owner onboarding email sent');
   });
 
   it('creates the owner without a password hash when none is supplied', async () => {
-    const { ownerPassword: _omit, ...noPassword } = VALID_GYM;
+    const { password: _omit, ...noPassword } = VALID_GYM;
 
     await ctx.service.registerGym(noPassword);
 
@@ -1076,19 +1057,34 @@ describe('AuthService.registerGym', () => {
 
     expect(ctx.gymCreate).toHaveBeenCalled();
     expect(ctx.set).toHaveBeenCalled();
-    expect(result.message).toBe('gym created; owner onboarding email sent');
+    expect(result).toMatchObject({ gymId: 'gym-1', ownerUserId: 'owner-1' });
   });
 
-  it('maps a P2002 slug race to 409 SLUG_TAKEN', async () => {
+  it('maps a P2002 subdomain race to 409 SUBDOMAIN_TAKEN', async () => {
     const conflict = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
       code: 'P2002',
       clientVersion: 'test',
+      meta: { target: ['slug'] },
     });
     ctx.$transaction.mockRejectedValue(conflict);
 
     const error = await ctx.service.registerGym(VALID_GYM).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ConflictException);
-    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'SLUG_TAKEN' });
+    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'SUBDOMAIN_TAKEN' });
+  });
+
+  it('maps a P2002 email race to 409 EMAIL_TAKEN (via the violated target)', async () => {
+    const conflict = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: { target: ['email'] },
+    });
+    ctx.$transaction.mockRejectedValue(conflict);
+
+    const error = await ctx.service.registerGym(VALID_GYM).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'EMAIL_TAKEN' });
   });
 });

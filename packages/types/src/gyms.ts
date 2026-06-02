@@ -67,45 +67,36 @@ export const gymSlugSchema = z
 
 /**
  * Body for `POST /auth/register-gym`. Provisions a new tenant and onboards its
- * first OWNER in one call. The gym `name` is the display name and `slug` the
- * subdomain label; the owner is identified by `ownerEmail` (an existing account
- * is reused, otherwise one is created). `ownerName` / `ownerPassword` are only
- * consulted when the owner account is created — `ownerPassword`, when supplied,
- * is held to the same length bounds registration enforces; when omitted the
- * owner finishes onboarding via the emailed link (and can set a password later
- * through the reset flow). The CLI's `fit gym create` posts exactly this shape.
+ * first OWNER in one call. `gymName` is the display name and `subdomainSlug` the
+ * subdomain label (`<subdomainSlug>.fit.ge`); the owner is always a *new*
+ * account identified by `ownerEmail` — an already-registered email is rejected
+ * with `409 EMAIL_TAKEN` rather than silently bound as the owner. `ownerName`
+ * and `password` are optional: `password`, when supplied, is held to the same
+ * length bounds registration enforces; when omitted the owner finishes
+ * onboarding via the emailed link and sets a password through the reset flow.
+ * The CLI's `fit gym create` posts this shape.
  */
 export const registerGymSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  slug: gymSlugSchema,
+  gymName: z.string().trim().min(1).max(100),
+  subdomainSlug: gymSlugSchema,
   ownerEmail: z.string().trim().toLowerCase().email(),
   ownerName: z.string().trim().min(1).max(100).optional(),
-  ownerPassword: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH).optional(),
+  password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH).optional(),
 });
 
 export type RegisterGymInput = z.infer<typeof registerGymSchema>;
 
-/** The provisioned tenant as returned to the caller. */
-export interface GymRef {
-  id: string;
-  name: string;
-  slug: string;
-}
-
 /**
- * Successful `POST /auth/register-gym` response. Returns the freshly-provisioned
- * gym and the owner it was bound to, plus a human-readable `message`. No session
- * is issued here: the owner finishes onboarding through the emailed link (which
+ * Successful `POST /auth/register-gym` response (`201`). Returns the provisioned
+ * tenant's id, its subdomain slug, and the new owner's user id. No session is
+ * issued here: the owner finishes onboarding through the emailed link (which
  * verifies their address and issues the first session), mirroring how plain
  * registration defers the session to email verification.
  */
 export interface RegisterGymResponse {
-  gym: GymRef;
-  owner: {
-    id: string;
-    email: string;
-  };
-  message: string;
+  gymId: string;
+  subdomainSlug: string;
+  ownerUserId: string;
 }
 
 /** A single gym as listed by `GET /gyms`. */

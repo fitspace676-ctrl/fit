@@ -27,7 +27,13 @@ export async function run(args: ParsedArgs): Promise<CommandResult> {
         });
       }
       const ownerEmail = stringFlag(args.flags, 'owner-email');
-      return request('POST', `${base}/auth/register-gym`, { name, slug, ownerEmail });
+      // The `--name` / `--slug` flags map to the API's `gymName` / `subdomainSlug`
+      // body fields (the register-gym contract, T2.11).
+      return request('POST', `${base}/auth/register-gym`, {
+        gymName: name,
+        subdomainSlug: slug,
+        ownerEmail,
+      });
     }
 
     case 'list':
