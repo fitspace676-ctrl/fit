@@ -107,8 +107,42 @@
     "copyright": "© {year} Fit. All rights reserved."
   },
   "auth": {
-    "signInTitle": "Sign in to Fit",
-    "signInSubtitle": "Continue with your Google or Apple account to get started."
+    "fields": {
+      "name": "Full name",
+      "namePlaceholder": "Jane Doe",
+      "email": "Email",
+      "emailPlaceholder": "you@example.com",
+      "password": "Password",
+      "passwordPlaceholder": "••••••••",
+      "passwordHint": "At least 8 characters."
+    },
+    "orContinueWith": "or continue with",
+    "genericError": "Something went wrong. Please try again.",
+    "login": {
+      "title": "Sign in to Fit",
+      "subtitle": "Welcome back — enter your details to continue.",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "Don’t have an account?",
+      "registerLink": "Create one"
+    },
+    "register": {
+      "title": "Create your account",
+      "subtitle": "Join Fit to discover gyms, classes, and trainers near you.",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "success": "Almost there! Check your inbox to verify your email and finish setting up your account.",
+      "haveAccount": "Already have an account?",
+      "loginLink": "Sign in"
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "subtitle": "Enter your email and we’ll send you a link to reset your password.",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "backToLogin": "Back to sign in"
+    }
   },
   "errors": {
     "forbidden": {

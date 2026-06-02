@@ -1,6 +1,10 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { Link } from '@/src/i18n/navigation';
+import { AuthShell } from '../_components/auth/auth-shell';
 import { AppleSignInButton } from './apple-sign-in-button';
+import { CredentialsLoginForm } from './credentials-login-form';
 import { GoogleSignInButton } from './google-sign-in-button';
 
 export const metadata: Metadata = {
@@ -15,11 +19,41 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
   const t = await getTranslations('auth');
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-gutter text-center">
-      <h1 className="text-3xl font-bold tracking-tight text-brand-600">{t('signInTitle')}</h1>
-      <p className="max-w-sm text-slate-500">{t('signInSubtitle')}</p>
-      <GoogleSignInButton />
-      <AppleSignInButton />
-    </main>
+    <AuthShell
+      title={t('login.title')}
+      subtitle={t('login.subtitle')}
+      footer={
+        <>
+          {t('login.noAccount')}{' '}
+          <Link href="/register" className="font-medium text-brand-600 hover:text-brand-700">
+            {t('login.registerLink')}
+          </Link>
+        </>
+      }
+    >
+      <Suspense fallback={null}>
+        <CredentialsLoginForm />
+      </Suspense>
+
+      <div className="mt-3 text-right">
+        <Link
+          href="/forgot-password"
+          className="text-sm font-medium text-brand-600 hover:text-brand-700"
+        >
+          {t('login.forgotPassword')}
+        </Link>
+      </div>
+
+      <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400">
+        <span className="h-px flex-1 bg-slate-100" />
+        {t('orContinueWith')}
+        <span className="h-px flex-1 bg-slate-100" />
+      </div>
+
+      <div className="flex flex-col items-center gap-3">
+        <GoogleSignInButton />
+        <AppleSignInButton />
+      </div>
+    </AuthShell>
   );
 }

@@ -68,6 +68,56 @@ export async function loginWithApple(idToken: string, name?: string): Promise<To
 }
 
 /**
+ * Register a new account with email + password. POSTs to `POST /auth/register`;
+ * the API creates the (unverified) account and emails a verification link, then
+ * returns a generic acknowledgement. No session is issued yet — the user must
+ * verify their email before they can sign in — so, unlike the OAuth helpers,
+ * this returns the `message` rather than a {@link TokenPair}. Throws with the
+ * API's error message on a non-2xx response.
+ */
+export async function registerWithCredentials(input: {
+  name: string;
+  email: string;
+  password: string;
+}): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Registration failed (${response.status})`);
+  }
+
+  return (await response.json()) as { message: string };
+}
+
+/**
+ * Sign in with an email + password pair. POSTs to `POST /auth/login`; the API
+ * verifies the credentials and issues a {@link TokenPair}, which we persist
+ * before returning (the caller walks away signed in). Throws with the API's
+ * error message on a non-2xx response.
+ */
+export async function loginWithCredentials(email: string, password: string): Promise<TokenPair> {
+  const response = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Sign-in failed (${response.status})`);
+  }
+
+  const tokens = (await response.json()) as TokenPair;
+  await storeTokens(tokens);
+  return tokens;
+}
+
+/**
  * Begin a password reset. POSTs the email to `POST /auth/forgot-password`; the
  * API mints a single-use reset token and emails the reset link. The response is
  * deliberately generic — it never reveals whether the address is registered — so

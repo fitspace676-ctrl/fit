@@ -20,7 +20,7 @@ import { routing } from '@/src/i18n/routing';
 const handleI18nRouting = createMiddleware(routing);
 
 /** Locale-stripped paths anyone can reach without a session. `/` is public. */
-const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password'];
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
 
 /** Split `/en/login` into its locale (`en`) and locale-less path (`/login`). */
 function splitLocale(pathname: string): { locale: Locale; rest: string } {
