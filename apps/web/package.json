@@ -13,9 +13,12 @@
   },
   "dependencies": {
     "@fit/env": "workspace:*",
+    "@fit/i18n": "workspace:*",
     "@fit/types": "workspace:*",
+    "@fit/utils": "workspace:*",
     "@sentry/nextjs": "^9",
     "next": "^15.1.6",
+    "next-intl": "^3.26.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
