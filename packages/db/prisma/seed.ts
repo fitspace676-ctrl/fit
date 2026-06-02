@@ -74,6 +74,25 @@ async function main() {
     },
   });
 
+  // A platform SUPER_ADMIN fixture for local dev / E2E so the operator console
+  // (T2.12) is reachable out of the box. Gated to non-production: never seed a
+  // standing super-admin into a real database. In production the first admin is
+  // made by registering a user and running `fit admin grant --email <email>`.
+  // Created without a password (consistent with the other seed users); mint a
+  // session for it in dev with `fit token --role SUPER_ADMIN`.
+  if (process.env.NODE_ENV !== 'production') {
+    await prisma.user.upsert({
+      where: { email: 'superadmin@fit.local' },
+      update: { isSuperAdmin: true },
+      create: {
+        email: 'superadmin@fit.local',
+        name: 'Platform Admin',
+        isSuperAdmin: true,
+        emailVerifiedAt: new Date(),
+      },
+    });
+  }
+
   const memberships = await prisma.gymMember.findMany({
     where: { userId: alex.id },
     select: { gymId: true, role: true },
@@ -82,6 +101,8 @@ async function main() {
   console.log('[@fit/db] seed complete:', {
     gyms: [downtown.slug, riverside.slug],
     alexRoles: memberships.map((m) => m.role),
+    superAdmin:
+      process.env.NODE_ENV !== 'production' ? 'superadmin@fit.local' : '(skipped in prod)',
   });
 }
 

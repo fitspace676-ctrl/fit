@@ -79,6 +79,11 @@ model User {
   emailVerifiedAt DateTime?
   googleId        String?   @unique
   appleId         String?   @unique
+  /// Platform-wide SUPER_ADMIN flag. SUPER_ADMIN is *not* a gym-scoped role, so
+  /// it lives on the user rather than as a GymMember row: a flagged user's
+  /// session resolves to `role = SUPER_ADMIN` with no gym (`gymId = null`).
+  /// Bootstrapped via `fit admin grant` (and the dev seed); never set by signup.
+  isSuperAdmin    Boolean   @default(false)
   /// Monotonic session-invalidation counter. Stamped into every access token's
   /// `tokenVersion` claim at issuance; bumping it (e.g. on a forced global
   /// logout / credential change) lets all outstanding sessions be invalidated

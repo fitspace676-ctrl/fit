@@ -616,8 +616,9 @@ export class AuthService {
    * sees everyone as a `MEMBER`. We pick that scope from the user's gym
    * memberships:
    *
-   *   • A `SUPER_ADMIN` membership wins outright — it is a platform-wide role,
-   *     independent of any single gym's status.
+   *   • A platform `SUPER_ADMIN` (the `User.isSuperAdmin` flag) wins outright and
+   *     resolves to a tenant-less session (`gymId = null`): the role is
+   *     platform-wide, not gym-scoped, so it is never bound to one gym.
    *   • Otherwise the session binds to the user's "home" gym: the earliest-joined
    *     active membership in an active gym. A user who belongs to several gyms
    *     lands on one per session; an explicit gym switcher (re-scoping to another
@@ -632,7 +633,7 @@ export class AuthService {
     const [user, memberships] = await Promise.all([
       this.prisma.client.user.findUnique({
         where: { id: userId },
-        select: { tokenVersion: true },
+        select: { tokenVersion: true, isSuperAdmin: true },
       }),
       this.prisma.client.gymMember.findMany({
         where: { userId, status: GymMemberStatus.ACTIVE },
@@ -642,9 +643,8 @@ export class AuthService {
 
     const tokenVersion = user?.tokenVersion ?? 0;
 
-    const superAdmin = memberships.find((m) => m.role === Role.SUPER_ADMIN);
-    if (superAdmin) {
-      return { gymId: superAdmin.gymId, role: Role.SUPER_ADMIN, tokenVersion };
+    if (user?.isSuperAdmin) {
+      return { gymId: null, role: Role.SUPER_ADMIN, tokenVersion };
     }
 
     const primary = memberships
