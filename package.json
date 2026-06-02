@@ -15,6 +15,7 @@
     "type-check": "turbo run type-check",
     "fit": "tsx tools/cli/src/index.ts",
     "check:env-example": "tsx scripts/check-env-example.ts",
+    "check:controller-guards": "tsx scripts/check-controller-guards.ts",
     "db:generate": "pnpm --filter @fit/db db:generate",
     "db:migrate": "pnpm --filter @fit/db db:migrate",
     "db:migrate:dev": "pnpm --filter @fit/db db:migrate:dev",

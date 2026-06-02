@@ -6,15 +6,18 @@ import {
   HttpStatus,
   Inject,
   Post,
+  UseGuards,
 } from '@nestjs/common';
-import { Public } from '../common/decorators/public.decorator';
+import { Permission } from '@fit/types';
+import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import { TenantContext } from '../common/tenant/tenant.context';
+import { TenantGuard } from '../common/tenant/tenant.guard';
 import { StorageService, type SignedUpload } from './storage.service';
 
-/** Request body for `POST /uploads`. */
+/** Request body for `POST /uploads`. The owning gym is taken from the session. */
 interface CreateUploadDto {
   contentType?: unknown;
   contentLength?: unknown;
-  gymId?: unknown;
   entity?: unknown;
   fileName?: unknown;
 }
@@ -23,31 +26,37 @@ interface CreateUploadDto {
  * `POST /uploads` — issue a presigned R2 upload URL.
  *
  * The client posts the file's `contentType`, exact `contentLength`, and the
- * owning `gymId` + `entity` (which form the tenant-scoped key prefix). It
- * receives a short-lived signed `PUT` URL plus the object key, then uploads the
- * bytes straight to R2. Bodies are validated by hand because the API has no
- * global `ValidationPipe`; size and key-segment rules are enforced in the
- * service so they hold for every caller.
+ * `entity` (key segment); it receives a short-lived signed `PUT` URL plus the
+ * object key, then uploads the bytes straight to R2. Bodies are validated by
+ * hand because the API has no global `ValidationPipe`; size and key-segment
+ * rules are enforced in the service so they hold for every caller.
  *
- * `@Public()` for now: the route is excluded from `TenantMiddleware` and carries
- * its own `gymId` in the body (it predates tenant scoping), so it has no session
- * to authorize against. FOLLOW-UP: fold uploads behind the session + a
- * `@RequirePermissions` check and derive `gymId` from the tenant context instead
- * of trusting the body.
+ * Authenticated + tenant-scoped: the owning `gymId` is taken from the caller's
+ * session (the {@link TenantContext}), never the request body, so a caller can
+ * only ever mint URLs under their own gym's prefix. {@link TenantGuard} requires
+ * a tenant, and `@RequirePermissions(MemberWrite)` is the Phase-2 policy — the
+ * uploaders today are admin/management flows (member, trainer, and product
+ * images), all performed by roles that hold `MemberWrite`. (When member
+ * self-service uploads arrive, revisit with a dedicated permission.)
  */
-@Public()
 @Controller('uploads')
+@UseGuards(TenantGuard)
 export class StorageController {
-  constructor(@Inject(StorageService) private readonly storage: StorageService) {}
+  constructor(
+    @Inject(StorageService) private readonly storage: StorageService,
+    private readonly tenant: TenantContext,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.MemberWrite)
   async create(@Body() body: CreateUploadDto): Promise<SignedUpload> {
     const contentType = this.requireString(body.contentType, 'contentType');
     const contentLength = this.requireNumber(body.contentLength, 'contentLength');
-    const gymId = this.requireString(body.gymId, 'gymId');
     const entity = this.requireString(body.entity, 'entity');
     const fileName = this.optionalString(body.fileName, 'fileName');
+    // The gym is the caller's own tenant — never trusted from the body.
+    const gymId = this.tenant.gymId;
 
     return this.storage.createSignedUpload({ contentType, contentLength, gymId, entity, fileName });
   }
