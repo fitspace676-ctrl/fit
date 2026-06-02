@@ -3,7 +3,7 @@ import { type ExecutionContext, ForbiddenException, UnauthorizedException } from
 import type { Reflector } from '@nestjs/core';
 import { Role } from '@fit/db';
 import { PermissionsGuard } from './permissions.guard';
-import { Permission } from './permissions';
+import { Permission } from '@fit/types';
 import { ALLOW_CROSS_TENANT_KEY } from '../decorators/allow-cross-tenant.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';

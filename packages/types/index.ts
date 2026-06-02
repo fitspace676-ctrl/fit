@@ -2,3 +2,4 @@
 export * from './src/admin';
 export * from './src/auth';
 export * from './src/gyms';
+export * from './src/permissions';

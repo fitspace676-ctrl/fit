@@ -11,7 +11,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { TenantContext } from '../tenant/tenant.context';
-import { Permission, roleHasPermission } from './permissions';
+import { Permission, roleHasPermission } from '@fit/types';
 
 /**
  * The application's **global, deny-by-default** authorization gate. Registered

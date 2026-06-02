@@ -1,5 +1,5 @@
 import { SetMetadata, type CustomDecorator } from '@nestjs/common';
-import type { Permission } from '../rbac/permissions';
+import type { Permission } from '@fit/types';
 
 /** Reflector metadata key carrying the permissions a handler requires. */
 export const PERMISSIONS_KEY = 'permissions';
