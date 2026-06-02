@@ -45,10 +45,14 @@ interface StoredUser {
 /** Build an AuthService with controllable collaborator fakes. */
 function setup() {
   const findUnique = vi.fn<
-    (
-      args: unknown,
-    ) => Promise<
-      | { id: string; emailVerifiedAt?: Date | null; name?: string | null; tokenVersion?: number }
+    (args: unknown) => Promise<
+      | {
+          id: string;
+          emailVerifiedAt?: Date | null;
+          name?: string | null;
+          tokenVersion?: number;
+          isSuperAdmin?: boolean;
+        }
       | StoredUser
       | null
     >
@@ -545,8 +549,9 @@ describe('AuthService', () => {
       });
     });
 
-    it('lets a SUPER_ADMIN membership win over any gym-scoped role', async () => {
-      ctx.findUnique.mockResolvedValue(verifiedUser);
+    it('resolves a platform SUPER_ADMIN (isSuperAdmin flag) to a tenant-less session', async () => {
+      // The flag wins over any gym membership and yields no gym (platform-wide).
+      ctx.findUnique.mockResolvedValue({ ...verifiedUser, isSuperAdmin: true });
       argonVerify.mockResolvedValue(true);
       membership(ctx, { hasAny: true, hasActive: true });
       ctx.gymMemberFindMany.mockResolvedValue([
@@ -556,18 +561,12 @@ describe('AuthService', () => {
           joinedAt: new Date('2026-01-01'),
           gym: { status: 'ACTIVE' },
         },
-        {
-          gymId: 'gym-platform',
-          role: Role.SUPER_ADMIN,
-          joinedAt: new Date('2026-02-01'),
-          gym: { status: 'ACTIVE' },
-        },
       ]);
 
       await ctx.service.login(VALID_LOGIN);
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
-        gymId: 'gym-platform',
+        gymId: null,
         role: Role.SUPER_ADMIN,
         tokenVersion: 0,
       });

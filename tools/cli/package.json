@@ -16,6 +16,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@fit/db": "workspace:*",
     "@fit/env": "workspace:*",
     "zod": "^3.24.1"
   },

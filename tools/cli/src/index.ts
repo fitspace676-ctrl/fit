@@ -17,6 +17,7 @@ import * as r2 from './commands/r2';
 import * as queue from './commands/queue';
 import { runDeploy, runLogs } from './commands/deploy';
 import * as gym from './commands/gym';
+import * as admin from './commands/admin';
 import type { ParsedArgs } from './args';
 
 const HELP = `fit — unified project CLI for infra/env introspection
@@ -34,6 +35,7 @@ commands:
   deploy <app> [--env preview|prod]           deploy an app (wraps vercel/railway/eas)
   logs <app>                                  tail an app's logs
   gym create --name --slug | list             tenant provisioning helpers
+  admin grant|revoke --email <email> | list   manage platform SUPER_ADMINs
 
 global flags:
   --pretty    indent JSON output for humans (default: compact, single line)
@@ -54,6 +56,7 @@ const COMMANDS: Record<string, Handler> = {
   deploy: runDeploy,
   logs: runLogs,
   gym: gym.run,
+  admin: admin.run,
 };
 
 export async function main(argv: readonly string[]): Promise<number> {
