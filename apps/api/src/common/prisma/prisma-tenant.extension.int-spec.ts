@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { GymMemberStatus, Role } from '@fit/db';
-import { tenantStorage, type TenantState } from '../tenant/tenant.context';
-import { prisma, tenantPrisma, resetDb, disconnect } from '../../test/integration-db';
+import type { TenantState } from '../tenant/tenant.context';
+import { prisma, tenantPrisma, asTenant, resetDb, disconnect } from '../../test/integration-db';
 
 /**
  * Cross-tenant isolation, proven against a real Postgres through the actual
@@ -42,13 +42,13 @@ describe('tenant isolation (integration)', () => {
   afterAll(disconnect);
 
   it('a gym-A request sees only gym-A members', async () => {
-    const rows = await tenantStorage.run(state(gymA), () => tenantPrisma.gymMember.findMany({}));
+    const rows = await asTenant(state(gymA), () => tenantPrisma.gymMember.findMany({}));
     expect(rows).toHaveLength(1);
     expect(rows.every((r) => r.gymId === gymA)).toBe(true);
   });
 
   it('cannot reach gym-B rows even when it explicitly asks for gymB (filter is overwritten)', async () => {
-    const rows = await tenantStorage.run(state(gymA), () =>
+    const rows = await asTenant(state(gymA), () =>
       tenantPrisma.gymMember.findMany({ where: { gymId: gymB } }),
     );
     expect(rows).toHaveLength(0);
@@ -56,7 +56,7 @@ describe('tenant isolation (integration)', () => {
 
   it('overwrites the gym on create — a caller cannot insert into another tenant', async () => {
     const u = await prisma.user.create({ data: { email: 'c@example.com' } });
-    const created = await tenantStorage.run(state(gymA), () =>
+    const created = await asTenant(state(gymA), () =>
       // Ask to create in gym B while scoped to gym A; the extension forces gym A.
       tenantPrisma.gymMember.create({
         data: { userId: u.id, gymId: gymB, role: Role.MEMBER, status: GymMemberStatus.ACTIVE },
@@ -74,7 +74,7 @@ describe('tenant isolation (integration)', () => {
     expect(all.length).toBeGreaterThanOrEqual(2);
     expect(new Set(all.map((r) => r.gymId))).toEqual(new Set([gymA, gymB]));
     // Sanity: the scoped client, for the same data, returns strictly fewer rows.
-    const scoped = await tenantStorage.run(state(gymA), () => tenantPrisma.gymMember.findMany({}));
+    const scoped = await asTenant(state(gymA), () => tenantPrisma.gymMember.findMany({}));
     expect(scoped.length).toBeLessThan(all.length);
   });
 });
