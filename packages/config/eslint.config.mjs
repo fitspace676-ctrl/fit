@@ -21,6 +21,9 @@ export default tseslint.config(
       '**/dist/**',
       '**/build/**',
       '**/.next/**',
+      // Next.js generates this at the app root (gitignored); it carries a
+      // triple-slash reference into `.next/` that the TS rules would flag.
+      '**/next-env.d.ts',
       '**/.expo/**',
       '**/.turbo/**',
       '**/coverage/**',

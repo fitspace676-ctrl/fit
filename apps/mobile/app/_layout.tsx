@@ -6,6 +6,8 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import * as Sentry from '@sentry/react-native';
 
 import '../global.css';
+// Validate EXPO_PUBLIC_* env once at app launch (throws on a malformed value).
+import '../lib/env';
 
 // Mobile Sentry bootstrap. Runs once when this module is first evaluated; no-op
 // without a public DSN, so Expo Go / preview builds run without an account.

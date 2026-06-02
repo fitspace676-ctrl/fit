@@ -38,6 +38,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@fit/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       '@fit/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -166,6 +169,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@fit/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       '@react-native-async-storage/async-storage':
         specifier: 2.2.0
         version: 2.2.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))
@@ -251,6 +257,9 @@ importers:
 
   apps/platform:
     dependencies:
+      '@fit/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       next:
         specifier: ^15.1.6
         version: 15.5.18(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -288,6 +297,9 @@ importers:
 
   apps/superadmin:
     dependencies:
+      '@fit/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       '@fit/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -328,6 +340,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@fit/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       '@fit/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8898,7 +8913,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

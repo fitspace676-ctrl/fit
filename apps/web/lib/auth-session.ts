@@ -9,9 +9,9 @@
 //
 // The access token is the same HS256 JWT the @fit/api mints (see
 // `apps/api/src/auth/token.service.ts`): signed with the shared `JWT_SECRET`,
-// carrying `{ sub, type:'access', iat, exp, iss }`. Real session tokens carry no
-// tenant claims — `role`/`gymId` appear only on `fit`-CLI test tokens — so we
-// mirror the API's tenant middleware and default the role to `MEMBER`.
+// carrying `{ sub, type:'access', role, tokenVersion, iat, exp, iss }` plus
+// `gymId` when the session is gym-scoped. The `MEMBER` default below is only a
+// fallback for a token that happens to omit the `role` claim.
 
 /** The cookie the access token is persisted under (readable by middleware). */
 export const ACCESS_TOKEN_COOKIE = 'accessToken';
@@ -161,22 +161,6 @@ export async function verifyAccessToken(token: string, secret: string): Promise<
     return null;
   }
 
-  const claims = parseClaims(encodedPayload);
-  return claims ? sessionFromClaims(claims) : null;
-}
-
-/**
- * Decode an access token's claims **without** verifying the signature — for the
- * browser, which has no access to `JWT_SECRET`. Safe because the client only
- * uses the result to render navigation; every privileged action is re-checked
- * server-side where the signature is verified. Returns `null` for a malformed
- * or expired token.
- */
-export function readUnverifiedSession(token: string): Session | null {
-  const encodedPayload = token.split('.')[1];
-  if (!encodedPayload) {
-    return null;
-  }
   const claims = parseClaims(encodedPayload);
   return claims ? sessionFromClaims(claims) : null;
 }

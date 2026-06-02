@@ -1,3 +1,6 @@
+// Validate the environment once, before anything else runs on the server. The
+// import's side effect throws on a malformed var (fail-fast); see `lib/env.ts`.
+import './lib/env';
 import * as Sentry from '@sentry/nextjs';
 
 /**

@@ -17,6 +17,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@fit/env": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@sentry/react-native": "^8.13.0",
     "expo": "^56.0.0",
