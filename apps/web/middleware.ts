@@ -65,6 +65,8 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Run on every route except API handlers, Next.js internals, and files.
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
+  // Run on every route except API handlers, Next.js internals, files, and the
+  // `/admin/*` prefix — the latter is proxied to the staff console (@fit/admin)
+  // by a rewrite and must not be locale-prefixed or auth-gated by the member site.
+  matcher: ['/((?!api|admin|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
 };

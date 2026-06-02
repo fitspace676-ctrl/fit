@@ -29,10 +29,24 @@ function r2RemotePatterns() {
   return patterns;
 }
 
+// The staff console (@fit/admin) is a separate deployment, but in the subdomain
+// model it is served at `<slug>.<root>/admin`. When `ADMIN_ORIGIN` is set (e.g.
+// `https://admin-origin.fit.ge`), proxy `/admin/*` to that deployment — which runs
+// with `ADMIN_BASE_PATH=/admin`, so its routes and assets line up under the prefix.
+// Unset (the default) → no proxy, and `/admin` simply 404s as before.
+const adminOrigin = process.env.ADMIN_ORIGIN?.replace(/\/+$/, '');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   images: { remotePatterns: r2RemotePatterns() },
+  async rewrites() {
+    if (!adminOrigin) return [];
+    return [
+      { source: '/admin', destination: `${adminOrigin}/admin` },
+      { source: '/admin/:path*', destination: `${adminOrigin}/admin/:path*` },
+    ];
+  },
   // Lint and type-check run as dedicated turbo tasks (`pnpm lint`,
   // `pnpm type-check`) with the shared @fit/config presets, so skip Next's
   // bundled ESLint pass — it expects eslint-config-next, which this monorepo

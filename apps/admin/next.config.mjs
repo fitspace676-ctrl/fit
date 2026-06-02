@@ -25,9 +25,20 @@ function r2RemotePatterns() {
   return patterns;
 }
 
+// When the staff console is served under a path of a tenant subdomain
+// (`<slug>.<root>/admin`, proxied from @fit/web), it must own that path prefix so
+// its routes and `_next` assets resolve under it. Set `ADMIN_BASE_PATH=/admin` on
+// the deployment that sits behind the proxy; unset (the default) keeps the app at
+// the root so its standalone `*.vercel.app` deployment is unaffected. Exposed to
+// the client as `NEXT_PUBLIC_ADMIN_BASE_PATH` so same-origin fetches can prefix it
+// (Next only auto-applies basePath to navigation/assets, not `fetch`).
+const adminBasePath = process.env.ADMIN_BASE_PATH ?? '';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  ...(adminBasePath ? { basePath: adminBasePath } : {}),
+  env: { NEXT_PUBLIC_ADMIN_BASE_PATH: adminBasePath },
   images: { remotePatterns: r2RemotePatterns() },
   // Lint and type-check run as dedicated turbo tasks (`pnpm lint`,
   // `pnpm type-check`) with the shared @fit/config presets, so skip Next's

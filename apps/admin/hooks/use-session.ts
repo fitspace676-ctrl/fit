@@ -11,6 +11,14 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@/lib/auth-session';
 
+/**
+ * Same-origin URL of the session route, prefixed with the app's basePath when set
+ * (`/admin` behind the tenant-subdomain proxy). Next applies basePath to
+ * navigation and assets but not to `fetch`, so we prefix it ourselves; empty in
+ * the default standalone deployment.
+ */
+const SESSION_URL = `${process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? ''}/api/session`;
+
 export interface UseSessionResult {
   user: Session | null;
   isLoading: boolean;
@@ -29,7 +37,7 @@ export function useSession(): UseSessionResult {
 
     const resolve = async (): Promise<void> => {
       try {
-        const res = await fetch('/api/session', { credentials: 'same-origin' });
+        const res = await fetch(SESSION_URL, { credentials: 'same-origin' });
         const data = res.ok ? ((await res.json()) as { user: Session | null }) : { user: null };
         if (!cancelled) setState({ user: data.user, isLoading: false });
       } catch {
