@@ -31,8 +31,10 @@ pnpm turbo run build      # build every app and package
 ```
 fit/
 ├── apps/
-│   ├── web/        # @fit/web        — public web client (Next.js)
-│   ├── admin/      # @fit/admin      — admin console (Next.js)
+│   ├── web/        # @fit/web        — public tenant web client (Next.js)
+│   ├── admin/      # @fit/admin      — gym staff admin console (Next.js)
+│   ├── platform/   # @fit/platform   — marketing + owner signup, root domain (Next.js)
+│   ├── superadmin/ # @fit/superadmin — platform operator console, SUPER_ADMIN-only (Next.js)
 │   ├── mobile/     # @fit/mobile     — mobile client (Expo / React Native)
 │   └── api/        # @fit/api        — backend API service
 ├── packages/
@@ -51,7 +53,7 @@ fit/
 └── package.json
 ```
 
-> The `apps/` and `packages/` directories currently hold placeholder stubs; each is fleshed out in a later task.
+> Phases 1–2 (foundation/infra + auth & multi-tenancy) are implemented; feature phases build on top.
 
 ## Database
 

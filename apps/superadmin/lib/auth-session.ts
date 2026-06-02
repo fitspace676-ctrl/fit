@@ -47,9 +47,10 @@ interface AccessClaims {
 
 /**
  * The one authorization gate for the operator console: only `SUPER_ADMIN` may
- * use it. Real @fit/api session tokens carry no `role` claim (role defaults to
- * `MEMBER`), so an operator authenticates with a token that explicitly asserts
- * `SUPER_ADMIN` — exactly what the API's cross-tenant guard also requires.
+ * use it. The @fit/api stamps the caller's `role` into every access token, so a
+ * platform admin (a `User.isSuperAdmin` account) logs in normally and arrives
+ * with a token whose `role` is `SUPER_ADMIN` — exactly what the API's
+ * cross-tenant guard also requires.
  */
 export function isSuperAdmin(role: Role): boolean {
   return role === 'SUPER_ADMIN';

@@ -15,14 +15,22 @@ import { resolve } from 'node:path';
 
 const ROOT = process.cwd();
 
-/** Zod env schemas whose keys must all be documented. */
-const SCHEMA_FILES = ['apps/api/src/config/env.ts'];
-
-/** Files that document available env vars (`KEY=` or `# KEY=`). */
-const ENV_EXAMPLE_FILES = ['.env.example'];
+/**
+ * Each Zod env schema paired with the `.env.example` that must document its
+ * keys. Checked per-pair (an app's schema against its *own* example), so a var
+ * documented in one app's example never masks its absence in another's.
+ */
+const AUDITS: { schema: string; example: string }[] = [
+  { schema: 'apps/api/src/config/env.ts', example: '.env.example' },
+  { schema: 'apps/web/lib/env.ts', example: 'apps/web/.env.example' },
+  { schema: 'apps/admin/lib/env.ts', example: 'apps/admin/.env.example' },
+  { schema: 'apps/superadmin/lib/env.ts', example: 'apps/superadmin/.env.example' },
+  { schema: 'apps/platform/lib/env.ts', example: 'apps/platform/.env.example' },
+  { schema: 'apps/mobile/lib/env.ts', example: 'apps/mobile/.env.example' },
+];
 
 /** Vars provided by the runtime/framework, never written to `.env.example`. */
-const IGNORED = new Set(['NODE_ENV', 'PORT']);
+const IGNORED = new Set(['NODE_ENV', 'PORT', 'NEXT_RUNTIME']);
 
 /** Extract `KEY: z....` property names from a Zod object schema source file. */
 function schemaKeys(file: string): Set<string> {
@@ -45,16 +53,12 @@ function documentedKeys(file: string): Set<string> {
 }
 
 function main(): void {
-  const documented = new Set<string>();
-  for (const file of ENV_EXAMPLE_FILES) {
-    for (const key of documentedKeys(file)) documented.add(key);
-  }
-
   const missing: string[] = [];
-  for (const file of SCHEMA_FILES) {
-    for (const key of schemaKeys(file)) {
+  for (const { schema, example } of AUDITS) {
+    const documented = documentedKeys(example);
+    for (const key of schemaKeys(schema)) {
       if (!IGNORED.has(key) && !documented.has(key)) {
-        missing.push(`${key}  (declared in ${file})`);
+        missing.push(`${key}  (declared in ${schema}, missing from ${example})`);
       }
     }
   }
@@ -62,11 +66,11 @@ function main(): void {
   if (missing.length > 0) {
     console.error('✖ Env vars declared in code but missing from .env.example:\n');
     for (const line of missing) console.error(`  • ${line}`);
-    console.error('\nAdd them to .env.example (a commented placeholder is fine) and retry.');
+    console.error('\nAdd them to the matching .env.example (a commented placeholder is fine).');
     process.exit(1);
   }
 
-  console.log('✔ .env.example documents every schema-declared env var.');
+  console.log(`✔ All ${AUDITS.length} env schemas are fully documented in their .env.example.`);
 }
 
 main();
