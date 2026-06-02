@@ -7,6 +7,7 @@ import {
   Inject,
   Post,
 } from '@nestjs/common';
+import { Public } from '../common/decorators/public.decorator';
 import { StorageService, type SignedUpload } from './storage.service';
 
 /** Request body for `POST /uploads`. */
@@ -27,7 +28,14 @@ interface CreateUploadDto {
  * bytes straight to R2. Bodies are validated by hand because the API has no
  * global `ValidationPipe`; size and key-segment rules are enforced in the
  * service so they hold for every caller.
+ *
+ * `@Public()` for now: the route is excluded from `TenantMiddleware` and carries
+ * its own `gymId` in the body (it predates tenant scoping), so it has no session
+ * to authorize against. FOLLOW-UP: fold uploads behind the session + a
+ * `@RequirePermissions` check and derive `gymId` from the tenant context instead
+ * of trusting the body.
  */
+@Public()
 @Controller('uploads')
 export class StorageController {
   constructor(@Inject(StorageService) private readonly storage: StorageService) {}

@@ -24,6 +24,7 @@ import {
   type RegisterResponse,
   type TokenPair,
 } from '@fit/types';
+import { Public } from '../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
 
 /**
@@ -33,7 +34,12 @@ import { AuthService } from './auth.service';
  * hand: the API runs no global `ValidationPipe`, and parsing here keeps the
  * request contract co-located with the route. A failed parse becomes a `400`
  * whose per-field messages surface as the error body's `details`.
+ *
+ * The whole controller is `@Public()`: every route must work before a session
+ * exists (register, login, refresh, password reset, OAuth), so it opts out of
+ * the global deny-by-default {@link PermissionsGuard}.
  */
+@Public()
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}

@@ -1,5 +1,5 @@
 import { Module, type MiddlewareConsumer, type NestModule, RequestMethod } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
@@ -11,6 +11,7 @@ import { StorageModule } from './storage/storage.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { loggerConfig } from './common/logging';
+import { PermissionsGuard } from './common/rbac/permissions.guard';
 import { RbacModule } from './common/rbac/rbac.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { TenantMiddleware } from './common/tenant/tenant.middleware';
@@ -37,7 +38,10 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   {@link TenantMiddleware} establishes the request's tenant for every route
  *   except the public ones (`/auth/*`, `/health`, `/uploads`).
  * - {@link RbacModule} provides the role/permission guards (`RolesGuard`,
- *   `PermissionsGuard`) that gate handlers via `@Roles` / `@RequirePermissions`.
+ *   `PermissionsGuard`). {@link PermissionsGuard} is registered here as a global
+ *   `APP_GUARD`: it runs on every route and **denies by default**, so a handler
+ *   is reachable only if it declares `@Public()`, `@RequirePermissions(...)`,
+ *   `@Roles(...)`, or `@AllowCrossTenant()`.
  */
 @Module({
   imports: [
@@ -58,6 +62,13 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     {
       provide: APP_FILTER,
       useClass: AllExceptionsFilter,
+    },
+    {
+      // Global deny-by-default authorization. Reuses the same instance the
+      // RbacModule provides so `@RequirePermissions` routes and the global gate
+      // share one guard.
+      provide: APP_GUARD,
+      useExisting: PermissionsGuard,
     },
   ],
 })

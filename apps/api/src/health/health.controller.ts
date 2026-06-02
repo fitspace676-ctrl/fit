@@ -1,5 +1,6 @@
 import { Controller, Get, HttpCode, HttpStatus, Inject, Res } from '@nestjs/common';
 import type { Response } from 'express';
+import { Public } from '../common/decorators/public.decorator';
 import { HealthService, type HealthReport } from './health.service';
 
 /**
@@ -8,7 +9,11 @@ import { HealthService, type HealthReport } from './health.service';
  * Returns `{ db, redis }` with each dependency's status. Responds 200 when both
  * are reachable and 503 when either is down, so orchestrators (Railway, load
  * balancers) can gate traffic on a real readiness signal.
+ *
+ * `@Public()`: an unauthenticated probe, exempt from the global authorization
+ * gate.
  */
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(@Inject(HealthService) private readonly health: HealthService) {}
