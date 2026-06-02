@@ -14,6 +14,7 @@
   "dependencies": {
     "@fit/env": "workspace:*",
     "@fit/types": "workspace:*",
+    "@fit/utils": "workspace:*",
     "@sentry/nextjs": "^9",
     "next": "^15.1.6",
     "react": "^19.0.0",

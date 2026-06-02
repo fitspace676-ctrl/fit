@@ -412,7 +412,10 @@ export class AuthService {
 
     await this.assertGymAccessNotSuspended(user.id);
 
-    return this.tokens.issueTokenPair(user.id, await this.resolveSessionScope(user.id));
+    return this.tokens.issueTokenPair(
+      user.id,
+      await this.resolveSessionScope(user.id, input.gymSlug),
+    );
   }
 
   /**
@@ -619,17 +622,27 @@ export class AuthService {
    *   • A platform `SUPER_ADMIN` (the `User.isSuperAdmin` flag) wins outright and
    *     resolves to a tenant-less session (`gymId = null`): the role is
    *     platform-wide, not gym-scoped, so it is never bound to one gym.
+   *   • When `gymSlug` is supplied (the sign-in happened on a `<slug>.fit.ge`
+   *     subdomain) and the user has an active membership in that active gym, the
+   *     session binds to *that* gym — so a multi-gym user lands on the tenant they
+   *     actually signed in on, not their earliest-joined one. The slug is only a
+   *     selector among the user's own memberships: a slug they don't belong to (or
+   *     an unknown/suspended one) is ignored and the primary fallback applies, so
+   *     it can never widen scope.
    *   • Otherwise the session binds to the user's "home" gym: the earliest-joined
    *     active membership in an active gym. A user who belongs to several gyms
-   *     lands on one per session; an explicit gym switcher (re-scoping to another
-   *     of their gyms) is future work — there is no UI for it yet.
+   *     lands on one per session; switching tenants is done by signing in on the
+   *     other gym's subdomain.
    *   • A user with no active gym membership is a platform-level account: no
    *     tenant, least privilege.
    *
    * Re-resolved on every refresh, so a role change or gym suspension takes effect
    * within one access-token lifetime rather than only at the next full login.
+   * (Refresh carries no subdomain, so it re-pins to the primary gym; a subdomain
+   * session is therefore refreshed from the same subdomain — acceptable until an
+   * explicit gym claim is threaded through refresh.)
    */
-  private async resolveSessionScope(userId: string): Promise<SessionClaims> {
+  private async resolveSessionScope(userId: string, gymSlug?: string): Promise<SessionClaims> {
     const [user, memberships] = await Promise.all([
       this.prisma.client.user.findUnique({
         where: { id: userId },
@@ -637,7 +650,12 @@ export class AuthService {
       }),
       this.prisma.client.gymMember.findMany({
         where: { userId, status: GymMemberStatus.ACTIVE },
-        select: { gymId: true, role: true, joinedAt: true, gym: { select: { status: true } } },
+        select: {
+          gymId: true,
+          role: true,
+          joinedAt: true,
+          gym: { select: { status: true, slug: true } },
+        },
       }),
     ]);
 
@@ -647,9 +665,17 @@ export class AuthService {
       return { gymId: null, role: Role.SUPER_ADMIN, tokenVersion };
     }
 
-    const primary = memberships
-      .filter((m) => m.gym.status === GymStatus.ACTIVE)
-      .sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())[0];
+    const active = memberships.filter((m) => m.gym.status === GymStatus.ACTIVE);
+
+    // Subdomain-scoped sign-in: bind to the named gym when the user belongs to it.
+    if (gymSlug) {
+      const onSubdomain = active.find((m) => m.gym.slug === gymSlug);
+      if (onSubdomain) {
+        return { gymId: onSubdomain.gymId, role: onSubdomain.role, tokenVersion };
+      }
+    }
+
+    const primary = active.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())[0];
     if (primary) {
       return { gymId: primary.gymId, role: primary.role, tokenVersion };
     }

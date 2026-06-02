@@ -7,8 +7,21 @@
 // **httpOnly** cookies the Next.js middleware / `getServerSession()` read. The
 // token therefore never lives anywhere client JS can read it.
 
+import { extractGymSlug } from '@fit/utils';
+
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+
+/**
+ * The gym slug the current page is served under (`<slug>.<root>`), or `null` on
+ * the apex / a preview URL. Read from the live browser Host so a credentials
+ * sign-in on a tenant subdomain binds the session to that gym; a no-op during
+ * SSR (no `window`).
+ */
+function currentGymSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  return extractGymSlug(window.location.host, process.env.NEXT_PUBLIC_ROOT_DOMAIN);
+}
 
 /** Same-origin route that owns the httpOnly session cookies. */
 const SESSION_ENDPOINT = '/api/session';
@@ -101,10 +114,11 @@ export async function registerWithCredentials(input: {
  * error message on a non-2xx response.
  */
 export async function loginWithCredentials(email: string, password: string): Promise<TokenPair> {
+  const gymSlug = currentGymSlug();
   const response = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(gymSlug ? { email, password, gymSlug } : { email, password }),
   });
 
   if (!response.ok) {
