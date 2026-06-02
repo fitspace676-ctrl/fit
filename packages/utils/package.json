@@ -4,14 +4,24 @@
   "private": true,
   "main": "./index.ts",
   "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
   "scripts": {
     "build": "echo '[@fit/utils] build: nothing to do yet'",
     "lint": "eslint . --max-warnings 0",
-    "test": "echo '[@fit/utils] test: nothing to do yet'",
-    "type-check": "tsc --noEmit",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fit/i18n": "workspace:*"
   },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
   }
 }

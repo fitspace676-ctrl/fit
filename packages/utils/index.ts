@@ -1,2 +1,3 @@
-// @fit/utils — placeholder. Real implementation lands in a later task.
-export {};
+// @fit/utils — shared, framework-agnostic helpers for the Fit monorepo.
+
+export * from './src/format';

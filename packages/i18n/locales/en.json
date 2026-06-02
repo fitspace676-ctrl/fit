@@ -1,0 +1,42 @@
+{
+  "common": {
+    "appName": "Fit",
+    "nav": {
+      "home": "Home",
+      "classes": "Classes",
+      "trainers": "Trainers"
+    },
+    "cta": {
+      "getStarted": "Get started",
+      "signIn": "Sign in"
+    },
+    "language": {
+      "label": "Language",
+      "ka": "ქართული",
+      "en": "English"
+    }
+  },
+  "home": {
+    "title": "Find your gym. Book your class.",
+    "subtitle": "Fit connects you with gyms, trainers, and classes near you — book and manage your membership in one place."
+  },
+  "auth": {
+    "signInTitle": "Sign in to Fit",
+    "signInSubtitle": "Continue with your Google or Apple account to get started."
+  },
+  "errors": {
+    "forbidden": {
+      "badge": "403",
+      "title": "Access denied",
+      "description": "Your account doesn’t have permission to view this page. If you think this is a mistake, contact your gym administrator.",
+      "backHome": "Back to home"
+    },
+    "generic": {
+      "badge": "Something went wrong",
+      "title": "Unexpected error",
+      "description": "An unexpected error occurred. You can try again, and if the problem persists please contact support.",
+      "reference": "Reference: {id}",
+      "tryAgain": "Try again"
+    }
+  }
+}

@@ -4,6 +4,10 @@
   "private": true,
   "main": "./index.ts",
   "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./locales/*": "./locales/*"
+  },
   "scripts": {
     "build": "echo '[@fit/i18n] build: nothing to do yet'",
     "lint": "eslint . --max-warnings 0",
