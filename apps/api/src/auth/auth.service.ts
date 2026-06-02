@@ -30,7 +30,7 @@ import { RedisService } from '../redis/redis.service';
 import { AppleOAuthService } from './apple-oauth.service';
 import { EmailService } from './email.service';
 import { GoogleOAuthService } from './google-oauth.service';
-import { TokenService } from './token.service';
+import { TokenService, type SessionClaims } from './token.service';
 
 /** Redis key namespace for one-time email-verification tokens. */
 const VERIFY_KEY_PREFIX = 'email-verify:';
@@ -291,7 +291,7 @@ export class AuthService {
       data: { emailVerifiedAt: new Date() },
     });
 
-    return this.tokens.issueTokenPair(userId);
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
   /**
@@ -376,7 +376,7 @@ export class AuthService {
     // logs out all other devices (including an attacker's) but the caller — who
     // just proved inbox control — walks away signed in.
     await this.tokens.revokeAllForUser(userId);
-    return this.tokens.issueTokenPair(userId);
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
   /**
@@ -416,7 +416,7 @@ export class AuthService {
 
     await this.assertGymAccessNotSuspended(user.id);
 
-    return this.tokens.issueTokenPair(user.id);
+    return this.tokens.issueTokenPair(user.id, await this.resolveSessionScope(user.id));
   }
 
   /**
@@ -443,7 +443,7 @@ export class AuthService {
     }
 
     const userId = await this.resolveGoogleUser(profile);
-    return this.tokens.issueTokenPair(userId);
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
   /**
@@ -511,7 +511,7 @@ export class AuthService {
   async loginWithApple(input: AppleAuthInput): Promise<TokenPair> {
     const profile = await this.apple.verifyIdToken(input.idToken);
     const userId = await this.resolveAppleUser(profile, input.name);
-    return this.tokens.issueTokenPair(userId);
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
   }
 
   /**
@@ -595,7 +595,63 @@ export class AuthService {
     if (userId) {
       await this.assertGymAccessNotSuspended(userId);
     }
-    return this.tokens.rotateRefreshToken(input.refreshToken);
+    // Re-resolve scope so a role change or gym suspension since the last refresh
+    // takes effect now. For an unknown/expired token `userId` is null and the
+    // rotation below rejects it before these placeholder claims are ever signed.
+    const scope: SessionClaims = userId
+      ? await this.resolveSessionScope(userId)
+      : { gymId: null, role: Role.MEMBER, tokenVersion: 0 };
+    return this.tokens.rotateRefreshToken(input.refreshToken, scope);
+  }
+
+  /**
+   * Resolve the tenant + role a freshly-issued session is scoped to.
+   *
+   * Every access token must carry the `gymId` + `role` claims the
+   * {@link TenantMiddleware} reads — without them the request resolves to the
+   * unscoped default (`MEMBER`, no gym), so tenant scoping fails closed and RBAC
+   * sees everyone as a `MEMBER`. We pick that scope from the user's gym
+   * memberships:
+   *
+   *   • A `SUPER_ADMIN` membership wins outright — it is a platform-wide role,
+   *     independent of any single gym's status.
+   *   • Otherwise the session binds to the user's "home" gym: the earliest-joined
+   *     active membership in an active gym. A user who belongs to several gyms
+   *     lands on one per session; an explicit gym switcher (re-scoping to another
+   *     of their gyms) is future work — there is no UI for it yet.
+   *   • A user with no active gym membership is a platform-level account: no
+   *     tenant, least privilege.
+   *
+   * Re-resolved on every refresh, so a role change or gym suspension takes effect
+   * within one access-token lifetime rather than only at the next full login.
+   */
+  private async resolveSessionScope(userId: string): Promise<SessionClaims> {
+    const [user, memberships] = await Promise.all([
+      this.prisma.client.user.findUnique({
+        where: { id: userId },
+        select: { tokenVersion: true },
+      }),
+      this.prisma.client.gymMember.findMany({
+        where: { userId, status: GymMemberStatus.ACTIVE },
+        select: { gymId: true, role: true, joinedAt: true, gym: { select: { status: true } } },
+      }),
+    ]);
+
+    const tokenVersion = user?.tokenVersion ?? 0;
+
+    const superAdmin = memberships.find((m) => m.role === Role.SUPER_ADMIN);
+    if (superAdmin) {
+      return { gymId: superAdmin.gymId, role: Role.SUPER_ADMIN, tokenVersion };
+    }
+
+    const primary = memberships
+      .filter((m) => m.gym.status === GymStatus.ACTIVE)
+      .sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())[0];
+    if (primary) {
+      return { gymId: primary.gymId, role: primary.role, tokenVersion };
+    }
+
+    return { gymId: null, role: Role.MEMBER, tokenVersion };
   }
 
   /**
@@ -605,9 +661,10 @@ export class AuthService {
    * a non-suspended gym, or login/refresh is rejected with `403 GYM_SUSPENDED`.
    * A user with no memberships at all (a platform-level account, e.g. a
    * SUPER_ADMIN) is never gated — suspension is a tenant-level lock, not an
-   * account one. Access/refresh tokens here carry no gym claim, so "all my gyms
-   * are suspended" is the closest a session-level check can come to "this
-   * tenant is locked"; for a single-gym member — the common case — it is exact.
+   * account one. This gate runs *before* {@link resolveSessionScope} pins the
+   * session to one gym, so it asks the session-level question "are all my gyms
+   * suspended?" rather than inspecting the about-to-be-issued gym claim; for a
+   * single-gym member — the common case — the two are equivalent.
    */
   private async assertGymAccessNotSuspended(userId: string): Promise<void> {
     const [anyMembership, activeMembership] = await Promise.all([

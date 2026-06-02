@@ -9,8 +9,11 @@ const { mockEnv } = vi.hoisted(() => {
 vi.mock('../config/env', () => ({ env: mockEnv }));
 
 import { Role } from '@fit/db';
-import { TokenService, hashRefreshToken } from './token.service';
+import { TokenService, hashRefreshToken, type SessionClaims } from './token.service';
 import type { PrismaService } from '../prisma/prisma.service';
+
+/** A representative gym-scoped session, stamped into issued access tokens. */
+const SCOPE: SessionClaims = { gymId: 'gym-1', role: Role.MANAGER, tokenVersion: 0 };
 
 const FULL_ENV = {
   JWT_SECRET: 'test-secret',
@@ -77,16 +80,19 @@ describe('TokenService', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('signAccessToken', () => {
-    it('mints an HS256 JWT with sub/type/iss claims and a valid signature', () => {
+    it('mints an HS256 JWT with sub/type/role/gymId/tokenVersion claims and a valid signature', () => {
       const { service } = setup();
 
-      const token = service.signAccessToken('user-1', 1_000);
+      const token = service.signAccessToken('user-1', SCOPE, 1_000);
       const [header, payload, signature] = token.split('.');
 
       expect(decodeSegment(header!)).toEqual({ alg: 'HS256', typ: 'JWT' });
       expect(decodeSegment(payload!)).toEqual({
         sub: 'user-1',
         type: 'access',
+        role: 'MANAGER',
+        tokenVersion: 0,
+        gymId: 'gym-1',
         iat: 1_000,
         exp: 1_900,
         iss: 'fit',
@@ -98,22 +104,38 @@ describe('TokenService', () => {
       expect(signature).toBe(expected);
     });
 
+    it('omits the gymId claim for a platform account (no active gym)', () => {
+      const { service } = setup();
+
+      const token = service.signAccessToken(
+        'admin-1',
+        { gymId: null, role: Role.SUPER_ADMIN, tokenVersion: 2 },
+        1_000,
+      );
+      const payload = decodeSegment(token.split('.')[1]!);
+
+      expect(payload).not.toHaveProperty('gymId');
+      expect(payload).toMatchObject({ sub: 'admin-1', role: 'SUPER_ADMIN', tokenVersion: 2 });
+    });
+
     it('throws ServiceUnavailable when JWT_SECRET is unset', () => {
       configure({ JWT_SECRET: undefined });
       const { service } = setup();
-      expect(() => service.signAccessToken('user-1')).toThrow(ServiceUnavailableException);
+      expect(() => service.signAccessToken('user-1', SCOPE)).toThrow(ServiceUnavailableException);
     });
   });
 
   describe('verifyAccessToken', () => {
     it('round-trips a token minted by signAccessToken and returns its claims', () => {
       const { service } = setup();
-      const token = service.signAccessToken('user-1');
+      const token = service.signAccessToken('user-1', SCOPE);
 
       const claims = service.verifyAccessToken(token);
 
       expect(claims.sub).toBe('user-1');
       expect(claims.type).toBe('access');
+      expect(claims.role).toBe('MANAGER');
+      expect(claims.gymId).toBe('gym-1');
       expect(claims.iss).toBe('fit');
     });
 
@@ -154,7 +176,7 @@ describe('TokenService', () => {
 
     it('rejects an expired token', () => {
       const { service } = setup();
-      const token = service.signAccessToken('user-1', nowSeconds() - 10_000);
+      const token = service.signAccessToken('user-1', SCOPE, nowSeconds() - 10_000);
       expect(() => service.verifyAccessToken(token)).toThrow(UnauthorizedException);
     });
 
@@ -191,7 +213,7 @@ describe('TokenService', () => {
     it('signs an access token and persists a hashed refresh token with its own family', async () => {
       const { service, refreshToken } = setup();
 
-      const pair = await service.issueTokenPair('user-1', 'device-xyz');
+      const pair = await service.issueTokenPair('user-1', SCOPE, 'device-xyz');
 
       expect(pair.accessToken.split('.')).toHaveLength(3);
       expect(pair.refreshToken).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -210,7 +232,7 @@ describe('TokenService', () => {
       configure({ JWT_SECRET: undefined });
       const { service, refreshToken } = setup();
 
-      await expect(service.issueTokenPair('user-1')).rejects.toBeInstanceOf(
+      await expect(service.issueTokenPair('user-1', SCOPE)).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
       expect(refreshToken.create).not.toHaveBeenCalled();
@@ -222,7 +244,7 @@ describe('TokenService', () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(storedToken());
 
-      const pair = await service.rotateRefreshToken('presented-secret');
+      const pair = await service.rotateRefreshToken('presented-secret', SCOPE);
 
       // Looked up by the presented token's hash, never its plaintext.
       const lookup = refreshToken.findUnique.mock.calls[0]![0] as { where: { tokenHash: string } };
@@ -242,13 +264,19 @@ describe('TokenService', () => {
       expect(data.familyId).toBe('fam-1');
       expect(data.userId).toBe('user-1');
       expect(data.tokenHash).toBe(hashRefreshToken(pair.refreshToken));
+
+      // The successor access token carries the re-resolved session scope.
+      const claims = decodeSegment(pair.accessToken.split('.')[1]!);
+      expect(claims).toMatchObject({ sub: 'user-1', role: 'MANAGER', gymId: 'gym-1' });
     });
 
     it('rejects (and revokes the whole family) when an already-spent token is replayed', async () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: new Date() }));
 
-      const error = await service.rotateRefreshToken('reused-secret').catch((e: unknown) => e);
+      const error = await service
+        .rotateRefreshToken('reused-secret', SCOPE)
+        .catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(UnauthorizedException);
       expect((error as UnauthorizedException).getResponse()).toMatchObject({
@@ -265,7 +293,9 @@ describe('TokenService', () => {
       refreshToken.findUnique.mockResolvedValue(storedToken());
       refreshToken.updateMany.mockResolvedValueOnce({ count: 0 });
 
-      const error = await service.rotateRefreshToken('raced-secret').catch((e: unknown) => e);
+      const error = await service
+        .rotateRefreshToken('raced-secret', SCOPE)
+        .catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(UnauthorizedException);
       // First updateMany was the spend attempt; second is the family revoke.
@@ -278,7 +308,7 @@ describe('TokenService', () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(null);
 
-      await expect(service.rotateRefreshToken('nope')).rejects.toBeInstanceOf(
+      await expect(service.rotateRefreshToken('nope', SCOPE)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
       expect(refreshToken.updateMany).not.toHaveBeenCalled();
@@ -291,7 +321,7 @@ describe('TokenService', () => {
         storedToken({ expiresAt: new Date(Date.now() - 1_000) }),
       );
 
-      await expect(service.rotateRefreshToken('expired')).rejects.toBeInstanceOf(
+      await expect(service.rotateRefreshToken('expired', SCOPE)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
       expect(refreshToken.updateMany).not.toHaveBeenCalled();
@@ -302,7 +332,7 @@ describe('TokenService', () => {
       configure({ JWT_SECRET: undefined });
       const { service, refreshToken } = setup();
 
-      await expect(service.rotateRefreshToken('x')).rejects.toBeInstanceOf(
+      await expect(service.rotateRefreshToken('x', SCOPE)).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
       expect(refreshToken.findUnique).not.toHaveBeenCalled();

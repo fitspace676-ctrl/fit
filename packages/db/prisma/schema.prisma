@@ -75,6 +75,11 @@ model User {
   emailVerifiedAt DateTime?
   googleId        String?   @unique
   appleId         String?   @unique
+  /// Monotonic session-invalidation counter. Stamped into every access token's
+  /// `tokenVersion` claim at issuance; bumping it (e.g. on a forced global
+  /// logout / credential change) lets all outstanding sessions be invalidated
+  /// at the next refresh without tracking each access token individually.
+  tokenVersion    Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
