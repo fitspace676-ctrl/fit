@@ -34,7 +34,11 @@ export class TenantGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly tenant: TenantContext,
-  ) {}
+  ) {
+    // Bind `canActivate` so it keeps its `this` when @sentry/nestjs proxies the
+    // method in production (see PermissionsGuard for the full rationale).
+    this.canActivate = this.canActivate.bind(this);
+  }
 
   canActivate(context: ExecutionContext): boolean {
     const state = this.tenant.current;

@@ -148,6 +148,21 @@ describe('PermissionsGuard (global deny-by-default)', () => {
       expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
     });
   });
+
+  describe('this-binding (Sentry instrumentation regression)', () => {
+    it('keeps `this` when canActivate is invoked detached from the instance', () => {
+      // In production @sentry/nestjs proxies `canActivate` and can invoke it with
+      // a lost `this`; the constructor binds the method so a detached call still
+      // resolves `this.reflector` rather than throwing `Cannot read properties of
+      // undefined (reading 'getAllAndOverride')` and 500ing every request.
+      const guard = makeGuard({ isPublic: true });
+      // Detaching the method is the whole point of this test — the constructor's
+      // `.bind()` is what makes it safe, which is exactly what we assert here.
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const detached = guard.canActivate;
+      expect(detached(ctx)).toBe(true);
+    });
+  });
 });
 
 /** Run `fn`, returning whatever it throws (for asserting on the error body). */
