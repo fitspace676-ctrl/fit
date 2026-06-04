@@ -31,6 +31,12 @@ import { TenantContext } from './tenant.context';
  */
 @Injectable()
 export class TenantGuard implements CanActivate {
+  static {
+    // Opt out of @sentry/nestjs guard instrumentation (see PermissionsGuard for
+    // why — its canActivate Proxy drops `this` and 500s the route).
+    (this as unknown as { __SENTRY_INTERNAL__?: boolean }).__SENTRY_INTERNAL__ = true;
+  }
+
   constructor(
     private readonly reflector: Reflector,
     private readonly tenant: TenantContext,
