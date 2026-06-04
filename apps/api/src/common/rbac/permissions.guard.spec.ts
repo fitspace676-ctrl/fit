@@ -149,27 +149,15 @@ describe('PermissionsGuard (global deny-by-default)', () => {
     });
   });
 
-  describe('this-binding (Sentry instrumentation regression)', () => {
-    it('opts out of @sentry/nestjs guard instrumentation', () => {
-      // The Sentry @Injectable wrapper skips any class with a truthy
-      // __SENTRY_INTERNAL__; the guard sets it in a static block so its
-      // canActivate is never proxied (the proxy dropped `this` → 500s).
-      expect(
-        (PermissionsGuard as unknown as { __SENTRY_INTERNAL__?: boolean }).__SENTRY_INTERNAL__,
-      ).toBe(true);
-    });
-
-    it('keeps `this` when canActivate is invoked detached from the instance', () => {
-      // In production @sentry/nestjs proxies `canActivate` and can invoke it with
-      // a lost `this`; the constructor binds the method so a detached call still
-      // resolves `this.reflector` rather than throwing `Cannot read properties of
-      // undefined (reading 'getAllAndOverride')` and 500ing every request.
-      const guard = makeGuard({ isPublic: true });
-      // Detaching the method is the whole point of this test — the constructor's
-      // `.bind()` is what makes it safe, which is exactly what we assert here.
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      const detached = guard.canActivate;
-      expect(detached(ctx)).toBe(true);
+  describe('constructor DI fallback (production regression)', () => {
+    it('does not crash when Nest resolves it with no injected deps', () => {
+      // As a global APP_GUARD (useExisting), Nest passed `undefined` for the
+      // reflector in production, so `this.reflector.getAllAndOverride` threw a
+      // TypeError and 500'd every request. The constructor now defaults to fresh
+      // instances, so a no-arg construction resolves route metadata (none here)
+      // and falls through to the auth check — a clean 401, never a TypeError.
+      const guard = new PermissionsGuard();
+      expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
     });
   });
 });

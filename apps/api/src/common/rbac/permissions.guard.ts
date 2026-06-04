@@ -40,29 +40,17 @@ import { Permission, roleHasPermission } from '@fit/types';
  */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
-  static {
-    // Opt out of @sentry/nestjs's guard instrumentation. It wraps the @Injectable
-    // decorator and replaces `canActivate` on the prototype with a Proxy at class
-    // definition; in this app that Proxy invoked the method with a lost `this`, so
-    // `this.reflector` was undefined and EVERY request (incl. /health, /auth/login)
-    // 500'd — but only with Sentry active, so it passed CI/local and failed every
-    // Railway deploy's healthcheck. The Sentry instrumentation skips any class with
-    // a truthy `__SENTRY_INTERNAL__`; a static block sets it before the decorator
-    // runs. We lose a guard span (negligible) and keep the gate working.
-    (this as unknown as { __SENTRY_INTERNAL__?: boolean }).__SENTRY_INTERNAL__ = true;
-  }
-
+  // `Reflector` and `TenantContext` are stateless utilities — one reads route
+  // metadata via reflect-metadata, the other an AsyncLocalStorage store — so they
+  // default to fresh instances. This keeps the guard working even when Nest
+  // resolves it as a global `APP_GUARD` (via `useExisting`) and passes `undefined`
+  // for these constructor deps, which otherwise left `this.reflector` undefined
+  // and 500'd EVERY request (incl. /health, /auth/login) — only in production, so
+  // it passed CI/local while failing every Railway deploy's healthcheck.
   constructor(
-    private readonly reflector: Reflector,
-    private readonly tenant: TenantContext,
-  ) {
-    // Bind `canActivate` so it keeps its `this` when @sentry/nestjs proxies the
-    // method in production. Without it the Sentry guard instrumentation invokes
-    // it with a lost `this`, leaving `this.reflector` undefined and 500ing every
-    // request — a failure that only appears with Sentry active (Railway), never
-    // in tests or a local run without SENTRY_DSN.
-    this.canActivate = this.canActivate.bind(this);
-  }
+    private readonly reflector: Reflector = new Reflector(),
+    private readonly tenant: TenantContext = new TenantContext(),
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const targets = [context.getHandler(), context.getClass()];
