@@ -5,7 +5,7 @@
     "buildCommand": "corepack pnpm --filter @fit/db exec prisma generate"
   },
   "deploy": {
-    "startCommand": "corepack pnpm --filter @fit/db exec prisma migrate deploy && corepack pnpm --filter @fit/api exec tsx src/main.ts",
+    "startCommand": "corepack pnpm --filter @fit/db exec prisma migrate deploy && corepack pnpm --filter @fit/api exec node -r @swc-node/register src/main.ts",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
