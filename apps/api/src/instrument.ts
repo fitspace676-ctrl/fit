@@ -17,5 +17,14 @@ if (dsn) {
     // Performance tracing — sample rate is conservative by default; override
     // via env per environment.
     tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0.1),
+    // Drop @sentry/nestjs's 'Nest' integration. Under NestJS 11 it wraps every
+    // controller handler (and guard) in an OpenTelemetry span via
+    // `handler.apply(this, arguments)` inside an async callback, which loses the
+    // method's `this`/DI context — leaving injected deps (`this.auth`,
+    // `this.reflector`) undefined and turning every request into a 500. Error
+    // capture is done explicitly by AllExceptionsFilter, and HTTP/Express tracing
+    // stays, so removing just this integration costs only Nest-specific spans.
+    integrations: (integrations) =>
+      integrations.filter((integration) => integration.name !== 'Nest'),
   });
 }
