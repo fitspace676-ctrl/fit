@@ -27,20 +27,12 @@ import { TenantContext } from '../tenant/tenant.context';
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
-  static {
-    // Opt out of @sentry/nestjs guard instrumentation (see PermissionsGuard for
-    // why — its canActivate Proxy drops `this` and 500s the route).
-    (this as unknown as { __SENTRY_INTERNAL__?: boolean }).__SENTRY_INTERNAL__ = true;
-  }
-
+  // Default to fresh stateless instances so the guard works even if Nest passes
+  // `undefined` for these deps (see PermissionsGuard for the full rationale).
   constructor(
-    private readonly reflector: Reflector,
-    private readonly tenant: TenantContext,
-  ) {
-    // Bind `canActivate` so it keeps its `this` when @sentry/nestjs proxies the
-    // method in production (see PermissionsGuard for the full rationale).
-    this.canActivate = this.canActivate.bind(this);
-  }
+    private readonly reflector: Reflector = new Reflector(),
+    private readonly tenant: TenantContext = new TenantContext(),
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES_KEY, [
