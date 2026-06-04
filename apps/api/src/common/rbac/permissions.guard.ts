@@ -43,7 +43,14 @@ export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly tenant: TenantContext,
-  ) {}
+  ) {
+    // Bind `canActivate` so it keeps its `this` when @sentry/nestjs proxies the
+    // method in production. Without it the Sentry guard instrumentation invokes
+    // it with a lost `this`, leaving `this.reflector` undefined and 500ing every
+    // request — a failure that only appears with Sentry active (Railway), never
+    // in tests or a local run without SENTRY_DSN.
+    this.canActivate = this.canActivate.bind(this);
+  }
 
   canActivate(context: ExecutionContext): boolean {
     const targets = [context.getHandler(), context.getClass()];

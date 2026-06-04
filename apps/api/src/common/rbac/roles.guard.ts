@@ -30,7 +30,11 @@ export class RolesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly tenant: TenantContext,
-  ) {}
+  ) {
+    // Bind `canActivate` so it keeps its `this` when @sentry/nestjs proxies the
+    // method in production (see PermissionsGuard for the full rationale).
+    this.canActivate = this.canActivate.bind(this);
+  }
 
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES_KEY, [
