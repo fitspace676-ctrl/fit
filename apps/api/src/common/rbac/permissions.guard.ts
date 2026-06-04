@@ -40,6 +40,18 @@ import { Permission, roleHasPermission } from '@fit/types';
  */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
+  static {
+    // Opt out of @sentry/nestjs's guard instrumentation. It wraps the @Injectable
+    // decorator and replaces `canActivate` on the prototype with a Proxy at class
+    // definition; in this app that Proxy invoked the method with a lost `this`, so
+    // `this.reflector` was undefined and EVERY request (incl. /health, /auth/login)
+    // 500'd — but only with Sentry active, so it passed CI/local and failed every
+    // Railway deploy's healthcheck. The Sentry instrumentation skips any class with
+    // a truthy `__SENTRY_INTERNAL__`; a static block sets it before the decorator
+    // runs. We lose a guard span (negligible) and keep the gate working.
+    (this as unknown as { __SENTRY_INTERNAL__?: boolean }).__SENTRY_INTERNAL__ = true;
+  }
+
   constructor(
     private readonly reflector: Reflector,
     private readonly tenant: TenantContext,
