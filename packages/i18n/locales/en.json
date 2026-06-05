@@ -260,6 +260,7 @@
       "payment": "Payment"
     },
     "continue": "Continue",
+    "back": "Back",
     "comingSoon": "This step is coming soon.",
     "locations": {
       "title": "Choose a location",
@@ -273,6 +274,24 @@
       },
       "todayHours": "Today",
       "closed": "Closed",
+      "select": "Select",
+      "selected": "Selected"
+    },
+    "packages": {
+      "title": "Choose a package",
+      "subtitle": "Pick the membership that fits how you train.",
+      "loading": "Loading packages…",
+      "error": "We couldn't load the packages. Please try again.",
+      "retry": "Try again",
+      "empty": {
+        "title": "No packages available",
+        "subtitle": "This gym hasn't set up any packages yet. Please check back soon."
+      },
+      "perMonth": "/ mo",
+      "perYear": "/ yr",
+      "unlimited": "Unlimited access",
+      "sessions": "{count, plural, one {# session} other {# sessions}}",
+      "popular": "Most popular",
       "select": "Select",
       "selected": "Selected"
     }

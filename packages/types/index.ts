@@ -4,5 +4,6 @@ export * from './src/auth';
 export * from './src/classes';
 export * from './src/gyms';
 export * from './src/locations';
+export * from './src/packages';
 export * from './src/permissions';
 export * from './src/trainers';
