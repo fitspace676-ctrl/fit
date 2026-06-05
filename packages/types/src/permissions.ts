@@ -37,6 +37,10 @@ export enum Permission {
   TrainerRead = 'trainer:read',
   /** Create, update, deactivate, or remove trainer profiles. */
   TrainerWrite = 'trainer:write',
+  /** View the gym's locations (branches) and their hours/amenities. */
+  LocationRead = 'location:read',
+  /** Create, update, deactivate, or remove locations. */
+  LocationWrite = 'location:write',
   /** View billing, invoices, and payment history. */
   BillingRead = 'billing:read',
   /** Manage subscriptions, plans, and payment settings. */
@@ -67,6 +71,8 @@ export const ROLE_PERMISSIONS = {
     Permission.MemberWrite,
     Permission.TrainerRead,
     Permission.TrainerWrite,
+    Permission.LocationRead,
+    Permission.LocationWrite,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -79,6 +85,8 @@ export const ROLE_PERMISSIONS = {
     Permission.MemberWrite,
     Permission.TrainerRead,
     Permission.TrainerWrite,
+    Permission.LocationRead,
+    Permission.LocationWrite,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -89,11 +97,13 @@ export const ROLE_PERMISSIONS = {
     Permission.MemberRead,
     Permission.MemberWrite,
     Permission.TrainerRead,
+    Permission.LocationRead,
     Permission.BillingRead,
   ],
   TRAINER: [
     Permission.MemberRead,
     Permission.TrainerRead,
+    Permission.LocationRead,
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
   ],
