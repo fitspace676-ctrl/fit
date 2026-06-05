@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { StorageModule } from './storage/storage.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
+import { TrainersModule } from './trainers/trainers.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { loggerConfig } from './common/logging';
 import { SubdomainTenantMiddleware } from './common/middleware/subdomain-tenant.middleware';
@@ -55,6 +56,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     StorageModule,
     AuthModule,
     ClassesModule,
+    TrainersModule,
     GymsModule,
     SuperAdminModule,
     TenantModule,
@@ -86,10 +88,11 @@ export class AppModule implements NestModule {
    *    no tenant subdomain) it is a pass-through.
    * 2. {@link TenantMiddleware} establishes the tenant from the JWT on every
    *    route except the public ones: auth (must work before any session exists),
-   *    the health probe, the public class-discovery listing
-   *    (`GET /class-instances`) — which an unauthenticated visitor browses on a
-   *    gym subdomain and which carries its `gymId` as a query param rather than
-   *    a session — and the public tenant lookup (`GET /gyms/by-subdomain/:slug`)
+   *    the health probe, the public discovery listings
+   *    (`GET /class-instances`, `GET /trainers`) — which an unauthenticated
+   *    visitor browses on a gym subdomain and which carry their `gymId` as a
+   *    query param rather than a session — and the public tenant lookup
+   *    (`GET /gyms/by-subdomain/:slug`)
    *    the member site resolves before any session exists. A session always
    *    wins over the subdomain, and an
    *    unauthenticated request to a protected route is still rejected here.
@@ -107,6 +110,7 @@ export class AppModule implements NestModule {
         { path: 'auth/(.*)', method: RequestMethod.ALL },
         { path: 'health', method: RequestMethod.ALL },
         { path: 'class-instances', method: RequestMethod.ALL },
+        { path: 'trainers', method: RequestMethod.ALL },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');

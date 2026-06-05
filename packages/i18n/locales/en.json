@@ -203,6 +203,37 @@
     "error": "We couldn’t load the classes. Please try again.",
     "retry": "Try again"
   },
+  "trainers": {
+    "title": "Trainers",
+    "subtitle": "Meet the team and find the right coach for you.",
+    "grid": {
+      "label": "Trainers"
+    },
+    "card": {
+      "specialties": "Specialties"
+    },
+    "filters": {
+      "groupLabel": "Filter trainers",
+      "search": "Search",
+      "searchPlaceholder": "Search by name",
+      "specialty": "Specialty",
+      "location": "Location",
+      "allLocations": "All locations",
+      "clear": "Clear filters",
+      "noMatch": {
+        "title": "No trainers match your filters",
+        "subtitle": "Try removing a filter or searching for a different name.",
+        "action": "Clear filters"
+      }
+    },
+    "empty": {
+      "title": "No trainers yet",
+      "subtitle": "This gym hasn’t added any trainers yet. Check back soon."
+    },
+    "loading": "Loading trainers…",
+    "error": "We couldn’t load the trainers. Please try again.",
+    "retry": "Try again"
+  },
   "errors": {
     "forbidden": {
       "badge": "403",
