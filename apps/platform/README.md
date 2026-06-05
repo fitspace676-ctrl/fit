@@ -17,14 +17,34 @@ tokens. Deploys to [Vercel](https://vercel.com/).
 
 ```
 app/
-├── layout.tsx      # root layout — html/body shell, global styles
-├── page.tsx        # placeholder homepage
-├── error.tsx       # route-segment error boundary
-├── global-error.tsx# root error boundary
-└── globals.css     # Tailwind directives
-tailwind.config.mjs # extends @fit/config/tailwind preset
-next.config.mjs     # Next.js config (lint handled by turbo)
+├── layout.tsx           # root layout — html/body shell, global styles
+├── page.tsx             # marketing homepage (header → hero → features → pricing → CTA → footer)
+├── register-gym/page.tsx# owner-signup page — every marketing CTA funnels here
+├── error.tsx            # route-segment error boundary
+├── global-error.tsx     # root error boundary
+└── globals.css          # Tailwind directives
+components/
+├── marketing/           # static landing sections (server components)
+└── signup/              # register-gym form + form controls (client)
+lib/
+├── env.ts               # validated NEXT_PUBLIC_* env
+├── register-gym.ts      # POST /auth/register-gym client
+├── slugify.ts           # gym-name → subdomain-slug suggestion
+└── tenant-url.ts        # build the <slug>.<root>/admin redirect target
+tailwind.config.mjs      # extends @fit/config/tailwind preset
+next.config.mjs          # Next.js config (lint handled by turbo)
 ```
+
+## Owner signup
+
+`/register-gym` collects the gym name, subdomain, and the owner's email (with an
+optional name + password) and POSTs them to `POST /auth/register-gym`. The
+subdomain is auto-suggested from the gym name (validated server-side by
+`gymSlugSchema`). Provisioning issues **no session** — the API emails the owner a
+verification link — so on success the form shows a "check your inbox" notice and
+links on to the freshly provisioned tenant console at `<slug>.<root>/admin`
+(built via `lib/tenant-url.ts`; falls back to an in-app confirmation when
+`NEXT_PUBLIC_ROOT_DOMAIN` is unset).
 
 ## Scripts
 
