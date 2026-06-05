@@ -30,6 +30,9 @@ const PUBLIC_PATHS = [
   '/classes',
   // Public discovery surface — the trainers index (T3.6) is pure browsing.
   '/trainers',
+  // Purchase wizard — location/package selection is browsable signed-out; the
+  // auth gate is the final payment step (T3.10), not the browse.
+  '/checkout',
 ];
 
 /** Split `/en/login` into its locale (`en`) and locale-less path (`/login`). */
