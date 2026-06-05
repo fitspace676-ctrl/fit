@@ -27,13 +27,21 @@ import type {
   ListAdminTrainersResponse,
   ListMembersQuery,
   ListMembersResponse,
+  ListAdminProductsQuery,
+  ListAdminProductsResponse,
+  CreateProductData,
+  CreateProductResponse,
+  GetAdminProductResponse,
   SetLocationStatusResponse,
   SetMemberStatusResponse,
+  SetProductStatusResponse,
   SetTrainerStatusResponse,
   UpdateLocationData,
   UpdateLocationResponse,
   UpdateMemberInput,
   UpdateMemberResponse,
+  UpdateProductData,
+  UpdateProductResponse,
   UpdateTrainerData,
   UpdateTrainerResponse,
 } from '@fit/types';
@@ -338,6 +346,90 @@ export async function reactivateLocation(id: string): Promise<SetLocationStatusR
     cache: 'no-store',
   });
   return unwrap<SetLocationStatusResponse>(res);
+}
+
+// ── Products (T4.6) ───────────────────────────────────────────────────────────
+
+/**
+ * Serialise a product roster query to a `?key=value` string, dropping empty
+ * values so a bare list carries no noise. The API re-coerces and re-validates
+ * with the same Zod schema.
+ */
+export function productsQueryString(query: Partial<ListAdminProductsQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/products` — one filtered, server-paginated page of the gym's products. */
+export async function fetchProducts(
+  query: Partial<ListAdminProductsQuery> = {},
+): Promise<ListAdminProductsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products${productsQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminProductsResponse>(res);
+}
+
+/** `GET /admin/products/:id` — one product's detail. */
+export async function fetchProduct(id: string): Promise<GetAdminProductResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetAdminProductResponse>(res);
+}
+
+/** `POST /admin/products` — create a product; returns the new product's detail. */
+export async function createProduct(input: CreateProductData): Promise<CreateProductResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateProductResponse>(res);
+}
+
+/** `PATCH /admin/products/:id` — edit a product's profile; returns the updated detail. */
+export async function updateProduct(
+  id: string,
+  input: UpdateProductData,
+): Promise<UpdateProductResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdateProductResponse>(res);
+}
+
+/** `POST /admin/products/:id/deactivate` — set the product's status to `INACTIVE`. */
+export async function deactivateProduct(id: string): Promise<SetProductStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products/${encodeURIComponent(id)}/deactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetProductStatusResponse>(res);
+}
+
+/** `POST /admin/products/:id/reactivate` — set the product's status back to `ACTIVE`. */
+export async function reactivateProduct(id: string): Promise<SetProductStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products/${encodeURIComponent(id)}/reactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetProductStatusResponse>(res);
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────

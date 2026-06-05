@@ -41,6 +41,10 @@ export enum Permission {
   LocationRead = 'location:read',
   /** Create, update, deactivate, or remove locations. */
   LocationWrite = 'location:write',
+  /** View the gym's retail products, their gallery, and variants. */
+  ProductRead = 'product:read',
+  /** Create, update, deactivate, or remove products. */
+  ProductWrite = 'product:write',
   /** View billing, invoices, and payment history. */
   BillingRead = 'billing:read',
   /** Manage subscriptions, plans, and payment settings. */
@@ -73,6 +77,8 @@ export const ROLE_PERMISSIONS = {
     Permission.TrainerWrite,
     Permission.LocationRead,
     Permission.LocationWrite,
+    Permission.ProductRead,
+    Permission.ProductWrite,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -87,6 +93,8 @@ export const ROLE_PERMISSIONS = {
     Permission.TrainerWrite,
     Permission.LocationRead,
     Permission.LocationWrite,
+    Permission.ProductRead,
+    Permission.ProductWrite,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -98,12 +106,14 @@ export const ROLE_PERMISSIONS = {
     Permission.MemberWrite,
     Permission.TrainerRead,
     Permission.LocationRead,
+    Permission.ProductRead,
     Permission.BillingRead,
   ],
   TRAINER: [
     Permission.MemberRead,
     Permission.TrainerRead,
     Permission.LocationRead,
+    Permission.ProductRead,
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
   ],
