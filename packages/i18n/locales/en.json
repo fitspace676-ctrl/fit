@@ -294,6 +294,49 @@
       "popular": "Most popular",
       "select": "Select",
       "selected": "Selected"
+    },
+    "details": {
+      "title": "Your details",
+      "subtitle": "Confirm who this membership is for.",
+      "guestSubtitle": "Create an account to complete your purchase.",
+      "loading": "Checking your account…",
+      "signedIn": "You're signed in — your membership will be added to your account.",
+      "submitting": "Saving…",
+      "invalid": "Please enter your name, a valid email, and a password of at least 8 characters.",
+      "fields": {
+        "name": "Full name",
+        "email": "Email",
+        "password": "Password",
+        "passwordHint": "At least 8 characters."
+      }
+    },
+    "payment": {
+      "title": "Review and pay",
+      "subtitle": "Confirm your order and complete your purchase.",
+      "loading": "Loading your order…",
+      "processing": "Processing…",
+      "pay": "Pay now",
+      "error": "We couldn't place your order. Please try again.",
+      "terms": "I agree to the terms of service and the membership policy.",
+      "summary": {
+        "package": "Package",
+        "total": "Total"
+      },
+      "unavailable": {
+        "title": "This package is no longer available",
+        "subtitle": "Please go back and choose another package."
+      }
+    },
+    "success": {
+      "title": "You're all set!",
+      "subtitle": "Your membership purchase is confirmed. A confirmation email is on its way.",
+      "orderId": "Order #{id}",
+      "total": "Total paid",
+      "returnHome": "Return home",
+      "missing": {
+        "title": "We couldn't find that order",
+        "subtitle": "The order may have expired or the link is incomplete."
+      }
     }
   },
   "errors": {

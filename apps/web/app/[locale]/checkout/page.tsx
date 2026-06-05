@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getActiveGymId } from '@/lib/active-gym';
+import { StepDetails } from '@/src/components/checkout/StepDetails';
 import { StepLocation } from '@/src/components/checkout/StepLocation';
 import { StepPackage } from '@/src/components/checkout/StepPackage';
+import { StepPayment } from '@/src/components/checkout/StepPayment';
 import { WizardShell, type WizardStep } from '@/src/components/checkout/WizardShell';
 
 export const metadata: Metadata = {
@@ -36,9 +38,9 @@ function parseStep(raw: string | undefined): WizardStep {
 /**
  * Public purchase wizard. A Server Component that resolves the active gym and the
  * current step from the URL, then renders the matching step inside the
- * {@link WizardShell} progress chrome. Steps 1–2 ({@link StepLocation},
- * {@link StepPackage}) are client islands that own their own fetch, selection,
- * and navigation; later steps (T3.10) slot into the same shell. Reachable
+ * {@link WizardShell} progress chrome. Each step ({@link StepLocation},
+ * {@link StepPackage}, {@link StepDetails}, {@link StepPayment}) is a client
+ * island that owns its own fetch, selection, and navigation. Reachable
  * signed-out — the auth gate is the final payment step, not the browse.
  */
 export default async function CheckoutPage({
@@ -67,10 +69,10 @@ export default async function CheckoutPage({
           <StepLocation gymId={gymId} initialLocationId={sp.locationId} />
         ) : step === 2 ? (
           <StepPackage gymId={gymId} locationId={sp.locationId} initialPackageId={sp.packageId} />
+        ) : step === 3 ? (
+          <StepDetails gymId={gymId} locationId={sp.locationId} packageId={sp.packageId} />
         ) : (
-          // Steps 3–4 land in T3.10; until then the shell still renders so the
-          // progress indicator and Back navigation behave correctly.
-          <p className="py-16 text-center text-sm text-slate-400">{t('comingSoon')}</p>
+          <StepPayment gymId={gymId} locationId={sp.locationId} packageId={sp.packageId} />
         )}
       </WizardShell>
     </main>
