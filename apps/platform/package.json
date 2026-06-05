@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@fit/env": "workspace:*",
+    "@fit/types": "workspace:*",
     "next": "^15.1.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
