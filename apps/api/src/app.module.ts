@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module';
 import { LocationsModule } from './locations/locations.module';
 import { MembersModule } from './members/members.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductsModule } from './products/products.module';
 import { RedisModule } from './redis/redis.module';
 import { StorageModule } from './storage/storage.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
@@ -44,6 +45,9 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link LocationsModule} serves the staff console's tenant-scoped location
  *   management (`/admin/locations` — CRUD with hours + amenities; `LocationRead`
  *   / `LocationWrite`).
+ * - {@link ProductsModule} serves the staff console's tenant-scoped product
+ *   management (`/admin/products` — CRUD with image gallery + variants;
+ *   `ProductRead` / `ProductWrite`).
  * - {@link TenantModule} provides tenant scoping (context, guard, scoped Prisma);
  *   {@link TenantMiddleware} establishes the request's tenant for every route
  *   except the public ones (`/auth/*`, `/health`, `/uploads`).
@@ -65,6 +69,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     ClassesModule,
     TrainersModule,
     LocationsModule,
+    ProductsModule,
     MembersModule,
     GymsModule,
     SuperAdminModule,

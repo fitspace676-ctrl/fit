@@ -66,6 +66,16 @@ enum LocationStatus {
   INACTIVE
 }
 
+/// Lifecycle of a retail product within a gym (T4.6). `ACTIVE` products are the
+/// ones the gym currently sells (and the only state a storefront would surface);
+/// `INACTIVE` is the soft-deactivated state — hidden but retained so the record
+/// and any links to it survive. Toggled from the staff console, mirroring
+/// {@link LocationStatus} for locations.
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -85,6 +95,7 @@ model Gym {
   members   GymMember[]
   trainers  Trainer[]
   locations Location[]
+  products  Product[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -196,6 +207,36 @@ model Location {
 
   @@index([gymId])
   @@map("locations")
+}
+
+/// A retail product a gym curates and sells from the staff console (T4.6). A
+/// gym-scoped content record — name, description, base price, an ordered image
+/// gallery, and a set of purchasable variants — the gym manages for its store.
+/// One gym can have many products; `gymId` is the isolating tenant key the scoped
+/// Prisma client constrains every query to. `priceAmount` is the base price in the
+/// currency's MINOR units (e.g. cents/tetri) so no float rounding crosses the wire,
+/// with `currency` an ISO-4217 code; a variant may override it. `images` is a flat,
+/// ordered list of public R2 URLs (the first is the primary/thumbnail), each
+/// uploaded via the storage signed-upload service. `variants` is a JSON array of
+/// `{ name, sku, priceAmount, stock }` objects — the editable source for the
+/// product's purchasable options, validated by `productVariantsSchema`.
+model Product {
+  id          String        @id @default(cuid())
+  gymId       String
+  name        String
+  description String        @default("")
+  priceAmount Int           @default(0)
+  currency    String        @default("USD")
+  images      String[]      @default([])
+  variants    Json          @default("[]")
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@map("products")
 }
 
 /// Rotating refresh-token record for session management. Tokens are persisted

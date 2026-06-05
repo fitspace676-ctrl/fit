@@ -9,5 +9,6 @@ export * from './src/members';
 export * from './src/orders';
 export * from './src/packages';
 export * from './src/permissions';
+export * from './src/products-admin';
 export * from './src/trainers';
 export * from './src/trainers-admin';
