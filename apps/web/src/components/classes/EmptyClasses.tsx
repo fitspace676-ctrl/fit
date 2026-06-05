@@ -1,0 +1,20 @@
+import { useTranslations } from 'next-intl';
+
+/**
+ * Empty state shown when the selected week (or the active gym) has no classes to
+ * display. Purely presentational — the parent decides when to render it (the API
+ * returned zero instances, or there is no tenant in scope).
+ */
+export function EmptyClasses() {
+  const t = useTranslations('classes');
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-slate-200 bg-slate-50/60 px-6 py-16 text-center">
+      <span aria-hidden className="text-3xl">
+        🗓️
+      </span>
+      <p className="text-base font-semibold text-slate-900">{t('empty.title')}</p>
+      <p className="max-w-sm text-sm text-slate-500">{t('empty.subtitle')}</p>
+    </div>
+  );
+}

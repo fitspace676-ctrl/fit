@@ -144,6 +144,46 @@
       "backToLogin": "Back to sign in"
     }
   },
+  "classes": {
+    "title": "Classes",
+    "subtitle": "Browse the schedule and book your next session.",
+    "toggle": {
+      "label": "Calendar view",
+      "week": "Week",
+      "list": "List"
+    },
+    "weekView": {
+      "label": "Weekly calendar",
+      "prev": "Previous week",
+      "next": "Next week",
+      "today": "This week"
+    },
+    "listView": {
+      "label": "Class list",
+      "count": "{count, plural, one {# class} other {# classes}}"
+    },
+    "card": {
+      "spotsLeft": "{count, plural, one {# spot left} other {# spots left}}",
+      "full": "Full"
+    },
+    "drawer": {
+      "close": "Close",
+      "time": "Time",
+      "trainer": "Trainer",
+      "location": "Location",
+      "capacity": "Capacity",
+      "book": "Book",
+      "full": "Class full",
+      "signInToBook": "Sign in to book"
+    },
+    "empty": {
+      "title": "No classes this week",
+      "subtitle": "There are no classes scheduled for the selected week. Try another week or check back soon."
+    },
+    "loading": "Loading classes…",
+    "error": "We couldn’t load the classes. Please try again.",
+    "retry": "Try again"
+  },
   "errors": {
     "forbidden": {
       "badge": "403",
