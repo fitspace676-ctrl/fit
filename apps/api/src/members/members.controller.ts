@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -14,10 +15,15 @@ import { z } from 'zod';
 import {
   Permission,
   bulkExportMembersSchema,
+  createMemberSchema,
   listMembersQuerySchema,
+  updateMemberSchema,
   type BulkExportMembersResponse,
+  type CreateMemberResponse,
   type GetMemberResponse,
   type ListMembersResponse,
+  type SetMemberStatusResponse,
+  type UpdateMemberResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -28,10 +34,11 @@ import { MembersService } from './members.service';
  * Staff-console member management API (`/members`, T4.2).
  *
  * Every route is tenant-scoped staff access: {@link TenantGuard} pins the request
- * to one gym and {@link PermissionsGuard} enforces the capability. All three
- * routes require {@link Permission.MemberRead} — the read roster + detail and the
- * export it feeds (write/deactivate are T4.3). The service runs on the
- * tenant-scoped Prisma client, so no handler ever passes or trusts a `gymId`.
+ * to one gym and {@link PermissionsGuard} enforces the capability. Reads (roster,
+ * detail, and the export they feed) require {@link Permission.MemberRead}; the
+ * writes — create, edit, and deactivate/reactivate (T4.3) — require
+ * {@link Permission.MemberWrite}. The service runs on the tenant-scoped Prisma
+ * client, so no handler ever passes or trusts a `gymId`.
  */
 @Controller('members')
 @UseGuards(TenantGuard, PermissionsGuard)
@@ -72,6 +79,54 @@ export class MembersController {
   @RequirePermissions(Permission.MemberRead)
   async bulkExport(@Body() body: unknown): Promise<BulkExportMembersResponse> {
     return this.members.bulkExport(parse(bulkExportMembersSchema, body));
+  }
+
+  /**
+   * `POST /members` — create a member (T4.3). The body is validated up front
+   * (`name` + `email` required, `phone` optional, `status` defaults to `ACTIVE`).
+   * A person who already exists by email is linked to the gym; an email already
+   * a member of *this* gym is a `409 MEMBER_EXISTS`. Returns `201` with the detail.
+   */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.MemberWrite)
+  async create(@Body() body: unknown): Promise<CreateMemberResponse> {
+    return this.members.createMember(parse(createMemberSchema, body));
+  }
+
+  /**
+   * `PATCH /members/:id` — edit a member's profile (`name` / `phone`, T4.3). An
+   * unknown or cross-tenant id is a `404 MEMBER_NOT_FOUND`. Returns the updated
+   * detail.
+   */
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MemberWrite)
+  async update(@Param('id') id: string, @Body() body: unknown): Promise<UpdateMemberResponse> {
+    return this.members.updateMember(id, parse(updateMemberSchema, body));
+  }
+
+  /**
+   * `POST /members/:id/deactivate` — set the member's status to `SUSPENDED`
+   * (T4.3). Idempotent; a `404` for an unknown / cross-tenant id. Returns the
+   * updated detail.
+   */
+  @Post(':id/deactivate')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MemberWrite)
+  async deactivate(@Param('id') id: string): Promise<SetMemberStatusResponse> {
+    return this.members.deactivateMember(id);
+  }
+
+  /**
+   * `POST /members/:id/reactivate` — set the member's status back to `ACTIVE`
+   * (T4.3), the inverse of {@link deactivate}. Idempotent; `404`-on-miss.
+   */
+  @Post(':id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MemberWrite)
+  async reactivate(@Param('id') id: string): Promise<SetMemberStatusResponse> {
+    return this.members.reactivateMember(id);
   }
 }
 

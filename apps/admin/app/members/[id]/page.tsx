@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Permission, roleHasPermission } from '@fit/types';
+import { getServerSession } from '@/lib/session';
 import { ApiError, fetchMember } from '@/lib/api';
+import { MemberActions } from './member-actions';
 import { MemberTabs } from './member-tabs';
 
 export const metadata: Metadata = {
@@ -78,6 +81,11 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
     className: 'bg-slate-100 text-slate-600',
   };
 
+  // Write controls (edit + deactivate) are a `MemberWrite` capability — shown only
+  // to staff who hold it, and re-checked by the actions and the API behind them.
+  const session = await getServerSession();
+  const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
+
   return (
     <div className="flex flex-col gap-6">
       <Link href="/members" className="text-sm font-medium text-brand-700 hover:text-brand-800">
@@ -94,6 +102,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
           </div>
           <p className="text-sm text-slate-500">{member.email}</p>
         </div>
+        {canWrite ? <MemberActions memberId={member.id} status={member.status} /> : null}
       </header>
 
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
