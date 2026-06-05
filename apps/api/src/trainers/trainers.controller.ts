@@ -1,6 +1,19 @@
-import { BadRequestException, Controller, Get, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
-import { listTrainersQuerySchema, type ListTrainersResponse } from '@fit/types';
+import {
+  getTrainerQuerySchema,
+  listTrainersQuerySchema,
+  type GetTrainerResponse,
+  type ListTrainersResponse,
+} from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
 import { TrainersService } from './trainers.service';
 
@@ -34,6 +47,23 @@ export class TrainersController {
       throw new BadRequestException(formatIssues(result.error));
     }
     return this.trainers.listTrainers(result.data);
+  }
+
+  /**
+   * `GET /trainers/:id?gymId=<id>` — one trainer's profile + schedule. The `id`
+   * is the path param; the `gymId` query is validated up front (a bad/missing one
+   * is a `400`) so the lookup is always tenant-scoped. An unknown or cross-tenant
+   * id is a `404` from the service.
+   */
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @Public()
+  async getOne(@Param('id') id: string, @Query() query: unknown): Promise<GetTrainerResponse> {
+    const result = getTrainerQuerySchema.safeParse(query);
+    if (!result.success) {
+      throw new BadRequestException(formatIssues(result.error));
+    }
+    return this.trainers.getTrainer(id, result.data);
   }
 }
 
