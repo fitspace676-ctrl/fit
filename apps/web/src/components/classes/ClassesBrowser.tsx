@@ -6,9 +6,17 @@ import { DEFAULT_CLASS_VIEW, type ClassCalendarView, type ClassInstanceCard } fr
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchClassInstances } from '@/lib/classes';
 import { ClassDetailDrawer } from './ClassDetailDrawer';
+import { ClassFilters } from './ClassFilters';
 import { ClassListView } from './ClassListView';
 import { EmptyClasses } from './EmptyClasses';
 import { WeekCalendar } from './WeekCalendar';
+import {
+  applyFilters,
+  deriveFacets,
+  EMPTY_FILTERS,
+  writeFilterParams,
+  type ClassFilterState,
+} from './class-filters';
 import { dayKey, parseWeekParam, weekWindow } from './date-utils';
 
 export interface ClassesBrowserProps {
@@ -20,6 +28,8 @@ export interface ClassesBrowserProps {
   initialWeek: string;
   /** `?class=<id>` from the server — reopens the drawer after a login round-trip. */
   initialClassId?: string;
+  /** Filters parsed from `?type/trainer/location/time` on the server. */
+  initialFilters: ClassFilterState;
 }
 
 /** Fetch lifecycle for the current week's classes. */
@@ -41,6 +51,7 @@ export function ClassesBrowser({
   initialView,
   initialWeek,
   initialClassId,
+  initialFilters,
 }: ClassesBrowserProps) {
   const t = useTranslations('classes');
   const router = useRouter();
@@ -49,6 +60,7 @@ export function ClassesBrowser({
   const [view, setView] = useState<ClassCalendarView>(initialView);
   const [week, setWeek] = useState<Date>(() => parseWeekParam(initialWeek));
   const [selectedId, setSelectedId] = useState<string | null>(initialClassId ?? null);
+  const [filters, setFilters] = useState<ClassFilterState>(initialFilters);
   const [load, setLoad] = useState<LoadState>({ instances: [], status: 'loading' });
 
   // Fetch the selected week's classes; cancel an in-flight request when the week
@@ -90,19 +102,28 @@ export function ClassesBrowser({
     if (selectedId) {
       params.set('class', selectedId);
     }
+    writeFilterParams(params, filters);
     const query = params.toString();
     if (query === lastQuery.current) {
       return;
     }
     lastQuery.current = query;
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [view, week, selectedId, pathname, router]);
+  }, [view, week, selectedId, filters, pathname, router]);
 
   const onWeekChange = useCallback((next: Date) => {
     setSelectedId(null);
     setWeek(next);
   }, []);
 
+  // Filter options come from the loaded week; the visible set is the loaded
+  // instances narrowed by the active facets. Both recompute only when their
+  // inputs change, so toggling a filter is a pure in-memory pass (no refetch).
+  const facets = useMemo(() => deriveFacets(load.instances), [load.instances]);
+  const filtered = useMemo(() => applyFilters(load.instances, filters), [load.instances, filters]);
+
+  // Resolve the drawer against the full set, not the filtered one, so a deep
+  // link (`?class=<id>`) still opens even when the current filters hide it.
   const selectedInstance = useMemo(
     () => load.instances.find((instance) => instance.id === selectedId) ?? null,
     [load.instances, selectedId],
@@ -118,6 +139,10 @@ export function ClassesBrowser({
         groupLabel={t('toggle.label')}
       />
 
+      {load.status === 'ready' && load.instances.length > 0 && (
+        <ClassFilters facets={facets} filters={filters} onChange={setFilters} />
+      )}
+
       {load.status === 'loading' ? (
         <p className="py-16 text-center text-sm text-slate-400">{t('loading')}</p>
       ) : load.status === 'error' ? (
@@ -131,17 +156,31 @@ export function ClassesBrowser({
             {t('retry')}
           </button>
         </div>
+      ) : load.instances.length > 0 && filtered.length === 0 ? (
+        // Classes exist this week but the active filters exclude them all — a
+        // distinct state from "no classes this week", with a one-tap reset.
+        <div className="flex flex-col items-center gap-3 py-16 text-center">
+          <p className="text-sm font-medium text-slate-900">{t('filters.noMatch.title')}</p>
+          <p className="text-sm text-slate-500">{t('filters.noMatch.subtitle')}</p>
+          <button
+            type="button"
+            onClick={() => setFilters(EMPTY_FILTERS)}
+            className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            {t('filters.noMatch.action')}
+          </button>
+        </div>
       ) : view === 'week' ? (
         <WeekCalendar
-          instances={load.instances}
+          instances={filtered}
           week={week}
           onWeekChange={onWeekChange}
           onClassClick={setSelectedId}
         />
-      ) : load.instances.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <EmptyClasses />
       ) : (
-        <ClassListView instances={load.instances} onClassClick={setSelectedId} />
+        <ClassListView instances={filtered} onClassClick={setSelectedId} />
       )}
 
       <ClassDetailDrawer instance={selectedInstance} onClose={() => setSelectedId(null)} />

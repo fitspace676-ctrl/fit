@@ -180,6 +180,25 @@
       "title": "No classes this week",
       "subtitle": "There are no classes scheduled for the selected week. Try another week or check back soon."
     },
+    "filters": {
+      "groupLabel": "Filter classes",
+      "type": "Type",
+      "trainer": "Trainer",
+      "allTrainers": "All trainers",
+      "location": "Location",
+      "allLocations": "All locations",
+      "time": "Time",
+      "anyTime": "Any time",
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "evening": "Evening",
+      "clear": "Clear filters",
+      "noMatch": {
+        "title": "No classes match your filters",
+        "subtitle": "Try removing a filter or pick another week.",
+        "action": "Clear filters"
+      }
+    },
     "loading": "Loading classes…",
     "error": "We couldn’t load the classes. Please try again.",
     "retry": "Try again"

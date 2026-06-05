@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { classCalendarViewSchema, DEFAULT_CLASS_VIEW } from '@fit/types';
 import { getActiveGymId } from '@/lib/active-gym';
 import { ClassesBrowser } from '@/src/components/classes/ClassesBrowser';
+import { parseFilters } from '@/src/components/classes/class-filters';
 
 export const metadata: Metadata = {
   title: 'Classes — Fit',
@@ -21,6 +22,10 @@ interface ClassesSearchParams {
   view?: string;
   week?: string;
   class?: string;
+  type?: string;
+  trainer?: string;
+  location?: string;
+  time?: string;
 }
 
 /**
@@ -43,6 +48,7 @@ export default async function ClassesPage({
   const [t, gymId] = await Promise.all([getTranslations('classes'), getActiveGymId()]);
 
   const view = classCalendarViewSchema.safeParse(sp.view).data ?? DEFAULT_CLASS_VIEW;
+  const filters = parseFilters(sp);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-gutter py-10">
@@ -56,6 +62,7 @@ export default async function ClassesPage({
         initialView={view}
         initialWeek={sp.week ?? ''}
         initialClassId={sp.class}
+        initialFilters={filters}
       />
     </main>
   );
