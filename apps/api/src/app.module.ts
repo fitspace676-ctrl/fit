@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
+import { ClassesModule } from './classes/classes.module';
 import { GymsModule } from './gyms/gyms.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -53,6 +54,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     HealthModule,
     StorageModule,
     AuthModule,
+    ClassesModule,
     GymsModule,
     SuperAdminModule,
     TenantModule,
@@ -83,8 +85,13 @@ export class AppModule implements NestModule {
    *    tenant from the host; for everything else (a session-bearing request, or
    *    no tenant subdomain) it is a pass-through.
    * 2. {@link TenantMiddleware} establishes the tenant from the JWT on every
-   *    route except the public ones: auth (must work before any session exists)
-   *    and the health probe. A session always wins over the subdomain, and an
+   *    route except the public ones: auth (must work before any session exists),
+   *    the health probe, the public class-discovery listing
+   *    (`GET /class-instances`) — which an unauthenticated visitor browses on a
+   *    gym subdomain and which carries its `gymId` as a query param rather than
+   *    a session — and the public tenant lookup (`GET /gyms/by-subdomain/:slug`)
+   *    the member site resolves before any session exists. A session always
+   *    wins over the subdomain, and an
    *    unauthenticated request to a protected route is still rejected here.
    *    (`/uploads` is no longer excluded — it now runs behind the session and
    *    derives its `gymId` from the tenant context, not the request body.)
@@ -99,6 +106,8 @@ export class AppModule implements NestModule {
       .exclude(
         { path: 'auth/(.*)', method: RequestMethod.ALL },
         { path: 'health', method: RequestMethod.ALL },
+        { path: 'class-instances', method: RequestMethod.ALL },
+        { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');
   }
