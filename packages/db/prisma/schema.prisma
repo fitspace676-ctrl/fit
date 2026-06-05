@@ -56,6 +56,16 @@ enum TrainerStatus {
   INACTIVE
 }
 
+/// Lifecycle of a location (branch) within a gym (T4.5). `ACTIVE` locations are
+/// the gym's bookable branches (and the ones the public locations listing the
+/// purchase wizard browses surfaces); `INACTIVE` is the soft-deactivated state —
+/// hidden but retained so the record and any links to it survive. Toggled from
+/// the staff console, mirroring {@link TrainerStatus} for trainers.
+enum LocationStatus {
+  ACTIVE
+  INACTIVE
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -72,8 +82,9 @@ model Gym {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  members  GymMember[]
-  trainers Trainer[]
+  members   GymMember[]
+  trainers  Trainer[]
+  locations Location[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -156,6 +167,35 @@ model Trainer {
 
   @@index([gymId])
   @@map("trainers")
+}
+
+/// A physical location (branch) a gym curates from the staff console (T4.5). A
+/// gym-scoped content record — name, address, phone, photo, amenities, and weekly
+/// opening hours — the gym manages for its public locations listing (the purchase
+/// wizard's first step, T3.8). One gym can have many locations; `gymId` is the
+/// isolating tenant key the scoped Prisma client constrains every query to.
+/// `photoUrl` is the public URL of a photo uploaded to R2 (see the storage
+/// signed-upload service), or `null` when the branch has no photo. `amenities` is
+/// a flat list of short labels (rendered as chips); `hours` is a JSON map keyed by
+/// lowercase weekday (`mon`…`sun`) to `{ closed, open, close }`, the editable
+/// source the public denormalised `hours` display string is projected from.
+model Location {
+  id        String         @id @default(cuid())
+  gymId     String
+  name      String
+  address   String         @default("")
+  phone     String?
+  photoUrl  String?
+  amenities String[]       @default([])
+  hours     Json           @default("{}")
+  status    LocationStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@map("locations")
 }
 
 /// Rotating refresh-token record for session management. Tokens are persisted

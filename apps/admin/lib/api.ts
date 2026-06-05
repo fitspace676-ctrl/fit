@@ -12,18 +12,26 @@ import { cookies } from 'next/headers';
 import type {
   BulkExportMembersInput,
   BulkExportMembersResponse,
+  CreateLocationData,
+  CreateLocationResponse,
   CreateMemberInput,
   CreateMemberResponse,
   CreateTrainerData,
   CreateTrainerResponse,
+  GetAdminLocationResponse,
   GetAdminTrainerResponse,
   GetMemberResponse,
+  ListAdminLocationsQuery,
+  ListAdminLocationsResponse,
   ListAdminTrainersQuery,
   ListAdminTrainersResponse,
   ListMembersQuery,
   ListMembersResponse,
+  SetLocationStatusResponse,
   SetMemberStatusResponse,
   SetTrainerStatusResponse,
+  UpdateLocationData,
+  UpdateLocationResponse,
   UpdateMemberInput,
   UpdateMemberResponse,
   UpdateTrainerData,
@@ -246,6 +254,90 @@ export async function reactivateTrainer(id: string): Promise<SetTrainerStatusRes
     cache: 'no-store',
   });
   return unwrap<SetTrainerStatusResponse>(res);
+}
+
+// ── Locations (T4.5) ─────────────────────────────────────────────────────────
+
+/**
+ * Serialise a location roster query to a `?key=value` string, dropping empty
+ * values so a bare list carries no noise. The API re-coerces and re-validates
+ * with the same Zod schema.
+ */
+export function locationsQueryString(query: Partial<ListAdminLocationsQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/locations` — one filtered, server-paginated page of the gym's locations. */
+export async function fetchLocations(
+  query: Partial<ListAdminLocationsQuery> = {},
+): Promise<ListAdminLocationsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/locations${locationsQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminLocationsResponse>(res);
+}
+
+/** `GET /admin/locations/:id` — one location's detail. */
+export async function fetchLocation(id: string): Promise<GetAdminLocationResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/locations/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetAdminLocationResponse>(res);
+}
+
+/** `POST /admin/locations` — create a location; returns the new location's detail. */
+export async function createLocation(input: CreateLocationData): Promise<CreateLocationResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/locations`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateLocationResponse>(res);
+}
+
+/** `PATCH /admin/locations/:id` — edit a location's profile; returns the updated detail. */
+export async function updateLocation(
+  id: string,
+  input: UpdateLocationData,
+): Promise<UpdateLocationResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/locations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdateLocationResponse>(res);
+}
+
+/** `POST /admin/locations/:id/deactivate` — set the location's status to `INACTIVE`. */
+export async function deactivateLocation(id: string): Promise<SetLocationStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/locations/${encodeURIComponent(id)}/deactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetLocationStatusResponse>(res);
+}
+
+/** `POST /admin/locations/:id/reactivate` — set the location's status back to `ACTIVE`. */
+export async function reactivateLocation(id: string): Promise<SetLocationStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/locations/${encodeURIComponent(id)}/reactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetLocationStatusResponse>(res);
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────
