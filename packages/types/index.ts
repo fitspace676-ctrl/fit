@@ -9,3 +9,4 @@ export * from './src/orders';
 export * from './src/packages';
 export * from './src/permissions';
 export * from './src/trainers';
+export * from './src/trainers-admin';

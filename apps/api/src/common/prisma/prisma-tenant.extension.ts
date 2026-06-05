@@ -15,7 +15,11 @@ import { tenantStorage, type TenantState } from '../tenant/tenant.context';
  * handler reaches for `auditLog`, isolation is already enforced rather than
  * silently absent.
  */
-export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>(['GymMember', 'AuditLog']);
+export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
+  'GymMember',
+  'Trainer',
+  'AuditLog',
+]);
 
 /** Read operations whose `where` is constrained to the current tenant. */
 const SCOPED_READS: ReadonlySet<string> = new Set([

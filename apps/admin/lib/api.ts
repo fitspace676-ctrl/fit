@@ -14,12 +14,20 @@ import type {
   BulkExportMembersResponse,
   CreateMemberInput,
   CreateMemberResponse,
+  CreateTrainerData,
+  CreateTrainerResponse,
+  GetAdminTrainerResponse,
   GetMemberResponse,
+  ListAdminTrainersQuery,
+  ListAdminTrainersResponse,
   ListMembersQuery,
   ListMembersResponse,
   SetMemberStatusResponse,
+  SetTrainerStatusResponse,
   UpdateMemberInput,
   UpdateMemberResponse,
+  UpdateTrainerData,
+  UpdateTrainerResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -154,4 +162,125 @@ export async function reactivateMember(id: string): Promise<SetMemberStatusRespo
     cache: 'no-store',
   });
   return unwrap<SetMemberStatusResponse>(res);
+}
+
+// ── Trainers (T4.4) ─────────────────────────────────────────────────────────
+
+/**
+ * Serialise a trainer roster query to a `?key=value` string, dropping empty
+ * values so a bare list carries no noise. The API re-coerces and re-validates
+ * with the same Zod schema.
+ */
+export function trainersQueryString(query: Partial<ListAdminTrainersQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/trainers` — one filtered, server-paginated page of the gym's trainers. */
+export async function fetchTrainers(
+  query: Partial<ListAdminTrainersQuery> = {},
+): Promise<ListAdminTrainersResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers${trainersQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminTrainersResponse>(res);
+}
+
+/** `GET /admin/trainers/:id` — one trainer's detail. */
+export async function fetchTrainer(id: string): Promise<GetAdminTrainerResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetAdminTrainerResponse>(res);
+}
+
+/** `POST /admin/trainers` — create a trainer; returns the new trainer's detail. */
+export async function createTrainer(input: CreateTrainerData): Promise<CreateTrainerResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateTrainerResponse>(res);
+}
+
+/** `PATCH /admin/trainers/:id` — edit a trainer's profile; returns the updated detail. */
+export async function updateTrainer(
+  id: string,
+  input: UpdateTrainerData,
+): Promise<UpdateTrainerResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdateTrainerResponse>(res);
+}
+
+/** `POST /admin/trainers/:id/deactivate` — set the trainer's status to `INACTIVE`. */
+export async function deactivateTrainer(id: string): Promise<SetTrainerStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}/deactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetTrainerStatusResponse>(res);
+}
+
+/** `POST /admin/trainers/:id/reactivate` — set the trainer's status back to `ACTIVE`. */
+export async function reactivateTrainer(id: string): Promise<SetTrainerStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}/reactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetTrainerStatusResponse>(res);
+}
+
+// ── Uploads (R2 presigned) ──────────────────────────────────────────────────
+
+/** Body the admin sends to mint a presigned upload URL (gym comes from the session). */
+export interface CreateUploadInput {
+  contentType: string;
+  contentLength: number;
+  /** Key segment grouping the object, e.g. `trainers`. Must be lowercase letters. */
+  entity: string;
+  fileName?: string;
+}
+
+/** The presigned upload the API returns — `PUT` the bytes to `url`, then store `publicUrl`. */
+export interface SignedUploadResponse {
+  key: string;
+  url: string;
+  method: 'PUT';
+  contentType: string;
+  contentLength: number;
+  expiresIn: number;
+  publicUrl: string | null;
+}
+
+/**
+ * `POST /uploads` — mint a short-lived presigned R2 `PUT` URL the browser uploads
+ * the file bytes straight to. Tenant-scoped and gated by `MemberWrite` API-side;
+ * returns `503` (surfaced as an {@link ApiError}) when R2 isn't configured.
+ */
+export async function createUpload(input: CreateUploadInput): Promise<SignedUploadResponse> {
+  const res = await fetch(`${apiBaseUrl()}/uploads`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<SignedUploadResponse>(res);
 }

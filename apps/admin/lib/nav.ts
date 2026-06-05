@@ -32,6 +32,7 @@ export interface NavItem {
 export type NavIcon =
   | 'dashboard'
   | 'members'
+  | 'trainers'
   | 'workouts'
   | 'billing'
   | 'staff'
@@ -48,6 +49,7 @@ export type NavIcon =
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Dashboard', href: '/', icon: 'dashboard' },
   { label: 'Members', href: '/members', icon: 'members', permission: Permission.MemberRead },
+  { label: 'Trainers', href: '/trainers', icon: 'trainers', permission: Permission.TrainerRead },
   { label: 'Workouts', href: '/workouts', icon: 'workouts', permission: Permission.WorkoutRead },
   {
     label: 'Billing',
