@@ -28,6 +28,8 @@ const PUBLIC_PATHS = [
   // Public discovery surface — a logged-out visitor browses the class schedule
   // and is only sent to /login when they act on a class (the booking CTA).
   '/classes',
+  // Public discovery surface — the trainers index (T3.6) is pure browsing.
+  '/trainers',
 ];
 
 /** Split `/en/login` into its locale (`en`) and locale-less path (`/login`). */
