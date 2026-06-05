@@ -11,6 +11,7 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   dashboard: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10',
   members:
     'M9 7a3 3 0 11-6 0 3 3 0 016 0zM17 11a3 3 0 100-6 3 3 0 000 6zM2 20a5 5 0 0110 0M14 20a5 5 0 015-5',
+  trainers: 'M12 11a4 4 0 100-8 4 4 0 000 8zM5 21a7 7 0 0114 0M9 7h6',
   workouts: 'M6.5 6.5v11M17.5 6.5v11M4 9.5h2.5M17.5 9.5H20M6.5 12h11',
   billing: 'M3 7h18v10H3zM3 11h18M7 15h2',
   staff: 'M12 11a3 3 0 100-6 3 3 0 000 6zM5 20a7 7 0 0114 0',

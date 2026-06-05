@@ -46,6 +46,16 @@ enum GymStatus {
   SUSPENDED
 }
 
+/// Lifecycle of a trainer profile within a gym (T4.4). `ACTIVE` trainers are the
+/// gym's current roster (and the ones the public trainers index surfaces);
+/// `INACTIVE` is the soft-deactivated state — hidden from the roster but retained
+/// so the record and any links to it survive. Toggled from the staff console,
+/// mirroring {@link GymMemberStatus} for members.
+enum TrainerStatus {
+  ACTIVE
+  INACTIVE
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -62,7 +72,8 @@ model Gym {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  members GymMember[]
+  members  GymMember[]
+  trainers Trainer[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -119,6 +130,32 @@ model GymMember {
   @@unique([userId, gymId])
   @@index([gymId])
   @@map("gym_members")
+}
+
+/// A trainer profile a gym curates from the staff console (T4.4). A gym-scoped
+/// content record — name, headline, bio, photo, specialties — the gym manages
+/// for its public trainers index (T3.6), deliberately distinct from a
+/// `TRAINER`-role {@link GymMember} (which is an auth identity / login). One gym
+/// can have many trainers; `gymId` is the isolating tenant key the scoped Prisma
+/// client constrains every query to. `photoUrl` is the public URL of the headshot
+/// uploaded to R2 (see the storage signed-upload service), or `null` when the
+/// trainer has no photo (the card renders an initials placeholder).
+model Trainer {
+  id          String        @id @default(cuid())
+  gymId       String
+  name        String
+  headline    String        @default("")
+  bio         String        @default("")
+  photoUrl    String?
+  specialties String[]      @default([])
+  status      TrainerStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@map("trainers")
 }
 
 /// Rotating refresh-token record for session management. Tokens are persisted

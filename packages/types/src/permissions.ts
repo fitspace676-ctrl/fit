@@ -33,6 +33,10 @@ export enum Permission {
   MemberRead = 'member:read',
   /** Create, update, or remove members. */
   MemberWrite = 'member:write',
+  /** View the gym's trainer roster and trainer profiles. */
+  TrainerRead = 'trainer:read',
+  /** Create, update, deactivate, or remove trainer profiles. */
+  TrainerWrite = 'trainer:write',
   /** View billing, invoices, and payment history. */
   BillingRead = 'billing:read',
   /** Manage subscriptions, plans, and payment settings. */
@@ -61,6 +65,8 @@ export const ROLE_PERMISSIONS = {
     Permission.StaffManage,
     Permission.MemberRead,
     Permission.MemberWrite,
+    Permission.TrainerRead,
+    Permission.TrainerWrite,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -71,14 +77,26 @@ export const ROLE_PERMISSIONS = {
     Permission.StaffManage,
     Permission.MemberRead,
     Permission.MemberWrite,
+    Permission.TrainerRead,
+    Permission.TrainerWrite,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
     Permission.ReportView,
   ],
-  RECEPTIONIST: [Permission.MemberRead, Permission.MemberWrite, Permission.BillingRead],
-  TRAINER: [Permission.MemberRead, Permission.WorkoutRead, Permission.WorkoutWrite],
+  RECEPTIONIST: [
+    Permission.MemberRead,
+    Permission.MemberWrite,
+    Permission.TrainerRead,
+    Permission.BillingRead,
+  ],
+  TRAINER: [
+    Permission.MemberRead,
+    Permission.TrainerRead,
+    Permission.WorkoutRead,
+    Permission.WorkoutWrite,
+  ],
   MEMBER: [Permission.WorkoutRead],
 } satisfies Record<GymScopedRoleName, readonly Permission[]>;
 
