@@ -8,12 +8,30 @@ TypeScript and [Tailwind CSS](https://tailwindcss.com/) wired to the shared
 
 ```
 app/
-├── layout.tsx      # root layout — html/body shell, global styles
-├── page.tsx        # placeholder homepage
-└── globals.css     # Tailwind directives
-tailwind.config.mjs # extends @fit/config/tailwind preset
-next.config.mjs     # Next.js config (lint handled by turbo)
+├── layout.tsx          # root layout — html/body shell, global styles
+├── (dashboard)/        # authenticated route group (wrapped in the console shell)
+│   ├── layout.tsx      # AdminShell — sidebar + top bar; resolves the active gym
+│   └── page.tsx        # dashboard landing
+├── 403/page.tsx        # public — rendered bare (no shell)
+└── globals.css         # Tailwind directives
+components/
+├── admin-shell.tsx     # shell chrome + responsive mobile drawer state
+├── sidebar.tsx         # role-aware nav (visibleNavItems × active route)
+├── top-bar.tsx         # active gym, role badge, sign-out, mobile toggle
+└── nav-icon.tsx        # inline SVG glyphs (no icon dependency)
+lib/nav.ts              # NAV_ITEMS + visibleNavItems()/isNavItemActive()
+tailwind.config.mjs     # extends @fit/config/tailwind preset
+next.config.mjs         # Next.js config (lint handled by turbo)
 ```
+
+### Role-aware navigation
+
+`lib/nav.ts` declares every sidebar destination with an optional capability
+(`@fit/types` `Permission`) and/or minimum role. `visibleNavItems(role)` filters
+that list with the same `roleHasPermission` matrix the API enforces and the role
+ranking from `middleware.ts`, so a link is shown only when the route is actually
+reachable — it never lands the user on `/403`. The server re-checks every request;
+the client filter only decides what the UI offers.
 
 ## Scripts
 
