@@ -144,6 +144,71 @@ export interface MemberDetail extends MemberRow {
 export type GetMemberResponse = MemberDetail;
 
 /**
+ * A contact phone field shared by the create/update bodies: trimmed, optional,
+ * length-bounded, and normalised so an empty string is treated as "not set"
+ * (`undefined`) rather than persisting a blank. Format is intentionally loose —
+ * the gym serves a single region and staff type numbers in their own convention.
+ */
+const memberPhoneSchema = z
+  .string()
+  .trim()
+  .max(32)
+  .optional()
+  .transform((value) => (value ? value : undefined));
+
+/**
+ * Body for `POST /members` — create a member (T4.3). `name` and `email` identify
+ * the person (the email is the cross-gym `User` identity; a member who already
+ * exists as a user elsewhere is linked rather than duplicated). `phone` is
+ * optional contact info; `status` defaults to `ACTIVE` (a staff-added member is a
+ * current member unless explicitly invited). The API re-validates with this exact
+ * schema, so the admin form and the controller can never drift.
+ */
+export const createMemberSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(120),
+  email: z.string().trim().toLowerCase().email('A valid email is required').max(200),
+  phone: memberPhoneSchema,
+  status: memberStatusSchema.default('ACTIVE'),
+});
+
+/** Validated `POST /members` body — {@link createMemberSchema}. */
+export type CreateMemberInput = z.infer<typeof createMemberSchema>;
+
+/**
+ * Body for `PATCH /members/:id` — edit a member's profile (T4.3). A full-profile
+ * edit of the mutable contact fields: `name` is required and `phone` is sent on
+ * every save, with an empty value clearing it (`null`) rather than being ignored.
+ * The email is the immutable auth identity and status is changed through the
+ * dedicated deactivate/reactivate actions, not here.
+ */
+export const updateMemberSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(120),
+  phone: z
+    .string()
+    .trim()
+    .max(32)
+    .transform((value) => (value ? value : null)),
+});
+
+/** Validated `PATCH /members/:id` body — {@link updateMemberSchema}. */
+export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
+
+/**
+ * Successful `POST /members` response (`201 Created`) — the newly created member
+ * as the detail page renders it (history tabs empty for a brand-new member).
+ */
+export type CreateMemberResponse = MemberDetail;
+
+/** Successful `PATCH /members/:id` response — the updated member detail. */
+export type UpdateMemberResponse = MemberDetail;
+
+/**
+ * Successful `POST /members/:id/deactivate` and `POST /members/:id/reactivate`
+ * response — the member detail with the new `status` (`SUSPENDED` / `ACTIVE`).
+ */
+export type SetMemberStatusResponse = MemberDetail;
+
+/**
  * Body for `POST /members/bulk-export`. Either an explicit `ids` selection (the
  * rows the staff member ticked) or a `filters` object mirroring the roster query
  * (export everything matching the current view). Both optional — an empty body

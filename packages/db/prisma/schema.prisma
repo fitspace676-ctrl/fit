@@ -75,6 +75,10 @@ model User {
   id              String    @id @default(cuid())
   email           String    @unique
   name            String?
+  /// Optional contact phone, captured/edited from the staff console member
+  /// management (T4.3). A user attribute (alongside name/email) rather than a
+  /// per-gym one, so it travels with the person across the gyms they belong to.
+  phone           String?
   passwordHash    String?
   emailVerifiedAt DateTime?
   googleId        String?   @unique

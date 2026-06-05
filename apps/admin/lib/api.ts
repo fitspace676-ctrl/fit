@@ -12,9 +12,14 @@ import { cookies } from 'next/headers';
 import type {
   BulkExportMembersInput,
   BulkExportMembersResponse,
+  CreateMemberInput,
+  CreateMemberResponse,
   GetMemberResponse,
   ListMembersQuery,
   ListMembersResponse,
+  SetMemberStatusResponse,
+  UpdateMemberInput,
+  UpdateMemberResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -104,4 +109,49 @@ export async function bulkExportMembers(
     cache: 'no-store',
   });
   return unwrap<BulkExportMembersResponse>(res);
+}
+
+/** `POST /members` — create a member; returns the new member's detail. */
+export async function createMember(input: CreateMemberInput): Promise<CreateMemberResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateMemberResponse>(res);
+}
+
+/** `PATCH /members/:id` — edit a member's profile; returns the updated detail. */
+export async function updateMember(
+  id: string,
+  input: UpdateMemberInput,
+): Promise<UpdateMemberResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdateMemberResponse>(res);
+}
+
+/** `POST /members/:id/deactivate` — set the member's status to `SUSPENDED`. */
+export async function deactivateMember(id: string): Promise<SetMemberStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}/deactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetMemberStatusResponse>(res);
+}
+
+/** `POST /members/:id/reactivate` — set the member's status back to `ACTIVE`. */
+export async function reactivateMember(id: string): Promise<SetMemberStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}/reactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetMemberStatusResponse>(res);
 }
