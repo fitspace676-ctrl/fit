@@ -1,5 +1,6 @@
 import { useTranslations } from 'next-intl';
 import type { TrainerCard as TrainerCardModel } from '@fit/types';
+import { Link } from '@/src/i18n/navigation';
 
 export interface TrainerCardProps {
   trainer: TrainerCardModel;
@@ -8,14 +9,18 @@ export interface TrainerCardProps {
 /**
  * One trainer rendered as a card in the index grid: avatar (or an initials
  * placeholder when there's no photo), name + headline, a truncated bio, and the
- * specialty chips. Purely presentational — the grid owns layout and the filter
- * state lives a level up.
+ * specialty chips. The whole card links to the trainer's detail page (T3.7).
+ * Purely presentational — the grid owns layout and the filter state lives a
+ * level up.
  */
 export function TrainerCard({ trainer }: TrainerCardProps) {
   const t = useTranslations('trainers');
 
   return (
-    <article className="flex flex-col gap-4 rounded-card border border-slate-200 bg-white p-5 transition-shadow hover:shadow-sm">
+    <Link
+      href={`/trainers/${trainer.id}`}
+      className="flex h-full flex-col gap-4 rounded-card border border-slate-200 bg-white p-5 transition-shadow hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+    >
       <div className="flex items-center gap-4">
         {trainer.avatarUrl ? (
           <img
@@ -57,7 +62,7 @@ export function TrainerCard({ trainer }: TrainerCardProps) {
       {trainer.locationNames.length > 0 && (
         <p className="mt-auto text-xs text-slate-400">{trainer.locationNames.join(' · ')}</p>
       )}
-    </article>
+    </Link>
   );
 }
 

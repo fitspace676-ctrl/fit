@@ -55,3 +55,60 @@ export type ListTrainersQuery = z.infer<typeof listTrainersQuerySchema>;
 export interface ListTrainersResponse {
   trainers: TrainerCard[];
 }
+
+/**
+ * One upcoming session a trainer leads, as the public detail page needs it — a
+ * denormalised entry, never the full class row. `startsAt` / `endsAt` are
+ * ISO-8601 instants the page renders in the visitor's local zone; `locationName`
+ * is the denormalised studio/location name (empty when the gym has a single
+ * unnamed space). Mirrors the classes card projection (T3.4) so the same date
+ * helpers group and format both.
+ */
+export const trainerScheduleEntrySchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+  locationName: z.string(),
+});
+
+/** A single scheduled session on a trainer's detail page — {@link trainerScheduleEntrySchema}. */
+export type TrainerScheduleEntry = z.infer<typeof trainerScheduleEntrySchema>;
+
+/**
+ * One trainer as the public detail page needs it — the same card projection the
+ * index renders, plus the upcoming `schedule` the detail view lists. The shared
+ * card fields (full `bio`, `headline`, `specialties`, `locationNames`) carry the
+ * profile; `schedule` is the trainer's forthcoming sessions, ordered by
+ * `startsAt`. An empty `schedule` is normal (a trainer with nothing booked yet),
+ * which the page renders as its "no upcoming sessions" state.
+ */
+export const trainerDetailSchema = trainerCardSchema.extend({
+  schedule: z.array(trainerScheduleEntrySchema),
+});
+
+/** A trainer profile + schedule for the detail page — {@link trainerDetailSchema}. */
+export type TrainerDetail = z.infer<typeof trainerDetailSchema>;
+
+/**
+ * Query for `GET /trainers/:id`. The trainer is identified by the path `id`;
+ * `gymId` scopes the lookup to one tenant (the public page resolves it from the
+ * active subdomain) so a trainer can only ever be read through the gym whose
+ * site is being browsed — an id from another tenant resolves to a `404`, same as
+ * an unknown id.
+ */
+export const getTrainerQuerySchema = z.object({
+  gymId: z.string().min(1),
+});
+
+/** Validated `GET /trainers/:id` query — {@link getTrainerQuerySchema}. */
+export type GetTrainerQuery = z.infer<typeof getTrainerQuerySchema>;
+
+/**
+ * Successful `GET /trainers/:id` response — the requested trainer's profile and
+ * schedule. A missing / cross-tenant id is a `404`, not an empty body, so the
+ * page can cleanly distinguish "no such trainer" from "trainer with no sessions".
+ */
+export interface GetTrainerResponse {
+  trainer: TrainerDetail;
+}
