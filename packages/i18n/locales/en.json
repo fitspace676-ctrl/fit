@@ -248,6 +248,35 @@
     "error": "We couldn’t load the trainers. Please try again.",
     "retry": "Try again"
   },
+  "checkout": {
+    "title": "Checkout",
+    "subtitle": "A few quick steps to set up your membership.",
+    "progress": "Step {current} of {total}",
+    "progressLabel": "Checkout progress",
+    "steps": {
+      "location": "Location",
+      "package": "Package",
+      "details": "Details",
+      "payment": "Payment"
+    },
+    "continue": "Continue",
+    "comingSoon": "This step is coming soon.",
+    "locations": {
+      "title": "Choose a location",
+      "subtitle": "Pick the location where you'd like to train.",
+      "loading": "Loading locations…",
+      "error": "We couldn't load the locations. Please try again.",
+      "retry": "Try again",
+      "empty": {
+        "title": "No locations available",
+        "subtitle": "This gym hasn't set up any locations yet. Please check back soon."
+      },
+      "todayHours": "Today",
+      "closed": "Closed",
+      "select": "Select",
+      "selected": "Selected"
+    }
+  },
   "errors": {
     "forbidden": {
       "badge": "403",
