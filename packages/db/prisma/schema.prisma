@@ -96,6 +96,41 @@ enum PackageBillingInterval {
   ONE_TIME
 }
 
+/// Lifecycle of a recurring class template (T5.1). `ACTIVE` templates are the
+/// ones the instance-generation job (T5.3) materialises occurrences from;
+/// `PAUSED` keeps the definition but stops generating new instances (existing
+/// instances are untouched). Toggled from the class-scheduling console (T5.2).
+/// Distinct from {@link InstanceStatus}, the per-occurrence lifecycle.
+enum ClassTemplateStatus {
+  ACTIVE
+  PAUSED
+}
+
+/// Lifecycle of a single materialised class occurrence (T5.1). `SCHEDULED` is a
+/// bookable future occurrence; `CANCELED` was called off (its seats released);
+/// `COMPLETED` is in the past and attendance-tracked. The instance-generation
+/// job only ever creates `SCHEDULED` rows; the other states are transitions
+/// applied later by the scheduling / attendance flows.
+enum InstanceStatus {
+  SCHEDULED
+  CANCELED
+  COMPLETED
+}
+
+/// Lifecycle of a member's booking against a class occurrence (T5.1). `BOOKED`
+/// holds a confirmed seat; `WAITLIST` is queued (ordered by `waitlistPosition`)
+/// for a freed seat; `ATTENDED`/`NO_SHOW` are post-class attendance outcomes;
+/// `CANCELED` released the seat. The partial unique index on
+/// (classInstanceId, memberId) excludes `CANCELED`, so a member holds at most
+/// one live booking per occurrence yet can re-book after cancelling.
+enum BookingStatus {
+  BOOKED
+  WAITLIST
+  ATTENDED
+  NO_SHOW
+  CANCELED
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -118,12 +153,15 @@ model Gym {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  members      GymMember[]
-  trainers     Trainer[]
-  locations    Location[]
-  products     Product[]
-  packagePlans PackagePlan[]
-  staffInvites StaffInvite[]
+  members        GymMember[]
+  trainers       Trainer[]
+  locations      Location[]
+  products       Product[]
+  packagePlans   PackagePlan[]
+  staffInvites   StaffInvite[]
+  classTemplates ClassTemplate[]
+  classInstances ClassInstance[]
+  bookings       Booking[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -174,8 +212,9 @@ model GymMember {
   status   GymMemberStatus @default(ACTIVE)
   joinedAt DateTime        @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  bookings Booking[]
 
   @@unique([userId, gymId])
   @@index([gymId])
@@ -202,7 +241,8 @@ model Trainer {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  classTemplates ClassTemplate[]
 
   @@index([gymId])
   @@map("trainers")
@@ -231,7 +271,8 @@ model Location {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  classTemplates ClassTemplate[]
 
   @@index([gymId])
   @@map("locations")
@@ -298,6 +339,114 @@ model PackagePlan {
 
   @@index([gymId])
   @@map("package_plans")
+}
+
+/// A recurring class definition a gym curates from the scheduling console (T5.2).
+/// The template is the *rule*, not the occurrences: `rrule` is an RFC-5545 RRULE
+/// string (e.g. `FREQ=WEEKLY;BYDAY=MO,WE,FR`) the instance-generation job (T5.3)
+/// expands into concrete {@link ClassInstance} rows between `validFrom` and an
+/// optional `validUntil` (null = open-ended). `capacity` is the default seat
+/// count per occurrence (an instance may override it via `capacityOverride`);
+/// `durationMinutes` fixes each occurrence's length, so an instance's `endsAt`
+/// is `startsAt + durationMinutes`. `trainerId`/`locationId` are the default
+/// trainer/branch — nullable, and set to null if the referenced trainer/location
+/// is removed, so the template survives; `room` is free-text sub-location within
+/// the branch. `color` is the calendar display colour. One gym can have many
+/// templates; `gymId` is the isolating tenant key the scoped Prisma client
+/// constrains every query to. The 500-char ceiling on `rrule` is enforced at the
+/// DB level (see the migration's `rrule_max_len` check constraint), not in this
+/// schema — Prisma cannot express a check constraint.
+model ClassTemplate {
+  id              String              @id @default(cuid())
+  gymId           String
+  title           String
+  description     String              @default("")
+  category        String              @default("")
+  trainerId       String?
+  locationId      String?
+  room            String?
+  capacity        Int
+  durationMinutes Int
+  rrule           String
+  color           String              @default("#2563eb")
+  status          ClassTemplateStatus @default(ACTIVE)
+  validFrom       DateTime
+  validUntil      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  gym       Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  trainer   Trainer?        @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  location  Location?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  instances ClassInstance[]
+
+  @@index([gymId])
+  @@index([trainerId])
+  @@index([locationId])
+  @@map("class_templates")
+}
+
+/// A single materialised occurrence of a {@link ClassTemplate} (T5.1). The
+/// instance-generation job (T5.3) expands a template's `rrule` into these rows,
+/// one per occurrence in the valid window. `startsAt`/`endsAt` are the resolved
+/// instants; `capacityOverride` (nullable) overrides the template's `capacity`
+/// for this occurrence only; `bookedCount` is a denormalised counter the booking
+/// flow (T5.4) bumps atomically alongside each {@link Booking} write — never
+/// derived via COUNT(*) at query time — so a card can render remaining spots
+/// without a join. `detachedAt` marks an occurrence that was edited away from its
+/// template (T5.8) so a later regeneration leaves it untouched. `gymId` is
+/// duplicated from the template for direct tenant-scoped, time-ranged calendar
+/// queries served by the `(gymId, startsAt)` index.
+model ClassInstance {
+  id               String         @id @default(cuid())
+  gymId            String
+  templateId       String
+  startsAt         DateTime
+  endsAt           DateTime
+  capacityOverride Int?
+  bookedCount      Int            @default(0)
+  status           InstanceStatus @default(SCHEDULED)
+  detachedAt       DateTime?
+  createdAt        DateTime       @default(now())
+
+  gym      Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  template ClassTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([gymId, startsAt])
+  @@index([templateId])
+  @@map("class_instances")
+}
+
+/// A member's reservation against a {@link ClassInstance} (T5.1). `status` tracks
+/// the lifecycle (booked → attended/no-show, waitlisted → booked when a seat
+/// frees, or canceled); `waitlistPosition` orders the queue while `WAITLIST`.
+/// `idempotencyKey` is unique so a retried booking request can't create a second
+/// row. A member holds at most one non-canceled booking per occurrence: the
+/// partial unique index `(classInstanceId, memberId) WHERE status != 'CANCELED'`
+/// — added in the migration SQL, as Prisma can't express a partial index —
+/// enforces it while still allowing a re-book after cancelling. `memberId`
+/// references the gym-scoped {@link GymMember}, matching this row's `gymId`. The
+/// booking *logic* (and the atomic `bookedCount` bump on insert) lands in T5.4;
+/// this is schema only.
+model Booking {
+  id               String        @id @default(cuid())
+  gymId            String
+  classInstanceId  String
+  memberId         String
+  status           BookingStatus @default(BOOKED)
+  waitlistPosition Int?
+  idempotencyKey   String        @unique
+  createdAt        DateTime      @default(now())
+
+  gym           Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  classInstance ClassInstance @relation(fields: [classInstanceId], references: [id], onDelete: Cascade)
+  member        GymMember     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([classInstanceId, status])
+  @@index([gymId])
+  @@index([memberId])
+  @@map("bookings")
 }
 
 /// Rotating refresh-token record for session management. Tokens are persisted

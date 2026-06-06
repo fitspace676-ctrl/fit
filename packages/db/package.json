@@ -14,7 +14,8 @@
     "db:status": "prisma migrate status",
     "db:seed": "prisma db seed",
     "lint": "eslint . --max-warnings 0",
-    "test": "echo '[@fit/db] test: nothing to do yet'",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
   },
@@ -28,6 +29,8 @@
     "@fit/config": "workspace:*",
     "@types/node": "^22.10.0",
     "prisma": "^6.2.1",
-    "tsx": "^4.19.2"
+    "rrule": "^2.8.1",
+    "tsx": "^4.19.2",
+    "vitest": "^3.0.0"
   }
 }
