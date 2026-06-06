@@ -8,6 +8,7 @@ import * as Sentry from '@sentry/react-native';
 import '../global.css';
 // Validate EXPO_PUBLIC_* env once at app launch (throws on a malformed value).
 import '../lib/env';
+import { AppProviders } from '../providers';
 
 // Mobile Sentry bootstrap. Runs once when this module is first evaluated; no-op
 // without a public DSN, so Expo Go / preview builds run without an account.
@@ -22,14 +23,18 @@ if (sentryDsn) {
   });
 }
 
-// Root layout — wraps every route. The single Stack renders the Expo Router
-// file-based routes under `app/`. `global.css` is imported here so NativeWind's
-// Tailwind layer is registered once for the whole tree.
+// Root layout — wraps every route. `SafeAreaProvider` sits outermost so the
+// toast host (inside `AppProviders`) can read the top inset; `AppProviders`
+// then layers Theme → Query → I18n → Toast around the Expo Router `Stack` that
+// renders the file-based routes under `app/`. `global.css` is imported here so
+// NativeWind's Tailwind layer is registered once for the whole tree.
 function RootLayout() {
   return (
     <SafeAreaProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-      <StatusBar style="light" />
+      <AppProviders>
+        <Stack screenOptions={{ headerShown: false }} />
+        <StatusBar style="light" />
+      </AppProviders>
     </SafeAreaProvider>
   );
 }

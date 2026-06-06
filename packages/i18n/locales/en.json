@@ -28,7 +28,11 @@
     "nav": {
       "home": "Home",
       "classes": "Classes",
-      "trainers": "Trainers"
+      "trainers": "Trainers",
+      "bookings": "Bookings",
+      "shop": "Shop",
+      "profile": "Profile",
+      "qr": "Check-in"
     },
     "cta": {
       "getStarted": "Get started",
