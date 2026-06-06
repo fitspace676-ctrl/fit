@@ -72,6 +72,7 @@ describe('GymSettingsService', () => {
         },
         hours: weeklyHoursSchema.parse({}),
         notifications: { fromEmail: null, fromName: null, replyTo: null },
+        booking: { cancellationCutoffHours: 0 },
       });
     });
 
@@ -119,6 +120,18 @@ describe('GymSettingsService', () => {
       const stored = data.settings as { brand: Record<string, unknown> };
       expect(stored.brand).not.toHaveProperty('name');
       expect(result.brand.name).toBe('New Name');
+    });
+
+    it('merges a partial booking-policy patch onto the stored settings', async () => {
+      const { service, update } = setup({ gym: { name: 'Iron Gym', settings: null } });
+
+      const result = await service.updateSettings({ booking: { cancellationCutoffHours: 12 } });
+
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as {
+        booking: { cancellationCutoffHours: number };
+      };
+      expect(stored.booking.cancellationCutoffHours).toBe(12);
+      expect(result.booking.cancellationCutoffHours).toBe(12);
     });
 
     it('replaces the whole week when hours are supplied', async () => {
