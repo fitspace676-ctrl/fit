@@ -222,14 +222,19 @@
       "label": "კვირის კალენდარი",
       "prev": "წინა კვირა",
       "next": "შემდეგი კვირა",
-      "today": "ეს კვირა"
+      "today": "ეს კვირა",
+      "dayEmpty": "ამ დღეს გაკვეთილები არ არის"
     },
     "listView": {
       "label": "გაკვეთილების სია",
-      "count": "{count, plural, one {# გაკვეთილი} other {# გაკვეთილი}}"
+      "count": "{count, plural, one {# გაკვეთილი} other {# გაკვეთილი}}",
+      "itemsOne": "{count} გაკვეთილი",
+      "itemsOther": "{count} გაკვეთილი"
     },
     "card": {
       "spotsLeft": "{count, plural, one {# ადგილი დარჩა} other {# ადგილი დარჩა}}",
+      "spotsLeftOne": "{count} ადგილი დარჩა",
+      "spotsLeftOther": "{count} ადგილი დარჩა",
       "full": "შევსებულია"
     },
     "drawer": {
