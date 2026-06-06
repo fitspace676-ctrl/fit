@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -16,10 +17,13 @@ import {
   Permission,
   createTrainerSchema,
   listAdminTrainersQuerySchema,
+  setTrainerAvailabilitySchema,
   updateTrainerSchema,
   type CreateTrainerResponse,
   type GetAdminTrainerResponse,
+  type GetTrainerAvailabilityResponse,
   type ListAdminTrainersResponse,
+  type SetTrainerAvailabilityResponse,
   type SetTrainerStatusResponse,
   type UpdateTrainerResponse,
 } from '@fit/types';
@@ -90,6 +94,36 @@ export class AdminTrainersController {
   @RequirePermissions(Permission.TrainerWrite)
   async update(@Param('id') id: string, @Body() body: unknown): Promise<UpdateTrainerResponse> {
     return this.trainers.updateTrainer(id, parse(updateTrainerSchema, body));
+  }
+
+  /**
+   * `GET /admin/trainers/:id/availability` — the trainer's weekly recurring
+   * availability (T5.11). Always a complete seven-day map (a trainer who has never
+   * set hours reads back as fully unavailable). A `404 TRAINER_NOT_FOUND` for an
+   * unknown / cross-tenant id.
+   */
+  @Get(':id/availability')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.TrainerRead)
+  async getAvailability(@Param('id') id: string): Promise<GetTrainerAvailabilityResponse> {
+    return this.trainers.getAvailability(id);
+  }
+
+  /**
+   * `PUT /admin/trainers/:id/availability` — replace the trainer's weekly
+   * availability (T5.11). The whole week is sent and stored as one canonical
+   * document; the body is validated up front (`HH:MM` times, `end` after `start`,
+   * no overlapping windows, an available day needs a window). Returns the stored
+   * availability. A `404` for an unknown / cross-tenant id.
+   */
+  @Put(':id/availability')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.TrainerWrite)
+  async setAvailability(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<SetTrainerAvailabilityResponse> {
+    return this.trainers.setAvailability(id, parse(setTrainerAvailabilitySchema, body));
   }
 
   /**

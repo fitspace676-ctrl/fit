@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { TrainerStatus } from '@fit/db';
-import type { CreateTrainerData, ListAdminTrainersQuery, UpdateTrainerData } from '@fit/types';
+import {
+  weeklyAvailabilitySchema,
+  type CreateTrainerData,
+  type ListAdminTrainersQuery,
+  type UpdateTrainerData,
+} from '@fit/types';
 import { AdminTrainersService } from './admin-trainers.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -17,6 +22,7 @@ interface TrainerRecord {
   status: TrainerStatus;
   createdAt: Date;
   updatedAt: Date;
+  availability?: unknown;
 }
 
 interface FindManyArgs {
@@ -261,6 +267,80 @@ describe('AdminTrainersService', () => {
       const { service, update } = setup({ findFirst: null });
 
       await expect(service.deactivateTrainer('missing')).rejects.toBeInstanceOf(NotFoundException);
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getAvailability', () => {
+    it('fills an empty stored availability to a complete fully-unavailable week', async () => {
+      const { service } = setup({ findFirst: row({ availability: {} }) });
+
+      const result = await service.getAvailability('t-1');
+
+      expect(Object.keys(result.availability)).toEqual([
+        'mon',
+        'tue',
+        'wed',
+        'thu',
+        'fri',
+        'sat',
+        'sun',
+      ]);
+      expect(result.availability.mon).toEqual({ available: false, windows: [] });
+    });
+
+    it('parses a stored partial week, defaulting absent days', async () => {
+      const { service } = setup({
+        findFirst: row({
+          availability: { tue: { available: true, windows: [{ start: '09:00', end: '12:00' }] } },
+        }),
+      });
+
+      const result = await service.getAvailability('t-1');
+
+      expect(result.availability.tue).toEqual({
+        available: true,
+        windows: [{ start: '09:00', end: '12:00' }],
+      });
+      expect(result.availability.mon).toEqual({ available: false, windows: [] });
+    });
+
+    it('throws 404 for an unknown / cross-tenant id', async () => {
+      const { service } = setup({ findFirst: null });
+
+      await expect(service.getAvailability('missing')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('setAvailability', () => {
+    it('persists the availability JSON after resolving the trainer, then returns it', async () => {
+      const { service, findFirst, update } = setup({
+        findFirst: row({
+          availability: { mon: { available: true, windows: [{ start: '08:00', end: '10:00' }] } },
+        }),
+      });
+
+      const result = await service.setAvailability('t-1', {
+        availability: weeklyAvailabilitySchema.parse({
+          mon: { available: true, windows: [{ start: '08:00', end: '10:00' }] },
+        }),
+      });
+
+      expect(findFirst.mock.calls[0]?.[0]?.where).toMatchObject({ id: 't-1' });
+      expect(update.mock.calls[0]?.[0]).toMatchObject({ where: { id: 't-1' } });
+      expect(update.mock.calls[0]?.[0]?.data).toHaveProperty('availability');
+      expect(result.availability.mon).toEqual({
+        available: true,
+        windows: [{ start: '08:00', end: '10:00' }],
+      });
+    });
+
+    it('throws 404 for an unknown / cross-tenant id without updating', async () => {
+      const { service, update } = setup({ findFirst: null });
+
+      await expect(
+        service.setAvailability('missing', { availability: weeklyAvailabilitySchema.parse({}) }),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(update).not.toHaveBeenCalled();
     });
   });

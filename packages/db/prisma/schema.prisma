@@ -237,6 +237,14 @@ model Trainer {
   bio         String        @default("")
   photoUrl    String?
   specialties String[]      @default([])
+  /// The trainer's weekly recurring availability (T5.11): a JSON map keyed by
+  /// lowercase weekday (`mon`…`sun`) to `{ available, windows: [{ start, close }] }`,
+  /// where `windows` is an ordered, non-overlapping list of `HH:MM` time ranges the
+  /// trainer can teach/coach that day (split shifts allowed). Managed from the staff
+  /// console via the dedicated `/admin/trainers/:id/availability` endpoint and
+  /// validated by `weeklyAvailabilitySchema` in `@fit/types`. Defaults to `{}`, which
+  /// the schema fills to a fully-unavailable seven-day week until staff set hours.
+  availability Json         @default("{}")
   status      TrainerStatus @default(ACTIVE)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
