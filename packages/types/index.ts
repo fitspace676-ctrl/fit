@@ -11,6 +11,7 @@ export * from './src/locations-admin';
 export * from './src/members';
 export * from './src/orders';
 export * from './src/packages';
+export * from './src/packages-admin';
 export * from './src/permissions';
 export * from './src/products-admin';
 export * from './src/staff';

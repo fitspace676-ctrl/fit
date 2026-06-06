@@ -40,6 +40,14 @@ import type {
   CreateProductData,
   CreateProductResponse,
   GetAdminProductResponse,
+  ListAdminPackagePlansQuery,
+  ListAdminPackagePlansResponse,
+  CreatePackagePlanData,
+  CreatePackagePlanResponse,
+  GetAdminPackagePlanResponse,
+  SetPackagePlanStatusResponse,
+  UpdatePackagePlanData,
+  UpdatePackagePlanResponse,
   InviteStaffInput,
   InviteStaffResponse,
   ListStaffResponse,
@@ -443,6 +451,92 @@ export async function reactivateProduct(id: string): Promise<SetProductStatusRes
     cache: 'no-store',
   });
   return unwrap<SetProductStatusResponse>(res);
+}
+
+// ── Package plans (T4.11) ─────────────────────────────────────────────────────
+
+/**
+ * Serialise a package-plan roster query to a `?key=value` string, dropping empty
+ * values so a bare list carries no noise. The API re-coerces and re-validates
+ * with the same Zod schema.
+ */
+export function packagePlansQueryString(query: Partial<ListAdminPackagePlansQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/packages` — one filtered, server-paginated page of the gym's plans. */
+export async function fetchPackagePlans(
+  query: Partial<ListAdminPackagePlansQuery> = {},
+): Promise<ListAdminPackagePlansResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/packages${packagePlansQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminPackagePlansResponse>(res);
+}
+
+/** `GET /admin/packages/:id` — one package plan's detail. */
+export async function fetchPackagePlan(id: string): Promise<GetAdminPackagePlanResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/packages/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetAdminPackagePlanResponse>(res);
+}
+
+/** `POST /admin/packages` — create a package plan; returns the new plan's detail. */
+export async function createPackagePlan(
+  input: CreatePackagePlanData,
+): Promise<CreatePackagePlanResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/packages`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreatePackagePlanResponse>(res);
+}
+
+/** `PATCH /admin/packages/:id` — edit a package plan's profile; returns the updated detail. */
+export async function updatePackagePlan(
+  id: string,
+  input: UpdatePackagePlanData,
+): Promise<UpdatePackagePlanResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/packages/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdatePackagePlanResponse>(res);
+}
+
+/** `POST /admin/packages/:id/deactivate` — set the plan's status to `INACTIVE`. */
+export async function deactivatePackagePlan(id: string): Promise<SetPackagePlanStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/packages/${encodeURIComponent(id)}/deactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetPackagePlanStatusResponse>(res);
+}
+
+/** `POST /admin/packages/:id/reactivate` — set the plan's status back to `ACTIVE`. */
+export async function reactivatePackagePlan(id: string): Promise<SetPackagePlanStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/packages/${encodeURIComponent(id)}/reactivate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetPackagePlanStatusResponse>(res);
 }
 
 // ── Staff (T4.7) ──────────────────────────────────────────────────────────────

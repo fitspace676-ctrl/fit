@@ -31,6 +31,8 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.LocationWrite]: 'Add & edit locations',
   [Permission.ProductRead]: 'View products',
   [Permission.ProductWrite]: 'Add & edit products',
+  [Permission.PackageRead]: 'View package plans',
+  [Permission.PackageWrite]: 'Add & edit package plans',
   [Permission.BillingRead]: 'View billing',
   [Permission.BillingManage]: 'Manage billing & plans',
   [Permission.WorkoutRead]: 'View workout plans',

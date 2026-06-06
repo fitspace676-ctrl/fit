@@ -45,6 +45,10 @@ export enum Permission {
   ProductRead = 'product:read',
   /** Create, update, deactivate, or remove products. */
   ProductWrite = 'product:write',
+  /** View the gym's personal-training package plans. */
+  PackageRead = 'package:read',
+  /** Create, update, deactivate, or remove personal-training package plans. */
+  PackageWrite = 'package:write',
   /** View billing, invoices, and payment history. */
   BillingRead = 'billing:read',
   /** Manage subscriptions, plans, and payment settings. */
@@ -81,6 +85,8 @@ export const ROLE_PERMISSIONS = {
     Permission.LocationWrite,
     Permission.ProductRead,
     Permission.ProductWrite,
+    Permission.PackageRead,
+    Permission.PackageWrite,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -98,6 +104,8 @@ export const ROLE_PERMISSIONS = {
     Permission.LocationWrite,
     Permission.ProductRead,
     Permission.ProductWrite,
+    Permission.PackageRead,
+    Permission.PackageWrite,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -111,6 +119,7 @@ export const ROLE_PERMISSIONS = {
     Permission.TrainerRead,
     Permission.LocationRead,
     Permission.ProductRead,
+    Permission.PackageRead,
     Permission.BillingRead,
   ],
   TRAINER: [
@@ -118,6 +127,7 @@ export const ROLE_PERMISSIONS = {
     Permission.TrainerRead,
     Permission.LocationRead,
     Permission.ProductRead,
+    Permission.PackageRead,
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
   ],

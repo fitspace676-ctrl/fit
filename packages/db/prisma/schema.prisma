@@ -76,6 +76,26 @@ enum ProductStatus {
   INACTIVE
 }
 
+/// Lifecycle of a personal-training package plan within a gym (T4.11). `ACTIVE`
+/// plans are the ones the gym currently sells (the only state a storefront would
+/// surface); `INACTIVE` is the soft-deactivated state — hidden but retained so
+/// the record and any links to it survive. Toggled from the staff console,
+/// mirroring {@link ProductStatus} for products.
+enum PackagePlanStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// How a personal-training package plan is billed (T4.11). `MONTH`/`YEAR` are
+/// recurring memberships; `ONE_TIME` is a single charge (a session pack or a day
+/// pass). The admin form and the storefront card surface a per-interval suffix
+/// for recurring plans and none for one-off purchases.
+enum PackageBillingInterval {
+  MONTH
+  YEAR
+  ONE_TIME
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -102,6 +122,7 @@ model Gym {
   trainers     Trainer[]
   locations    Location[]
   products     Product[]
+  packagePlans PackagePlan[]
   staffInvites StaffInvite[]
 
   @@index([ownerId])
@@ -244,6 +265,39 @@ model Product {
 
   @@index([gymId])
   @@map("products")
+}
+
+/// A personal-training package plan a gym curates from the staff console (T4.11).
+/// A gym-scoped catalogue record — the purchasable PT offerings (e.g. "10
+/// sessions", "Monthly unlimited") the gym sells, deliberately distinct from a
+/// retail {@link Product}. One gym can have many plans; `gymId` is the isolating
+/// tenant key the scoped Prisma client constrains every query to.
+///
+/// `priceAmount` is the price in the currency's MINOR units (cents/tetri), with
+/// `currency` an ISO-4217 code. `billingInterval` is the billing cadence
+/// (`MONTH`/`YEAR` recurring, `ONE_TIME` one-off). `sessionCount` is the number of
+/// PT sessions the plan grants, or `null` for unlimited access. `features` is a
+/// flat, ordered list of short perk labels rendered as bullets. `popular` flags
+/// the one plan that gets the brand emphasis / "Most popular" badge.
+model PackagePlan {
+  id              String                 @id @default(cuid())
+  gymId           String
+  name            String
+  description     String                 @default("")
+  priceAmount     Int                    @default(0)
+  currency        String                 @default("USD")
+  billingInterval PackageBillingInterval @default(MONTH)
+  sessionCount    Int?
+  features        String[]               @default([])
+  popular         Boolean                @default(false)
+  status          PackagePlanStatus      @default(ACTIVE)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@map("package_plans")
 }
 
 /// Rotating refresh-token record for session management. Tokens are persisted
