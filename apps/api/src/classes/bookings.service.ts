@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
-import type { BookClassInstanceResult, CancelBookingResult } from '@fit/types';
+import {
+  gymSettingsStoredSchema,
+  type BookClassInstanceResult,
+  type CancelBookingResult,
+} from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -22,10 +26,12 @@ const BOOKING_SELECT = {
 
 type BookingRecord = Prisma.BookingGetPayload<{ select: typeof BOOKING_SELECT }>;
 
-/** The occurrence fields the capacity gate and the result projection need. */
+/** The occurrence fields the capacity gate, the cancellation policy, and the
+ * result projection need. `startsAt` drives the cancellation cutoff (T5.6). */
 const INSTANCE_SELECT = {
   id: true,
   status: true,
+  startsAt: true,
   bookedCount: true,
   capacityOverride: true,
   template: { select: { capacity: true } },
@@ -206,10 +212,18 @@ export class BookingsService {
    *   gap behind the departing member is closed so the displayed queue positions
    *   stay a contiguous `1..N`.
    *
+   * **Policy (T5.6).** Releasing a *confirmed* seat is gated by the gym's
+   * cancellation cutoff (`booking.cancellationCutoffHours` in its settings): once
+   * the occurrence starts within that window the seat can no longer be freed —
+   * too late for the queue to take it up — so the cancel is rejected with `409
+   * CANCELLATION_WINDOW_PASSED`. The cutoff applies only to a held seat; leaving
+   * the waitlist is always allowed, and a `0` cutoff (the default) disables it.
+   *
    * Failure modes mirror {@link book}: `404` for an unknown / cross-tenant
    * occurrence, `409 BOOKING_NOT_CANCELABLE` once the occurrence is no longer
-   * `SCHEDULED` (canceled / completed), and `404 BOOKING_NOT_FOUND` when the
-   * caller holds no live booking for it.
+   * `SCHEDULED` (canceled / completed), `404 BOOKING_NOT_FOUND` when the caller
+   * holds no live booking for it, and `409 CANCELLATION_WINDOW_PASSED` when a
+   * confirmed seat is released inside the cutoff window.
    */
   async cancel(classInstanceId: string): Promise<CancelBookingResult> {
     const memberId = await this.requireCallerMembership();
@@ -235,6 +249,23 @@ export class BookingsService {
       });
       if (!booking) {
         throw this.bookingNotFound();
+      }
+
+      // Policy gate (T5.6): a *confirmed* seat can't be released inside the gym's
+      // cancellation cutoff window — by then it is too late for the waitlist to
+      // pick it up. A waitlist entry holds no seat, so it is always free to leave.
+      // `Gym` is the tenant root (keyed by `id`, outside the tenant extension's
+      // scoped set), so the row is pinned explicitly to the caller's own gym via
+      // `tenant.gymId`, taken from the verified session.
+      if (booking.status === BookingStatus.BOOKED) {
+        const gym = await tx.gym.findFirst({
+          where: { id: this.tenant.gymId },
+          select: { settings: true },
+        });
+        const { cancellationCutoffHours } = gymSettingsStoredSchema.parse(
+          gym?.settings ?? {},
+        ).booking;
+        this.assertWithinCancellationWindow(cancellationCutoffHours, instance.startsAt);
       }
 
       // Close the gap a departing queue entry leaves so the remaining waitlist
@@ -341,6 +372,26 @@ export class BookingsService {
       });
     }
     return member.id;
+  }
+
+  /**
+   * Reject releasing a confirmed seat inside the gym's cancellation cutoff (T5.6).
+   * A `0` cutoff (the default for a never-configured gym) disables the rule.
+   * Otherwise, once the occurrence starts within `cutoffHours` of now the seat is
+   * released too late for the waitlist to take it up, so the cancellation is a
+   * `409 CANCELLATION_WINDOW_PASSED`.
+   */
+  private assertWithinCancellationWindow(cutoffHours: number, startsAt: Date): void {
+    if (cutoffHours <= 0) {
+      return;
+    }
+    const cutoff = new Date(startsAt.getTime() - cutoffHours * 60 * 60 * 1000);
+    if (new Date() >= cutoff) {
+      throw new ConflictException({
+        message: `Bookings can no longer be cancelled within ${cutoffHours} hours of the class start`,
+        code: 'CANCELLATION_WINDOW_PASSED',
+      });
+    }
   }
 
   /** The booking a (tenant-scoped) idempotency key maps to, if any. */

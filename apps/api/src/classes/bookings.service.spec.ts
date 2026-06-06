@@ -14,14 +14,19 @@ const INSTANCE_ID = 'ci-1';
 interface InstanceRecord {
   id: string;
   status: InstanceStatus;
+  startsAt: Date;
   bookedCount: number;
   capacityOverride: number | null;
   template: { capacity: number };
 }
 
+/** Far enough out that the cancellation cutoff is never tripped by default. */
+const FAR_FUTURE = new Date('2999-01-01T10:00:00.000Z');
+
 const instance = (over?: Partial<InstanceRecord>): InstanceRecord => ({
   id: INSTANCE_ID,
   status: InstanceStatus.SCHEDULED,
+  startsAt: FAR_FUTURE,
   bookedCount: 3,
   capacityOverride: null,
   template: { capacity: 10 },
@@ -50,14 +55,17 @@ function setup(opts?: {
     findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
     updateMany: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
   };
+  const gym = { findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>() };
   const $transaction = vi.fn<(cb: (tx: unknown) => unknown) => unknown>();
-  const client = { gymMember, booking, classInstance, $transaction };
+  const client = { gymMember, booking, classInstance, gym, $transaction };
   // Assigned after `client` exists so the default thunk can hand the callback the
   // same mock object as its transaction client (`tx === client`).
   $transaction.mockImplementation(opts?.transaction ?? ((cb) => cb(client)));
 
   // The caller is a member of the gym unless the test says otherwise.
   gymMember.findFirst.mockResolvedValue({ id: MEMBER_ID });
+  // No cancellation cutoff configured unless a test stores one.
+  gym.findFirst.mockResolvedValue({ settings: null });
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = {
@@ -70,6 +78,7 @@ function setup(opts?: {
     gymMember,
     booking,
     classInstance,
+    gym,
     transaction: $transaction,
   };
 }
@@ -511,6 +520,82 @@ describe('BookingsService', () => {
       expect(error).toBeInstanceOf(ForbiddenException);
       expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'NOT_A_MEMBER' });
       expect(ctx.transaction).not.toHaveBeenCalled();
+    });
+
+    describe('cancellation cutoff policy (T5.6)', () => {
+      it('409s a confirmed seat released inside the cutoff window (CANCELLATION_WINDOW_PASSED)', async () => {
+        const ctx = setup();
+        const soon = new Date(Date.now() + 60 * 60 * 1000); // 1h out — inside a 2h cutoff
+        ctx.classInstance.findFirst.mockResolvedValueOnce(instance({ startsAt: soon }));
+        ctx.booking.findFirst.mockResolvedValueOnce({
+          id: 'bk-booked',
+          status: BookingStatus.BOOKED,
+          waitlistPosition: null,
+        });
+        ctx.gym.findFirst.mockResolvedValueOnce({
+          settings: { booking: { cancellationCutoffHours: 2 } },
+        });
+
+        const error = await ctx.service.cancel(INSTANCE_ID).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).getResponse()).toMatchObject({
+          code: 'CANCELLATION_WINDOW_PASSED',
+        });
+        // The seat is never released and no one is promoted.
+        expect(ctx.booking.update).not.toHaveBeenCalled();
+        expect(ctx.booking.updateMany).not.toHaveBeenCalled();
+        expect(ctx.classInstance.updateMany).not.toHaveBeenCalled();
+      });
+
+      it('allows a confirmed cancellation comfortably before the cutoff window', async () => {
+        const ctx = setup();
+        const later = new Date(Date.now() + 5 * 60 * 60 * 1000); // 5h out — outside a 2h cutoff
+        ctx.classInstance.findFirst
+          .mockResolvedValueOnce(instance({ startsAt: later, bookedCount: 5 }))
+          .mockResolvedValueOnce({ bookedCount: 4 });
+        ctx.booking.findFirst
+          .mockResolvedValueOnce({
+            id: 'bk-booked',
+            status: BookingStatus.BOOKED,
+            waitlistPosition: null,
+          })
+          .mockResolvedValueOnce(null); // empty queue
+        ctx.gym.findFirst.mockResolvedValueOnce({
+          settings: { booking: { cancellationCutoffHours: 2 } },
+        });
+        ctx.booking.update.mockResolvedValueOnce({});
+        ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 1 });
+
+        const result = await ctx.service.cancel(INSTANCE_ID);
+
+        expect(result).toMatchObject({ status: BookingStatus.CANCELED, bookedCount: 4 });
+        expect(ctx.booking.update).toHaveBeenCalledOnce();
+      });
+
+      it('lets a waitlisted member leave inside the cutoff window (no seat held)', async () => {
+        const ctx = setup();
+        const soon = new Date(Date.now() + 60 * 60 * 1000); // inside a 2h cutoff
+        ctx.classInstance.findFirst
+          .mockResolvedValueOnce(instance({ startsAt: soon, bookedCount: 10 }))
+          .mockResolvedValueOnce({ bookedCount: 10 });
+        ctx.booking.findFirst.mockResolvedValueOnce({
+          id: 'bk-wl',
+          status: BookingStatus.WAITLIST,
+          waitlistPosition: 2,
+        });
+        ctx.gym.findFirst.mockResolvedValue({
+          settings: { booking: { cancellationCutoffHours: 2 } },
+        });
+        ctx.booking.update.mockResolvedValueOnce({});
+        ctx.booking.updateMany.mockResolvedValueOnce({ count: 1 }); // close-the-gap
+
+        const result = await ctx.service.cancel(INSTANCE_ID);
+
+        expect(result).toMatchObject({ status: BookingStatus.CANCELED, promotedBookingId: null });
+        // The policy is never consulted for a waitlist exit — it holds no seat.
+        expect(ctx.gym.findFirst).not.toHaveBeenCalled();
+      });
     });
   });
 });

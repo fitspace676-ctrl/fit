@@ -66,9 +66,11 @@ export class BookingsController {
    * which entry was promoted (or `null` when the seat was simply freed / the
    * caller was themselves waitlisted). Returns `200 OK` with the post-cancellation
    * seat totals; the failure modes are `404` (unknown occurrence), `409
-   * BOOKING_NOT_CANCELABLE` (canceled / completed occurrence), and `404
-   * BOOKING_NOT_FOUND` (the caller holds no live booking). Reuses
-   * {@link Permission.ClassBook} — a member managing their own booking lifecycle.
+   * BOOKING_NOT_CANCELABLE` (canceled / completed occurrence), `404
+   * BOOKING_NOT_FOUND` (the caller holds no live booking), and `409
+   * CANCELLATION_WINDOW_PASSED` (a confirmed seat released inside the gym's
+   * cancellation cutoff window, T5.6). Reuses {@link Permission.ClassBook} — a
+   * member managing their own booking lifecycle.
    */
   @Delete(':id/bookings')
   @HttpCode(HttpStatus.OK)

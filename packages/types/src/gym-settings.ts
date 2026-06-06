@@ -41,6 +41,20 @@ export const DEFAULT_TIMEZONE = 'Asia/Tbilisi';
 /** Largest logo width (px) accepted; the admin form rejects anything wider. */
 export const GYM_LOGO_MAX_WIDTH = 1000;
 
+/**
+ * Default class-cancellation cutoff (hours before an occurrence starts).
+ * `0` means *no* cutoff — a member may cancel right up to the start — so the
+ * policy is opt-in: a gym sets a positive value to start enforcing it.
+ */
+export const DEFAULT_CANCELLATION_CUTOFF_HOURS = 0;
+
+/**
+ * Largest cancellation cutoff a gym can set (hours) — one week. A ceiling keeps
+ * the value sane (a cutoff longer than the booking window would freeze every
+ * booking the moment it is made) and bounds what is stored / rendered.
+ */
+export const MAX_CANCELLATION_CUTOFF_HOURS = 168;
+
 /** The interface languages a gym can default its members' experience to. */
 export const gymLanguageSchema = z.enum(['en', 'ka', 'ru']);
 
@@ -125,6 +139,26 @@ export const gymNotificationsSchema = z.object({
 export type GymNotifications = z.infer<typeof gymNotificationsSchema>;
 
 /**
+ * Booking policy: how the class-booking flow (T5.4–T5.6) behaves for this gym.
+ * `cancellationCutoffHours` is the window before an occurrence's start within
+ * which a member may no longer release a confirmed seat (T5.6) — `0` disables it
+ * (cancel allowed up to the start). Leaving a *waitlist* is always permitted
+ * regardless, since it holds no seat. Defaults so a never-configured gym parses
+ * to a complete, sensible (cutoff-free) policy.
+ */
+export const gymBookingSettingsSchema = z.object({
+  cancellationCutoffHours: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_CANCELLATION_CUTOFF_HOURS)
+    .default(DEFAULT_CANCELLATION_CUTOFF_HOURS),
+});
+
+/** The gym's booking policy — {@link gymBookingSettingsSchema}. */
+export type GymBookingSettings = z.infer<typeof gymBookingSettingsSchema>;
+
+/**
  * The complete settings blob as stored in `Gym.settings`. Every section defaults,
  * so a bare `{}` (a gym that has never opened the settings page) parses to a full,
  * sensible default — the API always reads and returns a complete object so the
@@ -135,6 +169,7 @@ export const gymSettingsStoredSchema = z.object({
   locale: gymLocaleSchema.default({}),
   hours: weeklyHoursSchema.default({}),
   notifications: gymNotificationsSchema.default({}),
+  booking: gymBookingSettingsSchema.default({}),
 });
 
 /** The stored settings blob — {@link gymSettingsStoredSchema}. */
@@ -155,6 +190,7 @@ export interface GymSettings {
   locale: GymLocale;
   hours: WeeklyHours;
   notifications: GymNotifications;
+  booking: GymBookingSettings;
 }
 
 /** Successful `GET /gyms/settings` response. */
@@ -196,6 +232,17 @@ export const updateGymSettingsSchema = z
         fromEmail: z.string().email().nullable().optional(),
         fromName: z.string().trim().max(100).nullable().optional(),
         replyTo: z.string().email().nullable().optional(),
+      })
+      .strict()
+      .optional(),
+    booking: z
+      .object({
+        cancellationCutoffHours: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_CANCELLATION_CUTOFF_HOURS)
+          .optional(),
       })
       .strict()
       .optional(),

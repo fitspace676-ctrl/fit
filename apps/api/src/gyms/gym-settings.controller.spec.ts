@@ -22,6 +22,7 @@ const SETTINGS: GymSettings = {
   locale: { language: DEFAULT_LANGUAGE, currency: DEFAULT_CURRENCY, timezone: DEFAULT_TIMEZONE },
   hours: weeklyHoursSchema.parse({}),
   notifications: { fromEmail: null, fromName: null, replyTo: null },
+  booking: { cancellationCutoffHours: 0 },
 };
 
 function setup() {

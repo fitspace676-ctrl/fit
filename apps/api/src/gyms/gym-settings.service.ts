@@ -68,6 +68,7 @@ export class GymSettingsService {
       locale: { ...current.locale, ...input.locale },
       hours: input.hours ?? current.hours,
       notifications: { ...current.notifications, ...input.notifications },
+      booking: { ...current.booking, ...input.booking },
     };
     const nextName = brandName ?? gym.name;
 
@@ -137,6 +138,7 @@ export class GymSettingsService {
       locale: stored.locale,
       hours: stored.hours,
       notifications: stored.notifications,
+      booking: stored.booking,
     };
   }
 }

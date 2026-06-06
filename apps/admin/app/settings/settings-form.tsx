@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   GYM_LOGO_MAX_WIDTH,
   LANGUAGE_LABELS,
+  MAX_CANCELLATION_CUTOFF_HOURS,
   SUPPORTED_LANGUAGES,
   WEEKDAYS,
   WEEKDAY_LABELS,
@@ -95,6 +96,11 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
   const [fromEmail, setFromEmail] = useState(initial.notifications.fromEmail ?? '');
   const [fromName, setFromName] = useState(initial.notifications.fromName ?? '');
   const [replyTo, setReplyTo] = useState(initial.notifications.replyTo ?? '');
+
+  // Booking policy.
+  const [cancellationCutoffHours, setCancellationCutoffHours] = useState(
+    initial.booking.cancellationCutoffHours,
+  );
 
   // Logo upload state.
   const [uploading, setUploading] = useState(false);
@@ -206,6 +212,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         fromName: fromName.trim() || null,
         replyTo: replyTo.trim() || null,
       },
+      booking: { cancellationCutoffHours },
     };
     startTransition(async () => {
       const result = await updateGymSettingsAction(input);
@@ -474,6 +481,50 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
             autoComplete="off"
             className={FIELD_CLASS}
           />
+        </div>
+      </fieldset>
+
+      {/* ── Booking policy ────────────────────────────────────────────────── */}
+      <fieldset className="flex flex-col gap-4">
+        <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Booking policy
+        </legend>
+        <p className="text-xs text-slate-400">
+          How close to a class members can still cancel a confirmed spot.
+        </p>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="booking-cutoff" className="text-sm font-medium text-slate-700">
+            Cancellation cutoff
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="booking-cutoff"
+              type="number"
+              min={0}
+              max={MAX_CANCELLATION_CUTOFF_HOURS}
+              step={1}
+              value={cancellationCutoffHours}
+              onChange={(event) =>
+                setCancellationCutoffHours(
+                  Math.max(
+                    0,
+                    Math.min(
+                      MAX_CANCELLATION_CUTOFF_HOURS,
+                      Math.floor(Number(event.target.value) || 0),
+                    ),
+                  ),
+                )
+              }
+              className={`${FIELD_CLASS} max-w-28`}
+            />
+            <span className="text-sm text-slate-600">hours before start</span>
+          </div>
+          <span className="text-xs text-slate-400">
+            {cancellationCutoffHours > 0
+              ? `Members can't cancel a booked spot within ${cancellationCutoffHours} hour${cancellationCutoffHours === 1 ? '' : 's'} of the class. Leaving a waitlist is always allowed.`
+              : 'No cutoff — members can cancel right up to the class start.'}
+          </span>
         </div>
       </fieldset>
 
