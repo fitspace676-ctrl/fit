@@ -20,10 +20,12 @@ import { ClassesService } from './classes.service';
  * `TenantModule` / `RbacModule`. The real `ClassInstance`-backed discovery query
  * is wired in Phase 5 (see {@link ClassesService}).
  *
- * The {@link BookingsController} adds the member-facing booking surface (`POST
- * /class-instances/:id/bookings`, T5.4) on the same prefix — authenticated and
- * tenant-scoped (behind `TenantGuard` + `PermissionsGuard`, `ClassBook`), with the
- * atomic capacity gate + idempotent-retry logic in {@link BookingsService}.
+ * The {@link BookingsController} adds the member-facing booking surface (`POST`
+ * to book, `DELETE` to cancel `/class-instances/:id/bookings`, T5.4 / T5.5) on the
+ * same prefix — authenticated and tenant-scoped (behind `TenantGuard` +
+ * `PermissionsGuard`, `ClassBook`), with the atomic capacity gate + idempotent
+ * retry and the waitlist auto-promote-on-cancellation logic in
+ * {@link BookingsService}.
  */
 @Module({
   controllers: [ClassesController, AdminClassTemplatesController, BookingsController],

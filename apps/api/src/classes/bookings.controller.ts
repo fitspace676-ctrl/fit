@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
   Headers,
   HttpCode,
   HttpStatus,
@@ -8,7 +9,12 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { Permission, idempotencyKeySchema, type BookClassInstanceResponse } from '@fit/types';
+import {
+  Permission,
+  idempotencyKeySchema,
+  type BookClassInstanceResponse,
+  type CancelBookingResponse,
+} from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -51,6 +57,24 @@ export class BookingsController {
     @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<BookClassInstanceResponse> {
     return this.bookings.book(id, parseIdempotencyKey(idempotencyKey));
+  }
+
+  /**
+   * `DELETE /class-instances/:id/bookings` — cancel the calling member's booking
+   * for the occurrence (T5.5). When a confirmed seat is released the head of the
+   * waitlist is auto-promoted into it; the response's `promotedBookingId` carries
+   * which entry was promoted (or `null` when the seat was simply freed / the
+   * caller was themselves waitlisted). Returns `200 OK` with the post-cancellation
+   * seat totals; the failure modes are `404` (unknown occurrence), `409
+   * BOOKING_NOT_CANCELABLE` (canceled / completed occurrence), and `404
+   * BOOKING_NOT_FOUND` (the caller holds no live booking). Reuses
+   * {@link Permission.ClassBook} — a member managing their own booking lifecycle.
+   */
+  @Delete(':id/bookings')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ClassBook)
+  async cancel(@Param('id') id: string): Promise<CancelBookingResponse> {
+    return this.bookings.cancel(id);
   }
 }
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { BookingsController } from './bookings.controller';
 import type { BookingsService } from './bookings.service';
-import type { BookClassInstanceResult } from '@fit/types';
+import type { BookClassInstanceResult, CancelBookingResult } from '@fit/types';
 
 const RESULT: BookClassInstanceResult = {
   bookingId: 'bk-1',
@@ -14,10 +14,20 @@ const RESULT: BookClassInstanceResult = {
   idempotentReplay: false,
 };
 
+const CANCEL_RESULT: CancelBookingResult = {
+  bookingId: 'bk-1',
+  classInstanceId: 'ci-1',
+  status: 'CANCELED',
+  promotedBookingId: 'bk-2',
+  capacity: 10,
+  bookedCount: 10,
+};
+
 function setup() {
   const book = vi.fn<() => Promise<BookClassInstanceResult>>(() => Promise.resolve(RESULT));
-  const bookings = { book } as unknown as BookingsService;
-  return { controller: new BookingsController(bookings), book };
+  const cancel = vi.fn<() => Promise<CancelBookingResult>>(() => Promise.resolve(CANCEL_RESULT));
+  const bookings = { book, cancel } as unknown as BookingsService;
+  return { controller: new BookingsController(bookings), book, cancel };
 }
 
 describe('BookingsController', () => {
@@ -54,6 +64,15 @@ describe('BookingsController', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(ctx.book).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('DELETE /class-instances/:id/bookings', () => {
+    it('delegates the occurrence id to the service and returns its result', async () => {
+      const result = await ctx.controller.cancel('ci-1');
+
+      expect(ctx.cancel).toHaveBeenCalledWith('ci-1');
+      expect(result).toEqual(CANCEL_RESULT);
     });
   });
 });

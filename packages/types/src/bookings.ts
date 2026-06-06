@@ -66,3 +66,29 @@ export type BookClassInstanceResult = z.infer<typeof bookClassInstanceResultSche
 
 /** Successful `POST /class-instances/:id/bookings` response — alias for symmetry with the other modules. */
 export type BookClassInstanceResponse = BookClassInstanceResult;
+
+/**
+ * Successful `DELETE /class-instances/:id/bookings` response — the caller's
+ * booking released (T5.5). `status` is always `CANCELED`; `promotedBookingId`
+ * is the id of the waitlisted booking auto-promoted into the freed seat (the
+ * head of the queue), or `null` when the cancelled booking held no seat (it was
+ * itself a waitlist entry) or the queue was empty so the seat was simply
+ * released. `capacity` / `bookedCount` are the occurrence's seat totals *after*
+ * the cancellation — when a promotion happened `bookedCount` is unchanged (the
+ * seat was transferred, not freed), so the client can re-render remaining spots
+ * without a follow-up read.
+ */
+export const cancelBookingResultSchema = z.object({
+  bookingId: z.string().min(1),
+  classInstanceId: z.string().min(1),
+  status: z.literal('CANCELED'),
+  promotedBookingId: z.string().min(1).nullable(),
+  capacity: z.number().int().nonnegative(),
+  bookedCount: z.number().int().nonnegative(),
+});
+
+/** A booking-cancellation result — {@link cancelBookingResultSchema}. */
+export type CancelBookingResult = z.infer<typeof cancelBookingResultSchema>;
+
+/** Successful `DELETE /class-instances/:id/bookings` response — alias for symmetry with the other modules. */
+export type CancelBookingResponse = CancelBookingResult;
