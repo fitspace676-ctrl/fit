@@ -14,6 +14,7 @@ import type {
   BulkExportMembersResponse,
   CreateLocationData,
   CreateLocationResponse,
+  DashboardStatsResponse,
   CreateMemberInput,
   CreateMemberResponse,
   CreateTrainerData,
@@ -568,6 +569,18 @@ export async function fetchAuditLogs(
     cache: 'no-store',
   });
   return unwrap<ListAuditLogResponse>(res);
+}
+
+// ── Dashboard (T4.10) ─────────────────────────────────────────────────────────
+
+/** `GET /dashboard/stats` — one live snapshot of the gym's KPI counts. */
+export async function fetchDashboardStats(): Promise<DashboardStatsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/dashboard/stats`, {
+    headers: await authHeaders(),
+    // The dashboard reflects live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardStatsResponse>(res);
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────
