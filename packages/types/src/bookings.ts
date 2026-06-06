@@ -13,6 +13,7 @@
 // controller can never drift on the wire format.
 
 import { z } from 'zod';
+import { classInstanceDetailSchema } from './classes';
 
 /**
  * The outcome status a *fresh* booking can land in (T5.4): `BOOKED` holds a
@@ -210,3 +211,93 @@ export type MarkAttendanceData = z.infer<typeof markAttendanceSchema>;
  * `noShowCount`), so the client re-renders from one round-trip.
  */
 export type MarkAttendanceResponse = AttendanceRoster;
+
+// ── Member booking history (member panel, T5.10) ───────────────────────────
+//
+// A member's own bookings across their whole lifecycle — what `GET /me/bookings`
+// returns for the member panel's "My bookings" page. Unlike the staff roster
+// (one occurrence, held seats only) this is one member across many occurrences
+// and *every* status: a confirmed seat, a waitlist place, a past `ATTENDED` /
+// `NO_SHOW`, and a `CANCELED` booking all belong in the history. Each entry
+// carries the full denormalised occurrence ({@link classInstanceDetailSchema})
+// so the panel renders a card per booking without a second round-trip per class.
+
+/**
+ * The status a booking can be in on the member's history — the full Prisma
+ * `BookingStatus` lifecycle (`BOOKED`, `WAITLIST`, `ATTENDED`, `NO_SHOW`,
+ * `CANCELED`). Wider than {@link bookingOutcomeSchema}
+ * (which is only the two states a *fresh* booking lands in) and
+ * {@link rosterBookingStatusSchema} (only the held-seat states), because the
+ * panel surfaces a member's bookings in every state they can reach.
+ */
+export const memberBookingStatusSchema = z.enum([
+  'BOOKED',
+  'WAITLIST',
+  'ATTENDED',
+  'NO_SHOW',
+  'CANCELED',
+]);
+
+/** A member booking's lifecycle status — {@link memberBookingStatusSchema}. */
+export type MemberBookingStatus = z.infer<typeof memberBookingStatusSchema>;
+
+/**
+ * Which slice of the member's bookings to return: `upcoming` (occurrences that
+ * have not started yet, soonest first), `past` (already started, most recent
+ * first), or `all` (everything, most recent first). The panel reads `all` once
+ * and splits the two sections client-side; `upcoming` / `past` exist for callers
+ * (e.g. the mobile home screen) that only need one. Defaults to `all`.
+ */
+export const memberBookingScopeSchema = z.enum(['upcoming', 'past', 'all']);
+
+/** A member-bookings query scope — {@link memberBookingScopeSchema}. */
+export type MemberBookingScope = z.infer<typeof memberBookingScopeSchema>;
+
+/**
+ * Query for `GET /me/bookings`. The member is the authenticated caller (resolved
+ * from the session, never off the wire), so the only input is the optional
+ * `scope` filter; an absent scope returns the member's full history.
+ */
+export const listMemberBookingsQuerySchema = z.object({
+  scope: memberBookingScopeSchema.default('all'),
+});
+
+/** Validated `GET /me/bookings` query — {@link listMemberBookingsQuerySchema}. */
+export type ListMemberBookingsQuery = z.infer<typeof listMemberBookingsQuerySchema>;
+
+/**
+ * One row of a member's booking history — the booking and the occurrence it is
+ * against. `status` is the booking's current lifecycle state; `waitlistPosition`
+ * is the 1-based queue place while `WAITLIST` and `null` otherwise; `bookedAt`
+ * (ISO-8601) is when the booking was made, giving the history a stable sort
+ * within an occurrence. `classInstance` is the full denormalised occurrence
+ * ({@link classInstanceDetailSchema}) — title, schedule, trainer, location, live
+ * seat totals, and the occurrence's own `status` — so the panel renders a card
+ * (and a deep link to `/classes/:id`) straight from the entry.
+ */
+export const memberBookingHistoryEntrySchema = z.object({
+  bookingId: z.string().min(1),
+  status: memberBookingStatusSchema,
+  waitlistPosition: z.number().int().positive().nullable(),
+  bookedAt: z.string(),
+  classInstance: classInstanceDetailSchema,
+});
+
+/** A single member booking-history row — {@link memberBookingHistoryEntrySchema}. */
+export type MemberBookingHistoryEntry = z.infer<typeof memberBookingHistoryEntrySchema>;
+
+/**
+ * Successful `GET /me/bookings` response — the caller's bookings for the
+ * requested {@link memberBookingScopeSchema scope}, ordered by the occurrence's
+ * start (ascending for `upcoming`, descending for `past` / `all`). An empty
+ * `bookings` array is a normal `200` — a member who has never booked.
+ */
+export const listMemberBookingsResultSchema = z.object({
+  bookings: z.array(memberBookingHistoryEntrySchema),
+});
+
+/** A member booking-history result — {@link listMemberBookingsResultSchema}. */
+export type ListMemberBookingsResult = z.infer<typeof listMemberBookingsResultSchema>;
+
+/** Successful `GET /me/bookings` response — alias for symmetry with the other modules. */
+export type ListMemberBookingsResponse = ListMemberBookingsResult;
