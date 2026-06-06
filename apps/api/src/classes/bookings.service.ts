@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
-import type { BookClassInstanceResult } from '@fit/types';
+import type { BookClassInstanceResult, CancelBookingResult } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -188,6 +188,135 @@ export class BookingsService {
   }
 
   /**
+   * Cancel the calling member's booking for an occurrence and, when a confirmed
+   * seat is released, auto-promote the head of the waitlist into it (T5.5).
+   *
+   * Runs in one interactive transaction so the seat accounting stays consistent
+   * under concurrency:
+   *
+   * - **Releasing a confirmed seat** hands it to the lowest-positioned waitlisted
+   *   member. The promotion is a *transfer*: the conditional update flips that
+   *   entry to `BOOKED` while `bookedCount` stays put (one seat freed, one
+   *   immediately re-filled). The claim is guarded on `status = WAITLIST` and
+   *   retried against the new head if it loses a race, so two seats freeing at
+   *   once promote two *distinct* members, never the same one twice. With an
+   *   empty queue the seat is given back to the pool (`bookedCount` decremented,
+   *   floored at 0).
+   * - **Leaving the waitlist** holds no seat, so `bookedCount` is untouched; the
+   *   gap behind the departing member is closed so the displayed queue positions
+   *   stay a contiguous `1..N`.
+   *
+   * Failure modes mirror {@link book}: `404` for an unknown / cross-tenant
+   * occurrence, `409 BOOKING_NOT_CANCELABLE` once the occurrence is no longer
+   * `SCHEDULED` (canceled / completed), and `404 BOOKING_NOT_FOUND` when the
+   * caller holds no live booking for it.
+   */
+  async cancel(classInstanceId: string): Promise<CancelBookingResult> {
+    const memberId = await this.requireCallerMembership();
+
+    return this.prisma.client.$transaction(async (tx) => {
+      const instance = await tx.classInstance.findFirst({
+        where: { id: classInstanceId },
+        select: INSTANCE_SELECT,
+      });
+      if (!instance) {
+        throw this.instanceNotFound();
+      }
+      if (instance.status !== InstanceStatus.SCHEDULED) {
+        throw new ConflictException({
+          message: 'This class can no longer be modified',
+          code: 'BOOKING_NOT_CANCELABLE',
+        });
+      }
+
+      const booking = await tx.booking.findFirst({
+        where: { classInstanceId, memberId, status: { not: BookingStatus.CANCELED } },
+        select: { id: true, status: true, waitlistPosition: true },
+      });
+      if (!booking) {
+        throw this.bookingNotFound();
+      }
+
+      // Close the gap a departing queue entry leaves so the remaining waitlist
+      // keeps contiguous 1..N positions. A no-op when the vacated slot is null
+      // (a confirmed seat carries no queue position).
+      const closeWaitlistGap = async (vacatedPosition: number | null) => {
+        if (vacatedPosition === null) {
+          return;
+        }
+        await tx.booking.updateMany({
+          where: {
+            classInstanceId,
+            status: BookingStatus.WAITLIST,
+            waitlistPosition: { gt: vacatedPosition },
+          },
+          data: { waitlistPosition: { decrement: 1 } },
+        });
+      };
+
+      // Release the member's hold. Flipping to CANCELED (and clearing any queue
+      // slot) drops the row out of the active partial unique immediately, so the
+      // same member can re-book or re-join the waitlist right after.
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: { status: BookingStatus.CANCELED, waitlistPosition: null },
+      });
+
+      let promotedBookingId: string | null = null;
+
+      if (booking.status === BookingStatus.BOOKED) {
+        // A confirmed seat just opened — give it to the head of the queue.
+        for (;;) {
+          const next = await tx.booking.findFirst({
+            where: { classInstanceId, status: BookingStatus.WAITLIST },
+            orderBy: { waitlistPosition: 'asc' },
+            select: { id: true, waitlistPosition: true },
+          });
+          if (!next) {
+            // No one waiting — give the seat back to the pool (never below 0).
+            await tx.classInstance.updateMany({
+              where: { id: classInstanceId, bookedCount: { gt: 0 } },
+              data: { bookedCount: { decrement: 1 } },
+            });
+            break;
+          }
+          // Conditional claim guarded on `status = WAITLIST`: a concurrent
+          // cancellation that already promoted this entry yields count 0, so we
+          // retry against the new head rather than double-promoting it.
+          const claimed = await tx.booking.updateMany({
+            where: { id: next.id, status: BookingStatus.WAITLIST },
+            data: { status: BookingStatus.BOOKED, waitlistPosition: null },
+          });
+          if (claimed.count === 1) {
+            promotedBookingId = next.id;
+            await closeWaitlistGap(next.waitlistPosition);
+            break;
+          }
+        }
+      } else {
+        // A waitlisted member left the queue — no seat held, just close the gap.
+        await closeWaitlistGap(booking.waitlistPosition);
+      }
+
+      // Re-read the (possibly decremented) counter so the response reflects the
+      // true live total even when other bookings landed concurrently.
+      const after = await tx.classInstance.findFirst({
+        where: { id: classInstanceId },
+        select: { bookedCount: true },
+      });
+
+      return {
+        bookingId: booking.id,
+        classInstanceId,
+        status: BookingStatus.CANCELED,
+        promotedBookingId,
+        capacity: instance.capacityOverride ?? instance.template.capacity,
+        bookedCount: after?.bookedCount ?? instance.bookedCount,
+      };
+    });
+  }
+
+  /**
    * Resolve the calling user's membership in the current gym — the booking's
    * `memberId`. The session must carry a user (`@RequirePermissions(ClassBook)`
    * guarantees an authenticated caller), and that user must be a member of this
@@ -269,6 +398,14 @@ export class BookingsService {
     return new ConflictException({
       message: 'You already have a booking for this class',
       code: 'ALREADY_BOOKED',
+    });
+  }
+
+  /** `404` when the caller holds no live booking to cancel for the occurrence. */
+  private bookingNotFound(): NotFoundException {
+    return new NotFoundException({
+      message: 'You do not have a booking for this class',
+      code: 'BOOKING_NOT_FOUND',
     });
   }
 }

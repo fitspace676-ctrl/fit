@@ -43,6 +43,8 @@ function setup(opts?: {
     findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
     aggregate: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
     create: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
+    update: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
+    updateMany: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
   };
   const classInstance = {
     findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
@@ -328,6 +330,187 @@ describe('BookingsService', () => {
 
       expect(error).toBeInstanceOf(ConflictException);
       expect((error as ConflictException).getResponse()).toMatchObject({ code: 'ALREADY_BOOKED' });
+    });
+  });
+
+  describe('cancel', () => {
+    it('releases a confirmed seat and auto-promotes the head of the waitlist (seat transferred)', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 10 })) // load
+        .mockResolvedValueOnce({ bookedCount: 10 }); // post-cancel re-read
+      ctx.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'bk-booked',
+          status: BookingStatus.BOOKED,
+          waitlistPosition: null,
+        }) // caller's booking
+        .mockResolvedValueOnce({ id: 'bk-wl1', waitlistPosition: 1 }); // head of queue
+      ctx.booking.update.mockResolvedValueOnce({});
+      ctx.booking.updateMany
+        .mockResolvedValueOnce({ count: 1 }) // claim the queue head
+        .mockResolvedValueOnce({ count: 0 }); // close-the-gap decrement
+
+      const result = await ctx.service.cancel(INSTANCE_ID);
+
+      expect(result).toEqual({
+        bookingId: 'bk-booked',
+        classInstanceId: INSTANCE_ID,
+        status: BookingStatus.CANCELED,
+        promotedBookingId: 'bk-wl1',
+        capacity: 10,
+        bookedCount: 10, // unchanged — the seat was handed straight to the promotee
+      });
+      // The seat was transferred, never returned to the pool.
+      expect(ctx.classInstance.updateMany).not.toHaveBeenCalled();
+      // The promotion is a conditional claim guarded on WAITLIST status.
+      expect(ctx.booking.updateMany).toHaveBeenNthCalledWith(1, {
+        where: { id: 'bk-wl1', status: BookingStatus.WAITLIST },
+        data: { status: BookingStatus.BOOKED, waitlistPosition: null },
+      });
+      // Then the gap the promotee left is closed (positions > 1 shift down).
+      expect(ctx.booking.updateMany).toHaveBeenNthCalledWith(2, {
+        where: {
+          classInstanceId: INSTANCE_ID,
+          status: BookingStatus.WAITLIST,
+          waitlistPosition: { gt: 1 },
+        },
+        data: { waitlistPosition: { decrement: 1 } },
+      });
+    });
+
+    it('releases the seat back to the pool when the queue is empty (bookedCount decremented)', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 5 }))
+        .mockResolvedValueOnce({ bookedCount: 4 });
+      ctx.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'bk-booked',
+          status: BookingStatus.BOOKED,
+          waitlistPosition: null,
+        })
+        .mockResolvedValueOnce(null); // empty queue
+      ctx.booking.update.mockResolvedValueOnce({});
+      ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      const result = await ctx.service.cancel(INSTANCE_ID);
+
+      expect(result).toMatchObject({ promotedBookingId: null, bookedCount: 4 });
+      // The decrement is floored at zero (never goes negative).
+      expect(ctx.classInstance.updateMany).toHaveBeenCalledWith({
+        where: { id: INSTANCE_ID, bookedCount: { gt: 0 } },
+        data: { bookedCount: { decrement: 1 } },
+      });
+      expect(ctx.booking.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('skips a queue entry already claimed by a concurrent cancellation and promotes the next', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 10 }))
+        .mockResolvedValueOnce({ bookedCount: 10 });
+      ctx.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'bk-booked',
+          status: BookingStatus.BOOKED,
+          waitlistPosition: null,
+        })
+        .mockResolvedValueOnce({ id: 'bk-wl1', waitlistPosition: 1 }) // head, but lost the race
+        .mockResolvedValueOnce({ id: 'bk-wl2', waitlistPosition: 2 }); // new head after retry
+      ctx.booking.update.mockResolvedValueOnce({});
+      ctx.booking.updateMany
+        .mockResolvedValueOnce({ count: 0 }) // bk-wl1 already promoted elsewhere
+        .mockResolvedValueOnce({ count: 1 }) // bk-wl2 claimed
+        .mockResolvedValueOnce({ count: 0 }); // close-the-gap decrement
+
+      const result = await ctx.service.cancel(INSTANCE_ID);
+
+      expect(result.promotedBookingId).toBe('bk-wl2');
+      expect(ctx.booking.findFirst).toHaveBeenCalledTimes(3);
+    });
+
+    it('removes a waitlisted member without touching the seat count and closes the gap', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 10 }))
+        .mockResolvedValueOnce({ bookedCount: 10 });
+      ctx.booking.findFirst.mockResolvedValueOnce({
+        id: 'bk-wl',
+        status: BookingStatus.WAITLIST,
+        waitlistPosition: 2,
+      });
+      ctx.booking.update.mockResolvedValueOnce({});
+      ctx.booking.updateMany.mockResolvedValueOnce({ count: 1 }); // close-the-gap decrement
+
+      const result = await ctx.service.cancel(INSTANCE_ID);
+
+      expect(result).toMatchObject({ promotedBookingId: null, bookedCount: 10 });
+      // No seat was held, so the live counter is untouched...
+      expect(ctx.classInstance.updateMany).not.toHaveBeenCalled();
+      // ...and the entries behind the departing member shift down one.
+      expect(ctx.booking.updateMany).toHaveBeenCalledWith({
+        where: {
+          classInstanceId: INSTANCE_ID,
+          status: BookingStatus.WAITLIST,
+          waitlistPosition: { gt: 2 },
+        },
+        data: { waitlistPosition: { decrement: 1 } },
+      });
+    });
+
+    it('404s an unknown / cross-tenant occurrence', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(null);
+
+      const error = await ctx.service.cancel(INSTANCE_ID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as NotFoundException).getResponse()).toMatchObject({
+        code: 'CLASS_INSTANCE_NOT_FOUND',
+      });
+      expect(ctx.booking.update).not.toHaveBeenCalled();
+    });
+
+    it('409s once the occurrence is no longer SCHEDULED (BOOKING_NOT_CANCELABLE)', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(
+        instance({ status: InstanceStatus.COMPLETED }),
+      );
+
+      const error = await ctx.service.cancel(INSTANCE_ID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'BOOKING_NOT_CANCELABLE',
+      });
+      expect(ctx.booking.findFirst).not.toHaveBeenCalled();
+      expect(ctx.booking.update).not.toHaveBeenCalled();
+    });
+
+    it('404s when the caller holds no live booking (BOOKING_NOT_FOUND)', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(instance());
+      ctx.booking.findFirst.mockResolvedValueOnce(null);
+
+      const error = await ctx.service.cancel(INSTANCE_ID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as NotFoundException).getResponse()).toMatchObject({
+        code: 'BOOKING_NOT_FOUND',
+      });
+      expect(ctx.booking.update).not.toHaveBeenCalled();
+    });
+
+    it('403s a caller who is not a member of the gym (NOT_A_MEMBER)', async () => {
+      const ctx = setup();
+      ctx.gymMember.findFirst.mockResolvedValueOnce(null);
+
+      const error = await ctx.service.cancel(INSTANCE_ID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'NOT_A_MEMBER' });
+      expect(ctx.transaction).not.toHaveBeenCalled();
     });
   });
 });

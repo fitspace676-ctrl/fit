@@ -53,7 +53,7 @@ export enum Permission {
   ClassRead = 'class:read',
   /** Create, update, pause, or remove recurring class templates. */
   ClassWrite = 'class:write',
-  /** Book (or waitlist) oneself into a scheduled class occurrence. */
+  /** Book, waitlist, or cancel oneself for a scheduled class occurrence. */
   ClassBook = 'class:book',
   /** View billing, invoices, and payment history. */
   BillingRead = 'billing:read',
