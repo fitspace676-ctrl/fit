@@ -28,6 +28,7 @@ commands:
   env get <KEY> [--env local|preview|prod]   print one schema-validated env value
   env check [--env ...]                       validate the whole infra environment
   db url|migrate|studio|seed|reset            database access (wraps Prisma)
+  db generate-instances                       materialise class occurrences 4 weeks ahead (T5.3)
   services status|health                      probe Postgres / Redis / API / R2
   token --role <ROLE> --gym <slug>            mint a test JWT (HS256, shared secret)
   r2 config | sign <key>                      storage config / presigned upload URL
