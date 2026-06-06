@@ -145,6 +145,11 @@
       "passwordHint": "At least 8 characters."
     },
     "orContinueWith": "or continue with",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithApple": "Continue with Apple",
+    "signingIn": "Signing you in…",
+    "signedIn": "Signed in successfully.",
+    "googleNotConfigured": "Google sign-in is not configured.",
     "genericError": "Something went wrong. Please try again.",
     "invite": {
       "invalid": "This invitation link is invalid or has expired. Ask your gym to send a new one."
@@ -172,7 +177,37 @@
       "subtitle": "Enter your email and we’ll send you a link to reset your password.",
       "submit": "Send reset link",
       "submitting": "Sending…",
+      "sent": "If that email is registered, a reset link is on its way. Check your inbox.",
       "backToLogin": "Back to sign in"
+    },
+    "reset": {
+      "title": "Set a new password",
+      "subtitle": "Choose a new password for your account.",
+      "submit": "Update password",
+      "submitting": "Updating…",
+      "missingToken": "This reset link is invalid or has expired. Request a new one."
+    },
+    "verify": {
+      "verifying": "Verifying your email…",
+      "success": "Email verified — you’re all set.",
+      "missingToken": "This verification link is invalid or has expired."
+    }
+  },
+  "onboarding": {
+    "skip": "Skip",
+    "next": "Next",
+    "getStarted": "Get started",
+    "classes": {
+      "title": "Find your next class",
+      "body": "Browse the weekly schedule and book a spot in seconds — right from your phone."
+    },
+    "qr": {
+      "title": "Check in with QR",
+      "body": "Show your personal QR code at the door for a fast, contactless check-in."
+    },
+    "shop": {
+      "title": "Shop the store",
+      "body": "Grab gear, supplements, and add-ons, and pick them up on your next visit."
     }
   },
   "classes": {

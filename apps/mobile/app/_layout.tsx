@@ -1,13 +1,14 @@
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import * as Sentry from '@sentry/react-native';
 
 import '../global.css';
 // Validate EXPO_PUBLIC_* env once at app launch (throws on a malformed value).
 import '../lib/env';
+import { useProtectedRoute } from '../hooks/useProtectedRoute';
 import { AppProviders } from '../providers';
 
 // Mobile Sentry bootstrap. Runs once when this module is first evaluated; no-op
@@ -23,6 +24,32 @@ if (sentryDsn) {
   });
 }
 
+// Renders the route tree behind the auth + onboarding guard. `useProtectedRoute`
+// must run inside the Expo Router navigation context (it reads segments and
+// calls `router.replace`), so it lives here in a child of the root navigator
+// rather than at module scope. While the persisted session / onboarding flags
+// are still hydrating it returns `true`, and we hold a splash over the Stack so
+// the user never sees a redirect flash on a cold launch with a live session.
+function RootNavigator() {
+  const hydrating = useProtectedRoute();
+  return (
+    <>
+      <Stack screenOptions={{ headerShown: false }} />
+      {hydrating ? <SplashScreen /> : null}
+      <StatusBar style="light" />
+    </>
+  );
+}
+
+// Full-screen splash shown while the keychain / onboarding state hydrates.
+function SplashScreen() {
+  return (
+    <View className="absolute inset-0 items-center justify-center bg-brand-950">
+      <ActivityIndicator color="#ffffff" size="large" />
+    </View>
+  );
+}
+
 // Root layout — wraps every route. `SafeAreaProvider` sits outermost so the
 // toast host (inside `AppProviders`) can read the top inset; `AppProviders`
 // then layers Theme → Query → I18n → Toast around the Expo Router `Stack` that
@@ -32,8 +59,7 @@ function RootLayout() {
   return (
     <SafeAreaProvider>
       <AppProviders>
-        <Stack screenOptions={{ headerShown: false }} />
-        <StatusBar style="light" />
+        <RootNavigator />
       </AppProviders>
     </SafeAreaProvider>
   );
