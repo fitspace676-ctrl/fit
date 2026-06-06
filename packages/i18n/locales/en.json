@@ -290,6 +290,27 @@
         "title": "Class not found",
         "subtitle": "We couldn’t find this class. It may have been canceled or removed.",
         "action": "Back to classes"
+      },
+      "booking": {
+        "book": "Book this class",
+        "joinWaitlist": "Join waitlist",
+        "booking": "Booking…",
+        "cancel": "Cancel booking",
+        "leaveWaitlist": "Leave waitlist",
+        "canceling": "Canceling…",
+        "bookedTitle": "You’re booked",
+        "bookedSubtitle": "You have a confirmed spot in this class.",
+        "waitlistedTitle": "You’re on the waitlist",
+        "waitlistedSubtitle": "We’ll let you know if a spot opens up.",
+        "waitlistPosition": "Position #{position}",
+        "fullNote": "This class is full — join the waitlist and we’ll notify you if a spot opens up.",
+        "toast": {
+          "booked": "You’re booked!",
+          "waitlisted": "You’re on the waitlist.",
+          "canceled": "Your booking was canceled.",
+          "leftWaitlist": "You’ve left the waitlist.",
+          "error": "Something went wrong. Please try again."
+        }
       }
     }
   },

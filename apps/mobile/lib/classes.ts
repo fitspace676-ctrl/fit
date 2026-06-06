@@ -9,8 +9,10 @@
 
 import {
   classInstanceCardSchema,
+  classInstanceDetailSchema,
   type ClassCalendarView,
   type ClassInstanceCard,
+  type ClassInstanceDetail,
 } from '@fit/types';
 import { apiFetch } from './api-client';
 
@@ -179,4 +181,59 @@ export async function fetchClassInstances({
 
   const body = (await response.json()) as { instances?: unknown };
   return classInstanceCardSchema.array().parse(body.instances ?? []);
+}
+
+/** Arguments for {@link fetchClassInstance}. */
+export interface FetchClassInstanceArgs {
+  gymId: string;
+  /** The occurrence id (the `[instanceId]` route param). */
+  instanceId: string;
+  /** Abort signal so a superseded detail request is cancelled. */
+  signal?: AbortSignal;
+}
+
+/**
+ * Fetch one occurrence's full detail for the class-detail screen (T6.4) via
+ * `GET /class-instances/:id?gymId=<id>`. Returns the parsed, validated
+ * {@link ClassInstanceDetail} — the richer projection the detail page renders
+ * (description, duration, room, status). A `404` (unknown / cross-tenant id, or
+ * a since-removed occurrence) surfaces as a thrown {@link ClassInstanceNotFound}
+ * so the screen can show its dedicated "class not found" state rather than a
+ * generic error; any other non-OK status throws a plain error.
+ */
+export async function fetchClassInstance({
+  gymId,
+  instanceId,
+  signal,
+}: FetchClassInstanceArgs): Promise<ClassInstanceDetail> {
+  const params = new URLSearchParams({ gymId });
+
+  const response = await apiFetch(`/class-instances/${instanceId}?${params.toString()}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+
+  if (response.status === 404) {
+    throw new ClassInstanceNotFound(instanceId);
+  }
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Failed to load class (${response.status})`);
+  }
+
+  const body = (await response.json()) as { instance?: unknown };
+  return classInstanceDetailSchema.parse(body.instance);
+}
+
+/**
+ * Thrown by {@link fetchClassInstance} when the occurrence cannot be found
+ * (`404`). Lets the detail screen branch on a missing class without parsing
+ * status text — see `useClassInstance`.
+ */
+export class ClassInstanceNotFound extends Error {
+  constructor(instanceId: string) {
+    super(`Class instance not found: ${instanceId}`);
+    this.name = 'ClassInstanceNotFound';
+  }
 }
