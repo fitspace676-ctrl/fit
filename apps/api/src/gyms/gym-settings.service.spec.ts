@@ -1,0 +1,178 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_LANGUAGE,
+  DEFAULT_PRIMARY_COLOR,
+  DEFAULT_SECONDARY_COLOR,
+  DEFAULT_TIMEZONE,
+  weeklyHoursSchema,
+} from '@fit/types';
+import { GymSettingsService } from './gym-settings.service';
+import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { TenantContext } from '../common/tenant/tenant.context';
+import type { StorageService } from '../storage/storage.service';
+
+interface GymRow {
+  name: string;
+  settings: unknown;
+}
+
+interface UpdateArgs {
+  where?: { id?: unknown };
+  data?: Record<string, unknown>;
+}
+
+function setup(overrides?: { gym?: GymRow | null; publicUrl?: string | null }) {
+  const findFirst = vi.fn<(args: unknown) => Promise<GymRow | null>>(() =>
+    Promise.resolve(
+      overrides?.gym === undefined ? { name: 'Iron Gym', settings: null } : overrides.gym,
+    ),
+  );
+  const update = vi.fn<(args: UpdateArgs) => Promise<GymRow>>((args) =>
+    Promise.resolve({
+      name: (args.data?.name as string) ?? 'Iron Gym',
+      settings: args.data?.settings ?? null,
+    }),
+  );
+  const publicUrl = vi.fn<(key: string) => string | null>(() => overrides?.publicUrl ?? null);
+
+  const prisma = { client: { gym: { findFirst, update } } } as unknown as TenantPrismaService;
+  const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  const storage = { publicUrl } as unknown as StorageService;
+
+  return { service: new GymSettingsService(prisma, tenant, storage), findFirst, update, publicUrl };
+}
+
+describe('GymSettingsService', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  describe('getSettings', () => {
+    it('returns a complete, defaulted settings object for a gym with no stored settings', async () => {
+      const { service, findFirst } = setup({ gym: { name: 'Iron Gym', settings: null } });
+
+      const result = await service.getSettings();
+
+      expect(findFirst.mock.calls[0]?.[0]).toMatchObject({ where: { id: 'gym-1' } });
+      expect(result).toEqual({
+        brand: {
+          name: 'Iron Gym',
+          logoUrl: null,
+          primaryColor: DEFAULT_PRIMARY_COLOR,
+          secondaryColor: DEFAULT_SECONDARY_COLOR,
+        },
+        locale: {
+          language: DEFAULT_LANGUAGE,
+          currency: DEFAULT_CURRENCY,
+          timezone: DEFAULT_TIMEZONE,
+        },
+        hours: weeklyHoursSchema.parse({}),
+        notifications: { fromEmail: null, fromName: null, replyTo: null },
+      });
+    });
+
+    it('folds the canonical gym name into brand.name over any stored value', async () => {
+      const { service } = setup({
+        gym: { name: 'Canonical Name', settings: { brand: { primaryColor: '#abcdef' } } },
+      });
+
+      const result = await service.getSettings();
+
+      expect(result.brand.name).toBe('Canonical Name');
+      expect(result.brand.primaryColor).toBe('#abcdef');
+    });
+
+    it('throws 404 GYM_NOT_FOUND when the session gym no longer exists', async () => {
+      const { service } = setup({ gym: null });
+
+      await expect(service.getSettings()).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('updateSettings', () => {
+    it('merges a partial locale patch onto the stored settings', async () => {
+      const { service, update } = setup({
+        gym: { name: 'Iron Gym', settings: { locale: { currency: 'USD' } } },
+      });
+
+      const result = await service.updateSettings({ locale: { timezone: 'Asia/Tbilisi' } });
+
+      const stored = (update.mock.calls[0]?.[0]?.data?.settings ?? {}) as {
+        locale: { currency: string; timezone: string };
+      };
+      // The previously-stored currency survives; only the timezone changes.
+      expect(stored.locale).toMatchObject({ currency: 'USD', timezone: 'Asia/Tbilisi' });
+      expect(result.locale.currency).toBe('USD');
+    });
+
+    it('routes brand.name to Gym.name (not the settings JSON) and keeps it as the single source of truth', async () => {
+      const { service, update } = setup({ gym: { name: 'Old Name', settings: null } });
+
+      const result = await service.updateSettings({ brand: { name: 'New Name' } });
+
+      const data = update.mock.calls[0]?.[0]?.data ?? {};
+      expect(data.name).toBe('New Name');
+      const stored = data.settings as { brand: Record<string, unknown> };
+      expect(stored.brand).not.toHaveProperty('name');
+      expect(result.brand.name).toBe('New Name');
+    });
+
+    it('replaces the whole week when hours are supplied', async () => {
+      const { service, update } = setup({ gym: { name: 'Iron Gym', settings: null } });
+      const hours = weeklyHoursSchema.parse({ sun: { closed: true } });
+
+      await service.updateSettings({ hours });
+
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as { hours: typeof hours };
+      expect(stored.hours.sun.closed).toBe(true);
+    });
+
+    it('throws 404 when the gym is missing', async () => {
+      const { service, update } = setup({ gym: null });
+
+      await expect(service.updateSettings({ locale: { currency: 'EUR' } })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setLogo', () => {
+    it('stores the public URL of a key under the gym prefix and echoes it back', async () => {
+      const { service, update, publicUrl } = setup({
+        gym: { name: 'Iron Gym', settings: null },
+        publicUrl: 'https://cdn.example.com/gym-1/logos/abc.png',
+      });
+
+      const result = await service.setLogo({ photoKey: 'gym-1/logos/abc.png' });
+
+      expect(publicUrl).toHaveBeenCalledWith('gym-1/logos/abc.png');
+      expect(result).toEqual({ logoUrl: 'https://cdn.example.com/gym-1/logos/abc.png' });
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as { brand: { logoUrl: string } };
+      expect(stored.brand.logoUrl).toBe('https://cdn.example.com/gym-1/logos/abc.png');
+    });
+
+    it('rejects a key that belongs to another tenant with a 400, without touching storage or the gym', async () => {
+      const { service, update, publicUrl } = setup({ publicUrl: 'https://cdn/x' });
+
+      await expect(service.setLogo({ photoKey: 'other-gym/logos/abc.png' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(publicUrl).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('throws 503 when no public URL is configured (R2 disabled)', async () => {
+      const { service, update } = setup({ publicUrl: null });
+
+      await expect(service.setLogo({ photoKey: 'gym-1/logos/abc.png' })).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+});

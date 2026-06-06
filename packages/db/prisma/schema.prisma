@@ -89,6 +89,12 @@ model Gym {
   /// behalf. Nullable for rows that predate the column (seed/legacy).
   createdByUserId String?
   status          GymStatus @default(ACTIVE)
+  /// Gym settings (T4.8): brand (logo + colours), locale (language, currency,
+  /// timezone), default business hours, and notification sender. Stored as a
+  /// single JSON blob validated by `gymSettingsStoredSchema` in `@fit/types`;
+  /// the gym's display name stays on `name` (the single source of truth) and is
+  /// surfaced as `brand.name`. Null until the owner first saves settings.
+  settings        Json?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

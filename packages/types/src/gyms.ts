@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from './auth';
+import type { GymPublicBrand } from './gym-settings';
 
 /** Minimum length of a gym slug (the tenant's subdomain label). */
 export const GYM_SLUG_MIN_LENGTH = 3;
@@ -131,9 +132,10 @@ export interface GymBySubdomainResponse {
   gymId: string;
   name: string;
   /**
-   * Tenant branding (logo, colours). Not modelled until gym settings (T4.8), so
-   * `null` for now; the field is present so clients can bind to it without a
-   * contract change once branding lands.
+   * Public tenant branding — the logo + brand colours a visitor's entry page
+   * renders (gym settings, T4.8). Populated from the gym's stored settings,
+   * falling back to the platform palette so a brand is always renderable;
+   * `null` only if a future caller deliberately omits it.
    */
-  brand: null;
+  brand: GymPublicBrand | null;
 }

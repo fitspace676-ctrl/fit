@@ -1,6 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { GymStatus } from '@fit/db';
-import type { GymBySubdomainResponse, GymSummary, ListGymsResponse } from '@fit/types';
+import {
+  gymPublicBrand,
+  type GymBySubdomainResponse,
+  type GymSummary,
+  type ListGymsResponse,
+} from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -57,12 +62,12 @@ export class GymsService {
   async resolveBySubdomain(slug: string): Promise<GymBySubdomainResponse> {
     const gym = await this.prisma.client.gym.findUnique({
       where: { slug },
-      select: { id: true, name: true, status: true },
+      select: { id: true, name: true, status: true, settings: true },
     });
     if (!gym || gym.status !== GymStatus.ACTIVE) {
       throw new NotFoundException({ message: 'Gym not found', code: 'GYM_NOT_FOUND' });
     }
 
-    return { gymId: gym.id, name: gym.name, brand: null };
+    return { gymId: gym.id, name: gym.name, brand: gymPublicBrand(gym.name, gym.settings) };
   }
 }

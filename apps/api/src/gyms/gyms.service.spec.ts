@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { GymStatus } from '@fit/db';
+import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '@fit/types';
 import { GymsService } from './gyms.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -25,6 +26,7 @@ interface SubdomainRow {
   id: string;
   name: string;
   status: GymStatus;
+  settings?: unknown;
 }
 
 function setupBySubdomain(row: SubdomainRow | null) {
@@ -97,7 +99,7 @@ describe('GymsService.list', () => {
 describe('GymsService.resolveBySubdomain', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('returns the public view of an active gym, looked up by slug', async () => {
+  it('returns the public view of an active gym, with default brand, looked up by slug', async () => {
     const { service, findUnique } = setupBySubdomain({
       id: 'gym-1',
       name: 'Downtown Strength',
@@ -107,11 +109,40 @@ describe('GymsService.resolveBySubdomain', () => {
     await expect(service.resolveBySubdomain('downtown')).resolves.toEqual({
       gymId: 'gym-1',
       name: 'Downtown Strength',
-      brand: null,
+      brand: {
+        name: 'Downtown Strength',
+        logoUrl: null,
+        primaryColor: DEFAULT_PRIMARY_COLOR,
+        secondaryColor: DEFAULT_SECONDARY_COLOR,
+      },
     });
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { slug: 'downtown' } }),
     );
+  });
+
+  it('surfaces the stored brand (logo + colours) when the gym has customised it', async () => {
+    const { service } = setupBySubdomain({
+      id: 'gym-1',
+      name: 'Downtown Strength',
+      status: GymStatus.ACTIVE,
+      settings: {
+        brand: {
+          logoUrl: 'https://cdn.example.com/logo.png',
+          primaryColor: '#ff0000',
+          secondaryColor: '#00ff00',
+        },
+      },
+    });
+
+    await expect(service.resolveBySubdomain('downtown')).resolves.toMatchObject({
+      brand: {
+        name: 'Downtown Strength',
+        logoUrl: 'https://cdn.example.com/logo.png',
+        primaryColor: '#ff0000',
+        secondaryColor: '#00ff00',
+      },
+    });
   });
 
   it('throws 404 GYM_NOT_FOUND for an unknown slug', async () => {
