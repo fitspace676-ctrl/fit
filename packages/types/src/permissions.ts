@@ -55,6 +55,8 @@ export enum Permission {
   WorkoutWrite = 'workout:write',
   /** View analytics and reports. */
   ReportView = 'report:view',
+  /** View the gym's audit log of privileged actions. */
+  AuditRead = 'audit:read',
 }
 
 /**
@@ -84,6 +86,7 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
     Permission.ReportView,
+    Permission.AuditRead,
   ],
   MANAGER: [
     Permission.StaffManage,
@@ -100,6 +103,7 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
     Permission.ReportView,
+    Permission.AuditRead,
   ],
   RECEPTIONIST: [
     Permission.MemberRead,

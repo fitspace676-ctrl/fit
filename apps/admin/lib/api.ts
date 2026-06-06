@@ -18,6 +18,8 @@ import type {
   CreateMemberResponse,
   CreateTrainerData,
   CreateTrainerResponse,
+  ListAuditLogQuery,
+  ListAuditLogResponse,
   GetGymSettingsResponse,
   UpdateGymSettingsInput,
   UpdateGymSettingsResponse,
@@ -535,6 +537,37 @@ export async function uploadGymLogo(input: UploadGymLogoInput): Promise<UploadGy
     cache: 'no-store',
   });
   return unwrap<UploadGymLogoResponse>(res);
+}
+
+// ── Audit log (T4.9) ──────────────────────────────────────────────────────────
+
+/**
+ * Serialise an audit-log query to a `?key=value` string, dropping `undefined` /
+ * empty values so a bare list (`GET /audit-logs`) carries no noise. The API
+ * re-coerces and re-validates with the same Zod schema.
+ */
+export function auditLogQueryString(query: Partial<ListAuditLogQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /audit-logs` — one filtered, server-paginated page of the gym's audit trail. */
+export async function fetchAuditLogs(
+  query: Partial<ListAuditLogQuery> = {},
+): Promise<ListAuditLogResponse> {
+  const res = await fetch(`${apiBaseUrl()}/audit-logs${auditLogQueryString(query)}`, {
+    headers: await authHeaders(),
+    // Always reflect the live trail — never serve a stale audit view.
+    cache: 'no-store',
+  });
+  return unwrap<ListAuditLogResponse>(res);
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────
