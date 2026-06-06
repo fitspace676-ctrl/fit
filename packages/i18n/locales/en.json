@@ -222,14 +222,19 @@
       "label": "Weekly calendar",
       "prev": "Previous week",
       "next": "Next week",
-      "today": "This week"
+      "today": "This week",
+      "dayEmpty": "No classes this day"
     },
     "listView": {
       "label": "Class list",
-      "count": "{count, plural, one {# class} other {# classes}}"
+      "count": "{count, plural, one {# class} other {# classes}}",
+      "itemsOne": "{count} class",
+      "itemsOther": "{count} classes"
     },
     "card": {
       "spotsLeft": "{count, plural, one {# spot left} other {# spots left}}",
+      "spotsLeftOne": "{count} spot left",
+      "spotsLeftOther": "{count} spots left",
       "full": "Full"
     },
     "drawer": {
