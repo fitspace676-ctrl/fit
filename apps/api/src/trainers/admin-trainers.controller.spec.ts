@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import type {
-  CreateTrainerResponse,
-  GetAdminTrainerResponse,
-  ListAdminTrainersResponse,
+import {
+  weeklyAvailabilitySchema,
+  type CreateTrainerResponse,
+  type GetAdminTrainerResponse,
+  type GetTrainerAvailabilityResponse,
+  type ListAdminTrainersResponse,
+  type SetTrainerAvailabilityData,
+  type SetTrainerAvailabilityResponse,
 } from '@fit/types';
 import { AdminTrainersController } from './admin-trainers.controller';
 import type { AdminTrainersService } from './admin-trainers.service';
+
+const emptyWeek = (): GetTrainerAvailabilityResponse => ({
+  availability: weeklyAvailabilitySchema.parse({}),
+});
 
 const detail = (over?: Partial<GetAdminTrainerResponse>): GetAdminTrainerResponse => ({
   id: 't-1',
@@ -32,11 +40,19 @@ function setup() {
   const updateTrainer = vi.fn<() => Promise<CreateTrainerResponse>>(() =>
     Promise.resolve(detail()),
   );
+  const getAvailability = vi.fn<() => Promise<GetTrainerAvailabilityResponse>>(() =>
+    Promise.resolve(emptyWeek()),
+  );
+  const setAvailability = vi.fn<
+    (id: string, input: SetTrainerAvailabilityData) => Promise<SetTrainerAvailabilityResponse>
+  >(() => Promise.resolve(emptyWeek()));
   const service = {
     listTrainers,
     getTrainer,
     createTrainer,
     updateTrainer,
+    getAvailability,
+    setAvailability,
   } as unknown as AdminTrainersService;
   return {
     controller: new AdminTrainersController(service),
@@ -44,6 +60,8 @@ function setup() {
     getTrainer,
     createTrainer,
     updateTrainer,
+    getAvailability,
+    setAvailability,
   };
 }
 
@@ -109,6 +127,86 @@ describe('AdminTrainersController', () => {
         't-1',
         expect.objectContaining({ name: 'Renamed' }),
       );
+    });
+  });
+
+  describe('GET /admin/trainers/:id/availability', () => {
+    it('forwards the id to the service', async () => {
+      ctx = setup();
+      await ctx.controller.getAvailability('t-1');
+
+      expect(ctx.getAvailability).toHaveBeenCalledWith('t-1');
+    });
+  });
+
+  describe('PUT /admin/trainers/:id/availability', () => {
+    it('validates + normalises the body before delegating', async () => {
+      ctx = setup();
+      await ctx.controller.setAvailability('t-1', {
+        availability: {
+          // Windows submitted out of order are sorted; an unavailable day's
+          // windows are cleared — both asserted via the forwarded payload.
+          mon: {
+            available: true,
+            windows: [
+              { start: '14:00', end: '16:00' },
+              { start: '09:00', end: '11:00' },
+            ],
+          },
+          tue: { available: false, windows: [{ start: '09:00', end: '10:00' }] },
+        },
+      });
+
+      const forwarded = ctx.setAvailability.mock.calls[0]?.[1];
+      // Windows sorted ascending by start...
+      expect(forwarded?.availability.mon.windows).toEqual([
+        { start: '09:00', end: '11:00' },
+        { start: '14:00', end: '16:00' },
+      ]);
+      // ...and an unavailable day's windows cleared to [].
+      expect(forwarded?.availability.tue).toEqual({ available: false, windows: [] });
+    });
+
+    it('rejects overlapping windows with 400 without hitting the service', async () => {
+      ctx = setup();
+      const error = await ctx.controller
+        .setAvailability('t-1', {
+          availability: {
+            mon: {
+              available: true,
+              windows: [
+                { start: '09:00', end: '12:00' },
+                { start: '11:00', end: '13:00' },
+              ],
+            },
+          },
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(ctx.setAvailability).not.toHaveBeenCalled();
+    });
+
+    it('rejects an available day with no windows with 400', async () => {
+      ctx = setup();
+      const error = await ctx.controller
+        .setAvailability('t-1', { availability: { mon: { available: true, windows: [] } } })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(ctx.setAvailability).not.toHaveBeenCalled();
+    });
+
+    it('rejects an end time before the start time with 400', async () => {
+      ctx = setup();
+      const error = await ctx.controller
+        .setAvailability('t-1', {
+          availability: { mon: { available: true, windows: [{ start: '12:00', end: '09:00' }] } },
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(ctx.setAvailability).not.toHaveBeenCalled();
     });
   });
 });

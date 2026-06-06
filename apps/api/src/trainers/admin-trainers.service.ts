@@ -1,16 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TrainerStatus } from '@fit/db';
-import type {
-  AdminTrainerDetail,
-  AdminTrainerRow,
-  CreateTrainerData,
-  CreateTrainerResponse,
-  GetAdminTrainerResponse,
-  ListAdminTrainersQuery,
-  ListAdminTrainersResponse,
-  SetTrainerStatusResponse,
-  UpdateTrainerData,
-  UpdateTrainerResponse,
+import {
+  weeklyAvailabilitySchema,
+  type AdminTrainerDetail,
+  type AdminTrainerRow,
+  type CreateTrainerData,
+  type CreateTrainerResponse,
+  type GetAdminTrainerResponse,
+  type GetTrainerAvailabilityResponse,
+  type ListAdminTrainersQuery,
+  type ListAdminTrainersResponse,
+  type SetTrainerAvailabilityData,
+  type SetTrainerAvailabilityResponse,
+  type SetTrainerStatusResponse,
+  type UpdateTrainerData,
+  type UpdateTrainerResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -154,6 +158,42 @@ export class AdminTrainersService {
    */
   async reactivateTrainer(id: string): Promise<SetTrainerStatusResponse> {
     return this.setStatus(id, TrainerStatus.ACTIVE);
+  }
+
+  /**
+   * One trainer's weekly availability (T5.11). The stored JSON is parsed through
+   * {@link weeklyAvailabilitySchema} so callers always get a complete, canonical
+   * seven-day map — a brand-new trainer (default `{}`) reads back as fully
+   * unavailable. A missing / cross-tenant id is a `404 TRAINER_NOT_FOUND`.
+   */
+  async getAvailability(id: string): Promise<GetTrainerAvailabilityResponse> {
+    const row = await this.prisma.client.trainer.findFirst({
+      where: { id },
+      select: { availability: true },
+    });
+    if (!row) {
+      throw new NotFoundException({ message: 'Trainer not found', code: 'TRAINER_NOT_FOUND' });
+    }
+    return { availability: weeklyAvailabilitySchema.parse(row.availability ?? {}) };
+  }
+
+  /**
+   * Replace a trainer's weekly availability (T5.11). The whole week is persisted as
+   * one canonical JSON document (the body was already validated + normalised by
+   * {@link weeklyAvailabilitySchema}). The id must resolve to a trainer in the
+   * caller's gym (the scoped `where` makes a cross-tenant id a `404`). Returns the
+   * stored availability.
+   */
+  async setAvailability(
+    id: string,
+    input: SetTrainerAvailabilityData,
+  ): Promise<SetTrainerAvailabilityResponse> {
+    await this.requireTrainer(id);
+    await this.prisma.client.trainer.update({
+      where: { id },
+      data: { availability: input.availability as unknown as Prisma.InputJsonValue },
+    });
+    return this.getAvailability(id);
   }
 
   /** Set a trainer's lifecycle `status`, 404-ing an unknown / cross-tenant id. */
