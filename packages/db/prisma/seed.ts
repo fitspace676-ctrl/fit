@@ -7,7 +7,7 @@
 //
 // Run with:  pnpm db:seed   (or `fit db seed`, or `prisma db seed`)
 
-import { prisma, Role, GymMemberStatus } from '../index';
+import { prisma, Role, GymMemberStatus, InstanceStatus } from '../index';
 
 async function main() {
   // Two tenants.
@@ -93,14 +93,64 @@ async function main() {
     });
   }
 
+  // A recurring class template + its first occurrences (T5.1). Demonstrates the
+  // scheduling core: one ClassTemplate (the RRULE *rule*) expands into concrete
+  // ClassInstance occurrences. Idempotent — materialised once per gym, keyed on
+  // (gymId, title) since a template has no natural unique column.
+  const CLASS_TITLE = 'Morning HIIT';
+  const existingTemplate = await prisma.classTemplate.findFirst({
+    where: { gymId: downtown.id, title: CLASS_TITLE },
+  });
+
+  if (!existingTemplate) {
+    const template = await prisma.classTemplate.create({
+      data: {
+        gymId: downtown.id,
+        title: CLASS_TITLE,
+        description: 'High-intensity interval training to start the day.',
+        category: 'Conditioning',
+        capacity: 20,
+        durationMinutes: 60,
+        // Every Mon/Wed/Fri — the canonical weekly RRULE the generator (T5.3) expands.
+        rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
+        color: '#ef4444',
+        validFrom: new Date('2026-06-08T00:00:00.000Z'),
+      },
+    });
+
+    // Materialise the first 4 weekly occurrences (08:00–09:00 UTC) so the
+    // calendar and booking flows have data to render against in local dev.
+    const firstStart = new Date('2026-06-08T08:00:00.000Z'); // a Monday
+    await prisma.classInstance.createMany({
+      data: Array.from({ length: 4 }, (_, i) => {
+        const startsAt = new Date(firstStart);
+        startsAt.setUTCDate(startsAt.getUTCDate() + i * 7);
+        const endsAt = new Date(startsAt);
+        endsAt.setUTCMinutes(endsAt.getUTCMinutes() + template.durationMinutes);
+        return {
+          gymId: downtown.id,
+          templateId: template.id,
+          startsAt,
+          endsAt,
+          status: InstanceStatus.SCHEDULED,
+        };
+      }),
+    });
+  }
+
   const memberships = await prisma.gymMember.findMany({
     where: { userId: alex.id },
     select: { gymId: true, role: true },
   });
 
+  const classInstanceCount = await prisma.classInstance.count({
+    where: { gymId: downtown.id },
+  });
+
   console.log('[@fit/db] seed complete:', {
     gyms: [downtown.slug, riverside.slug],
     alexRoles: memberships.map((m) => m.role),
+    classTemplate: `${CLASS_TITLE} (${classInstanceCount} instances)`,
     superAdmin:
       process.env.NODE_ENV !== 'production' ? 'superadmin@fit.local' : '(skipped in prod)',
   });
