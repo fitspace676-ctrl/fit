@@ -2,9 +2,11 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getActiveGymId } from '@/lib/active-gym';
 import { fetchTrainer } from '@/lib/trainers';
+import { fetchTrainerReviews } from '@/lib/reviews';
 import { Link } from '@/src/i18n/navigation';
 import { TrainerNotFound } from '@/src/components/trainers/TrainerNotFound';
 import { TrainerProfile } from '@/src/components/trainers/TrainerProfile';
+import { TrainerReviews } from '@/src/components/trainers/TrainerReviews';
 import { TrainerSchedule } from '@/src/components/trainers/TrainerSchedule';
 
 /**
@@ -38,6 +40,24 @@ async function loadTrainer(id: string) {
   }
 }
 
+/**
+ * Load one page of a trainer's visible reviews + the live aggregate for the
+ * active gym, degrading to an empty result when there is no tenant in scope or a
+ * transient failure occurs. Never throws: the Reviews section renders its "no
+ * reviews yet" state rather than taking down the page. Mirrors {@link loadTrainer}.
+ */
+async function loadReviews(id: string) {
+  const gymId = await getActiveGymId();
+  if (!gymId) {
+    return { reviews: [], avgRating: 0, total: 0, page: 1, limit: 10 };
+  }
+  try {
+    return await fetchTrainerReviews({ gymId, id });
+  } catch {
+    return { reviews: [], avgRating: 0, total: 0, page: 1, limit: 10 };
+  }
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -66,7 +86,11 @@ export default async function TrainerDetailPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  const [t, trainer] = await Promise.all([getTranslations('trainers'), loadTrainer(id)]);
+  const [t, trainer, reviews] = await Promise.all([
+    getTranslations('trainers'),
+    loadTrainer(id),
+    loadReviews(id),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-gutter py-10">
@@ -82,6 +106,11 @@ export default async function TrainerDetailPage({
         <div className="flex flex-col gap-10">
           <TrainerProfile trainer={trainer} />
           <TrainerSchedule schedule={trainer.schedule} />
+          <TrainerReviews
+            reviews={reviews.reviews}
+            avgRating={reviews.avgRating}
+            total={reviews.total}
+          />
         </div>
       ) : (
         <TrainerNotFound />

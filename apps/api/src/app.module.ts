@@ -14,6 +14,7 @@ import { PackagePlansModule } from './packages/package-plans.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { RedisModule } from './redis/redis.module';
+import { ReviewsModule } from './reviews/reviews.module';
 import { StaffModule } from './staff/staff.module';
 import { StorageModule } from './storage/storage.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
@@ -84,6 +85,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     LocationsModule,
     ProductsModule,
     PackagePlansModule,
+    ReviewsModule,
     MembersModule,
     StaffModule,
     AuditModule,
@@ -120,7 +122,8 @@ export class AppModule implements NestModule {
    * 2. {@link TenantMiddleware} establishes the tenant from the JWT on every
    *    route except the public ones: auth (must work before any session exists),
    *    the health probe, the public discovery listings
-   *    (`GET /class-instances`, `GET /class-instances/:id`, `GET /trainers`) — which an unauthenticated
+   *    (`GET /class-instances`, `GET /class-instances/:id`, `GET /trainers`,
+   *    `GET /trainers/:id/reviews`) — which an unauthenticated
    *    visitor browses on a gym subdomain and which carry their `gymId` as a
    *    query param rather than a session — and the public tenant lookup
    *    (`GET /gyms/by-subdomain/:slug`)
@@ -143,6 +146,7 @@ export class AppModule implements NestModule {
         { path: 'class-instances', method: RequestMethod.ALL },
         { path: 'class-instances/:id', method: RequestMethod.GET },
         { path: 'trainers', method: RequestMethod.ALL },
+        { path: 'trainers/:id/reviews', method: RequestMethod.GET },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');

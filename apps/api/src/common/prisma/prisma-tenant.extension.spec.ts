@@ -157,5 +157,8 @@ describe('tenantExtension (load-bearing isolation)', () => {
     expect(tenantExtension()).toBeDefined();
     expect(TENANT_SCOPED_MODELS.has('GymMember')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('User')).toBe(false);
+    // Review carries a gymId (T5.12) and must be scoped so a manager can never
+    // moderate — nor a member duplicate-check against — another gym's reviews.
+    expect(TENANT_SCOPED_MODELS.has('Review')).toBe(true);
   });
 });
