@@ -48,6 +48,14 @@ import type {
   SetPackagePlanStatusResponse,
   UpdatePackagePlanData,
   UpdatePackagePlanResponse,
+  ListAdminClassTemplatesQuery,
+  ListAdminClassTemplatesResponse,
+  CreateClassTemplateData,
+  CreateClassTemplateResponse,
+  GetAdminClassTemplateResponse,
+  SetClassTemplateStatusResponse,
+  UpdateClassTemplateData,
+  UpdateClassTemplateResponse,
   InviteStaffInput,
   InviteStaffResponse,
   ListStaffResponse,
@@ -537,6 +545,92 @@ export async function reactivatePackagePlan(id: string): Promise<SetPackagePlanS
     cache: 'no-store',
   });
   return unwrap<SetPackagePlanStatusResponse>(res);
+}
+
+// ── Class templates (T5.2) ────────────────────────────────────────────────────
+
+/**
+ * Serialise a class-template roster query to a `?key=value` string, dropping empty
+ * values so a bare list carries no noise. The API re-coerces and re-validates with
+ * the same Zod schema.
+ */
+export function classTemplatesQueryString(query: Partial<ListAdminClassTemplatesQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/classes` — one filtered, server-paginated page of the gym's class templates. */
+export async function fetchClassTemplates(
+  query: Partial<ListAdminClassTemplatesQuery> = {},
+): Promise<ListAdminClassTemplatesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/classes${classTemplatesQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminClassTemplatesResponse>(res);
+}
+
+/** `GET /admin/classes/:id` — one class template's detail. */
+export async function fetchClassTemplate(id: string): Promise<GetAdminClassTemplateResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/classes/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetAdminClassTemplateResponse>(res);
+}
+
+/** `POST /admin/classes` — create a class template; returns the new template's detail. */
+export async function createClassTemplate(
+  input: CreateClassTemplateData,
+): Promise<CreateClassTemplateResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/classes`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateClassTemplateResponse>(res);
+}
+
+/** `PATCH /admin/classes/:id` — edit a class template's profile; returns the updated detail. */
+export async function updateClassTemplate(
+  id: string,
+  input: UpdateClassTemplateData,
+): Promise<UpdateClassTemplateResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/classes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdateClassTemplateResponse>(res);
+}
+
+/** `POST /admin/classes/:id/pause` — set the template's status to `PAUSED`. */
+export async function pauseClassTemplate(id: string): Promise<SetClassTemplateStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/classes/${encodeURIComponent(id)}/pause`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetClassTemplateStatusResponse>(res);
+}
+
+/** `POST /admin/classes/:id/resume` — set the template's status back to `ACTIVE`. */
+export async function resumeClassTemplate(id: string): Promise<SetClassTemplateStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/classes/${encodeURIComponent(id)}/resume`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetClassTemplateStatusResponse>(res);
 }
 
 // ── Staff (T4.7) ──────────────────────────────────────────────────────────────
