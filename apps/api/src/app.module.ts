@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { ClassesModule } from './classes/classes.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { GymsModule } from './gyms/gyms.module';
 import { HealthModule } from './health/health.module';
 import { LocationsModule } from './locations/locations.module';
@@ -48,6 +49,8 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   (`/staff` — invite, list, re-role, remove; revoke invites; `StaffManage`).
  * - {@link AuditModule} serves the staff console's tenant-scoped audit-log viewer
  *   (`/audit-logs` — filtered, paginated read of the gym's action trail; `AuditRead`).
+ * - {@link DashboardModule} serves the staff console's tenant-scoped dashboard KPIs
+ *   (`/dashboard/stats` — live member/trainer/location/product counts; `ReportView`).
  * - {@link LocationsModule} serves the staff console's tenant-scoped location
  *   management (`/admin/locations` — CRUD with hours + amenities; `LocationRead`
  *   / `LocationWrite`).
@@ -79,6 +82,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     MembersModule,
     StaffModule,
     AuditModule,
+    DashboardModule,
     GymsModule,
     SuperAdminModule,
     TenantModule,
