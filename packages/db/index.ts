@@ -26,3 +26,20 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export * from './generated/client';
+
+// Recurring class-instance generation + regeneration (T5.3 / T5.8). Re-exported
+// so the API can reconcile a template's future occurrences after an edit without
+// reaching into the package's internal file layout.
+export {
+  DEFAULT_WEEKS_AHEAD,
+  generateClassInstances,
+  occurrencesInWindow,
+  planInstanceRegeneration,
+  type ExistingInstance,
+  type GenerateClassInstancesOptions,
+  type GenerateClassInstancesResult,
+  type GenerateClassInstancesTemplateResult,
+  type GeneratorPrisma,
+  type InstanceRegenerationPlan,
+  type PlanInstanceRegenerationInput,
+} from './prisma/generate-instances';

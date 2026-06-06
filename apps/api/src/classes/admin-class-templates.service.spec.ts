@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { ClassTemplateStatus } from '@fit/db';
+import { ClassTemplateStatus, InstanceStatus } from '@fit/db';
 import type {
   CreateClassTemplateData,
   ListAdminClassTemplatesQuery,
@@ -65,12 +65,23 @@ const row = (over?: Partial<ClassTemplateRecord>): ClassTemplateRecord => ({
   ...over,
 });
 
+/** A future class-instance row as the regeneration query selects it. */
+interface InstanceRecord {
+  id: string;
+  startsAt: Date;
+  endsAt: Date;
+  status: InstanceStatus;
+  bookedCount: number;
+  detachedAt: Date | null;
+}
+
 function setup(overrides?: {
   findMany?: ClassTemplateRecord[];
   count?: number;
   findFirst?: ClassTemplateRecord | null;
   trainer?: { id: string } | null;
   location?: { id: string } | null;
+  instances?: InstanceRecord[];
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<ClassTemplateRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -94,8 +105,29 @@ function setup(overrides?: {
     Promise.resolve(overrides?.location === undefined ? { id: 'loc-1' } : overrides.location),
   );
 
+  const instanceFindMany = vi.fn<(args: WhereArgs) => Promise<InstanceRecord[]>>(() =>
+    Promise.resolve(overrides?.instances ?? []),
+  );
+  const instanceCreateMany = vi.fn<(args: { data: unknown[] }) => Promise<{ count: number }>>(
+    (args) => Promise.resolve({ count: args.data.length }),
+  );
+  const instanceUpdateMany = vi.fn<(args: WhereArgs) => Promise<{ count: number }>>(() =>
+    Promise.resolve({ count: 0 }),
+  );
+  const instanceUpdate = vi.fn<(args: WhereArgs) => Promise<unknown>>(() => Promise.resolve({}));
+  const instanceDeleteMany = vi.fn<(args: WhereArgs) => Promise<{ count: number }>>(() =>
+    Promise.resolve({ count: 0 }),
+  );
+
   const client: Record<string, unknown> = {
     classTemplate: { findMany, count, findFirst, create, update },
+    classInstance: {
+      findMany: instanceFindMany,
+      createMany: instanceCreateMany,
+      updateMany: instanceUpdateMany,
+      update: instanceUpdate,
+      deleteMany: instanceDeleteMany,
+    },
     trainer: { findFirst: trainerFindFirst },
     location: { findFirst: locationFindFirst },
   };
@@ -112,6 +144,11 @@ function setup(overrides?: {
     update,
     trainerFindFirst,
     locationFindFirst,
+    instanceFindMany,
+    instanceCreateMany,
+    instanceUpdateMany,
+    instanceUpdate,
+    instanceDeleteMany,
   };
 }
 
@@ -153,7 +190,10 @@ const updateInput = (over?: Partial<UpdateClassTemplateData>): UpdateClassTempla
 });
 
 describe('AdminClassTemplatesService', () => {
-  afterEach(() => vi.clearAllMocks());
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
 
   describe('listClassTemplates', () => {
     it('projects rows to denormalised rows with a human recurrence + relation names', async () => {
@@ -339,6 +379,134 @@ describe('AdminClassTemplatesService', () => {
         NotFoundException,
       );
       expect(update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateClassTemplate — instance regeneration (T5.8)', () => {
+    /** Fix "now" to a Monday so the reconciled occurrence set is deterministic. */
+    const now = new Date('2026-06-08T00:00:00.000Z');
+    const at = (iso: string): Date => new Date(`${iso}T00:00:00.000Z`);
+
+    function regenInput() {
+      // Weekly-Monday rule, 60-minute occurrences, open-ended from Jun 1.
+      return updateInput({
+        rrule: 'FREQ=WEEKLY;BYDAY=MO',
+        durationMinutes: 60,
+        validFrom: '2026-06-01',
+        validUntil: null,
+      });
+    }
+
+    it('reconciles future occurrences: realigns, deletes, detaches, and creates', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+
+      const monday = {
+        id: 'mon',
+        startsAt: at('2026-06-08'),
+        endsAt: new Date('2026-06-08T00:45:00.000Z'), // old 45-min duration
+        status: InstanceStatus.SCHEDULED,
+        bookedCount: 0,
+        detachedAt: null,
+      };
+      const wednesday = {
+        id: 'wed',
+        startsAt: at('2026-06-10'),
+        endsAt: new Date('2026-06-10T00:45:00.000Z'),
+        status: InstanceStatus.SCHEDULED,
+        bookedCount: 0,
+        detachedAt: null,
+      };
+      const friday = {
+        id: 'fri',
+        startsAt: at('2026-06-12'),
+        endsAt: new Date('2026-06-12T00:45:00.000Z'),
+        status: InstanceStatus.SCHEDULED,
+        bookedCount: 2,
+        detachedAt: null,
+      };
+
+      const {
+        service,
+        instanceFindMany,
+        instanceUpdate,
+        instanceUpdateMany,
+        instanceDeleteMany,
+        instanceCreateMany,
+      } = setup({ findFirst: row(), instances: [monday, wednesday, friday] });
+
+      await service.updateClassTemplate('ct-1', regenInput());
+
+      // Future instances are loaded for this template, scoped to the horizon window.
+      expect(instanceFindMany.mock.calls[0]?.[0]?.where).toMatchObject({ templateId: 'ct-1' });
+
+      // Wednesday is off the new MO rule and unbooked → deleted.
+      expect(instanceDeleteMany).toHaveBeenCalledWith({ where: { id: { in: ['wed'] } } });
+
+      // Friday is off the rule but booked → detached (preserved), stamped with now.
+      expect(instanceUpdateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['fri'] } },
+        data: { detachedAt: now },
+      });
+
+      // The surviving Monday keeps its slot; endsAt realigns to the new 60 min.
+      expect(instanceUpdate).toHaveBeenCalledWith({
+        where: { id: 'mon' },
+        data: { endsAt: new Date('2026-06-08T01:00:00.000Z') },
+      });
+
+      // The remaining Mondays in the window are created as SCHEDULED rows.
+      const created = instanceCreateMany.mock.calls[0]?.[0]?.data as Array<Record<string, unknown>>;
+      expect(created.map((r) => (r.startsAt as Date).toISOString())).toEqual([
+        at('2026-06-15').toISOString(),
+        at('2026-06-22').toISOString(),
+        at('2026-06-29').toISOString(),
+      ]);
+      expect(created[0]).toMatchObject({
+        gymId: 'gym-1',
+        templateId: 'ct-1',
+        status: InstanceStatus.SCHEDULED,
+        endsAt: new Date('2026-06-15T01:00:00.000Z'),
+      });
+    });
+
+    it('only creates when no occurrences are materialised yet (no delete/detach/realign)', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+
+      const {
+        service,
+        instanceUpdate,
+        instanceUpdateMany,
+        instanceDeleteMany,
+        instanceCreateMany,
+      } = setup({ findFirst: row(), instances: [] });
+
+      await service.updateClassTemplate('ct-1', regenInput());
+
+      expect(instanceDeleteMany).not.toHaveBeenCalled();
+      expect(instanceUpdateMany).not.toHaveBeenCalled();
+      expect(instanceUpdate).not.toHaveBeenCalled();
+      // 4 Mondays in [Jun 8, Jul 6).
+      const created = instanceCreateMany.mock.calls[0]?.[0]?.data as unknown[];
+      expect(created).toHaveLength(4);
+    });
+
+    it('skips regeneration entirely for a PAUSED template (it materialises nothing)', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+
+      const { service, instanceFindMany, instanceCreateMany, instanceDeleteMany, update } = setup({
+        findFirst: row({ status: ClassTemplateStatus.PAUSED }),
+      });
+
+      await service.updateClassTemplate('ct-1', regenInput());
+
+      // The profile is still updated, but no instance reconciliation runs.
+      expect(update).toHaveBeenCalledTimes(1);
+      expect(instanceFindMany).not.toHaveBeenCalled();
+      expect(instanceCreateMany).not.toHaveBeenCalled();
+      expect(instanceDeleteMany).not.toHaveBeenCalled();
     });
   });
 

@@ -1,5 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClassTemplateStatus, Prisma } from '@fit/db';
+import {
+  ClassTemplateStatus,
+  DEFAULT_WEEKS_AHEAD,
+  InstanceStatus,
+  planInstanceRegeneration,
+  Prisma,
+  type ExistingInstance,
+} from '@fit/db';
 import {
   describeRRule,
   type AdminClassTemplateDetail,
@@ -169,8 +176,11 @@ export class AdminClassTemplatesService {
     id: string,
     input: UpdateClassTemplateData,
   ): Promise<UpdateClassTemplateResponse> {
-    await this.requireClassTemplate(id);
+    const { status } = await this.requireClassTemplate(id);
     await this.assertRelations(input.trainerId, input.locationId);
+
+    const validFrom = fromDateString(input.validFrom);
+    const validUntil = input.validUntil ? fromDateString(input.validUntil) : null;
 
     await this.prisma.client.classTemplate.update({
       where: { id },
@@ -185,11 +195,87 @@ export class AdminClassTemplatesService {
         durationMinutes: input.durationMinutes,
         rrule: input.rrule,
         color: input.color,
-        validFrom: fromDateString(input.validFrom),
-        validUntil: input.validUntil ? fromDateString(input.validUntil) : null,
+        validFrom,
+        validUntil,
       },
     });
+
+    // T5.8: reconcile already-materialised future occurrences against the edited
+    // recurrence so the calendar reflects the change immediately, without waiting
+    // for the next generation pass. Only ACTIVE templates materialise occurrences
+    // — a PAUSED one keeps its existing instances and generates nothing, so its
+    // instances are left exactly as they are (mirroring the generation job).
+    if (status === ClassTemplateStatus.ACTIVE) {
+      await this.regenerateInstances(id, {
+        rrule: input.rrule,
+        validFrom,
+        validUntil,
+        durationMinutes: input.durationMinutes,
+      });
+    }
+
     return this.getClassTemplate(id);
+  }
+
+  /**
+   * Re-materialise a template's future occurrences after an edit (T5.8). Loads
+   * the future instances inside the generation horizon, diffs them against the
+   * new recurrence via {@link planInstanceRegeneration}, and applies the result:
+   * new slots are inserted as `SCHEDULED`, surviving slots have `endsAt`
+   * realigned to a changed duration, dropped slots with bookings are *detached*
+   * (preserved so members keep their seat), and dropped unbooked slots are
+   * deleted. Runs on the tenant-scoped client, so every read/write stays inside
+   * the caller's gym. Past occurrences are never touched.
+   */
+  private async regenerateInstances(
+    templateId: string,
+    recurrence: {
+      rrule: string;
+      validFrom: Date;
+      validUntil: Date | null;
+      durationMinutes: number;
+    },
+  ): Promise<void> {
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + DEFAULT_WEEKS_AHEAD * 7 * 24 * 60 * 60 * 1000);
+
+    const existing: ExistingInstance[] = await this.prisma.client.classInstance.findMany({
+      where: { templateId, startsAt: { gte: now, lt: windowEnd } },
+      select: {
+        id: true,
+        startsAt: true,
+        endsAt: true,
+        status: true,
+        bookedCount: true,
+        detachedAt: true,
+      },
+    });
+
+    const plan = planInstanceRegeneration({ ...recurrence, existing, now });
+
+    if (plan.toDelete.length > 0) {
+      await this.prisma.client.classInstance.deleteMany({ where: { id: { in: plan.toDelete } } });
+    }
+    if (plan.toDetach.length > 0) {
+      await this.prisma.client.classInstance.updateMany({
+        where: { id: { in: plan.toDetach } },
+        data: { detachedAt: now },
+      });
+    }
+    for (const { id, endsAt } of plan.toRealign) {
+      await this.prisma.client.classInstance.update({ where: { id }, data: { endsAt } });
+    }
+    if (plan.toCreate.length > 0) {
+      await this.prisma.client.classInstance.createMany({
+        data: plan.toCreate.map((startsAt) => ({
+          gymId: this.tenant.gymId,
+          templateId,
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + recurrence.durationMinutes * 60 * 1000),
+          status: InstanceStatus.SCHEDULED,
+        })),
+      });
+    }
   }
 
   /**
@@ -225,10 +311,12 @@ export class AdminClassTemplatesService {
    * CLASS_TEMPLATE_NOT_FOUND`. The scoped `where` constrains `gymId`, so a
    * cross-tenant id never matches — the guard for every write.
    */
-  private async requireClassTemplate(id: string): Promise<{ id: string }> {
+  private async requireClassTemplate(
+    id: string,
+  ): Promise<{ id: string; status: ClassTemplateStatus }> {
     const template = await this.prisma.client.classTemplate.findFirst({
       where: { id },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!template) {
       throw this.notFound();
