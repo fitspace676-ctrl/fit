@@ -83,6 +83,7 @@ export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; minRole: Role }>
   { prefix: '/settings/billing', minRole: 'OWNER' },
   { prefix: '/billing', minRole: 'OWNER' },
   { prefix: '/staff', minRole: 'OWNER' },
+  { prefix: '/audit-log', minRole: 'MANAGER' },
   { prefix: '/settings', minRole: 'MANAGER' },
 ];
 

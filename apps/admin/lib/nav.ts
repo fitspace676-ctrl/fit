@@ -39,6 +39,7 @@ export type NavIcon =
   | 'billing'
   | 'staff'
   | 'reports'
+  | 'audit'
   | 'settings';
 
 /**
@@ -75,6 +76,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     minRole: 'OWNER',
   },
   { label: 'Reports', href: '/reports', icon: 'reports', permission: Permission.ReportView },
+  {
+    label: 'Audit log',
+    href: '/audit-log',
+    icon: 'audit',
+    permission: Permission.AuditRead,
+    minRole: 'MANAGER',
+  },
   { label: 'Settings', href: '/settings', icon: 'settings', permission: Permission.GymManage },
 ];
 
