@@ -266,6 +266,12 @@
         "title": "Upcoming sessions",
         "empty": "No upcoming sessions scheduled yet. Check back soon."
       },
+      "reviews": {
+        "title": "Reviews",
+        "empty": "No reviews yet. Members who attend this trainer’s classes can leave one.",
+        "count": "{count, plural, one {# review} other {# reviews}}",
+        "ratingLabel": "{rating} out of 5 stars"
+      },
       "notFound": {
         "title": "Trainer not found",
         "subtitle": "We couldn’t find this trainer. They may no longer be with this gym.",

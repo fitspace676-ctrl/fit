@@ -55,6 +55,10 @@ export enum Permission {
   ClassWrite = 'class:write',
   /** Book, waitlist, or cancel oneself for a scheduled class occurrence. */
   ClassBook = 'class:book',
+  /** Post a rating + review for a class one attended (member self-service). */
+  ReviewWrite = 'review:write',
+  /** Moderate reviews — list all (incl. hidden) and hide/unhide abusive ones. */
+  ReviewModerate = 'review:moderate',
   /** View billing, invoices, and payment history. */
   BillingRead = 'billing:read',
   /** Manage subscriptions, plans, and payment settings. */
@@ -96,6 +100,8 @@ export const ROLE_PERMISSIONS = {
     Permission.ClassRead,
     Permission.ClassWrite,
     Permission.ClassBook,
+    Permission.ReviewWrite,
+    Permission.ReviewModerate,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -117,6 +123,7 @@ export const ROLE_PERMISSIONS = {
     Permission.PackageWrite,
     Permission.ClassRead,
     Permission.ClassWrite,
+    Permission.ReviewModerate,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -144,7 +151,7 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
   ],
-  MEMBER: [Permission.WorkoutRead, Permission.ClassBook],
+  MEMBER: [Permission.WorkoutRead, Permission.ClassBook, Permission.ReviewWrite],
 } satisfies Record<GymScopedRoleName, readonly Permission[]>;
 
 /**

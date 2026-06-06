@@ -131,6 +131,15 @@ enum BookingStatus {
   CANCELED
 }
 
+/// Moderation state of a member {@link Review} (T5.12). A review is `VISIBLE` the
+/// moment it is posted; a manager can soft-moderate an abusive one to `HIDDEN`
+/// (never editing its content). Only `VISIBLE` reviews count toward a trainer's
+/// public aggregate rating, so hiding one recomputes (and lowers) that average.
+enum ReviewStatus {
+  VISIBLE
+  HIDDEN
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -162,6 +171,7 @@ model Gym {
   classTemplates ClassTemplate[]
   classInstances ClassInstance[]
   bookings       Booking[]
+  reviews        Review[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -215,6 +225,7 @@ model GymMember {
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
   bookings Booking[]
+  reviews  Review[]
 
   @@unique([userId, gymId])
   @@index([gymId])
@@ -246,11 +257,20 @@ model Trainer {
   /// the schema fills to a fully-unavailable seven-day week until staff set hours.
   availability Json         @default("{}")
   status      TrainerStatus @default(ACTIVE)
+  /// Denormalised aggregate of the trainer's `VISIBLE` reviews (T5.12), kept in
+  /// step by {@link Review} writes: `rating` is the average star rating (0 when
+  /// the trainer has no visible reviews) and `reviewCount` the number of them. The
+  /// reviews service recomputes both inside the transaction that posts or hides a
+  /// review, so trainer cards / the detail page can render the live rating without
+  /// a COUNT/AVG join — the same denormalisation `ClassInstance.bookedCount` uses.
+  rating      Float         @default(0)
+  reviewCount Int           @default(0)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
   classTemplates ClassTemplate[]
+  reviews        Review[]
 
   @@index([gymId])
   @@map("trainers")
@@ -420,6 +440,7 @@ model ClassInstance {
   gym      Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
   template ClassTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   bookings Booking[]
+  reviews  Review[]
 
   @@index([gymId, startsAt])
   @@index([templateId])
@@ -455,6 +476,40 @@ model Booking {
   @@index([gymId])
   @@index([memberId])
   @@map("bookings")
+}
+
+/// A member's star rating (1–5) + optional written review of a class occurrence
+/// and the trainer who led it (T5.12). A review may only be posted by a member
+/// who *attended* the occurrence — the service asserts an `ATTENDED`
+/// {@link Booking} for the same `(memberId, classInstanceId)` before accepting —
+/// and at most once per occurrence: the unique `(memberId, classInstanceId)`
+/// makes a second submission a `409`. `trainerId` is denormalised from the
+/// occurrence's template at write time so a trainer's reviews can be listed
+/// without walking instance→template, and is `SetNull` (the review survives the
+/// trainer / occurrence being deleted, like the audit trail). `status` is the
+/// soft-moderation flag a manager flips to `HIDDEN`; only `VISIBLE` rows feed the
+/// trainer's aggregate `rating`. `gymId` is the isolating tenant key the scoped
+/// Prisma client constrains every query to.
+model Review {
+  id              String       @id @default(cuid())
+  gymId           String
+  memberId        String
+  trainerId       String?
+  classInstanceId String?
+  rating          Int
+  comment         String?
+  status          ReviewStatus @default(VISIBLE)
+  createdAt       DateTime     @default(now())
+
+  gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member        GymMember      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  trainer       Trainer?       @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  classInstance ClassInstance? @relation(fields: [classInstanceId], references: [id], onDelete: SetNull)
+
+  @@unique([memberId, classInstanceId])
+  @@index([gymId])
+  @@index([trainerId, status])
+  @@map("reviews")
 }
 
 /// Rotating refresh-token record for session management. Tokens are persisted
