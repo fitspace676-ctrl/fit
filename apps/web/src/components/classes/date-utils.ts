@@ -88,6 +88,20 @@ export function parseWeekParam(value: string | undefined | null): Date {
   return startOfWeek(new Date());
 }
 
+/**
+ * A full, human date for an ISO instant, in the given locale — e.g.
+ * `Monday, 1 June 2026`. Used by the class detail page heading; the calendar
+ * itself groups by {@link dayKey} and never needs the long form.
+ */
+export function formatDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 /** Local `HH:mm` (24-hour) for an ISO instant, in the given locale. */
 export function formatTime(iso: string, locale: string): string {
   return new Date(iso).toLocaleTimeString(locale, {

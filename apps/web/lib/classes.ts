@@ -7,8 +7,10 @@
 
 import {
   classInstanceCardSchema,
+  classInstanceDetailSchema,
   type ClassCalendarView,
   type ClassInstanceCard,
+  type ClassInstanceDetail,
 } from '@fit/types';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
@@ -58,4 +60,50 @@ export async function fetchClassInstances({
 
   const body = (await response.json()) as { instances?: unknown };
   return classInstanceCardSchema.array().parse(body.instances ?? []);
+}
+
+/** Arguments for {@link fetchClassInstance}. */
+export interface FetchClassInstanceArgs {
+  gymId: string;
+  /** The occurrence's id, from the detail route's path segment. */
+  id: string;
+  /** Abort signal so an in-flight request is cancelled if the request changes. */
+  signal?: AbortSignal;
+}
+
+/**
+ * Fetch one class occurrence's full detail for the member-facing detail page
+ * (T5.9). Returns the parsed, validated {@link ClassInstanceDetail}, or `null`
+ * when the occurrence doesn't exist for this gym (a `404` — an unknown or
+ * cross-tenant id), which the page renders as its "class not found" state. Any
+ * other non-OK status throws; a malformed payload throws rather than reaching
+ * the page.
+ */
+export async function fetchClassInstance({
+  gymId,
+  id,
+  signal,
+}: FetchClassInstanceArgs): Promise<ClassInstanceDetail | null> {
+  const params = new URLSearchParams({ gymId });
+
+  const response = await fetch(
+    `${API_URL}/class-instances/${encodeURIComponent(id)}?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal,
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Failed to load class (${response.status})`);
+  }
+
+  const body = (await response.json()) as { instance?: unknown };
+  return classInstanceDetailSchema.parse(body.instance);
 }

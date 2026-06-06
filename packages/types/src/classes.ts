@@ -51,6 +51,62 @@ export const classInstanceCardSchema = z.object({
 export type ClassInstanceCard = z.infer<typeof classInstanceCardSchema>;
 
 /**
+ * Lifecycle of a scheduled occurrence as the public detail page needs to read
+ * it. The discovery *listing* only ever surfaces `SCHEDULED` occurrences, but a
+ * deep-linked / shared detail URL can outlive the class — so the detail contract
+ * carries the status and the page renders a "canceled" / "finished" banner
+ * instead of a confusing 404. Mirrors the backing `InstanceStatus` Prisma enum.
+ */
+export const classInstanceStatusSchema = z.enum(['SCHEDULED', 'CANCELED', 'COMPLETED']);
+
+/** A scheduled occurrence's lifecycle — {@link classInstanceStatusSchema}. */
+export type ClassInstanceStatus = z.infer<typeof classInstanceStatusSchema>;
+
+/**
+ * One class occurrence as the member-facing **detail** page needs it (T5.9) — a
+ * richer denormalised projection than the calendar {@link classInstanceCardSchema
+ * card}. Adds the template's full `description`, the scheduled `durationMinutes`,
+ * the `room` within the location (empty string when none), and the occurrence
+ * `status` so a shared link to a since-canceled class degrades gracefully. As on
+ * the card, `trainerName` / `locationName` are empty strings when the template
+ * has no trainer / location, and `capacity` already resolves any per-occurrence
+ * override, so the page renders remaining spots as `capacity - bookedCount`.
+ */
+export const classInstanceDetailSchema = classInstanceCardSchema.extend({
+  description: z.string(),
+  durationMinutes: z.number().int().positive(),
+  room: z.string(),
+  status: classInstanceStatusSchema,
+});
+
+/** One class occurrence's full detail — {@link classInstanceDetailSchema}. */
+export type ClassInstanceDetail = z.infer<typeof classInstanceDetailSchema>;
+
+/**
+ * Query for `GET /class-instances/:id`. The occurrence is identified by the path
+ * `id`; `gymId` scopes the lookup to one tenant (the public page resolves it from
+ * the active subdomain) so an occurrence can only ever be read through the gym
+ * whose site is being browsed — an id from another tenant resolves to a `404`,
+ * same as an unknown id.
+ */
+export const getClassInstanceQuerySchema = z.object({
+  gymId: z.string().min(1),
+});
+
+/** Validated `GET /class-instances/:id` query — {@link getClassInstanceQuerySchema}. */
+export type GetClassInstanceQuery = z.infer<typeof getClassInstanceQuerySchema>;
+
+/**
+ * Successful `GET /class-instances/:id` response — the requested occurrence's
+ * full detail. A missing / cross-tenant id is a `404`, not an empty body, so the
+ * page can cleanly distinguish "no such class" from a class that simply has no
+ * one booked yet.
+ */
+export interface GetClassInstanceResponse {
+  instance: ClassInstanceDetail;
+}
+
+/**
  * Query for `GET /class-instances`. `gymId` scopes the listing to one tenant
  * (the public page resolves it from the active subdomain); `from`/`to` bound the
  * visible window as ISO-8601 instants (the calendar sends the selected week's
