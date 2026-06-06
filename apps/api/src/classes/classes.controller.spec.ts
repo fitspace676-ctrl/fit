@@ -1,18 +1,38 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import type { ListClassInstancesResponse } from '@fit/types';
+import type { GetClassInstanceResponse, ListClassInstancesResponse } from '@fit/types';
 import { ClassesController } from './classes.controller';
 import type { ClassesService } from './classes.service';
 
 const FROM = '2026-06-01T00:00:00.000Z';
 const TO = '2026-06-08T00:00:00.000Z';
 
+const DETAIL: GetClassInstanceResponse = {
+  instance: {
+    id: 'ci-1',
+    title: 'Morning Flow',
+    description: 'A gentle vinyasa to start the day.',
+    startsAt: FROM,
+    endsAt: TO,
+    trainerName: 'Nino Beridze',
+    locationName: 'Vake Branch',
+    room: 'Studio A',
+    capacity: 12,
+    bookedCount: 4,
+    durationMinutes: 60,
+    category: 'Yoga',
+    color: '#2563eb',
+    status: 'SCHEDULED',
+  },
+};
+
 function setup() {
   const listInstances = vi.fn<() => Promise<ListClassInstancesResponse>>(() =>
     Promise.resolve({ instances: [] }),
   );
-  const classes = { listInstances } as unknown as ClassesService;
-  return { controller: new ClassesController(classes), listInstances };
+  const getInstance = vi.fn<() => Promise<GetClassInstanceResponse>>(() => Promise.resolve(DETAIL));
+  const classes = { listInstances, getInstance } as unknown as ClassesService;
+  return { controller: new ClassesController(classes), listInstances, getInstance };
 }
 
 describe('ClassesController', () => {
@@ -80,6 +100,22 @@ describe('ClassesController', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(ctx.listInstances).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /class-instances/:id', () => {
+    it('parses the query and delegates the id + validated gymId to the service', async () => {
+      const result = await ctx.controller.getOne('ci-1', { gymId: 'gym-1' });
+
+      expect(ctx.getInstance).toHaveBeenCalledWith('ci-1', { gymId: 'gym-1' });
+      expect(result).toEqual(DETAIL);
+    });
+
+    it('rejects a missing gymId with 400 without hitting the service', async () => {
+      const error = await ctx.controller.getOne('ci-1', {}).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(ctx.getInstance).not.toHaveBeenCalled();
     });
   });
 });

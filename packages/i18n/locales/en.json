@@ -204,7 +204,26 @@
     },
     "loading": "Loading classes…",
     "error": "We couldn’t load the classes. Please try again.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "detail": {
+      "back": "All classes",
+      "time": "Time",
+      "duration": "Duration",
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "trainer": "Trainer",
+      "location": "Location",
+      "room": "Room",
+      "capacity": "Capacity",
+      "status": {
+        "canceled": "This class has been canceled.",
+        "completed": "This class has already taken place."
+      },
+      "notFound": {
+        "title": "Class not found",
+        "subtitle": "We couldn’t find this class. It may have been canceled or removed.",
+        "action": "Back to classes"
+      }
+    }
   },
   "trainers": {
     "title": "Trainers",

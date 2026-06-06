@@ -1,6 +1,19 @@
-import { BadRequestException, Controller, Get, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
-import { listClassInstancesQuerySchema, type ListClassInstancesResponse } from '@fit/types';
+import {
+  getClassInstanceQuerySchema,
+  listClassInstancesQuerySchema,
+  type GetClassInstanceResponse,
+  type ListClassInstancesResponse,
+} from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
 import { ClassesService } from './classes.service';
 
@@ -35,6 +48,27 @@ export class ClassesController {
       throw new BadRequestException(formatIssues(result.error));
     }
     return this.classes.listInstances(result.data);
+  }
+
+  /**
+   * `GET /class-instances/:id?gymId=<id>` — one occurrence's full detail for the
+   * member-facing detail page (T5.9). The `id` is the path param; the `gymId`
+   * query is validated up front (a bad/missing one is a `400`) so the lookup is
+   * always tenant-scoped. An unknown or cross-tenant id is a `404` from the
+   * service.
+   */
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @Public()
+  async getOne(
+    @Param('id') id: string,
+    @Query() query: unknown,
+  ): Promise<GetClassInstanceResponse> {
+    const result = getClassInstanceQuerySchema.safeParse(query);
+    if (!result.success) {
+      throw new BadRequestException(formatIssues(result.error));
+    }
+    return this.classes.getInstance(id, result.data);
   }
 }
 
