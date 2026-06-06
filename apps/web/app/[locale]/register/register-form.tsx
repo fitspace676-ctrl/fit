@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
 import { registerWithCredentials } from '@/lib/auth';
 import { FormError, FormSuccess, SubmitButton, TextField } from '../_components/auth/form-controls';
 
@@ -13,6 +14,10 @@ import { FormError, FormSuccess, SubmitButton, TextField } from '../_components/
  */
 export function RegisterForm() {
   const t = useTranslations('auth');
+  const searchParams = useSearchParams();
+  // Carried from a staff invite link (T4.7): `/register?inviteToken=…`. Forwarded
+  // to the API so completing registration redeems the invite onto the new account.
+  const inviteToken = searchParams.get('inviteToken') ?? undefined;
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -25,7 +30,7 @@ export function RegisterForm() {
     event.preventDefault();
     setPending(true);
     setError(null);
-    registerWithCredentials({ name, email, password })
+    registerWithCredentials({ name, email, password, inviteToken })
       .then(() => setDone(true))
       .catch((err: unknown) => {
         setPending(false);

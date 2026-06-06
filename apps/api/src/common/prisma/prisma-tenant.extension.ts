@@ -18,6 +18,9 @@ import { tenantStorage, type TenantState } from '../tenant/tenant.context';
 export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'GymMember',
   'Trainer',
+  'Location',
+  'Product',
+  'StaffInvite',
   'AuditLog',
 ]);
 

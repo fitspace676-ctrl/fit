@@ -92,6 +92,8 @@ export async function registerWithCredentials(input: {
   name: string;
   email: string;
   password: string;
+  /** Staff-invite token (T4.7), forwarded when the sign-up came from an invite link. */
+  inviteToken?: string;
 }): Promise<{ message: string }> {
   const response = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
@@ -113,12 +115,21 @@ export async function registerWithCredentials(input: {
  * before returning (the caller walks away signed in). Throws with the API's
  * error message on a non-2xx response.
  */
-export async function loginWithCredentials(email: string, password: string): Promise<TokenPair> {
+export async function loginWithCredentials(
+  email: string,
+  password: string,
+  inviteToken?: string,
+): Promise<TokenPair> {
   const gymSlug = currentGymSlug();
   const response = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(gymSlug ? { email, password, gymSlug } : { email, password }),
+    body: JSON.stringify({
+      email,
+      password,
+      ...(gymSlug ? { gymSlug } : {}),
+      ...(inviteToken ? { inviteToken } : {}),
+    }),
   });
 
   if (!response.ok) {

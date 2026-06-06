@@ -169,6 +169,62 @@ export class EmailService {
 
     this.logger.debug(`Owner onboarding email dispatched to ${to}`);
   }
+
+  /**
+   * Send the staff-invitation email (T4.7) containing the single-use accept link.
+   * The link points at the API's `GET /auth/accept-invite` route, which verifies
+   * the token and 302-redirects the invitee to the web register / login flow that
+   * redeems it. Resolves once the mail is accepted by Resend (or immediately,
+   * having logged the link, when Resend is unconfigured); rejects when Resend
+   * returns an error. The copy names the gym and the role so the invitee knows
+   * what they're accepting.
+   */
+  async sendStaffInviteEmail(
+    to: string,
+    token: string,
+    gymName: string,
+    role: string,
+  ): Promise<void> {
+    const url = buildInviteAcceptUrl(token);
+    const roleLabel = role.toLowerCase();
+
+    if (!this.isConfigured) {
+      this.logger.warn(
+        `Resend not configured (RESEND_API_KEY unset) — staff invite link for ${to}: ${url}`,
+      );
+      return;
+    }
+
+    const html =
+      `<p>Hi,</p>` +
+      `<p>You've been invited to join <strong>${gymName}</strong> on Fit as a ${roleLabel}. ` +
+      `Accept the invitation to set up your account and get started:</p>` +
+      `<p><a href="${url}">Accept your invitation</a></p>` +
+      `<p>This link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.</p>`;
+    const text = `Hi,\n\nYou've been invited to join ${gymName} on Fit as a ${roleLabel}. Accept the invitation to set up your account and get started:\n${url}\n\nThis link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.`;
+
+    const response = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM,
+        to: [to],
+        subject: `You're invited to join ${gymName} on Fit`,
+        html,
+        text,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+    }
+
+    this.logger.debug(`Staff invite email dispatched to ${to}`);
+  }
 }
 
 /**
@@ -198,5 +254,17 @@ export function buildPasswordResetUrl(token: string): string {
     (env.WEB_URL
       ? `${env.WEB_URL.replace(/\/+$/, '')}/auth/reset-password`
       : 'http://localhost:3001/auth/reset-password');
+  return `${base}?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Build the staff-invite accept link the token is appended to. Points at the
+ * API's own `GET /auth/accept-invite` route (built from `API_PUBLIC_URL`), which
+ * verifies the token and redirects the invitee on to the web register / login
+ * flow — so the invite email always lands on the API regardless of which client
+ * eventually redeems it.
+ */
+export function buildInviteAcceptUrl(token: string): string {
+  const base = `${env.API_PUBLIC_URL.replace(/\/+$/, '')}/auth/accept-invite`;
   return `${base}?token=${encodeURIComponent(token)}`;
 }

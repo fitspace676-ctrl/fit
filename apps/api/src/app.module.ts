@@ -11,6 +11,7 @@ import { MembersModule } from './members/members.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { RedisModule } from './redis/redis.module';
+import { StaffModule } from './staff/staff.module';
 import { StorageModule } from './storage/storage.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
 import { TrainersModule } from './trainers/trainers.module';
@@ -42,6 +43,8 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   (`/admin/gyms` — list, suspend/reactivate, audited owner impersonation).
  * - {@link MembersModule} serves the staff console's tenant-scoped member
  *   roster + detail (`/members` — list, detail, bulk-export; `MemberRead`).
+ * - {@link StaffModule} serves the staff console's tenant-scoped staff management
+ *   (`/staff` — invite, list, re-role, remove; revoke invites; `StaffManage`).
  * - {@link LocationsModule} serves the staff console's tenant-scoped location
  *   management (`/admin/locations` — CRUD with hours + amenities; `LocationRead`
  *   / `LocationWrite`).
@@ -71,6 +74,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     LocationsModule,
     ProductsModule,
     MembersModule,
+    StaffModule,
     GymsModule,
     SuperAdminModule,
     TenantModule,
