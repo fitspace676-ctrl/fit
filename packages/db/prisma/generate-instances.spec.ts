@@ -11,6 +11,8 @@ import {
   DEFAULT_WEEKS_AHEAD,
   generateClassInstances,
   occurrencesInWindow,
+  planInstanceRegeneration,
+  type ExistingInstance,
   type GeneratorPrisma,
 } from './generate-instances';
 
@@ -262,5 +264,165 @@ describe('generateClassInstances', () => {
       { templateId: 't1', gymId: 'g1', created: 2 },
       { templateId: 't2', gymId: 'g2', created: 3 },
     ]);
+  });
+});
+
+describe('planInstanceRegeneration', () => {
+  const now = utc(2026, 6, 8); // a Monday
+
+  /** Build an existing future occurrence, defaulting to a live, empty, attached row. */
+  function instance(over: Partial<ExistingInstance> & { startsAt: Date }): ExistingInstance {
+    return {
+      id: `i-${over.startsAt.toISOString()}`,
+      endsAt: new Date(over.startsAt.getTime() + 45 * 60 * 1000),
+      status: InstanceStatus.SCHEDULED,
+      bookedCount: 0,
+      detachedAt: null,
+      ...over,
+    };
+  }
+
+  it('creates the missing occurrences when nothing is materialised yet', () => {
+    const plan = planInstanceRegeneration({
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      validFrom: now,
+      validUntil: null,
+      durationMinutes: 60,
+      existing: [],
+      now,
+    });
+
+    // 4 Mondays in the 4-week window.
+    expect(plan.toCreate).toEqual([
+      utc(2026, 6, 8),
+      utc(2026, 6, 15),
+      utc(2026, 6, 22),
+      utc(2026, 6, 29),
+    ]);
+    expect(plan.toRealign).toEqual([]);
+    expect(plan.toDetach).toEqual([]);
+    expect(plan.toDelete).toEqual([]);
+  });
+
+  it('is a no-op when the rule is unchanged and durations already match', () => {
+    const existing = [utc(2026, 6, 8), utc(2026, 6, 15), utc(2026, 6, 22), utc(2026, 6, 29)].map(
+      (startsAt) => instance({ startsAt }),
+    );
+
+    const plan = planInstanceRegeneration({
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      validFrom: now,
+      validUntil: null,
+      durationMinutes: 45,
+      existing,
+      now,
+    });
+
+    expect(plan).toEqual({ toCreate: [], toRealign: [], toDetach: [], toDelete: [] });
+  });
+
+  it('deletes unbooked occurrences that fall off the new rule', () => {
+    // Old rule was MO/WE; new rule is MO only — the Wednesday is unbooked.
+    const monday = instance({ startsAt: utc(2026, 6, 8) });
+    const wednesday = instance({ id: 'wed', startsAt: utc(2026, 6, 10) });
+
+    const plan = planInstanceRegeneration({
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      validFrom: now,
+      validUntil: null,
+      durationMinutes: 45,
+      existing: [monday, wednesday],
+      now,
+    });
+
+    expect(plan.toDelete).toEqual(['wed']);
+    expect(plan.toDetach).toEqual([]);
+    // Mondays beyond the first are newly created; the existing Monday survives.
+    expect(plan.toCreate).toEqual([utc(2026, 6, 15), utc(2026, 6, 22), utc(2026, 6, 29)]);
+  });
+
+  it('detaches (never deletes) a booked occurrence dropped from the rule', () => {
+    const wednesday = instance({ id: 'wed', startsAt: utc(2026, 6, 10), bookedCount: 3 });
+
+    const plan = planInstanceRegeneration({
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      validFrom: now,
+      validUntil: null,
+      durationMinutes: 45,
+      existing: [wednesday],
+      now,
+    });
+
+    expect(plan.toDetach).toEqual(['wed']);
+    expect(plan.toDelete).toEqual([]);
+  });
+
+  it('realigns endsAt for surviving occurrences when the duration changes', () => {
+    const monday = instance({ id: 'mon', startsAt: utc(2026, 6, 8) }); // endsAt +45m
+
+    const plan = planInstanceRegeneration({
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      validFrom: now,
+      validUntil: null,
+      durationMinutes: 90,
+      existing: [monday],
+      now,
+    });
+
+    expect(plan.toRealign).toEqual([{ id: 'mon', endsAt: utc(2026, 6, 8, 1, 30) }]);
+    expect(plan.toDelete).toEqual([]);
+  });
+
+  it('leaves already-detached and canceled occurrences untouched and does not re-create them', () => {
+    const detached = instance({
+      id: 'det',
+      startsAt: utc(2026, 6, 8),
+      bookedCount: 2,
+      detachedAt: utc(2026, 6, 1),
+    });
+    const canceled = instance({
+      id: 'can',
+      startsAt: utc(2026, 6, 15),
+      status: InstanceStatus.CANCELED,
+    });
+
+    const plan = planInstanceRegeneration({
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      validFrom: now,
+      validUntil: null,
+      durationMinutes: 45,
+      existing: [detached, canceled],
+      now,
+    });
+
+    // Neither row is mutated; their starts (Jun 8, Jun 15) are not re-created.
+    expect(plan.toDelete).toEqual([]);
+    expect(plan.toDetach).toEqual([]);
+    expect(plan.toRealign).toEqual([]);
+    expect(plan.toCreate).toEqual([utc(2026, 6, 22), utc(2026, 6, 29)]);
+  });
+
+  it('detaches booked + deletes unbooked occurrences past a shortened validUntil', () => {
+    const booked = instance({ id: 'b', startsAt: utc(2026, 6, 22), bookedCount: 1 });
+    const empty = instance({ id: 'e', startsAt: utc(2026, 6, 29) });
+
+    // validUntil now stops after Jun 15, so Jun 22 + Jun 29 are off the rule.
+    const plan = planInstanceRegeneration({
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      validFrom: now,
+      validUntil: utc(2026, 6, 15),
+      durationMinutes: 45,
+      existing: [
+        instance({ startsAt: utc(2026, 6, 8) }),
+        instance({ startsAt: utc(2026, 6, 15) }),
+        booked,
+        empty,
+      ],
+      now,
+    });
+
+    expect(plan.toDetach).toEqual(['b']);
+    expect(plan.toDelete).toEqual(['e']);
+    expect(plan.toCreate).toEqual([]);
   });
 });

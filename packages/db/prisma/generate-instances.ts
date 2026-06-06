@@ -192,3 +192,141 @@ export async function generateClassInstances(
     details,
   };
 }
+
+// ---------------------------------------------------------------------------
+// T5.8 — Regenerate a template's instances after an edit.
+//
+// When staff edit a recurring template (its rrule, validity bounds, or
+// duration), the already-materialised future occurrences must be reconciled
+// against the new definition. The pass below is *pure*: it takes the new
+// recurrence fields plus the template's existing future instances and returns
+// the set of DB mutations the caller applies in one transaction. Keeping it
+// free of Prisma makes the reconciliation rules exhaustively unit-testable and
+// lets the tenant-scoped API service own the actual reads/writes.
+//
+// Reconciliation rules (future occurrences only — the past is immutable):
+//   • A slot still on the new rule keeps its instance; if the duration changed,
+//     its `endsAt` is realigned. Bookings are preserved untouched.
+//   • A slot dropped from the rule with bookings is *detached* (its
+//     `detachedAt` is stamped) rather than deleted, so members keep their seat
+//     at the original time — a later generation pass leaves a detached row
+//     alone.
+//   • A slot dropped from the rule with no bookings is deleted.
+//   • A new slot on the rule is created as a fresh SCHEDULED instance.
+// Already-detached and non-SCHEDULED (e.g. CANCELED) occurrences are never
+// touched, and never re-created at the same start — mirroring the generator's
+// idempotency.
+
+/** A future occurrence already materialised, as {@link planInstanceRegeneration} reads it. */
+export interface ExistingInstance {
+  id: string;
+  startsAt: Date;
+  endsAt: Date;
+  status: InstanceStatus;
+  /** Seats taken — a booked occurrence dropped from the rule is detached, not deleted. */
+  bookedCount: number;
+  /** Non-null once the occurrence has been edited away from its template. */
+  detachedAt: Date | null;
+}
+
+/** Inputs for {@link planInstanceRegeneration}: the edited recurrence + current future rows. */
+export interface PlanInstanceRegenerationInput {
+  /** The template's new RFC-5545 recurrence string. */
+  rrule: string;
+  /** The template's recurrence anchor (DTSTART). */
+  validFrom: Date;
+  /** The template's inclusive validity end, or null for open-ended. */
+  validUntil: Date | null;
+  /** The template's new per-occurrence duration, used to derive `endsAt`. */
+  durationMinutes: number;
+  /** Future instances of the template already in the horizon window. */
+  existing: ExistingInstance[];
+  /** The instant the edit happens (occurrences before it are left in the past). Defaults to `new Date()`. */
+  now?: Date;
+  /** How many weeks ahead the generator materialises. Defaults to {@link DEFAULT_WEEKS_AHEAD}. */
+  weeksAhead?: number;
+}
+
+/** The reconciliation {@link planInstanceRegeneration} produces; the caller applies it. */
+export interface InstanceRegenerationPlan {
+  /** Occurrence starts to insert as fresh SCHEDULED instances. */
+  toCreate: Date[];
+  /** Surviving instances whose `endsAt` must be realigned to the new duration. */
+  toRealign: { id: string; endsAt: Date }[];
+  /** Booked instances dropped from the rule — detached (preserved), not deleted. */
+  toDetach: string[];
+  /** Unbooked, live instances dropped from the rule — deleted. */
+  toDelete: string[];
+}
+
+/**
+ * Reconcile a template's future instances against its edited recurrence. Pure:
+ * computes the new occurrence set with {@link occurrencesInWindow} (same window
+ * the generator uses, `[now, now + weeksAhead)`), diffs it against `existing`,
+ * and returns the create / realign / detach / delete actions to apply. See the
+ * section header for the full rule set.
+ */
+export function planInstanceRegeneration(
+  input: PlanInstanceRegenerationInput,
+): InstanceRegenerationPlan {
+  const now = input.now ?? new Date();
+  const weeksAhead = input.weeksAhead ?? DEFAULT_WEEKS_AHEAD;
+  const windowEnd = new Date(now.getTime() + weeksAhead * 7 * DAY_MS);
+
+  const desired = occurrencesInWindow(
+    input.rrule,
+    input.validFrom,
+    now,
+    windowEnd,
+    input.validUntil,
+  );
+
+  // Index the current future rows by their start instant for O(1) matching.
+  const existingByStart = new Map<number, ExistingInstance>();
+  for (const instance of input.existing) {
+    existingByStart.set(instance.startsAt.getTime(), instance);
+  }
+
+  const plan: InstanceRegenerationPlan = {
+    toCreate: [],
+    toRealign: [],
+    toDetach: [],
+    toDelete: [],
+  };
+  const matched = new Set<number>();
+
+  for (const startsAt of desired) {
+    const key = startsAt.getTime();
+    const instance = existingByStart.get(key);
+    if (!instance) {
+      plan.toCreate.push(startsAt);
+      continue;
+    }
+    // A row already sits at this start — keep it (preserving any bookings) and
+    // never double-materialise. Only a live, non-detached occurrence gets its
+    // end realigned when the duration changed.
+    matched.add(key);
+    if (instance.detachedAt === null && instance.status === InstanceStatus.SCHEDULED) {
+      const endsAt = new Date(startsAt.getTime() + input.durationMinutes * 60 * 1000);
+      if (endsAt.getTime() !== instance.endsAt.getTime()) {
+        plan.toRealign.push({ id: instance.id, endsAt });
+      }
+    }
+  }
+
+  for (const instance of input.existing) {
+    if (matched.has(instance.startsAt.getTime())) {
+      continue; // still on the rule — handled above
+    }
+    if (instance.detachedAt !== null || instance.status !== InstanceStatus.SCHEDULED) {
+      continue; // already detached, or canceled history — leave untouched
+    }
+    if (instance.bookedCount > 0) {
+      plan.toDetach.push(instance.id); // preserve members' seats at the old time
+    } else {
+      plan.toDelete.push(instance.id);
+    }
+  }
+
+  return plan;
+}
