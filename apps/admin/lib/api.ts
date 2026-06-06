@@ -18,6 +18,11 @@ import type {
   CreateMemberResponse,
   CreateTrainerData,
   CreateTrainerResponse,
+  GetGymSettingsResponse,
+  UpdateGymSettingsInput,
+  UpdateGymSettingsResponse,
+  UploadGymLogoInput,
+  UploadGymLogoResponse,
   GetAdminLocationResponse,
   GetAdminTrainerResponse,
   GetMemberResponse,
@@ -495,6 +500,41 @@ export async function removeStaff(memberId: string): Promise<void> {
   if (!res.ok) {
     await unwrap<void>(res);
   }
+}
+
+// ── Gym settings (T4.8) ─────────────────────────────────────────────────────
+
+/** `GET /gyms/settings` — the gym's brand / locale / hours / notification settings. */
+export async function fetchGymSettings(): Promise<GetGymSettingsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/settings`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetGymSettingsResponse>(res);
+}
+
+/** `PATCH /gyms/settings` — partial update of the gym's settings; returns the full updated set. */
+export async function updateGymSettings(
+  input: UpdateGymSettingsInput,
+): Promise<UpdateGymSettingsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/settings`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdateGymSettingsResponse>(res);
+}
+
+/** `POST /gyms/settings/logo` — finalise a logo upload by its R2 key; returns its public URL. */
+export async function uploadGymLogo(input: UploadGymLogoInput): Promise<UploadGymLogoResponse> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/settings/logo`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UploadGymLogoResponse>(res);
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────
