@@ -7,7 +7,8 @@
   "scripts": {
     "build": "echo '[@fit/types] build: nothing to do yet'",
     "lint": "eslint . --max-warnings 0",
-    "test": "echo '[@fit/types] test: nothing to do yet'",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
   },
@@ -15,6 +16,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "vitest": "^3.0.0"
   }
 }
