@@ -30,11 +30,27 @@ const REFRESH_TOKEN_KEY = 'refresh_token';
 // the right home for it precisely because it is not a secret.
 const BIOMETRIC_PREF_KEY = 'fit.biometricUnlockEnabled';
 
+// Whether the first-run onboarding has been completed. The T6.2 contract pins
+// this to SecureStore under the `onboarding_done` key, so the "show onboarding
+// once" gate sits next to the session it precedes. The value is a plain `"true"`
+// flag rather than a secret; we follow the contract's chosen store regardless.
+const ONBOARDING_DONE_KEY = 'onboarding_done';
+
 // In-memory mirror of the persisted session + subscribers. `cachedSession` is
 // the value `getSessionSnapshot` returns; its reference only changes on
 // save / clear / hydrate, which is what keeps `useSyncExternalStore` stable.
 let cachedSession: TokenPair | null = null;
 const subscribers = new Set<() => void>();
+
+// In-memory mirror of the onboarding flag with its own pub/sub, so the route
+// guard observes "onboarding finished" the moment the user taps Get started —
+// the exact pattern `cachedSession` uses for sign-in / sign-out.
+let onboardingComplete = false;
+const onboardingSubscribers = new Set<() => void>();
+
+function emitOnboarding(): void {
+  for (const notify of onboardingSubscribers) notify();
+}
 
 function emit(): void {
   for (const notify of subscribers) notify();
@@ -110,6 +126,45 @@ export async function isBiometricUnlockEnabled(): Promise<boolean> {
 /** Record the user's biometric-unlock preference (non-sensitive, AsyncStorage). */
 export async function setBiometricUnlockEnabled(enabled: boolean): Promise<void> {
   await AsyncStorage.setItem(BIOMETRIC_PREF_KEY, enabled ? 'true' : 'false');
+}
+
+/** Subscribe to onboarding-flag changes (complete / hydrate). Returns an unsubscribe. */
+export function subscribeOnboarding(callback: () => void): () => void {
+  onboardingSubscribers.add(callback);
+  return () => {
+    onboardingSubscribers.delete(callback);
+  };
+}
+
+/** The last-known onboarding flag without touching SecureStore (false until hydrated). */
+export function getOnboardingSnapshot(): boolean {
+  return onboardingComplete;
+}
+
+/**
+ * Load the persisted onboarding flag into the in-memory snapshot once at
+ * startup, so a relaunch knows whether to bypass the onboarding screens.
+ */
+export async function hydrateOnboarding(): Promise<boolean> {
+  onboardingComplete = (await SecureStore.getItemAsync(ONBOARDING_DONE_KEY)) === 'true';
+  emitOnboarding();
+  return onboardingComplete;
+}
+
+/** Read the persisted onboarding flag straight from SecureStore. */
+export async function isOnboardingComplete(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(ONBOARDING_DONE_KEY)) === 'true';
+}
+
+/**
+ * Mark first-run onboarding complete: persist the flag and flip the in-memory
+ * snapshot so the route guard moves the user on without a relaunch. Once set it
+ * is never unset, so the onboarding screens are shown exactly once.
+ */
+export async function setOnboardingComplete(): Promise<void> {
+  await SecureStore.setItemAsync(ONBOARDING_DONE_KEY, 'true');
+  onboardingComplete = true;
+  emitOnboarding();
 }
 
 /** True when the device has biometric hardware AND the user has enrolled a face/fingerprint. */

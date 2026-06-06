@@ -15,6 +15,76 @@ export type { TokenPair };
 const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 /**
+ * Exchange an email + password for a Fit session. POSTs to `POST /auth/login`;
+ * the API verifies the credentials and issues a {@link TokenPair}, persisted to
+ * the keychain before returning (the caller walks away signed in). Throws with
+ * the API's error message on a non-2xx response (e.g. wrong password, or an
+ * unverified email).
+ */
+export async function loginWithPassword(email: string, password: string): Promise<TokenPair> {
+  const response = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Sign-in failed (${response.status})`);
+  }
+
+  const tokens = (await response.json()) as TokenPair;
+  await saveTokens(tokens);
+  return tokens;
+}
+
+/**
+ * Create a new account. POSTs to `POST /auth/register`; the API creates the user
+ * and emails a verification link, returning a generic acknowledgement. No
+ * session is issued here — the account is dormant until the emailed link is
+ * opened (which routes back into the app at {@link verifyEmail}) — so this does
+ * NOT persist tokens. Throws with the API's error message on a non-2xx response.
+ */
+export async function register(
+  email: string,
+  password: string,
+  name: string,
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name }),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Registration failed (${response.status})`);
+  }
+
+  return (await response.json()) as { message: string };
+}
+
+/**
+ * Verify an email address from the emailed link's single-use token. Calls
+ * `GET /auth/verify?token=…`; the API marks the address verified and issues the
+ * account's first {@link TokenPair}, persisted to the keychain before returning
+ * (the caller walks away signed in). Throws with the API's error message on a
+ * non-2xx response (e.g. an expired or already-used token).
+ */
+export async function verifyEmail(token: string): Promise<TokenPair> {
+  const response = await fetch(`${API_URL}/auth/verify?token=${encodeURIComponent(token)}`);
+
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Email verification failed (${response.status})`);
+  }
+
+  const tokens = (await response.json()) as TokenPair;
+  await saveTokens(tokens);
+  return tokens;
+}
+
+/**
  * Exchange a Google ID token (from Google Sign-In) for a Fit session. POSTs to
  * `POST /auth/google`; the API verifies the Google token and issues its own
  * {@link TokenPair}, which is persisted to the keychain before returning. Throws
