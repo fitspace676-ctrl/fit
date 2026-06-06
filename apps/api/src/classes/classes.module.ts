@@ -7,6 +7,8 @@ import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
+import { MemberBookingsController } from './member-bookings.controller';
+import { MemberBookingsService } from './member-bookings.service';
 
 /**
  * Classes: the public class-discovery surface (`GET /class-instances`) plus the
@@ -33,6 +35,12 @@ import { ClassesService } from './classes.service';
  * (`GET`/`POST /admin/class-instances/:id/attendance`, T5.7) — read the roster
  * (`ClassRead`) and record attended / no-show outcomes (`ClassWrite`),
  * completing the occurrence, in {@link AttendanceService}.
+ *
+ * The {@link MemberBookingsController} adds the member-panel booking-history
+ * surface (`GET /me/bookings`, T5.10) — the caller's own bookings across every
+ * status, scoped to upcoming / past / all — authenticated and tenant-scoped
+ * (behind `TenantGuard` + `PermissionsGuard`, reusing `ClassBook`), projected in
+ * {@link MemberBookingsService}.
  */
 @Module({
   controllers: [
@@ -40,7 +48,14 @@ import { ClassesService } from './classes.service';
     AdminClassTemplatesController,
     BookingsController,
     AttendanceController,
+    MemberBookingsController,
   ],
-  providers: [ClassesService, AdminClassTemplatesService, BookingsService, AttendanceService],
+  providers: [
+    ClassesService,
+    AdminClassTemplatesService,
+    BookingsService,
+    AttendanceService,
+    MemberBookingsService,
+  ],
 })
 export class ClassesModule {}

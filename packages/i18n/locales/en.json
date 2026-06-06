@@ -1,4 +1,28 @@
 {
+  "account": {
+    "bookings": {
+      "title": "My bookings",
+      "subtitle": "Your upcoming classes and booking history.",
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "noUpcoming": "You have no upcoming bookings.",
+      "when": "When",
+      "details": "Trainer and location",
+      "waitlistPosition": "Waitlist · #{position}",
+      "status": {
+        "BOOKED": "Booked",
+        "WAITLIST": "Waitlisted",
+        "ATTENDED": "Attended",
+        "NO_SHOW": "No-show",
+        "CANCELED": "Canceled"
+      },
+      "empty": {
+        "title": "No bookings yet",
+        "subtitle": "When you book a class it will show up here, along with your past sessions.",
+        "action": "Browse classes"
+      }
+    }
+  },
   "common": {
     "appName": "Fit",
     "nav": {
