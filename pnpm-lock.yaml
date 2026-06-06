@@ -431,6 +431,9 @@ importers:
       '@prisma/client':
         specifier: ^6.2.1
         version: 6.19.3(prisma@6.19.3(typescript@6.0.3))(typescript@6.0.3)
+      rrule:
+        specifier: ^2.8.1
+        version: 2.8.1
     devDependencies:
       '@fit/config':
         specifier: workspace:*
@@ -441,9 +444,6 @@ importers:
       prisma:
         specifier: ^6.2.1
         version: 6.19.3(typescript@6.0.3)
-      rrule:
-        specifier: ^2.8.1
-        version: 2.8.1
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
