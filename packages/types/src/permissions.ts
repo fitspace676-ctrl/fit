@@ -53,6 +53,8 @@ export enum Permission {
   ClassRead = 'class:read',
   /** Create, update, pause, or remove recurring class templates. */
   ClassWrite = 'class:write',
+  /** Book (or waitlist) oneself into a scheduled class occurrence. */
+  ClassBook = 'class:book',
   /** View billing, invoices, and payment history. */
   BillingRead = 'billing:read',
   /** Manage subscriptions, plans, and payment settings. */
@@ -93,6 +95,7 @@ export const ROLE_PERMISSIONS = {
     Permission.PackageWrite,
     Permission.ClassRead,
     Permission.ClassWrite,
+    Permission.ClassBook,
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.WorkoutRead,
@@ -141,7 +144,7 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
   ],
-  MEMBER: [Permission.WorkoutRead],
+  MEMBER: [Permission.WorkoutRead, Permission.ClassBook],
 } satisfies Record<GymScopedRoleName, readonly Permission[]>;
 
 /**

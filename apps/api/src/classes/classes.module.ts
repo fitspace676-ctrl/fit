@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AdminClassTemplatesController } from './admin-class-templates.controller';
 import { AdminClassTemplatesService } from './admin-class-templates.service';
+import { BookingsController } from './bookings.controller';
+import { BookingsService } from './bookings.service';
 import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
 
@@ -17,9 +19,14 @@ import { ClassesService } from './classes.service';
  * Prisma client, the guards, and the tenant context all come from the app-wide
  * `TenantModule` / `RbacModule`. The real `ClassInstance`-backed discovery query
  * is wired in Phase 5 (see {@link ClassesService}).
+ *
+ * The {@link BookingsController} adds the member-facing booking surface (`POST
+ * /class-instances/:id/bookings`, T5.4) on the same prefix — authenticated and
+ * tenant-scoped (behind `TenantGuard` + `PermissionsGuard`, `ClassBook`), with the
+ * atomic capacity gate + idempotent-retry logic in {@link BookingsService}.
  */
 @Module({
-  controllers: [ClassesController, AdminClassTemplatesController],
-  providers: [ClassesService, AdminClassTemplatesService],
+  controllers: [ClassesController, AdminClassTemplatesController, BookingsController],
+  providers: [ClassesService, AdminClassTemplatesService, BookingsService],
 })
 export class ClassesModule {}

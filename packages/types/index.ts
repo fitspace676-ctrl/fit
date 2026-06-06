@@ -2,6 +2,7 @@
 export * from './src/admin';
 export * from './src/audit';
 export * from './src/auth';
+export * from './src/bookings';
 export * from './src/classes';
 export * from './src/classes-admin';
 export * from './src/dashboard';

@@ -25,9 +25,11 @@ describe('roleHasPermission', () => {
     expect(roleHasPermission(Role.RECEPTIONIST, Permission.BillingManage)).toBe(false);
   });
 
-  it('limits a MEMBER to reading workouts only', () => {
+  it('limits a MEMBER to reading workouts and booking classes', () => {
     expect(roleHasPermission(Role.MEMBER, Permission.WorkoutRead)).toBe(true);
+    expect(roleHasPermission(Role.MEMBER, Permission.ClassBook)).toBe(true);
     expect(roleHasPermission(Role.MEMBER, Permission.MemberRead)).toBe(false);
+    expect(roleHasPermission(Role.MEMBER, Permission.ClassWrite)).toBe(false);
     expect(roleHasPermission(Role.MEMBER, Permission.GymManage)).toBe(false);
   });
 
