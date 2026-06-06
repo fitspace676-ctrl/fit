@@ -29,16 +29,22 @@ export function CredentialsLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Carried from a staff invite link (T4.7): `/login?inviteToken=…` when the
+  // invited address already has an account. Forwarded to the API so signing in
+  // redeems the invite onto it. `inviteError` flags an invalid / expired link.
+  const inviteToken = searchParams.get('inviteToken') ?? undefined;
+  const inviteError = searchParams.get('inviteError');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(inviteError ? t('invite.invalid') : null);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     setPending(true);
     setError(null);
-    loginWithCredentials(email, password)
+    loginWithCredentials(email, password, inviteToken)
       .then(() => {
         const destination = safeFrom(searchParams.get('from')) ?? `/${locale}`;
         router.replace(destination);

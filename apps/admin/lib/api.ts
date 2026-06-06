@@ -32,6 +32,11 @@ import type {
   CreateProductData,
   CreateProductResponse,
   GetAdminProductResponse,
+  InviteStaffInput,
+  InviteStaffResponse,
+  ListStaffResponse,
+  UpdateStaffRoleInput,
+  UpdateStaffRoleResponse,
   SetLocationStatusResponse,
   SetMemberStatusResponse,
   SetProductStatusResponse,
@@ -430,6 +435,66 @@ export async function reactivateProduct(id: string): Promise<SetProductStatusRes
     cache: 'no-store',
   });
   return unwrap<SetProductStatusResponse>(res);
+}
+
+// ── Staff (T4.7) ──────────────────────────────────────────────────────────────
+
+/** `GET /staff` — the gym's active staff plus its pending invitations. */
+export async function fetchStaff(): Promise<ListStaffResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListStaffResponse>(res);
+}
+
+/** `POST /staff/invite` — invite someone to the gym's staff; returns the invite id. */
+export async function inviteStaff(input: InviteStaffInput): Promise<InviteStaffResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/invite`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<InviteStaffResponse>(res);
+}
+
+/** `DELETE /staff/invite/:inviteId` — revoke a pending invitation. */
+export async function revokeStaffInvite(inviteId: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/staff/invite/${encodeURIComponent(inviteId)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<void>(res);
+  }
+}
+
+/** `PATCH /staff/:memberId/role` — change a staff member's role; returns the updated row. */
+export async function updateStaffRole(
+  memberId: string,
+  input: UpdateStaffRoleInput,
+): Promise<UpdateStaffRoleResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(memberId)}/role`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdateStaffRoleResponse>(res);
+}
+
+/** `DELETE /staff/:memberId` — remove a staff member (revoking their sessions). */
+export async function removeStaff(memberId: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(memberId)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<void>(res);
+  }
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────

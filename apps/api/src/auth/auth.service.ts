@@ -125,6 +125,12 @@ export class AuthService {
       );
     }
 
+    // If this sign-up came from a staff invitation (T4.7), redeem it now so the
+    // new account is added to the inviting gym with the invited role. Best-effort
+    // and self-contained — a bad / mismatched token simply leaves registration
+    // unaffected (a normal account is still created).
+    await this.redeemStaffInvite(user.id, input.email, input.inviteToken);
+
     return { message: 'verification email sent' };
   }
 
@@ -409,6 +415,12 @@ export class AuthService {
         code: 'EMAIL_NOT_VERIFIED',
       });
     }
+
+    // Redeem a staff invitation (T4.7) before scope resolution, so an existing
+    // user signing in via the invite link picks up the new staff membership in
+    // this same session. Best-effort: a bad / mismatched token leaves login
+    // unchanged.
+    await this.redeemStaffInvite(user.id, input.email, input.inviteToken);
 
     await this.assertGymAccessNotSuspended(user.id);
 
@@ -719,6 +731,109 @@ export class AuthService {
   async logout(input: RefreshInput): Promise<void> {
     await this.tokens.revokeRefreshToken(input.refreshToken);
   }
+
+  /**
+   * Resolve a staff-invite token (T4.7) to the client URL the invitee should be
+   * sent to (`GET /auth/accept-invite`). A live invite routes to the web
+   * register flow for a brand-new address, or the login flow when the address
+   * already has an account — both carrying the token so completing the flow
+   * redeems it. An unknown / expired / already-used token routes to login with an
+   * `inviteError` flag so the client can show a clear "this invitation is no
+   * longer valid" message rather than an error page. The token is never spent
+   * here — only redirected — so following the link is always safe to retry.
+   */
+  async acceptInvite(token: string): Promise<{ url: string }> {
+    const invite = await this.prisma.client.staffInvite.findUnique({
+      where: { token },
+      select: { email: true, usedAt: true, expiresAt: true },
+    });
+
+    if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
+      return { url: buildInviteRedirectUrl('/login', { inviteError: 'invalid' }) };
+    }
+
+    const existing = await this.prisma.client.user.findUnique({
+      where: { email: invite.email },
+      select: { id: true },
+    });
+    const path = existing ? '/login' : '/register';
+    return { url: buildInviteRedirectUrl(path, { inviteToken: token }) };
+  }
+
+  /**
+   * Redeem a staff invitation (T4.7) for a user who has just registered or logged
+   * in with the invite token. Creates (or, for a returning person, upserts) the
+   * gym-staff {@link GymMember} with the invited role and marks the invite used.
+   *
+   * Defensive by design and never throws into the auth flow it's called from:
+   *   • A missing / expired / already-used token is a silent no-op — a normal
+   *     sign-up or sign-in must not fail because an invite went stale.
+   *   • The invite's `email` must match the account's, so a token can only ever
+   *     add the *invited* address to a gym (a logged-in attacker can't redeem
+   *     someone else's invite onto their own account).
+   *   • The "mark used" update is guarded on `usedAt: null`, so two concurrent
+   *     redemptions can't both succeed — the invite is strictly single-use.
+   *
+   * Runs on the **unscoped** {@link PrismaService}: redemption happens during auth,
+   * before any tenant context exists, and the target gym comes from the invite
+   * itself rather than the request.
+   */
+  private async redeemStaffInvite(userId: string, email: string, token?: string): Promise<void> {
+    if (!token) {
+      return;
+    }
+    try {
+      const invite = await this.prisma.client.staffInvite.findUnique({ where: { token } });
+      if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
+        return;
+      }
+      if (invite.email.toLowerCase() !== email.toLowerCase()) {
+        return;
+      }
+
+      await this.prisma.client.$transaction(async (tx) => {
+        // Single-use guard: the loser of a race sees zero rows updated and stops.
+        const claimed = await tx.staffInvite.updateMany({
+          where: { id: invite.id, usedAt: null },
+          data: { usedAt: new Date() },
+        });
+        if (claimed.count === 0) {
+          return;
+        }
+        await tx.gymMember.upsert({
+          where: { userId_gymId: { userId, gymId: invite.gymId } },
+          create: {
+            userId,
+            gymId: invite.gymId,
+            role: invite.role,
+            status: GymMemberStatus.ACTIVE,
+          },
+          update: { role: invite.role, status: GymMemberStatus.ACTIVE },
+        });
+      });
+
+      this.logger.debug(`Redeemed staff invite ${invite.id} for user ${userId}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to redeem staff invite for ${email}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+}
+
+/**
+ * Build a web-client deep link for the staff-invite accept flow (T4.7). Targets
+ * the web app (`WEB_URL`, falling back to the dev default the email links use) at
+ * `path` with the given query params — e.g. `/register?inviteToken=…`. The path
+ * carries no locale prefix; the web app's i18n middleware adds the default locale
+ * on redirect, preserving the query string.
+ */
+function buildInviteRedirectUrl(path: string, params: Record<string, string>): string {
+  const base = env.WEB_URL ? env.WEB_URL.replace(/\/+$/, '') : 'http://localhost:3001';
+  const qs = new URLSearchParams(params).toString();
+  return `${base}${path}?${qs}`;
 }
 
 /**

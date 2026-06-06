@@ -118,6 +118,9 @@
     },
     "orContinueWith": "or continue with",
     "genericError": "Something went wrong. Please try again.",
+    "invite": {
+      "invalid": "This invitation link is invalid or has expired. Ask your gym to send a new one."
+    },
     "login": {
       "title": "Sign in to Fit",
       "subtitle": "Welcome back — enter your details to continue.",

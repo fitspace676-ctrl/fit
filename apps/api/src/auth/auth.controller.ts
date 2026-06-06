@@ -7,9 +7,11 @@ import {
   HttpStatus,
   Post,
   Query,
+  Redirect,
 } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  acceptInviteSchema,
   appleAuthSchema,
   forgotPasswordSchema,
   googleAuthSchema,
@@ -66,6 +68,20 @@ export class AuthController {
   async verify(@Query() query: unknown): Promise<TokenPair> {
     const { token } = parse(verifyEmailSchema, query);
     return this.auth.verifyEmail(token);
+  }
+
+  /**
+   * `GET /auth/accept-invite?token=…` — resolve a staff invitation (T4.7) and
+   * 302-redirect the invitee to the web register (new address) or login (existing
+   * address) flow carrying the token, so completing it redeems the invite. An
+   * unknown / expired / used token redirects to login with an `inviteError` flag
+   * rather than erroring, so the invitee always lands on a clear page.
+   */
+  @Get('accept-invite')
+  @Redirect()
+  async acceptInvite(@Query() query: unknown): Promise<{ url: string }> {
+    const { token } = parse(acceptInviteSchema, query);
+    return this.auth.acceptInvite(token);
   }
 
   /** `POST /auth/login` — authenticate an email/password pair and issue a session. */

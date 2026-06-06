@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
@@ -28,7 +29,9 @@ export default async function RegisterPage({ params }: { params: Promise<{ local
         </>
       }
     >
-      <RegisterForm />
+      <Suspense fallback={null}>
+        <RegisterForm />
+      </Suspense>
     </AuthShell>
   );
 }

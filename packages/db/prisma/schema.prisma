@@ -92,10 +92,11 @@ model Gym {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  members   GymMember[]
-  trainers  Trainer[]
-  locations Location[]
-  products  Product[]
+  members      GymMember[]
+  trainers     Trainer[]
+  locations    Location[]
+  products     Product[]
+  staffInvites StaffInvite[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -257,6 +258,31 @@ model RefreshToken {
   @@index([userId])
   @@index([familyId])
   @@map("refresh_tokens")
+}
+
+/// A pending invitation for someone to join a gym's staff (T4.7). Created from the
+/// staff console (`POST /staff/invite`), it carries the address invited, the
+/// {@link Role} they will hold once they accept, and a single-use `token` the
+/// emailed accept link (`GET /auth/accept-invite`) resolves. `expiresAt` bounds
+/// the link's life (7 days); `usedAt` is stamped when the invite is redeemed —
+/// after which it can never be redeemed again (single-use). A revoked invite is
+/// simply deleted. `email` is stored normalised (lower-case) so an invite matches
+/// the address regardless of the casing it was typed in. Distinct from a
+/// {@link GymMember}, which is the membership the redemption actually creates.
+model StaffInvite {
+  id        String    @id @default(cuid())
+  gymId     String
+  email     String
+  role      Role
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@map("staff_invites")
 }
 
 /// Append-only record of privileged platform actions, written by the SuperAdmin

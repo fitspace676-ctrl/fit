@@ -21,10 +21,20 @@ export const PASSWORD_MAX_LENGTH = 256;
  * identity can't be registered twice under differing case; the password is only
  * length-bounded (composition rules add friction without much security).
  */
+/**
+ * An optional staff-invite token (T4.7) carried through registration and login.
+ * When present and matching a live invitation for the same address, completing
+ * the flow redeems it — creating the gym-staff `GymMember` with the invited role.
+ * An absent / unknown / expired token is simply ignored, so a normal sign-up or
+ * sign-in is unaffected; the token is therefore never a credential, only context.
+ */
+export const inviteTokenSchema = z.string().trim().min(1).max(128).optional();
+
 export const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
   name: z.string().trim().min(1).max(100),
+  inviteToken: inviteTokenSchema,
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -35,6 +45,13 @@ export const verifyEmailSchema = z.object({
 });
 
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+/** Query for `GET /auth/accept-invite` — the single-use token from the emailed link. */
+export const acceptInviteSchema = z.object({
+  token: z.string().trim().min(1),
+});
+
+export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
 
 /**
  * Body for `POST /auth/login`. Email is normalised the same way registration
@@ -56,6 +73,7 @@ export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
   gymSlug: z.string().trim().toLowerCase().min(1).max(63).optional(),
+  inviteToken: inviteTokenSchema,
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

@@ -27,6 +27,13 @@ export const envSchema = z.object({
   ADMIN_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().optional(),
 
+  // ── Public origins (deep links) ──
+  // The API's own public base URL, used to build the staff-invite accept link
+  // (`<API_PUBLIC_URL>/auth/accept-invite?token=…`) that lands on this API and
+  // 302-redirects the invitee to the web register / login flow. Defaults to the
+  // local dev API so invites work end-to-end without extra config.
+  API_PUBLIC_URL: z.string().url().default('http://localhost:3000'),
+
   // ── Multi-tenancy (subdomain resolution) ──
   // Root domain tenants live under as `<slug>.fit.ge`. The subdomain tenant
   // middleware strips this suffix off the request `Host` to recover the tenant
@@ -83,6 +90,11 @@ export const envSchema = z.object({
   // Base URL the reset token is appended to in the email deep link
   // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/auth/reset-password`).
   PASSWORD_RESET_URL: z.string().url().optional(),
+
+  // ── Staff invitations (T4.7) ──
+  // TTL (seconds) of a staff-invite token. The accept link is single-use and
+  // expires after this window. Default 7 days.
+  STAFF_INVITE_TTL: z.coerce.number().int().positive().default(604_800),
 
   // ── Email delivery (Resend — optional) ──
   // Unset disables outbound mail: registration still succeeds and the
