@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AdminClassTemplatesController } from './admin-class-templates.controller';
 import { AdminClassTemplatesService } from './admin-class-templates.service';
+import { AttendanceController } from './attendance.controller';
+import { AttendanceService } from './attendance.service';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { ClassesController } from './classes.controller';
@@ -26,9 +28,19 @@ import { ClassesService } from './classes.service';
  * `PermissionsGuard`, `ClassBook`), with the atomic capacity gate + idempotent
  * retry and the waitlist auto-promote-on-cancellation logic in
  * {@link BookingsService}.
+ *
+ * The {@link AttendanceController} adds the staff-console attendance surface
+ * (`GET`/`POST /admin/class-instances/:id/attendance`, T5.7) — read the roster
+ * (`ClassRead`) and record attended / no-show outcomes (`ClassWrite`),
+ * completing the occurrence, in {@link AttendanceService}.
  */
 @Module({
-  controllers: [ClassesController, AdminClassTemplatesController, BookingsController],
-  providers: [ClassesService, AdminClassTemplatesService, BookingsService],
+  controllers: [
+    ClassesController,
+    AdminClassTemplatesController,
+    BookingsController,
+    AttendanceController,
+  ],
+  providers: [ClassesService, AdminClassTemplatesService, BookingsService, AttendanceService],
 })
 export class ClassesModule {}
