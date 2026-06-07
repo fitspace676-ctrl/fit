@@ -75,7 +75,7 @@ function setup(config: {
   const cartItemDeleteMany = vi.fn(() => Promise.resolve({ count: 1 }));
 
   const cartItemCreate = vi.fn(() => Promise.resolve({}));
-  const orderCreate = vi.fn(() => Promise.resolve({ id: 'order-1' }));
+  const orderCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'order-1' }));
   const gymMemberFindFirst = vi.fn(() => Promise.resolve(null));
 
   const client = {

@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Request, Response } from 'express';
+import type { CartView } from '@fit/types';
 import type { CartResult, CartService, CheckoutOutcome } from './cart.service';
 import { CartController } from './cart.controller';
 
-const EMPTY_VIEW = { items: [], subtotal: 0, discount: 0, total: 0, currency: 'USD' } as const;
+const EMPTY_VIEW: CartView = { items: [], subtotal: 0, discount: 0, total: 0, currency: 'USD' };
 
 function mockRes() {
   return {
