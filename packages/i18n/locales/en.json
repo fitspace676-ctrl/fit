@@ -398,6 +398,72 @@
       }
     }
   },
+  "shop": {
+    "title": "Shop",
+    "subtitle": "Gear, supplements, and essentials from your gym.",
+    "retry": "Try again",
+    "browse": {
+      "loading": "Loading products…",
+      "error": "We couldn’t load the shop. Please try again.",
+      "fromPrice": "from {price}",
+      "empty": {
+        "title": "Nothing for sale yet",
+        "subtitle": "This gym hasn’t added any products yet. Check back soon."
+      }
+    },
+    "detail": {
+      "back": "Shop",
+      "added": "Added to cart",
+      "options": "Options",
+      "outOfStock": "Out of stock",
+      "quantity": "Quantity",
+      "addToCart": "Add to cart",
+      "unavailable": "Unavailable",
+      "notFound": {
+        "title": "Product not found",
+        "subtitle": "This product may no longer be available."
+      }
+    },
+    "cart": {
+      "open": "Open cart",
+      "back": "Shop",
+      "title": "Cart",
+      "eachPrice": "{price} each",
+      "remove": "Remove",
+      "decrease": "Decrease quantity",
+      "increase": "Increase quantity",
+      "subtotal": "Subtotal",
+      "empty": {
+        "title": "Your cart is empty",
+        "subtitle": "Browse the shop and add a few things to get started.",
+        "action": "Browse products"
+      }
+    },
+    "checkout": {
+      "pay": "Place order",
+      "processing": "Placing order…",
+      "note": "Payment is simulated for now — no card is charged.",
+      "error": "We couldn’t place your order. Please try again."
+    },
+    "order": {
+      "loading": "Loading your order…",
+      "error": "We couldn’t load this order. Please try again.",
+      "title": "Order confirmed",
+      "subtitle": "Thanks! Your order has been placed.",
+      "idLabel": "Order {id}",
+      "total": "Total",
+      "continue": "Continue shopping",
+      "status": {
+        "pending": "Pending",
+        "paid": "Paid",
+        "cancelled": "Cancelled"
+      },
+      "notFound": {
+        "title": "Order not found",
+        "subtitle": "We couldn’t find that order. It may have been removed."
+      }
+    }
+  },
   "checkout": {
     "title": "Checkout",
     "subtitle": "A few quick steps to set up your membership.",
