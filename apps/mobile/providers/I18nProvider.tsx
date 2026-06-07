@@ -1,12 +1,25 @@
 import { defaultLocale, isLocale, locales, messages, type Locale } from '@fit/i18n';
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { detectDeviceLocale, loadStoredLocale, persistLocale } from '../lib/locale';
 
 // Mobile i18n. Consumes the SAME message catalogues as web (`@fit/i18n`), so the
 // translation keys never drift between surfaces. This is a deliberately small
 // runtime — next-intl is web-only — exposing a dot-path `t()` lookup with
-// fallback to the default locale. Device-locale detection and persistence land
-// with Settings (T6.8); for now the locale defaults to the platform default and
-// can be switched at runtime via `setLocale`.
+// fallback to the default locale.
+//
+// Locale resolution (T6.8): the first paint uses `initialLocale` (the platform
+// default) so there is no async gate on launch; immediately after mount we
+// hydrate the *effective* locale from, in order, the user's persisted choice
+// then the device language. A `setLocale` from the Settings language switcher
+// persists the choice so it wins on every later launch.
 
 type MessageTree = { [key: string]: string | MessageTree };
 
@@ -46,8 +59,25 @@ export function I18nProvider({
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
+  // Hydrate the effective locale once on mount: a persisted choice wins, else the
+  // device language seeds the first run. Guarded so a late-resolving read can't
+  // clobber a choice the user makes in the meantime.
+  useEffect(() => {
+    let active = true;
+    void loadStoredLocale().then((stored) => {
+      if (!active) return;
+      const resolved = stored ?? detectDeviceLocale();
+      if (resolved !== initialLocale) setLocaleState(resolved);
+    });
+    return () => {
+      active = false;
+    };
+  }, [initialLocale]);
+
   const setLocale = useCallback((next: Locale) => {
-    if (isLocale(next)) setLocaleState(next);
+    if (!isLocale(next)) return;
+    setLocaleState(next);
+    void persistLocale(next);
   }, []);
 
   const t = useCallback(

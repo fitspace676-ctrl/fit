@@ -489,6 +489,55 @@
       }
     }
   },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your profile, language, and notifications.",
+    "account": {
+      "heading": "Account",
+      "role": "Role",
+      "gym": "Gym",
+      "memberId": "Member ID",
+      "noGym": "No gym selected",
+      "roles": {
+        "MEMBER": "Member",
+        "TRAINER": "Trainer",
+        "RECEPTIONIST": "Receptionist",
+        "MANAGER": "Manager",
+        "OWNER": "Owner",
+        "SUPER_ADMIN": "Super admin"
+      }
+    },
+    "preferences": {
+      "heading": "Preferences",
+      "language": "Language",
+      "notifications": "Notifications",
+      "notificationsHint": "Reminders and updates",
+      "appearance": "Appearance",
+      "appearanceSystem": "Follows system"
+    },
+    "about": {
+      "heading": "About",
+      "version": "Version",
+      "signOut": "Sign out",
+      "signOutConfirm": "You'll need to sign in again to use the app.",
+      "signOutCancel": "Cancel",
+      "signedOut": "Signed out"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "subtitle": "Choose what you'd like to hear about. Delivery is enabled in a later update.",
+    "push": "Push notifications",
+    "pushHint": "Allow Fit to send notifications to this device.",
+    "categories": "Categories",
+    "classReminders": "Class reminders",
+    "classRemindersHint": "Before your booked classes start.",
+    "bookingUpdates": "Booking updates",
+    "bookingUpdatesHint": "Waitlist promotions, cancellations, and changes.",
+    "promotions": "Promotions",
+    "promotionsHint": "Offers and news from your gym.",
+    "disabledHint": "Enable push notifications to manage categories."
+  },
   "errors": {
     "forbidden": {
       "badge": "403",

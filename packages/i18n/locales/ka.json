@@ -489,6 +489,55 @@
       }
     }
   },
+  "settings": {
+    "title": "პარამეტრები",
+    "subtitle": "მართე შენი პროფილი, ენა და შეტყობინებები.",
+    "account": {
+      "heading": "ანგარიში",
+      "role": "როლი",
+      "gym": "დარბაზი",
+      "memberId": "წევრის ID",
+      "noGym": "დარბაზი არ არის არჩეული",
+      "roles": {
+        "MEMBER": "წევრი",
+        "TRAINER": "ტრენერი",
+        "RECEPTIONIST": "რეცეფციონისტი",
+        "MANAGER": "მენეჯერი",
+        "OWNER": "მფლობელი",
+        "SUPER_ADMIN": "სუპერ ადმინი"
+      }
+    },
+    "preferences": {
+      "heading": "პარამეტრები",
+      "language": "ენა",
+      "notifications": "შეტყობინებები",
+      "notificationsHint": "შეხსენებები და განახლებები",
+      "appearance": "გარეგნობა",
+      "appearanceSystem": "სისტემის მიხედვით"
+    },
+    "about": {
+      "heading": "აპის შესახებ",
+      "version": "ვერსია",
+      "signOut": "გასვლა",
+      "signOutConfirm": "აპის გამოსაყენებლად ხელახლა უნდა შეხვიდე.",
+      "signOutCancel": "გაუქმება",
+      "signedOut": "გამოხვედი"
+    }
+  },
+  "notifications": {
+    "title": "შეტყობინებები",
+    "subtitle": "აირჩიე, რის შესახებ გსურს შეტყობინებების მიღება. მიწოდება მოგვიანებით ჩაირთვება.",
+    "push": "push შეტყობინებები",
+    "pushHint": "მიეცი Fit-ს ამ მოწყობილობაზე შეტყობინებების გაგზავნის უფლება.",
+    "categories": "კატეგორიები",
+    "classReminders": "ვარჯიშის შეხსენებები",
+    "classRemindersHint": "დაჯავშნილი ვარჯიშების დაწყებამდე.",
+    "bookingUpdates": "ჯავშნის განახლებები",
+    "bookingUpdatesHint": "მოლოდინის სიიდან დადასტურება, გაუქმებები და ცვლილებები.",
+    "promotions": "აქციები",
+    "promotionsHint": "შეთავაზებები და სიახლეები შენი დარბაზიდან.",
+    "disabledHint": "კატეგორიების სამართავად ჩართე push შეტყობინებები."
+  },
   "errors": {
     "forbidden": {
       "badge": "403",
