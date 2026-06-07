@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { PosBoard } from '@/components/pos/pos-board';
@@ -27,6 +28,7 @@ export const dynamic = 'force-dynamic';
 export default async function PosPage() {
   const session = await getServerSession();
   const canSell = session !== null && roleHasPermission(session.role, Permission.ProductRead);
+  const canReconcile = session !== null && roleHasPermission(session.role, Permission.BillingRead);
 
   if (!canSell) {
     return (
@@ -43,9 +45,19 @@ export default async function PosPage() {
     <div className="flex h-screen flex-col gap-4 p-4">
       <header className="flex items-baseline justify-between gap-4">
         <h1 className="text-xl font-bold tracking-tight text-slate-900">Point of sale</h1>
-        <p className="hidden text-xs text-slate-400 sm:block">
-          F1 search products · F2 find member · Esc clear sale
-        </p>
+        <div className="flex items-baseline gap-4">
+          <p className="hidden text-xs text-slate-400 sm:block">
+            F1 search products · F2 find member · Esc clear sale
+          </p>
+          {canReconcile ? (
+            <Link
+              href="/pos/reconciliation"
+              className="text-sm font-medium text-brand-600 hover:text-brand-700"
+            >
+              End-of-day report
+            </Link>
+          ) : null}
+        </div>
       </header>
       <PosBoard />
     </div>

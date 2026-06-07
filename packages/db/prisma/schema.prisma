@@ -173,6 +173,20 @@ enum PaymentStatus {
   REFUNDED
 }
 
+/// How a sale was settled (T7.3 / T7.5) — the staff-facing settlement channel the
+/// POS operator chose. `CASH` is tendered at the desk, `CARD` a terminal / online
+/// card charge, `MEMBER_ACCOUNT` a charge to the member's house account. This is
+/// deliberately separate from a {@link Payment} `provider` (the gateway key, e.g.
+/// `"pos"` / `"stub"`): a `CARD` sale may flow through any provider, and `CASH` /
+/// `MEMBER_ACCOUNT` never touch one. It is the dimension the end-of-day cash
+/// reconciliation (T7.5) groups the day's takings by. Mirrors the `paymentMethod`
+/// wire enum in `@fit/types` (lower-snake there, UPPER here as Prisma enums are).
+enum PaymentMethod {
+  CASH
+  CARD
+  MEMBER_ACCOUNT
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -705,6 +719,11 @@ model Payment {
   amount      Int
   currency    String        @default("USD")
   status      PaymentStatus @default(PENDING)
+  /// How the sale was settled — the staff-facing channel the end-of-day cash
+  /// reconciliation (T7.5) groups by. Defaults to `CARD` so the online purchase
+  /// wizard's stub charge (T3.10) lands as a card sale without passing it; the POS
+  /// (T7.3) sets it explicitly to the operator's choice.
+  method      PaymentMethod @default(CARD)
   /// Payment provider key — `"stub"` for the MVP, a concrete provider once T8.8
   /// lands the real integration.
   provider    String        @default("stub")
@@ -718,6 +737,9 @@ model Payment {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([gymId])
+  /// Backs the end-of-day reconciliation (T7.5): a tenant's captured payments
+  /// scanned by `createdAt` window, then grouped by `method`.
+  @@index([gymId, createdAt])
   @@map("payments")
 }
 

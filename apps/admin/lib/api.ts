@@ -75,6 +75,9 @@ import type {
   UpdateTrainerResponse,
   SendReceiptInput,
   SendReceiptResponse,
+  RecordPosSaleInput,
+  RecordPosSaleResponse,
+  CashReconciliationReport,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -824,4 +827,36 @@ export async function sendPosReceipt(input: SendReceiptInput): Promise<SendRecei
     cache: 'no-store',
   });
   return unwrap<SendReceiptResponse>(res);
+}
+
+/**
+ * `POST /orders/pos-sale` — persist a completed POS sale as a paid order + captured
+ * payment (T7.5), so the day's takings exist to reconcile. Tenant-scoped and gated
+ * by `BillingRead` API-side. Returns the created `{ orderId, paymentId }`.
+ */
+export async function recordPosSale(input: RecordPosSaleInput): Promise<RecordPosSaleResponse> {
+  const res = await fetch(`${apiBaseUrl()}/orders/pos-sale`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<RecordPosSaleResponse>(res);
+}
+
+/**
+ * `GET /orders/reconciliation?date=YYYY-MM-DD` — the end-of-day cash reconciliation
+ * for one business day (T7.5): captured takings grouped by settlement method, with
+ * the expected cash drawer. Tenant-scoped and gated by `BillingRead` API-side.
+ */
+export async function fetchCashReconciliation(date: string): Promise<CashReconciliationReport> {
+  const res = await fetch(
+    `${apiBaseUrl()}/orders/reconciliation?date=${encodeURIComponent(date)}`,
+    {
+      headers: await authHeaders(),
+      // The report reflects the live day's takings — never serve a stale view.
+      cache: 'no-store',
+    },
+  );
+  return unwrap<CashReconciliationReport>(res);
 }

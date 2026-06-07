@@ -2,15 +2,18 @@
 
 import {
   Permission,
+  recordPosSaleSchema,
   roleHasPermission,
   sendReceiptSchema,
   type AdminProductRow,
   type MemberRow,
+  type RecordPosSaleInput,
+  type RecordPosSaleResponse,
   type SendReceiptInput,
   type SendReceiptResponse,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchMembers, fetchProducts, sendPosReceipt } from '@/lib/api';
+import { ApiError, fetchMembers, fetchProducts, recordPosSale, sendPosReceipt } from '@/lib/api';
 
 /** Discriminated result returned to the client — a Server Action never throws across the boundary. */
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -193,6 +196,31 @@ export async function emailReceiptAction(
   }
   try {
     return { ok: true, data: await sendPosReceipt(parsed.data) };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Persist a completed POS sale (T7.5) as a paid order + captured payment so the
+ * day's takings exist for the end-of-day reconciliation. Re-validates the snapshot
+ * against the shared `recordPosSaleSchema` before forwarding it to the
+ * `POST /orders/pos-sale` API, and enforces `BillingRead` — the same capability the
+ * API gates the route on, held by the POS-operator roles. Returns the created ids
+ * so the board can finish the sale.
+ */
+export async function recordPosSaleAction(
+  input: RecordPosSaleInput,
+): Promise<ActionResult<RecordPosSaleResponse>> {
+  if (!(await sessionHas(Permission.BillingRead))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const parsed = recordPosSaleSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid sale details' };
+  }
+  try {
+    return { ok: true, data: await recordPosSale(parsed.data) };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }
