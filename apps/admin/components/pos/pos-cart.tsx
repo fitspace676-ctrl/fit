@@ -22,7 +22,7 @@ function useCartCurrency(): string {
  * summary. Every value is read from the in-memory Zustand store with a selector so
  * a single line edit doesn't repaint the whole list.
  */
-export function PosCart() {
+export function PosCart({ onCharge }: { onCharge: () => void }) {
   const items = usePosCart((state) => state.items);
   const currency = useCartCurrency();
   const itemCount = usePosCart(selectItemCount);
@@ -131,13 +131,13 @@ export function PosCart() {
         )}
       </div>
 
-      <CartSummary currency={currency} />
+      <CartSummary currency={currency} onCharge={onCharge} />
     </div>
   );
 }
 
 /** The discount field + subtotal / discount / total totals pinned to the cart's foot. */
-function CartSummary({ currency }: { currency: string }) {
+function CartSummary({ currency, onCharge }: { currency: string; onCharge: () => void }) {
   const subtotal = usePosCart(selectSubtotal);
   const discountTotal = usePosCart(selectDiscountTotal);
   const total = usePosCart(selectTotal);
@@ -172,6 +172,15 @@ function CartSummary({ currency }: { currency: string }) {
         <span>Total</span>
         <span>{formatPrice(total, currency)}</span>
       </div>
+
+      <button
+        type="button"
+        onClick={onCharge}
+        disabled={total <= 0}
+        className="mt-1 rounded-card bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Charge {formatPrice(total, currency)}
+      </button>
     </div>
   );
 }

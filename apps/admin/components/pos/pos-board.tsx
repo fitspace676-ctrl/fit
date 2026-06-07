@@ -5,6 +5,7 @@ import { usePosCart } from '@/stores/pos-cart-store';
 import type { PosMemberRow, PosProductRow } from '@/app/pos/actions';
 import { MemberLookup } from './member-lookup';
 import { PosCart } from './pos-cart';
+import { PosPayment } from './pos-payment';
 import { ProductGrid } from './product-grid';
 
 /**
@@ -24,6 +25,7 @@ export function PosBoard() {
   const clear = usePosCart((state) => state.clear);
 
   const [selectedMember, setSelectedMember] = useState<PosMemberRow | null>(null);
+  const [isPaying, setIsPaying] = useState(false);
   const productSearchRef = useRef<HTMLInputElement>(null);
   const memberSearchRef = useRef<HTMLInputElement>(null);
 
@@ -50,6 +52,7 @@ export function PosBoard() {
   const resetSale = useCallback(() => {
     clear();
     setSelectedMember(null);
+    setIsPaying(false);
   }, [clear]);
 
   useEffect(() => {
@@ -61,12 +64,18 @@ export function PosBoard() {
         event.preventDefault();
         memberSearchRef.current?.focus();
       } else if (event.key === 'Escape') {
-        resetSale();
+        // While the payment modal is open, Esc dismisses it; otherwise it clears
+        // the whole sale (so an operator never wipes a cart they meant to charge).
+        if (isPaying) {
+          setIsPaying(false);
+        } else {
+          resetSale();
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [resetSale]);
+  }, [resetSale, isPaying]);
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
@@ -80,9 +89,17 @@ export function PosBoard() {
           onSelect={onSelectMember}
         />
         <div className="min-h-0 flex-1">
-          <PosCart />
+          <PosCart onCharge={() => setIsPaying(true)} />
         </div>
       </section>
+
+      {isPaying ? (
+        <PosPayment
+          member={selectedMember}
+          onClose={() => setIsPaying(false)}
+          onCompleted={resetSale}
+        />
+      ) : null}
     </div>
   );
 }

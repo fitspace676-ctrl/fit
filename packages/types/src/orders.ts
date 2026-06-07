@@ -29,6 +29,24 @@ export const orderStatusSchema = z.enum(['pending', 'paid', 'cancelled']);
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
 
 /**
+ * How an in-person (POS) sale is settled (T7.3). `cash` is tendered at the desk
+ * (the operator enters the amount handed over and the UI computes change);
+ * `card` is a terminal / card payment; `member_account` charges the sale to the
+ * attached member's house account (only valid when the sale has a `memberId`).
+ *
+ * This is the shared contract the POS payment selection, the email receipt
+ * (T7.4), and the end-of-day cash reconciliation (T7.5) all agree on. It is the
+ * staff-facing settlement choice and is intentionally separate from a
+ * {@link Payment} `provider` key (`"stub"` today, a real gateway with T8.8): a
+ * `card` sale may flow through any provider, and `cash` / `member_account` never
+ * touch one. Values are lower-snake-case to match the other wire enums.
+ */
+export const paymentMethodSchema = z.enum(['cash', 'card', 'member_account']);
+
+/** How a POS sale is settled — {@link paymentMethodSchema}. */
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+
+/**
  * Guest contact details captured in step 3 when the visitor is not signed in.
  * The order needs a name + email to attach the purchase to and to send the
  * confirmation to; a signed-in buyer omits this (the API derives it from their

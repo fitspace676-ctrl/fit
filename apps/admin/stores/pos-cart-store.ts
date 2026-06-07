@@ -11,6 +11,7 @@
 // percentages): a `lineDiscount` is subtracted from one line's gross, and the
 // single `cartDiscount` is subtracted from the post-line-discount subtotal.
 
+import type { PaymentMethod } from '@fit/types';
 import { create } from 'zustand';
 
 /** One line in the POS cart — a product added one-or-more times, with its own discount. */
@@ -45,6 +46,14 @@ export interface PosCartState {
   memberId?: string;
   /** Absolute minor-unit discount applied to the whole cart after line discounts. */
   cartDiscount: number;
+  /** The settlement method chosen at checkout, or `null` until one is picked (T7.3). */
+  paymentMethod: PaymentMethod | null;
+  /**
+   * For a `cash` sale, the amount the customer handed over, in minor units. Drives
+   * the live change-due figure ({@link selectChangeDue}); irrelevant for `card` /
+   * `member_account`, where it stays `0`.
+   */
+  cashTendered: number;
 
   /** Add a product — increments the qty of an existing line, or opens a new one. */
   addItem: (product: AddItemInput) => void;
@@ -58,7 +67,11 @@ export interface PosCartState {
   setCartDiscount: (amount: number) => void;
   /** Attach the sale to a member, or pass `undefined` to return to walk-in mode. */
   setMember: (memberId: string | undefined) => void;
-  /** Reset the cart to its empty initial state (items, member, and discount). */
+  /** Choose the settlement method (`null` clears the choice); resets cash tendered. */
+  setPaymentMethod: (method: PaymentMethod | null) => void;
+  /** Set the cash amount handed over (minor units; negative / NaN coerced to zero). */
+  setCashTendered: (amount: number) => void;
+  /** Reset the cart to its empty initial state (items, member, discount, payment). */
   clear: () => void;
 }
 
@@ -101,6 +114,17 @@ export function selectItemCount(state: Pick<PosCartState, 'items'>): number {
 }
 
 /**
+ * Change owed back on a cash sale: `cashTendered - total`, floored at zero (a
+ * short payment owes no change, it just isn't enough yet). Always zero for non-cash
+ * methods because their `cashTendered` stays at zero.
+ */
+export function selectChangeDue(
+  state: Pick<PosCartState, 'items' | 'cartDiscount' | 'cashTendered'>,
+): number {
+  return Math.max(0, state.cashTendered - selectTotal(state));
+}
+
+/**
  * The POS cart store. In-memory only by design (no `persist`): a reload clears
  * the sale, matching how an ephemeral POS session behaves. Components subscribe
  * with selectors (`usePosCart((s) => s.items)`) so a line edit doesn't repaint
@@ -110,6 +134,8 @@ export const usePosCart = create<PosCartState>((set) => ({
   items: [],
   memberId: undefined,
   cartDiscount: 0,
+  paymentMethod: null,
+  cashTendered: 0,
 
   addItem: (product) =>
     set((state) => {
@@ -165,9 +191,33 @@ export const usePosCart = create<PosCartState>((set) => ({
   setCartDiscount: (amount) =>
     set((state) => ({ cartDiscount: clampDiscount(amount, selectSubtotal(state)) })),
 
-  setMember: (memberId) => set({ memberId }),
+  setMember: (memberId) =>
+    set((state) => ({
+      memberId,
+      // A walk-in can't charge to a member account — drop the choice if the
+      // member is detached after it was picked.
+      paymentMethod:
+        memberId === undefined && state.paymentMethod === 'member_account'
+          ? null
+          : state.paymentMethod,
+    })),
 
-  clear: () => set({ items: [], memberId: undefined, cartDiscount: 0 }),
+  setPaymentMethod: (method) =>
+    // Switching method always resets the tendered amount: it is only meaningful
+    // for cash, and a stale value must never leak into another method's change.
+    set({ paymentMethod: method, cashTendered: 0 }),
+
+  setCashTendered: (amount) =>
+    set({ cashTendered: Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 0 }),
+
+  clear: () =>
+    set({
+      items: [],
+      memberId: undefined,
+      cartDiscount: 0,
+      paymentMethod: null,
+      cashTendered: 0,
+    }),
 }));
 
 /** Clamp a discount to `[0, max]`, treating a `NaN` / negative input as zero. */
