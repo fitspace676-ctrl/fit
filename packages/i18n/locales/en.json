@@ -3,6 +3,9 @@
     "bookings": {
       "title": "My bookings",
       "subtitle": "Your upcoming classes and booking history.",
+      "loading": "Loading your bookings…",
+      "error": "We couldn’t load your bookings. Please try again.",
+      "retry": "Try again",
       "upcoming": "Upcoming",
       "past": "Past",
       "noUpcoming": "You have no upcoming bookings.",
