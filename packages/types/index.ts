@@ -15,6 +15,7 @@ export * from './src/orders';
 export * from './src/packages';
 export * from './src/packages-admin';
 export * from './src/permissions';
+export * from './src/products';
 export * from './src/products-admin';
 export * from './src/reviews';
 export * from './src/staff';
