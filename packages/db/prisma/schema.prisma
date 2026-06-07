@@ -148,6 +148,31 @@ enum DevicePlatform {
   ANDROID
 }
 
+/// Lifecycle of a storefront {@link Order} (T7.1). `PENDING` is the freshly
+/// created, not-yet-paid order the purchase wizard opens; `PAID` is the terminal
+/// "payment captured" state the success page confirms; `CANCELLED` is an
+/// abandoned / failed attempt. Mirrors the lowercase wire `orderStatusSchema`
+/// (`pending` / `paid` / `cancelled`) in `@fit/types`; the API maps between the
+/// two on the boundary, the same way {@link DevicePlatform} mirrors its wire enum.
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+/// Lifecycle of a {@link Payment} attempt against an order (T7.1). `PENDING` is a
+/// freshly created charge awaiting capture; `CAPTURED` is settled money (the
+/// transition that flips its order to `PAID`); `FAILED` is a declined / errored
+/// attempt; `REFUNDED` is a previously captured charge reversed. The MVP only
+/// ever creates `CAPTURED` rows via the payment stub (see `@fit/types` orders);
+/// the other states exist for the real provider integration (T8.8).
+enum PaymentStatus {
+  PENDING
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -180,6 +205,8 @@ model Gym {
   classInstances ClassInstance[]
   bookings       Booking[]
   reviews        Review[]
+  orders         Order[]
+  payments       Payment[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -262,6 +289,7 @@ model GymMember {
   gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
   bookings Booking[]
   reviews  Review[]
+  orders   Order[]
 
   @@unique([userId, gymId])
   @@index([gymId])
@@ -277,13 +305,13 @@ model GymMember {
 /// uploaded to R2 (see the storage signed-upload service), or `null` when the
 /// trainer has no photo (the card renders an initials placeholder).
 model Trainer {
-  id          String        @id @default(cuid())
-  gymId       String
-  name        String
-  headline    String        @default("")
-  bio         String        @default("")
-  photoUrl    String?
-  specialties String[]      @default([])
+  id           String        @id @default(cuid())
+  gymId        String
+  name         String
+  headline     String        @default("")
+  bio          String        @default("")
+  photoUrl     String?
+  specialties  String[]      @default([])
   /// The trainer's weekly recurring availability (T5.11): a JSON map keyed by
   /// lowercase weekday (`mon`…`sun`) to `{ available, windows: [{ start, close }] }`,
   /// where `windows` is an ordered, non-overlapping list of `HH:MM` time ranges the
@@ -291,18 +319,18 @@ model Trainer {
   /// console via the dedicated `/admin/trainers/:id/availability` endpoint and
   /// validated by `weeklyAvailabilitySchema` in `@fit/types`. Defaults to `{}`, which
   /// the schema fills to a fully-unavailable seven-day week until staff set hours.
-  availability Json         @default("{}")
-  status      TrainerStatus @default(ACTIVE)
+  availability Json          @default("{}")
+  status       TrainerStatus @default(ACTIVE)
   /// Denormalised aggregate of the trainer's `VISIBLE` reviews (T5.12), kept in
   /// step by {@link Review} writes: `rating` is the average star rating (0 when
   /// the trainer has no visible reviews) and `reviewCount` the number of them. The
   /// reviews service recomputes both inside the transaction that posts or hides a
   /// review, so trainer cards / the detail page can render the live rating without
   /// a COUNT/AVG join — the same denormalisation `ClassInstance.bookedCount` uses.
-  rating      Float         @default(0)
-  reviewCount Int           @default(0)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  rating       Float         @default(0)
+  reviewCount  Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
   classTemplates ClassTemplate[]
@@ -337,6 +365,7 @@ model Location {
 
   gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
   classTemplates ClassTemplate[]
+  orders         Order[]
 
   @@index([gymId])
   @@map("locations")
@@ -399,7 +428,8 @@ model PackagePlan {
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
-  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  gym    Gym     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  orders Order[]
 
   @@index([gymId])
   @@map("package_plans")
@@ -591,6 +621,104 @@ model StaffInvite {
 
   @@index([gymId])
   @@map("staff_invites")
+}
+
+/// A storefront purchase (T7.1) — the order the public purchase wizard's final
+/// step (T3.10) creates and the success page reads back. `gymId` is the isolating
+/// tenant key the scoped Prisma client constrains every query to. An order is
+/// raised for the package chosen in the wizard: `packageId` references the
+/// {@link PackagePlan} and `locationId` the {@link Location} branch (both nullable
+/// and `SetNull` so the order — an accounting record — survives the catalogue
+/// entry being deleted). The buyer is either a signed-in {@link GymMember}
+/// (`memberId`, `SetNull` so the order outlives the membership) or a guest, whose
+/// contact details land in `customerName` / `customerEmail` (email normalised
+/// lower-case, matching auth) — exactly one identifies who the order is for.
+/// `total` is the order total in the currency's MINOR units (cents/tetri) so no
+/// float rounding crosses the wire, with `currency` an ISO-4217 code; it is a
+/// denormalised sum of the {@link OrderItem} lines, kept in step at write time so
+/// the confirmation renders without re-aggregating. `status` tracks the lifecycle
+/// (see {@link OrderStatus}); payment is captured via the related {@link Payment}.
+model Order {
+  id            String      @id @default(cuid())
+  gymId         String
+  packageId     String?
+  locationId    String?
+  memberId      String?
+  /// Guest buyer's name (step 3 of the wizard); null for a signed-in member.
+  customerName  String?
+  /// Guest buyer's email, normalised lower-case so guest checkout and a later
+  /// sign-in resolve to the same identity; null for a signed-in member.
+  customerEmail String?
+  total         Int         @default(0)
+  currency      String      @default("USD")
+  status        OrderStatus @default(PENDING)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  gym      Gym          @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  package  PackagePlan? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  location Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  member   GymMember?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  items    OrderItem[]
+  payment  Payment?
+
+  @@index([gymId])
+  @@index([memberId])
+  @@index([packageId])
+  @@map("orders")
+}
+
+/// One priced line on an {@link Order} (T7.1) — the purchased package, plus any
+/// discount / fee adjustments the API itemises. `label` is the human-readable
+/// description and `amount` the line value in the order currency's MINOR units
+/// (negative for a discount) so the success page can render a breakdown that sums
+/// to the order's `total` without re-deriving it. Lines cascade-delete with their
+/// order; this row carries no `gymId` of its own — it is reached only through the
+/// already tenant-scoped order.
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  label     String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+/// A payment attempt against an {@link Order} (T7.1). One payment per order (the
+/// unique `orderId` makes it a one-to-one), capturing the money for the purchase.
+/// `amount` is in the currency's MINOR units (cents/tetri) with `currency` an
+/// ISO-4217 code, mirroring the order's total at capture time. `provider` is the
+/// payment provider key — `"stub"` for the MVP, whose stubbed flow returns a
+/// redirect the wizard treats as "captured" (see `@fit/types` orders); the real
+/// provider integration (T8.8) sets a concrete key and a `providerRef` (the
+/// external charge / transaction id used for reconciliation and refunds).
+/// `status` tracks the charge lifecycle (see {@link PaymentStatus}). `gymId` is
+/// duplicated from the order for direct tenant-scoped revenue queries.
+model Payment {
+  id          String        @id @default(cuid())
+  gymId       String
+  orderId     String        @unique
+  amount      Int
+  currency    String        @default("USD")
+  status      PaymentStatus @default(PENDING)
+  /// Payment provider key — `"stub"` for the MVP, a concrete provider once T8.8
+  /// lands the real integration.
+  provider    String        @default("stub")
+  /// External charge / transaction id from the provider, for reconciliation and
+  /// refunds; null for the stub (no upstream record).
+  providerRef String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  gym   Gym   @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@map("payments")
 }
 
 /// Append-only record of privileged platform actions, written by the SuperAdmin
