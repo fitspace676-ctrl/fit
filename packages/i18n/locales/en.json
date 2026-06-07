@@ -604,6 +604,14 @@
     "promotionsHint": "Offers and news from your gym.",
     "disabledHint": "Enable push notifications to manage categories."
   },
+  "qr": {
+    "title": "Check-in",
+    "subtitle": "Show this code at the front desk to check in.",
+    "instruction": "Hold your phone up to the scanner at reception.",
+    "memberId": "Member ID",
+    "brightnessHint": "Turn your screen brightness up for a faster scan.",
+    "signedOut": "Sign in to get your check-in code."
+  },
   "errors": {
     "forbidden": {
       "badge": "403",
