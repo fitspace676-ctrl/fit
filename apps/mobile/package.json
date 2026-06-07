@@ -30,6 +30,7 @@
     "expo-crypto": "~56.0.4",
     "expo-linking": "~56.0.13",
     "expo-local-authentication": "~56.0.4",
+    "expo-notifications": "~56.0.16",
     "expo-router": "~56.2.8",
     "expo-secure-store": "~56.0.4",
     "expo-status-bar": "~56.0.4",

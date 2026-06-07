@@ -140,6 +140,14 @@ enum ReviewStatus {
   HIDDEN
 }
 
+/// The OS of a registered push-notification device (T6.10). Mirrors the wire
+/// `DevicePlatformValue` (`ios` / `android`) in `@fit/types`; the API maps the
+/// lowercase wire value to this enum on the way in.
+enum DevicePlatform {
+  IOS
+  ANDROID
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -207,8 +215,36 @@ model User {
 
   memberships   GymMember[]
   refreshTokens RefreshToken[]
+  pushTokens    PushToken[]
 
   @@map("users")
+}
+
+/// A registered device for Expo push delivery (T6.10). One row per
+/// (user, device): the member app registers its Expo push `token` on login and
+/// re-registers when the token rotates (app upgrade), keyed by a stable
+/// `deviceId` so a rotation updates in place rather than accumulating rows. Not
+/// gym-scoped — a push token belongs to the *person*, independent of which gyms
+/// they are a member of — so it hangs off User (cascade-deleted with the user)
+/// rather than GymMember, and the registration endpoints resolve the owner from
+/// the session. Logout (and an unregister) deletes the row.
+model PushToken {
+  id        String         @id @default(cuid())
+  userId    String
+  /// Stable per-install device id minted on the client and persisted there; the
+  /// `(userId, deviceId)` upsert key.
+  deviceId  String
+  /// The Expo push token (`ExponentPushToken[…]`) delivery targets.
+  token     String
+  platform  DevicePlatform
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@map("push_tokens")
 }
 
 /// Join table between User and Gym carrying the user's role and status within
