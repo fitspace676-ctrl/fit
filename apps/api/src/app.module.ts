@@ -4,6 +4,8 @@ import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { CartModule } from './cart/cart.module';
+import { CartIdentityMiddleware } from './cart/cart-identity.middleware';
 import { ClassesModule } from './classes/classes.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { GymsModule } from './gyms/gyms.module';
@@ -93,6 +95,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     NotificationsModule,
     MembersModule,
     OrdersModule,
+    CartModule,
     StaffModule,
     AuditModule,
     DashboardModule,
@@ -104,6 +107,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
   providers: [
     SubdomainTenantMiddleware,
     TenantMiddleware,
+    CartIdentityMiddleware,
     {
       provide: APP_FILTER,
       useClass: AllExceptionsFilter,
@@ -155,8 +159,20 @@ export class AppModule implements NestModule {
         { path: 'trainers/:id/reviews', method: RequestMethod.GET },
         { path: 'packages', method: RequestMethod.GET },
         { path: 'products', method: RequestMethod.GET },
+        { path: 'cart', method: RequestMethod.ALL },
+        { path: 'cart/(.*)', method: RequestMethod.ALL },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');
+    // The cart is reachable signed-in or anonymously, so it is excluded from the
+    // mandatory JWT middleware above and gets optional-auth scoping instead: a
+    // bearer token establishes the member's tenant, while a guest falls through
+    // to the subdomain tenant `SubdomainTenantMiddleware` already resolved.
+    consumer
+      .apply(CartIdentityMiddleware)
+      .forRoutes(
+        { path: 'cart', method: RequestMethod.ALL },
+        { path: 'cart/(.*)', method: RequestMethod.ALL },
+      );
   }
 }
