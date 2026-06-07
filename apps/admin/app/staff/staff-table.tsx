@@ -38,6 +38,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.ClassBook]: 'Book classes',
   [Permission.ReviewWrite]: 'Write reviews',
   [Permission.ReviewModerate]: 'Moderate reviews',
+  [Permission.NotificationManage]: 'Manage push notifications',
   [Permission.BillingRead]: 'View billing',
   [Permission.BillingManage]: 'Manage billing & plans',
   [Permission.WorkoutRead]: 'View workout plans',
