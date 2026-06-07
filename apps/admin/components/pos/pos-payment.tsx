@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PaymentMethod, PosReceipt } from '@fit/types';
 import { formatPrice, inputToMinor, minorToInput } from '@/app/products/format-price';
-import { emailReceiptAction, type PosMemberRow } from '@/app/pos/actions';
+import { emailReceiptAction, recordPosSaleAction, type PosMemberRow } from '@/app/pos/actions';
 import {
   lineTotal,
   selectChangeDue,
@@ -74,6 +74,11 @@ export function PosPayment({
   const setCashTendered = usePosCart((state) => state.setCashTendered);
 
   const [completed, setCompleted] = useState<CompletedSale | null>(null);
+  // Persisting the sale (T7.5) is the source of truth for the end-of-day
+  // reconciliation, so completion blocks on it: `saving` while it is in flight,
+  // an error string to surface (and let the operator retry) on failure.
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Move focus into the dialog on open so keyboard operators land inside it.
@@ -83,7 +88,11 @@ export function PosPayment({
 
   const cashShort = method === 'cash' && cashTendered < total;
   const canComplete =
-    total > 0 && method !== null && !cashShort && !(method === 'member_account' && member === null);
+    total > 0 &&
+    method !== null &&
+    !cashShort &&
+    !(method === 'member_account' && member === null) &&
+    !saving;
 
   const quickTenders = useMemo(() => {
     const suggestions = new Set<number>([total]);
@@ -93,12 +102,38 @@ export function PosPayment({
     return [...suggestions].filter((amount) => amount >= total).sort((a, b) => a - b);
   }, [total]);
 
-  function complete(): void {
+  async function complete(): Promise<void> {
     if (method === null || !canComplete) {
       return;
     }
     const tendered = method === 'cash' ? cashTendered : total;
     const change = method === 'cash' ? changeDue : 0;
+    const receipt: PosReceipt = {
+      currency,
+      items: items.map((item) => ({
+        name: item.name,
+        quantity: item.qty,
+        unitPrice: item.unitPrice,
+        amount: lineTotal(item),
+      })),
+      subtotal,
+      discountTotal,
+      total,
+      paymentMethod: method,
+      cashTendered: tendered,
+      changeDue: change,
+      memberName: member?.name ?? null,
+    };
+
+    setSaving(true);
+    setSaveError(null);
+    const result = await recordPosSaleAction({ memberId: member?.id ?? null, receipt });
+    setSaving(false);
+    if (!result.ok) {
+      setSaveError(result.error);
+      return;
+    }
+
     setCompleted({
       method,
       total,
@@ -108,22 +143,7 @@ export function PosPayment({
       itemCount,
       memberName: member?.name ?? null,
       memberEmail: member?.email ?? null,
-      receipt: {
-        currency,
-        items: items.map((item) => ({
-          name: item.name,
-          quantity: item.qty,
-          unitPrice: item.unitPrice,
-          amount: lineTotal(item),
-        })),
-        subtotal,
-        discountTotal,
-        total,
-        paymentMethod: method,
-        cashTendered: tendered,
-        changeDue: change,
-        memberName: member?.name ?? null,
-      },
+      receipt,
     });
   }
 
@@ -228,6 +248,12 @@ export function PosPayment({
               </div>
             ) : null}
 
+            {saveError !== null ? (
+              <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+                Couldn’t record the sale: {saveError}
+              </p>
+            ) : null}
+
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
@@ -238,11 +264,11 @@ export function PosPayment({
               </button>
               <button
                 type="button"
-                onClick={complete}
+                onClick={() => void complete()}
                 disabled={!canComplete}
                 className="flex-[2] rounded-card bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Complete sale
+                {saving ? 'Recording…' : 'Complete sale'}
               </button>
             </div>
           </>

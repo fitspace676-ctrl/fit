@@ -160,5 +160,10 @@ describe('tenantExtension (load-bearing isolation)', () => {
     // Review carries a gymId (T5.12) and must be scoped so a manager can never
     // moderate — nor a member duplicate-check against — another gym's reviews.
     expect(TENANT_SCOPED_MODELS.has('Review')).toBe(true);
+    // Order + Payment carry a gymId (T7.1) and must be scoped so the POS sale
+    // persistence and the end-of-day reconciliation (T7.5) can never read or
+    // write another gym's takings.
+    expect(TENANT_SCOPED_MODELS.has('Order')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('Payment')).toBe(true);
   });
 });

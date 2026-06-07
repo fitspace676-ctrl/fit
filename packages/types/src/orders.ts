@@ -212,3 +212,187 @@ export const sendReceiptResponseSchema = z.object({
 
 /** Validated `POST /orders/receipt` response — {@link sendReceiptResponseSchema}. */
 export type SendReceiptResponse = z.infer<typeof sendReceiptResponseSchema>;
+
+// ── POS sale persistence (T7.5) ───────────────────────────────────────────
+//
+// Contracts for persisting a completed in-person (POS) sale as an Order + Payment
+// row, so the day's takings exist to reconcile against. The admin POS posts the
+// same {@link posReceiptSchema} snapshot it sends to the receipt endpoint, plus
+// the attached member's id (when the sale was charged to a member). The API turns
+// the snapshot into a `PAID` order with its priced lines and a single `CAPTURED`
+// payment stamped with the settlement {@link PaymentMethod}.
+
+/**
+ * Body for `POST /orders/pos-sale`. `receipt` is the completed-sale snapshot (the
+ * priced lines + settlement figures, reused verbatim from the receipt contract)
+ * and `memberId` attaches the order to a member — required for a `member_account`
+ * sale (there is an account to charge), `null`/absent for a walk-in. The gym is
+ * resolved server-side from the request's tenant, never trusted from the client.
+ */
+export const recordPosSaleSchema = z.object({
+  memberId: z.string().min(1).nullable().optional(),
+  receipt: posReceiptSchema,
+});
+
+/** Validated `POST /orders/pos-sale` body — {@link recordPosSaleSchema}. */
+export type RecordPosSaleInput = z.infer<typeof recordPosSaleSchema>;
+
+/**
+ * Successful `POST /orders/pos-sale` response — the ids of the rows the sale
+ * created, so the POS can reference the order on the confirmation / receipt.
+ */
+export const recordPosSaleResponseSchema = z.object({
+  orderId: z.string().min(1),
+  paymentId: z.string().min(1),
+});
+
+/** Validated `POST /orders/pos-sale` response — {@link recordPosSaleResponseSchema}. */
+export type RecordPosSaleResponse = z.infer<typeof recordPosSaleResponseSchema>;
+
+// ── End-of-day cash reconciliation (T7.5) ─────────────────────────────────
+//
+// The report a manager pulls at close to balance the cash drawer: the day's
+// settled (`CAPTURED`) takings, grouped by settlement method, for one business
+// day in the gym's own timezone. The operator counts the drawer and compares it
+// to `expectedCash`; the variance is computed client-side from the counted figure
+// ({@link computeCashVariance}) so no count is ever sent to the server. Every
+// money field is an integer in the currency's MINOR units, as elsewhere.
+
+/** The settlement methods a reconciliation always reports, in display order. */
+export const RECONCILIATION_METHODS = ['cash', 'card', 'member_account'] as const;
+
+/** True when `YYYY-MM-DD` names a real calendar date (rejects e.g. `2026-02-30`). */
+function isCalendarDate(value: string): boolean {
+  const parts = value.split('-').map(Number);
+  const [year, month, day] = parts;
+  if (year === undefined || month === undefined || day === undefined) {
+    return false;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return false;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+/**
+ * A business day as a `YYYY-MM-DD` calendar date — interpreted in the gym's own
+ * timezone server-side. Validated as a real date so a typo is a `400` rather than
+ * an empty report for a day that doesn't exist.
+ */
+export const businessDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  .refine(isCalendarDate, 'Not a valid calendar date');
+
+/** Query for `GET /orders/reconciliation` — the business day to report on. */
+export const cashReconciliationQuerySchema = z.object({
+  date: businessDateSchema,
+});
+
+/** Validated `GET /orders/reconciliation` query — {@link cashReconciliationQuerySchema}. */
+export type CashReconciliationQuery = z.infer<typeof cashReconciliationQuerySchema>;
+
+/** One settlement method's tally on the report: how many sales and their total. */
+export const reconciliationMethodTotalSchema = z.object({
+  method: paymentMethodSchema,
+  count: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+});
+
+/** A single method's reconciliation tally — {@link reconciliationMethodTotalSchema}. */
+export type ReconciliationMethodTotal = z.infer<typeof reconciliationMethodTotalSchema>;
+
+/**
+ * The end-of-day reconciliation report. `methods` always carries one entry per
+ * {@link RECONCILIATION_METHODS} value (zeroed when there were no such sales), in
+ * that order, so the UI renders a stable table. `grossTotal` is every method's
+ * total summed, `salesCount` every method's count, and `expectedCash` the `cash`
+ * method's total — the figure the counted drawer is balanced against.
+ * `generatedAt` is an ISO-8601 instant stamping when the snapshot was taken.
+ */
+export const cashReconciliationReportSchema = z.object({
+  date: businessDateSchema,
+  currency: z.string().length(3),
+  methods: z.array(reconciliationMethodTotalSchema),
+  salesCount: z.number().int().nonnegative(),
+  grossTotal: z.number().int().nonnegative(),
+  expectedCash: z.number().int().nonnegative(),
+  generatedAt: z.string().datetime(),
+});
+
+/** The end-of-day reconciliation report — {@link cashReconciliationReportSchema}. */
+export type CashReconciliationReport = z.infer<typeof cashReconciliationReportSchema>;
+
+/** A raw per-method tally (e.g. a Prisma `groupBy` row) fed to the report builder. */
+export interface ReconciliationTally {
+  method: PaymentMethod;
+  count: number;
+  total: number;
+}
+
+/**
+ * Fold raw per-method tallies into a complete {@link CashReconciliationReport}.
+ * Pure (no clock, no I/O) so both the API and tests can build a report
+ * deterministically. Always emits one entry per {@link RECONCILIATION_METHODS}
+ * value in order — a method with no sales reports `{ count: 0, total: 0 }` rather
+ * than being dropped — and ignores any tally with an unrecognised method.
+ */
+export function buildReconciliationReport(
+  tallies: readonly ReconciliationTally[],
+  meta: { date: string; currency: string; generatedAt: string },
+): CashReconciliationReport {
+  const byMethod = new Map<PaymentMethod, { count: number; total: number }>(
+    RECONCILIATION_METHODS.map((method) => [method, { count: 0, total: 0 }]),
+  );
+  for (const tally of tallies) {
+    const acc = byMethod.get(tally.method);
+    if (!acc) {
+      continue;
+    }
+    acc.count += tally.count;
+    acc.total += tally.total;
+  }
+  const methods: ReconciliationMethodTotal[] = RECONCILIATION_METHODS.map((method) => {
+    const acc = byMethod.get(method) ?? { count: 0, total: 0 };
+    return { method, count: acc.count, total: acc.total };
+  });
+  return {
+    date: meta.date,
+    currency: meta.currency,
+    methods,
+    salesCount: methods.reduce((sum, entry) => sum + entry.count, 0),
+    grossTotal: methods.reduce((sum, entry) => sum + entry.total, 0),
+    expectedCash: byMethod.get('cash')?.total ?? 0,
+    generatedAt: meta.generatedAt,
+  };
+}
+
+/** Whether a counted drawer balances, runs over, or comes up short of expected. */
+export const cashVarianceStatusSchema = z.enum(['balanced', 'over', 'short']);
+
+/** The outcome of balancing a counted drawer — {@link cashVarianceStatusSchema}. */
+export type CashVarianceStatus = z.infer<typeof cashVarianceStatusSchema>;
+
+/** A counted cash drawer balanced against the report's expected cash. */
+export interface CashVariance {
+  expectedCash: number;
+  countedCash: number;
+  /** `countedCash - expectedCash` — positive is an overage, negative a shortfall. */
+  variance: number;
+  status: CashVarianceStatus;
+}
+
+/**
+ * Balance a counted cash drawer against the day's expected cash. Pure; both
+ * amounts are integer minor units. `variance` is `counted - expected` so a
+ * positive figure is money over and a negative figure money short; `status`
+ * names the three cases for the UI to colour.
+ */
+export function computeCashVariance(expectedCash: number, countedCash: number): CashVariance {
+  const variance = countedCash - expectedCash;
+  const status: CashVarianceStatus = variance === 0 ? 'balanced' : variance > 0 ? 'over' : 'short';
+  return { expectedCash, countedCash, variance, status };
+}

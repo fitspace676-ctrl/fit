@@ -2,13 +2,23 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { Permission, sendReceiptSchema, type SendReceiptResponse } from '@fit/types';
+import {
+  cashReconciliationQuerySchema,
+  Permission,
+  recordPosSaleSchema,
+  sendReceiptSchema,
+  type CashReconciliationReport,
+  type RecordPosSaleResponse,
+  type SendReceiptResponse,
+} from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -40,6 +50,33 @@ export class OrdersController {
   @RequirePermissions(Permission.BillingRead)
   async sendReceipt(@Body() body: unknown): Promise<SendReceiptResponse> {
     return this.orders.sendReceipt(parse(sendReceiptSchema, body));
+  }
+
+  /**
+   * `POST /orders/pos-sale` — persist a completed POS sale as a `PAID` order plus a
+   * `CAPTURED` payment, so the day's takings exist to reconcile (T7.5). The body is
+   * the sale snapshot (priced lines + settlement figures) and the optional attached
+   * member; a malformed payload is a `400`. Returns the created `{ orderId, paymentId }`.
+   * Gated on `BillingRead` — the transaction capability the POS-operator roles hold.
+   */
+  @Post('pos-sale')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.BillingRead)
+  async recordSale(@Body() body: unknown): Promise<RecordPosSaleResponse> {
+    return this.orders.recordSale(parse(recordPosSaleSchema, body));
+  }
+
+  /**
+   * `GET /orders/reconciliation?date=YYYY-MM-DD` — the end-of-day cash reconciliation
+   * for one business day (T7.5): the gym's captured takings for that day (in the
+   * gym's own timezone) grouped by settlement method, with the cash total the
+   * counted drawer is balanced against. An out-of-range / impossible date is a
+   * `400`. Gated on `BillingRead`.
+   */
+  @Get('reconciliation')
+  @RequirePermissions(Permission.BillingRead)
+  async reconcile(@Query() query: unknown): Promise<CashReconciliationReport> {
+    return this.orders.reconcile(parse(cashReconciliationQuerySchema, query));
   }
 }
 

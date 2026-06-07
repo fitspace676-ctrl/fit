@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildReconciliationReport,
+  cashReconciliationQuerySchema,
+  cashReconciliationReportSchema,
+  computeCashVariance,
   createOrderSchema,
   orderStatusSchema,
   orderSummarySchema,
   paymentMethodSchema,
   posReceiptSchema,
+  recordPosSaleSchema,
   sendReceiptSchema,
+  type ReconciliationTally,
 } from './orders';
 
 /** A minimal valid POS receipt snapshot the receipt-contract tests build on. */
@@ -144,5 +150,96 @@ describe('sendReceiptSchema', () => {
     expect(() =>
       sendReceiptSchema.parse({ email: 'buyer@example.com', receipt: { currency: 'USD' } }),
     ).toThrow();
+  });
+});
+
+describe('recordPosSaleSchema (T7.5)', () => {
+  it('accepts a sale snapshot with an attached member', () => {
+    const parsed = recordPosSaleSchema.parse({ memberId: 'mem-1', receipt: validReceipt });
+    expect(parsed.memberId).toBe('mem-1');
+    expect(parsed.receipt.total).toBe(500);
+  });
+
+  it('accepts a walk-in sale (no member)', () => {
+    expect(recordPosSaleSchema.parse({ receipt: validReceipt }).memberId).toBeUndefined();
+    expect(
+      recordPosSaleSchema.parse({ memberId: null, receipt: validReceipt }).memberId,
+    ).toBeNull();
+  });
+
+  it('rejects a malformed receipt', () => {
+    expect(() => recordPosSaleSchema.parse({ receipt: { currency: 'USD' } })).toThrow();
+  });
+});
+
+describe('cashReconciliationQuerySchema (T7.5)', () => {
+  it('accepts a real calendar date', () => {
+    expect(cashReconciliationQuerySchema.parse({ date: '2026-06-07' }).date).toBe('2026-06-07');
+  });
+
+  it('rejects a malformed or impossible date', () => {
+    expect(() => cashReconciliationQuerySchema.parse({ date: '2026-6-7' })).toThrow();
+    expect(() => cashReconciliationQuerySchema.parse({ date: '2026-02-30' })).toThrow();
+    expect(() => cashReconciliationQuerySchema.parse({ date: 'today' })).toThrow();
+  });
+});
+
+describe('buildReconciliationReport (T7.5)', () => {
+  const meta = { date: '2026-06-07', currency: 'USD', generatedAt: '2026-06-07T18:00:00.000Z' };
+
+  it('folds tallies into a complete, ordered, schema-valid report', () => {
+    const tallies: ReconciliationTally[] = [
+      { method: 'card', count: 2, total: 4000 },
+      { method: 'cash', count: 3, total: 1500 },
+    ];
+
+    const report = buildReconciliationReport(tallies, meta);
+
+    expect(report.methods.map((m) => m.method)).toEqual(['cash', 'card', 'member_account']);
+    expect(report.methods).toContainEqual({ method: 'cash', count: 3, total: 1500 });
+    expect(report.methods).toContainEqual({ method: 'member_account', count: 0, total: 0 });
+    expect(report.salesCount).toBe(5);
+    expect(report.grossTotal).toBe(5500);
+    expect(report.expectedCash).toBe(1500);
+    expect(report.generatedAt).toBe(meta.generatedAt);
+    expect(() => cashReconciliationReportSchema.parse(report)).not.toThrow();
+  });
+
+  it('zeroes every method for a day with no sales', () => {
+    const report = buildReconciliationReport([], meta);
+    expect(report.salesCount).toBe(0);
+    expect(report.grossTotal).toBe(0);
+    expect(report.expectedCash).toBe(0);
+    expect(report.methods).toHaveLength(3);
+  });
+
+  it('sums repeated tallies for the same method', () => {
+    const report = buildReconciliationReport(
+      [
+        { method: 'cash', count: 1, total: 500 },
+        { method: 'cash', count: 2, total: 1000 },
+      ],
+      meta,
+    );
+    expect(report.methods[0]).toEqual({ method: 'cash', count: 3, total: 1500 });
+  });
+});
+
+describe('computeCashVariance (T7.5)', () => {
+  it('reports a balanced drawer', () => {
+    expect(computeCashVariance(1500, 1500)).toEqual({
+      expectedCash: 1500,
+      countedCash: 1500,
+      variance: 0,
+      status: 'balanced',
+    });
+  });
+
+  it('reports an overage as a positive variance', () => {
+    expect(computeCashVariance(1500, 1700)).toMatchObject({ variance: 200, status: 'over' });
+  });
+
+  it('reports a shortfall as a negative variance', () => {
+    expect(computeCashVariance(1500, 1200)).toMatchObject({ variance: -300, status: 'short' });
   });
 });
