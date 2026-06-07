@@ -41,6 +41,10 @@ export default function ProfileScreen() {
         </Text>
       </Pressable>
 
+      <Link href="/profile/training" style={{ marginTop: 16, fontSize: 16, color: colors.primary }}>
+        {t('training.title')}
+      </Link>
+
       <Link
         href="/profile/notifications"
         style={{ marginTop: 16, fontSize: 16, color: colors.primary }}

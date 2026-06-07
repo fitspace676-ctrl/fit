@@ -61,7 +61,9 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   `ProductRead` / `ProductWrite`).
  * - {@link PackagePlansModule} serves the staff console's tenant-scoped
  *   personal-training package-plan management (`/admin/packages` — CRUD with
- *   billing cadence, session count, and features; `PackageRead` / `PackageWrite`).
+ *   billing cadence, session count, and features; `PackageRead` / `PackageWrite`)
+ *   and the public, gymId-scoped package catalogue (`GET /packages`) the web
+ *   purchase wizard and mobile Personal Training screen browse.
  * - {@link TenantModule} provides tenant scoping (context, guard, scoped Prisma);
  *   {@link TenantMiddleware} establishes the request's tenant for every route
  *   except the public ones (`/auth/*`, `/health`, `/uploads`).
@@ -123,7 +125,7 @@ export class AppModule implements NestModule {
    *    route except the public ones: auth (must work before any session exists),
    *    the health probe, the public discovery listings
    *    (`GET /class-instances`, `GET /class-instances/:id`, `GET /trainers`,
-   *    `GET /trainers/:id/reviews`) — which an unauthenticated
+   *    `GET /trainers/:id/reviews`, `GET /packages`) — which an unauthenticated
    *    visitor browses on a gym subdomain and which carry their `gymId` as a
    *    query param rather than a session — and the public tenant lookup
    *    (`GET /gyms/by-subdomain/:slug`)
@@ -147,6 +149,7 @@ export class AppModule implements NestModule {
         { path: 'class-instances/:id', method: RequestMethod.GET },
         { path: 'trainers', method: RequestMethod.ALL },
         { path: 'trainers/:id/reviews', method: RequestMethod.GET },
+        { path: 'packages', method: RequestMethod.GET },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');
