@@ -4,7 +4,21 @@ import {
   orderStatusSchema,
   orderSummarySchema,
   paymentMethodSchema,
+  posReceiptSchema,
+  sendReceiptSchema,
 } from './orders';
+
+/** A minimal valid POS receipt snapshot the receipt-contract tests build on. */
+const validReceipt = {
+  currency: 'USD',
+  items: [{ name: 'Protein bar', quantity: 2, unitPrice: 250, amount: 500 }],
+  subtotal: 500,
+  discountTotal: 0,
+  total: 500,
+  paymentMethod: 'cash' as const,
+  cashTendered: 1000,
+  changeDue: 500,
+};
 
 describe('orderStatusSchema', () => {
   it('accepts the three lifecycle states', () => {
@@ -71,6 +85,64 @@ describe('orderSummarySchema', () => {
         currency: 'US',
         items: [],
       }),
+    ).toThrow();
+  });
+});
+
+describe('posReceiptSchema', () => {
+  it('parses a cash sale snapshot', () => {
+    const parsed = posReceiptSchema.parse(validReceipt);
+    expect(parsed.items).toHaveLength(1);
+    expect(parsed.changeDue).toBe(500);
+    expect(parsed.memberName).toBeUndefined();
+  });
+
+  it('accepts an attached member name', () => {
+    const parsed = posReceiptSchema.parse({ ...validReceipt, memberName: 'Sam Rivera' });
+    expect(parsed.memberName).toBe('Sam Rivera');
+  });
+
+  it('accepts a null member name (walk-in)', () => {
+    const parsed = posReceiptSchema.parse({ ...validReceipt, memberName: null });
+    expect(parsed.memberName).toBeNull();
+  });
+
+  it('requires at least one line', () => {
+    expect(() => posReceiptSchema.parse({ ...validReceipt, items: [] })).toThrow();
+  });
+
+  it('rejects non-integer (float) money amounts', () => {
+    expect(() => posReceiptSchema.parse({ ...validReceipt, total: 5.5 })).toThrow();
+  });
+
+  it('rejects negative amounts', () => {
+    expect(() => posReceiptSchema.parse({ ...validReceipt, changeDue: -1 })).toThrow();
+  });
+
+  it('rejects an unknown payment method', () => {
+    expect(() => posReceiptSchema.parse({ ...validReceipt, paymentMethod: 'crypto' })).toThrow();
+  });
+});
+
+describe('sendReceiptSchema', () => {
+  it('parses a recipient + receipt and normalises the email', () => {
+    const parsed = sendReceiptSchema.parse({
+      email: '  Buyer@Example.COM ',
+      receipt: validReceipt,
+    });
+    expect(parsed.email).toBe('buyer@example.com');
+    expect(parsed.receipt.total).toBe(500);
+  });
+
+  it('rejects an invalid email', () => {
+    expect(() =>
+      sendReceiptSchema.parse({ email: 'not-an-email', receipt: validReceipt }),
+    ).toThrow();
+  });
+
+  it('rejects a malformed receipt', () => {
+    expect(() =>
+      sendReceiptSchema.parse({ email: 'buyer@example.com', receipt: { currency: 'USD' } }),
     ).toThrow();
   });
 });

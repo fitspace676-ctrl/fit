@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { PaymentMethod, PosReceipt } from '@fit/types';
 import { env } from '../config/env';
 
 /** Resend's transactional-email endpoint. */
@@ -225,6 +226,49 @@ export class EmailService {
 
     this.logger.debug(`Staff invite email dispatched to ${to}`);
   }
+
+  /**
+   * Email the customer the receipt of a completed POS sale (T7.4). Builds the
+   * receipt copy from the sale snapshot via {@link buildReceiptEmail} and posts it
+   * to Resend. Resolves `true` once the mail is accepted; resolves `false` —
+   * without sending — when Resend is unconfigured (the receipt is logged instead),
+   * so the caller can surface "emailed" vs "delivery not configured" to staff.
+   * Rejects only when Resend returns an error, which the POS treats as a failed
+   * send (the sale itself already completed and is unaffected).
+   */
+  async sendReceiptEmail(to: string, receipt: PosReceipt, gymName?: string): Promise<boolean> {
+    const { subject, html, text } = buildReceiptEmail(receipt, gymName);
+
+    if (!this.isConfigured) {
+      this.logger.warn(
+        `Resend not configured (RESEND_API_KEY unset) — receipt for ${to} not sent: ${subject}`,
+      );
+      return false;
+    }
+
+    const response = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM,
+        to: [to],
+        subject,
+        html,
+        text,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+    }
+
+    this.logger.debug(`Receipt email dispatched to ${to}`);
+    return true;
+  }
 }
 
 /**
@@ -267,4 +311,110 @@ export function buildPasswordResetUrl(token: string): string {
 export function buildInviteAcceptUrl(token: string): string {
   const base = `${env.API_PUBLIC_URL.replace(/\/+$/, '')}/auth/accept-invite`;
   return `${base}?token=${encodeURIComponent(token)}`;
+}
+
+/** Assumed minor units per major unit (USD/EUR/GEL — all two-decimal). */
+const MINOR_PER_MAJOR = 100;
+
+/**
+ * Format a minor-unit amount as a localized currency string (e.g. `$29.99`),
+ * mirroring the admin's `formatPrice`. Falls back to `29.99 USD` for a currency
+ * code `Intl` doesn't recognise so the receipt always renders a number.
+ */
+function formatReceiptMoney(amountMinor: number, currency: string): string {
+  const major = amountMinor / MINOR_PER_MAJOR;
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(major);
+  } catch {
+    return `${major.toFixed(2)} ${currency}`;
+  }
+}
+
+/** Human-facing label for a POS settlement method, matching the POS UI copy. */
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Cash',
+  card: 'Card',
+  member_account: 'Member account',
+};
+
+/** Escape the few characters that would break out of the receipt's HTML text nodes. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Render a completed POS sale snapshot into the receipt email's subject, HTML, and
+ * plain-text bodies (T7.4). Pure — no I/O, no env beyond formatting — so the copy
+ * is unit-testable in isolation and {@link EmailService.sendReceiptEmail} is just
+ * the delivery wrapper around it. The line table, the discount line (only when a
+ * discount applied), and the cash tendered/change rows (only for a cash sale) are
+ * all derived from the snapshot, which the caller validated against
+ * `sendReceiptSchema`.
+ */
+export function buildReceiptEmail(
+  receipt: PosReceipt,
+  gymName?: string,
+): { subject: string; html: string; text: string } {
+  const seller = gymName?.trim() || 'Fit';
+  const money = (amount: number): string => formatReceiptMoney(amount, receipt.currency);
+  const methodLabel = PAYMENT_METHOD_LABELS[receipt.paymentMethod];
+  const subject = `Your receipt from ${seller}`;
+
+  const itemRowsHtml = receipt.items
+    .map(
+      (item) =>
+        `<tr>` +
+        `<td style="padding:4px 0;">${escapeHtml(item.name)}${item.quantity > 1 ? ` &times; ${item.quantity}` : ''}</td>` +
+        `<td style="padding:4px 0;text-align:right;">${money(item.amount)}</td>` +
+        `</tr>`,
+    )
+    .join('');
+
+  const totalsHtml =
+    (receipt.discountTotal > 0
+      ? `<tr><td style="padding:2px 0;">Discount</td><td style="padding:2px 0;text-align:right;">-${money(receipt.discountTotal)}</td></tr>`
+      : '') +
+    `<tr><td style="padding:6px 0;font-weight:bold;">Total</td><td style="padding:6px 0;text-align:right;font-weight:bold;">${money(receipt.total)}</td></tr>` +
+    (receipt.paymentMethod === 'cash'
+      ? `<tr><td style="padding:2px 0;">Cash received</td><td style="padding:2px 0;text-align:right;">${money(receipt.cashTendered)}</td></tr>` +
+        `<tr><td style="padding:2px 0;">Change</td><td style="padding:2px 0;text-align:right;">${money(receipt.changeDue)}</td></tr>`
+      : '');
+
+  const html =
+    `<p>Thanks for your purchase at <strong>${escapeHtml(seller)}</strong>.</p>` +
+    (receipt.memberName ? `<p>Charged to ${escapeHtml(receipt.memberName)}.</p>` : '') +
+    `<table style="border-collapse:collapse;width:100%;max-width:420px;font-size:14px;">` +
+    itemRowsHtml +
+    `<tr><td style="padding:6px 0;border-top:1px solid #e2e8f0;">Subtotal</td><td style="padding:6px 0;border-top:1px solid #e2e8f0;text-align:right;">${money(receipt.subtotal)}</td></tr>` +
+    totalsHtml +
+    `</table>` +
+    `<p style="font-size:13px;color:#64748b;">Paid by ${methodLabel}.</p>`;
+
+  const itemLines = receipt.items
+    .map(
+      (item) =>
+        `  ${item.name}${item.quantity > 1 ? ` x ${item.quantity}` : ''}  ${money(item.amount)}`,
+    )
+    .join('\n');
+
+  const totalsLines = [
+    `Subtotal: ${money(receipt.subtotal)}`,
+    ...(receipt.discountTotal > 0 ? [`Discount: -${money(receipt.discountTotal)}`] : []),
+    `Total: ${money(receipt.total)}`,
+    ...(receipt.paymentMethod === 'cash'
+      ? [`Cash received: ${money(receipt.cashTendered)}`, `Change: ${money(receipt.changeDue)}`]
+      : []),
+  ].join('\n');
+
+  const text =
+    `Thanks for your purchase at ${seller}.\n` +
+    (receipt.memberName ? `Charged to ${receipt.memberName}.\n` : '') +
+    `\n${itemLines}\n\n${totalsLines}\n\nPaid by ${methodLabel}.`;
+
+  return { subject, html, text };
 }

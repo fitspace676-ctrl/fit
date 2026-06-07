@@ -1,10 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PaymentMethod } from '@fit/types';
+import type { PaymentMethod, PosReceipt } from '@fit/types';
 import { formatPrice, inputToMinor, minorToInput } from '@/app/products/format-price';
-import type { PosMemberRow } from '@/app/pos/actions';
-import { selectChangeDue, selectItemCount, selectTotal, usePosCart } from '@/stores/pos-cart-store';
+import { emailReceiptAction, type PosMemberRow } from '@/app/pos/actions';
+import {
+  lineTotal,
+  selectChangeDue,
+  selectDiscountTotal,
+  selectItemCount,
+  selectSubtotal,
+  selectTotal,
+  usePosCart,
+} from '@/stores/pos-cart-store';
 
 /** A finished sale, snapshotted at completion so the success screen survives the cart reset. */
 interface CompletedSale {
@@ -15,6 +23,10 @@ interface CompletedSale {
   currency: string;
   itemCount: number;
   memberName: string | null;
+  /** The member's address, pre-filled into the receipt field (`null` for a walk-in). */
+  memberEmail: string | null;
+  /** The validated sale snapshot the receipt email is rendered from. */
+  receipt: PosReceipt;
 }
 
 /** The three settlement methods, with the copy the buttons render. */
@@ -35,8 +47,10 @@ const QUICK_TENDER_STEPS = [500, 1000, 2000, 5000];
  * to charge). Completing the sale snapshots a {@link CompletedSale} for the
  * confirmation screen, then `onCompleted` lets the board reset the cart.
  *
- * Settlement is recorded client-side for now — persisting an Order + Payment row
- * lands with the order API the receipt (T7.4) and reconciliation (T7.5) build on.
+ * The confirmation screen offers to email the customer a receipt (T7.4) — the
+ * snapshot is sent to `POST /orders/receipt`, which renders + delivers it. The
+ * settlement itself is still recorded client-side; persisting an Order + Payment
+ * row and the end-of-day reconciliation (T7.5) build on the same snapshot.
  */
 export function PosPayment({
   member,
@@ -47,7 +61,10 @@ export function PosPayment({
   onClose: () => void;
   onCompleted: () => void;
 }) {
+  const items = usePosCart((state) => state.items);
   const total = usePosCart(selectTotal);
+  const subtotal = usePosCart(selectSubtotal);
+  const discountTotal = usePosCart(selectDiscountTotal);
   const changeDue = usePosCart(selectChangeDue);
   const itemCount = usePosCart(selectItemCount);
   const currency = usePosCart((state) => state.items[0]?.currency ?? 'USD');
@@ -80,14 +97,33 @@ export function PosPayment({
     if (method === null || !canComplete) {
       return;
     }
+    const tendered = method === 'cash' ? cashTendered : total;
+    const change = method === 'cash' ? changeDue : 0;
     setCompleted({
       method,
       total,
-      tendered: method === 'cash' ? cashTendered : total,
-      change: method === 'cash' ? changeDue : 0,
+      tendered,
+      change,
       currency,
       itemCount,
       memberName: member?.name ?? null,
+      memberEmail: member?.email ?? null,
+      receipt: {
+        currency,
+        items: items.map((item) => ({
+          name: item.name,
+          quantity: item.qty,
+          unitPrice: item.unitPrice,
+          amount: lineTotal(item),
+        })),
+        subtotal,
+        discountTotal,
+        total,
+        paymentMethod: method,
+        cashTendered: tendered,
+        changeDue: change,
+        memberName: member?.name ?? null,
+      },
     });
   }
 
@@ -254,6 +290,8 @@ function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () 
         ) : null}
       </dl>
 
+      <ReceiptSender sale={sale} />
+
       <button
         type="button"
         onClick={onFinish}
@@ -261,6 +299,79 @@ function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () 
       >
         New sale
       </button>
+    </div>
+  );
+}
+
+/** What the receipt send is currently doing — drives the inline status copy. */
+type SendStatus =
+  | { kind: 'idle' }
+  | { kind: 'sending' }
+  | { kind: 'sent' }
+  | { kind: 'unconfigured' }
+  | { kind: 'error'; message: string };
+
+/**
+ * The "Email receipt" control on the success screen: an address field (pre-filled
+ * with the attached member's email) and a send button. Delegates to
+ * {@link emailReceiptAction}; a `delivered:false` (email unconfigured server-side)
+ * is reported as a soft note rather than an error, since the sale still completed.
+ */
+function ReceiptSender({ sale }: { sale: CompletedSale }) {
+  const [email, setEmail] = useState(sale.memberEmail ?? '');
+  const [status, setStatus] = useState<SendStatus>({ kind: 'idle' });
+
+  const trimmed = email.trim();
+  const canSend = trimmed !== '' && status.kind !== 'sending';
+
+  async function send(): Promise<void> {
+    if (!canSend) {
+      return;
+    }
+    setStatus({ kind: 'sending' });
+    const result = await emailReceiptAction({ email: trimmed, receipt: sale.receipt });
+    if (!result.ok) {
+      setStatus({ kind: 'error', message: result.error });
+      return;
+    }
+    setStatus(result.data.delivered ? { kind: 'sent' } : { kind: 'unconfigured' });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-slate-200 pt-3 text-left">
+      <span className="text-sm font-medium text-slate-700">Email receipt</span>
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            if (status.kind !== 'idle' && status.kind !== 'sending') {
+              setStatus({ kind: 'idle' });
+            }
+          }}
+          placeholder="customer@example.com"
+          aria-label="Receipt email address"
+          className="flex-1 rounded-card border border-slate-200 px-2 py-1 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+        />
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={!canSend}
+          className="rounded-card border border-slate-200 px-3 py-1 text-sm font-medium text-slate-700 hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {status.kind === 'sending' ? 'Sending…' : 'Send'}
+        </button>
+      </div>
+      {status.kind === 'sent' ? (
+        <p className="text-xs text-green-600">Receipt sent to {trimmed}.</p>
+      ) : null}
+      {status.kind === 'unconfigured' ? (
+        <p className="text-xs text-slate-500">
+          Email delivery isn&rsquo;t configured — receipt not sent.
+        </p>
+      ) : null}
+      {status.kind === 'error' ? <p className="text-xs text-red-600">{status.message}</p> : null}
     </div>
   );
 }

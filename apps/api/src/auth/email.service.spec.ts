@@ -6,7 +6,28 @@ const { mockEnv } = vi.hoisted(() => {
 });
 vi.mock('../config/env', () => ({ env: mockEnv }));
 
-import { EmailService, buildVerificationUrl, buildPasswordResetUrl } from './email.service';
+import type { PosReceipt } from '@fit/types';
+import {
+  EmailService,
+  buildReceiptEmail,
+  buildVerificationUrl,
+  buildPasswordResetUrl,
+} from './email.service';
+
+/** A cash-sale receipt snapshot the receipt-email tests build on. */
+const cashReceipt: PosReceipt = {
+  currency: 'USD',
+  items: [
+    { name: 'Protein bar', quantity: 2, unitPrice: 250, amount: 500 },
+    { name: 'Shaker', quantity: 1, unitPrice: 999, amount: 999 },
+  ],
+  subtotal: 1499,
+  discountTotal: 0,
+  total: 1499,
+  paymentMethod: 'cash',
+  cashTendered: 2000,
+  changeDue: 501,
+};
 
 function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
@@ -214,5 +235,114 @@ describe('buildPasswordResetUrl', () => {
   it('url-encodes the token', () => {
     configure({ PASSWORD_RESET_URL: 'https://m.fit/reset' });
     expect(buildPasswordResetUrl('a b+c')).toBe('https://m.fit/reset?token=a%20b%2Bc');
+  });
+});
+
+describe('EmailService.sendReceiptEmail', () => {
+  let fetchMock: ReturnType<typeof vi.fn<(url: string, init: RequestInit) => Promise<Response>>>;
+
+  beforeEach(() => {
+    configure();
+    fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response('{}', { status: 200 })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('does not send (only logs) and resolves false when RESEND_API_KEY is unset', async () => {
+    const service = new EmailService();
+
+    const delivered = await service.sendReceiptEmail('buyer@example.com', cashReceipt, 'Downtown');
+
+    expect(delivered).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('POSTs to Resend with the receipt subject, recipient, and totals; resolves true', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    const service = new EmailService();
+
+    const delivered = await service.sendReceiptEmail('buyer@example.com', cashReceipt, 'Downtown');
+
+    expect(delivered).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.resend.com/emails');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_123');
+
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.to).toEqual(['buyer@example.com']);
+    expect(body.subject).toBe('Your receipt from Downtown');
+    expect(String(body.html)).toContain('$14.99');
+    expect(String(body.text)).toContain('Total: $14.99');
+  });
+
+  it('throws when Resend returns a non-2xx response', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    fetchMock.mockResolvedValue(new Response('rate limited', { status: 429 }));
+    const service = new EmailService();
+
+    await expect(service.sendReceiptEmail('buyer@example.com', cashReceipt)).rejects.toThrow(/429/);
+  });
+});
+
+describe('buildReceiptEmail', () => {
+  it('renders each line, the subtotal, and the total', () => {
+    const { subject, html, text } = buildReceiptEmail(cashReceipt, 'Downtown');
+    expect(subject).toBe('Your receipt from Downtown');
+    expect(html).toContain('Protein bar');
+    expect(html).toContain('&times; 2');
+    expect(html).toContain('Shaker');
+    expect(text).toContain('Protein bar x 2');
+    expect(text).toContain('Subtotal: $14.99');
+    expect(text).toContain('Total: $14.99');
+  });
+
+  it('includes the cash tendered and change lines for a cash sale', () => {
+    const { html, text } = buildReceiptEmail(cashReceipt);
+    expect(html).toContain('Cash received');
+    expect(html).toContain('Change');
+    expect(text).toContain('Cash received: $20.00');
+    expect(text).toContain('Change: $5.01');
+  });
+
+  it('omits cash lines and shows the method for a card sale', () => {
+    const { html, text } = buildReceiptEmail({
+      ...cashReceipt,
+      paymentMethod: 'card',
+      cashTendered: 0,
+      changeDue: 0,
+    });
+    expect(html).not.toContain('Cash received');
+    expect(html).toContain('Paid by Card');
+    expect(text).toContain('Paid by Card.');
+  });
+
+  it('shows the discount line only when a discount applied', () => {
+    const noDiscount = buildReceiptEmail(cashReceipt);
+    expect(noDiscount.text).not.toContain('Discount');
+
+    const discounted = buildReceiptEmail({ ...cashReceipt, discountTotal: 100, total: 1399 });
+    expect(discounted.text).toContain('Discount: -$1.00');
+  });
+
+  it('names the attached member and falls back to "Fit" without a gym name', () => {
+    const { subject, html } = buildReceiptEmail({ ...cashReceipt, memberName: 'Sam Rivera' });
+    expect(subject).toBe('Your receipt from Fit');
+    expect(html).toContain('Charged to Sam Rivera');
+  });
+
+  it('escapes HTML in a product name', () => {
+    const { html } = buildReceiptEmail({
+      ...cashReceipt,
+      items: [{ name: '<script>x</script>', quantity: 1, unitPrice: 100, amount: 100 }],
+    });
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
   });
 });

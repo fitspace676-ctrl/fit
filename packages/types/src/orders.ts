@@ -136,3 +136,79 @@ export type OrderSummary = z.infer<typeof orderSummarySchema>;
 export interface GetOrderResponse {
   order: OrderSummary;
 }
+
+// ── POS email receipt (T7.4) ──────────────────────────────────────────────
+//
+// Contracts for emailing a customer the receipt of a completed in-person (POS)
+// sale. The POS sale is settled client-side (T7.3) and is not (yet) persisted as
+// an Order row, so the receipt request carries the sale's own snapshot — the
+// priced lines plus the settlement figures — rather than an order id. The API
+// validates the inbound body with {@link sendReceiptSchema}, the admin POS reuses
+// the inferred types, and the {@link EmailService} renders the snapshot into the
+// receipt email. Every money field is an integer in the currency's MINOR units
+// (cents/tetri), consistent with the rest of the order contracts.
+
+/**
+ * One priced line on a POS receipt: a product, the quantity sold, its unit price,
+ * and the line's net `amount` (`unitPrice * quantity` less any line discount).
+ * `unitPrice` and `amount` are in the currency's minor units.
+ */
+export const receiptLineSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  quantity: z.number().int().positive(),
+  unitPrice: z.number().int().nonnegative(),
+  amount: z.number().int().nonnegative(),
+});
+
+/** A single POS receipt line — {@link receiptLineSchema}. */
+export type ReceiptLine = z.infer<typeof receiptLineSchema>;
+
+/**
+ * The snapshot of a completed POS sale a receipt is rendered from. `subtotal` is
+ * the pre-discount sum of the lines, `discountTotal` the combined line + cart
+ * discount, and `total` what the customer paid (`subtotal - discountTotal`). For
+ * a `cash` sale `cashTendered` is the amount handed over and `changeDue` the
+ * change returned; both are zero for `card` / `member_account`. `memberName` is
+ * set when the sale was attached to a member, `null` for a walk-in.
+ */
+export const posReceiptSchema = z.object({
+  currency: z.string().length(3),
+  items: z.array(receiptLineSchema).min(1),
+  subtotal: z.number().int().nonnegative(),
+  discountTotal: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  paymentMethod: paymentMethodSchema,
+  cashTendered: z.number().int().nonnegative(),
+  changeDue: z.number().int().nonnegative(),
+  memberName: z.string().trim().min(1).max(100).nullable().optional(),
+});
+
+/** A completed-sale snapshot a receipt is built from — {@link posReceiptSchema}. */
+export type PosReceipt = z.infer<typeof posReceiptSchema>;
+
+/**
+ * Body for `POST /orders/receipt`. `email` is the recipient (normalised the same
+ * way auth normalises addresses) and `receipt` the sale snapshot to render. The
+ * gym name in the receipt copy is resolved server-side from the request's tenant,
+ * never trusted from the client.
+ */
+export const sendReceiptSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  receipt: posReceiptSchema,
+});
+
+/** Validated `POST /orders/receipt` body — {@link sendReceiptSchema}. */
+export type SendReceiptInput = z.infer<typeof sendReceiptSchema>;
+
+/**
+ * Successful `POST /orders/receipt` response. `delivered` is `true` when the mail
+ * was handed to the provider, `false` when email delivery is unconfigured
+ * (`RESEND_API_KEY` unset) and the receipt was only logged — the sale itself is
+ * unaffected either way, so the POS treats a `false` as a soft, non-error outcome.
+ */
+export const sendReceiptResponseSchema = z.object({
+  delivered: z.boolean(),
+});
+
+/** Validated `POST /orders/receipt` response — {@link sendReceiptResponseSchema}. */
+export type SendReceiptResponse = z.infer<typeof sendReceiptResponseSchema>;

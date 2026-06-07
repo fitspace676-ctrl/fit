@@ -73,6 +73,8 @@ import type {
   UpdateProductResponse,
   UpdateTrainerData,
   UpdateTrainerResponse,
+  SendReceiptInput,
+  SendReceiptResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -806,4 +808,20 @@ export async function createUpload(input: CreateUploadInput): Promise<SignedUplo
     cache: 'no-store',
   });
   return unwrap<SignedUploadResponse>(res);
+}
+
+/**
+ * `POST /orders/receipt` — email a customer the receipt of a completed POS sale
+ * (T7.4). Tenant-scoped and gated by `BillingRead` API-side. Returns
+ * `{ delivered }` — `false` when email delivery is unconfigured and the receipt
+ * was only logged server-side.
+ */
+export async function sendPosReceipt(input: SendReceiptInput): Promise<SendReceiptResponse> {
+  const res = await fetch(`${apiBaseUrl()}/orders/receipt`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<SendReceiptResponse>(res);
 }
