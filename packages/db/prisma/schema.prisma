@@ -221,6 +221,7 @@ model Gym {
   reviews        Review[]
   orders         Order[]
   payments       Payment[]
+  carts          Cart[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -257,6 +258,7 @@ model User {
   memberships   GymMember[]
   refreshTokens RefreshToken[]
   pushTokens    PushToken[]
+  carts         Cart[]
 
   @@map("users")
 }
@@ -741,6 +743,62 @@ model Payment {
   /// scanned by `createdAt` window, then grouped by `method`.
   @@index([gymId, createdAt])
   @@map("payments")
+}
+
+/// A shopping cart for the member-facing online shop (T7.7). A cart is keyed by
+/// exactly one identity: `userId` for a signed-in member, or `sessionId` (an
+/// anonymous `fit_cart_sid` cookie) for a guest — never both at once. On login
+/// the anon cart is merged into the user's cart and deleted, so a person ends up
+/// with a single cart per gym. `gymId` scopes the cart to one tenant's shop. The
+/// two partial uniques `(gymId, userId)` / `(gymId, sessionId)` enforce one cart
+/// per identity per gym (Postgres treats NULLs as distinct, so the unused key is
+/// unconstrained). Cascade-deletes with its gym or owning user.
+model Cart {
+  id        String   @id @default(cuid())
+  gymId     String
+  /// Owning member's user id; null for an anonymous (cookie-keyed) cart.
+  userId    String?
+  /// Anonymous session id from the `fit_cart_sid` cookie; null once the cart is
+  /// owned by a signed-in user.
+  sessionId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gym   Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@unique([gymId, userId])
+  @@unique([gymId, sessionId])
+  @@index([gymId])
+  @@map("carts")
+}
+
+/// One line of a {@link Cart} (T7.7). `productVariantId` is the composite wire
+/// reference `"<productId>:<variantIndex|base>"` — variants have no persistent id
+/// of their own (they live as a JSON array on {@link Product}), so a line is
+/// addressed by its product plus the chosen variant's array position (or `base`
+/// for a product sold as-is). `qty` is the unit count. `unitPrice` is the
+/// per-unit price (currency MINOR units) captured when the line was last added /
+/// updated — the buyer's last-agreed price, against which checkout detects a
+/// price drift (`409 PRICE_CHANGED`); the live cart view always re-prices from the
+/// current product, so this is never shown, only compared. The `(cartId,
+/// productVariantId)` unique makes a repeat add bump `qty` rather than duplicate
+/// the line. Cascade-deletes with its cart.
+model CartItem {
+  id               String   @id @default(cuid())
+  cartId           String
+  productVariantId String
+  qty              Int
+  unitPrice        Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productVariantId])
+  @@index([cartId])
+  @@map("cart_items")
 }
 
 /// Append-only record of privileged platform actions, written by the SuperAdmin
