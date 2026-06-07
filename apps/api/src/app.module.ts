@@ -129,7 +129,7 @@ export class AppModule implements NestModule {
    *    route except the public ones: auth (must work before any session exists),
    *    the health probe, the public discovery listings
    *    (`GET /class-instances`, `GET /class-instances/:id`, `GET /trainers`,
-   *    `GET /trainers/:id/reviews`, `GET /packages`) — which an unauthenticated
+   *    `GET /trainers/:id/reviews`, `GET /packages`, `GET /products`) — which an unauthenticated
    *    visitor browses on a gym subdomain and which carry their `gymId` as a
    *    query param rather than a session — and the public tenant lookup
    *    (`GET /gyms/by-subdomain/:slug`)
@@ -154,6 +154,7 @@ export class AppModule implements NestModule {
         { path: 'trainers', method: RequestMethod.ALL },
         { path: 'trainers/:id/reviews', method: RequestMethod.GET },
         { path: 'packages', method: RequestMethod.GET },
+        { path: 'products', method: RequestMethod.GET },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');

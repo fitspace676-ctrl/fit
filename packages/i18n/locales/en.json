@@ -401,6 +401,9 @@
   "shop": {
     "title": "Shop",
     "subtitle": "Gear, supplements, and essentials from your gym.",
+    "grid": {
+      "label": "Products"
+    },
     "retry": "Try again",
     "browse": {
       "loading": "Loading products…",

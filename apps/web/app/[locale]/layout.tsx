@@ -55,6 +55,9 @@ export default async function LocaleLayout({
               <Link href="/trainers" className="hover:text-brand-600">
                 {t('nav.trainers')}
               </Link>
+              <Link href="/shop" className="hover:text-brand-600">
+                {t('nav.shop')}
+              </Link>
             </nav>
             <LocaleSwitcher />
           </header>
