@@ -19,9 +19,10 @@ import {
   type TokenPair,
 } from '../lib/auth-storage';
 
-// AsyncStorage key under which the push-registration task (later phase) records
-// the device id its Expo push token was registered under, so logout can
-// unregister it. Absent today → the unregister step is a graceful no-op.
+// AsyncStorage key under which `lib/push` (T6.10) records the device id its Expo
+// push token was registered under, so logout can unregister it. The SAME key
+// string is written there and read here. Absent (push never registered) → the
+// unregister step is a graceful no-op.
 const PUSH_DEVICE_ID_KEY = 'fit.pushTokenDeviceId';
 
 // Shared one-shot hydration: the keychain is read once per app launch no matter
@@ -94,8 +95,9 @@ async function revokeServerSession(session: TokenPair | null): Promise<void> {
 
 /**
  * Unregister this device's Expo push token via
- * `DELETE /notifications/push-token/:deviceId` (best-effort). No-op until the
- * push-registration task stores a device id under {@link PUSH_DEVICE_ID_KEY}.
+ * `DELETE /notifications/push-token/:deviceId` (best-effort). A graceful no-op
+ * when no device id is stored under {@link PUSH_DEVICE_ID_KEY} (push was never
+ * registered on this device).
  */
 async function unregisterPushToken(session: TokenPair | null): Promise<void> {
   if (!session) return;

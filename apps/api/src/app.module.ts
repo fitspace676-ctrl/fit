@@ -10,6 +10,7 @@ import { GymsModule } from './gyms/gyms.module';
 import { HealthModule } from './health/health.module';
 import { LocationsModule } from './locations/locations.module';
 import { MembersModule } from './members/members.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PackagePlansModule } from './packages/package-plans.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
@@ -88,6 +89,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     ProductsModule,
     PackagePlansModule,
     ReviewsModule,
+    NotificationsModule,
     MembersModule,
     StaffModule,
     AuditModule,

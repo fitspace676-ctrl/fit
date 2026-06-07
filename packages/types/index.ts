@@ -11,6 +11,7 @@ export * from './src/gyms';
 export * from './src/locations';
 export * from './src/locations-admin';
 export * from './src/members';
+export * from './src/notifications';
 export * from './src/orders';
 export * from './src/packages';
 export * from './src/packages-admin';

@@ -1,10 +1,10 @@
 // @fit/mobile — local notification preferences (store + persistence).
 //
 // What the member wants to be notified about. These are *preferences*, not
-// secrets, so they live in AsyncStorage. Actual push delivery (registering the
-// Expo push token, honouring these flags server-side) lands in T6.10 — until
-// then this is the single source of truth the Settings UI reads and writes, and
-// the gate a later delivery layer will consult.
+// secrets, so they live in AsyncStorage. The push *transport* — registering the
+// Expo push token — is wired in `lib/push` (T6.10); these flags stay the
+// member's category choices: the single source of truth the Settings UI reads
+// and writes, and the gate a server-side delivery layer consults.
 //
 // Like `auth-storage`, it keeps an in-memory snapshot with a tiny pub/sub so
 // React (via `useSyncExternalStore`) re-renders the instant a toggle flips,

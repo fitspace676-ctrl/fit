@@ -11,8 +11,8 @@ import { SettingsSection, ToggleRow } from '../../../components/settings/Setting
  * A master **Push notifications** switch gates three category toggles (class
  * reminders, booking updates, promotions). All four persist locally via
  * `useNotificationPrefs` (AsyncStorage); when push is off the categories are
- * shown disabled. Actual delivery — registering the Expo push token and honouring
- * these flags server-side — lands in T6.10, which is why the subtitle says so.
+ * shown disabled. The push token transport is registered separately in `lib/push`
+ * (T6.10); these toggles remain the member's per-category delivery choices.
  */
 export default function NotificationsScreen() {
   const { colors } = useTheme();

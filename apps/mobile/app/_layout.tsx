@@ -9,6 +9,7 @@ import '../global.css';
 // Validate EXPO_PUBLIC_* env once at app launch (throws on a malformed value).
 import '../lib/env';
 import { useProtectedRoute } from '../hooks/useProtectedRoute';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { AppProviders } from '../providers';
 
 // Mobile Sentry bootstrap. Runs once when this module is first evaluated; no-op
@@ -32,6 +33,9 @@ if (sentryDsn) {
 // the user never sees a redirect flash on a cold launch with a live session.
 function RootNavigator() {
   const hydrating = useProtectedRoute();
+  // Register for push + handle notification-tap deep links. Lives here (a child
+  // of the navigator) so `router.push` from a tapped notification is live.
+  usePushNotifications();
   return (
     <>
       <Stack screenOptions={{ headerShown: false }} />
