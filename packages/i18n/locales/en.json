@@ -368,6 +368,36 @@
     "error": "We couldn’t load the trainers. Please try again.",
     "retry": "Try again"
   },
+  "training": {
+    "title": "Personal Training",
+    "subtitle": "Train one-on-one with a coach. Choose a package and track your upcoming sessions.",
+    "retry": "Try again",
+    "packages": {
+      "heading": "Packages",
+      "loading": "Loading packages…",
+      "error": "We couldn’t load the packages. Please try again.",
+      "perMonth": "/ mo",
+      "perYear": "/ yr",
+      "unlimited": "Unlimited sessions",
+      "sessionsOne": "{count} session",
+      "sessionsOther": "{count} sessions",
+      "popular": "Most popular",
+      "empty": {
+        "title": "No packages yet",
+        "subtitle": "This gym hasn’t set up any personal-training packages yet. Check back soon."
+      }
+    },
+    "sessions": {
+      "heading": "Upcoming sessions",
+      "loading": "Loading your sessions…",
+      "error": "We couldn’t load your sessions. Please try again.",
+      "empty": {
+        "title": "No upcoming sessions",
+        "subtitle": "When you book a session it will show up here.",
+        "action": "Browse classes"
+      }
+    }
+  },
   "checkout": {
     "title": "Checkout",
     "subtitle": "A few quick steps to set up your membership.",
