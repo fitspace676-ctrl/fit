@@ -14,6 +14,7 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   trainers: 'M12 11a4 4 0 100-8 4 4 0 000 8zM5 21a7 7 0 0114 0M9 7h6',
   locations: 'M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11zM12 12a3 3 0 100-6 3 3 0 000 6z',
   products: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  pos: 'M5 8h14v12H5zM5 8l1.5-4h11L19 8M9 12h6M9 16h3',
   packages: 'M3 8.5l2-3.5h14l2 3.5M3 8.5h18M3 8.5V19a1 1 0 001 1h16a1 1 0 001-1V8.5M9.5 12h5',
   classes: 'M4 5h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zM3 10h18M8 3v4M16 3v4',
   workouts: 'M6.5 6.5v11M17.5 6.5v11M4 9.5h2.5M17.5 9.5H20M6.5 12h11',
