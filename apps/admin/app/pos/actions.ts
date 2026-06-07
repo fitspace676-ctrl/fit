@@ -1,8 +1,16 @@
 'use server';
 
-import { Permission, roleHasPermission, type AdminProductRow, type MemberRow } from '@fit/types';
+import {
+  Permission,
+  roleHasPermission,
+  sendReceiptSchema,
+  type AdminProductRow,
+  type MemberRow,
+  type SendReceiptInput,
+  type SendReceiptResponse,
+} from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchMembers, fetchProducts } from '@/lib/api';
+import { ApiError, fetchMembers, fetchProducts, sendPosReceipt } from '@/lib/api';
 
 /** Discriminated result returned to the client — a Server Action never throws across the boundary. */
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -159,6 +167,32 @@ export async function resolvePosMemberByQrAction(
     const exact = result.data.find((row) => row.id === token);
     const resolved = exact ?? result.data[0] ?? null;
     return { ok: true, data: resolved ? toPosMember(resolved) : null };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Email a customer the receipt of a completed POS sale (T7.4). Re-validates the
+ * snapshot against the shared `sendReceiptSchema` before forwarding it to the
+ * `POST /orders/receipt` API (which renders + sends the receipt), so a malformed
+ * payload is rejected at the boundary rather than surfacing as an opaque API 400.
+ * Enforces `BillingRead` — the same capability the API gates the route on, held by
+ * the POS-operator roles. The returned `delivered:false` (email unconfigured) is a
+ * successful action, not an error — the caller distinguishes the two.
+ */
+export async function emailReceiptAction(
+  input: SendReceiptInput,
+): Promise<ActionResult<SendReceiptResponse>> {
+  if (!(await sessionHas(Permission.BillingRead))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const parsed = sendReceiptSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid receipt details' };
+  }
+  try {
+    return { ok: true, data: await sendPosReceipt(parsed.data) };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }
