@@ -1,0 +1,238 @@
+'use client';
+
+import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
+import {
+  lookupPosMembersAction,
+  resolvePosMemberByQrAction,
+  type PosMemberRow,
+} from '@/app/pos/actions';
+
+/** Debounce (ms) before a keystroke fires a new member lookup. */
+const LOOKUP_DEBOUNCE_MS = 250;
+
+/** Minimal shape of the experimental `BarcodeDetector` we rely on for QR scanning. */
+interface BarcodeDetectorLike {
+  detect: (source: CanvasImageSource) => Promise<Array<{ rawValue: string }>>;
+}
+interface BarcodeDetectorCtor {
+  new (options?: { formats?: string[] }): BarcodeDetectorLike;
+  getSupportedFormats?: () => Promise<string[]>;
+}
+
+/**
+ * Member lookup + QR scan (top of the right column). A debounced search over the
+ * gym roster (name / phone / email) drops down up to ten matches; picking one
+ * attaches the sale to that member. A "Scan QR" button opens the device camera
+ * and decodes the member's check-in QR via the Web Barcode Detection API (with a
+ * graceful message where it isn't supported). Walk-in is the default — no member
+ * is required to sell.
+ *
+ * State (the attached member) lives in the cart store via the `selectedMember` /
+ * `onSelect` props the board threads through, so the cart and lookup never drift.
+ */
+export function MemberLookup({
+  searchRef,
+  selectedMember,
+  onSelect,
+}: {
+  searchRef: RefObject<HTMLInputElement | null>;
+  selectedMember: PosMemberRow | null;
+  onSelect: (member: PosMemberRow | null) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<PosMemberRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'unsupported'>('idle');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    if (query.trim() === '') {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    startTransition(async () => {
+      const result = await lookupPosMembersAction(query);
+      if (cancelled) {
+        return;
+      }
+      if (result.ok) {
+        setResults(result.data);
+        setError(null);
+      } else {
+        setResults([]);
+        setError(result.error);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
+
+  function onQueryChange(value: string): void {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => setQuery(value), LOOKUP_DEBOUNCE_MS);
+  }
+
+  function pick(member: PosMemberRow): void {
+    onSelect(member);
+    setQuery('');
+    setResults([]);
+    if (searchRef.current) {
+      searchRef.current.value = '';
+    }
+  }
+
+  /** Tear down the camera stream and leave scan mode. */
+  function stopScan(): void {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setScanState('idle');
+  }
+
+  // Always release the camera when the component unmounts.
+  useEffect(() => stopScan, []);
+
+  async function startScan(): Promise<void> {
+    const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor })
+      .BarcodeDetector;
+    if (!Detector || !navigator.mediaDevices?.getUserMedia) {
+      setScanState('unsupported');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      streamRef.current = stream;
+      setScanState('scanning');
+      const detector = new Detector({ formats: ['qr_code'] });
+      const video = videoRef.current;
+      if (!video) {
+        stopScan();
+        return;
+      }
+      video.srcObject = stream;
+      await video.play();
+
+      // Poll frames until a QR decodes or the operator cancels.
+      const tick = async (): Promise<void> => {
+        if (!streamRef.current) {
+          return;
+        }
+        try {
+          const codes = await detector.detect(video);
+          const raw = codes[0]?.rawValue;
+          if (raw) {
+            stopScan();
+            const result = await resolvePosMemberByQrAction(raw);
+            if (result.ok && result.data) {
+              onSelect(result.data);
+            } else if (result.ok) {
+              setError('Scanned code did not match any member.');
+            } else {
+              setError(result.error);
+            }
+            return;
+          }
+        } catch {
+          // Transient decode failure on a frame — keep polling.
+        }
+        requestAnimationFrame(() => void tick());
+      };
+      requestAnimationFrame(() => void tick());
+    } catch {
+      stopScan();
+      setError('Could not access the camera.');
+    }
+  }
+
+  if (selectedMember) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-card border border-brand-200 bg-brand-50 px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-900">{selectedMember.name}</p>
+          <p className="truncate text-xs text-slate-500">
+            {selectedMember.phone ?? selectedMember.email}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          className="shrink-0 rounded-card px-2 py-1 text-xs font-medium text-slate-600 hover:bg-white"
+        >
+          Remove
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <label htmlFor="pos-member-search" className="sr-only">
+            Look up a member by name or phone (F2)
+          </label>
+          <input
+            ref={searchRef}
+            id="pos-member-search"
+            type="search"
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Member name or phone…  (F2)"
+            className="w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => (scanState === 'scanning' ? stopScan() : void startScan())}
+          className="shrink-0 rounded-card border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:border-brand-400 hover:text-brand-700"
+        >
+          {scanState === 'scanning' ? 'Stop' : 'Scan QR'}
+        </button>
+      </div>
+
+      <p className="text-xs text-slate-400">Walk-in sale — no member required.</p>
+
+      {error ? (
+        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </p>
+      ) : null}
+
+      {scanState === 'unsupported' ? (
+        <p className="rounded-card bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          QR scanning isn’t supported on this device/browser. Search by name or phone instead.
+        </p>
+      ) : null}
+
+      {scanState === 'scanning' ? (
+        <div className="overflow-hidden rounded-card border border-slate-200">
+          <video ref={videoRef} className="h-40 w-full bg-black object-cover" muted playsInline />
+        </div>
+      ) : null}
+
+      {results.length > 0 ? (
+        <ul className="max-h-56 overflow-y-auto rounded-card border border-slate-200">
+          {results.map((member) => (
+            <li key={member.id}>
+              <button
+                type="button"
+                onClick={() => pick(member)}
+                className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+              >
+                <span className="text-sm font-medium text-slate-900">{member.name}</span>
+                <span className="text-xs text-slate-500">{member.phone ?? member.email}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
