@@ -228,3 +228,82 @@ export type UpdateProductResponse = AdminProductDetail;
  * the product detail with the new `status` (`INACTIVE` / `ACTIVE`).
  */
 export type SetProductStatusResponse = AdminProductDetail;
+
+// ── Inventory tracking + low-stock alerts (T7.8) ──────────────────────────────
+//
+// On-hand stock lives per-variant in the product's `variants` JSON (`stock`); a
+// product sold as-is (no variants) is untracked. A completed online sale
+// decrements the sold variant's `stock` at checkout, so the roster's numbers are
+// the live on-hand count. The low-stock report surfaces every ACTIVE product
+// carrying at least one variant at or below the alert threshold so staff can
+// reorder before a line sells out.
+
+/**
+ * Default low-stock alert threshold (inclusive). A variant whose on-hand `stock`
+ * is at or below this is "low" and surfaces on the report unless the caller
+ * overrides the threshold. Chosen as a small reorder cushion, not zero, so the
+ * alert fires before a line is fully out of stock.
+ */
+export const DEFAULT_LOW_STOCK_THRESHOLD = 5;
+
+/** The largest threshold the low-stock report accepts (keeps the query bounded). */
+export const MAX_LOW_STOCK_THRESHOLD = 1000;
+
+/**
+ * Query for `GET /admin/products/low-stock`. `threshold` is the inclusive on-hand
+ * ceiling a variant must be at or below to count as low — a non-negative integer,
+ * defaulting to {@link DEFAULT_LOW_STOCK_THRESHOLD} and capped at
+ * {@link MAX_LOW_STOCK_THRESHOLD}. Coerced because it arrives as a query string.
+ */
+export const lowStockQuerySchema = z.object({
+  threshold: z.coerce
+    .number()
+    .int('Threshold must be a whole number')
+    .min(0, 'Threshold cannot be negative')
+    .max(MAX_LOW_STOCK_THRESHOLD, `Threshold must be ${MAX_LOW_STOCK_THRESHOLD} or fewer`)
+    .default(DEFAULT_LOW_STOCK_THRESHOLD),
+});
+
+/** Validated `GET /admin/products/low-stock` query — {@link lowStockQuerySchema}. */
+export type LowStockQuery = z.infer<typeof lowStockQuerySchema>;
+
+/**
+ * One low-stock variant on the report. `variantIndex` is its position in the
+ * product's variant array (variants have no id of their own — they live as a JSON
+ * array, see the `variants` field), so staff can find it on the edit form.
+ * `name` / `sku` label it and `stock` is the live on-hand count that tripped the
+ * threshold.
+ */
+export interface LowStockVariant {
+  variantIndex: number;
+  name: string;
+  sku: string;
+  stock: number;
+}
+
+/**
+ * One product on the low-stock report — the catalogue fields the alert list needs
+ * plus only the variants that are at or below the threshold (a product with three
+ * variants but one low variant lists just the one). `imageUrl` is the primary
+ * gallery image or `null`; `lowestStock` is the smallest on-hand count across the
+ * product's low variants, so the list can sort the most urgent products first.
+ */
+export interface LowStockProductRow {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  currency: string;
+  variants: LowStockVariant[];
+  lowestStock: number;
+}
+
+/**
+ * Successful `GET /admin/products/low-stock` response — every ACTIVE product with
+ * at least one low variant, most urgent first, plus the `threshold` the report was
+ * run at so the page can label it. An empty `data` is a normal result (nothing is
+ * low) the page renders as an all-clear state.
+ */
+export interface ListLowStockResponse {
+  data: LowStockProductRow[];
+  threshold: number;
+}

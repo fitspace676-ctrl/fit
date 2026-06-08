@@ -16,10 +16,12 @@ import {
   Permission,
   createProductSchema,
   listAdminProductsQuerySchema,
+  lowStockQuerySchema,
   updateProductSchema,
   type CreateProductResponse,
   type GetAdminProductResponse,
   type ListAdminProductsResponse,
+  type ListLowStockResponse,
   type SetProductStatusResponse,
   type UpdateProductResponse,
 } from '@fit/types';
@@ -55,6 +57,19 @@ export class AdminProductsController {
   @RequirePermissions(Permission.ProductRead)
   async list(@Query() query: unknown): Promise<ListAdminProductsResponse> {
     return this.products.listProducts(parse(listAdminProductsQuerySchema, query));
+  }
+
+  /**
+   * `GET /admin/products/low-stock?threshold` — the low-stock report (T7.8): every
+   * active product carrying a variant at or below the threshold, most urgent first.
+   * Declared before `:id` so the literal path is matched ahead of the param route.
+   * A bad `threshold` is a `400`; the default applies when it is omitted.
+   */
+  @Get('low-stock')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductRead)
+  async lowStock(@Query() query: unknown): Promise<ListLowStockResponse> {
+    return this.products.listLowStock(parse(lowStockQuerySchema, query));
   }
 
   /**

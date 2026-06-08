@@ -37,6 +37,7 @@ import type {
   ListMembersResponse,
   ListAdminProductsQuery,
   ListAdminProductsResponse,
+  ListLowStockResponse,
   CreateProductData,
   CreateProductResponse,
   GetAdminProductResponse,
@@ -410,6 +411,20 @@ export async function fetchProducts(
     cache: 'no-store',
   });
   return unwrap<ListAdminProductsResponse>(res);
+}
+
+/**
+ * `GET /admin/products/low-stock` — the low-stock report: every active product
+ * carrying a variant at or below `threshold` (omitted ⇒ the API's default), most
+ * urgent first. Enforces `ProductRead` (the same capability the roster needs).
+ */
+export async function fetchLowStockProducts(threshold?: number): Promise<ListLowStockResponse> {
+  const qs = threshold === undefined ? '' : `?threshold=${encodeURIComponent(threshold)}`;
+  const res = await fetch(`${apiBaseUrl()}/admin/products/low-stock${qs}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListLowStockResponse>(res);
 }
 
 /** `GET /admin/products/:id` — one product's detail. */

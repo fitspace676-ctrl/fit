@@ -52,6 +52,7 @@ function setup(config: {
   const findMany = vi.fn((args: { where: { id: { in: string[] } } }) =>
     Promise.resolve(products.filter((p) => args.where.id.in.includes(p.id))),
   );
+  const productUpdate = vi.fn((_args: unknown) => Promise.resolve({}));
 
   const cartFindUnique = vi.fn((args: { where: Record<string, unknown> }) => {
     const where = args.where;
@@ -79,7 +80,7 @@ function setup(config: {
   const gymMemberFindFirst = vi.fn(() => Promise.resolve(null));
 
   const client = {
-    product: { findMany },
+    product: { findMany, update: productUpdate },
     cart: {
       findUnique: cartFindUnique,
       create: cartCreate,
@@ -116,6 +117,7 @@ function setup(config: {
       cartItemDeleteMany,
       orderCreate,
       cartDelete,
+      productUpdate,
     },
   };
 }
@@ -248,6 +250,58 @@ describe('CartService.checkout', () => {
     expect(orderArgs.data.total).toBe(1000); // 2 × 500
     expect(orderArgs.data.status).toBe('PENDING');
     expect(mocks.cartDelete).toHaveBeenCalledOnce();
+  });
+
+  it('draws down the sold variant stock within the checkout transaction (T7.8)', async () => {
+    const { service, mocks } = setup({
+      userId: 'u1',
+      userCart: cart, // one line: variant index 0 of p1, qty 2
+      products: [
+        product({
+          priceAmount: 500,
+          variants: [{ name: 'M', sku: 'TEE-M', priceAmount: 500, stock: 10 }],
+        }),
+      ],
+    });
+
+    const outcome = await service.checkout(undefined, {
+      fulfillment: 'DELIVERY',
+      deliveryAddress: '1 Main St',
+    });
+
+    expect(outcome).toEqual({ kind: 'created', orderId: 'order-1' });
+    expect(mocks.productUpdate).toHaveBeenCalledOnce();
+    const updateArgs = mocks.productUpdate.mock.calls[0]![0] as {
+      where: { id: string };
+      data: { variants: Array<{ stock: number }> };
+    };
+    expect(updateArgs.where.id).toBe('p1');
+    // 10 on hand − 2 sold = 8 left.
+    expect(updateArgs.data.variants[0]!.stock).toBe(8);
+  });
+
+  it('leaves a base (untracked) line alone — no stock write (T7.8)', async () => {
+    const baseRef = encodeVariantRef('p1', null);
+    const baseCart: CartRow = {
+      id: 'cart1',
+      gymId: 'gym1',
+      userId: 'u1',
+      sessionId: null,
+      items: [{ id: 'i1', productVariantId: baseRef, qty: 2, unitPrice: 1000 }],
+    };
+    const { service, mocks } = setup({
+      userId: 'u1',
+      userCart: baseCart,
+      products: [product({ priceAmount: 1000 })],
+    });
+
+    const outcome = await service.checkout(undefined, {
+      fulfillment: 'DELIVERY',
+      deliveryAddress: '1 Main St',
+    });
+
+    expect(outcome).toEqual({ kind: 'created', orderId: 'order-1' });
+    expect(mocks.productUpdate).not.toHaveBeenCalled();
   });
 
   it('rejects an empty cart', async () => {

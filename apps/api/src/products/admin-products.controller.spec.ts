@@ -4,6 +4,7 @@ import type {
   CreateProductResponse,
   GetAdminProductResponse,
   ListAdminProductsResponse,
+  ListLowStockResponse,
 } from '@fit/types';
 import { AdminProductsController } from './admin-products.controller';
 import type { AdminProductsService } from './admin-products.service';
@@ -29,6 +30,9 @@ function setup() {
     Promise.resolve({ data: [], total: 0, page: 1, limit: 20 }),
   );
   const getProduct = vi.fn<() => Promise<GetAdminProductResponse>>(() => Promise.resolve(detail()));
+  const listLowStock = vi.fn<() => Promise<ListLowStockResponse>>(() =>
+    Promise.resolve({ data: [], threshold: 5 }),
+  );
   const createProduct = vi.fn<() => Promise<CreateProductResponse>>(() =>
     Promise.resolve(detail()),
   );
@@ -38,6 +42,7 @@ function setup() {
   const service = {
     listProducts,
     getProduct,
+    listLowStock,
     createProduct,
     updateProduct,
   } as unknown as AdminProductsService;
@@ -45,6 +50,7 @@ function setup() {
     controller: new AdminProductsController(service),
     listProducts,
     getProduct,
+    listLowStock,
     createProduct,
     updateProduct,
   };
@@ -70,6 +76,30 @@ describe('AdminProductsController', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(ctx.listProducts).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /admin/products/low-stock', () => {
+    it('defaults the threshold and delegates to the service', async () => {
+      ctx = setup();
+      await ctx.controller.lowStock({});
+
+      expect(ctx.listLowStock).toHaveBeenCalledWith({ threshold: 5 });
+    });
+
+    it('coerces a string threshold from the query', async () => {
+      ctx = setup();
+      await ctx.controller.lowStock({ threshold: '12' });
+
+      expect(ctx.listLowStock).toHaveBeenCalledWith({ threshold: 12 });
+    });
+
+    it('rejects a negative threshold with 400 without hitting the service', async () => {
+      ctx = setup();
+      const error = await ctx.controller.lowStock({ threshold: '-1' }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(ctx.listLowStock).not.toHaveBeenCalled();
     });
   });
 
