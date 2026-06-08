@@ -289,6 +289,10 @@ export class CartService {
       return {
         label: item.qty > 1 ? `${label} ×${item.qty}` : label,
         amount: current.unitPrice * item.qty,
+        // Record the variant ref + quantity so an admin refund (T7.9) can restock the
+        // exact sold positions — the inverse of the draw-down below.
+        productVariantId: item.productVariantId,
+        qty: item.qty,
       };
     });
     if (discount > 0) {
@@ -305,6 +309,9 @@ export class CartService {
           locationId: input.fulfillment === 'PICKUP' ? (input.locationId ?? null) : null,
           memberId: member?.id ?? null,
           items: { create: lines },
+          // Log the opening transition so the order's admin status timeline (T7.9) is
+          // generated from the append-only event log, not inferred from the row.
+          statusEvents: { create: { status: OrderStatus.PENDING } },
         },
         select: { id: true },
       });

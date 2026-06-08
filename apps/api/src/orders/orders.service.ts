@@ -1,14 +1,33 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { OrderStatus, PaymentMethod as DbPaymentMethod, PaymentStatus } from '@fit/db';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { OrderStatus, PaymentMethod as DbPaymentMethod, PaymentStatus, Prisma } from '@fit/db';
 import {
   buildReconciliationReport,
+  decodeVariantRef,
+  deriveOrderChannel,
   gymSettingsStoredSchema,
+  ORDER_EXPORT_COLUMNS,
+  orderExportCells,
+  productVariantsSchema,
+  REFUND_EXCEEDS_PAID_CODE,
+  type AdminOrderDetail,
+  type AdminOrderRow,
   type CashReconciliationQuery,
   type CashReconciliationReport,
+  type ListOrdersQuery,
+  type ListOrdersResponse,
+  type OrderStatusTimelineEntry,
   type PaymentMethod,
   type RecordPosSaleInput,
   type RecordPosSaleResponse,
   type ReconciliationTally,
+  type RefundOrderInput,
+  type RefundOrderResponse,
   type SendReceiptInput,
   type SendReceiptResponse,
 } from '@fit/types';
@@ -107,8 +126,16 @@ export class OrdersService {
             create: receipt.items.map((line) => ({
               label: line.quantity > 1 ? `${line.name} ×${line.quantity}` : line.name,
               amount: line.amount,
+              // The POS receipt snapshot carries no variant reference, so a POS line
+              // can't be mapped back to a stock position — `productVariantId` stays
+              // null and a POS refund's restock is a no-op for it. `qty` is recorded
+              // so the line's quantity survives onto the order detail.
+              qty: line.quantity,
             })),
           },
+          // Record the opening transition so the order's status timeline (T7.9) is
+          // generated from the same append-only log every other transition writes to.
+          statusEvents: { create: { status: OrderStatus.PAID } },
         },
         select: { id: true },
       });
@@ -167,6 +194,376 @@ export class OrdersService {
       generatedAt: new Date().toISOString(),
     });
   }
+
+  // ── Admin order management (T7.9) ────────────────────────────────────────
+
+  /**
+   * One filtered, server-paginated page of the gym's orders for the admin roster.
+   * Every filter is optional (a bare call lists the whole history, newest first):
+   * `channel` keys off the payment provider (`pos` → POS, else ONLINE — see
+   * {@link buildOrderWhere}), `status` / `memberId` narrow directly, and `from`/`to`
+   * bound `createdAt`. `total` is the filtered count so the pager stays accurate.
+   * Runs on the tenant-scoped client, so the gym constraint is automatic.
+   */
+  async listOrders(query: ListOrdersQuery): Promise<ListOrdersResponse> {
+    const where = buildOrderWhere(query);
+    const skip = (query.page - 1) * query.limit;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.client.order.findMany({
+        where,
+        select: ORDER_ROW_SELECT,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.client.order.count({ where }),
+    ]);
+
+    return {
+      data: rows.map((row) => toOrderRow(row)),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
+
+  /**
+   * One order's full detail for the admin detail page — the roster row plus its
+   * priced `items`, the `payments` (0 or 1, an array to match the contract), the
+   * `refunds` issued against it, and the generated `statusTimeline`. The timeline
+   * comes from the append-only {@link OrderStatusEvent} log; an order that predates
+   * the log (no events) falls back to a single synthesised entry from its current
+   * status + creation time, so the section always renders. A missing id — or one
+   * in another tenant (the scoped `where` constrains `gymId`) — is a `404`.
+   */
+  async getOrder(id: string): Promise<AdminOrderDetail> {
+    const order = await this.prisma.client.order.findFirst({
+      where: { id },
+      select: {
+        ...ORDER_ROW_SELECT,
+        items: {
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, label: true, amount: true, productVariantId: true, qty: true },
+        },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            status: true,
+            method: true,
+            provider: true,
+            refundedAmount: true,
+            createdAt: true,
+          },
+        },
+        refunds: {
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, amount: true, reason: true, restockItems: true, createdAt: true },
+        },
+        statusEvents: { orderBy: { at: 'asc' }, select: { status: true, at: true } },
+      },
+    });
+    if (!order) {
+      throw new NotFoundException({ message: 'Order not found', code: 'ORDER_NOT_FOUND' });
+    }
+
+    const timeline: OrderStatusTimelineEntry[] =
+      order.statusEvents.length > 0
+        ? order.statusEvents.map((event) => ({ status: event.status, at: event.at.toISOString() }))
+        : [{ status: order.status, at: order.createdAt.toISOString() }];
+
+    return {
+      ...toOrderRow(order),
+      items: order.items.map((item) => ({
+        id: item.id,
+        label: item.label,
+        amount: item.amount,
+        productVariantId: item.productVariantId,
+        qty: item.qty,
+      })),
+      payments: order.payment
+        ? [
+            {
+              id: order.payment.id,
+              amount: order.payment.amount,
+              currency: order.payment.currency,
+              status: order.payment.status,
+              method: TO_WIRE_METHOD[order.payment.method],
+              provider: order.payment.provider,
+              refundedAmount: order.payment.refundedAmount,
+              createdAt: order.payment.createdAt.toISOString(),
+            },
+          ]
+        : [],
+      refunds: order.refunds.map((refund) => ({
+        id: refund.id,
+        amount: refund.amount,
+        reason: refund.reason,
+        restockItems: refund.restockItems,
+        createdAt: refund.createdAt.toISOString(),
+      })),
+      statusTimeline: timeline,
+    };
+  }
+
+  /**
+   * Refund (part or all of) an order's captured payment (T7.9). The amount is
+   * validated against the payment's **net** captured figure
+   * (`amount - refundedAmount`); a request exceeding it — or an order with no
+   * captured payment to refund — is a `422 EXCEEDS_PAID_AMOUNT`. Otherwise, in one
+   * transaction: a {@link Refund} row is written (the audit record), the payment's
+   * running `refundedAmount` is advanced (flipping its `status` to `REFUNDED` once
+   * the capture is fully reversed), and a full refund also flips the order to
+   * `REFUNDED` and logs the transition. When `restockItems` is set, the sold
+   * variants are returned to on-hand stock in the same transaction, so a refund and
+   * its restock can never partially apply. Returns the new refund's id.
+   */
+  async refundOrder(orderId: string, input: RefundOrderInput): Promise<RefundOrderResponse> {
+    const gymId = this.tenant.gymId;
+    const actor = this.tenant.userId ?? null;
+
+    return this.prisma.client.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id: orderId },
+        select: {
+          id: true,
+          status: true,
+          payment: { select: { id: true, amount: true, refundedAmount: true } },
+          items: { select: { productVariantId: true, qty: true } },
+        },
+      });
+      if (!order) {
+        throw new NotFoundException({ message: 'Order not found', code: 'ORDER_NOT_FOUND' });
+      }
+
+      const payment = order.payment;
+      const netPaid = payment ? payment.amount - payment.refundedAmount : 0;
+      if (!payment || input.amount > netPaid) {
+        throw new UnprocessableEntityException({
+          message: 'Refund amount exceeds the order’s net paid amount',
+          code: REFUND_EXCEEDS_PAID_CODE,
+        });
+      }
+
+      const refund = await tx.refund.create({
+        data: {
+          gymId,
+          orderId: order.id,
+          paymentId: payment.id,
+          amount: input.amount,
+          reason: input.reason,
+          restockItems: input.restockItems,
+        },
+        select: { id: true },
+      });
+
+      const nextRefunded = payment.refundedAmount + input.amount;
+      const fullyRefunded = nextRefunded >= payment.amount;
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          refundedAmount: nextRefunded,
+          ...(fullyRefunded ? { status: PaymentStatus.REFUNDED } : {}),
+        },
+      });
+
+      // A full refund retires the order and logs the transition; a partial one
+      // leaves it `PAID` (the refund itself is the record), so the timeline only
+      // ever carries genuine status changes.
+      if (fullyRefunded && order.status !== OrderStatus.REFUNDED) {
+        await tx.order.update({ where: { id: order.id }, data: { status: OrderStatus.REFUNDED } });
+        await tx.orderStatusEvent.create({
+          data: { orderId: order.id, status: OrderStatus.REFUNDED, actor },
+        });
+      }
+
+      if (input.restockItems) {
+        await this.restockItems(tx, gymId, order.items);
+      }
+
+      return { refundId: refund.id };
+    });
+  }
+
+  /**
+   * Stream the filtered orders as CSV rows, page by page, for `GET /orders/export`.
+   * Yields the header line first, then one line per order, fetching a bounded page
+   * at a time (ordered by `createdAt`, stable for a keyset-free scan) so a 5k+ row
+   * export never loads the whole result set into memory. The controller pipes each
+   * yielded chunk straight to the response. Reuses {@link buildOrderWhere} so the
+   * export and the roster agree on every filter.
+   */
+  async *streamOrdersCsv(query: ListOrdersQuery): AsyncGenerator<string> {
+    const where = buildOrderWhere(query);
+    yield `${ORDER_EXPORT_COLUMNS.map(csvCell).join(',')}\r\n`;
+
+    const pageSize = 500;
+    for (let skip = 0; ; skip += pageSize) {
+      const rows = await this.prisma.client.order.findMany({
+        where,
+        select: ORDER_ROW_SELECT,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      });
+      if (rows.length === 0) {
+        break;
+      }
+      for (const row of rows) {
+        yield `${orderExportCells(toOrderRow(row)).map(csvCell).join(',')}\r\n`;
+      }
+      if (rows.length < pageSize) {
+        break;
+      }
+    }
+  }
+
+  /**
+   * Return sold variants to on-hand stock for a refund's restock (T7.9) — the
+   * mirror of the checkout's stock draw-down. Sums refunded units per
+   * (productId → variantIndex) from the order's lines (skipping base / untracked /
+   * adjustment lines, which carry no resolvable variant), then increments each
+   * affected variant's `stock` in the product's `variants` JSON inside the refund
+   * transaction. Runs on the passed transaction client so stock and the refund
+   * commit together.
+   */
+  private async restockItems(
+    tx: TenantTransactionClient,
+    gymId: string,
+    items: { productVariantId: string | null; qty: number }[],
+  ): Promise<void> {
+    const byProduct = new Map<string, Map<number, number>>();
+    for (const item of items) {
+      if (!item.productVariantId) {
+        continue;
+      }
+      const parsed = decodeVariantRef(item.productVariantId);
+      if (!parsed || parsed.variantIndex === null) {
+        continue;
+      }
+      const byIndex = byProduct.get(parsed.productId) ?? new Map<number, number>();
+      byIndex.set(parsed.variantIndex, (byIndex.get(parsed.variantIndex) ?? 0) + item.qty);
+      byProduct.set(parsed.productId, byIndex);
+    }
+    if (byProduct.size === 0) {
+      return;
+    }
+
+    const products = await tx.product.findMany({
+      where: { gymId, id: { in: [...byProduct.keys()] } },
+      select: { id: true, variants: true },
+    });
+
+    for (const product of products) {
+      const restocked = byProduct.get(product.id);
+      if (!restocked) {
+        continue;
+      }
+      const parsed = productVariantsSchema.safeParse(product.variants ?? []);
+      if (!parsed.success) {
+        continue;
+      }
+      const variants = parsed.data;
+      let changed = false;
+      for (const [index, qty] of restocked) {
+        const variant = variants[index];
+        if (!variant) {
+          continue;
+        }
+        variants[index] = { ...variant, stock: variant.stock + qty };
+        changed = true;
+      }
+      if (changed) {
+        await tx.product.update({ where: { id: product.id }, data: { variants } });
+      }
+    }
+  }
+}
+
+/**
+ * The transaction-client view of the tenant-scoped (extended) Prisma client — the
+ * delegate set minus the client-level lifecycle methods, mirroring how Prisma
+ * derives its own `TransactionClient`. Used to type a helper that runs inside a
+ * `$transaction` callback: the base `Prisma.TransactionClient` (default args) is
+ * not assignable from the extended client, so a helper must take this instead.
+ */
+type TenantTransactionClient = Omit<
+  TenantPrismaService['client'],
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
+/** The columns the admin roster / export queries select off an order. */
+const ORDER_ROW_SELECT = {
+  id: true,
+  status: true,
+  total: true,
+  currency: true,
+  memberId: true,
+  customerName: true,
+  createdAt: true,
+  payment: { select: { provider: true, method: true, refundedAmount: true } },
+  _count: { select: { items: true } },
+} satisfies Prisma.OrderSelect;
+
+type OrderRowRecord = Prisma.OrderGetPayload<{ select: typeof ORDER_ROW_SELECT }>;
+
+/**
+ * The tenant-scoped `where` for the admin roster / export (the extension adds
+ * `gymId`), narrowed by the optional filters. `channel` keys off the payment
+ * provider: `POS` is an order with a `pos` payment; `ONLINE` is everything else,
+ * expressed as the negation so an unpaid (`PENDING`, no payment) order counts as
+ * online. `from`/`to` bound `createdAt` inclusively.
+ */
+function buildOrderWhere(query: ListOrdersQuery): Prisma.OrderWhereInput {
+  const where: Prisma.OrderWhereInput = {};
+
+  if (query.status) {
+    where.status = query.status;
+  }
+  if (query.memberId) {
+    where.memberId = query.memberId;
+  }
+  if (query.channel === 'POS') {
+    where.payment = { is: { provider: 'pos' } };
+  } else if (query.channel === 'ONLINE') {
+    where.NOT = { payment: { is: { provider: 'pos' } } };
+  }
+  if (query.from || query.to) {
+    where.createdAt = {
+      ...(query.from ? { gte: query.from } : {}),
+      ...(query.to ? { lte: query.to } : {}),
+    };
+  }
+
+  return where;
+}
+
+/** Project a queried order row to the denormalised roster {@link AdminOrderRow}. */
+function toOrderRow(row: OrderRowRecord): AdminOrderRow {
+  return {
+    id: row.id,
+    channel: deriveOrderChannel(row.payment?.provider),
+    status: row.status,
+    total: row.total,
+    currency: row.currency,
+    refundedAmount: row.payment?.refundedAmount ?? 0,
+    memberId: row.memberId,
+    customerName: row.customerName,
+    paymentMethod: row.payment ? TO_WIRE_METHOD[row.payment.method] : null,
+    itemCount: row._count.items,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Escape one cell for a CSV field (RFC 4180): wrap in double quotes and double any
+ * embedded quote when the value contains a comma, quote, or newline; pass simple
+ * values through untouched. Keeps the streamed export valid for spreadsheet import.
+ */
+function csvCell(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 /**

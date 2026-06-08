@@ -79,6 +79,11 @@ import type {
   RecordPosSaleInput,
   RecordPosSaleResponse,
   CashReconciliationReport,
+  ListOrdersQueryInput,
+  ListOrdersResponse,
+  AdminOrderDetail,
+  RefundOrderInput,
+  RefundOrderResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -874,4 +879,77 @@ export async function fetchCashReconciliation(date: string): Promise<CashReconci
     },
   );
   return unwrap<CashReconciliationReport>(res);
+}
+
+// ── Order management (T7.9) ───────────────────────────────────────────────────
+
+/**
+ * Serialise an order roster query to a `?key=value` string, dropping empty values
+ * so a bare list carries no noise. The API re-coerces and re-validates with the
+ * same Zod schema, so passing the admin form's raw filter values is safe.
+ */
+export function ordersQueryString(query: Partial<ListOrdersQueryInput>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /orders` — one filtered, server-paginated page of the gym's orders. */
+export async function fetchOrders(
+  query: Partial<ListOrdersQueryInput> = {},
+): Promise<ListOrdersResponse> {
+  const res = await fetch(`${apiBaseUrl()}/orders${ordersQueryString(query)}`, {
+    headers: await authHeaders(),
+    // Always reflect the live order history — never serve a stale staff view.
+    cache: 'no-store',
+  });
+  return unwrap<ListOrdersResponse>(res);
+}
+
+/** `GET /orders/:id` — one order's full detail (items, payments, refunds, timeline). */
+export async function fetchOrder(id: string): Promise<AdminOrderDetail> {
+  const res = await fetch(`${apiBaseUrl()}/orders/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AdminOrderDetail>(res);
+}
+
+/**
+ * `POST /orders/:id/refund` — refund part or all of an order's payment. Throws an
+ * {@link ApiError} carrying `EXCEEDS_PAID_AMOUNT` (422) when the amount is too high,
+ * which the refund form translates to a staff-facing message. Gated `BillingManage`.
+ */
+export async function refundOrder(
+  id: string,
+  input: RefundOrderInput,
+): Promise<RefundOrderResponse> {
+  const res = await fetch(`${apiBaseUrl()}/orders/${encodeURIComponent(id)}/refund`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<RefundOrderResponse>(res);
+}
+
+/**
+ * `GET /orders/export` — the raw streaming CSV response, with the staff bearer
+ * token forwarded. Returned as the live `Response` (not parsed) so the admin route
+ * handler can pipe its body straight to the browser as a download. The query is
+ * the same filter set the roster uses.
+ */
+export async function fetchOrdersExport(
+  query: Partial<ListOrdersQueryInput> = {},
+): Promise<Response> {
+  return fetch(`${apiBaseUrl()}/orders/export${ordersQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
 }

@@ -36,6 +36,7 @@ export type NavIcon =
   | 'locations'
   | 'products'
   | 'pos'
+  | 'orders'
   | 'packages'
   | 'classes'
   | 'workouts'
@@ -64,6 +65,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   { label: 'Products', href: '/products', icon: 'products', permission: Permission.ProductRead },
   { label: 'Point of sale', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
+  { label: 'Orders', href: '/orders', icon: 'orders', permission: Permission.BillingRead },
   { label: 'Packages', href: '/packages', icon: 'packages', permission: Permission.PackageRead },
   { label: 'Classes', href: '/classes', icon: 'classes', permission: Permission.ClassRead },
   { label: 'Workouts', href: '/workouts', icon: 'workouts', permission: Permission.WorkoutRead },
