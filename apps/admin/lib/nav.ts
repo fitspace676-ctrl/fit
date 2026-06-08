@@ -38,6 +38,7 @@ export type NavIcon =
   | 'pos'
   | 'orders'
   | 'packages'
+  | 'subscriptions'
   | 'classes'
   | 'workouts'
   | 'billing'
@@ -67,6 +68,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Point of sale', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
   { label: 'Orders', href: '/orders', icon: 'orders', permission: Permission.BillingRead },
   { label: 'Packages', href: '/packages', icon: 'packages', permission: Permission.PackageRead },
+  {
+    label: 'Subscriptions',
+    href: '/subscriptions',
+    icon: 'subscriptions',
+    permission: Permission.BillingRead,
+  },
   { label: 'Classes', href: '/classes', icon: 'classes', permission: Permission.ClassRead },
   { label: 'Workouts', href: '/workouts', icon: 'workouts', permission: Permission.WorkoutRead },
   {
