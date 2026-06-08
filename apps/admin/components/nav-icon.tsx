@@ -17,6 +17,7 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   pos: 'M5 8h14v12H5zM5 8l1.5-4h11L19 8M9 12h6M9 16h3',
   orders: 'M7 3h10l1 4H6l1-4zM6 7h12v13a1 1 0 01-1 1H7a1 1 0 01-1-1V7zM9 11h6',
   packages: 'M3 8.5l2-3.5h14l2 3.5M3 8.5h18M3 8.5V19a1 1 0 001 1h16a1 1 0 001-1V8.5M9.5 12h5',
+  subscriptions: 'M21 12a9 9 0 11-2.64-6.36M21 4v4h-4',
   classes: 'M4 5h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zM3 10h18M8 3v4M16 3v4',
   workouts: 'M6.5 6.5v11M17.5 6.5v11M4 9.5h2.5M17.5 9.5H20M6.5 12h11',
   billing: 'M3 7h18v10H3zM3 11h18M7 15h2',

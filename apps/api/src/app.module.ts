@@ -21,6 +21,7 @@ import { RedisModule } from './redis/redis.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { StaffModule } from './staff/staff.module';
 import { StorageModule } from './storage/storage.module';
+import { SubscriptionPlansModule } from './subscriptions/subscription-plans.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
 import { TrainersModule } from './trainers/trainers.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -68,6 +69,9 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   billing cadence, session count, and features; `PackageRead` / `PackageWrite`)
  *   and the public, gymId-scoped package catalogue (`GET /packages`) the web
  *   purchase wizard and mobile Personal Training screen browse.
+ * - {@link SubscriptionPlansModule} serves the staff console's tenant-scoped
+ *   recurring-membership subscription-plan management (`/admin/subscriptions` —
+ *   CRUD with renewal cadence + features; `BillingRead` / `BillingManage`).
  * - {@link TenantModule} provides tenant scoping (context, guard, scoped Prisma);
  *   {@link TenantMiddleware} establishes the request's tenant for every route
  *   except the public ones (`/auth/*`, `/health`, `/uploads`).
@@ -91,6 +95,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     LocationsModule,
     ProductsModule,
     PackagePlansModule,
+    SubscriptionPlansModule,
     ReviewsModule,
     NotificationsModule,
     MembersModule,

@@ -49,6 +49,14 @@ import type {
   SetPackagePlanStatusResponse,
   UpdatePackagePlanData,
   UpdatePackagePlanResponse,
+  ListAdminSubscriptionPlansQuery,
+  ListAdminSubscriptionPlansResponse,
+  CreateSubscriptionPlanData,
+  CreateSubscriptionPlanResponse,
+  GetAdminSubscriptionPlanResponse,
+  SetSubscriptionPlanStatusResponse,
+  UpdateSubscriptionPlanData,
+  UpdateSubscriptionPlanResponse,
   ListAdminClassTemplatesQuery,
   ListAdminClassTemplatesResponse,
   CreateClassTemplateData,
@@ -570,6 +578,107 @@ export async function reactivatePackagePlan(id: string): Promise<SetPackagePlanS
     cache: 'no-store',
   });
   return unwrap<SetPackagePlanStatusResponse>(res);
+}
+
+// ── Subscription plans (T8.2) ──────────────────────────────────────────────────
+
+/**
+ * Serialise a subscription-plan roster query to a `?key=value` string, dropping
+ * empty values so a bare list carries no noise. The API re-coerces and
+ * re-validates with the same Zod schema.
+ */
+export function subscriptionPlansQueryString(
+  query: Partial<ListAdminSubscriptionPlansQuery>,
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/subscriptions` — one filtered, server-paginated page of the gym's plans. */
+export async function fetchSubscriptionPlans(
+  query: Partial<ListAdminSubscriptionPlansQuery> = {},
+): Promise<ListAdminSubscriptionPlansResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/subscriptions${subscriptionPlansQueryString(query)}`,
+    {
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<ListAdminSubscriptionPlansResponse>(res);
+}
+
+/** `GET /admin/subscriptions/:id` — one subscription plan's detail. */
+export async function fetchSubscriptionPlan(id: string): Promise<GetAdminSubscriptionPlanResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/subscriptions/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetAdminSubscriptionPlanResponse>(res);
+}
+
+/** `POST /admin/subscriptions` — create a subscription plan; returns the new plan's detail. */
+export async function createSubscriptionPlan(
+  input: CreateSubscriptionPlanData,
+): Promise<CreateSubscriptionPlanResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/subscriptions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateSubscriptionPlanResponse>(res);
+}
+
+/** `PATCH /admin/subscriptions/:id` — edit a subscription plan's profile; returns the updated detail. */
+export async function updateSubscriptionPlan(
+  id: string,
+  input: UpdateSubscriptionPlanData,
+): Promise<UpdateSubscriptionPlanResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/subscriptions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UpdateSubscriptionPlanResponse>(res);
+}
+
+/** `POST /admin/subscriptions/:id/deactivate` — set the plan's status to `INACTIVE`. */
+export async function deactivateSubscriptionPlan(
+  id: string,
+): Promise<SetSubscriptionPlanStatusResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/subscriptions/${encodeURIComponent(id)}/deactivate`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<SetSubscriptionPlanStatusResponse>(res);
+}
+
+/** `POST /admin/subscriptions/:id/reactivate` — set the plan's status back to `ACTIVE`. */
+export async function reactivateSubscriptionPlan(
+  id: string,
+): Promise<SetSubscriptionPlanStatusResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/subscriptions/${encodeURIComponent(id)}/reactivate`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<SetSubscriptionPlanStatusResponse>(res);
 }
 
 // ── Class templates (T5.2) ────────────────────────────────────────────────────
