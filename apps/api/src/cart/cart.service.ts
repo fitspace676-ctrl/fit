@@ -308,6 +308,9 @@ export class CartService {
         },
         select: { id: true },
       });
+      // Inventory tracking (T7.8): draw down the sold variants' on-hand stock in the
+      // same transaction, so stock never moves without the order landing.
+      await this.decrementStock(tx, gymId, cart.items);
       // Empty the cart — its lines cascade-delete with it. The anon cookie (if any)
       // is left in place: the next add reuses it for a fresh cart.
       await tx.cart.delete({ where: { id: cart.id } });
@@ -315,6 +318,70 @@ export class CartService {
     });
 
     return { kind: 'created', orderId };
+  }
+
+  /**
+   * Draw down on-hand stock for the sold variants, inside the checkout transaction.
+   * Stock lives per-variant in the product's `variants` JSON, so each affected
+   * product is read, the sold positions decremented, and the array written back.
+   * Only **variant** lines are tracked — a base (no-variant) line is sold untracked
+   * and left alone. Quantities were already stock-checked above, so the decrement
+   * is clamped at `0` purely as a guard against a concurrent edit.
+   */
+  private async decrementStock(
+    tx: Prisma.TransactionClient,
+    gymId: string,
+    items: CartWithItems['items'],
+  ): Promise<void> {
+    // Sum sold units per (productId → variantIndex), skipping base/untracked lines.
+    const soldByProduct = new Map<string, Map<number, number>>();
+    for (const item of items) {
+      const parsed = decodeVariantRef(item.productVariantId);
+      if (!parsed || parsed.variantIndex === null) {
+        continue;
+      }
+      const byIndex = soldByProduct.get(parsed.productId) ?? new Map<number, number>();
+      byIndex.set(parsed.variantIndex, (byIndex.get(parsed.variantIndex) ?? 0) + item.qty);
+      soldByProduct.set(parsed.productId, byIndex);
+    }
+    if (soldByProduct.size === 0) {
+      return;
+    }
+
+    const products = await tx.product.findMany({
+      where: { gymId, id: { in: [...soldByProduct.keys()] } },
+      select: { id: true, variants: true },
+    });
+
+    for (const product of products) {
+      const sold = soldByProduct.get(product.id);
+      if (!sold) {
+        continue;
+      }
+      const parsed = productVariantsSchema.safeParse(product.variants ?? []);
+      if (!parsed.success) {
+        continue;
+      }
+      const variants = parsed.data;
+      let changed = false;
+      for (const [index, qty] of sold) {
+        const variant = variants[index];
+        if (!variant) {
+          continue;
+        }
+        const next = Math.max(0, variant.stock - qty);
+        if (next !== variant.stock) {
+          variants[index] = { ...variant, stock: next };
+          changed = true;
+        }
+      }
+      if (changed) {
+        await tx.product.update({
+          where: { id: product.id },
+          data: { variants },
+        });
+      }
+    }
   }
 
   /**

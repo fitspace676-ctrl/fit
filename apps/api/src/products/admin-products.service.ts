@@ -9,6 +9,10 @@ import {
   type GetAdminProductResponse,
   type ListAdminProductsQuery,
   type ListAdminProductsResponse,
+  type ListLowStockResponse,
+  type LowStockProductRow,
+  type LowStockQuery,
+  type LowStockVariant,
   type ProductVariants,
   type SetProductStatusResponse,
   type UpdateProductData,
@@ -83,6 +87,54 @@ export class AdminProductsService {
       page: query.page,
       limit: query.limit,
     };
+  }
+
+  /**
+   * The low-stock report (T7.8) — every **active** product carrying at least one
+   * variant whose on-hand `stock` is at or below `query.threshold`. Only `ACTIVE`
+   * products are considered (a deactivated product is off the storefront, so its
+   * stock is moot) and only the variants that tripped the threshold are returned
+   * per product. Products are ordered most-urgent first (lowest single-variant
+   * stock), so the alert list reads top-down. The threshold filter runs in memory
+   * because stock lives inside each product's `variants` JSON, not as a column.
+   */
+  async listLowStock(query: LowStockQuery): Promise<ListLowStockResponse> {
+    const rows = await this.prisma.client.product.findMany({
+      where: { status: ProductStatus.ACTIVE },
+      select: { id: true, name: true, currency: true, images: true, variants: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const data: LowStockProductRow[] = [];
+    for (const row of rows) {
+      const low: LowStockVariant[] = [];
+      this.parseVariants(row.variants).forEach((variant, variantIndex) => {
+        if (variant.stock <= query.threshold) {
+          low.push({
+            variantIndex,
+            name: variant.name,
+            sku: variant.sku,
+            stock: variant.stock,
+          });
+        }
+      });
+      if (low.length === 0) {
+        continue;
+      }
+      data.push({
+        id: row.id,
+        name: row.name,
+        imageUrl: row.images[0] ?? null,
+        currency: row.currency,
+        variants: low,
+        lowestStock: Math.min(...low.map((variant) => variant.stock)),
+      });
+    }
+
+    // Most urgent first; ties keep the alphabetical name order the query applied.
+    data.sort((a, b) => a.lowestStock - b.lowestStock);
+
+    return { data, threshold: query.threshold };
   }
 
   /**

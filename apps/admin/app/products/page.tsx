@@ -81,14 +81,22 @@ export default async function ProductsPage({
             column, open a product, or add a new one with an image gallery and variants.
           </p>
         </div>
-        {canWrite ? (
+        <div className="flex items-center gap-3">
           <Link
-            href="/products/new"
-            className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            href="/products/low-stock"
+            className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            New product
+            Low stock
           </Link>
-        ) : null}
+          {canWrite ? (
+            <Link
+              href="/products/new"
+              className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            >
+              New product
+            </Link>
+          ) : null}
+        </div>
       </header>
 
       <ProductsFilters search={query.search ?? ''} status={query.status ?? ''} />

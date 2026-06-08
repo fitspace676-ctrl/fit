@@ -195,6 +195,57 @@ describe('AdminProductsService', () => {
     });
   });
 
+  describe('listLowStock', () => {
+    it('returns only variants at or below the threshold, most urgent first', async () => {
+      // p-1: Small (10), Large (4); p-2: Big (2). At threshold 5, only Large + Big are low.
+      const { service, findMany } = setup({
+        findMany: [
+          row(),
+          row({
+            id: 'p-2',
+            name: 'Aqua Bottle',
+            images: [],
+            variants: productVariantsSchema.parse([{ name: 'Big', sku: 'AB-L', stock: 2 }]),
+          }),
+        ],
+      });
+
+      const result = await service.listLowStock({ threshold: 5 });
+
+      // Only ACTIVE products are scanned.
+      expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({ status: 'ACTIVE' });
+      expect(result.threshold).toBe(5);
+      // p-2 (lowestStock 2) sorts ahead of p-1 (lowestStock 4).
+      expect(result.data.map((p) => p.id)).toEqual(['p-2', 'p-1']);
+      expect(result.data[0]).toMatchObject({
+        id: 'p-2',
+        imageUrl: null,
+        lowestStock: 2,
+        variants: [{ variantIndex: 0, name: 'Big', sku: 'AB-L', stock: 2 }],
+      });
+      // The healthy "Small" variant (stock 10) is dropped from p-1's row.
+      expect(result.data[1]!.variants).toEqual([
+        { variantIndex: 1, name: 'Large', sku: '', stock: 4 },
+      ]);
+    });
+
+    it('omits products whose every variant is above the threshold', async () => {
+      const { service } = setup({ findMany: [row()] });
+
+      const result = await service.listLowStock({ threshold: 3 });
+
+      expect(result.data).toEqual([]);
+    });
+
+    it('treats a malformed variants value as no low stock', async () => {
+      const { service } = setup({ findMany: [row({ variants: 'not-an-array' })] });
+
+      const result = await service.listLowStock({ threshold: 5 });
+
+      expect(result.data).toEqual([]);
+    });
+  });
+
   describe('getProduct', () => {
     it('returns the full detail projection with parsed variants + gallery', async () => {
       const { service } = setup({ findFirst: row() });
