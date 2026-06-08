@@ -67,6 +67,8 @@ export enum Permission {
   BillingManage = 'billing:manage',
   /** Freeze / pause and resume one's own membership subscription (member self-service). */
   SubscriptionManage = 'subscription:manage',
+  /** Buy class-credit packs and view one's own remaining credits (member self-service). */
+  CreditPackManage = 'credit-pack:manage',
   /** View workout plans and assignments. */
   WorkoutRead = 'workout:read',
   /** Create or assign workout plans. */
@@ -110,6 +112,7 @@ export const ROLE_PERMISSIONS = {
     Permission.BillingRead,
     Permission.BillingManage,
     Permission.SubscriptionManage,
+    Permission.CreditPackManage,
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
     Permission.ReportView,
@@ -163,6 +166,7 @@ export const ROLE_PERMISSIONS = {
     Permission.ReviewWrite,
     Permission.NotificationManage,
     Permission.SubscriptionManage,
+    Permission.CreditPackManage,
   ],
 } satisfies Record<GymScopedRoleName, readonly Permission[]>;
 

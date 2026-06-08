@@ -4,6 +4,7 @@ import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { BillingModule } from './billing/billing.module';
 import { CartModule } from './cart/cart.module';
 import { CartIdentityMiddleware } from './cart/cart-identity.middleware';
 import { ClassesModule } from './classes/classes.module';
@@ -76,6 +77,10 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link SubscriptionsModule} serves the member-facing subscription lifecycle
  *   (`/subscriptions/:id/freeze` + `.../unfreeze` — the freeze/pause flow with the
  *   per-plan allowance policy; `SubscriptionManage`, T8.4).
+ * - {@link BillingModule} serves the member-facing credit pack / class pass flow
+ *   (`POST /credit-packs/purchase` + `GET /members/me/credit-packs`;
+ *   `CreditPackManage`, T8.5) and exports the credit draw/refund used inside the
+ *   booking transaction.
  * - {@link TenantModule} provides tenant scoping (context, guard, scoped Prisma);
  *   {@link TenantMiddleware} establishes the request's tenant for every route
  *   except the public ones (`/auth/*`, `/health`, `/uploads`).
@@ -101,6 +106,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     PackagePlansModule,
     SubscriptionPlansModule,
     SubscriptionsModule,
+    BillingModule,
     ReviewsModule,
     NotificationsModule,
     MembersModule,

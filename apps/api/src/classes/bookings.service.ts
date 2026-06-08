@@ -11,6 +11,7 @@ import {
   type BookClassInstanceResult,
   type CancelBookingResult,
 } from '@fit/types';
+import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -68,6 +69,7 @@ export class BookingsService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly creditPacks: CreditPacksService,
   ) {}
 
   /**
@@ -146,6 +148,15 @@ export class BookingsService {
           waitlistPosition = (tail._max.waitlistPosition ?? 0) + 1;
         }
 
+        // A confirmed seat must be paid for with a class credit (T8.5) unless an
+        // entitling subscription already covers the member. Drawn inside this
+        // transaction, so an `INSUFFICIENT_CREDITS` refusal (no subscription, no
+        // credit) rolls back the seat claim too; the pack charged (or `null` for a
+        // subscription-covered seat) is recorded on the booking so an in-policy
+        // cancellation can refund the exact credit. A waitlist entry holds no seat,
+        // so it draws nothing.
+        const creditPackId = booked ? await this.creditPacks.chargeSeatCredit(tx, memberId) : null;
+
         const booking = await tx.booking.create({
           data: {
             gymId: this.tenant.gymId,
@@ -153,6 +164,7 @@ export class BookingsService {
             memberId,
             status: booked ? BookingStatus.BOOKED : BookingStatus.WAITLIST,
             waitlistPosition,
+            creditPackId,
             idempotencyKey: key,
           },
           select: { id: true },
@@ -246,7 +258,7 @@ export class BookingsService {
 
       const booking = await tx.booking.findFirst({
         where: { classInstanceId, memberId, status: { not: BookingStatus.CANCELED } },
-        select: { id: true, status: true, waitlistPosition: true },
+        select: { id: true, status: true, waitlistPosition: true, creditPackId: true },
       });
       if (!booking) {
         throw this.bookingNotFound();
@@ -294,6 +306,15 @@ export class BookingsService {
         data: { status: BookingStatus.CANCELED, waitlistPosition: null },
       });
 
+      // Refund the class credit this seat was paid for (T8.5) back to its pack.
+      // The cancellation already passed the gym's cutoff window for a confirmed
+      // seat (above), so this is an in-policy cancel; a no-op for a
+      // subscription-covered or uncharged seat (`creditPackId` is null) and for a
+      // waitlist entry (which never held a seat to charge).
+      if (booking.status === BookingStatus.BOOKED) {
+        await this.creditPacks.refundCredit(tx, booking.creditPackId);
+      }
+
       let promotedBookingId: string | null = null;
 
       if (booking.status === BookingStatus.BOOKED) {
@@ -302,7 +323,7 @@ export class BookingsService {
           const next = await tx.booking.findFirst({
             where: { classInstanceId, status: BookingStatus.WAITLIST },
             orderBy: { waitlistPosition: 'asc' },
-            select: { id: true, waitlistPosition: true },
+            select: { id: true, waitlistPosition: true, memberId: true },
           });
           if (!next) {
             // No one waiting — give the seat back to the pool (never below 0).
@@ -320,6 +341,21 @@ export class BookingsService {
             data: { status: BookingStatus.BOOKED, waitlistPosition: null },
           });
           if (claimed.count === 1) {
+            // The promoted member now holds a seat, so they pay a class credit too
+            // (T8.5) — best-effort (`required: false`): a member out of credits is
+            // never blocked from a seat that just freed up (refusing would unfairly
+            // penalise them for another member's cancellation), so the seat is
+            // granted uncharged. The pack charged (if any) is recorded for their
+            // own later cancellation refund.
+            const promotedPackId = await this.creditPacks.chargeSeatCredit(tx, next.memberId, {
+              required: false,
+            });
+            if (promotedPackId) {
+              await tx.booking.update({
+                where: { id: next.id },
+                data: { creditPackId: promotedPackId },
+              });
+            }
             promotedBookingId = next.id;
             await closeWaitlistGap(next.waitlistPosition);
             break;
