@@ -41,6 +41,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.NotificationManage]: 'Manage push notifications',
   [Permission.BillingRead]: 'View billing',
   [Permission.BillingManage]: 'Manage billing & plans',
+  [Permission.SubscriptionManage]: 'Freeze & resume own membership',
   [Permission.WorkoutRead]: 'View workout plans',
   [Permission.WorkoutWrite]: 'Create & assign workouts',
   [Permission.ReportView]: 'View reports',

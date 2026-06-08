@@ -995,6 +995,11 @@ model SubscriptionPlan {
   features    String[]               @default([])
   popular     Boolean                @default(false)
   status      SubscriptionPlanStatus @default(ACTIVE)
+  /// Freeze policy (T8.4): the maximum number of days a member may freeze (pause)
+  /// a subscription on this plan within a single billing period. The freeze flow
+  /// rejects a request that would push the period's cumulative frozen days over
+  /// this cap (`422 EXCEEDS_FREEZE_ALLOWANCE`). `0` disables freezing entirely.
+  freezeDaysPerPeriod Int                @default(30)
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
 
@@ -1046,6 +1051,16 @@ model Subscription {
   currentPeriodEnd   DateTime
   cancelAtPeriodEnd  Boolean              @default(false)
   canceledAt         DateTime?
+  /// Freeze/pause flow (T8.4). When the subscription is `FROZEN`, `frozenAt` is
+  /// when the hold began and `frozenUntil` its scheduled auto-resume date; both are
+  /// null at every other time. On resume (early via unfreeze, or auto at
+  /// `frozenUntil`) the lost access is compensated by pushing `currentPeriodEnd`
+  /// out by the days actually spent frozen. `freezeDaysUsed` accumulates the days
+  /// committed to freezes in the current period and is checked against the plan's
+  /// `freezeDaysPerPeriod` allowance; it resets when the period renews.
+  frozenAt           DateTime?
+  frozenUntil        DateTime?
+  freezeDaysUsed     Int                  @default(0)
   /// Payment provider key — `"stub"` for the MVP, a concrete provider once T8.8
   /// lands the real recurring-billing integration.
   provider           String               @default("stub")

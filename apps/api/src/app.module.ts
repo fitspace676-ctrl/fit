@@ -22,6 +22,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { StaffModule } from './staff/staff.module';
 import { StorageModule } from './storage/storage.module';
 import { SubscriptionPlansModule } from './subscriptions/subscription-plans.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
 import { TrainersModule } from './trainers/trainers.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -72,6 +73,9 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link SubscriptionPlansModule} serves the staff console's tenant-scoped
  *   recurring-membership subscription-plan management (`/admin/subscriptions` —
  *   CRUD with renewal cadence + features; `BillingRead` / `BillingManage`).
+ * - {@link SubscriptionsModule} serves the member-facing subscription lifecycle
+ *   (`/subscriptions/:id/freeze` + `.../unfreeze` — the freeze/pause flow with the
+ *   per-plan allowance policy; `SubscriptionManage`, T8.4).
  * - {@link TenantModule} provides tenant scoping (context, guard, scoped Prisma);
  *   {@link TenantMiddleware} establishes the request's tenant for every route
  *   except the public ones (`/auth/*`, `/health`, `/uploads`).
@@ -96,6 +100,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     ProductsModule,
     PackagePlansModule,
     SubscriptionPlansModule,
+    SubscriptionsModule,
     ReviewsModule,
     NotificationsModule,
     MembersModule,
