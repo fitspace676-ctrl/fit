@@ -151,13 +151,16 @@ enum DevicePlatform {
 /// Lifecycle of a storefront {@link Order} (T7.1). `PENDING` is the freshly
 /// created, not-yet-paid order the purchase wizard opens; `PAID` is the terminal
 /// "payment captured" state the success page confirms; `CANCELLED` is an
-/// abandoned / failed attempt. Mirrors the lowercase wire `orderStatusSchema`
-/// (`pending` / `paid` / `cancelled`) in `@fit/types`; the API maps between the
-/// two on the boundary, the same way {@link DevicePlatform} mirrors its wire enum.
+/// abandoned / failed attempt; `REFUNDED` is a previously `PAID` order whose
+/// payment has been reversed in full from the admin order management console
+/// (T7.9). Mirrors the lowercase wire `orderStatusSchema` (`pending` / `paid` /
+/// `cancelled` / `refunded`) in `@fit/types`; the API maps between the two on the
+/// boundary, the same way {@link DevicePlatform} mirrors its wire enum.
 enum OrderStatus {
   PENDING
   PAID
   CANCELLED
+  REFUNDED
 }
 
 /// Lifecycle of a {@link Payment} attempt against an order (T7.1). `PENDING` is a
@@ -221,6 +224,7 @@ model Gym {
   reviews        Review[]
   orders         Order[]
   payments       Payment[]
+  refunds        Refund[]
   carts          Cart[]
 
   @@index([ownerId])
@@ -671,16 +675,21 @@ model Order {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  gym      Gym          @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  package  PackagePlan? @relation(fields: [packageId], references: [id], onDelete: SetNull)
-  location Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  member   GymMember?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  items    OrderItem[]
-  payment  Payment?
+  gym          Gym                @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  package      PackagePlan?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  location     Location?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  member       GymMember?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+  payment      Payment?
+  refunds      Refund[]
+  statusEvents OrderStatusEvent[]
 
   @@index([gymId])
   @@index([memberId])
   @@index([packageId])
+  /// Backs the admin order roster (T7.9): a tenant's orders scanned newest-first,
+  /// optionally narrowed by status, with the `createdAt` ordering index-served.
+  @@index([gymId, createdAt])
   @@map("orders")
 }
 
@@ -696,12 +705,73 @@ model OrderItem {
   orderId   String
   label     String
   amount    Int
+  /// Composite wire reference of the purchased variant — `"<productId>:<variantIndex|base>"`,
+  /// the same shape {@link CartItem} uses (variants have no row id of their own; they
+  /// live in {@link Product} `variants` JSON). Recorded at sale time so an admin refund
+  /// (T7.9) can restock the exact sold positions. Null for a non-product line — a
+  /// promo / discount adjustment, or a POS line whose source variant wasn't captured.
+  productVariantId String?
+  /// Units sold on this line, so a restock returns the right quantity. Defaults to 1
+  /// for the package / adjustment lines that predate per-line quantities.
+  qty       Int      @default(1)
   createdAt DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@map("order_items")
+}
+
+/// An audit row for one {@link Order} status transition (T7.9). Written inside the
+/// same transaction as the status change it records, so the order's lifecycle is
+/// reconstructable from an append-only log rather than guessed from the current
+/// `status`. `GET /orders/:id` projects these as the detail page's status timeline,
+/// which is therefore generated (never directly editable). `actor` names the staff
+/// user who caused the transition, null for a system / customer-driven change (e.g.
+/// the online checkout opening a `PENDING` order). Carries no `gymId` of its own —
+/// reached only through the already tenant-scoped order — and cascade-deletes with it.
+model OrderStatusEvent {
+  id      String      @id @default(cuid())
+  orderId String
+  status  OrderStatus
+  /// When the transition happened — named `at` to match the wire `statusTimeline`.
+  at      DateTime    @default(now())
+  /// Staff user id who caused the transition; null for a system/customer change.
+  actor   String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_status_events")
+}
+
+/// A refund issued against an {@link Order}'s {@link Payment} from the admin order
+/// management console (T7.9). Append-only: a payment may accrue several partial
+/// refunds, each one row, and the running sum is mirrored on `Payment.refundedAmount`
+/// so the next refund can be validated (`amount <= payment.amount - refundedAmount`,
+/// else `422 EXCEEDS_PAID_AMOUNT`) without re-summing. `amount` is in the order
+/// currency's MINOR units; `reason` is the operator's note; `restockItems` records
+/// whether the refund returned the sold variants to stock (cleared when the goods
+/// were damaged). `gymId` is duplicated from the order for direct tenant-scoped
+/// reporting, mirroring {@link Payment}. Cascade-deletes with its order or gym.
+model Refund {
+  id           String   @id @default(cuid())
+  gymId        String
+  orderId      String
+  paymentId    String
+  amount       Int
+  reason       String
+  restockItems Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  gym     Gym     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@index([orderId])
+  @@index([paymentId])
+  @@map("refunds")
 }
 
 /// A payment attempt against an {@link Order} (T7.1). One payment per order (the
@@ -732,11 +802,18 @@ model Payment {
   /// External charge / transaction id from the provider, for reconciliation and
   /// refunds; null for the stub (no upstream record).
   providerRef String?
+  /// Running total already refunded against this capture (T7.9), in the currency's
+  /// MINOR units. Starts at `0`; each admin refund adds its amount and flips `status`
+  /// to `REFUNDED` once it reaches `amount` (a full refund). The next refund is
+  /// validated against `amount - refundedAmount`, so a partial-then-partial sequence
+  /// can never over-refund.
+  refundedAmount Int        @default(0)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  gym   Gym   @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  gym     Gym      @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
 
   @@index([gymId])
   /// Backs the end-of-day reconciliation (T7.5): a tenant's captured payments

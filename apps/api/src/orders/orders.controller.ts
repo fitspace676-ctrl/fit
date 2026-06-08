@@ -5,18 +5,26 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { z } from 'zod';
 import {
   cashReconciliationQuerySchema,
+  listOrdersQuerySchema,
   Permission,
   recordPosSaleSchema,
+  refundOrderSchema,
   sendReceiptSchema,
+  type AdminOrderDetail,
   type CashReconciliationReport,
+  type ListOrdersResponse,
   type RecordPosSaleResponse,
+  type RefundOrderResponse,
   type SendReceiptResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
@@ -25,13 +33,15 @@ import { TenantGuard } from '../common/tenant/tenant.guard';
 import { OrdersService } from './orders.service';
 
 /**
- * Orders API (`/orders`, T7.4) — the POS sale's server-side endpoints.
+ * Orders API (`/orders`, T7.4 / T7.9) — the POS sale's server-side endpoints plus
+ * the admin order management surface (roster, detail, refund, CSV export).
  *
  * Tenant-scoped staff access: {@link TenantGuard} pins the request to one gym and
- * {@link PermissionsGuard} enforces the capability. Emailing a receipt is a
- * billing/transaction action gated on {@link Permission.BillingRead}, which the
- * POS-operator roles (RECEPTIONIST, MANAGER, OWNER) hold — a TRAINER, who can read
- * products but not transactions, is correctly excluded.
+ * {@link PermissionsGuard} enforces the capability. Reading orders / receipts and
+ * exporting are billing/transaction reads gated on {@link Permission.BillingRead},
+ * which the POS-operator roles (RECEPTIONIST, MANAGER, OWNER) hold — a TRAINER, who
+ * can read products but not transactions, is correctly excluded. Issuing a refund
+ * moves money and is gated on the stronger {@link Permission.BillingManage}.
  */
 @Controller('orders')
 @UseGuards(TenantGuard, PermissionsGuard)
@@ -77,6 +87,62 @@ export class OrdersController {
   @RequirePermissions(Permission.BillingRead)
   async reconcile(@Query() query: unknown): Promise<CashReconciliationReport> {
     return this.orders.reconcile(parse(cashReconciliationQuerySchema, query));
+  }
+
+  /**
+   * `GET /orders` — one filtered, server-paginated page of the gym's orders for the
+   * admin roster (T7.9). The query filters by `channel` (POS / ONLINE), `status`,
+   * `memberId`, and a `from`/`to` `createdAt` range; a malformed filter is a `400`.
+   * Gated on `BillingRead`.
+   */
+  @Get()
+  @RequirePermissions(Permission.BillingRead)
+  async list(@Query() query: unknown): Promise<ListOrdersResponse> {
+    return this.orders.listOrders(parse(listOrdersQuerySchema, query));
+  }
+
+  /**
+   * `GET /orders/export` — stream the filtered orders (same filters as the roster)
+   * as a CSV attachment (T7.9). The body is streamed page by page so a 5k+ row
+   * export never buffers the whole result set. Declared before the `:id` route so
+   * the literal `export` segment isn't captured as an order id. Gated on
+   * `BillingRead`.
+   */
+  @Get('export')
+  @RequirePermissions(Permission.BillingRead)
+  async export(@Query() query: unknown, @Res() res: Response): Promise<void> {
+    const parsed = parse(listOrdersQuerySchema, query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
+    for await (const chunk of this.orders.streamOrdersCsv(parsed)) {
+      res.write(chunk);
+    }
+    res.end();
+  }
+
+  /**
+   * `GET /orders/:id` — one order's full detail: items, payments, refunds, and the
+   * generated status timeline (T7.9). An unknown / cross-tenant id is a `404`.
+   * Gated on `BillingRead`.
+   */
+  @Get(':id')
+  @RequirePermissions(Permission.BillingRead)
+  async detail(@Param('id') id: string): Promise<AdminOrderDetail> {
+    return this.orders.getOrder(id);
+  }
+
+  /**
+   * `POST /orders/:id/refund` — refund part or all of an order's captured payment
+   * (T7.9). The body carries the `amount` (minor units), the operator's `reason`,
+   * and whether to `restockItems`; a malformed body is a `400` and an amount over
+   * the net captured figure is a `422 EXCEEDS_PAID_AMOUNT`. Returns the new
+   * `{ refundId }` (`201`). Gated on the stronger `BillingManage`.
+   */
+  @Post(':id/refund')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.BillingManage)
+  async refund(@Param('id') id: string, @Body() body: unknown): Promise<RefundOrderResponse> {
+    return this.orders.refundOrder(id, parse(refundOrderSchema, body));
   }
 }
 
