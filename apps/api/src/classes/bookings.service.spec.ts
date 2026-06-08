@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
 import { BookingsService } from './bookings.service';
+import type { CreditPacksService } from '../billing/credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -76,13 +82,25 @@ function setup(opts?: {
     userId: opts?.userId === undefined ? USER_ID : opts.userId,
   } as unknown as TenantContext;
 
+  // The credit-pack draw/refund (T8.5) is exercised in `credit-packs.service.spec.ts`;
+  // here it is a stub so the booking assertions stay focused on seats / the waitlist.
+  // `chargeSeatCredit` defaults to `null` (no credit charged — e.g. a
+  // subscription-covered seat), which leaves the existing booking expectations intact.
+  const creditPacks = {
+    chargeSeatCredit: vi
+      .fn<(...args: unknown[]) => Promise<string | null>>()
+      .mockResolvedValue(null),
+    refundCredit: vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined),
+  };
+
   return {
-    service: new BookingsService(prisma, tenant),
+    service: new BookingsService(prisma, tenant, creditPacks as unknown as CreditPacksService),
     gymMember,
     booking,
     classInstance,
     gym,
     subscription,
+    creditPacks,
     transaction: $transaction,
   };
 }
@@ -190,6 +208,94 @@ describe('BookingsService', () => {
       const result = await ctx.service.book(INSTANCE_ID);
 
       expect(result.waitlistPosition).toBe(1);
+    });
+  });
+
+  describe('credit packs (T8.5)', () => {
+    it('charges a class credit for a confirmed seat and records the pack on the booking', async () => {
+      const ctx = setup();
+      ctx.creditPacks.chargeSeatCredit.mockResolvedValueOnce('pack-1');
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 3 }))
+        .mockResolvedValueOnce({ bookedCount: 4 });
+      ctx.booking.findFirst.mockResolvedValueOnce(null);
+      ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 1 });
+      ctx.booking.create.mockResolvedValueOnce({ id: 'bk-1' });
+
+      await ctx.service.book(INSTANCE_ID);
+
+      // A confirmed seat draws a credit for the caller's own membership...
+      expect(ctx.creditPacks.chargeSeatCredit).toHaveBeenCalledTimes(1);
+      expect(ctx.creditPacks.chargeSeatCredit.mock.calls[0]?.[1]).toBe(MEMBER_ID);
+      // ...and the pack it was drawn from is recorded on the booking for a later refund.
+      expect(ctx.booking.create.mock.calls[0]?.[0]?.data).toMatchObject({
+        status: BookingStatus.BOOKED,
+        creditPackId: 'pack-1',
+      });
+    });
+
+    it('does not charge a credit for a waitlist entry (no seat held)', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 10 }))
+        .mockResolvedValueOnce({ bookedCount: 10 });
+      ctx.booking.findFirst.mockResolvedValueOnce(null);
+      ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 0 }); // full
+      ctx.booking.aggregate.mockResolvedValueOnce({ _max: { waitlistPosition: null } });
+      ctx.booking.create.mockResolvedValueOnce({ id: 'bk-wl' });
+
+      await ctx.service.book(INSTANCE_ID);
+
+      expect(ctx.creditPacks.chargeSeatCredit).not.toHaveBeenCalled();
+      expect(ctx.booking.create.mock.calls[0]?.[0]?.data).toMatchObject({
+        status: BookingStatus.WAITLIST,
+        creditPackId: null,
+      });
+    });
+
+    it('rolls back the seat when the booking can not be paid for (INSUFFICIENT_CREDITS)', async () => {
+      const ctx = setup();
+      ctx.creditPacks.chargeSeatCredit.mockRejectedValueOnce(
+        new UnprocessableEntityException({
+          message: 'You have no class credits left',
+          code: 'INSUFFICIENT_CREDITS',
+        }),
+      );
+      ctx.classInstance.findFirst.mockResolvedValueOnce(instance({ bookedCount: 3 }));
+      ctx.booking.findFirst.mockResolvedValueOnce(null);
+      ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      const error = await ctx.service.book(INSTANCE_ID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(UnprocessableEntityException);
+      expect((error as UnprocessableEntityException).getResponse()).toMatchObject({
+        code: 'INSUFFICIENT_CREDITS',
+      });
+      // The refusal threw before the booking row was written — the seat increment
+      // it follows is rolled back with the (failed) transaction.
+      expect(ctx.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('refunds the credit when a confirmed, credit-charged seat is released', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 10 }))
+        .mockResolvedValueOnce({ bookedCount: 9 });
+      ctx.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'bk-booked',
+          status: BookingStatus.BOOKED,
+          waitlistPosition: null,
+          creditPackId: 'pack-1',
+        })
+        .mockResolvedValueOnce(null); // empty queue
+      ctx.booking.update.mockResolvedValueOnce({});
+      ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 1 }); // seat back to pool
+
+      await ctx.service.cancel(INSTANCE_ID);
+
+      expect(ctx.creditPacks.refundCredit).toHaveBeenCalledTimes(1);
+      expect(ctx.creditPacks.refundCredit.mock.calls[0]?.[1]).toBe('pack-1');
     });
   });
 

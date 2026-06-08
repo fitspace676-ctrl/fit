@@ -22,6 +22,7 @@
     "db:studio": "pnpm --filter @fit/db db:studio",
     "db:status": "pnpm --filter @fit/db db:status",
     "db:generate-instances": "pnpm --filter @fit/db jobs:generate-instances",
+    "db:expire-credit-packs": "pnpm --filter @fit/db jobs:expire-credit-packs",
     "mobile:start": "pnpm --filter @fit/mobile start",
     "mobile:build:preview": "pnpm --filter @fit/mobile build:preview",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml,css}\"",

@@ -14,6 +14,7 @@
     "db:status": "prisma migrate status",
     "db:seed": "prisma db seed",
     "jobs:generate-instances": "tsx prisma/generate-instances.run.ts",
+    "jobs:expire-credit-packs": "tsx prisma/expire-credit-packs.run.ts",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",

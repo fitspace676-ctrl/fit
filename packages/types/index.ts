@@ -6,6 +6,7 @@ export * from './src/bookings';
 export * from './src/cart';
 export * from './src/classes';
 export * from './src/classes-admin';
+export * from './src/credit-packs';
 export * from './src/dashboard';
 export * from './src/gym-settings';
 export * from './src/gyms';

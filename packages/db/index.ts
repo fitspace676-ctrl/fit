@@ -63,6 +63,15 @@ export {
   type SubscriptionEvent,
 } from './prisma/subscription-state-machine';
 
+// Credit-pack expiry job (T8.5). The pure set-based UPDATE that flips lapsed credit
+// packs to `EXPIRED`, re-exported so the API / a scheduled runner share one pass.
+export {
+  expireCreditPacks,
+  type ExpireCreditPacksPrisma,
+  type ExpireCreditPacksOptions,
+  type ExpireCreditPacksResult,
+} from './prisma/expire-credit-packs';
+
 // Subscription freeze/pause policy (T8.4). The pure allowance + compensation rules
 // the freeze flow composes with the state machine above, re-exported so the API
 // service and the recurring-billing job share one policy.

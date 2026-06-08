@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from '../billing/billing.module';
 import { AdminClassTemplatesController } from './admin-class-templates.controller';
 import { AdminClassTemplatesService } from './admin-class-templates.service';
 import { AttendanceController } from './attendance.controller';
@@ -43,6 +44,7 @@ import { MemberBookingsService } from './member-bookings.service';
  * {@link MemberBookingsService}.
  */
 @Module({
+  imports: [BillingModule],
   controllers: [
     ClassesController,
     AdminClassTemplatesController,
