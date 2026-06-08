@@ -163,6 +163,17 @@ enum OrderStatus {
   REFUNDED
 }
 
+/// How a storefront {@link Order} is fulfilled (T7.10). `PICKUP` is collected by
+/// the buyer at the gym's {@link Location} branch (`locationId`); `DELIVERY` is
+/// sent to the buyer's `deliveryAddress` by the gym's own in-house courier. The
+/// checkout requires the matching detail for the chosen mode. Mirrors the wire
+/// `fulfillmentSchema` (`PICKUP` / `DELIVERY`) in `@fit/types` — uppercase both
+/// sides, so no boundary mapping is needed (unlike the lowercase wire enums).
+enum Fulfillment {
+  PICKUP
+  DELIVERY
+}
+
 /// Lifecycle of a {@link Payment} attempt against an order (T7.1). `PENDING` is a
 /// freshly created charge awaiting capture; `CAPTURED` is settled money (the
 /// transition that flips its order to `PAID`); `FAILED` is a declined / errored
@@ -672,6 +683,15 @@ model Order {
   total         Int         @default(0)
   currency      String      @default("USD")
   status        OrderStatus @default(PENDING)
+  /// How the order is fulfilled (T7.10): `PICKUP` from the `location` branch, or
+  /// `DELIVERY` to `deliveryAddress` by the gym's in-house courier. Defaults to
+  /// `PICKUP` so orders predating the choice (POS sales, the package wizard) read
+  /// as collected-at-desk.
+  fulfillment   Fulfillment @default(PICKUP)
+  /// The free-text destination for a `DELIVERY` order; null for a `PICKUP` (which
+  /// names a `locationId` instead). Captured at checkout and shown to staff so the
+  /// in-house courier knows where to take the order.
+  deliveryAddress String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 

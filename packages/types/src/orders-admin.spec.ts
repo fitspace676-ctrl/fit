@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminOrderDetailSchema,
   deriveOrderChannel,
   listOrdersQuerySchema,
   orderExportCells,
@@ -57,6 +58,53 @@ describe('refundOrderSchema', () => {
     expect(refundOrderSchema.safeParse({ amount: 0, reason: 'x' }).success).toBe(false);
     expect(refundOrderSchema.safeParse({ amount: -1, reason: 'x' }).success).toBe(false);
     expect(refundOrderSchema.safeParse({ amount: 100, reason: '   ' }).success).toBe(false);
+  });
+});
+
+describe('adminOrderDetailSchema (fulfilment, T7.10)', () => {
+  const base = {
+    id: 'order-1',
+    channel: 'ONLINE' as const,
+    status: 'PENDING' as const,
+    total: 1000,
+    currency: 'USD',
+    refundedAmount: 0,
+    memberId: null,
+    customerName: 'Ann',
+    paymentMethod: null,
+    itemCount: 1,
+    createdAt: '2026-06-07T10:00:00.000Z',
+    items: [],
+    payments: [],
+    refunds: [],
+    statusTimeline: [{ status: 'PENDING' as const, at: '2026-06-07T10:00:00.000Z' }],
+  };
+
+  it('accepts a DELIVERY order carrying its destination', () => {
+    const parsed = adminOrderDetailSchema.parse({
+      ...base,
+      fulfillment: 'DELIVERY',
+      deliveryAddress: '1 Main St',
+    });
+    expect(parsed.fulfillment).toBe('DELIVERY');
+    expect(parsed.deliveryAddress).toBe('1 Main St');
+  });
+
+  it('accepts a PICKUP order with a null delivery address', () => {
+    const parsed = adminOrderDetailSchema.parse({
+      ...base,
+      fulfillment: 'PICKUP',
+      deliveryAddress: null,
+    });
+    expect(parsed.fulfillment).toBe('PICKUP');
+    expect(parsed.deliveryAddress).toBeNull();
+  });
+
+  it('rejects an unknown fulfilment mode', () => {
+    expect(
+      adminOrderDetailSchema.safeParse({ ...base, fulfillment: 'MAIL', deliveryAddress: null })
+        .success,
+    ).toBe(false);
   });
 });
 

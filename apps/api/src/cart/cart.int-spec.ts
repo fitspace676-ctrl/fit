@@ -119,6 +119,10 @@ describe('CartService (integration)', () => {
     expect(orders).toHaveLength(1);
     expect(orders[0]!.total).toBe(700);
     expect(orders[0]!.status).toBe('PENDING');
+    // The delivery fulfilment + destination are persisted on the order (T7.10).
+    expect(orders[0]!.fulfillment).toBe('DELIVERY');
+    expect(orders[0]!.deliveryAddress).toBe('1 Main St');
+    expect(orders[0]!.locationId).toBeNull();
   });
 
   it('removes out-of-stock lines at checkout with OUT_OF_STOCK', async () => {

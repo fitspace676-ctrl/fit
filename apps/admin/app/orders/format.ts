@@ -4,7 +4,13 @@
 // and the order/payment enums render, so the order surfaces never drift. Money is
 // an integer in the currency's MINOR units (cents/tetri) everywhere on the wire.
 
-import type { AdminOrderStatus, AdminPaymentStatus, OrderChannel, PaymentMethod } from '@fit/types';
+import type {
+  AdminOrderStatus,
+  AdminPaymentStatus,
+  Fulfillment,
+  OrderChannel,
+  PaymentMethod,
+} from '@fit/types';
 
 /** Assumed minor units per major unit (USD/EUR/GEL — all two-decimal). */
 const MINOR_PER_MAJOR = 100;
@@ -76,4 +82,10 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Cash',
   card: 'Card',
   member_account: 'Member account',
+};
+
+/** Fulfilment-mode label (T7.10) — collected at the gym vs delivered in-house. */
+export const FULFILLMENT_LABELS: Record<Fulfillment, string> = {
+  PICKUP: 'Pickup',
+  DELIVERY: 'Delivery',
 };

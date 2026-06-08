@@ -6,6 +6,7 @@ import { getServerSession } from '@/lib/session';
 import { ApiError, fetchOrder } from '@/lib/api';
 import {
   CHANNEL_LABELS,
+  FULFILLMENT_LABELS,
   ORDER_STATUS_STYLES,
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_STYLES,
@@ -83,6 +84,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <span className="rounded-card bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
             {CHANNEL_LABELS[order.channel]}
           </span>
+          <span className="rounded-card bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+            {FULFILLMENT_LABELS[order.fulfillment]}
+          </span>
         </div>
         <p className="text-sm text-slate-500">
           {formatDateTime(order.createdAt)} ·{' '}
@@ -97,6 +101,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </span>
           )}
         </p>
+        {order.fulfillment === 'DELIVERY' && order.deliveryAddress && (
+          <p className="text-sm text-slate-700">
+            <span className="text-slate-500">Deliver to:</span>{' '}
+            <span className="whitespace-pre-line">{order.deliveryAddress}</span>
+          </p>
+        )}
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">

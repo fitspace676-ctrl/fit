@@ -242,6 +242,8 @@ export class OrdersService {
       where: { id },
       select: {
         ...ORDER_ROW_SELECT,
+        fulfillment: true,
+        deliveryAddress: true,
         items: {
           orderBy: { createdAt: 'asc' },
           select: { id: true, label: true, amount: true, productVariantId: true, qty: true },
@@ -276,6 +278,8 @@ export class OrdersService {
 
     return {
       ...toOrderRow(order),
+      fulfillment: order.fulfillment,
+      deliveryAddress: order.deliveryAddress,
       items: order.items.map((item) => ({
         id: item.id,
         label: item.label,
