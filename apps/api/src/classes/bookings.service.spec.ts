@@ -56,8 +56,9 @@ function setup(opts?: {
     updateMany: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
   };
   const gym = { findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>() };
+  const subscription = { findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>() };
   const $transaction = vi.fn<(cb: (tx: unknown) => unknown) => unknown>();
-  const client = { gymMember, booking, classInstance, gym, $transaction };
+  const client = { gymMember, booking, classInstance, gym, subscription, $transaction };
   // Assigned after `client` exists so the default thunk can hand the callback the
   // same mock object as its transaction client (`tx === client`).
   $transaction.mockImplementation(opts?.transaction ?? ((cb) => cb(client)));
@@ -66,6 +67,8 @@ function setup(opts?: {
   gymMember.findFirst.mockResolvedValue({ id: MEMBER_ID });
   // No cancellation cutoff configured unless a test stores one.
   gym.findFirst.mockResolvedValue({ settings: null });
+  // The member holds no frozen subscription unless a test says otherwise (T8.4).
+  subscription.findFirst.mockResolvedValue(null);
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = {
@@ -79,6 +82,7 @@ function setup(opts?: {
     booking,
     classInstance,
     gym,
+    subscription,
     transaction: $transaction,
   };
 }
@@ -250,6 +254,22 @@ describe('BookingsService', () => {
       expect((error as ForbiddenException).getResponse()).toMatchObject({
         code: 'MEMBER_SESSION_REQUIRED',
       });
+    });
+
+    it('403s a member whose membership is frozen (SUBSCRIPTION_FROZEN, T8.4)', async () => {
+      const ctx = setup();
+      const frozenUntil = new Date('2026-07-01T00:00:00.000Z');
+      ctx.subscription.findFirst.mockResolvedValueOnce({ frozenUntil });
+
+      const error = await ctx.service.book(INSTANCE_ID).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'SUBSCRIPTION_FROZEN',
+        frozenUntil: frozenUntil.toISOString(),
+      });
+      // The freeze gate runs before any booking work — no transaction is opened.
+      expect(ctx.transaction).not.toHaveBeenCalled();
     });
   });
 

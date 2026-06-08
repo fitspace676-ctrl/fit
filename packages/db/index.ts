@@ -62,3 +62,16 @@ export {
   InvalidSubscriptionTransitionError,
   type SubscriptionEvent,
 } from './prisma/subscription-state-machine';
+
+// Subscription freeze/pause policy (T8.4). The pure allowance + compensation rules
+// the freeze flow composes with the state machine above, re-exported so the API
+// service and the recurring-billing job share one policy.
+export {
+  MS_PER_DAY,
+  DEFAULT_FREEZE_DAYS_PER_PERIOD,
+  evaluateFreezeAllowance,
+  addDays,
+  freezeUntil,
+  resumeExtensionDays,
+  type FreezeAllowance,
+} from './prisma/subscription-freeze-policy';

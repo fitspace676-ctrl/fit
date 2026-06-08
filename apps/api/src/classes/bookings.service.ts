@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
+import { BookingStatus, InstanceStatus, Prisma, SubscriptionStatus } from '@fit/db';
 import {
   gymSettingsStoredSchema,
   type BookClassInstanceResult,
@@ -87,6 +87,7 @@ export class BookingsService {
    */
   async book(classInstanceId: string, idempotencyKey?: string): Promise<BookClassInstanceResult> {
     const memberId = await this.requireCallerMembership();
+    await this.assertSubscriptionNotFrozen(memberId);
 
     if (idempotencyKey) {
       const existing = await this.findByIdempotencyKey(idempotencyKey);
@@ -372,6 +373,29 @@ export class BookingsService {
       });
     }
     return member.id;
+  }
+
+  /**
+   * Block booking while the member's membership is frozen (T8.4). A `FROZEN`
+   * subscription is a deliberately paused membership that grants no access until
+   * resumed, so an attempt to book a class is a `403 SUBSCRIPTION_FROZEN` carrying
+   * the `frozenUntil` auto-resume date for the client to surface. A member with no
+   * frozen subscription (the common case, and every member before T8.4) is
+   * unaffected — the check only fires on an explicit freeze. The query is
+   * tenant-scoped, so it only ever sees the caller's own gym.
+   */
+  private async assertSubscriptionNotFrozen(memberId: string): Promise<void> {
+    const frozen = await this.prisma.client.subscription.findFirst({
+      where: { memberId, status: SubscriptionStatus.FROZEN },
+      select: { frozenUntil: true },
+    });
+    if (frozen) {
+      throw new ForbiddenException({
+        message: 'Your membership is frozen; resume it to book classes',
+        code: 'SUBSCRIPTION_FROZEN',
+        frozenUntil: frozen.frozenUntil?.toISOString() ?? null,
+      });
+    }
   }
 
   /**
