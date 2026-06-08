@@ -17,6 +17,7 @@
 // trivial and the admin badges readable.
 
 import { z } from 'zod';
+import { fulfillmentSchema } from './cart';
 import { paymentMethodSchema } from './orders';
 
 /**
@@ -204,13 +205,19 @@ export type OrderStatusTimelineEntry = z.infer<typeof orderStatusTimelineEntrySc
 /**
  * Successful `GET /orders/:id` response — the roster row plus its full detail:
  * the priced `items`, the `payments` (0 or 1, kept an array to match the
- * contract), the `refunds` issued against it, and the generated `statusTimeline`.
+ * contract), the `refunds` issued against it, the generated `statusTimeline`, and
+ * the order's fulfilment (T7.10): `fulfillment` is the chosen mode and
+ * `deliveryAddress` the destination for a `DELIVERY` order (null for a `PICKUP`,
+ * which collects from the order's location). Mirrors the Prisma `Fulfillment`
+ * enum directly, same as the other uppercase admin enums.
  */
 export const adminOrderDetailSchema = adminOrderRowSchema.extend({
   items: z.array(adminOrderItemSchema),
   payments: z.array(adminPaymentSchema),
   refunds: z.array(adminRefundSchema),
   statusTimeline: z.array(orderStatusTimelineEntrySchema),
+  fulfillment: fulfillmentSchema,
+  deliveryAddress: z.string().nullable(),
 });
 
 /** A full admin order detail — {@link adminOrderDetailSchema}. */

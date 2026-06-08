@@ -245,11 +245,46 @@ describe('CartService.checkout', () => {
     expect(outcome).toEqual({ kind: 'created', orderId: 'order-1' });
     expect(mocks.orderCreate).toHaveBeenCalledOnce();
     const orderArgs = mocks.orderCreate.mock.calls[0]![0] as {
-      data: { total: number; status: string };
+      data: {
+        total: number;
+        status: string;
+        fulfillment: string;
+        locationId: string | null;
+        deliveryAddress: string | null;
+      };
     };
     expect(orderArgs.data.total).toBe(1000); // 2 × 500
     expect(orderArgs.data.status).toBe('PENDING');
+    // The delivery fulfilment is persisted with its address and no pickup location (T7.10).
+    expect(orderArgs.data.fulfillment).toBe('DELIVERY');
+    expect(orderArgs.data.deliveryAddress).toBe('1 Main St');
+    expect(orderArgs.data.locationId).toBeNull();
     expect(mocks.cartDelete).toHaveBeenCalledOnce();
+  });
+
+  it('persists a PICKUP order with its location and no delivery address (T7.10)', async () => {
+    const { service, mocks } = setup({
+      userId: 'u1',
+      userCart: cart,
+      products: [
+        product({
+          priceAmount: 500,
+          variants: [{ name: 'M', sku: '', priceAmount: 500, stock: 10 }],
+        }),
+      ],
+    });
+
+    const outcome = await service.checkout(undefined, {
+      fulfillment: 'PICKUP',
+      locationId: 'loc1',
+    });
+    expect(outcome).toEqual({ kind: 'created', orderId: 'order-1' });
+    const orderArgs = mocks.orderCreate.mock.calls[0]![0] as {
+      data: { fulfillment: string; locationId: string | null; deliveryAddress: string | null };
+    };
+    expect(orderArgs.data.fulfillment).toBe('PICKUP');
+    expect(orderArgs.data.locationId).toBe('loc1');
+    expect(orderArgs.data.deliveryAddress).toBeNull();
   });
 
   it('draws down the sold variant stock within the checkout transaction (T7.8)', async () => {

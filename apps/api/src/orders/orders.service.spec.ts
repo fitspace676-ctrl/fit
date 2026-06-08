@@ -288,6 +288,8 @@ function orderRecord(over?: Partial<Record<string, unknown>>) {
     currency: 'USD',
     memberId: 'mem-1',
     customerName: null,
+    fulfillment: 'PICKUP',
+    deliveryAddress: null,
     createdAt: new Date('2026-06-07T10:00:00.000Z'),
     payment: { provider: 'pos', method: 'CARD', refundedAmount: 0 },
     _count: { items: 2 },
@@ -368,7 +370,7 @@ describe('OrdersService.getOrder', () => {
   it('projects items, payments, refunds and the status timeline from the event log', async () => {
     const { service } = adminSetup({
       orderFindFirst: {
-        ...orderRecord(),
+        ...orderRecord({ fulfillment: 'DELIVERY', deliveryAddress: '1 Main St' }),
         items: [{ id: 'i1', label: 'Towel', amount: 300, productVariantId: 'p1:0', qty: 1 }],
         payment: {
           id: 'pay-1',
@@ -394,6 +396,8 @@ describe('OrdersService.getOrder', () => {
     expect(detail.payments).toHaveLength(1);
     expect(detail.payments[0]!.method).toBe('card');
     expect(detail.statusTimeline.map((e) => e.status)).toEqual(['PAID', 'REFUNDED']);
+    expect(detail.fulfillment).toBe('DELIVERY');
+    expect(detail.deliveryAddress).toBe('1 Main St');
   });
 
   it('synthesises a single timeline entry when no events were logged', async () => {

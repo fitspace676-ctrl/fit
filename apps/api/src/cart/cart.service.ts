@@ -306,7 +306,13 @@ export class CartService {
           total,
           currency,
           status: OrderStatus.PENDING,
+          // Persist the buyer's fulfilment choice (T7.10): a PICKUP names the branch
+          // to collect from, a DELIVERY carries the destination — each cleared for the
+          // other mode so the order never holds a stale opposite-mode detail.
+          fulfillment: input.fulfillment,
           locationId: input.fulfillment === 'PICKUP' ? (input.locationId ?? null) : null,
+          deliveryAddress:
+            input.fulfillment === 'DELIVERY' ? (input.deliveryAddress ?? null) : null,
           memberId: member?.id ?? null,
           items: { create: lines },
           // Log the opening transition so the order's admin status timeline (T7.9) is
