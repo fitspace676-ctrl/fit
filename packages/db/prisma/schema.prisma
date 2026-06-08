@@ -201,6 +201,42 @@ enum PaymentMethod {
   MEMBER_ACCOUNT
 }
 
+/// Lifecycle of a recurring membership {@link SubscriptionPlan} within a gym
+/// (T8.1). `ACTIVE` plans are the ones the gym currently offers (the only state a
+/// storefront / member portal would surface); `INACTIVE` is the soft-deactivated
+/// state — hidden but retained so the record and any {@link Subscription} linked to
+/// it survive. Toggled from the staff console, mirroring {@link PackagePlanStatus}
+/// for the one-off PT package plans.
+enum SubscriptionPlanStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// Renewal cadence of a recurring membership {@link SubscriptionPlan} (T8.1).
+/// `MONTH`/`YEAR` are the periods a {@link Subscription}'s `currentPeriodEnd`
+/// advances by on each successful charge. Deliberately distinct from
+/// {@link PackageBillingInterval}, which additionally carries `ONE_TIME` — a one-off
+/// charge has no place on a *recurring* subscription, so the two enums are kept
+/// separate rather than sharing one with a member that is invalid here.
+enum SubscriptionInterval {
+  MONTH
+  YEAR
+}
+
+/// Lifecycle of a member's {@link Subscription} to a recurring plan (T8.1).
+/// `ACTIVE` is a current, paid-up subscription; `PAST_DUE` is one whose latest
+/// renewal charge failed and is in its grace window (still entitled, pending a
+/// retry); `CANCELED` was ended by the member or staff (immediately, or once the
+/// `cancelAtPeriodEnd` flag let the paid period run out); `EXPIRED` lapsed at the
+/// end of its period without renewing. The recurring-billing job (a later T8 task)
+/// drives the PAST_DUE/EXPIRED transitions; this schema only models the states.
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -223,20 +259,22 @@ model Gym {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  members        GymMember[]
-  trainers       Trainer[]
-  locations      Location[]
-  products       Product[]
-  packagePlans   PackagePlan[]
-  staffInvites   StaffInvite[]
-  classTemplates ClassTemplate[]
-  classInstances ClassInstance[]
-  bookings       Booking[]
-  reviews        Review[]
-  orders         Order[]
-  payments       Payment[]
-  refunds        Refund[]
-  carts          Cart[]
+  members           GymMember[]
+  trainers          Trainer[]
+  locations         Location[]
+  products          Product[]
+  packagePlans      PackagePlan[]
+  staffInvites      StaffInvite[]
+  classTemplates    ClassTemplate[]
+  classInstances    ClassInstance[]
+  bookings          Booking[]
+  reviews           Review[]
+  orders            Order[]
+  payments          Payment[]
+  refunds           Refund[]
+  carts             Cart[]
+  subscriptionPlans SubscriptionPlan[]
+  subscriptions     Subscription[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -316,11 +354,12 @@ model GymMember {
   status   GymMemberStatus @default(ACTIVE)
   joinedAt DateTime        @default(now())
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  bookings Booking[]
-  reviews  Review[]
-  orders   Order[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  bookings      Booking[]
+  reviews       Review[]
+  orders        Order[]
+  subscriptions Subscription[]
 
   @@unique([userId, gymId])
   @@index([gymId])
@@ -721,10 +760,10 @@ model Order {
 /// order; this row carries no `gymId` of its own — it is reached only through the
 /// already tenant-scoped order.
 model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String
-  label     String
-  amount    Int
+  id               String   @id @default(cuid())
+  orderId          String
+  label            String
+  amount           Int
   /// Composite wire reference of the purchased variant — `"<productId>:<variantIndex|base>"`,
   /// the same shape {@link CartItem} uses (variants have no row id of their own; they
   /// live in {@link Product} `variants` JSON). Recorded at sale time so an admin refund
@@ -733,8 +772,8 @@ model OrderItem {
   productVariantId String?
   /// Units sold on this line, so a restock returns the right quantity. Defaults to 1
   /// for the package / adjustment lines that predate per-line quantities.
-  qty       Int      @default(1)
-  createdAt DateTime @default(now())
+  qty              Int      @default(1)
+  createdAt        DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -805,31 +844,31 @@ model Refund {
 /// `status` tracks the charge lifecycle (see {@link PaymentStatus}). `gymId` is
 /// duplicated from the order for direct tenant-scoped revenue queries.
 model Payment {
-  id          String        @id @default(cuid())
-  gymId       String
-  orderId     String        @unique
-  amount      Int
-  currency    String        @default("USD")
-  status      PaymentStatus @default(PENDING)
+  id             String        @id @default(cuid())
+  gymId          String
+  orderId        String        @unique
+  amount         Int
+  currency       String        @default("USD")
+  status         PaymentStatus @default(PENDING)
   /// How the sale was settled — the staff-facing channel the end-of-day cash
   /// reconciliation (T7.5) groups by. Defaults to `CARD` so the online purchase
   /// wizard's stub charge (T3.10) lands as a card sale without passing it; the POS
   /// (T7.3) sets it explicitly to the operator's choice.
-  method      PaymentMethod @default(CARD)
+  method         PaymentMethod @default(CARD)
   /// Payment provider key — `"stub"` for the MVP, a concrete provider once T8.8
   /// lands the real integration.
-  provider    String        @default("stub")
+  provider       String        @default("stub")
   /// External charge / transaction id from the provider, for reconciliation and
   /// refunds; null for the stub (no upstream record).
-  providerRef String?
+  providerRef    String?
   /// Running total already refunded against this capture (T7.9), in the currency's
   /// MINOR units. Starts at `0`; each admin refund adds its amount and flips `status`
   /// to `REFUNDED` once it reaches `amount` (a full refund). The next refund is
   /// validated against `amount - refundedAmount`, so a partial-then-partial sequence
   /// can never over-refund.
-  refundedAmount Int        @default(0)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  refundedAmount Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   gym     Gym      @relation(fields: [gymId], references: [id], onDelete: Cascade)
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -923,4 +962,99 @@ model AuditLog {
   @@index([gymId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+/// A recurring membership plan a gym curates from the staff console (T8.1). A
+/// gym-scoped catalogue record — the renewable memberships (e.g. "Monthly",
+/// "Annual unlimited") the gym sells, deliberately distinct from a one-off
+/// {@link PackagePlan} (a finite PT session pack) and a retail {@link Product}.
+/// One gym can have many plans; `gymId` is the isolating tenant key the scoped
+/// Prisma client constrains every query to.
+///
+/// `priceAmount` is the per-interval price in the currency's MINOR units
+/// (cents/tetri), with `currency` an ISO-4217 code. `interval` is the renewal
+/// cadence (see {@link SubscriptionInterval}). `features` is a flat, ordered list of
+/// short perk labels rendered as bullets; `popular` flags the one plan that gets the
+/// brand emphasis / "Most popular" badge — both mirroring {@link PackagePlan}. A
+/// {@link Subscription} snapshots this plan's price/interval at enrolment, so editing
+/// or deactivating the plan never retroactively re-prices an existing subscriber.
+model SubscriptionPlan {
+  id          String                 @id @default(cuid())
+  gymId       String
+  name        String
+  description String                 @default("")
+  priceAmount Int                    @default(0)
+  currency    String                 @default("USD")
+  interval    SubscriptionInterval   @default(MONTH)
+  features    String[]               @default([])
+  popular     Boolean                @default(false)
+  status      SubscriptionPlanStatus @default(ACTIVE)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@index([gymId])
+  @@map("subscription_plans")
+}
+
+/// A member's enrolment in a recurring {@link SubscriptionPlan} (T8.1) — the
+/// renewable membership the billing job charges each period. `gymId` is the
+/// isolating tenant key the scoped Prisma client constrains every query to.
+/// `memberId` references the gym-scoped {@link GymMember} who holds the subscription
+/// (cascade — a subscription has no meaning without its member). `planId` references
+/// the {@link SubscriptionPlan} and is `SetNull` so the subscription — a billing
+/// record — survives the catalogue plan being deleted, mirroring {@link Order}'s
+/// `packageId`.
+///
+/// `priceAmount` / `currency` / `interval` are snapshotted from the plan at enrolment
+/// (the buyer's agreed terms), so a later plan edit never re-prices an active
+/// subscriber. `currentPeriodStart` / `currentPeriodEnd` bound the paid period; the
+/// billing job advances them by `interval` on each successful renewal and reads
+/// `currentPeriodEnd` to find what is due to charge. `cancelAtPeriodEnd` marks a
+/// member-requested cancellation that lets the paid period run out before flipping
+/// `status` to `CANCELED`; `canceledAt` stamps when a cancellation was actioned.
+/// `provider` / `providerRef` mirror {@link Payment}: `"stub"` for the MVP, a concrete
+/// gateway + external subscription id once the real integration (T8.8) lands.
+/// `status` tracks the lifecycle (see {@link SubscriptionStatus}).
+///
+/// A member holds at most one live (`ACTIVE` / `PAST_DUE`) subscription per gym: the
+/// partial unique `(gymId, memberId) WHERE status IN ('ACTIVE','PAST_DUE')` — added in
+/// the migration SQL, as Prisma can't express a partial index — enforces it while
+/// still allowing a fresh subscription after a previous one is canceled/expired.
+model Subscription {
+  id                 String               @id @default(cuid())
+  gymId              String
+  planId             String?
+  memberId           String
+  status             SubscriptionStatus   @default(ACTIVE)
+  priceAmount        Int                  @default(0)
+  currency           String               @default("USD")
+  interval           SubscriptionInterval @default(MONTH)
+  currentPeriodStart DateTime             @default(now())
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean              @default(false)
+  canceledAt         DateTime?
+  /// Payment provider key — `"stub"` for the MVP, a concrete provider once T8.8
+  /// lands the real recurring-billing integration.
+  provider           String               @default("stub")
+  /// External subscription id from the provider, for reconciliation and renewals;
+  /// null for the stub (no upstream record).
+  providerRef        String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  gym    Gym               @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  plan   SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  member GymMember         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@index([memberId])
+  @@index([planId])
+  /// Backs the recurring-billing job + admin roster: a tenant's subscriptions
+  /// scanned by `status`, and by `currentPeriodEnd` to find what is due to charge.
+  @@index([gymId, status])
+  @@index([gymId, currentPeriodEnd])
+  @@map("subscriptions")
 }
