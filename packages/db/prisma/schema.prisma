@@ -223,16 +223,22 @@ enum SubscriptionInterval {
   YEAR
 }
 
-/// Lifecycle of a member's {@link Subscription} to a recurring plan (T8.1).
-/// `ACTIVE` is a current, paid-up subscription; `PAST_DUE` is one whose latest
-/// renewal charge failed and is in its grace window (still entitled, pending a
-/// retry); `CANCELED` was ended by the member or staff (immediately, or once the
-/// `cancelAtPeriodEnd` flag let the paid period run out); `EXPIRED` lapsed at the
-/// end of its period without renewing. The recurring-billing job (a later T8 task)
-/// drives the PAST_DUE/EXPIRED transitions; this schema only models the states.
+/// Lifecycle of a member's {@link Subscription} to a recurring plan (T8.1, state
+/// machine T8.3). `ACTIVE` is a current, paid-up subscription; `PAST_DUE` is one
+/// whose latest renewal charge failed and is in its grace window (still entitled,
+/// pending a retry); `FROZEN` is a deliberately paused membership (a member- or
+/// staff-requested hold — common for gyms) that still occupies the member's single
+/// live slot but grants no access until resumed; `CANCELED` was ended by the member
+/// or staff (immediately, or once the `cancelAtPeriodEnd` flag let the paid period
+/// run out); `EXPIRED` lapsed at the end of its period without renewing. The legal
+/// transitions between these states — and the guards that reject illegal ones — are
+/// the T8.3 state machine (`subscription-state-machine.ts`, re-exported from
+/// `@fit/db`); the recurring-billing job (a later T8 task) drives the
+/// PAST_DUE/EXPIRED transitions by applying those events.
 enum SubscriptionStatus {
   ACTIVE
   PAST_DUE
+  FROZEN
   CANCELED
   EXPIRED
 }
@@ -1019,10 +1025,14 @@ model SubscriptionPlan {
 /// gateway + external subscription id once the real integration (T8.8) lands.
 /// `status` tracks the lifecycle (see {@link SubscriptionStatus}).
 ///
-/// A member holds at most one live (`ACTIVE` / `PAST_DUE`) subscription per gym: the
-/// partial unique `(gymId, memberId) WHERE status IN ('ACTIVE','PAST_DUE')` — added in
-/// the migration SQL, as Prisma can't express a partial index — enforces it while
-/// still allowing a fresh subscription after a previous one is canceled/expired.
+/// A member holds at most one live (`ACTIVE` / `PAST_DUE` / `FROZEN`) subscription
+/// per gym: the partial unique `(gymId, memberId) WHERE status IN
+/// ('ACTIVE','PAST_DUE','FROZEN')` — added in the migration SQL, as Prisma can't
+/// express a partial index — enforces it while still allowing a fresh subscription
+/// after a previous one is canceled/expired. `FROZEN` is in the live set (T8.3): a
+/// paused membership still occupies the slot, so a member can't enrol a second time
+/// while frozen — they must resume or cancel first. The live set mirrors
+/// `LIVE_SUBSCRIPTION_STATUSES` in the state machine.
 model Subscription {
   id                 String               @id @default(cuid())
   gymId              String

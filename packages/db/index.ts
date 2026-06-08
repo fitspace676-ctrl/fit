@@ -43,3 +43,22 @@ export {
   type InstanceRegenerationPlan,
   type PlanInstanceRegenerationInput,
 } from './prisma/generate-instances';
+
+// Subscription lifecycle state machine (T8.3). The single source of truth for the
+// legal transitions between SubscriptionStatus states, re-exported so the API and
+// the recurring-billing job apply the same guarded transitions.
+export {
+  SUBSCRIPTION_TRANSITIONS,
+  LIVE_SUBSCRIPTION_STATUSES,
+  TERMINAL_SUBSCRIPTION_STATUSES,
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  isLiveStatus,
+  isTerminalStatus,
+  isEntitledStatus,
+  canApplyEvent,
+  nextStatus,
+  availableEvents,
+  applyEvent,
+  InvalidSubscriptionTransitionError,
+  type SubscriptionEvent,
+} from './prisma/subscription-state-machine';
