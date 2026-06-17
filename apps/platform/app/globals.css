@@ -3,6 +3,38 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Semantic theme tokens as space-separated RGB triples (for Tailwind's
+   * `<alpha-value>` support). `:root` is the light theme; `.dark` overrides
+   * with the original "Aurora Glass" values, so dark renders exactly as the
+   * design and light is the tuned inversion.
+   */
+  :root {
+    --surface: 247 248 251; /* near-white canvas */
+    --fg: 21 25 38; /* ink-900 */
+    --strong: 57 65 85; /* ink-700 */
+    --muted: 75 84 104; /* ink-600 */
+    --faint: 100 109 130; /* ink-500 */
+    --subtle: 138 146 164; /* ink-400 */
+    --dim: 181 187 200; /* ink-300 */
+    --overlay: 11 13 21; /* ink-950 — dark tint over light glass */
+    --panel: 255 255 255; /* white inset cards */
+    color-scheme: light;
+  }
+
+  .dark {
+    --surface: 7 8 16; /* #070810 */
+    --fg: 255 255 255; /* white */
+    --strong: 216 220 228; /* ink-200 */
+    --muted: 181 187 200; /* ink-300 */
+    --faint: 138 146 164; /* ink-400 */
+    --subtle: 100 109 130; /* ink-500 */
+    --dim: 75 84 104; /* ink-600 */
+    --overlay: 255 255 255; /* white tint over dark glass */
+    --panel: 7 8 16; /* near-black inset */
+    color-scheme: dark;
+  }
+
   html {
     scroll-behavior: smooth;
     /* Anchor targets clear the sticky header. */

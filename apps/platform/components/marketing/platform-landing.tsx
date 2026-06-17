@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
 
@@ -54,6 +54,8 @@ const I = {
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z',
   pulse: 'M22 12h-4l-3 9L9 3l-3 9H2',
   star: 'M12 2l2.9 6.1 6.6.9-4.8 4.7 1.2 6.6L12 17.6 6.1 20.3l1.2-6.6L2.5 9l6.6-.9L12 2Z',
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z',
 } satisfies Record<string, string>;
 
 const Icon = ({ d, c = 'w-5 h-5', sw = 2 }: { d: string; c?: string; sw?: number }) => (
@@ -98,9 +100,9 @@ const Btn = ({
   const vs: Record<BtnVariant, string> = {
     primary:
       'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white hover:brightness-110 active:brightness-95 shadow-[0_8px_30px_-6px_rgba(124,58,237,0.7)] focus-visible:ring-brand-500/40',
-    white: 'bg-white text-ink-950 hover:bg-ink-100 active:bg-ink-200 focus-visible:ring-white/40',
+    white: 'bg-fg text-surface hover:opacity-90 active:opacity-80 focus-visible:ring-overlay/40',
     glass:
-      'bg-white/[0.07] text-white border border-white/15 backdrop-blur hover:bg-white/[0.13] active:bg-white/[0.18] focus-visible:ring-white/30',
+      'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-overlay/[0.13] active:bg-overlay/[0.18] focus-visible:ring-overlay/30',
   };
   const className = `inline-flex items-center justify-center font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
   const style: CSSProperties | undefined = size === 'lg' ? { height: '3.25rem' } : undefined;
@@ -133,11 +135,51 @@ const Btn = ({
 };
 
 const Eyebrow = ({ children, icon = I.spark }: { children: ReactNode; icon?: string }) => (
-  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-white/[0.06] border border-white/10 text-[11px] font-mono uppercase tracking-[0.22em] text-ink-300">
-    <Icon d={icon} c="w-3.5 h-3.5 text-brand-400" sw={2} />
+  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-overlay/[0.06] border border-overlay/10 text-[11px] font-mono uppercase tracking-[0.22em] text-muted">
+    <Icon d={icon} c="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" sw={2} />
     {children}
   </span>
 );
+
+/**
+ * Light/dark switch. Reads the current theme from the `.dark` class the inline
+ * head script already set (so there's no flash), and on click flips the class
+ * and persists the choice. Renders a stable icon until mounted to avoid a
+ * hydration mismatch.
+ */
+const ThemeToggle = ({ className = '' }: { className?: string }) => {
+  const [dark, setDark] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setDark(document.documentElement.classList.contains('dark'));
+  }, []);
+
+  const toggle = (): void => {
+    setDark((prev) => {
+      const next = !prev;
+      document.documentElement.classList.toggle('dark', next);
+      try {
+        localStorage.setItem('theme', next ? 'dark' : 'light');
+      } catch {
+        // Ignore storage failures (private mode); the class still flips.
+      }
+      return next;
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label="Toggle dark mode"
+      className={`w-10 h-10 grid place-items-center rounded-btn text-strong hover:text-fg hover:bg-overlay/5 transition ${className}`}
+    >
+      <Icon d={mounted && !dark ? I.moon : I.sun} c="w-5 h-5" />
+    </button>
+  );
+};
 
 /* ---- module mock screens ---- */
 const Mock = ({ id }: { id: string }) => {
@@ -146,7 +188,7 @@ const Mock = ({ id }: { id: string }) => {
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <span className="font-display text-lg font-bold">1,284 members</span>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-white/[0.06] ring-1 ring-inset ring-white/10 text-xs font-semibold text-ink-300">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-overlay/[0.06] ring-1 ring-inset ring-overlay/10 text-xs font-semibold text-muted">
             All plans
           </span>
         </div>
@@ -171,28 +213,26 @@ const Mock = ({ id }: { id: string }) => {
         ].map((r) => (
           <div
             key={r.n}
-            className="flex items-center gap-3 p-2.5 rounded-card bg-white/[0.03] border border-white/10"
+            className="flex items-center gap-3 p-2.5 rounded-card bg-overlay/[0.03] border border-overlay/10"
           >
             <img
               src={`https://i.pravatar.cc/64?img=${r.img}`}
               alt=""
               width={36}
               height={36}
-              className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10"
+              className="w-9 h-9 rounded-full object-cover ring-1 ring-overlay/10"
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{r.n}</p>
-              <p className="text-xs text-ink-400 truncate">{r.p}</p>
+              <p className="text-xs text-faint truncate">{r.p}</p>
             </div>
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold bg-${r.st}-500/15 ring-1 ring-inset ring-${r.st}-500/25 text-${r.st}-300`}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold bg-${r.st}-500/15 ring-1 ring-inset ring-${r.st}-500/25 text-${r.st}-700 dark:text-${r.st}-300`}
             >
               <span className={`w-1.5 h-1.5 rounded-full bg-${r.st}-400`} />
               {r.s}
             </span>
-            <span className="font-mono text-xs text-ink-300 tabular-nums w-12 text-right">
-              {r.b}
-            </span>
+            <span className="font-mono text-xs text-muted tabular-nums w-12 text-right">{r.b}</span>
           </div>
         ))}
       </div>
@@ -207,25 +247,25 @@ const Mock = ({ id }: { id: string }) => {
         ].map((cl) => (
           <div
             key={cl.t}
-            className="flex items-center gap-4 p-3 rounded-card border border-white/10 bg-white/[0.03]"
+            className="flex items-center gap-4 p-3 rounded-card border border-overlay/10 bg-overlay/[0.03]"
           >
             <div className="text-center w-12 shrink-0">
               <div className="font-mono text-sm font-bold">{cl.t}</div>
-              <div className="font-mono text-[10px] text-ink-500">50m</div>
+              <div className="font-mono text-[10px] text-subtle">50m</div>
             </div>
             <div className={`w-1 self-stretch rounded-full bg-${cl.c}-500`} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{cl.n}</p>
-              <p className="text-xs text-ink-400">{cl.tr}</p>
+              <p className="text-xs text-faint">{cl.tr}</p>
             </div>
             {cl.o === cl.cap ? (
               <span className="px-2.5 py-1 rounded-pill text-xs font-semibold bg-danger-500/15 ring-1 ring-inset ring-danger-500/25 text-danger-300">
                 Full
               </span>
             ) : (
-              <span className="font-mono text-sm text-ink-200 tabular-nums">
+              <span className="font-mono text-sm text-strong tabular-nums">
                 {cl.o}
-                <span className="text-ink-500">/{cl.cap}</span>
+                <span className="text-subtle">/{cl.cap}</span>
               </span>
             )}
           </div>
@@ -235,7 +275,7 @@ const Mock = ({ id }: { id: string }) => {
   if (id === 'checkin')
     return (
       <div className="space-y-4">
-        <div className="relative h-32 rounded-card bg-ink-950 ring-1 ring-inset ring-white/10 overflow-hidden grid place-items-center">
+        <div className="relative h-32 rounded-card bg-panel ring-1 ring-inset ring-overlay/10 overflow-hidden grid place-items-center">
           <div className="relative w-20 h-20">
             {[
               ['top-0 left-0', 'border-t-2 border-l-2 rounded-tl-lg'],
@@ -245,9 +285,9 @@ const Mock = ({ id }: { id: string }) => {
             ].map(([p, b]) => (
               <span key={p} className={`absolute ${p} w-5 h-5 ${b} border-brand-400`} />
             ))}
-            <Icon d={I.qr} c="w-9 h-9 text-white/25 absolute inset-0 m-auto" sw={1.6} />
+            <Icon d={I.qr} c="w-9 h-9 text-overlay/25 absolute inset-0 m-auto" sw={1.6} />
           </div>
-          <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2 py-1 rounded-pill bg-white/10 ring-1 ring-inset ring-white/15">
+          <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2 py-1 rounded-pill bg-overlay/10 ring-1 ring-inset ring-overlay/15">
             <span className="w-1.5 h-1.5 rounded-full bg-success-500" />
             <span className="text-[10px] font-semibold">Scanner ready</span>
           </span>
@@ -258,7 +298,7 @@ const Mock = ({ id }: { id: string }) => {
         ].map((a) => (
           <div
             key={a.n}
-            className="flex items-center gap-3 p-2.5 rounded-card bg-white/[0.03] border border-white/10"
+            className="flex items-center gap-3 p-2.5 rounded-card bg-overlay/[0.03] border border-overlay/10"
           >
             <div className="relative shrink-0">
               <img
@@ -266,17 +306,17 @@ const Mock = ({ id }: { id: string }) => {
                 alt=""
                 width={36}
                 height={36}
-                className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10"
+                className="w-9 h-9 rounded-full object-cover ring-1 ring-overlay/10"
               />
-              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full grid place-items-center ring-2 ring-ink-900 bg-success-500">
+              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full grid place-items-center ring-2 ring-panel bg-success-500">
                 <Icon d={I.check} c="w-2.5 h-2.5 text-white" sw={3} />
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{a.n}</p>
-              <p className="text-xs text-ink-400 truncate">{a.k}</p>
+              <p className="text-xs text-faint truncate">{a.k}</p>
             </div>
-            <span className="font-mono text-[11px] text-ink-500">{a.ago}</span>
+            <span className="font-mono text-[11px] text-subtle">{a.ago}</span>
           </div>
         ))}
       </div>
@@ -289,17 +329,17 @@ const Mock = ({ id }: { id: string }) => {
           { n: 'BCAA punch', q: 2, p: 38 },
           { n: 'Day pass', q: 1, p: 25 },
         ].map((it) => (
-          <div key={it.n} className="flex items-center gap-3 py-2.5 border-b border-white/10">
-            <Icon d={I.pos} c="w-5 h-5 text-brand-400 shrink-0" sw={2} />
+          <div key={it.n} className="flex items-center gap-3 py-2.5 border-b border-overlay/10">
+            <Icon d={I.pos} c="w-5 h-5 text-brand-600 dark:text-brand-400 shrink-0" sw={2} />
             <div className="flex-1">
               <p className="text-sm font-semibold">{it.n}</p>
-              <p className="font-mono text-xs text-ink-500">× {it.q}</p>
+              <p className="font-mono text-xs text-subtle">× {it.q}</p>
             </div>
-            <span className="font-mono text-sm text-ink-200 tabular-nums">₾ {it.p * it.q}</span>
+            <span className="font-mono text-sm text-strong tabular-nums">₾ {it.p * it.q}</span>
           </div>
         ))}
         <div className="flex items-center justify-between pt-2">
-          <span className="font-mono text-xs uppercase tracking-[0.2em] text-ink-400">Total</span>
+          <span className="font-mono text-xs uppercase tracking-[0.2em] text-faint">Total</span>
           <span className="font-display text-2xl font-extrabold tabular-nums">₾ 246</span>
         </div>
         <button
@@ -315,7 +355,9 @@ const Mock = ({ id }: { id: string }) => {
       <div>
         <div className="flex items-baseline justify-between">
           <span className="font-display text-2xl font-extrabold tabular-nums">₾ 20,770</span>
-          <span className="font-mono text-xs text-success-300">+12% · 7d</span>
+          <span className="font-mono text-xs text-success-700 dark:text-success-300">
+            +12% · 7d
+          </span>
         </div>
         <svg
           viewBox="0 0 320 90"
@@ -348,8 +390,8 @@ const Mock = ({ id }: { id: string }) => {
             { l: 'Retention M3', v: '74%' },
             { l: 'LTV', v: '₾ 1,180' },
           ].map((k) => (
-            <div key={k.l} className="rounded-card bg-white/[0.03] border border-white/10 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-400">
+            <div key={k.l} className="rounded-card bg-overlay/[0.03] border border-overlay/10 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">
                 {k.l}
               </p>
               <p className="font-display text-base font-extrabold tabular-nums mt-1">{k.v}</p>
@@ -362,11 +404,11 @@ const Mock = ({ id }: { id: string }) => {
     return (
       <div className="space-y-2.5">
         <div className="flex items-baseline justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-400">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">
             Recurring revenue
           </span>
           <span className="font-display text-xl font-extrabold tabular-nums">
-            ₾ 86,400<span className="text-sm font-semibold text-ink-500">/mo</span>
+            ₾ 86,400<span className="text-sm font-semibold text-subtle">/mo</span>
           </span>
         </div>
         {[
@@ -376,32 +418,32 @@ const Mock = ({ id }: { id: string }) => {
         ].map((pl) => (
           <div
             key={pl.n}
-            className="flex items-center gap-3 p-3 rounded-card border border-white/10 bg-white/[0.03]"
+            className="flex items-center gap-3 p-3 rounded-card border border-overlay/10 bg-overlay/[0.03]"
           >
             <div className={`w-1 self-stretch rounded-full bg-${pl.c}-500`} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold flex items-center gap-2">
                 {pl.n}
                 {pl.tag && (
-                  <span className="px-1.5 py-0.5 rounded-pill text-[9px] font-semibold bg-brand-500/15 ring-1 ring-inset ring-brand-500/25 text-brand-300">
+                  <span className="px-1.5 py-0.5 rounded-pill text-[9px] font-semibold bg-brand-500/15 ring-1 ring-inset ring-brand-500/25 text-brand-700 dark:text-brand-300">
                     {pl.tag}
                   </span>
                 )}
               </p>
-              <p className="font-mono text-[11px] text-ink-500">{pl.m} active · auto-renew</p>
+              <p className="font-mono text-[11px] text-subtle">{pl.m} active · auto-renew</p>
             </div>
-            <span className="font-mono text-sm text-ink-200 tabular-nums">
+            <span className="font-mono text-sm text-strong tabular-nums">
               ₾ {pl.p}
-              <span className="text-ink-500 text-xs">/mo</span>
+              <span className="text-subtle text-xs">/mo</span>
             </span>
           </div>
         ))}
         <div className="flex items-center justify-between pt-1 text-xs">
-          <span className="inline-flex items-center gap-1.5 text-ink-400">
+          <span className="inline-flex items-center gap-1.5 text-faint">
             <span className="w-1.5 h-1.5 rounded-full bg-success-400" />
             47 renewals due this week
           </span>
-          <span className="text-success-300 font-mono">96% collected</span>
+          <span className="text-success-700 dark:text-success-300 font-mono">96% collected</span>
         </div>
       </div>
     );
@@ -415,24 +457,24 @@ const Mock = ({ id }: { id: string }) => {
         ].map((t) => (
           <div
             key={t.n}
-            className="flex items-center gap-3 p-2.5 rounded-card bg-white/[0.03] border border-white/10"
+            className="flex items-center gap-3 p-2.5 rounded-card bg-overlay/[0.03] border border-overlay/10"
           >
             <img
               src={`https://i.pravatar.cc/64?img=${t.img}`}
               alt=""
               width={36}
               height={36}
-              className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10"
+              className="w-9 h-9 rounded-full object-cover ring-1 ring-overlay/10"
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{t.n}</p>
-              <p className="text-xs text-ink-400 truncate">{t.r}</p>
+              <p className="text-xs text-faint truncate">{t.r}</p>
             </div>
             <div className="w-16 shrink-0">
               <div className="flex items-center justify-end gap-1.5">
-                <span className="font-mono text-[11px] text-ink-300 tabular-nums">{t.load}%</span>
+                <span className="font-mono text-[11px] text-muted tabular-nums">{t.load}%</span>
               </div>
-              <div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <div className="mt-1 h-1.5 rounded-full bg-overlay/10 overflow-hidden">
                 <div
                   className={`h-full rounded-full bg-${t.c}-500`}
                   style={{ width: `${t.load}%` }}
@@ -441,18 +483,18 @@ const Mock = ({ id }: { id: string }) => {
             </div>
           </div>
         ))}
-        <div className="flex items-center justify-between pt-1 text-xs text-ink-400">
+        <div className="flex items-center justify-between pt-1 text-xs text-faint">
           <span>Payroll · this cycle</span>
-          <span className="font-mono text-ink-200 tabular-nums">₾ 9,840</span>
+          <span className="font-mono text-strong tabular-nums">₾ 9,840</span>
         </div>
       </div>
     );
   /* member app */
   return (
     <div className="flex justify-center">
-      <div className="w-[200px] rounded-[1.5rem] overflow-hidden bg-ink-950 ring-1 ring-inset ring-white/10">
+      <div className="w-[200px] rounded-[1.5rem] overflow-hidden bg-panel ring-1 ring-inset ring-overlay/10">
         <div className="px-4 pt-4 pb-3">
-          <p className="font-mono text-[9px] text-ink-500 uppercase tracking-[0.2em]">Wednesday</p>
+          <p className="font-mono text-[9px] text-subtle uppercase tracking-[0.2em]">Wednesday</p>
           <p className="font-display text-base font-extrabold">Hey, Nino 👋</p>
           <div className="mt-3 rounded-card bg-[linear-gradient(135deg,#7C3AED,#EC4899)] p-3 shadow-[0_10px_30px_-8px_rgba(124,58,237,0.7)]">
             <p className="text-[9px] font-semibold text-white/80 uppercase tracking-[0.2em]">
@@ -474,17 +516,17 @@ const Mock = ({ id }: { id: string }) => {
             ].map((s) => (
               <div
                 key={s.l}
-                className="rounded-card bg-white/5 border border-white/10 p-2 text-center"
+                className="rounded-card bg-overlay/5 border border-overlay/10 p-2 text-center"
               >
                 <p className="font-mono text-sm font-bold tabular-nums">{s.v}</p>
-                <p className="text-[8px] uppercase tracking-[0.15em] text-ink-500">{s.l}</p>
+                <p className="text-[8px] uppercase tracking-[0.15em] text-subtle">{s.l}</p>
               </div>
             ))}
           </div>
         </div>
-        <div className="h-10 bg-ink-900 border-t border-white/10 flex items-center justify-around px-3">
+        <div className="h-10 bg-panel border-t border-overlay/10 flex items-center justify-around px-3">
           {[I.members, I.calendar, I.qr].map((d, i) => (
-            <span key={i} className={i === 0 ? 'text-brand-400' : 'text-ink-600'}>
+            <span key={i} className={i === 0 ? 'text-brand-600 dark:text-brand-400' : 'text-dim'}>
               <Icon d={d} c="w-4 h-4" />
             </span>
           ))}
@@ -824,7 +866,7 @@ export default function PlatformLanding() {
   ];
 
   return (
-    <div className="font-sans bg-ink-950 text-white antialiased relative overflow-hidden selection:bg-brand-500/30">
+    <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
       {/* aurora */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-48 -left-24 w-[680px] h-[680px] rounded-full bg-brand-600/[0.22] blur-[150px]" />
@@ -848,17 +890,18 @@ export default function PlatformLanding() {
                   key={n}
                   href="#"
                   onClick={(e) => e.preventDefault()}
-                  className={`px-3.5 h-9 inline-flex items-center rounded-btn text-sm font-semibold transition ${n === 'Platform' ? 'text-white bg-white/[0.07]' : 'text-ink-300 hover:text-white hover:bg-white/5'}`}
+                  className={`px-3.5 h-9 inline-flex items-center rounded-btn text-sm font-semibold transition ${n === 'Platform' ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg hover:bg-overlay/5'}`}
                 >
                   {n}
                 </a>
               ))}
             </nav>
             <div className="ml-auto hidden sm:flex items-center gap-2">
+              <ThemeToggle />
               <a
                 href="#"
                 onClick={(e) => e.preventDefault()}
-                className="px-3.5 h-10 inline-flex items-center rounded-btn text-sm font-semibold text-ink-200 hover:text-white hover:bg-white/5 transition"
+                className="px-3.5 h-10 inline-flex items-center rounded-btn text-sm font-semibold text-strong hover:text-fg hover:bg-overlay/5 transition"
               >
                 Sign in
               </a>
@@ -866,13 +909,16 @@ export default function PlatformLanding() {
                 Start free
               </Btn>
             </div>
-            <button
-              type="button"
-              onClick={() => setMenu((value) => !value)}
-              className="ml-auto sm:hidden w-10 h-10 grid place-items-center rounded-btn text-white hover:bg-white/5"
-            >
-              <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
-            </button>
+            <div className="ml-auto flex items-center gap-1 sm:hidden">
+              <ThemeToggle />
+              <button
+                type="button"
+                onClick={() => setMenu((value) => !value)}
+                className="w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
+              >
+                <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
+              </button>
+            </div>
           </div>
           {menu && (
             <div className="sm:hidden pb-4 space-y-1">
@@ -881,7 +927,7 @@ export default function PlatformLanding() {
                   key={n}
                   href="#"
                   onClick={(e) => e.preventDefault()}
-                  className="block px-3 h-11 leading-[2.75rem] rounded-btn text-sm font-semibold text-ink-200 hover:bg-white/5"
+                  className="block px-3 h-11 leading-[2.75rem] rounded-btn text-sm font-semibold text-strong hover:bg-overlay/5"
                 >
                   {n}
                 </a>
@@ -903,11 +949,11 @@ export default function PlatformLanding() {
         </div>
         <h1 className="font-display text-[3rem] sm:text-[4rem] lg:text-[4.75rem] font-black tracking-tight mt-6 leading-[0.92] max-w-4xl mx-auto">
           The operating system{' '}
-          <span className="bg-gradient-to-r from-brand-400 via-iris-400 to-accent-300 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-brand-600 via-iris-500 to-accent-600 dark:from-brand-400 dark:via-iris-400 dark:to-accent-300 bg-clip-text text-transparent">
             your gym runs on.
           </span>
         </h1>
-        <p className="mt-6 text-lg text-ink-300 max-w-2xl mx-auto leading-relaxed">
+        <p className="mt-6 text-lg text-muted max-w-2xl mx-auto leading-relaxed">
           FormaCore replaces the eight tools behind your front desk with one. The back-office OS,
           your members&rsquo; web portal and a white-label app — all on a single core, from the
           first booking to the last receipt.
@@ -920,14 +966,12 @@ export default function PlatformLanding() {
             Book a demo
           </Btn>
         </div>
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-ink-400">
+        <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-faint">
           {stats.map(([v, l], i) => (
             <div key={l} className="flex items-center gap-8">
-              {i > 0 && <span className="hidden sm:block w-px h-8 bg-white/10" />}
+              {i > 0 && <span className="hidden sm:block w-px h-8 bg-overlay/10" />}
               <div className="text-left">
-                <div className="font-display text-xl font-extrabold text-white tabular-nums">
-                  {v}
-                </div>
+                <div className="font-display text-xl font-extrabold text-fg tabular-nums">{v}</div>
                 <div className="text-xs">{l}</div>
               </div>
             </div>
@@ -942,7 +986,7 @@ export default function PlatformLanding() {
           <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight mt-5 leading-[0.96]">
             One source of truth — for the desk, the member and the phone.
           </h2>
-          <p className="mt-4 text-[15px] text-ink-300 leading-relaxed">
+          <p className="mt-4 text-[15px] text-muted leading-relaxed">
             A booking, a payment or a freeze updates everywhere at once. No exports, no syncing, no
             two systems disagreeing about who owes what.
           </p>
@@ -951,23 +995,27 @@ export default function PlatformLanding() {
           {surfaces.map((s) => (
             <div
               key={s.t}
-              className="relative rounded-card ring-1 ring-inset ring-white/10 bg-white/[0.03] p-6 hover:bg-white/[0.05] hover:ring-white/20 transition overflow-hidden"
+              className="relative rounded-card ring-1 ring-inset ring-overlay/10 bg-overlay/[0.03] p-6 hover:bg-overlay/[0.05] hover:ring-overlay/20 transition overflow-hidden"
             >
               <div
                 className={`pointer-events-none absolute -top-16 -right-10 w-44 h-44 bg-${s.tone}-500/[0.12] blur-[80px] rounded-full`}
               />
               <div
-                className={`relative w-11 h-11 rounded-btn grid place-items-center bg-gradient-to-br from-${s.tone}-400/25 to-${s.tone}-600/10 ring-1 ring-inset ring-white/10`}
+                className={`relative w-11 h-11 rounded-btn grid place-items-center bg-gradient-to-br from-${s.tone}-400/25 to-${s.tone}-600/10 ring-1 ring-inset ring-overlay/10`}
               >
-                <Icon d={s.ic} c={`w-[22px] h-[22px] text-${s.tone}-300`} sw={2} />
+                <Icon
+                  d={s.ic}
+                  c={`w-[22px] h-[22px] text-${s.tone}-700 dark:text-${s.tone}-300`}
+                  sw={2}
+                />
               </div>
               <h3 className="font-display text-xl font-bold mt-5">{s.t}</h3>
-              <p className="text-sm text-ink-400 mt-2 leading-relaxed">{s.d}</p>
+              <p className="text-sm text-faint mt-2 leading-relaxed">{s.d}</p>
               <div className="flex flex-wrap gap-1.5 mt-4">
                 {s.tags.map((t) => (
                   <span
                     key={t}
-                    className="px-2.5 py-1 rounded-pill bg-white/[0.05] ring-1 ring-inset ring-white/10 text-[11px] font-semibold text-ink-300"
+                    className="px-2.5 py-1 rounded-pill bg-overlay/[0.05] ring-1 ring-inset ring-overlay/10 text-[11px] font-semibold text-muted"
                   >
                     {t}
                   </span>
@@ -985,7 +1033,7 @@ export default function PlatformLanding() {
           <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight mt-5 leading-[0.96]">
             Eight modules. Pick one and look inside.
           </h2>
-          <p className="mt-4 text-[15px] text-ink-300 leading-relaxed">
+          <p className="mt-4 text-[15px] text-muted leading-relaxed">
             Each runs the same data, so the front desk never juggles tabs. Choose a module to see
             the real screen your team would use.
           </p>
@@ -1000,37 +1048,37 @@ export default function PlatformLanding() {
                   key={p.id}
                   type="button"
                   onClick={() => setPillar(p.id)}
-                  className={`w-full flex items-center gap-3.5 p-3.5 rounded-card text-left transition ring-1 ring-inset ${on ? 'bg-white/[0.06] ring-white/20' : 'bg-white/[0.02] ring-white/[0.08] hover:bg-white/[0.04] hover:ring-white/15'}`}
+                  className={`w-full flex items-center gap-3.5 p-3.5 rounded-card text-left transition ring-1 ring-inset ${on ? 'bg-overlay/[0.06] ring-overlay/20' : 'bg-overlay/[0.02] ring-overlay/[0.08] hover:bg-overlay/[0.04] hover:ring-overlay/15'}`}
                 >
                   <span
-                    className={`relative w-10 h-10 rounded-btn grid place-items-center shrink-0 ${on ? `bg-gradient-to-br from-${p.tone}-400/30 to-${p.tone}-600/15 ring-1 ring-inset ring-white/10` : 'bg-white/[0.04]'}`}
+                    className={`relative w-10 h-10 rounded-btn grid place-items-center shrink-0 ${on ? `bg-gradient-to-br from-${p.tone}-400/30 to-${p.tone}-600/15 ring-1 ring-inset ring-overlay/10` : 'bg-overlay/[0.04]'}`}
                   >
                     <Icon
                       d={p.ic}
-                      c={`w-5 h-5 ${on ? `text-${p.tone}-300` : 'text-ink-400'}`}
+                      c={`w-5 h-5 ${on ? `text-${p.tone}-700 dark:text-${p.tone}-300` : 'text-faint'}`}
                       sw={2}
                     />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm ${on ? 'text-white' : 'text-ink-300'}`}>
+                    <p className={`font-semibold text-sm ${on ? 'text-fg' : 'text-muted'}`}>
                       {p.t}
                     </p>
                   </div>
-                  {on && <Icon d={I.arrow} c="w-4 h-4 text-brand-300" sw={2} />}
+                  {on && <Icon d={I.arrow} c="w-4 h-4 text-brand-700 dark:text-brand-300" sw={2} />}
                 </button>
               );
             })}
           </div>
 
           {/* detail */}
-          <div className="relative rounded-[2rem] ring-1 ring-inset ring-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden p-7 lg:p-10">
+          <div className="relative rounded-[2rem] ring-1 ring-inset ring-overlay/10 bg-overlay/[0.03] backdrop-blur-xl overflow-hidden p-7 lg:p-10">
             <div
               className={`pointer-events-none absolute -top-28 right-10 w-80 h-80 bg-${active.tone}-500/15 blur-[120px] rounded-full`}
             />
             <div className="relative grid md:grid-cols-2 gap-8 lg:gap-10 items-center">
               <div>
                 <span
-                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-${active.tone}-500/15 ring-1 ring-inset ring-${active.tone}-500/25 text-[11px] font-mono uppercase tracking-[0.2em] text-${active.tone}-300`}
+                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-${active.tone}-500/15 ring-1 ring-inset ring-${active.tone}-500/25 text-[11px] font-mono uppercase tracking-[0.2em] text-${active.tone}-700 dark:text-${active.tone}-300`}
                 >
                   <Icon d={active.ic} c="w-3.5 h-3.5" sw={2} />
                   {active.t}
@@ -1038,39 +1086,43 @@ export default function PlatformLanding() {
                 <h2 className="font-display text-3xl lg:text-[2.5rem] font-black tracking-tight mt-5 leading-[0.98]">
                   {active.headline}
                 </h2>
-                <p className="mt-4 text-[15px] text-ink-300 leading-relaxed">{active.desc}</p>
+                <p className="mt-4 text-[15px] text-muted leading-relaxed">{active.desc}</p>
                 <ul className="mt-6 space-y-3">
                   {active.caps.map((c) => (
                     <li key={c} className="flex items-start gap-2.5 text-sm">
                       <span
                         className={`shrink-0 mt-0.5 w-5 h-5 rounded-full grid place-items-center bg-${active.tone}-500/15 ring-1 ring-inset ring-${active.tone}-500/25`}
                       >
-                        <Icon d={I.check} c={`w-3 h-3 text-${active.tone}-300`} sw={3} />
+                        <Icon
+                          d={I.check}
+                          c={`w-3 h-3 text-${active.tone}-700 dark:text-${active.tone}-300`}
+                          sw={3}
+                        />
                       </span>
-                      <span className="text-ink-200">{c}</span>
+                      <span className="text-strong">{c}</span>
                     </li>
                   ))}
                 </ul>
                 <a
                   href="#"
                   onClick={(e) => e.preventDefault()}
-                  className="inline-flex items-center gap-1.5 mt-7 text-sm font-semibold text-brand-300 hover:text-brand-200 transition"
+                  className="inline-flex items-center gap-1.5 mt-7 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 transition"
                 >
                   Explore {active.t} <Icon d={I.arrow} c="w-4 h-4" sw={2} />
                 </a>
               </div>
 
               {/* mock */}
-              <div className="relative rounded-card ring-1 ring-inset ring-white/[0.12] bg-ink-900/60 backdrop-blur-xl overflow-hidden shadow-[0_40px_100px_-30px_rgba(0,0,0,0.9)]">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-                <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/10">
+              <div className="relative rounded-card ring-1 ring-inset ring-overlay/[0.12] bg-panel/60 backdrop-blur-xl overflow-hidden shadow-[0_40px_100px_-30px_rgba(0,0,0,0.9)]">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-overlay/25 to-transparent" />
+                <div className="flex items-center gap-3 px-5 py-3.5 border-b border-overlay/10">
                   <div className="w-6 h-6 rounded-md bg-[linear-gradient(135deg,#7C3AED,#EC4899)] grid place-items-center">
                     <Icon d={I.bolt} c="w-3.5 h-3.5 text-white" sw={2.2} />
                   </div>
-                  <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-faint">
                     {active.t}
                   </span>
-                  <span className="ml-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill bg-success-500/15 ring-1 ring-inset ring-success-500/25 text-[10px] font-semibold text-success-300">
+                  <span className="ml-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill bg-success-500/15 ring-1 ring-inset ring-success-500/25 text-[10px] font-semibold text-success-700 dark:text-success-300">
                     <span className="w-1.5 h-1.5 rounded-full bg-success-400" />
                     Live
                   </span>
@@ -1094,20 +1146,20 @@ export default function PlatformLanding() {
             </h2>
           </div>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px mt-12 rounded-[1.5rem] overflow-hidden ring-1 ring-inset ring-white/10 bg-white/[0.06]">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px mt-12 rounded-[1.5rem] overflow-hidden ring-1 ring-inset ring-overlay/10 bg-overlay/[0.06]">
           {modules.map((m) => (
-            <div key={m.t} className="group bg-ink-950/40 p-5 hover:bg-white/[0.04] transition">
+            <div key={m.t} className="group bg-panel/40 p-5 hover:bg-overlay/[0.04] transition">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-btn grid place-items-center bg-white/[0.05] ring-1 ring-inset ring-white/10 group-hover:ring-brand-500/30 transition">
-                  <Icon d={m.ic} c="w-[18px] h-[18px] text-brand-300" sw={2} />
+                <div className="w-9 h-9 rounded-btn grid place-items-center bg-overlay/[0.05] ring-1 ring-inset ring-overlay/10 group-hover:ring-brand-500/30 transition">
+                  <Icon d={m.ic} c="w-[18px] h-[18px] text-brand-700 dark:text-brand-300" sw={2} />
                 </div>
                 <h3 className="font-display text-[15px] font-bold">{m.t}</h3>
               </div>
-              <p className="text-[13px] text-ink-400 mt-3 leading-relaxed">{m.d}</p>
+              <p className="text-[13px] text-faint mt-3 leading-relaxed">{m.d}</p>
             </div>
           ))}
         </div>
-        <p className="mt-5 text-xs text-ink-500 flex items-center gap-2">
+        <p className="mt-5 text-xs text-subtle flex items-center gap-2">
           <Icon d={I.gear} c="w-3.5 h-3.5" sw={2} />
           Plus org-wide settings, roles &amp; permissions, audit trail and a full API — all in the
           same console.
@@ -1121,21 +1173,21 @@ export default function PlatformLanding() {
           <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight mt-5 leading-[0.96]">
             Open the app to a gym that explains itself.
           </h2>
-          <p className="mt-4 text-[15px] text-ink-300 leading-relaxed">
+          <p className="mt-4 text-[15px] text-muted leading-relaxed">
             Revenue, retention and class fill update the second a payment clears or a member walks
             in. Every figure drills straight to the person behind it.
           </p>
         </div>
 
-        <div className="relative rounded-[2rem] ring-1 ring-inset ring-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden p-5 sm:p-7 lg:p-8">
+        <div className="relative rounded-[2rem] ring-1 ring-inset ring-overlay/10 bg-overlay/[0.03] backdrop-blur-xl overflow-hidden p-5 sm:p-7 lg:p-8">
           <div className="pointer-events-none absolute -top-28 left-1/3 w-96 h-96 bg-brand-500/[0.12] blur-[130px] rounded-full" />
           {/* panel header */}
-          <div className="relative flex items-center gap-3 pb-5 border-b border-white/10">
+          <div className="relative flex items-center gap-3 pb-5 border-b border-overlay/10">
             <div className="w-7 h-7 rounded-md bg-[linear-gradient(135deg,#7C3AED,#EC4899)] grid place-items-center">
               <Icon d={I.bolt} c="w-4 h-4 text-white" sw={2.2} />
             </div>
             <span className="font-display text-sm font-bold">Iron Gym · Overview</span>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill bg-success-500/15 ring-1 ring-inset ring-success-500/25 text-[10px] font-semibold text-success-300">
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill bg-success-500/15 ring-1 ring-inset ring-success-500/25 text-[10px] font-semibold text-success-700 dark:text-success-300">
               <span className="w-1.5 h-1.5 rounded-full bg-success-400" />
               Live
             </span>
@@ -1143,7 +1195,7 @@ export default function PlatformLanding() {
               {['7d', '30d', 'QTR'].map((t, i) => (
                 <span
                   key={t}
-                  className={`px-2.5 py-1 rounded-pill text-[11px] font-semibold ${i === 1 ? 'bg-white/10 text-white ring-1 ring-inset ring-white/15' : 'text-ink-400'}`}
+                  className={`px-2.5 py-1 rounded-pill text-[11px] font-semibold ${i === 1 ? 'bg-overlay/10 text-fg ring-1 ring-inset ring-overlay/15' : 'text-faint'}`}
                 >
                   {t}
                 </span>
@@ -1156,22 +1208,22 @@ export default function PlatformLanding() {
             {kpis.map((k) => (
               <div
                 key={k.l}
-                className="rounded-card bg-white/[0.03] ring-1 ring-inset ring-white/10 p-4 hover:ring-white/20 transition"
+                className="rounded-card bg-overlay/[0.03] ring-1 ring-inset ring-overlay/10 p-4 hover:ring-overlay/20 transition"
               >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
                   {k.l}
                 </p>
                 <p className="font-display text-2xl font-extrabold tabular-nums mt-1.5">{k.v}</p>
                 <div className="flex items-center gap-2 mt-2">
                   <span
-                    className={`inline-flex items-center gap-0.5 text-[11px] font-mono font-semibold text-${k.tone}-300`}
+                    className={`inline-flex items-center gap-0.5 text-[11px] font-mono font-semibold text-${k.tone}-700 dark:text-${k.tone}-300`}
                   >
                     <Icon d="M5 12h14M13 6l6 6-6 6" c="w-3 h-3 -rotate-45" sw={2.5} />
                     {k.d}
                   </span>
                 </div>
                 {k.bar != null ? (
-                  <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div className="mt-3 h-1.5 rounded-full bg-overlay/10 overflow-hidden">
                     <div
                       className={`h-full rounded-full bg-${k.tone}-500`}
                       style={{ width: `${k.bar}%` }}
@@ -1200,7 +1252,7 @@ export default function PlatformLanding() {
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className={`text-${k.tone}-400`}
+                      className={`text-${k.tone}-500 dark:text-${k.tone}-400`}
                     />
                   </svg>
                 )}
@@ -1211,10 +1263,10 @@ export default function PlatformLanding() {
           {/* cohort + top list */}
           <div className="relative grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-4 mt-4">
             {/* retention cohort */}
-            <div className="rounded-card bg-white/[0.03] ring-1 ring-inset ring-white/10 p-5">
+            <div className="rounded-card bg-overlay/[0.03] ring-1 ring-inset ring-overlay/10 p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="font-display text-sm font-bold">Retention cohorts</p>
-                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-500">
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-subtle">
                   by join month · % active
                 </span>
               </div>
@@ -1222,7 +1274,7 @@ export default function PlatformLanding() {
                 <div className="grid grid-cols-[52px_repeat(6,1fr)] gap-1.5 text-center">
                   <span />
                   {['M0', 'M1', 'M2', 'M3', 'M4', 'M5'].map((m) => (
-                    <span key={m} className="font-mono text-[10px] text-ink-500">
+                    <span key={m} className="font-mono text-[10px] text-subtle">
                       {m}
                     </span>
                   ))}
@@ -1232,18 +1284,18 @@ export default function PlatformLanding() {
                     key={row.c}
                     className="grid grid-cols-[52px_repeat(6,1fr)] gap-1.5 items-center"
                   >
-                    <span className="font-mono text-[11px] text-ink-400">{row.c}</span>
+                    <span className="font-mono text-[11px] text-faint">{row.c}</span>
                     {row.v.map((val, i) => {
                       const bucket =
                         val === 0
-                          ? 'bg-white/[0.03] text-ink-700'
+                          ? 'bg-overlay/[0.03] text-dim'
                           : val >= 90
                             ? 'bg-brand-500/80 text-white'
                             : val >= 80
                               ? 'bg-brand-500/55 text-white'
                               : val >= 70
-                                ? 'bg-brand-500/35 text-brand-100'
-                                : 'bg-brand-500/20 text-brand-200';
+                                ? 'bg-brand-500/35 text-brand-800 dark:text-brand-100'
+                                : 'bg-brand-500/20 text-brand-800 dark:text-brand-200';
                       return (
                         <span
                           key={i}
@@ -1259,16 +1311,16 @@ export default function PlatformLanding() {
             </div>
 
             {/* revenue by source */}
-            <div className="rounded-card bg-white/[0.03] ring-1 ring-inset ring-white/10 p-5">
+            <div className="rounded-card bg-overlay/[0.03] ring-1 ring-inset ring-overlay/10 p-5">
               <p className="font-display text-sm font-bold mb-4">Revenue by source</p>
               <div className="space-y-3.5">
                 {sources.map((s) => (
                   <div key={s.l}>
                     <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="text-ink-300 font-medium">{s.l}</span>
-                      <span className="font-mono text-ink-200 tabular-nums">{s.v}</span>
+                      <span className="text-muted font-medium">{s.l}</span>
+                      <span className="font-mono text-strong tabular-nums">{s.v}</span>
                     </div>
-                    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-2 rounded-full bg-overlay/10 overflow-hidden">
                       <div
                         className={`h-full rounded-full bg-${s.c}-500`}
                         style={{ width: `${s.pct}%` }}
@@ -1277,8 +1329,8 @@ export default function PlatformLanding() {
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between mt-5 pt-4 border-t border-white/10">
-                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-500">
+              <div className="flex items-center justify-between mt-5 pt-4 border-t border-overlay/10">
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-subtle">
                   Net · 30d
                 </span>
                 <span className="font-display text-lg font-extrabold tabular-nums">₾ 86,400</span>
@@ -1290,7 +1342,7 @@ export default function PlatformLanding() {
 
       {/* member experience */}
       <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-28">
-        <div className="relative rounded-[2rem] ring-1 ring-inset ring-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden p-8 lg:p-12">
+        <div className="relative rounded-[2rem] ring-1 ring-inset ring-overlay/10 bg-overlay/[0.03] backdrop-blur-xl overflow-hidden p-8 lg:p-12">
           <div className="pointer-events-none absolute -top-24 right-1/4 w-80 h-80 bg-iris-500/[0.14] blur-[120px] rounded-full" />
           <div className="relative grid lg:grid-cols-[minmax(0,1fr)_300px] gap-10 lg:gap-14 items-center">
             <div>
@@ -1298,19 +1350,23 @@ export default function PlatformLanding() {
               <h2 className="font-display text-3xl lg:text-[2.75rem] font-black tracking-tight mt-5 leading-[0.98]">
                 Members get a product they actually open.
               </h2>
-              <p className="mt-4 text-[15px] text-ink-300 leading-relaxed max-w-xl">
+              <p className="mt-4 text-[15px] text-muted leading-relaxed max-w-xl">
                 The same core that runs your desk powers a polished web portal and a white-label
                 app. Booking, payments, shop and streaks — your brand, never ours.
               </p>
               <div className="grid sm:grid-cols-2 gap-x-8 gap-y-5 mt-8">
                 {memberFeatures.map((f) => (
                   <div key={f.t} className="flex gap-3">
-                    <span className="shrink-0 w-9 h-9 rounded-btn grid place-items-center bg-white/[0.05] ring-1 ring-inset ring-white/10">
-                      <Icon d={f.ic} c="w-[18px] h-[18px] text-iris-300" sw={2} />
+                    <span className="shrink-0 w-9 h-9 rounded-btn grid place-items-center bg-overlay/[0.05] ring-1 ring-inset ring-overlay/10">
+                      <Icon
+                        d={f.ic}
+                        c="w-[18px] h-[18px] text-iris-700 dark:text-iris-300"
+                        sw={2}
+                      />
                     </span>
                     <div>
                       <p className="text-sm font-semibold">{f.t}</p>
-                      <p className="text-[13px] text-ink-400 mt-0.5 leading-relaxed">{f.d}</p>
+                      <p className="text-[13px] text-faint mt-0.5 leading-relaxed">{f.d}</p>
                     </div>
                   </div>
                 ))}
@@ -1319,7 +1375,7 @@ export default function PlatformLanding() {
                 {['Web portal', 'iOS', 'Android'].map((p) => (
                   <span
                     key={p}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-white/[0.05] ring-1 ring-inset ring-white/10 text-xs font-semibold text-ink-200"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-overlay/[0.05] ring-1 ring-inset ring-overlay/10 text-xs font-semibold text-strong"
                   >
                     {p}
                   </span>
@@ -1332,9 +1388,9 @@ export default function PlatformLanding() {
           </div>
 
           {/* feature cards with mini mocks */}
-          <div className="relative grid sm:grid-cols-3 gap-4 mt-8 pt-8 border-t border-white/10">
+          <div className="relative grid sm:grid-cols-3 gap-4 mt-8 pt-8 border-t border-overlay/10">
             {/* book */}
-            <div className="rounded-card bg-ink-950/50 ring-1 ring-inset ring-white/10 overflow-hidden">
+            <div className="rounded-card bg-panel/50 ring-1 ring-inset ring-overlay/10 overflow-hidden">
               <div className="p-4 space-y-2">
                 {[
                   { t: '07:30', n: 'Morning Yoga', s: 'Booked', on: true },
@@ -1342,12 +1398,12 @@ export default function PlatformLanding() {
                 ].map((c) => (
                   <div
                     key={c.t}
-                    className={`flex items-center gap-2.5 p-2 rounded-md ring-1 ring-inset ${c.on ? 'bg-iris-500/15 ring-iris-500/30' : 'bg-white/[0.03] ring-white/10'}`}
+                    className={`flex items-center gap-2.5 p-2 rounded-md ring-1 ring-inset ${c.on ? 'bg-iris-500/15 ring-iris-500/30' : 'bg-overlay/[0.03] ring-overlay/10'}`}
                   >
                     <span className="font-mono text-[11px] font-bold w-9">{c.t}</span>
                     <span className="text-xs font-semibold flex-1 truncate">{c.n}</span>
                     <span
-                      className={`px-1.5 py-0.5 rounded-pill text-[9px] font-semibold ${c.on ? 'bg-iris-500 text-white' : 'bg-white/10 text-ink-300'}`}
+                      className={`px-1.5 py-0.5 rounded-pill text-[9px] font-semibold ${c.on ? 'bg-iris-500 text-white' : 'bg-overlay/10 text-muted'}`}
                     >
                       {c.s}
                     </span>
@@ -1356,31 +1412,31 @@ export default function PlatformLanding() {
               </div>
               <div className="px-4 pb-4">
                 <p className="font-display text-sm font-bold">Book in seconds</p>
-                <p className="text-[12px] text-ink-400 mt-0.5 leading-relaxed">
+                <p className="text-[12px] text-faint mt-0.5 leading-relaxed">
                   Live timetable, waitlists and instant confirmations.
                 </p>
               </div>
             </div>
             {/* QR pass */}
-            <div className="rounded-card bg-ink-950/50 ring-1 ring-inset ring-white/10 overflow-hidden">
+            <div className="rounded-card bg-panel/50 ring-1 ring-inset ring-overlay/10 overflow-hidden">
               <div className="p-4 grid place-items-center">
                 <div className="relative w-[68px] h-[68px] rounded-lg bg-white grid place-items-center">
                   <Icon d={I.qr} c="w-10 h-10 text-ink-950" sw={1.6} />
-                  <span className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full grid place-items-center ring-2 ring-ink-950 bg-success-500">
+                  <span className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full grid place-items-center ring-2 ring-panel bg-success-500">
                     <Icon d={I.check} c="w-3.5 h-3.5 text-white" sw={3} />
                   </span>
                 </div>
-                <span className="mt-3 font-mono text-[10px] text-ink-400">expires in 0:57</span>
+                <span className="mt-3 font-mono text-[10px] text-faint">expires in 0:57</span>
               </div>
               <div className="px-4 pb-4">
                 <p className="font-display text-sm font-bold">Tap to enter</p>
-                <p className="text-[12px] text-ink-400 mt-0.5 leading-relaxed">
+                <p className="text-[12px] text-faint mt-0.5 leading-relaxed">
                   A rotating QR pass — scan and walk straight in.
                 </p>
               </div>
             </div>
             {/* shop */}
-            <div className="rounded-card bg-ink-950/50 ring-1 ring-inset ring-white/10 overflow-hidden">
+            <div className="rounded-card bg-panel/50 ring-1 ring-inset ring-overlay/10 overflow-hidden">
               <div className="p-4 space-y-2">
                 {[
                   { n: 'Whey protein 2kg', p: '₾ 145' },
@@ -1388,19 +1444,19 @@ export default function PlatformLanding() {
                 ].map((it) => (
                   <div
                     key={it.n}
-                    className="flex items-center gap-2.5 p-1.5 rounded-md bg-white/[0.03] ring-1 ring-inset ring-white/10"
+                    className="flex items-center gap-2.5 p-1.5 rounded-md bg-overlay/[0.03] ring-1 ring-inset ring-overlay/10"
                   >
                     <div className="w-8 h-8 rounded-md bg-accent-500/15 ring-1 ring-inset ring-accent-500/25 grid place-items-center">
-                      <Icon d={I.store} c="w-4 h-4 text-accent-300" sw={2} />
+                      <Icon d={I.store} c="w-4 h-4 text-accent-700 dark:text-accent-300" sw={2} />
                     </div>
                     <span className="text-xs font-semibold flex-1 truncate">{it.n}</span>
-                    <span className="font-mono text-[11px] text-ink-200 tabular-nums">{it.p}</span>
+                    <span className="font-mono text-[11px] text-strong tabular-nums">{it.p}</span>
                   </div>
                 ))}
               </div>
               <div className="px-4 pb-4">
                 <p className="font-display text-sm font-bold">Shop the store</p>
-                <p className="text-[12px] text-ink-400 mt-0.5 leading-relaxed">
+                <p className="text-[12px] text-faint mt-0.5 leading-relaxed">
                   Supplements, gear and PT packs — charged to the account.
                 </p>
               </div>
@@ -1421,13 +1477,13 @@ export default function PlatformLanding() {
           {floorFeatures.map((c) => (
             <div
               key={c.t}
-              className="rounded-card ring-1 ring-inset ring-white/10 bg-white/[0.03] p-5 hover:bg-white/[0.06] hover:ring-white/20 transition"
+              className="rounded-card ring-1 ring-inset ring-overlay/10 bg-overlay/[0.03] p-5 hover:bg-overlay/[0.06] hover:ring-overlay/20 transition"
             >
-              <div className="w-10 h-10 rounded-btn grid place-items-center bg-white/[0.05] ring-1 ring-inset ring-white/10">
-                <Icon d={c.ic} c="w-5 h-5 text-brand-300" sw={2} />
+              <div className="w-10 h-10 rounded-btn grid place-items-center bg-overlay/[0.05] ring-1 ring-inset ring-overlay/10">
+                <Icon d={c.ic} c="w-5 h-5 text-brand-700 dark:text-brand-300" sw={2} />
               </div>
               <h3 className="font-display text-lg font-bold mt-4">{c.t}</h3>
-              <p className="text-sm text-ink-400 mt-1.5 leading-relaxed">{c.d}</p>
+              <p className="text-sm text-faint mt-1.5 leading-relaxed">{c.d}</p>
             </div>
           ))}
         </div>
@@ -1435,7 +1491,7 @@ export default function PlatformLanding() {
 
       {/* security band */}
       <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-24">
-        <div className="relative rounded-[2rem] ring-1 ring-inset ring-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden p-8 lg:p-12">
+        <div className="relative rounded-[2rem] ring-1 ring-inset ring-overlay/10 bg-overlay/[0.03] backdrop-blur-xl overflow-hidden p-8 lg:p-12">
           <div className="pointer-events-none absolute -top-24 left-1/4 w-72 h-72 bg-accent-500/[0.12] blur-[110px] rounded-full" />
           <div className="relative grid lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-10 items-center">
             <div>
@@ -1443,7 +1499,7 @@ export default function PlatformLanding() {
               <h2 className="font-display text-3xl lg:text-4xl font-black tracking-tight mt-5 leading-[0.98]">
                 Your members&rsquo; data, handled with care.
               </h2>
-              <p className="mt-4 text-[15px] text-ink-300 leading-relaxed max-w-lg">
+              <p className="mt-4 text-[15px] text-muted leading-relaxed max-w-lg">
                 Encrypted in transit and at rest, hosted in-region, and backed up daily. You own
                 your data — export it any time.
               </p>
@@ -1457,9 +1513,13 @@ export default function PlatformLanding() {
                 ].map((b) => (
                   <span
                     key={b}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-white/[0.05] ring-1 ring-inset ring-white/10 text-xs font-semibold text-ink-200"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-overlay/[0.05] ring-1 ring-inset ring-overlay/10 text-xs font-semibold text-strong"
                   >
-                    <Icon d={I.check} c="w-3.5 h-3.5 text-success-400" sw={2.6} />
+                    <Icon
+                      d={I.check}
+                      c="w-3.5 h-3.5 text-success-600 dark:text-success-400"
+                      sw={2.6}
+                    />
                     {b}
                   </span>
                 ))}
@@ -1474,10 +1534,10 @@ export default function PlatformLanding() {
               ].map((s) => (
                 <div
                   key={s.l}
-                  className="rounded-card bg-white/[0.03] ring-1 ring-inset ring-white/10 p-5"
+                  className="rounded-card bg-overlay/[0.03] ring-1 ring-inset ring-overlay/10 p-5"
                 >
                   <p className="font-display text-2xl font-extrabold tracking-tight">{s.v}</p>
-                  <p className="text-xs text-ink-400 mt-1">{s.l}</p>
+                  <p className="text-xs text-faint mt-1">{s.l}</p>
                 </div>
               ))}
             </div>
@@ -1487,7 +1547,7 @@ export default function PlatformLanding() {
 
       {/* CTA */}
       <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-24 pb-24">
-        <div className="relative rounded-[2rem] overflow-hidden ring-1 ring-inset ring-white/[0.12] bg-gradient-to-br from-brand-600 via-iris-600 to-accent-600 px-8 py-14 lg:px-16 lg:py-20 text-center">
+        <div className="relative rounded-[2rem] overflow-hidden ring-1 ring-inset ring-overlay/[0.12] bg-gradient-to-br from-brand-600 via-iris-600 to-accent-600 px-8 py-14 lg:px-16 lg:py-20 text-center">
           <img
             src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1600&q=80"
             alt=""
@@ -1518,7 +1578,7 @@ export default function PlatformLanding() {
       </section>
 
       {/* footer */}
-      <footer className="relative z-10 border-t border-white/10">
+      <footer className="relative z-10 border-t border-overlay/10">
         <div className="max-w-[1180px] mx-auto px-6 lg:px-10 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] grid place-items-center">
@@ -1526,17 +1586,17 @@ export default function PlatformLanding() {
             </div>
             <span className="font-display text-xl font-extrabold tracking-tight">FormaCore</span>
           </div>
-          <span className="font-mono text-xs text-ink-500">
+          <span className="font-mono text-xs text-subtle">
             © 2026 FormaCore · Tbilisi, Georgia · ₾ GEL
           </span>
-          <div className="flex items-center gap-5 text-xs text-ink-500">
-            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-ink-300">
+          <div className="flex items-center gap-5 text-xs text-subtle">
+            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
               Platform
             </a>
-            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-ink-300">
+            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
               Pricing
             </a>
-            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-ink-300">
+            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
               Privacy
             </a>
           </div>

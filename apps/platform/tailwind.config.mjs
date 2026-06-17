@@ -22,6 +22,12 @@ const safelist = DYNAMIC_TONES.flatMap((tone) => [
   `from-${tone}-400/30`,
   `to-${tone}-600/10`,
   `to-${tone}-600/15`,
+  // Light-theme shades of the runtime tone text + their dark: counterparts.
+  `text-${tone}-500`,
+  `text-${tone}-600`,
+  `text-${tone}-700`,
+  `dark:text-${tone}-300`,
+  `dark:text-${tone}-400`,
 ]);
 
 /**
@@ -37,12 +43,25 @@ const safelist = DYNAMIC_TONES.flatMap((tone) => [
 export default {
   presets: [preset],
   content: ['./app/**/*.{ts,tsx,mdx}', './components/**/*.{ts,tsx,mdx}'],
+  // The landing ships both a dark and a light theme; `.dark` on <html> selects
+  // dark. The semantic tokens below resolve to CSS variables (see globals.css)
+  // so a single class set drives both themes. Dark values equal the original
+  // design exactly; light is the tuned inversion.
+  darkMode: 'class',
   safelist,
   theme: {
     extend: {
       colors: {
-        // Surface — the near-black canvas the marketing page sits on.
-        surface: '#070810',
+        // Theme-aware semantic tokens (CSS vars, alpha-enabled).
+        surface: 'rgb(var(--surface) / <alpha-value>)', // page canvas
+        fg: 'rgb(var(--fg) / <alpha-value>)', // primary text
+        strong: 'rgb(var(--strong) / <alpha-value>)', // emphasized secondary text
+        muted: 'rgb(var(--muted) / <alpha-value>)', // body secondary text
+        faint: 'rgb(var(--faint) / <alpha-value>)', // captions
+        subtle: 'rgb(var(--subtle) / <alpha-value>)', // labels / meta
+        dim: 'rgb(var(--dim) / <alpha-value>)', // faintest text
+        overlay: 'rgb(var(--overlay) / <alpha-value>)', // glass fills / hairlines
+        panel: 'rgb(var(--panel) / <alpha-value>)', // inset / mock surfaces
         brand: {
           50: '#F2F1FE',
           100: '#E8E6FD',
