@@ -1,27 +1,11 @@
-import { CtaBanner } from '@/components/marketing/cta-banner';
-import { Features } from '@/components/marketing/features';
-import { Hero } from '@/components/marketing/hero';
-import { Pricing } from '@/components/marketing/pricing';
-import { SiteFooter } from '@/components/marketing/site-footer';
-import { SiteHeader } from '@/components/marketing/site-header';
+import PlatformLanding from '@/components/marketing/platform-landing';
 
 /**
- * Marketing homepage — the apex (`fit.ge`) acquisition surface. Header → hero →
- * features → pricing → closing CTA → footer, every call to action funnelling
- * into the owner-signup flow at `/register-gym`. Fully static / server-rendered;
- * only the signup form on `/register-gym` ships client JS.
+ * Marketing homepage — the apex (`formacore.io`) acquisition surface. A faithful
+ * build of the "Marketing / platform" design: a dark "Aurora Glass" product page
+ * with an interactive module explorer. Every signup CTA funnels into the
+ * owner-signup flow at `/register-gym`.
  */
 export default function HomePage() {
-  return (
-    <>
-      <SiteHeader />
-      <main>
-        <Hero />
-        <Features />
-        <Pricing />
-        <CtaBanner />
-      </main>
-      <SiteFooter />
-    </>
-  );
+  return <PlatformLanding />;
 }
