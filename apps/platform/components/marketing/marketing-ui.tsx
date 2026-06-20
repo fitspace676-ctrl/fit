@@ -179,6 +179,32 @@ export const ThemeToggle = ({ className = '' }: { className?: string }) => {
   );
 };
 
+/**
+ * FormaCore wordmark lockup. The `public/logolight.png` (dark wordmark) and
+ * `public/logodark.png` (light wordmark) variants are both rendered and toggled
+ * by the `.dark` class via CSS, so the right one shows before first paint with
+ * no JS / hydration flash. Pass a height utility (`h-8`, `h-10`, …); width is
+ * derived from the 1024×500 intrinsic ratio.
+ */
+export const Logo = ({ className = 'h-10' }: { className?: string }) => (
+  <>
+    <img
+      src="/logolight.png"
+      alt="FormaCore"
+      width={1024}
+      height={500}
+      className={`${className} w-auto dark:hidden`}
+    />
+    <img
+      src="/logodark.png"
+      alt="FormaCore"
+      width={1024}
+      height={500}
+      className={`${className} w-auto hidden dark:block`}
+    />
+  </>
+);
+
 /** The shared "Aurora Glass" backdrop — three blurred colour fields behind every page. */
 export const Aurora = () => (
   <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -219,11 +245,8 @@ export const MarketingNav = ({ active }: { active?: NavItem }) => {
     <header className="relative z-30">
       <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
         <div className="flex items-center gap-3 h-20">
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <div className="w-11 h-11 rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] grid place-items-center shadow-[0_8px_28px_-6px_rgba(124,58,237,0.8)]">
-              <Icon d={I.bolt} c="w-6 h-6 text-white" sw={2.2} />
-            </div>
-            <span className="font-display text-xl font-extrabold tracking-tight">FormaCore</span>
+          <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
+            <Logo className="h-10" />
           </Link>
           <nav className="hidden lg:flex items-center gap-1 ml-6">
             {NAV_ITEMS.map((n) => renderItem(n, desktopClass(n)))}
@@ -270,11 +293,8 @@ export const MarketingNav = ({ active }: { active?: NavItem }) => {
 export const MarketingFooter = () => (
   <footer className="relative z-10 border-t border-overlay/10">
     <div className="max-w-[1180px] mx-auto px-6 lg:px-10 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-      <Link href="/" className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] grid place-items-center">
-          <Icon d={I.bolt} c="w-5 h-5 text-white" sw={2.2} />
-        </div>
-        <span className="font-display text-xl font-extrabold tracking-tight">FormaCore</span>
+      <Link href="/" className="flex items-center" aria-label="FormaCore home">
+        <Logo className="h-8" />
       </Link>
       <span className="font-mono text-xs text-subtle">
         © 2026 FormaCore · Tbilisi, Georgia · ₾ GEL
