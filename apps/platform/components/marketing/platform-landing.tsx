@@ -561,7 +561,7 @@ export default function PlatformLanding() {
   const [menu, setMenu] = useState(false);
   const [pillar, setPillar] = useState('members');
 
-  const nav = ['Platform', 'Pricing', 'Customers', 'Resources'];
+  const nav = ['Core', 'For whom', 'Pricing', 'Resources'];
 
   const pillars: Pillar[] = [
     {
@@ -890,7 +890,7 @@ export default function PlatformLanding() {
                   key={n}
                   href="#"
                   onClick={(e) => e.preventDefault()}
-                  className={`px-3.5 h-9 inline-flex items-center rounded-btn text-sm font-semibold transition ${n === 'Platform' ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg hover:bg-overlay/5'}`}
+                  className={`px-3.5 h-9 inline-flex items-center rounded-btn text-sm font-semibold transition ${n === 'Core' ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg hover:bg-overlay/5'}`}
                 >
                   {n}
                 </a>
@@ -1591,7 +1591,7 @@ export default function PlatformLanding() {
           </span>
           <div className="flex items-center gap-5 text-xs text-subtle">
             <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
-              Platform
+              Core
             </a>
             <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
               Pricing
