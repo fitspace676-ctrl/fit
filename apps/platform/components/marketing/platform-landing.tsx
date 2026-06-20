@@ -1,8 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
-import Link from 'next/link';
+import { useState } from 'react';
+import {
+  Aurora,
+  Btn,
+  DEMO_HREF,
+  Eyebrow,
+  I,
+  Icon,
+  MarketingFooter,
+  MarketingNav,
+  SIGNUP_HREF,
+} from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — Platform overview  ·  "Aurora Glass"
@@ -10,176 +19,11 @@ import Link from 'next/link';
    Interactive module explorer: pick a pillar on the left, the detailed
    mock + capability list updates on the right. Same dark aurora identity.
 
-   Faithful port of the "Marketing / platform" design. The only departures
-   from the static mock are live destinations: every signup call to action
+   Faithful port of the "Marketing / platform" design. Shared chrome (nav,
+   footer, buttons, icon set) lives in `./marketing-ui`. Every signup CTA
    funnels into the owner-signup flow (`/register-gym`) and "Book a demo"
-   opens a mail draft. The nav / footer anchors stay in-page like the design.
+   opens a mail draft; the "Pricing" nav routes to the dedicated /pricing page.
    ──────────────────────────────────────────────────────────────────────── */
-
-/** Where every "start / trial" button sends the visitor. */
-const SIGNUP_HREF = '/register-gym';
-/** Secondary "Book a demo" destination. */
-const DEMO_HREF = 'mailto:hello@formacore.io';
-
-const I = {
-  bolt: 'M13 2 4 14h6l-1 8 9-12h-6l1-8Z',
-  arrow: 'M5 12h14M13 6l6 6-6 6',
-  check: 'M20 6 9 17l-5-5',
-  members:
-    'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
-  calendar:
-    'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
-  qr: 'M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 4h3m-3 3h7v-7h-4v4Z',
-  pos: 'M3 6h18M3 6l1.5 12.5a2 2 0 0 0 2 1.5h11a2 2 0 0 0 2-1.5L21 6M9 10v6M15 10v6',
-  chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
-  phone: 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM11 18h2',
-  flame: 'M12 2s5 4 5 9a5 5 0 0 1-10 0c0-2 1-3 1-3 0 1 1 2 2 2 0-3 2-5 2-8Z',
-  spark: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18',
-  clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 7v5l3 2',
-  shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z',
-  globe:
-    'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z',
-  menu: 'M3 6h18M3 12h18M3 18h18',
-  x: 'M6 6l12 12M18 6 6 18',
-  lock: 'M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2ZM8 11V7a4 4 0 0 1 8 0v4',
-  plug: 'M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0V8ZM12 17v5',
-  bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
-  layers: 'M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5',
-  card: 'M2 7h20v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7Zm0 4h20M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2',
-  ticket:
-    'M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8ZM13 6v12',
-  store: 'M3 9 4.5 4h15L21 9M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M3 9h18M9 20v-5h6v5',
-  grid: 'M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z',
-  box: 'M21 8 12 3 3 8m18 0-9 5-9-5m18 0v8l-9 5-9-5V8m9 5v8',
-  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z',
-  pulse: 'M22 12h-4l-3 9L9 3l-3 9H2',
-  star: 'M12 2l2.9 6.1 6.6.9-4.8 4.7 1.2 6.6L12 17.6 6.1 20.3l1.2-6.6L2.5 9l6.6-.9L12 2Z',
-  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
-  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z',
-} satisfies Record<string, string>;
-
-const Icon = ({ d, c = 'w-5 h-5', sw = 2 }: { d: string; c?: string; sw?: number }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={sw}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={c}
-  >
-    {d.split(' M').map((seg, i) => (
-      <path key={i} d={i === 0 ? seg : 'M' + seg} />
-    ))}
-  </svg>
-);
-
-type BtnVariant = 'primary' | 'white' | 'glass';
-type BtnSize = 'sm' | 'md' | 'lg';
-
-const Btn = ({
-  children,
-  v = 'primary',
-  size = 'md',
-  icon,
-  full,
-  href,
-}: {
-  children: ReactNode;
-  v?: BtnVariant;
-  size?: BtnSize;
-  icon?: string;
-  full?: boolean;
-  href?: string;
-}) => {
-  const sizes: Record<BtnSize, string> = {
-    sm: 'h-9 px-3.5 text-sm gap-1.5',
-    md: 'h-11 px-5 text-sm gap-2',
-    lg: 'px-7 text-[15px] gap-2',
-  };
-  const vs: Record<BtnVariant, string> = {
-    primary:
-      'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white hover:brightness-110 active:brightness-95 shadow-[0_8px_30px_-6px_rgba(124,58,237,0.7)] focus-visible:ring-brand-500/40',
-    white: 'bg-fg text-surface hover:opacity-90 active:opacity-80 focus-visible:ring-overlay/40',
-    glass:
-      'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-overlay/[0.13] active:bg-overlay/[0.18] focus-visible:ring-overlay/30',
-  };
-  const className = `inline-flex items-center justify-center font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
-  const style: CSSProperties | undefined = size === 'lg' ? { height: '3.25rem' } : undefined;
-  const inner = (
-    <>
-      {icon && <Icon d={icon} c="w-[18px] h-[18px]" sw={2} />}
-      {children}
-    </>
-  );
-
-  if (href?.startsWith('/')) {
-    return (
-      <Link href={href} className={className} style={style}>
-        {inner}
-      </Link>
-    );
-  }
-  if (href) {
-    return (
-      <a href={href} className={className} style={style}>
-        {inner}
-      </a>
-    );
-  }
-  return (
-    <button type="button" className={className} style={style}>
-      {inner}
-    </button>
-  );
-};
-
-const Eyebrow = ({ children, icon = I.spark }: { children: ReactNode; icon?: string }) => (
-  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-overlay/[0.06] border border-overlay/10 text-[11px] font-mono uppercase tracking-[0.22em] text-muted">
-    <Icon d={icon} c="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" sw={2} />
-    {children}
-  </span>
-);
-
-/**
- * Light/dark switch. Reads the current theme from the `.dark` class the inline
- * head script already set (so there's no flash), and on click flips the class
- * and persists the choice. Renders a stable icon until mounted to avoid a
- * hydration mismatch.
- */
-const ThemeToggle = ({ className = '' }: { className?: string }) => {
-  const [dark, setDark] = useState(true);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    setDark(document.documentElement.classList.contains('dark'));
-  }, []);
-
-  const toggle = (): void => {
-    setDark((prev) => {
-      const next = !prev;
-      document.documentElement.classList.toggle('dark', next);
-      try {
-        localStorage.setItem('theme', next ? 'dark' : 'light');
-      } catch {
-        // Ignore storage failures (private mode); the class still flips.
-      }
-      return next;
-    });
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-label="Toggle dark mode"
-      className={`w-10 h-10 grid place-items-center rounded-btn text-strong hover:text-fg hover:bg-overlay/5 transition ${className}`}
-    >
-      <Icon d={mounted && !dark ? I.moon : I.sun} c="w-5 h-5" />
-    </button>
-  );
-};
 
 /* ---- module mock screens ---- */
 const Mock = ({ id }: { id: string }) => {
@@ -558,10 +402,7 @@ interface Kpi {
 }
 
 export default function PlatformLanding() {
-  const [menu, setMenu] = useState(false);
   const [pillar, setPillar] = useState('members');
-
-  const nav = ['Core', 'For whom', 'Pricing', 'Resources'];
 
   const pillars: Pillar[] = [
     {
@@ -867,80 +708,9 @@ export default function PlatformLanding() {
 
   return (
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
-      {/* aurora */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-48 -left-24 w-[680px] h-[680px] rounded-full bg-brand-600/[0.22] blur-[150px]" />
-        <div className="absolute -top-24 right-0 w-[560px] h-[560px] rounded-full bg-iris-500/20 blur-[160px]" />
-        <div className="absolute top-[50%] -left-40 w-[560px] h-[560px] rounded-full bg-accent-600/[0.16] blur-[160px]" />
-      </div>
+      <Aurora />
 
-      {/* nav */}
-      <header className="relative z-30">
-        <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
-          <div className="flex items-center gap-3 h-20">
-            <Link href="/" className="flex items-center gap-2.5 shrink-0">
-              <div className="w-11 h-11 rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] grid place-items-center shadow-[0_8px_28px_-6px_rgba(124,58,237,0.8)]">
-                <Icon d={I.bolt} c="w-6 h-6 text-white" sw={2.2} />
-              </div>
-              <span className="font-display text-xl font-extrabold tracking-tight">FormaCore</span>
-            </Link>
-            <nav className="hidden lg:flex items-center gap-1 ml-6">
-              {nav.map((n) => (
-                <a
-                  key={n}
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className={`px-3.5 h-9 inline-flex items-center rounded-btn text-sm font-semibold transition ${n === 'Core' ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg hover:bg-overlay/5'}`}
-                >
-                  {n}
-                </a>
-              ))}
-            </nav>
-            <div className="ml-auto hidden sm:flex items-center gap-2">
-              <ThemeToggle />
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
-                className="px-3.5 h-10 inline-flex items-center rounded-btn text-sm font-semibold text-strong hover:text-fg hover:bg-overlay/5 transition"
-              >
-                Sign in
-              </a>
-              <Btn v="white" size="md" icon={I.arrow} href={SIGNUP_HREF}>
-                Start free
-              </Btn>
-            </div>
-            <div className="ml-auto flex items-center gap-1 sm:hidden">
-              <ThemeToggle />
-              <button
-                type="button"
-                onClick={() => setMenu((value) => !value)}
-                className="w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
-              >
-                <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-          {menu && (
-            <div className="sm:hidden pb-4 space-y-1">
-              {nav.map((n) => (
-                <a
-                  key={n}
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className="block px-3 h-11 leading-[2.75rem] rounded-btn text-sm font-semibold text-strong hover:bg-overlay/5"
-                >
-                  {n}
-                </a>
-              ))}
-              <div className="pt-2">
-                <Btn v="white" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
-                  Start free
-                </Btn>
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
+      <MarketingNav active="Core" />
 
       {/* hero */}
       <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 lg:pt-16 pb-10 text-center">
@@ -1577,31 +1347,7 @@ export default function PlatformLanding() {
         </div>
       </section>
 
-      {/* footer */}
-      <footer className="relative z-10 border-t border-overlay/10">
-        <div className="max-w-[1180px] mx-auto px-6 lg:px-10 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] grid place-items-center">
-              <Icon d={I.bolt} c="w-5 h-5 text-white" sw={2.2} />
-            </div>
-            <span className="font-display text-xl font-extrabold tracking-tight">FormaCore</span>
-          </div>
-          <span className="font-mono text-xs text-subtle">
-            © 2026 FormaCore · Tbilisi, Georgia · ₾ GEL
-          </span>
-          <div className="flex items-center gap-5 text-xs text-subtle">
-            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
-              Core
-            </a>
-            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
-              Pricing
-            </a>
-            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
-              Privacy
-            </a>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }
