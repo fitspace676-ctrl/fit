@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Aurora,
   Btn,
@@ -403,6 +403,10 @@ interface Kpi {
 
 export default function PlatformLanding() {
   const [pillar, setPillar] = useState('members');
+  // Hero product showcase eases in once mounted (slide + fade), matching the
+  // member app's animated hero element without pulling in a motion dependency.
+  const [showcaseIn, setShowcaseIn] = useState(false);
+  useEffect(() => setShowcaseIn(true), []);
 
   const pillars: Pillar[] = [
     {
@@ -710,16 +714,85 @@ export default function PlatformLanding() {
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
       <Aurora />
 
-      <MarketingNav active="Core" />
+      <MarketingNav active="Core" overlay />
 
-      {/* hero */}
-      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 lg:pt-16 pb-10 text-center">
+      {/* hero — LIGHT mode: herolight photo backdrop, copy on the left, the
+          elementlight product shot on the right easing in on mount. Hidden in
+          dark mode, which keeps the original centred aurora hero below. */}
+      <section className="relative z-10 isolate overflow-hidden dark:hidden">
+        {/* full-bleed photo backdrop, lightened on the left for legibility */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+          <img
+            src="/herolight.webp"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-right"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface/70 to-surface/20" />
+        </div>
+
+        <div className="max-w-[1180px] mx-auto px-6 lg:px-10 pt-32 lg:pt-36 pb-10 grid items-center gap-10 lg:grid-cols-2">
+          {/* left: copy */}
+          <div className="text-left">
+            <Eyebrow icon={I.layers}>The complete platform</Eyebrow>
+            <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight mt-6 leading-[0.95]">
+              The operating system{' '}
+              <span className="bg-gradient-to-r from-brand-600 via-iris-500 to-accent-600 bg-clip-text text-transparent">
+                your gym runs on.
+              </span>
+            </h1>
+            <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
+              FormaCore replaces the eight tools behind your front desk with one. The back-office
+              OS, your members&rsquo; web portal and a white-label app — all on a single core, from
+              the first booking to the last receipt.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 mt-9">
+              <Btn v="primary" size="lg" icon={I.arrow} href={SIGNUP_HREF}>
+                Start 14-day trial
+              </Btn>
+              <Btn v="glass" size="lg" href={DEMO_HREF}>
+                Book a demo
+              </Btn>
+            </div>
+            <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-faint">
+              {stats.map(([v, l], i) => (
+                <div key={l} className="flex items-center gap-8">
+                  {i > 0 && <span className="hidden sm:block w-px h-8 bg-overlay/10" />}
+                  <div className="text-left">
+                    <div className="font-display text-xl font-extrabold text-fg tabular-nums">
+                      {v}
+                    </div>
+                    <div className="text-xs">{l}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* right: product element — 50% larger, smoothly easing in from the
+              right edge toward the left on mount */}
+          <div
+            className={`relative transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] delay-150 ${
+              showcaseIn ? 'translate-x-0 opacity-100' : 'translate-x-24 opacity-0'
+            }`}
+          >
+            <img
+              src="/elementlight.webp"
+              alt="The FormaCore back-office and member app, side by side"
+              draggable={false}
+              className="w-full select-none drop-shadow-2xl lg:w-[150%] lg:max-w-none"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* hero — DARK mode: the original centred aurora hero (no imagery). */}
+      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-32 lg:pt-36 pb-10 text-center hidden dark:block">
         <div className="flex justify-center">
           <Eyebrow icon={I.layers}>The complete platform</Eyebrow>
         </div>
         <h1 className="font-display text-[3rem] sm:text-[4rem] lg:text-[4.75rem] font-black tracking-tight mt-6 leading-[0.92] max-w-4xl mx-auto">
           The operating system{' '}
-          <span className="bg-gradient-to-r from-brand-600 via-iris-500 to-accent-600 dark:from-brand-400 dark:via-iris-400 dark:to-accent-300 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-brand-400 via-iris-400 to-accent-300 bg-clip-text text-transparent">
             your gym runs on.
           </span>
         </h1>

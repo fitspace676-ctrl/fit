@@ -222,7 +222,13 @@ export const Aurora = () => (
 const NAV_ITEMS = ['Core', 'For whom', 'Pricing', 'Resources'] as const;
 type NavItem = (typeof NAV_ITEMS)[number];
 
-export const MarketingNav = ({ active }: { active?: NavItem }) => {
+export const MarketingNav = ({
+  active,
+  overlay = false,
+}: {
+  active?: NavItem;
+  overlay?: boolean;
+}) => {
   const [menu, setMenu] = useState(false);
 
   const desktopClass = (n: NavItem): string =>
@@ -242,7 +248,15 @@ export const MarketingNav = ({ active }: { active?: NavItem }) => {
     );
 
   return (
-    <header className="relative z-30">
+    <header
+      className={
+        overlay
+          ? // Glass overlay: sits on top of the hero so the section shows through
+            // the frosted bar instead of reading as a separate solid strip.
+            'absolute inset-x-0 top-0 z-30 bg-surface/40 backdrop-blur-xl'
+          : 'relative z-30'
+      }
+    >
       <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
         <div className="flex items-center gap-3 h-24">
           <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
