@@ -703,13 +703,6 @@ export default function PlatformLanding() {
     },
   ];
 
-  const stats: [string, string][] = [
-    ['1,200+', 'gyms & studios'],
-    ['₾ 4.2M', 'processed monthly'],
-    ['2.1%', 'avg monthly churn'],
-    ['99.9%', 'uptime · 12 mo'],
-  ];
-
   return (
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
       <Aurora />
@@ -719,7 +712,7 @@ export default function PlatformLanding() {
       {/* hero — LIGHT mode: herolight photo backdrop, copy on the left, the
           elementlight product shot on the right easing in on mount. Hidden in
           dark mode, which keeps the original centred aurora hero below. */}
-      <section className="relative z-10 isolate overflow-hidden dark:hidden">
+      <section className="relative z-10 isolate overflow-hidden dark:hidden min-h-screen flex items-center">
         {/* full-bleed photo backdrop, lightened on the left for legibility */}
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
           <img
@@ -730,20 +723,18 @@ export default function PlatformLanding() {
           <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface/70 to-surface/20" />
         </div>
 
-        <div className="max-w-[1180px] mx-auto px-6 lg:px-10 pt-32 lg:pt-36 pb-10 grid items-center gap-10 lg:grid-cols-2">
+        <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-10">
           {/* left: copy */}
-          <div className="text-left">
-            <Eyebrow icon={I.layers}>The complete platform</Eyebrow>
+          <div className="text-left max-w-xl">
             <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight mt-6 leading-[0.95]">
-              The operating system{' '}
+              Built for the businesses{' '}
               <span className="bg-gradient-to-r from-brand-600 via-iris-500 to-accent-600 bg-clip-text text-transparent">
-                your gym runs on.
+                that move people.
               </span>
             </h1>
             <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
-              FormaCore replaces the eight tools behind your front desk with one. The back-office
-              OS, your members&rsquo; web portal and a white-label app — all on a single core, from
-              the first booking to the last receipt.
+              Every great fitness business runs on something. Members who stay, staff who know what
+              to do, numbers that tell the truth. FormaCore pulls it all together.
             </p>
             <div className="flex flex-wrap items-center gap-3 mt-9">
               <Btn v="primary" size="lg" icon={I.arrow} href={SIGNUP_HREF}>
@@ -753,53 +744,38 @@ export default function PlatformLanding() {
                 Book a demo
               </Btn>
             </div>
-            <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-faint">
-              {stats.map(([v, l], i) => (
-                <div key={l} className="flex items-center gap-8">
-                  {i > 0 && <span className="hidden sm:block w-px h-8 bg-overlay/10" />}
-                  <div className="text-left">
-                    <div className="font-display text-xl font-extrabold text-fg tabular-nums">
-                      {v}
-                    </div>
-                    <div className="text-xs">{l}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
+        </div>
 
-          {/* right: product element — 50% larger, smoothly easing in from the
-              right edge toward the left on mount */}
-          <div
-            className={`relative transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] delay-150 ${
-              showcaseIn ? 'translate-x-0 opacity-100' : 'translate-x-24 opacity-0'
-            }`}
-          >
-            <img
-              src="/elementlight.webp"
-              alt="The FormaCore back-office and member app, side by side"
-              draggable={false}
-              className="w-full select-none drop-shadow-2xl lg:w-[150%] lg:max-w-none"
-            />
-          </div>
+        {/* product element — anchored to the hero's bottom-right corner, ~2x
+            larger, easing in slowly with a delay (slide up + fade + scale). */}
+        <div
+          className={`pointer-events-none absolute bottom-0 right-0 lg:-right-[10%] z-0 w-[95%] sm:w-[80%] lg:w-[72%] max-w-[1500px] transition-all duration-[2000ms] delay-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            showcaseIn
+              ? 'translate-x-0 translate-y-0 opacity-100 scale-100'
+              : 'translate-x-16 translate-y-16 opacity-0 scale-95'
+          }`}
+        >
+          <img
+            src="/elementlight.webp"
+            alt="The FormaCore back-office and member app, side by side"
+            draggable={false}
+            className="w-full select-none drop-shadow-2xl"
+          />
         </div>
       </section>
 
       {/* hero — DARK mode: the original centred aurora hero (no imagery). */}
-      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-32 lg:pt-36 pb-10 text-center hidden dark:block">
-        <div className="flex justify-center">
-          <Eyebrow icon={I.layers}>The complete platform</Eyebrow>
-        </div>
+      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 py-28 text-center hidden dark:flex flex-col justify-center min-h-screen">
         <h1 className="font-display text-[3rem] sm:text-[4rem] lg:text-[4.75rem] font-black tracking-tight mt-6 leading-[0.92] max-w-4xl mx-auto">
-          The operating system{' '}
+          Built for the businesses{' '}
           <span className="bg-gradient-to-r from-brand-400 via-iris-400 to-accent-300 bg-clip-text text-transparent">
-            your gym runs on.
+            that move people.
           </span>
         </h1>
         <p className="mt-6 text-lg text-muted max-w-2xl mx-auto leading-relaxed">
-          FormaCore replaces the eight tools behind your front desk with one. The back-office OS,
-          your members&rsquo; web portal and a white-label app — all on a single core, from the
-          first booking to the last receipt.
+          Every great fitness business runs on something. Members who stay, staff who know what to
+          do, numbers that tell the truth. FormaCore pulls it all together.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3 mt-9">
           <Btn v="primary" size="lg" icon={I.arrow} href={SIGNUP_HREF}>
@@ -808,17 +784,6 @@ export default function PlatformLanding() {
           <Btn v="glass" size="lg" href={DEMO_HREF}>
             Book a demo
           </Btn>
-        </div>
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-faint">
-          {stats.map(([v, l], i) => (
-            <div key={l} className="flex items-center gap-8">
-              {i > 0 && <span className="hidden sm:block w-px h-8 bg-overlay/10" />}
-              <div className="text-left">
-                <div className="font-display text-xl font-extrabold text-fg tabular-nums">{v}</div>
-                <div className="text-xs">{l}</div>
-              </div>
-            </div>
-          ))}
         </div>
       </section>
 

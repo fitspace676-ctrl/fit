@@ -253,7 +253,7 @@ export const MarketingNav = ({
         overlay
           ? // Glass overlay: sits on top of the hero so the section shows through
             // the frosted bar instead of reading as a separate solid strip.
-            'absolute inset-x-0 top-0 z-30 bg-surface/40 backdrop-blur-xl'
+            'absolute inset-x-0 top-0 z-30 bg-surface/5 backdrop-blur-md backdrop-saturate-150 border-b border-overlay/5'
           : 'relative z-30'
       }
     >
