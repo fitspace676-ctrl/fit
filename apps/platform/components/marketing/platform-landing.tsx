@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Aurora,
   Btn,
@@ -403,6 +403,10 @@ interface Kpi {
 
 export default function PlatformLanding() {
   const [pillar, setPillar] = useState('members');
+  // Hero product showcase eases in once mounted (slide + fade), matching the
+  // member app's animated hero element without pulling in a motion dependency.
+  const [showcaseIn, setShowcaseIn] = useState(false);
+  useEffect(() => setShowcaseIn(true), []);
 
   const pillars: Pillar[] = [
     {
@@ -714,6 +718,20 @@ export default function PlatformLanding() {
 
       {/* hero */}
       <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 lg:pt-16 pb-10 text-center">
+        {/* atmospheric backdrop — the herolight photo, dimmed and faded into the
+            dark surface so the centred copy stays readable. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-16 bottom-0 -z-10 overflow-hidden"
+        >
+          <img
+            src="/herolight.webp"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-right opacity-25"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-surface/70 via-surface/50 to-surface" />
+        </div>
+
         <div className="flex justify-center">
           <Eyebrow icon={I.layers}>The complete platform</Eyebrow>
         </div>
@@ -746,6 +764,20 @@ export default function PlatformLanding() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* product showcase — the FormaCore desk + member app, easing in on load. */}
+        <div
+          className={`relative mt-16 transition-all duration-700 ease-out ${
+            showcaseIn ? 'opacity-100 translate-y-0' : 'translate-y-8 opacity-0'
+          }`}
+        >
+          <img
+            src="/elementlight.webp"
+            alt="The FormaCore back-office and member app, side by side"
+            draggable={false}
+            className="mx-auto w-full max-w-4xl select-none drop-shadow-2xl"
+          />
         </div>
       </section>
 
