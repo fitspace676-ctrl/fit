@@ -714,7 +714,7 @@ export default function PlatformLanding() {
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
       <Aurora />
 
-      <MarketingNav active="Core" />
+      <MarketingNav active="Core" overlay />
 
       {/* hero — LIGHT mode: herolight photo backdrop, copy on the left, the
           elementlight product shot on the right easing in on mount. Hidden in
@@ -730,7 +730,7 @@ export default function PlatformLanding() {
           <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface/70 to-surface/20" />
         </div>
 
-        <div className="max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 lg:pt-16 pb-10 grid items-center gap-10 lg:grid-cols-2">
+        <div className="max-w-[1180px] mx-auto px-6 lg:px-10 pt-32 lg:pt-36 pb-10 grid items-center gap-10 lg:grid-cols-2">
           {/* left: copy */}
           <div className="text-left">
             <Eyebrow icon={I.layers}>The complete platform</Eyebrow>
@@ -768,24 +768,25 @@ export default function PlatformLanding() {
             </div>
           </div>
 
-          {/* right: product element, eases in from the right on mount */}
+          {/* right: product element — 50% larger, smoothly easing in from the
+              right edge toward the left on mount */}
           <div
-            className={`relative transition-all duration-700 ease-out ${
-              showcaseIn ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12'
+            className={`relative transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] delay-150 ${
+              showcaseIn ? 'translate-x-0 opacity-100' : 'translate-x-24 opacity-0'
             }`}
           >
             <img
               src="/elementlight.webp"
               alt="The FormaCore back-office and member app, side by side"
               draggable={false}
-              className="w-full select-none drop-shadow-2xl lg:ml-auto"
+              className="w-full select-none drop-shadow-2xl lg:w-[150%] lg:max-w-none"
             />
           </div>
         </div>
       </section>
 
       {/* hero — DARK mode: the original centred aurora hero (no imagery). */}
-      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 lg:pt-16 pb-10 text-center hidden dark:block">
+      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-32 lg:pt-36 pb-10 text-center hidden dark:block">
         <div className="flex justify-center">
           <Eyebrow icon={I.layers}>The complete platform</Eyebrow>
         </div>
