@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
 import { CreditPackStatus, OrderStatus, PackagePlanStatus, PaymentStatus } from '@fit/db';
 import { CreditPacksService } from './credit-packs.service';
@@ -179,7 +179,20 @@ const activePlan = (
 });
 
 describe('CreditPacksService', () => {
-  afterEach(() => vi.clearAllMocks());
+  // Several fixtures pin fixed expiry dates (e.g. 2026-06-15). The service uses
+  // `new Date()` as the "is this pack still valid" cutoff, so freeze the clock
+  // to an instant before those expiries — otherwise the suite starts failing
+  // once the real date passes them. Only `Date` is faked, leaving timers and
+  // the microtask queue real so the async mocks resolve normally.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(utc(2026, 6, 10));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
 
   describe('purchasePack', () => {
     it('mints a pack and records a PAID order + CAPTURED stub payment', async () => {
