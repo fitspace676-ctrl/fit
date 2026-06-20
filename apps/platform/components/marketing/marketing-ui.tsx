@@ -244,9 +244,9 @@ export const MarketingNav = ({ active }: { active?: NavItem }) => {
   return (
     <header className="relative z-30">
       <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
-        <div className="flex items-center gap-3 h-20">
+        <div className="flex items-center gap-3 h-24">
           <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
-            <Logo className="h-10" />
+            <Logo className="h-20" />
           </Link>
           <nav className="hidden lg:flex items-center gap-1 ml-6">
             {NAV_ITEMS.map((n) => renderItem(n, desktopClass(n)))}
@@ -294,7 +294,7 @@ export const MarketingFooter = () => (
   <footer className="relative z-10 border-t border-overlay/10">
     <div className="max-w-[1180px] mx-auto px-6 lg:px-10 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
       <Link href="/" className="flex items-center" aria-label="FormaCore home">
-        <Logo className="h-8" />
+        <Logo className="h-16" />
       </Link>
       <span className="font-mono text-xs text-subtle">
         © 2026 FormaCore · Tbilisi, Georgia · ₾ GEL
