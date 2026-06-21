@@ -1,17 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  Aurora,
-  Btn,
-  DEMO_HREF,
-  Eyebrow,
-  I,
-  Icon,
-  MarketingFooter,
-  MarketingNav,
-  SIGNUP_HREF,
-} from './marketing-ui';
+import { AuroraText } from '@/components/ui/aurora-text';
+import { ContainerScroll } from '@/components/ui/container-scroll';
+import { SplineScene } from '@/components/ui/spline-scene';
+import { DemoModal, TrialModal } from './lead-modals';
+import { Aurora, Btn, Eyebrow, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — Platform overview  ·  "Aurora Glass"
@@ -407,6 +401,8 @@ export default function PlatformLanding() {
   // member app's animated hero element without pulling in a motion dependency.
   const [showcaseIn, setShowcaseIn] = useState(false);
   useEffect(() => setShowcaseIn(true), []);
+  // Which CTA form modal is open (null = none).
+  const [modal, setModal] = useState<null | 'trial' | 'demo'>(null);
 
   const pillars: Pillar[] = [
     {
@@ -724,66 +720,177 @@ export default function PlatformLanding() {
         </div>
 
         <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-10">
-          {/* left: copy */}
-          <div className="text-left max-w-xl">
-            <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight mt-6 leading-[0.95]">
-              Built for the businesses{' '}
-              <span className="bg-gradient-to-r from-brand-600 via-iris-500 to-accent-600 bg-clip-text text-transparent">
-                that move people.
-              </span>
-            </h1>
-            <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
-              Every great fitness business runs on something. Members who stay, staff who know what
-              to do, numbers that tell the truth. FormaCore pulls it all together.
-            </p>
-            <div className="flex flex-wrap items-center gap-3 mt-9">
-              <Btn v="primary" size="lg" icon={I.arrow} href={SIGNUP_HREF}>
-                Start 14-day trial
-              </Btn>
-              <Btn v="glass" size="lg" href={DEMO_HREF}>
-                Book a demo
-              </Btn>
+          <div className="grid items-center gap-10 lg:grid-cols-2">
+            {/* left: copy — slides in from the left (linear) */}
+            <div
+              className={`text-left transition-all duration-1000 ease-linear ${
+                showcaseIn ? 'translate-x-0 opacity-100' : '-translate-x-16 opacity-0'
+              }`}
+            >
+              <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
+                Built for the businesses{' '}
+                <AuroraText colors={['#5044D2', '#7A5AF8', '#2342EB']}>
+                  that move people.
+                </AuroraText>
+              </h1>
+              <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
+                Every great fitness business runs on something. Members who stay, staff who know
+                what to do, numbers that tell the truth. FormaCore pulls it all together.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mt-9">
+                <Btn v="primary" size="lg" icon={I.arrow} onClick={() => setModal('trial')}>
+                  Start 14-day trial
+                </Btn>
+                <Btn
+                  v="glass"
+                  size="lg"
+                  onClick={() => setModal('demo')}
+                  ripple
+                  rippleColor="#6257E3"
+                >
+                  Book a demo
+                </Btn>
+              </div>
+            </div>
+
+            {/* right: visual — slides in from the right (linear) */}
+            <div
+              className={`relative transition-all duration-1000 ease-linear ${
+                showcaseIn ? 'translate-x-0 opacity-100' : 'translate-x-16 opacity-0'
+              }`}
+            >
+              <img
+                src="/lptlight.webp"
+                alt="The FormaCore back-office and member app, side by side"
+                draggable={false}
+                className="w-[125%] -ml-[12%] max-w-none lg:w-[192%] lg:-ml-[22%] lg:-mt-[4.5rem] select-none drop-shadow-2xl"
+              />
             </div>
           </div>
         </div>
+      </section>
 
-        {/* product element — anchored to the hero's bottom-right corner, ~2x
-            larger, easing in slowly with a delay (slide up + fade + scale). */}
-        <div
-          className={`pointer-events-none absolute bottom-0 right-0 lg:-right-[10%] z-0 w-[95%] sm:w-[80%] lg:w-[72%] max-w-[1500px] transition-all duration-[2000ms] delay-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            showcaseIn
-              ? 'translate-x-0 translate-y-0 opacity-100 scale-100'
-              : 'translate-x-16 translate-y-16 opacity-0 scale-95'
-          }`}
-        >
+      {/* hero — DARK mode: herodark photo backdrop, copy on the left, the
+          lptdark product shot on the right easing in on mount. Hidden in
+          light mode, which shows the herolight hero above. */}
+      <section className="relative z-10 isolate overflow-hidden hidden dark:flex min-h-screen items-center">
+        {/* full-bleed photo backdrop, darkened on the left for legibility */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
           <img
-            src="/elementlight.webp"
-            alt="The FormaCore back-office and member app, side by side"
-            draggable={false}
-            className="w-full select-none drop-shadow-2xl"
+            src="/herodark.webp"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-right"
           />
+          <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface/70 to-surface/20" />
+        </div>
+
+        <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-10">
+          <div className="grid items-center gap-10 lg:grid-cols-2">
+            {/* left: copy — slides in from the left (linear) */}
+            <div
+              className={`text-left transition-all duration-1000 ease-linear ${
+                showcaseIn ? 'translate-x-0 opacity-100' : '-translate-x-16 opacity-0'
+              }`}
+            >
+              <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
+                Built for the businesses{' '}
+                <AuroraText colors={['#9184F1', '#9B8AFB', '#96B2FF']}>
+                  that move people.
+                </AuroraText>
+              </h1>
+              <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
+                Every great fitness business runs on something. Members who stay, staff who know
+                what to do, numbers that tell the truth. FormaCore pulls it all together.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mt-9">
+                <Btn v="primary" size="lg" icon={I.arrow} onClick={() => setModal('trial')}>
+                  Start 14-day trial
+                </Btn>
+                <Btn
+                  v="glass"
+                  size="lg"
+                  onClick={() => setModal('demo')}
+                  ripple
+                  rippleColor="#6257E3"
+                >
+                  Book a demo
+                </Btn>
+              </div>
+            </div>
+
+            {/* right: visual — slides in from the right (linear) */}
+            <div
+              className={`relative transition-all duration-1000 ease-linear ${
+                showcaseIn ? 'translate-x-0 opacity-100' : 'translate-x-16 opacity-0'
+              }`}
+            >
+              <img
+                src="/lptdark.webp"
+                alt="The FormaCore back-office and member app, side by side"
+                draggable={false}
+                className="w-[125%] -ml-[12%] max-w-none lg:w-[192%] lg:-ml-[22%] lg:-mt-[4.5rem] select-none drop-shadow-2xl"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* hero — DARK mode: the original centred aurora hero (no imagery). */}
-      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 py-28 text-center hidden dark:flex flex-col justify-center min-h-screen">
-        <h1 className="font-display text-[3rem] sm:text-[4rem] lg:text-[4.75rem] font-black tracking-tight mt-6 leading-[0.92] max-w-4xl mx-auto">
-          Built for the businesses{' '}
-          <span className="bg-gradient-to-r from-brand-400 via-iris-400 to-accent-300 bg-clip-text text-transparent">
-            that move people.
-          </span>
-        </h1>
-        <p className="mt-6 text-lg text-muted max-w-2xl mx-auto leading-relaxed">
-          Every great fitness business runs on something. Members who stay, staff who know what to
-          do, numbers that tell the truth. FormaCore pulls it all together.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 mt-9">
-          <Btn v="primary" size="lg" icon={I.arrow} href={SIGNUP_HREF}>
-            Start 14-day trial
-          </Btn>
-          <Btn v="glass" size="lg" href={DEMO_HREF}>
-            Book a demo
-          </Btn>
+      {/* scroll-reveal — the product flattens into view as you scroll */}
+      <section className="relative z-10 flex flex-col overflow-hidden">
+        <ContainerScroll
+          titleComponent={
+            <h2 className="mx-auto max-w-3xl text-2xl font-semibold text-fg md:text-3xl">
+              Your members feel it. Your staff lives it. You see it in the numbers.
+              <span className="mt-3 block text-5xl font-black leading-[1.05] md:text-[4rem]">
+                <AuroraText colors={['#6257E3', '#7A5AF8', '#2342EB']}>
+                  FormaCore connects all three
+                </AuroraText>
+              </span>
+            </h2>
+          }
+        >
+          {/* light theme dashboard */}
+          <img
+            src="/dashlight.webp"
+            alt="FormaCore dashboard"
+            draggable={false}
+            height={720}
+            width={1400}
+            className="mx-auto h-full w-full rounded-2xl object-cover object-[50%_22%] dark:hidden"
+          />
+          {/* dark theme dashboard */}
+          <img
+            src="/dashdark.webp"
+            alt="FormaCore dashboard"
+            draggable={false}
+            height={720}
+            width={1400}
+            className="mx-auto hidden h-full w-full rounded-2xl object-cover object-[50%_22%] dark:block"
+          />
+        </ContainerScroll>
+      </section>
+
+      {/* spline 3D scene (left) + copy (right) */}
+      <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 py-8 md:py-12">
+        <div className="grid items-center gap-10 lg:grid-cols-2">
+          {/* left: spline animation (Spline logo stripped in SplineScene) */}
+          <div className="relative">
+            <SplineScene
+              sceneUrl="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+              className="h-[400px] w-full md:h-[520px]"
+            />
+          </div>
+
+          {/* right: copy */}
+          <div className="text-left">
+            <h2 className="font-display text-4xl font-black tracking-tight text-fg lg:text-[3rem] leading-[0.98]">
+              The platform that thinks with your business.
+            </h2>
+            <p className="mt-5 text-lg text-muted leading-relaxed">
+              FormaCore brings analytics, financial flow and retention into one AI-powered platform,
+              so you don&apos;t just see what&apos;s happening, you know what to do next.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -1374,10 +1481,16 @@ export default function PlatformLanding() {
               Spin up a trial with your real timetable, or book a guided demo with our team.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3 mt-9">
-              <Btn v="white" size="lg" icon={I.arrow} href={SIGNUP_HREF}>
+              <Btn v="white" size="lg" icon={I.arrow} onClick={() => setModal('trial')}>
                 Start free trial
               </Btn>
-              <Btn v="glass" size="lg" href={DEMO_HREF}>
+              <Btn
+                v="glass"
+                size="lg"
+                onClick={() => setModal('demo')}
+                ripple
+                rippleColor="#6257E3"
+              >
                 Book a demo
               </Btn>
             </div>
@@ -1386,6 +1499,10 @@ export default function PlatformLanding() {
       </section>
 
       <MarketingFooter />
+
+      {/* CTA form modals — opened by the trial / demo buttons throughout. */}
+      <TrialModal open={modal === 'trial'} onClose={() => setModal(null)} />
+      <DemoModal open={modal === 'demo'} onClose={() => setModal(null)} />
     </div>
   );
 }

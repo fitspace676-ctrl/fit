@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import Link from 'next/link';
+import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — shared marketing primitives  ·  "Aurora Glass"
@@ -82,6 +83,10 @@ export const Btn = ({
   icon,
   full,
   href,
+  onClick,
+  type = 'button',
+  ripple = false,
+  rippleColor = '#6257E3',
 }: {
   children: ReactNode;
   v?: BtnVariant;
@@ -89,6 +94,14 @@ export const Btn = ({
   icon?: string;
   full?: boolean;
   href?: string;
+  /** Click handler. Renders a <button> when no `href` is given. */
+  onClick?: (e: ReactMouseEvent<HTMLElement>) => void;
+  /** Native button type (only used when rendering a <button>). */
+  type?: 'button' | 'submit' | 'reset';
+  /** Spawn a Material-style ripple from the click point. */
+  ripple?: boolean;
+  /** Ripple fill colour (defaults to brand-500). */
+  rippleColor?: string;
 }) => {
   const sizes: Record<BtnSize, string> = {
     sm: 'h-9 px-3.5 text-sm gap-1.5',
@@ -102,31 +115,74 @@ export const Btn = ({
     glass:
       'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-overlay/[0.13] active:bg-overlay/[0.18] focus-visible:ring-overlay/30',
   };
-  const className = `inline-flex items-center justify-center font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
+  const className = `relative inline-flex items-center justify-center font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 ${ripple ? 'overflow-hidden' : ''} ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
   const style: CSSProperties | undefined = size === 'lg' ? { height: '3.25rem' } : undefined;
+
+  const [ripples, setRipples] = useState<{ x: number; y: number; size: number; key: number }[]>([]);
+  const rippleId = useRef(0);
+  const spawnRipple = (e: ReactMouseEvent<HTMLElement>): void => {
+    if (!ripple) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const diameter = Math.max(rect.width, rect.height);
+    const next = {
+      x: e.clientX - rect.left - diameter / 2,
+      y: e.clientY - rect.top - diameter / 2,
+      size: diameter,
+      key: rippleId.current++,
+    };
+    setRipples((prev) => [...prev, next]);
+    window.setTimeout(() => {
+      setRipples((prev) => prev.filter((r) => r.key !== next.key));
+    }, 600);
+  };
+  const handleClick = (e: ReactMouseEvent<HTMLElement>): void => {
+    spawnRipple(e);
+    onClick?.(e);
+  };
+
   const inner = (
     <>
       {icon && <Icon d={icon} c="w-[18px] h-[18px]" sw={2} />}
       {children}
+      {ripple && (
+        <span className="pointer-events-none absolute inset-0">
+          {ripples.map((r) => (
+            <span
+              key={r.key}
+              className="absolute rounded-full"
+              style={{
+                left: r.x,
+                top: r.y,
+                width: r.size,
+                height: r.size,
+                backgroundColor: rippleColor,
+                transform: 'scale(0)',
+                opacity: 0.5,
+                animation: 'btn-ripple 600ms ease-out forwards',
+              }}
+            />
+          ))}
+        </span>
+      )}
     </>
   );
 
   if (href?.startsWith('/')) {
     return (
-      <Link href={href} className={className} style={style}>
+      <Link href={href} className={className} style={style} onClick={handleClick}>
         {inner}
       </Link>
     );
   }
   if (href) {
     return (
-      <a href={href} className={className} style={style}>
+      <a href={href} className={className} style={style} onClick={handleClick}>
         {inner}
       </a>
     );
   }
   return (
-    <button type="button" className={className} style={style}>
+    <button type={type} className={className} style={style} onClick={handleClick}>
       {inner}
     </button>
   );
@@ -266,7 +322,7 @@ export const MarketingNav = ({
             {NAV_ITEMS.map((n) => renderItem(n, desktopClass(n)))}
           </nav>
           <div className="ml-auto hidden sm:flex items-center gap-2">
-            <ThemeToggle />
+            <AnimatedThemeToggler variant="square" />
             <a
               href="#"
               onClick={(e) => e.preventDefault()}
@@ -279,7 +335,7 @@ export const MarketingNav = ({
             </Btn>
           </div>
           <div className="ml-auto flex items-center gap-1 sm:hidden">
-            <ThemeToggle />
+            <AnimatedThemeToggler variant="square" />
             <button
               type="button"
               onClick={() => setMenu((value) => !value)}
