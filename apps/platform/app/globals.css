@@ -50,4 +50,45 @@
     background-color: theme('colors.brand.500');
     color: #fff;
   }
+
+  /*
+   * Theme switch reveal (AnimatedThemeToggler). Disable the default root
+   * cross-fade; the toggler drives a clip-path on the new snapshot instead,
+   * which sits above the old one so the incoming theme wipes in cleanly.
+   */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-old(root) {
+    z-index: 0;
+  }
+  ::view-transition-new(root) {
+    z-index: 1;
+  }
+
+  /* Flowing gradient for AuroraText — pans the background across the glyphs. */
+  @keyframes aurora {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aurora-text {
+      animation: none !important;
+    }
+  }
+
+  /* Material-style ripple for Btn (RippleButton effect). */
+  @keyframes btn-ripple {
+    to {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
 }
