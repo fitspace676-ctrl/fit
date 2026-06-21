@@ -374,52 +374,6 @@ export const MarketingNav = ({
                 Sign in
               </a>
               <Btn v="white" size="md" icon={I.arrow} href={SIGNUP_HREF}>
-    <header
-      className={
-        overlay
-          ? // Glass overlay: sits on top of the hero so the section shows through
-            // the frosted bar instead of reading as a separate solid strip.
-            'absolute inset-x-0 top-0 z-30 bg-surface/5 backdrop-blur-md backdrop-saturate-150 border-b border-overlay/5'
-          : 'relative z-30'
-      }
-    >
-      <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
-        <div className="flex items-center gap-3 h-24">
-          <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
-            <Logo className="h-20" />
-          </Link>
-          <nav className="hidden lg:flex items-center gap-1 ml-6">
-            {NAV_ITEMS.map((n) => renderItem(n, desktopClass(n)))}
-          </nav>
-          <div className="ml-auto hidden sm:flex items-center gap-2">
-            <AnimatedThemeToggler variant="square" />
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
-              className="px-3.5 h-10 inline-flex items-center rounded-btn text-sm font-semibold text-strong hover:text-fg hover:bg-overlay/5 transition"
-            >
-              Sign in
-            </a>
-            <Btn v="white" size="md" icon={I.arrow} href={SIGNUP_HREF}>
-              Start free
-            </Btn>
-          </div>
-          <div className="ml-auto flex items-center gap-1 sm:hidden">
-            <AnimatedThemeToggler variant="square" />
-            <button
-              type="button"
-              onClick={() => setMenu((value) => !value)}
-              className="w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
-            >
-              <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
-            </button>
-          </div>
-        </div>
-        {menu && (
-          <div className="sm:hidden pb-4 space-y-1">
-            {NAV_ITEMS.map((n) => renderItem(n, mobileClass(n)))}
-            <div className="pt-2">
-              <Btn v="white" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
                 Start free
               </Btn>
             </div>
