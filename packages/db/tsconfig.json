@@ -7,5 +7,9 @@
     "types": ["node"]
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "build", ".next", ".expo", ".turbo", "coverage"]
+  // The Prisma client is machine-generated (and gitignored). It must not be a
+  // type-check root: depending on the engine, `prisma generate` may or may not
+  // emit `wasm.d.ts`, which made the `**/*.ts` glob flaky in CI (TS6053).
+  // Source files still get the client's types transitively via their imports.
+  "exclude": ["node_modules", "dist", "build", ".next", ".expo", ".turbo", "coverage", "generated"]
 }
