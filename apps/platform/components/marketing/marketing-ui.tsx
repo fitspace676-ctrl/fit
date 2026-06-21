@@ -278,6 +278,48 @@ export const Aurora = () => (
 const NAV_ITEMS = ['Core', 'For whom', 'Pricing', 'Resources'] as const;
 type NavItem = (typeof NAV_ITEMS)[number];
 
+// Mobile bottom dock — navigation icons + CTAs, fixed to the bottom of the
+// viewport on small screens (hidden from `lg` up, where the top nav shows).
+const DOCK_NAV: { label: NavItem; icon: string; href: string }[] = [
+  { label: 'Core', icon: I.layers, href: '#' },
+  { label: 'For whom', icon: I.members, href: '#' },
+  { label: 'Pricing', icon: I.card, href: '/pricing' },
+  { label: 'Resources', icon: I.box, href: '#' },
+];
+
+export const MobileDock = ({ active }: { active?: NavItem }) => (
+  <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.625rem)] lg:hidden">
+    <div className="mx-auto max-w-md rounded-2xl border border-overlay/10 bg-surface/85 p-2 shadow-[0_10px_40px_-8px_rgba(8,9,16,0.35)] backdrop-blur-xl backdrop-saturate-150">
+      <nav className="flex items-stretch gap-1">
+        {DOCK_NAV.map((it) => {
+          const cls = `flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[10px] font-semibold transition ${
+            it.label === active ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg'
+          }`;
+          return it.href.startsWith('/') ? (
+            <Link key={it.label} href={it.href} className={cls}>
+              <Icon d={it.icon} c="w-5 h-5" />
+              {it.label}
+            </Link>
+          ) : (
+            <a key={it.label} href={it.href} onClick={(e) => e.preventDefault()} className={cls}>
+              <Icon d={it.icon} c="w-5 h-5" />
+              {it.label}
+            </a>
+          );
+        })}
+      </nav>
+      <div className="mt-1.5 flex gap-2">
+        <Btn v="primary" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
+          Start free
+        </Btn>
+        <Btn v="glass" size="md" href={DEMO_HREF}>
+          Demo
+        </Btn>
+      </div>
+    </div>
+  </div>
+);
+
 export const MarketingNav = ({
   active,
   overlay = false,
@@ -304,65 +346,68 @@ export const MarketingNav = ({
     );
 
   return (
-    <header
-      className={
-        overlay
-          ? // Glass overlay: sits on top of the hero so the section shows through
-            // the frosted bar instead of reading as a separate solid strip.
-            'absolute inset-x-0 top-0 z-30 bg-surface/5 backdrop-blur-md backdrop-saturate-150 border-b border-overlay/5'
-          : 'relative z-30'
-      }
-    >
-      <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
-        <div className="flex items-center gap-3 h-24">
-          <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
-            <Logo className="h-20" />
-          </Link>
-          <nav className="hidden lg:flex items-center gap-1 ml-6">
-            {NAV_ITEMS.map((n) => renderItem(n, desktopClass(n)))}
-          </nav>
-          <div className="ml-auto hidden sm:flex items-center gap-2">
-            <AnimatedThemeToggler variant="square" />
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
-              className="px-3.5 h-10 inline-flex items-center rounded-btn text-sm font-semibold text-strong hover:text-fg hover:bg-overlay/5 transition"
-            >
-              Sign in
-            </a>
-            <Btn v="white" size="md" icon={I.arrow} href={SIGNUP_HREF}>
-              Start free
-            </Btn>
-          </div>
-          <div className="ml-auto flex items-center gap-1 sm:hidden">
-            <AnimatedThemeToggler variant="square" />
-            <button
-              type="button"
-              onClick={() => setMenu((value) => !value)}
-              className="w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
-            >
-              <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
-            </button>
-          </div>
-        </div>
-        {menu && (
-          <div className="sm:hidden pb-4 space-y-1">
-            {NAV_ITEMS.map((n) => renderItem(n, mobileClass(n)))}
-            <div className="pt-2">
-              <Btn v="white" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
+    <>
+      <header
+        className={
+          overlay
+            ? // Glass overlay: sits on top of the hero so the section shows through
+              // the frosted bar instead of reading as a separate solid strip.
+              'absolute inset-x-0 top-0 z-30 bg-surface/5 backdrop-blur-md backdrop-saturate-150 border-b border-overlay/5'
+            : 'relative z-30'
+        }
+      >
+        <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
+          <div className="flex items-center gap-3 h-24">
+            <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
+              <Logo className="h-20" />
+            </Link>
+            <nav className="hidden lg:flex items-center gap-1 ml-6">
+              {NAV_ITEMS.map((n) => renderItem(n, desktopClass(n)))}
+            </nav>
+            <div className="ml-auto hidden sm:flex items-center gap-2">
+              <AnimatedThemeToggler variant="square" />
+              <a
+                href="#"
+                onClick={(e) => e.preventDefault()}
+                className="px-3.5 h-10 inline-flex items-center rounded-btn text-sm font-semibold text-strong hover:text-fg hover:bg-overlay/5 transition"
+              >
+                Sign in
+              </a>
+              <Btn v="white" size="md" icon={I.arrow} href={SIGNUP_HREF}>
                 Start free
               </Btn>
             </div>
+            <div className="ml-auto flex items-center gap-1 sm:hidden">
+              <AnimatedThemeToggler variant="square" />
+              <button
+                type="button"
+                onClick={() => setMenu((value) => !value)}
+                className="w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
+              >
+                <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
+              </button>
+            </div>
           </div>
-        )}
-      </div>
-    </header>
+          {menu && (
+            <div className="sm:hidden pb-4 space-y-1">
+              {NAV_ITEMS.map((n) => renderItem(n, mobileClass(n)))}
+              <div className="pt-2">
+                <Btn v="white" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
+                  Start free
+                </Btn>
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+      <MobileDock active={active} />
+    </>
   );
 };
 
 export const MarketingFooter = () => (
   <footer className="relative z-10 border-t border-overlay/10">
-    <div className="max-w-[1180px] mx-auto px-6 lg:px-10 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div className="max-w-[1180px] mx-auto px-6 lg:px-10 pt-10 pb-44 lg:pb-10 flex flex-col sm:flex-row items-center justify-between gap-4">
       <Link href="/" className="flex items-center" aria-label="FormaCore home">
         <Logo className="h-16" />
       </Link>
