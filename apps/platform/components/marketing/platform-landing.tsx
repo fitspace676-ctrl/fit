@@ -521,30 +521,6 @@ export default function PlatformLanding() {
 
   const active = pillars.find((p) => p.id === pillar) ?? pillars[0]!;
 
-  const surfaces = [
-    {
-      ic: I.grid,
-      t: 'Admin OS',
-      tone: 'brand',
-      d: 'The back office your team lives in — members, schedule, billing, POS, staff and reports in one console.',
-      tags: ['15+ modules', 'Role-based access', 'Multi-location'],
-    },
-    {
-      ic: I.globe,
-      t: 'Member web portal',
-      tone: 'iris',
-      d: 'A branded site where members book classes, manage their plan, shop and check their streak from any browser.',
-      tags: ['Self-serve booking', 'Plan & billing', 'Online shop'],
-    },
-    {
-      ic: I.phone,
-      t: 'Member app',
-      tone: 'accent',
-      d: 'Your logo on the App Store and Google Play. QR entry, one-thumb booking and push offers in their pocket.',
-      tags: ['White-label iOS & Android', 'QR pass', 'Push'],
-    },
-  ];
-
   const modules = [
     {
       ic: I.chart,
@@ -728,9 +704,9 @@ export default function PlatformLanding() {
               }`}
             >
               <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
-                Built for the businesses{' '}
+                Built For The Businesses{' '}
                 <AuroraText colors={['#5044D2', '#7A5AF8', '#2342EB']}>
-                  that move people.
+                  That Move People.
                 </AuroraText>
               </h1>
               <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
@@ -793,9 +769,9 @@ export default function PlatformLanding() {
               }`}
             >
               <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
-                Built for the businesses{' '}
+                Built For The Businesses{' '}
                 <AuroraText colors={['#9184F1', '#9B8AFB', '#96B2FF']}>
-                  that move people.
+                  That Move People.
                 </AuroraText>
               </h1>
               <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
@@ -891,53 +867,6 @@ export default function PlatformLanding() {
               so you don&apos;t just see what&apos;s happening, you know what to do next.
             </p>
           </div>
-        </div>
-      </section>
-
-      {/* one core, three surfaces */}
-      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-24">
-        <div className="max-w-2xl">
-          <Eyebrow icon={I.layers}>One core, three surfaces</Eyebrow>
-          <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight mt-5 leading-[0.96]">
-            One source of truth — for the desk, the member and the phone.
-          </h2>
-          <p className="mt-4 text-[15px] text-muted leading-relaxed">
-            A booking, a payment or a freeze updates everywhere at once. No exports, no syncing, no
-            two systems disagreeing about who owes what.
-          </p>
-        </div>
-        <div className="grid md:grid-cols-3 gap-5 mt-12">
-          {surfaces.map((s) => (
-            <div
-              key={s.t}
-              className="relative rounded-card ring-1 ring-inset ring-overlay/10 bg-overlay/[0.03] p-6 hover:bg-overlay/[0.05] hover:ring-overlay/20 transition overflow-hidden"
-            >
-              <div
-                className={`pointer-events-none absolute -top-16 -right-10 w-44 h-44 bg-${s.tone}-500/[0.12] blur-[80px] rounded-full`}
-              />
-              <div
-                className={`relative w-11 h-11 rounded-btn grid place-items-center bg-gradient-to-br from-${s.tone}-400/25 to-${s.tone}-600/10 ring-1 ring-inset ring-overlay/10`}
-              >
-                <Icon
-                  d={s.ic}
-                  c={`w-[22px] h-[22px] text-${s.tone}-700 dark:text-${s.tone}-300`}
-                  sw={2}
-                />
-              </div>
-              <h3 className="font-display text-xl font-bold mt-5">{s.t}</h3>
-              <p className="text-sm text-faint mt-2 leading-relaxed">{s.d}</p>
-              <div className="flex flex-wrap gap-1.5 mt-4">
-                {s.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="px-2.5 py-1 rounded-pill bg-overlay/[0.05] ring-1 ring-inset ring-overlay/10 text-[11px] font-semibold text-muted"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
         </div>
       </section>
 

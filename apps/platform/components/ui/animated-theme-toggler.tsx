@@ -164,6 +164,14 @@ export const AnimatedThemeToggler = ({
       return;
     }
 
+    // On phones the full-page snapshot is captured at 2–3× DPR and a `polygon`
+    // clip-path is costly to composite each frame (WebGL canvas, backdrop-blur,
+    // large images all land in the snapshot). Fall back to the cheaper `circle`
+    // reveal and a shorter duration so the transition stays smooth.
+    const isMobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+    const effVariant: ThemeTogglerVariant = isMobile ? 'circle' : variant;
+    const effDuration = isMobile ? Math.min(duration, 450) : duration;
+
     let cx = window.innerWidth / 2;
     let cy = window.innerHeight / 2;
     if (!fromCenter && ref.current) {
@@ -181,14 +189,14 @@ export const AnimatedThemeToggler = ({
       Math.hypot(cx, window.innerHeight - cy),
       Math.hypot(window.innerWidth - cx, window.innerHeight - cy),
     );
-    const end = farthest * COVER_FACTOR[variant];
+    const end = farthest * COVER_FACTOR[effVariant];
 
     document.documentElement.animate(
       {
-        clipPath: [clipPathAt(variant, cx, cy, 0), clipPathAt(variant, cx, cy, end)],
+        clipPath: [clipPathAt(effVariant, cx, cy, 0), clipPathAt(effVariant, cx, cy, end)],
       },
       {
-        duration,
+        duration: effDuration,
         easing: 'ease-in-out',
         pseudoElement: '::view-transition-new(root)',
       },
