@@ -329,10 +329,18 @@ export const MarketingNav = ({
 }) => {
   const [menu, setMenu] = useState(false);
 
+  // Lock background scroll while the mobile drawer is open.
+  useEffect(() => {
+    if (!menu) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menu]);
+
   const desktopClass = (n: NavItem): string =>
     `px-3.5 h-9 inline-flex items-center rounded-btn text-sm font-semibold transition ${n === active ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg hover:bg-overlay/5'}`;
-  const mobileClass = (n: NavItem): string =>
-    `block px-3 h-11 leading-[2.75rem] rounded-btn text-sm font-semibold hover:bg-overlay/5 ${n === active ? 'text-fg bg-overlay/[0.07]' : 'text-strong'}`;
 
   const renderItem = (n: NavItem, className: string): ReactNode =>
     n === 'Pricing' ? (
@@ -341,6 +349,30 @@ export const MarketingNav = ({
       </Link>
     ) : (
       <a key={n} href="#" onClick={(e) => e.preventDefault()} className={className}>
+        {n}
+      </a>
+    );
+
+  // Mobile drawer links carry the animated underline (wipes in from the left on
+  // hover / press), with the active item highlighted.
+  const drawerLinkCls = (n: NavItem): string =>
+    `relative inline-flex w-fit items-center py-1 text-2xl font-semibold uppercase tracking-tight transition-colors after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-fg after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.65,0.05,0.36,1)] hover:after:origin-bottom-left hover:after:scale-x-100 ${n === active ? 'text-fg' : 'text-strong hover:text-fg'}`;
+
+  const renderDrawerItem = (n: NavItem): ReactNode =>
+    n === 'Pricing' ? (
+      <Link key={n} href="/pricing" className={drawerLinkCls(n)} onClick={() => setMenu(false)}>
+        {n}
+      </Link>
+    ) : (
+      <a
+        key={n}
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          setMenu(false);
+        }}
+        className={drawerLinkCls(n)}
+      >
         {n}
       </a>
     );
@@ -388,18 +420,57 @@ export const MarketingNav = ({
               </button>
             </div>
           </div>
-          {menu && (
-            <div className="sm:hidden pb-4 space-y-1">
-              {NAV_ITEMS.map((n) => renderItem(n, mobileClass(n)))}
-              <div className="pt-2">
-                <Btn v="white" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
-                  Start free
-                </Btn>
-              </div>
-            </div>
-          )}
         </div>
       </header>
+
+      {/* mobile bottom-sheet drawer — slides up from the bottom with a grabber */}
+      <div
+        className={`sm:hidden fixed inset-0 z-50 ${menu ? '' : 'pointer-events-none'}`}
+        aria-hidden={!menu}
+      >
+        {/* backdrop */}
+        <div
+          onClick={() => setMenu(false)}
+          className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${menu ? 'opacity-100' : 'opacity-0'}`}
+        />
+        {/* sheet */}
+        <div
+          role="dialog"
+          aria-modal="true"
+          className={`absolute inset-x-0 bottom-0 rounded-t-[1.75rem] border-t border-overlay/15 bg-surface/95 backdrop-blur-xl shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.55)] transition-transform duration-300 ease-out ${menu ? 'translate-y-0' : 'translate-y-full'}`}
+        >
+          {/* grabber */}
+          <div className="flex justify-center pt-3">
+            <span className="h-1.5 w-12 rounded-full bg-overlay/25" />
+          </div>
+          <div className="flex items-center justify-between px-6 pt-3">
+            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-faint">
+              Menu
+            </span>
+            <button
+              type="button"
+              onClick={() => setMenu(false)}
+              aria-label="Close menu"
+              className="w-9 h-9 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
+            >
+              <Icon d={I.x} c="w-5 h-5" />
+            </button>
+          </div>
+          <nav className="px-6 pt-4">
+            <ul className="space-y-4">
+              {NAV_ITEMS.map((n) => (
+                <li key={n}>{renderDrawerItem(n)}</li>
+              ))}
+            </ul>
+          </nav>
+          <div className="px-6 pt-6 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
+            <Btn v="primary" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
+              Start free
+            </Btn>
+          </div>
+        </div>
+      </div>
+
       <MobileDock active={active} />
     </>
   );

@@ -42,7 +42,11 @@ const safelist = DYNAMIC_TONES.flatMap((tone) => [
  */
 export default {
   presets: [preset],
-  content: ['./app/**/*.{ts,tsx,mdx}', './components/**/*.{ts,tsx,mdx}'],
+  content: [
+    './app/**/*.{ts,tsx,mdx}',
+    './components/**/*.{ts,tsx,mdx}',
+    './registry/**/*.{ts,tsx,mdx}',
+  ],
   // The landing ships both a dark and a light theme; `.dark` on <html> selects
   // dark. The semantic tokens below resolve to CSS variables (see globals.css)
   // so a single class set drives both themes. Dark values equal the original
@@ -189,6 +193,23 @@ export default {
         btn: '0.75rem',
         card: '1rem',
         pill: '9999px',
+      },
+      // Marquee primitive (registry/magicui/marquee) — scroll distance is
+      // 100% of the duplicated track plus one inter-item gap, so the loop is
+      // seamless. Speed is driven per-instance via the `--duration` CSS var.
+      keyframes: {
+        marquee: {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(calc(-100% - var(--gap)))' },
+        },
+        'marquee-vertical': {
+          from: { transform: 'translateY(0)' },
+          to: { transform: 'translateY(calc(-100% - var(--gap)))' },
+        },
+      },
+      animation: {
+        marquee: 'marquee var(--duration) linear infinite',
+        'marquee-vertical': 'marquee-vertical var(--duration) linear infinite',
       },
     },
   },
