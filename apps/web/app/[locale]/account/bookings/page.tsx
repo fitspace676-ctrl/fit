@@ -46,13 +46,26 @@ export default async function AccountBookingsPage({
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-gutter py-10">
-      <header className="mb-8 flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
-        <p className="text-sm text-slate-500">{t('subtitle')}</p>
-      </header>
+    <main className="relative isolate overflow-hidden bg-slate-50">
+      {/* Aurora glass — soft, blurred brand blobs behind the content (light theme). */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-20 -top-40 h-[640px] w-[640px] rounded-full bg-violet-500/10 blur-[150px]" />
+        <div className="absolute -top-24 right-0 h-[560px] w-[560px] rounded-full bg-brand-500/[0.08] blur-[150px]" />
+        <div className="absolute -left-32 top-[55%] h-[520px] w-[520px] rounded-full bg-pink-500/[0.08] blur-[150px]" />
+      </div>
 
-      <BookingHistory entries={entries} now={Date.now()} />
+      <div className="relative mx-auto w-full max-w-3xl px-gutter py-10">
+        <header className="mb-6 flex flex-col gap-1">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-slate-500">
+            {t('eyebrow')}
+          </p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+            {t('title')}
+          </h1>
+        </header>
+
+        <BookingHistory entries={entries} now={Date.now()} />
+      </div>
     </main>
   );
 }
