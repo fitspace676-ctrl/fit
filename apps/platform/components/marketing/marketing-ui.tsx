@@ -370,6 +370,16 @@ export const MarketingNav = ({
     };
   }, [menu]);
 
+  // Lock background scroll while the mobile drawer is open.
+  useEffect(() => {
+    if (!menu) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menu]);
+
   const desktopClass = (n: NavItem): string =>
     `px-3.5 h-9 inline-flex items-center rounded-btn text-sm font-semibold transition ${n === active ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg hover:bg-overlay/5'}`;
 
@@ -415,6 +425,30 @@ export const MarketingNav = ({
       </a>
     );
   };
+
+  // Mobile drawer links carry the animated underline (wipes in from the left on
+  // hover / press), with the active item highlighted.
+  const drawerLinkCls = (n: NavItem): string =>
+    `relative inline-flex w-fit items-center py-1 text-2xl font-semibold uppercase tracking-tight transition-colors after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-fg after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.65,0.05,0.36,1)] hover:after:origin-bottom-left hover:after:scale-x-100 ${n === active ? 'text-fg' : 'text-strong hover:text-fg'}`;
+
+  const renderDrawerItem = (n: NavItem): ReactNode =>
+    n === 'Pricing' ? (
+      <Link key={n} href="/pricing" className={drawerLinkCls(n)} onClick={() => setMenu(false)}>
+        {n}
+      </Link>
+    ) : (
+      <a
+        key={n}
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          setMenu(false);
+        }}
+        className={drawerLinkCls(n)}
+      >
+        {n}
+      </a>
+    );
 
   return (
     <>

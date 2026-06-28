@@ -60,11 +60,55 @@ const features = [
     icon: I.chart,
     title: 'Analytics & Reporting',
     body: 'Dashboards, retention data, and reports.',
+    icon: I.pos,
+    title: 'Reception & POS',
+    body: 'Handle walk-ins, sell products, process payments, and check members in, all from one screen at the front desk.',
+  },
+  {
+    icon: I.calendar,
+    title: 'Class Booking',
+    body: 'Members book their spot, join the waitlist, or cancel online on the app, or at the desk. Your schedule stays accurate automatically.',
+  },
+  {
+    icon: I.members,
+    title: 'Personal Training',
+    body: 'Schedule one-on-one sessions between trainers and members, track attendance, and manage trainer workloads without the back-and-forth.',
+  },
+  {
+    icon: I.card,
+    title: 'Online Payments',
+    body: 'One-time and recurring membership payments processed online, members pay when it suits them, revenue lands without manual effort.',
+  },
+  {
+    icon: I.pulse,
+    title: 'Performance Dashboard',
+    body: 'Your most important numbers are active members, revenue, attendance, retention, visible the moment you log in.',
+  },
+  {
+    icon: I.chart,
+    title: 'Reports',
+    body: 'Dig deeper into any part of your business. Revenue trends, class performance, member activity exportable and always up to date.',
+  },
+  {
+    icon: I.box,
+    title: 'Inventory Management',
+    body: 'Track your stock levels in real time. Get alerted before you run out, and tie every sale back to your reports automatically.',
+  },
+  {
+    icon: I.ticket,
+    title: 'Member Invoices',
+    body: 'Generate and send member invoices for their contracts seamlessly.',
+  },
+  {
+    icon: I.bolt,
+    title: 'Automation Center',
+    body: 'Build trigger-based workflows that send the right message at the right moment via SMS, email, or push notification, without anyone pressing send.',
   },
   {
     icon: I.spark,
     title: 'AI Assistant',
     body: 'Your operations co-pilot.',
+    body: 'Your operations co-pilot. Answers questions about your business, surfaces anomalies in your data, and suggests actions before problems escalate.',
   },
 ];
 
@@ -101,6 +145,8 @@ const FeatureCard = ({
   <figure
     className={`group/card relative h-full overflow-hidden rounded-card border border-overlay/10 bg-panel/70 p-5 shadow-[0_10px_30px_-14px_rgba(16,18,33,0.25)] backdrop-blur-xl transition dark:bg-overlay/[0.03] dark:shadow-none ${className}`}
   >
+const FeatureCard = ({ icon, title, body }: { icon: string; title: string; body: string }) => (
+  <figure className="group/card relative h-full w-80 overflow-hidden rounded-card border border-overlay/10 bg-overlay/[0.03] p-5 backdrop-blur-xl transition">
     {/* gradient that slides up from the bottom on hover */}
     <div className="absolute inset-0 translate-y-full bg-gradient-to-r from-brand-600 to-iris-600 transition-transform duration-300 ease-out group-hover/card:translate-y-0" />
     {/* oversized decorative corner icon */}
@@ -341,6 +387,7 @@ export default function PlatformLanding() {
             cards dissolve to transparent over any background instead of leaving
             half-visible "ghost" cards. py-4 keeps card shadows from being clipped. */}
         <div className="relative flex w-full flex-col items-center justify-center overflow-hidden py-4 [mask-image:linear-gradient(to_right,transparent,#000_14%,#000_86%,transparent)] [-webkit-mask-image:linear-gradient(to_right,transparent,#000_14%,#000_86%,transparent)]">
+        <div className="relative flex w-full flex-col items-center justify-center overflow-hidden">
           <Marquee pauseOnHover className="[--duration:40s]">
             {firstRow.map((feature) => (
               <FeatureCard key={feature.title} {...feature} />
@@ -524,6 +571,81 @@ export default function PlatformLanding() {
                 <div className="absolute bottom-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-overlay/[0.08] px-2.5 py-1 text-xs font-medium text-fg ring-1 ring-inset ring-overlay/15 backdrop-blur">
                   We are here
                 </div>
+          <div className="from-surface pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r" />
+          <div className="from-surface pointer-events-none absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l" />
+        </div>
+      </section>
+
+      {/* contact */}
+      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-8 pb-24">
+        <div className="grid items-start gap-12 lg:grid-cols-2 lg:gap-16">
+          {/* left: copy + map */}
+          <div>
+            <span className="grid h-12 w-12 place-items-center rounded-card bg-gradient-to-br from-violet-600/35 to-pink-500/30 ring-1 ring-inset ring-violet-600/25 shadow-[0_10px_30px_-8px_rgba(124,58,237,0.45)]">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-6 w-6 text-violet-600 dark:text-violet-300"
+              >
+                <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+                <path d="m3 6.5 9 6 9-6" />
+              </svg>
+            </span>
+            <h2 className="mt-7 font-display text-4xl lg:text-[3.25rem] font-black tracking-tight leading-[0.95]">
+              Contact us
+            </h2>
+            <p className="mt-5 max-w-md text-lg text-muted leading-relaxed">
+              We are always looking for ways to improve our products and services. Contact us and
+              let us know how we can help you.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-strong">
+              <a href="mailto:contact@formacore.io" className="transition hover:text-fg">
+                contact@formacore.io
+              </a>
+              <span className="text-dim">•</span>
+              <a href="tel:+995322000000" className="transition hover:text-fg">
+                +995 (32) 2 00 00 00
+              </a>
+              <span className="text-dim">•</span>
+              <a href="mailto:support@formacore.io" className="transition hover:text-fg">
+                support@formacore.io
+              </a>
+            </div>
+
+            {/* dotted world map + "we are here" pin */}
+            <div className="relative mt-12 aspect-[139/70] w-full max-w-lg">
+              <div
+                className="absolute inset-0 bg-fg/[0.22]"
+                style={{
+                  maskImage: 'url(/dotted-world-map.svg)',
+                  WebkitMaskImage: 'url(/dotted-world-map.svg)',
+                  maskSize: 'contain',
+                  WebkitMaskSize: 'contain',
+                  maskRepeat: 'no-repeat',
+                  WebkitMaskRepeat: 'no-repeat',
+                  maskPosition: 'center',
+                  WebkitMaskPosition: 'center',
+                }}
+              />
+              <div
+                className="absolute -translate-x-1/2 -translate-y-1/2"
+                style={{ left: '62%', top: '32%' }}
+              >
+                {/* beam */}
+                <span className="absolute bottom-2 left-1/2 h-6 w-px -translate-x-1/2 bg-gradient-to-t from-violet-500/0 to-violet-500/80" />
+                {/* glowing pin */}
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-500 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-violet-500 shadow-[0_0_14px_3px_rgba(124,58,237,0.7)]" />
+                </span>
+                {/* label */}
+                <div className="absolute bottom-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-overlay/[0.08] px-2.5 py-1 text-xs font-medium text-fg ring-1 ring-inset ring-overlay/15 backdrop-blur">
+                  We are here
+                </div>
               </div>
             </div>
           </div>
@@ -576,6 +698,7 @@ export default function PlatformLanding() {
                     type="text"
                     name="name"
                     placeholder="David Iobashvili"
+                    placeholder="Manu Arora"
                   />
                 </label>
                 <label className="block">
