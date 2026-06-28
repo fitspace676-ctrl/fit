@@ -6,11 +6,25 @@
       "loading": "Loading your bookings…",
       "error": "We couldn’t load your bookings. Please try again.",
       "retry": "Try again",
+      "eyebrow": "Your schedule",
+      "nextUp": "Next up",
+      "viewClass": "View class",
+      "bookAgain": "Book again",
       "upcoming": "Upcoming",
       "past": "Past",
-      "noUpcoming": "You have no upcoming bookings.",
+      "noUpcoming": "No upcoming classes",
+      "noUpcomingHint": "Browse classes to book your next session.",
+      "noPast": "No past classes here yet.",
       "when": "When",
       "details": "Trainer and location",
+      "filters": {
+        "all": "All"
+      },
+      "relative": {
+        "today": "Today",
+        "tomorrow": "Tomorrow",
+        "yesterday": "Yesterday"
+      },
       "waitlistPosition": "Waitlist · #{position}",
       "status": {
         "BOOKED": "Booked",
