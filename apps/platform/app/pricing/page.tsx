@@ -8,7 +8,7 @@ import PricingPage from '@/components/marketing/pricing-page';
  * owner-signup flow at `/register-gym`.
  */
 export const metadata: Metadata = {
-  title: 'Pricing — FormaCore',
+  title: 'Pricing - FormaCore',
   description:
     'Simple, transparent pricing for gyms and studios. Every FormaCore plan is the full platform — memberships, scheduling, billing, POS and a branded member app. Priced in GEL with a 14-day free trial.',
 };

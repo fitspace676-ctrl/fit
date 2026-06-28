@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { AnimatedTabs } from '@/components/ui/animated-tabs';
 import { AuroraText } from '@/components/ui/aurora-text';
 import { ContainerScroll } from '@/components/ui/container-scroll';
 import { LiquidGlassCard } from '@/components/ui/liquid-glass';
 import { SplineScene } from '@/components/ui/spline-scene';
 import { Marquee } from '@/registry/magicui/marquee';
+import { BUILT_FOR } from '@/data/built-for';
+import { PricingCards } from './pricing-cards';
+import { cn } from '@/lib/utils';
 import { DemoModal, TrialModal } from './lead-modals';
 import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
@@ -27,6 +32,34 @@ import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing
    the shared `I` set. The Marquee primitive lives in `registry/magicui/marquee`. */
 const features = [
   {
+    icon: I.grid,
+    title: 'Manager Core',
+    body: 'The full admin panel — members, staff, classes, billing, automation, and reports.',
+  },
+  {
+    icon: I.globe,
+    title: 'Member Portal',
+    body: 'Branded self-service web portal for members.',
+  },
+  {
+    icon: I.calendar,
+    title: 'Online Booking & Scheduling',
+    body: 'Class timetable, bookings, and waitlists.',
+  },
+  {
+    icon: I.pos,
+    title: 'Reception POS',
+    body: 'Front desk application — check-in and sales.',
+  },
+  {
+    icon: I.phone,
+    title: 'Mobile App',
+    body: 'White-label member app.',
+  },
+  {
+    icon: I.chart,
+    title: 'Analytics & Reporting',
+    body: 'Dashboards, retention data, and reports.',
     icon: I.pos,
     title: 'Reception & POS',
     body: 'Handle walk-ins, sell products, process payments, and check members in, all from one screen at the front desk.',
@@ -74,6 +107,7 @@ const features = [
   {
     icon: I.spark,
     title: 'AI Assistant',
+    body: 'Your operations co-pilot.',
     body: 'Your operations co-pilot. Answers questions about your business, surfaces anomalies in your data, and suggests actions before problems escalate.',
   },
 ];
@@ -81,11 +115,36 @@ const features = [
 const firstRow = features.slice(0, features.length / 2);
 const secondRow = features.slice(features.length / 2);
 
+/* "Built for" — audience-specific value props shown in the animated stacked
+   tabs. The data is the single source of truth in `@/data/built-for` (it also
+   feeds the dedicated /built-for/<slug> pages and the nav dropdown); the tabs
+   read the `eyebrow / headline / subline / stats / panelClassName` fields off
+   each entry. The bold per-card gradients are intentional here (the cards fan
+   out behind each other) — self-contained dark gradients with white text, so
+   they read in both themes. */
+const audiences = BUILT_FOR;
+
 /* Contact form field styling — mirrors the lead-modal inputs but taller, to
    match the dedicated contact panel. */
 const contactInputCls =
   'mt-2 w-full h-12 rounded-btn border border-violet-500/25 bg-violet-500/[0.05] dark:border-white/15 dark:bg-white/[0.05] px-4 text-sm text-fg placeholder:text-faint outline-none transition focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/25';
 
+const FeatureCard = ({
+  icon,
+  title,
+  body,
+  className = 'w-80',
+}: {
+  icon: string;
+  title: string;
+  body: string;
+  /** Width utility — defaults to the fixed `w-80` the marquee needs; the static
+      grid passes `w-full` so cards fill their column. */
+  className?: string;
+}) => (
+  <figure
+    className={`group/card relative h-full overflow-hidden rounded-card border border-overlay/10 bg-panel/70 p-5 shadow-[0_10px_30px_-14px_rgba(16,18,33,0.25)] backdrop-blur-xl transition dark:bg-overlay/[0.03] dark:shadow-none ${className}`}
+  >
 const FeatureCard = ({ icon, title, body }: { icon: string; title: string; body: string }) => (
   <figure className="group/card relative h-full w-80 overflow-hidden rounded-card border border-overlay/10 bg-overlay/[0.03] p-5 backdrop-blur-xl transition">
     {/* gradient that slides up from the bottom on hover */}
@@ -324,6 +383,10 @@ export default function PlatformLanding() {
             Everything your front desk runs on.
           </h2>
         </div>
+        {/* Edges fade via a mask on the track itself (not a colour overlay), so the
+            cards dissolve to transparent over any background instead of leaving
+            half-visible "ghost" cards. py-4 keeps card shadows from being clipped. */}
+        <div className="relative flex w-full flex-col items-center justify-center overflow-hidden py-4 [mask-image:linear-gradient(to_right,transparent,#000_14%,#000_86%,transparent)] [-webkit-mask-image:linear-gradient(to_right,transparent,#000_14%,#000_86%,transparent)]">
         <div className="relative flex w-full flex-col items-center justify-center overflow-hidden">
           <Marquee pauseOnHover className="[--duration:40s]">
             {firstRow.map((feature) => (
@@ -335,6 +398,179 @@ export default function PlatformLanding() {
               <FeatureCard key={feature.title} {...feature} />
             ))}
           </Marquee>
+        </div>
+      </section>
+
+      {/* pricing — the three plans, shared with the /pricing page */}
+      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 pb-8">
+        <div className="mb-10 max-w-2xl">
+          <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight leading-[0.96]">
+            One platform. One simple price.
+          </h2>
+          <p className="mt-4 text-lg text-muted leading-relaxed">
+            Every plan is the full platform - pick the tier that fits where your business is today.
+          </p>
+        </div>
+        <PricingCards />
+        <div className="mt-10 flex justify-center">
+          <Btn v="glass" size="md" icon={I.arrow} href="/pricing">
+            See full pricing & comparison
+          </Btn>
+        </div>
+      </section>
+
+      {/* built for — audience-specific value props in animated stacked tabs */}
+      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 pb-24">
+        <div className="mb-10 max-w-2xl">
+          <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight leading-[0.96]">
+            Built for how you actually run.
+          </h2>
+          <p className="mt-4 text-lg text-muted leading-relaxed">
+            Whatever shape your business takes, FormaCore fits the way you work — pick yours.
+          </p>
+        </div>
+
+        <AnimatedTabs tabs={audiences} autoAdvanceMs={6000}>
+          {(a) => (
+            <div
+              className={cn(
+                'relative h-full w-full overflow-hidden rounded-[2rem] bg-gradient-to-br p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-12',
+                a.panelClassName,
+              )}
+            >
+              {/* decorative glow + oversized corner icon */}
+              <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+              {a.iconImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={a.iconImage}
+                  alt=""
+                  aria-hidden
+                  className="pointer-events-none absolute -bottom-10 -right-10 h-56 w-56 object-contain opacity-[0.06] brightness-0 invert"
+                />
+              ) : (
+                <Icon
+                  d={a.icon}
+                  c="pointer-events-none absolute -bottom-10 -right-10 h-56 w-56 text-white/[0.06]"
+                  sw={1.5}
+                />
+              )}
+
+              <div className="relative flex h-full flex-col">
+                <span className="inline-flex w-fit items-center rounded-pill bg-white/15 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-white/90 ring-1 ring-inset ring-white/20">
+                  {a.eyebrow}
+                </span>
+                <h3 className="mt-5 max-w-2xl font-display text-2xl font-black leading-[1.05] tracking-tight text-white sm:text-3xl md:text-[2.5rem]">
+                  {a.headline}
+                </h3>
+                <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base md:text-lg">
+                  {a.subline}
+                </p>
+
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setModal('demo')}
+                    className="inline-flex h-11 items-center gap-2 rounded-btn bg-white px-5 text-sm font-semibold text-neutral-900 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] transition hover:bg-white/90 active:bg-white/80"
+                  >
+                    Book a free demo
+                  </button>
+                  <Link
+                    href="/pricing"
+                    className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
+                  >
+                    See pricing
+                    <Icon d={I.arrow} c="h-4 w-4" />
+                  </Link>
+                </div>
+
+                {/* stats strip */}
+                <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 md:grid-cols-4">
+                  {a.stats.map((s) => (
+                    <div key={s.label}>
+                      <div className="font-display text-2xl font-black tracking-tight text-white md:text-3xl">
+                        {s.value}
+                      </div>
+                      <div className="mt-1.5 text-xs leading-snug text-white/70">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </AnimatedTabs>
+      </section>
+
+      {/* contact */}
+      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-8 pb-24">
+        <div className="grid items-start gap-12 lg:grid-cols-2 lg:gap-16">
+          {/* left: copy + map */}
+          <div>
+            <span className="grid h-12 w-12 place-items-center rounded-card bg-gradient-to-br from-violet-600/35 to-pink-500/30 ring-1 ring-inset ring-violet-600/25 shadow-[0_10px_30px_-8px_rgba(124,58,237,0.45)]">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-6 w-6 text-violet-600 dark:text-violet-300"
+              >
+                <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+                <path d="m3 6.5 9 6 9-6" />
+              </svg>
+            </span>
+            <h2 className="mt-7 font-display text-4xl lg:text-[3.25rem] font-black tracking-tight leading-[0.95]">
+              Contact us
+            </h2>
+            <p className="mt-5 max-w-md text-lg text-muted leading-relaxed">
+              We are always looking for ways to improve our products and services. Contact us and
+              let us know how we can help you.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-strong">
+              <a href="mailto:contact@formacore.io" className="transition hover:text-fg">
+                contact@formacore.io
+              </a>
+              <span className="text-dim">•</span>
+              <a href="tel:+995322000000" className="transition hover:text-fg">
+                +995 (32) 2 00 00 00
+              </a>
+              <span className="text-dim">•</span>
+              <a href="mailto:support@formacore.io" className="transition hover:text-fg">
+                support@formacore.io
+              </a>
+            </div>
+
+            {/* dotted world map + "we are here" pin */}
+            <div className="relative mt-12 aspect-[139/70] w-full max-w-lg">
+              <div
+                className="absolute inset-0 bg-fg/[0.22]"
+                style={{
+                  maskImage: 'url(/dotted-world-map.svg)',
+                  WebkitMaskImage: 'url(/dotted-world-map.svg)',
+                  maskSize: 'contain',
+                  WebkitMaskSize: 'contain',
+                  maskRepeat: 'no-repeat',
+                  WebkitMaskRepeat: 'no-repeat',
+                  maskPosition: 'center',
+                  WebkitMaskPosition: 'center',
+                }}
+              />
+              <div
+                className="absolute -translate-x-1/2 -translate-y-1/2"
+                style={{ left: '62%', top: '32%' }}
+              >
+                {/* beam */}
+                <span className="absolute bottom-2 left-1/2 h-6 w-px -translate-x-1/2 bg-gradient-to-t from-violet-500/0 to-violet-500/80" />
+                {/* glowing pin */}
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-500 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-violet-500 shadow-[0_0_14px_3px_rgba(124,58,237,0.7)]" />
+                </span>
+                {/* label */}
+                <div className="absolute bottom-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-overlay/[0.08] px-2.5 py-1 text-xs font-medium text-fg ring-1 ring-inset ring-overlay/15 backdrop-blur">
+                  We are here
+                </div>
           <div className="from-surface pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r" />
           <div className="from-surface pointer-events-none absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l" />
         </div>
@@ -461,6 +697,7 @@ export default function PlatformLanding() {
                     className={contactInputCls}
                     type="text"
                     name="name"
+                    placeholder="David Iobashvili"
                     placeholder="Manu Arora"
                   />
                 </label>

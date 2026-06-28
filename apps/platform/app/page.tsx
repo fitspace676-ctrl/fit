@@ -1,4 +1,9 @@
+import type { Metadata } from 'next';
 import PlatformLanding from '@/components/marketing/platform-landing';
+
+export const metadata: Metadata = {
+  title: 'FormaCore - Built For The Businesses That Move People.',
+};
 
 /**
  * Marketing homepage — the apex (`formacore.io`) acquisition surface. A faithful
