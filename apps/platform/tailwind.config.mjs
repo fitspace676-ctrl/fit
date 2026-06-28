@@ -46,6 +46,10 @@ export default {
     './app/**/*.{ts,tsx,mdx}',
     './components/**/*.{ts,tsx,mdx}',
     './registry/**/*.{ts,tsx,mdx}',
+    // The audience hero/tab gradient classes (`from-violet-700`, …) live here as
+    // data, so this dir must be scanned or those classes get purged (leaving the
+    // panels transparent — unreadable on the light surface).
+    './data/**/*.{ts,tsx,mdx}',
   ],
   // The landing ships both a dark and a light theme; `.dark` on <html> selects
   // dark. The semantic tokens below resolve to CSS variables (see globals.css)

@@ -31,7 +31,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Formacore — Run your gym on one platform',
+  title: 'Formacore - Run your gym on one platform',
   description:
     'Memberships, class booking, trainer scheduling, payments, and a branded member app — the all-in-one operating system for modern gyms and studios.',
   icons: { icon: '/favicon.png' },

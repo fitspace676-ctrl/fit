@@ -91,4 +91,106 @@
       opacity: 0;
     }
   }
+
+  /* Header search panel reveal — drops in from under the nav bar. */
+  @keyframes search-drop {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .search-drop {
+      animation: none !important;
+    }
+  }
+
+  /* Animated tabs — the newly-active card dips down then settles back up, like
+     the top card lifting off a deck (the Aceternity/Inspira "Animated Tabs"
+     y:[0,40,0] bounce). Replayed on every tab switch via a remount key. */
+  @keyframes tab-card-pop {
+    0% {
+      transform: translateY(0);
+    }
+    45% {
+      transform: translateY(48px);
+    }
+    100% {
+      transform: translateY(0);
+    }
+  }
+  .tab-card-pop {
+    animation: tab-card-pop 1100ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tab-card-pop {
+      animation: none !important;
+    }
+  }
+}
+
+/* Animated gradient border — the rotating conic-gradient "AI gradient" card edge.
+   Dependency-free port (no motion lib): a registered custom property drives the
+   conic-gradient's start angle so a plain CSS keyframe can spin it. `@property`
+   lives at the top level (outside @layer) so the angle is animatable. */
+@property --border-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes border-angle-spin {
+  to {
+    --border-angle: 360deg;
+  }
+}
+.gradient-border-track {
+  background-image: conic-gradient(
+    from var(--border-angle),
+    transparent 0%,
+    #f472b600 5%,
+    #f472b6 10%,
+    #c084fc 18%,
+    #818cf8 26%,
+    #38bdf8 34%,
+    #2dd4bf 42%,
+    #fbbf24 46%,
+    #fbbf2400 52%,
+    transparent 56%
+  );
+  animation: border-angle-spin 4s linear infinite;
+}
+.gradient-border-glow-mask {
+  -webkit-mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, transparent 50%, black 100%);
+  mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, transparent 50%, black 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gradient-border-track {
+    animation: none;
+  }
+}
+
+/* Comparison-table checkmark — the tick strokes itself in when the table scrolls
+   into view (stroke-dashoffset draw), staggered via a per-cell --check-delay. */
+@keyframes check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.animated-check path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+}
+.animated-check.is-drawn path {
+  animation: check-draw 450ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation-delay: var(--check-delay, 0ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .animated-check path {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
 }
