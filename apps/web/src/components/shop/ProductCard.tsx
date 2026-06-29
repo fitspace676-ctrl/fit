@@ -2,6 +2,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { ProductSummary } from '@fit/types';
 import { formatMoney } from '@/lib/shop';
 import { Card, Icon } from '@/src/components/ui';
+import { AddToCartButton } from './AddToCartButton';
 
 export interface ProductCardProps {
   product: ProductSummary;
@@ -52,9 +53,12 @@ export function ProductCard({ product }: ProductCardProps) {
         )}
       </div>
 
-      <p className="mt-auto font-mono text-base font-semibold text-brand-600 dark:text-brand-300">
-        {showFrom ? t('browse.fromPrice', { price }) : price}
-      </p>
+      <div className="mt-auto flex items-center justify-between gap-2">
+        <p className="font-mono text-base font-semibold text-brand-600 dark:text-brand-300">
+          {showFrom ? t('browse.fromPrice', { price }) : price}
+        </p>
+        <AddToCartButton product={product} />
+      </div>
     </Card>
   );
 }

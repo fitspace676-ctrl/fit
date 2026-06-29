@@ -99,6 +99,13 @@ export function MemberHeader() {
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <ThemeToggle />
+          <Link
+            href="/cart"
+            aria-label={t('nav.cart')}
+            className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
+          >
+            <Icon name="bag" className="h-5 w-5" />
+          </Link>
           <Notifications />
 
           <Link
