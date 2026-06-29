@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getActiveGymId } from '@/lib/active-gym';
+import { getServerSession } from '@/lib/session';
+import { fetchMyGoals } from '@/lib/goals';
 import { TrainersBrowser } from '@/src/components/trainers/TrainersBrowser';
 import { parseFilters } from '@/src/components/trainers/trainer-filters';
+import { GoalsCard } from '@/src/components/member/goals/goals-card';
 
 export const metadata: Metadata = {
   title: 'Trainers — Fit',
@@ -40,8 +43,14 @@ export default async function TrainersPage({
   const [{ locale }, sp] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
 
-  const [t, gymId] = await Promise.all([getTranslations('trainers'), getActiveGymId()]);
+  const [t, gymId, session] = await Promise.all([
+    getTranslations('trainers'),
+    getActiveGymId(),
+    getServerSession(),
+  ]);
 
+  // The "Your goals" card is member-only; signed-out visitors just see the roster.
+  const goals = session ? await fetchMyGoals().catch(() => []) : [];
   const filters = parseFilters(sp);
 
   return (
@@ -52,6 +61,8 @@ export default async function TrainersPage({
         </h1>
         <p className="text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
       </header>
+
+      {session ? <GoalsCard initialGoals={goals} /> : null}
 
       <TrainersBrowser gymId={gymId} initialFilters={filters} />
     </div>

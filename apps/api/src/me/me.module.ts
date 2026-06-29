@@ -3,6 +3,8 @@ import { MeSubscriptionController } from './me-subscription.controller';
 import { MeSubscriptionService } from './me-subscription.service';
 import { MeProfileController } from './me-profile.controller';
 import { MeProfileService } from './me-profile.service';
+import { MeGoalsController } from './me-goals.controller';
+import { MeGoalsService } from './me-goals.service';
 
 /**
  * Member self-service ("/me/*").
@@ -14,7 +16,7 @@ import { MeProfileService } from './me-profile.service';
  * client, guards, and tenant context come from `TenantModule` / `RbacModule`.
  */
 @Module({
-  controllers: [MeSubscriptionController, MeProfileController],
-  providers: [MeSubscriptionService, MeProfileService],
+  controllers: [MeSubscriptionController, MeProfileController, MeGoalsController],
+  providers: [MeSubscriptionService, MeProfileService, MeGoalsService],
 })
 export class MeModule {}

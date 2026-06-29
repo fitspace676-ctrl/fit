@@ -295,6 +295,7 @@ model Gym {
   subscriptionPlans SubscriptionPlan[]
   subscriptions     Subscription[]
   creditPacks       CreditPack[]
+  memberGoals       MemberGoal[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -381,10 +382,34 @@ model GymMember {
   orders        Order[]
   subscriptions Subscription[]
   creditPacks   CreditPack[]
+  goals         MemberGoal[]
 
   @@unique([userId, gymId])
   @@index([gymId])
   @@map("gym_members")
+}
+
+/// A member's personal training goal (e.g. "Workouts / week", current vs target),
+/// shown on the member portal's trainer screen. Tenant-scoped by `gymId`; owned by
+/// the member, edited via `PUT /me/goals`. `position` preserves display order.
+model MemberGoal {
+  id        String   @id @default(cuid())
+  gymId     String
+  memberId  String
+  label     String
+  current   Float    @default(0)
+  target    Float
+  unit      String   @default("")
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gym    Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member GymMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@index([memberId])
+  @@map("member_goals")
 }
 
 /// A trainer profile a gym curates from the staff console (T4.4). A gym-scoped

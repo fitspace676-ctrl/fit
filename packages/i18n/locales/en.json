@@ -856,6 +856,24 @@
       "errCheckout": "Checkout failed, try again",
       "errPrice": "Prices changed — review your cart",
       "pickLocation": "Choose a pickup location"
+    },
+    "goals": {
+      "title": "Your goals",
+      "edit": "Edit",
+      "add": "Add goal",
+      "addFirst": "Add a goal",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "remove": "Remove",
+      "empty": "No goals yet — set a target to track your progress.",
+      "saved": "Goals saved",
+      "error": "Couldn't save goals",
+      "signIn": "Please sign in",
+      "labelPh": "Goal (e.g. Workouts / week)",
+      "unitPh": "unit",
+      "current": "Current",
+      "target": "Target"
     }
   }
 }
