@@ -37,7 +37,8 @@
         "title": "No bookings yet",
         "subtitle": "When you book a class it will show up here, along with your past sessions.",
         "action": "Browse classes"
-      }
+      },
+      "cancel": "Cancel"
     }
   },
   "common": {
@@ -708,6 +709,18 @@
       "upcomingBookings": "Your upcoming bookings",
       "confirmed": "Confirmed",
       "waitlist": "Waitlist · #{position}"
+    },
+    "actions": {
+      "booked": "Booked! See you there",
+      "waitlisted": "Added to the waitlist",
+      "canceled": "Booking canceled",
+      "working": "…",
+      "errAlreadyBooked": "You're already booked",
+      "errNotBookable": "This class can't be booked",
+      "errWindowPassed": "Cancellation window has passed",
+      "errNotFound": "No booking found",
+      "errAuth": "Please sign in",
+      "errGeneric": "Something went wrong"
     }
   }
 }
