@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getActiveGymId } from '@/lib/active-gym';
 import { fetchClassInstance } from '@/lib/classes';
 import { Link } from '@/src/i18n/navigation';
+import { Icon } from '@/src/components/ui';
 import { ClassDetail } from '@/src/components/classes/ClassDetail';
 import { ClassNotFound } from '@/src/components/classes/ClassNotFound';
 
@@ -64,16 +65,16 @@ export default async function ClassDetailPage({ params }: { params: Promise<Clas
   const [t, instance] = await Promise.all([getTranslations('classes'), loadInstance(id)]);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-gutter py-10">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
       <Link
         href="/classes"
-        className="mb-8 inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900"
+        className="inline-flex items-center gap-1 text-sm font-medium text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
       >
-        <span aria-hidden>←</span>
+        <Icon name="chevronLeft" className="h-4 w-4" sw={2.2} />
         {t('detail.back')}
       </Link>
 
       {instance ? <ClassDetail instance={instance} /> : <ClassNotFound />}
-    </main>
+    </div>
   );
 }

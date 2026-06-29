@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { ProductSummary } from '@fit/types';
 import { fetchProducts } from '@/lib/shop';
+import { Btn, Card } from '@/src/components/ui';
 import { EmptyShop } from './EmptyShop';
 import { ProductsGrid } from './ProductsGrid';
 
@@ -57,21 +58,21 @@ export function ShopBrowser({ gymId }: ShopBrowserProps) {
   }, [gymId, reloadKey]);
 
   if (load.status === 'loading') {
-    return <p className="py-16 text-center text-sm text-slate-400">{t('browse.loading')}</p>;
+    return (
+      <p className="py-16 text-center text-sm text-ink-500 dark:text-ink-400">
+        {t('browse.loading')}
+      </p>
+    );
   }
 
   if (load.status === 'error') {
     return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <p className="text-sm text-slate-500">{t('browse.error')}</p>
-        <button
-          type="button"
-          onClick={() => setReloadKey((key) => key + 1)}
-          className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-        >
+      <Card glow className="flex flex-col items-center gap-4 px-6 py-16 text-center">
+        <p className="text-sm text-ink-600 dark:text-ink-300">{t('browse.error')}</p>
+        <Btn v="outline" onClick={() => setReloadKey((key) => key + 1)}>
           {t('retry')}
-        </button>
-      </div>
+        </Btn>
+      </Card>
     );
   }
 

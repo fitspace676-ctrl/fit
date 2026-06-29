@@ -4,6 +4,7 @@ import { getActiveGymId } from '@/lib/active-gym';
 import { fetchTrainer } from '@/lib/trainers';
 import { fetchTrainerReviews } from '@/lib/reviews';
 import { Link } from '@/src/i18n/navigation';
+import { Icon } from '@/src/components/ui';
 import { TrainerNotFound } from '@/src/components/trainers/TrainerNotFound';
 import { TrainerProfile } from '@/src/components/trainers/TrainerProfile';
 import { TrainerReviews } from '@/src/components/trainers/TrainerReviews';
@@ -93,17 +94,17 @@ export default async function TrainerDetailPage({
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-gutter py-10">
+    <div className="space-y-8">
       <Link
         href="/trainers"
-        className="mb-8 inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900"
+        className="inline-flex items-center gap-1 text-sm font-semibold text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
       >
-        <span aria-hidden>←</span>
+        <Icon name="chevronLeft" className="h-4 w-4" sw={2} />
         {t('detail.back')}
       </Link>
 
       {trainer ? (
-        <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-8">
           <TrainerProfile trainer={trainer} />
           <TrainerSchedule schedule={trainer.schedule} />
           <TrainerReviews
@@ -115,6 +116,6 @@ export default async function TrainerDetailPage({
       ) : (
         <TrainerNotFound />
       )}
-    </main>
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { DEFAULT_CLASS_VIEW, type ClassCalendarView, type ClassInstanceCard } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchClassInstances } from '@/lib/classes';
+import { Btn, Card } from '@/src/components/ui';
 import { ClassDetailDrawer } from './ClassDetailDrawer';
 import { ClassFilters } from './ClassFilters';
 import { ClassListView } from './ClassListView';
@@ -144,32 +145,26 @@ export function ClassesBrowser({
       )}
 
       {load.status === 'loading' ? (
-        <p className="py-16 text-center text-sm text-slate-400">{t('loading')}</p>
+        <p className="py-16 text-center text-sm text-ink-400">{t('loading')}</p>
       ) : load.status === 'error' ? (
-        <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="text-sm text-slate-500">{t('error')}</p>
-          <button
-            type="button"
-            onClick={() => setWeek(new Date(week))}
-            className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
+        <Card glow className="flex flex-col items-center gap-3 py-16 text-center">
+          <p className="text-sm text-ink-500 dark:text-ink-400">{t('error')}</p>
+          <Btn v="outline" size="sm" onClick={() => setWeek(new Date(week))}>
             {t('retry')}
-          </button>
-        </div>
+          </Btn>
+        </Card>
       ) : load.instances.length > 0 && filtered.length === 0 ? (
         // Classes exist this week but the active filters exclude them all — a
         // distinct state from "no classes this week", with a one-tap reset.
-        <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="text-sm font-medium text-slate-900">{t('filters.noMatch.title')}</p>
-          <p className="text-sm text-slate-500">{t('filters.noMatch.subtitle')}</p>
-          <button
-            type="button"
-            onClick={() => setFilters(EMPTY_FILTERS)}
-            className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
+        <Card glow className="flex flex-col items-center gap-3 py-16 text-center">
+          <p className="font-display text-base font-bold text-ink-900 dark:text-white">
+            {t('filters.noMatch.title')}
+          </p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{t('filters.noMatch.subtitle')}</p>
+          <Btn v="outline" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
             {t('filters.noMatch.action')}
-          </button>
-        </div>
+          </Btn>
+        </Card>
       ) : view === 'week' ? (
         <WeekCalendar
           instances={filtered}
@@ -206,7 +201,7 @@ function ViewToggle({
     <div
       role="group"
       aria-label={groupLabel}
-      className="inline-flex self-start rounded-card border border-slate-200 p-0.5"
+      className="inline-flex self-start rounded-pill border border-ink-200 p-0.5 dark:border-white/10"
     >
       {(['week', 'list'] as const).map((value) => {
         const active = view === value;
@@ -216,8 +211,10 @@ function ViewToggle({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(value)}
-            className={`rounded-[0.5rem] px-4 py-1.5 text-sm font-medium transition-colors ${
-              active ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+            className={`rounded-pill px-4 py-1.5 text-sm font-semibold transition-colors ${
+              active
+                ? 'bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_6px_24px_-8px_rgba(98,87,227,0.7)]'
+                : 'text-ink-600 hover:bg-ink-50 dark:text-ink-300 dark:hover:bg-white/5'
             }`}
           >
             {value === 'week' ? weekLabel : listLabel}

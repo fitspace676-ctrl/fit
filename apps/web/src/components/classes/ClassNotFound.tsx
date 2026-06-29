@@ -1,5 +1,6 @@
 import { useTranslations } from 'next-intl';
 import { Link } from '@/src/i18n/navigation';
+import { buttonClasses, Card, Icon } from '@/src/components/ui';
 
 /**
  * Shown on the class detail page when the id resolves to no occurrence for the
@@ -11,18 +12,22 @@ export function ClassNotFound() {
   const t = useTranslations('classes');
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-card border border-dashed border-slate-200 bg-slate-50/60 px-6 py-16 text-center">
-      <span aria-hidden className="text-3xl">
-        🔍
-      </span>
-      <p className="text-base font-semibold text-slate-900">{t('detail.notFound.title')}</p>
-      <p className="max-w-sm text-sm text-slate-500">{t('detail.notFound.subtitle')}</p>
-      <Link
-        href="/classes"
-        className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+    <Card glow className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+      <span
+        aria-hidden
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-white/10 dark:text-brand-300"
       >
+        <Icon name="search" className="h-6 w-6" sw={2} />
+      </span>
+      <p className="font-display text-base font-bold text-ink-900 dark:text-white">
+        {t('detail.notFound.title')}
+      </p>
+      <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
+        {t('detail.notFound.subtitle')}
+      </p>
+      <Link href="/classes" className={buttonClasses('outline', 'sm', 'mt-1')}>
         {t('detail.notFound.action')}
       </Link>
-    </div>
+    </Card>
   );
 }

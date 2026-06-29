@@ -721,6 +721,104 @@
       "errNotFound": "ჯავშანი ვერ მოიძებნა",
       "errAuth": "გთხოვ შეხვიდე",
       "errGeneric": "რაღაც ვერ მოხერხდა"
+    },
+    "membership": {
+      "title": "აბონემენტი",
+      "changePlan": "გეგმის შეცვლა",
+      "choosePlan": "აირჩიე გეგმა",
+      "status": {
+        "ACTIVE": "აქტიური",
+        "FROZEN": "გაყინული",
+        "CANCELED": "გაუქმებული",
+        "PAST_DUE": "ვადაგადაცილებული",
+        "EXPIRED": "არააქტიური"
+      },
+      "noPlan": "აქტიური გეგმა არ არის",
+      "noPlanHint": "აირჩიე გეგმა გაკვეთილების, მწვრთნელებისა და ფასდაკლების მისაღებად.",
+      "perks": "შეუზღუდავი გაკვეთილები · 1 სტუმარი / თვე · −10% მაღაზია",
+      "nextBilling": "შემდეგი გადახდა",
+      "memberSince": "წევრი",
+      "viewBookings": "ჩემი ჯავშნები",
+      "shopMember": "წევრის მაღაზია",
+      "paymentMethod": "გადახდის მეთოდი",
+      "payAtDesk": "გადახდა ადგილზე",
+      "thisPeriod": "ამ პერიოდში",
+      "classes": "გაკვეთილი",
+      "ptCredits": "PT კრედიტი",
+      "buyMore": "სესიების ყიდვა",
+      "invoices": "გადახდების ისტორია",
+      "invoice": "ინვოისი",
+      "date": "თარიღი",
+      "amount": "თანხა",
+      "statusCol": "სტატუსი",
+      "invoiceStatus": {
+        "PAID": "გადახდილი",
+        "PENDING": "მოლოდინში",
+        "FAILED": "ვერ შესრულდა",
+        "REFUNDED": "დაბრუნებული"
+      },
+      "noInvoices": "ინვოისები ჯერ არ არის"
+    },
+    "profile": {
+      "title": "პროფილი",
+      "save": "შენახვა",
+      "saved": "პროფილი შენახულია",
+      "namePlaceholder": "შენი სახელი",
+      "emailPlaceholder": "you@email.com",
+      "premiumMember": "Premium წევრი",
+      "changePhoto": "ფოტოს შეცვლა",
+      "checkIns": "გამოცხადება",
+      "credits": "კრედიტი",
+      "id": "ID",
+      "personalInfo": "პერსონალური ინფორმაცია",
+      "fields": {
+        "firstName": "სახელი",
+        "lastName": "გვარი",
+        "email": "ელფოსტა",
+        "phone": "ტელეფონი",
+        "emergency": "საგანგებო კონტაქტი",
+        "address": "მისამართი"
+      },
+      "preferences": "პრეფერენსები",
+      "language": "ენა",
+      "units": "ერთეულები",
+      "unit": {
+        "metric": "მეტრული",
+        "imperial": "იმპერიული"
+      },
+      "theme": "თემა",
+      "themeName": {
+        "light": "ნათელი",
+        "dark": "მუქი"
+      },
+      "notifications": "შეტყობინებები",
+      "notif": {
+        "reminders": {
+          "title": "გაკვეთილის შეხსენება",
+          "desc": "დაჯავშნილ გაკვეთილებამდე"
+        },
+        "bookings": {
+          "title": "ჯავშნის განახლება",
+          "desc": "დადასტურება და მოლოდინის სია"
+        },
+        "billing": {
+          "title": "გადახდები",
+          "desc": "გადახდები და განახლებები"
+        },
+        "promotions": {
+          "title": "აქციები",
+          "desc": "შეთავაზებები და ბენეფიტები"
+        }
+      },
+      "security": "უსაფრთხოება",
+      "changePassword": "პაროლის შეცვლა",
+      "twoFa": "ორფაქტორიანი ავთენტიფიკაცია",
+      "twoFaOn": "ჩართულია",
+      "twoFaOff": "დაამატე დაცვის დამატებითი ფენა",
+      "deleteTitle": "ანგარიშის წაშლა",
+      "deleteDesc": "სამუდამოდ წაშალე შენი ანგარიში და მონაცემები.",
+      "delete": "წაშლა",
+      "deleteToast": "ანგარიშის წასაშლელად დაუკავშირდი მიმღებს"
     }
   }
 }

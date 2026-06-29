@@ -28,13 +28,15 @@ export default async function ShopPage({ params }: { params: Promise<{ locale: s
   const [t, gymId] = await Promise.all([getTranslations('shop'), getActiveGymId()]);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-gutter py-10">
-      <header className="mb-8 flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
-        <p className="text-sm text-slate-500">{t('subtitle')}</p>
+    <div className="space-y-6">
+      <header className="flex flex-col gap-1">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          {t('title')}
+        </h1>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
       </header>
 
       <ShopBrowser gymId={gymId} />
-    </main>
+    </div>
   );
 }

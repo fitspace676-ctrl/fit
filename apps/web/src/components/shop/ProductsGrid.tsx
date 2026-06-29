@@ -7,8 +7,8 @@ export interface ProductsGridProps {
 }
 
 /**
- * Responsive card grid for the shop listing: one column on phones, two on
- * tablets, three on desktop. Stateless — the parent supplies the products.
+ * Responsive card grid for the shop listing: two columns on phones, four on
+ * desktop. Stateless — the parent supplies the products.
  */
 export function ProductsGrid({ products }: ProductsGridProps) {
   const t = useTranslations('shop');
@@ -16,7 +16,7 @@ export function ProductsGrid({ products }: ProductsGridProps) {
   return (
     <ul
       aria-label={t('grid.label')}
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      className="grid grid-cols-2 gap-4 lg:grid-cols-4"
     >
       {products.map((product) => (
         <li key={product.id} className="flex">

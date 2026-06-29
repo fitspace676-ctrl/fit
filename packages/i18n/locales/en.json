@@ -721,6 +721,104 @@
       "errNotFound": "No booking found",
       "errAuth": "Please sign in",
       "errGeneric": "Something went wrong"
+    },
+    "membership": {
+      "title": "Membership",
+      "changePlan": "Change plan",
+      "choosePlan": "Choose a plan",
+      "status": {
+        "ACTIVE": "Active",
+        "FROZEN": "Frozen",
+        "CANCELED": "Canceled",
+        "PAST_DUE": "Past due",
+        "EXPIRED": "Inactive"
+      },
+      "noPlan": "No active plan",
+      "noPlanHint": "Pick a plan to unlock classes, trainers and member pricing.",
+      "perks": "Unlimited classes · 1 guest pass / mo · −10% shop",
+      "nextBilling": "Next billing",
+      "memberSince": "Member since",
+      "viewBookings": "My bookings",
+      "shopMember": "Member shop",
+      "paymentMethod": "Payment method",
+      "payAtDesk": "Pay at desk",
+      "thisPeriod": "This period",
+      "classes": "classes",
+      "ptCredits": "PT credits",
+      "buyMore": "Buy more sessions",
+      "invoices": "Invoice history",
+      "invoice": "Invoice",
+      "date": "Date",
+      "amount": "Amount",
+      "statusCol": "Status",
+      "invoiceStatus": {
+        "PAID": "Paid",
+        "PENDING": "Pending",
+        "FAILED": "Failed",
+        "REFUNDED": "Refunded"
+      },
+      "noInvoices": "No invoices yet"
+    },
+    "profile": {
+      "title": "Profile",
+      "save": "Save changes",
+      "saved": "Profile saved",
+      "namePlaceholder": "Your name",
+      "emailPlaceholder": "you@email.com",
+      "premiumMember": "Premium member",
+      "changePhoto": "Change photo",
+      "checkIns": "Check-ins",
+      "credits": "Credits",
+      "id": "ID",
+      "personalInfo": "Personal information",
+      "fields": {
+        "firstName": "First name",
+        "lastName": "Last name",
+        "email": "Email",
+        "phone": "Phone",
+        "emergency": "Emergency contact",
+        "address": "Address"
+      },
+      "preferences": "Preferences",
+      "language": "Language",
+      "units": "Units",
+      "unit": {
+        "metric": "Metric",
+        "imperial": "Imperial"
+      },
+      "theme": "Theme",
+      "themeName": {
+        "light": "Light",
+        "dark": "Dark"
+      },
+      "notifications": "Notifications",
+      "notif": {
+        "reminders": {
+          "title": "Class reminders",
+          "desc": "Before your booked classes"
+        },
+        "bookings": {
+          "title": "Booking updates",
+          "desc": "Confirmations and waitlist moves"
+        },
+        "billing": {
+          "title": "Billing",
+          "desc": "Payments and renewals"
+        },
+        "promotions": {
+          "title": "Promotions",
+          "desc": "Offers and member perks"
+        }
+      },
+      "security": "Security",
+      "changePassword": "Change password",
+      "twoFa": "Two-factor authentication",
+      "twoFaOn": "Enabled",
+      "twoFaOff": "Add an extra layer of security",
+      "deleteTitle": "Delete account",
+      "deleteDesc": "Permanently remove your account and data.",
+      "delete": "Delete",
+      "deleteToast": "Contact the front desk to delete your account"
     }
   }
 }

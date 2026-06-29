@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 import { useTranslations } from 'next-intl';
+import { Card } from '@/src/components/ui';
 import { hasActiveFilters, type TrainerFacets, type TrainerFilterState } from './trainer-filters';
 
 export interface TrainerFiltersProps {
@@ -44,88 +45,90 @@ export function TrainerFilters({ facets, filters, onChange }: TrainerFiltersProp
   };
 
   return (
-    <div role="group" aria-label={t('groupLabel')} className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex min-w-[14rem] flex-1 flex-col gap-1.5">
-          <label
-            htmlFor={searchId}
-            className="text-xs font-medium uppercase tracking-wide text-slate-400"
-          >
-            {t('search')}
-          </label>
-          <input
-            id={searchId}
-            type="search"
-            value={filters.search}
-            onChange={(event) => onChange({ ...filters, search: event.target.value })}
-            placeholder={t('searchPlaceholder')}
-            className="rounded-card border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus:border-brand-600 focus:outline-none"
-          />
+    <Card glow className="p-5">
+      <div role="group" aria-label={t('groupLabel')} className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex min-w-[14rem] flex-1 flex-col gap-1.5">
+            <label
+              htmlFor={searchId}
+              className="text-xs font-semibold uppercase tracking-wide text-ink-400"
+            >
+              {t('search')}
+            </label>
+            <input
+              id={searchId}
+              type="search"
+              value={filters.search}
+              onChange={(event) => onChange({ ...filters, search: event.target.value })}
+              placeholder={t('searchPlaceholder')}
+              className="h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+            />
+          </div>
+
+          {locationOptions.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor={locationId}
+                className="text-xs font-semibold uppercase tracking-wide text-ink-400"
+              >
+                {t('location')}
+              </label>
+              <select
+                id={locationId}
+                value={filters.location ?? ''}
+                onChange={(event) => onChange({ ...filters, location: event.target.value || null })}
+                className="h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+              >
+                <option value="">{t('allLocations')}</option>
+                {locationOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {hasActiveFilters(filters) && (
+            <button
+              type="button"
+              onClick={() => onChange({ specialties: [], location: null, search: '' })}
+              className="h-11 self-end rounded-btn px-3 text-sm font-semibold text-ink-500 underline-offset-2 transition-colors hover:text-ink-900 hover:underline dark:text-ink-400 dark:hover:text-white"
+            >
+              {t('clear')}
+            </button>
+          )}
         </div>
 
-        {locationOptions.length > 0 && (
+        {specialtyOptions.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor={locationId}
-              className="text-xs font-medium uppercase tracking-wide text-slate-400"
-            >
-              {t('location')}
-            </label>
-            <select
-              id={locationId}
-              value={filters.location ?? ''}
-              onChange={(event) => onChange({ ...filters, location: event.target.value || null })}
-              className="rounded-card border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus:border-brand-600 focus:outline-none"
-            >
-              <option value="">{t('allLocations')}</option>
-              {locationOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+            <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+              {t('specialty')}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {specialtyOptions.map((option) => {
+                const active = filters.specialties.includes(option);
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => toggleSpecialty(option)}
+                    className={`inline-flex items-center rounded-pill border px-3 py-1 text-sm font-semibold transition-colors ${
+                      active
+                        ? 'border-transparent bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_6px_24px_-8px_rgba(98,87,227,0.7)]'
+                        : 'border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        )}
-
-        {hasActiveFilters(filters) && (
-          <button
-            type="button"
-            onClick={() => onChange({ specialties: [], location: null, search: '' })}
-            className="self-end rounded-card px-3 py-1.5 text-sm font-medium text-slate-500 underline-offset-2 transition-colors hover:text-slate-700 hover:underline"
-          >
-            {t('clear')}
-          </button>
         )}
       </div>
-
-      {specialtyOptions.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            {t('specialty')}
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {specialtyOptions.map((option) => {
-              const active = filters.specialties.includes(option);
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => toggleSpecialty(option)}
-                  className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-                    active
-                      ? 'border-brand-600 bg-brand-50 text-brand-700'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {option}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
+    </Card>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useLocale, useTranslations } from 'next-intl';
 import type { ClassInstanceDetail } from '@fit/types';
+import { Badge, Card, Occupancy } from '@/src/components/ui';
 import { ClassBookingCta } from './ClassBookingCta';
 import { formatDate, formatTime } from './date-utils';
 
@@ -13,7 +14,7 @@ export interface ClassDetailProps {
  * live capacity, plus the auth-gated booking CTA.
  *
  * Reuses the calendar's pure date helpers so the detail page and the calendar
- * format times identically, and the same capacity-bar treatment as the calendar
+ * format times identically, and the same capacity treatment as the calendar
  * drawer. Mostly a static Server Component; only the booking CTA
  * ({@link ClassBookingCta}) is a client island. When the occurrence is no longer
  * `SCHEDULED` (a shared link to a since-canceled / completed class) a banner
@@ -25,32 +26,31 @@ export function ClassDetail({ instance }: ClassDetailProps) {
 
   const spotsLeft = Math.max(instance.capacity - instance.bookedCount, 0);
   const isFull = spotsLeft === 0;
-  const bookedPct =
-    instance.capacity > 0 ? Math.min((instance.bookedCount / instance.capacity) * 100, 100) : 0;
   const isScheduled = instance.status === 'SCHEDULED';
 
   return (
-    <article className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <span
-          aria-hidden
-          className="h-3 w-3 rounded-full"
-          style={{ backgroundColor: instance.color }}
-        />
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-          {instance.category}
-        </span>
-      </div>
+    <Card glow className="flex flex-col gap-6 p-6">
+      {/* Accent colour bar from the class instance. */}
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-1"
+        style={{ backgroundColor: instance.color }}
+      />
 
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold text-slate-900">{instance.title}</h1>
-        <p className="text-sm text-slate-500">{formatDate(instance.startsAt, locale)}</p>
-      </header>
+      <div className="flex flex-col gap-3">
+        <Badge tone="brand">{instance.category}</Badge>
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">
+          {instance.title}
+        </h1>
+        <p className="text-sm text-ink-500 dark:text-ink-400">
+          {formatDate(instance.startsAt, locale)}
+        </p>
+      </div>
 
       {!isScheduled && (
         <p
           role="status"
-          className="rounded-card border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800"
+          className="rounded-btn border border-warning-300 bg-warning-50 px-4 py-3 text-sm font-medium text-warning-800 dark:border-warning-400/30 dark:bg-warning-400/10 dark:text-warning-100"
         >
           {instance.status === 'CANCELED'
             ? t('detail.status.canceled')
@@ -59,14 +59,16 @@ export function ClassDetail({ instance }: ClassDetailProps) {
       )}
 
       {instance.description && (
-        <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">
+        <p className="whitespace-pre-line text-sm leading-relaxed text-ink-600 dark:text-ink-300">
           {instance.description}
         </p>
       )}
 
-      <dl className="flex flex-col gap-3 border-y border-slate-100 py-5 text-sm">
+      <dl className="flex flex-col gap-3 border-y border-ink-200 py-5 text-sm dark:border-white/10">
         <DetailRow label={t('detail.time')}>
-          {formatTime(instance.startsAt, locale)} – {formatTime(instance.endsAt, locale)}
+          <span className="font-mono tabular-nums">
+            {formatTime(instance.startsAt, locale)} – {formatTime(instance.endsAt, locale)}
+          </span>
         </DetailRow>
         <DetailRow label={t('detail.duration')}>
           {t('detail.minutes', { count: instance.durationMinutes })}
@@ -81,19 +83,15 @@ export function ClassDetail({ instance }: ClassDetailProps) {
       </dl>
 
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-slate-700">{t('detail.capacity')}</span>
-          <span className="tabular-nums text-slate-500">
-            {instance.bookedCount} / {instance.capacity}
-          </span>
-        </div>
-        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-          <div
-            className={`h-full rounded-full ${isFull ? 'bg-red-400' : 'bg-brand-500'}`}
-            style={{ width: `${bookedPct}%` }}
-          />
-        </div>
-        <p className={`text-xs ${isFull ? 'text-red-600' : 'text-slate-500'}`}>
+        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">
+          {t('detail.capacity')}
+        </span>
+        <Occupancy value={instance.bookedCount} cap={instance.capacity} />
+        <p
+          className={`text-xs ${
+            isFull ? 'text-danger-600 dark:text-danger-300' : 'text-ink-500 dark:text-ink-400'
+          }`}
+        >
           {isFull ? t('card.full') : t('card.spotsLeft', { count: spotsLeft })}
         </p>
       </div>
@@ -103,7 +101,7 @@ export function ClassDetail({ instance }: ClassDetailProps) {
           <ClassBookingCta classId={instance.id} isFull={isFull} />
         </div>
       )}
-    </article>
+    </Card>
   );
 }
 
@@ -111,8 +109,8 @@ export function ClassDetail({ instance }: ClassDetailProps) {
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="text-right font-medium text-slate-900">{children}</dd>
+      <dt className="text-ink-500 dark:text-ink-400">{label}</dt>
+      <dd className="text-right font-medium text-ink-900 dark:text-white">{children}</dd>
     </div>
   );
 }

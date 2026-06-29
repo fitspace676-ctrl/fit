@@ -1,6 +1,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import type { ProductSummary } from '@fit/types';
 import { formatMoney } from '@/lib/shop';
+import { Card, Icon } from '@/src/components/ui';
 
 export interface ProductCardProps {
   product: ProductSummary;
@@ -26,30 +27,34 @@ export function ProductCard({ product }: ProductCardProps) {
   const price = formatMoney(showFrom ? lowest : product.priceAmount, product.currency, locale);
 
   return (
-    <article className="flex h-full flex-col gap-4 rounded-card border border-slate-200 bg-white p-5">
-      <div className="aspect-square w-full overflow-hidden rounded-card bg-slate-50">
+    <Card glow className="flex h-full flex-col gap-4 p-4">
+      <div className="aspect-square w-full overflow-hidden rounded-btn bg-ink-50 dark:bg-white/5">
         {product.imageUrl ? (
           <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
         ) : (
           <span
             aria-hidden
-            className="flex h-full w-full items-center justify-center text-4xl text-slate-300"
+            className="flex h-full w-full items-center justify-center text-ink-300 dark:text-ink-500"
           >
-            🛍️
+            <Icon name="bag" className="h-10 w-10" sw={1.8} />
           </span>
         )}
       </div>
 
       <div className="flex min-w-0 flex-col gap-1">
-        <h2 className="truncate text-base font-semibold text-slate-900">{product.name}</h2>
+        <h2 className="truncate text-base font-semibold text-ink-900 dark:text-white">
+          {product.name}
+        </h2>
         {product.description && (
-          <p className="line-clamp-2 text-sm text-slate-500">{product.description}</p>
+          <p className="line-clamp-2 text-sm text-ink-500 dark:text-ink-400">
+            {product.description}
+          </p>
         )}
       </div>
 
-      <p className="mt-auto text-base font-semibold text-brand-600">
+      <p className="mt-auto font-mono text-base font-semibold text-brand-600 dark:text-brand-300">
         {showFrom ? t('browse.fromPrice', { price }) : price}
       </p>
-    </article>
+    </Card>
   );
 }
