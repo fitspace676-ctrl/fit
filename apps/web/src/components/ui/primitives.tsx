@@ -57,7 +57,6 @@ export interface AvatarProps {
 /** A circular avatar image, optionally with the brand selection ring. */
 export function Avatar({ src, alt = '', ring = false, size = 'h-9 w-9', className = '' }: AvatarProps) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={alt}

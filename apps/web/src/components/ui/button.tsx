@@ -75,7 +75,6 @@ export function Btn({
   ...rest
 }: BtnProps) {
   return (
-    // eslint-disable-next-line react/button-has-type
     <button type={type} className={buttonClasses(v, size, className)} {...rest}>
       {icon && <Icon name={icon} className="h-4 w-4" sw={2} />}
       {children}
