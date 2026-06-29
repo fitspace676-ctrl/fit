@@ -1,12 +1,157 @@
 import preset from '@fit/config/tailwind';
 
 /**
- * Web Tailwind config — extends the shared @fit/config theme tokens so brand
- * colors, typography, spacing, and radii stay consistent across surfaces.
+ * Web Tailwind config.
+ *
+ * Extends the shared @fit/config theme, then layers the "formacore" member-portal
+ * design tokens on top (the Aurora-glass design system): the full brand/accent/
+ * iris/ink/success/warning/danger/info/flame palettes, the Manrope/Archivo/
+ * JetBrains type families, and the field/btn/card/pill radii. `darkMode: 'class'`
+ * drives the member portal's light/dark theme toggle — the `<html>` element gets
+ * a `dark` class from the ThemeProvider and every member surface reads it via
+ * Tailwind `dark:` variants.
+ *
+ * The new `brand` scale (electric indigo) overrides the preset's blue so the whole
+ * web surface shares one brand; the remaining palettes are additive.
  *
  * @type {import('tailwindcss').Config}
  */
 export default {
   presets: [preset],
+  darkMode: 'class',
   content: ['./app/**/*.{ts,tsx,mdx}', './components/**/*.{ts,tsx,mdx}', './src/**/*.{ts,tsx,mdx}'],
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          50: '#F2F1FE',
+          100: '#E8E6FD',
+          200: '#D3CFFB',
+          300: '#B5AEF7',
+          400: '#9184F1',
+          500: '#6257E3',
+          600: '#5044D2',
+          700: '#4536B5',
+          800: '#392E92',
+          900: '#312A74',
+          950: '#1E1A45',
+        },
+        accent: {
+          50: '#ECF1FF',
+          100: '#DCE6FF',
+          200: '#C0D2FF',
+          300: '#96B2FF',
+          400: '#6589FF',
+          500: '#3B5EF5',
+          600: '#2342EB',
+          700: '#1B33D8',
+          800: '#1C2DAE',
+          900: '#1D2C89',
+          950: '#151B52',
+        },
+        ink: {
+          50: '#F6F7F9',
+          100: '#ECEEF2',
+          200: '#D8DCE4',
+          300: '#B5BBC8',
+          400: '#8A92A4',
+          500: '#646D82',
+          600: '#4B5468',
+          700: '#394155',
+          800: '#232838',
+          900: '#151926',
+          950: '#0B0D15',
+        },
+        success: {
+          50: '#ECFDF3',
+          100: '#D1FADF',
+          200: '#A6F4C5',
+          300: '#6CE9A6',
+          400: '#32D583',
+          500: '#12B76A',
+          600: '#039855',
+          700: '#027A48',
+          800: '#05603A',
+          900: '#054F31',
+          950: '#022C1C',
+        },
+        warning: {
+          50: '#FFFAEB',
+          100: '#FEF0C7',
+          200: '#FEDF89',
+          300: '#FEC84B',
+          400: '#FDB022',
+          500: '#F79009',
+          600: '#DC6803',
+          700: '#B54708',
+          800: '#93370D',
+          900: '#7A2E0E',
+          950: '#4E1D09',
+        },
+        danger: {
+          50: '#FEF3F2',
+          100: '#FEE4E2',
+          200: '#FECDCA',
+          300: '#FDA29B',
+          400: '#F97066',
+          500: '#EF4444',
+          600: '#D92D20',
+          700: '#B42318',
+          800: '#912018',
+          900: '#7A271A',
+          950: '#4E1410',
+        },
+        info: {
+          50: '#EFF8FF',
+          100: '#D1E9FF',
+          200: '#B2DDFF',
+          300: '#84CAFF',
+          400: '#53B1FD',
+          500: '#2E90FA',
+          600: '#1570EF',
+          700: '#175CD3',
+          800: '#1849A9',
+          900: '#194185',
+          950: '#102A56',
+        },
+        iris: {
+          50: '#F4F3FF',
+          100: '#EBE9FE',
+          200: '#D9D6FE',
+          300: '#BDB4FE',
+          400: '#9B8AFB',
+          500: '#7A5AF8',
+          600: '#6938EF',
+          700: '#5925DC',
+          800: '#4A1FB8',
+          900: '#3E1C96',
+          950: '#27115F',
+        },
+        flame: {
+          50: '#FEF6EE',
+          100: '#FDEAD7',
+          200: '#F9DBAF',
+          300: '#F7B27A',
+          400: '#F38744',
+          500: '#EF6820',
+          600: '#E04F16',
+          700: '#B93815',
+          800: '#932F19',
+          900: '#772917',
+          950: '#511C10',
+        },
+      },
+      fontFamily: {
+        sans: ['var(--font-manrope)', 'Manrope', 'system-ui', 'sans-serif'],
+        display: ['var(--font-archivo)', 'Archivo', 'var(--font-manrope)', 'sans-serif'],
+        mono: ['var(--font-jetbrains)', 'JetBrains Mono', 'ui-monospace', 'monospace'],
+      },
+      borderRadius: {
+        field: '0.5rem',
+        btn: '0.75rem',
+        card: '1rem',
+        pill: '9999px',
+      },
+    },
+  },
 };

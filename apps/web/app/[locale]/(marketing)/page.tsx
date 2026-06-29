@@ -1,8 +1,8 @@
 import { setRequestLocale } from 'next-intl/server';
-import { Hero } from './_components/hero';
-import { Features } from './_components/features';
-import { Pricing } from './_components/pricing';
-import { Footer } from './_components/footer';
+import { Hero } from '../_components/hero';
+import { Features } from '../_components/features';
+import { Pricing } from '../_components/pricing';
+import { Footer } from '../_components/footer';
 
 /**
  * Public landing page — composes the marketing sections (hero, features,
