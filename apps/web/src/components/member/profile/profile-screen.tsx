@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { locales, type Locale } from '@fit/i18n';
 import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
 import { Badge, Btn, Card, Icon, Switch, useToast } from '@/src/components/ui';
 import { useTheme } from '@/src/components/theme/theme-provider';
+import { updateProfileAction } from '@/app/actions/profile';
 
 export interface ProfileScreenProps {
-  /** Member display name, when known (the profile endpoint is the remaining gap). */
+  /** Member display name (from GET /me/profile, or a placeholder). */
   name: string;
   email: string;
+  phone: string;
   memberId: string;
   /** Quick stats for the identity card. */
   attended: number;
@@ -27,19 +29,27 @@ const NOTIFS = ['reminders', 'bookings', 'billing', 'promotions'] as const;
  * held in local state and saved with a graceful action; the language and theme
  * controls take effect immediately.
  */
-export function ProfileScreen({ name, email, memberId, attended, credits }: ProfileScreenProps) {
+export function ProfileScreen({
+  name,
+  email,
+  phone,
+  memberId,
+  attended,
+  credits,
+}: ProfileScreenProps) {
   const t = useTranslations('member.profile');
   const activeLocale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
+  const [saving, startSaving] = useTransition();
 
   const [fields, setFields] = useState<Record<string, string>>({
     firstName: name.split(' ')[0] ?? '',
     lastName: name.split(' ').slice(1).join(' ') ?? '',
     email,
-    phone: '',
+    phone,
     emergency: '',
     address: '',
   });
@@ -58,10 +68,24 @@ export function ProfileScreen({ name, email, memberId, attended, credits }: Prof
   }
 
   function save(): void {
-    // The PATCH /me/profile endpoint is the remaining backend gap; until it ships
-    // the preferences that work client-side (language, theme) already persisted,
-    // and the rest is confirmed optimistically.
-    toast(t('saved'), { tone: 'success', icon: 'check' });
+    // Name + phone persist via PATCH /me/profile; the remaining preferences that
+    // work client-side (language, theme) have already been applied on change.
+    const fullName = `${fields.firstName ?? ''} ${fields.lastName ?? ''}`.trim();
+    startSaving(async () => {
+      const res = await updateProfileAction({
+        ...(fullName ? { name: fullName } : {}),
+        phone: (fields.phone ?? '').trim() || null,
+      });
+      if (res.ok) {
+        toast(t('saved'), { tone: 'success', icon: 'check' });
+        router.refresh();
+      } else {
+        toast(res.code === 'UNAUTHENTICATED' ? t('saveAuth') : t('saveError'), {
+          tone: 'danger',
+          icon: 'x',
+        });
+      }
+    });
   }
 
   return (
@@ -70,8 +94,8 @@ export function ProfileScreen({ name, email, memberId, attended, credits }: Prof
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
           {t('title')}
         </h1>
-        <Btn v="primary" icon="check" onClick={save}>
-          {t('save')}
+        <Btn v="primary" icon="check" onClick={save} disabled={saving}>
+          {saving ? t('saving') : t('save')}
         </Btn>
       </div>
 

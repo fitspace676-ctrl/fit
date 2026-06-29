@@ -818,7 +818,10 @@
       "deleteTitle": "Delete account",
       "deleteDesc": "Permanently remove your account and data.",
       "delete": "Delete",
-      "deleteToast": "Contact the front desk to delete your account"
+      "deleteToast": "Contact the front desk to delete your account",
+      "saving": "Saving…",
+      "saveAuth": "Please sign in",
+      "saveError": "Couldn't save, try again"
     },
     "cart": {
       "title": "Your cart",

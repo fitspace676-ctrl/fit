@@ -77,6 +77,8 @@ export enum Permission {
   ReportView = 'report:view',
   /** View the gym's audit log of privileged actions. */
   AuditRead = 'audit:read',
+  /** Read and edit one's own profile (self-service; held by every gym member). */
+  ProfileManage = 'profile:manage',
 }
 
 /**
@@ -117,6 +119,7 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutWrite,
     Permission.ReportView,
     Permission.AuditRead,
+    Permission.ProfileManage,
   ],
   MANAGER: [
     Permission.StaffManage,
@@ -139,6 +142,7 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutWrite,
     Permission.ReportView,
     Permission.AuditRead,
+    Permission.ProfileManage,
   ],
   RECEPTIONIST: [
     Permission.MemberRead,
@@ -149,6 +153,7 @@ export const ROLE_PERMISSIONS = {
     Permission.PackageRead,
     Permission.ClassRead,
     Permission.BillingRead,
+    Permission.ProfileManage,
   ],
   TRAINER: [
     Permission.MemberRead,
@@ -159,6 +164,7 @@ export const ROLE_PERMISSIONS = {
     Permission.ClassRead,
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
+    Permission.ProfileManage,
   ],
   MEMBER: [
     Permission.WorkoutRead,
@@ -167,6 +173,7 @@ export const ROLE_PERMISSIONS = {
     Permission.NotificationManage,
     Permission.SubscriptionManage,
     Permission.CreditPackManage,
+    Permission.ProfileManage,
   ],
 } satisfies Record<GymScopedRoleName, readonly Permission[]>;
 
