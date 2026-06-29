@@ -643,5 +643,33 @@
       "reference": "ნომერი: {id}",
       "tryAgain": "ხელახლა ცდა"
     }
+  },
+  "member": {
+    "nav": {
+      "home": "მთავარი",
+      "classes": "გაკვეთილები",
+      "bookings": "ჯავშნები",
+      "trainer": "მწვრთნელი",
+      "shop": "მაღაზია",
+      "membership": "აბონემენტი",
+      "profile": "პროფილი",
+      "cart": "კალათა"
+    },
+    "shell": {
+      "brand": "FormaCore",
+      "search": "მოძებნე გაკვეთილი, მწვრთნელი…",
+      "notifications": "შეტყობინებები",
+      "noNotifications": "ყველაფერი წაკითხულია",
+      "themeToLight": "ნათელ რეჟიმზე",
+      "themeToDark": "მუქ რეჟიმზე",
+      "menu": "მენიუ",
+      "openMenu": "მენიუს გახსნა",
+      "closeMenu": "მენიუს დახურვა",
+      "signOut": "გასვლა",
+      "premium": "Premium",
+      "checkIn": "გამოცხადება",
+      "viewProfile": "პროფილის ნახვა",
+      "greetingFallback": "წევრი"
+    }
   }
 }

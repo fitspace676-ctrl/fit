@@ -643,5 +643,33 @@
       "reference": "Reference: {id}",
       "tryAgain": "Try again"
     }
+  },
+  "member": {
+    "nav": {
+      "home": "Home",
+      "classes": "Classes",
+      "bookings": "Bookings",
+      "trainer": "Trainer",
+      "shop": "Shop",
+      "membership": "Membership",
+      "profile": "Profile",
+      "cart": "Cart"
+    },
+    "shell": {
+      "brand": "FormaCore",
+      "search": "Search classes, trainers…",
+      "notifications": "Notifications",
+      "noNotifications": "You're all caught up",
+      "themeToLight": "Switch to light",
+      "themeToDark": "Switch to dark",
+      "menu": "Menu",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "signOut": "Sign out",
+      "premium": "Premium",
+      "checkIn": "Check-in",
+      "viewProfile": "View profile",
+      "greetingFallback": "Member"
+    }
   }
 }
