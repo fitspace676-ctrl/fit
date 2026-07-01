@@ -24,6 +24,7 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   workouts: 'M6.5 6.5v11M17.5 6.5v11M4 9.5h2.5M17.5 9.5H20M6.5 12h11',
   billing: 'M3 7h18v10H3zM3 11h18M7 15h2',
   staff: 'M12 11a3 3 0 100-6 3 3 0 000 6zM5 20a7 7 0 0114 0',
+  analytics: 'M4 4v16h16M8 14l3-4 3 3 4-6',
   reports: 'M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6',
   audit:
     'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',

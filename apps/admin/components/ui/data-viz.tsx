@@ -141,6 +141,95 @@ export function Donut({
 }
 
 /* -------------------------------------------------------------------------- */
+/*  AreaChart                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/** One plotted point of an {@link AreaChart}: an x-axis label and its value. */
+export interface AreaPoint {
+  label: string;
+  value: number;
+}
+
+/**
+ * A compact, dependency-free area/line chart on the Aurora palette. Renders a
+ * gradient-filled area under a brand stroke, scaled to the data's own max, inside a
+ * responsive `viewBox` so it fills its container. An all-zero (or empty) series
+ * draws a flat baseline, so the caller can still show the frame with an empty-state
+ * caption rather than a broken chart.
+ */
+export function AreaChart({
+  data,
+  height = 180,
+  className = '',
+  ariaLabel = 'Area chart',
+}: {
+  data: AreaPoint[];
+  height?: number;
+  className?: string;
+  ariaLabel?: string;
+}) {
+  const width = 640;
+  const pad = 8;
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const n = data.length;
+
+  // x across the full width; y inverted (SVG origin is top-left), padded so the
+  // stroke never clips at the extremes.
+  const xy = data.map((d, i) => {
+    const x = n <= 1 ? width / 2 : (i / (n - 1)) * (width - pad * 2) + pad;
+    const y = height - pad - (d.value / max) * (height - pad * 2);
+    return { x, y };
+  });
+
+  const line = xy
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(' ');
+  const first = xy[0];
+  const last = xy[xy.length - 1];
+  const area =
+    first && last
+      ? `${line} L${last.x.toFixed(1)},${height - pad} L${first.x.toFixed(1)},${height - pad} Z`
+      : '';
+  const gradientId = `area-fill-${n}-${Math.round(max)}`;
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={ariaLabel}
+      className={`w-full ${className}`}
+      style={{ height }}
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop
+            offset="0%"
+            className="text-brand-500"
+            stopColor="currentColor"
+            stopOpacity={0.35}
+          />
+          <stop offset="100%" className="text-brand-500" stopColor="currentColor" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      {area && <path d={area} fill={`url(#${gradientId})`} stroke="none" />}
+      {line && (
+        <path
+          d={line}
+          fill="none"
+          className="text-brand-500 dark:text-brand-400"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+    </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Switch                                                                      */
 /* -------------------------------------------------------------------------- */
 
