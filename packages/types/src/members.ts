@@ -62,11 +62,43 @@ export const listMembersQuerySchema = z.object({
 export type ListMembersQuery = z.infer<typeof listMembersQuerySchema>;
 
 /**
+ * A member's live plan, denormalised for the roster's PLAN cell (Planflow
+ * "formacore"). Derived from the member's live {@link Subscription} + its
+ * catalogue {@link SubscriptionPlan}: `name` is the plan name, `interval` its
+ * billing period, `detail` a short human hint (e.g. "annual" / "monthly" /
+ * "paused" / "overdue" / a lari price), and `color` a hex swatch for the row dot.
+ * `null` when the member holds no live subscription.
+ */
+export interface MemberPlan {
+  /** Catalogue plan id, or `null` for a live subscription whose plan was deleted. */
+  planId: string | null;
+  /** Plan name (`"No plan"` when the subscription's plan was deleted). */
+  name: string;
+  /** Billing interval — `"MONTH"` / `"YEAR"`, or `null` when unknown. */
+  interval: 'MONTH' | 'YEAR' | null;
+  /** Price in minor currency units (tetri) snapshotted on the subscription. */
+  priceAmount: number;
+  /** ISO-4217 currency code of {@link priceAmount}. */
+  currency: string;
+  /** Short PLAN-cell detail, e.g. "annual" / "monthly" / "paused" / "overdue". */
+  detail: string;
+  /** A hex swatch for the row's plan dot. */
+  color: string | null;
+}
+
+/**
+ * The kind of a member's NEXT-BILLING cell, so the table can render a date, a
+ * paused/overdue chip, or an em dash without re-deriving it from the raw dates.
+ */
+export type MemberBillingState = 'due' | 'paused' | 'overdue' | 'none';
+
+/**
  * One member as the roster table renders it — a denormalised row, never the raw
- * `GymMember` + `User`. `phone` is `null` until the member profile (T4.3) carries
- * it; `planName` / `lastVisitAt` / `nextBillingAt` are `null` until billing +
- * attendance land (Phase 5/6). Dates are ISO-8601 instants the table formats in
- * the staff member's local zone.
+ * `GymMember` + `User`. Enriched (Planflow "formacore") with the member's live
+ * `plan`, latest `lastVisitAt` (from `CheckIn`), and the `nextBilling` cell state.
+ * `planName` is retained (the plan's name, or `null`) so older callers keep
+ * working. Dates are ISO-8601 instants the table formats in the staff member's
+ * local zone.
  */
 export interface MemberRow {
   id: string;
@@ -74,14 +106,66 @@ export interface MemberRow {
   email: string;
   phone: string | null;
   status: MemberStatus;
+  /** The live plan's name (or `null`), kept for backwards compatibility. */
   planName: string | null;
+  /** The live plan denormalised for the roster's PLAN cell, or `null`. */
+  plan: MemberPlan | null;
+  /** ISO instant of the member's most recent `CheckIn`, or `null` for none. */
   lastVisitAt: string | null;
+  /** ISO instant the live subscription next bills, or `null` (see `billingState`). */
   nextBillingAt: string | null;
+  /** How the NEXT-BILLING cell should read (`due` date / `paused` / `overdue` / `none`). */
+  billingState: MemberBillingState;
+}
+
+/** One plan in the roster's gym-wide "plan mix" bar. Mirrors `DashboardPlanSlice`. */
+export interface MemberPlanSlice {
+  /** Catalogue plan id, or `null` for live subscriptions whose plan was deleted. */
+  planId: string | null;
+  /** Plan name for the legend (`"No plan"` when unattributed). */
+  name: string;
+  /** Live subscribers on this plan. */
+  count: number;
+  /** A hex colour for the stacked bar + legend dot. */
+  color: string | null;
+}
+
+/**
+ * The roster's gym-wide "plan mix" bar: the paid-members total plus one slice per
+ * live plan (subscribers grouped by their catalogue plan, richest first). Every
+ * figure is a real tenant-scoped aggregate over live subscriptions.
+ */
+export interface MemberPlanMix {
+  /** Total live (paid) subscriptions across all plans. */
+  total: number;
+  /** One slice per plan, richest first. */
+  plans: MemberPlanSlice[];
+}
+
+/**
+ * The roster's segmented tab counts — the gym-wide member count in each state,
+ * so the tabs render "All 128 / Active 96 / Frozen 4 / Trial 2 / Expired 26"
+ * without a per-tab request. `frozen` counts members with a live `FROZEN`
+ * subscription; `trial` / `expired` mirror the `INVITED` / `SUSPENDED` roster
+ * states (the reference's segment labels); `all` / `active` mirror the roster.
+ */
+export interface MemberTabCounts {
+  /** Every `MEMBER`-role membership. */
+  all: number;
+  /** `ACTIVE` memberships. */
+  active: number;
+  /** Members whose live subscription is `FROZEN`. */
+  frozen: number;
+  /** `INVITED` memberships (the reference's "Trial" segment). */
+  trial: number;
+  /** `SUSPENDED` memberships (the reference's "Expired" segment). */
+  expired: number;
 }
 
 /**
  * Successful `GET /members` response — one page of the roster plus the totals the
- * pager needs. `total` is the count *after* filters (so the pager is accurate),
+ * pager needs, and the gym-wide `planMix` + tab `counts` the "formacore" header
+ * renders. `total` is the count *after* filters (so the pager is accurate),
  * `page` / `limit` echo the request. An empty `data` is a normal result the table
  * renders as its empty state.
  */
@@ -90,9 +174,13 @@ export interface ListMembersResponse {
   total: number;
   page: number;
   limit: number;
+  /** Gym-wide live plan mix (independent of the page's filters). */
+  planMix: MemberPlanMix;
+  /** Gym-wide member counts per segment (independent of the page's filters). */
+  counts: MemberTabCounts;
 }
 
-/** One subscription on a member's detail page. Empty until billing lands (Phase 5/6). */
+/** One subscription on a member's detail page — the member's `Subscription` rows. */
 export interface MemberSubscription {
   id: string;
   planName: string;
@@ -102,7 +190,7 @@ export interface MemberSubscription {
   renewsAt: string | null;
 }
 
-/** One class booking on a member's detail page. Empty until attendance lands (Phase 5/6). */
+/** One class booking on a member's detail page — the member's `Booking` rows. */
 export interface MemberBooking {
   id: string;
   title: string;
@@ -110,7 +198,7 @@ export interface MemberBooking {
   status: string;
 }
 
-/** One payment on a member's detail page. Empty until billing lands (Phase 5/6). */
+/** One payment on a member's detail page — a captured `Payment` on the member's orders. */
 export interface MemberPayment {
   id: string;
   /** Amount in minor currency units (tetri). */
@@ -119,19 +207,94 @@ export interface MemberPayment {
   paidAt: string;
 }
 
+/** The kind of a member-detail activity-timeline entry, driving its icon/tone. */
+export type MemberActivityKind = 'checkin' | 'booking' | 'payment' | 'milestone';
+
+/**
+ * One entry of the member detail's "Recent activity" timeline — a merge of the
+ * member's real recent check-ins / bookings / payments (+ the join milestone),
+ * newest first. Never fabricated: an entry exists only for a real record.
+ */
+export interface MemberActivity {
+  kind: MemberActivityKind;
+  /** Short headline (e.g. "Checked in", "Booked Spin Express", "Payment captured"). */
+  title: string;
+  /** Secondary detail (e.g. the amount, the class time, the booking status). */
+  detail: string;
+  /** When the event happened, ISO-8601 instant. */
+  at: string;
+}
+
+/** One week of the member detail's "Attendance · last 8 weeks" bar chart. */
+export interface MemberAttendanceWeek {
+  /** ISO instant of the week's Monday (client formats a short label). */
+  weekStart: string;
+  /** Check-ins recorded in that week. */
+  count: number;
+}
+
+/**
+ * The member's live plan on the detail page's "Current plan" panel — richer than
+ * the row's {@link MemberPlan}: it also carries the period bounds so the panel can
+ * draw a days-remaining bar. `null` when the member holds no live subscription.
+ */
+export interface MemberCurrentPlan {
+  /** The live `Subscription` id (for the Freeze / Add-credit affordances). */
+  subscriptionId: string;
+  planId: string | null;
+  name: string;
+  status: string;
+  /** Billing interval — `"MONTH"` / `"YEAR"`, or `null` when unknown. */
+  interval: 'MONTH' | 'YEAR' | null;
+  /** Price in minor currency units (tetri). */
+  priceAmount: number;
+  currency: string;
+  /** ISO instant the current period began. */
+  currentPeriodStart: string;
+  /** ISO instant the current period ends (renews / bills). */
+  currentPeriodEnd: string;
+  /** Whole days from now until `currentPeriodEnd` (clamped at 0), for the bar. */
+  daysRemaining: number;
+  color: string | null;
+}
+
 /**
  * One member as the detail page needs it — the same row the table renders, plus
- * the tabbed history. The history collections are empty (and `notes` an empty
- * string) until their backing models land (Phase 5/6); the page renders each as
- * its own "nothing yet" empty state.
+ * the "formacore" KPIs (`lifetimeValue` / `totalVisits` / `nextBilling`), the
+ * live `currentPlan`, the `recentActivity` timeline, the `attendance8w` series,
+ * and the tabbed history. Every figure is a real tenant-scoped query. `tags` is
+ * always empty and `notes` always `''` — the schema has NO member-tags or
+ * member-notes model, so these are honest empty states, never fabricated (see
+ * `members.service.ts`).
  */
 export interface MemberDetail extends MemberRow {
-  /** ISO instant the member joined the gym. */
+  /** ISO instant the member joined the gym (the "Member since" KPI). */
   joinedAt: string;
+  /** Sum of the member's CAPTURED payments, in minor currency units (tetri). */
+  lifetimeValue: number;
+  /** ISO-4217 currency code of {@link lifetimeValue}. */
+  currency: string;
+  /** Total `CheckIn` count for the member (the "Total visits" KPI). */
+  totalVisits: number;
+  /** The member's live plan for the "Current plan" panel, or `null`. */
+  currentPlan: MemberCurrentPlan | null;
+  /** Merged recent activity timeline, newest first. */
+  recentActivity: MemberActivity[];
+  /** Per-week check-in counts for the last 8 weeks, oldest → newest. */
+  attendance8w: MemberAttendanceWeek[];
   subscriptions: MemberSubscription[];
   bookings: MemberBooking[];
   payments: MemberPayment[];
-  /** Free-text staff notes. Empty until member notes land (T4.3+). */
+  /**
+   * Member tags. ALWAYS empty: the Prisma schema has no member-tag / label model,
+   * so there is nothing to read. The detail page renders a disabled "Add" chip
+   * rather than fabricate tags. Wire slot kept for when a tags model lands.
+   */
+  tags: string[];
+  /**
+   * Free-text staff notes. ALWAYS `''`: the schema has no member-notes model, so
+   * the Notes tab renders a "No notes yet" empty state. Not fabricated.
+   */
   notes: string;
 }
 
