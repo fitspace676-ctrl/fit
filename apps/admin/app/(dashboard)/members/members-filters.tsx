@@ -3,24 +3,26 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { MemberStatus } from '@fit/types';
-import { Icon } from '@/components/ui';
+import { Btn, Icon } from '@/components/ui';
 
-/** The status options offered by the filter, in roster-priority order. */
+/** The status options offered by the Filter panel, in roster-priority order. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: MemberStatus; label: string }> = [
   { value: 'ACTIVE', label: 'Active' },
-  { value: 'INVITED', label: 'Invited' },
-  { value: 'SUSPENDED', label: 'Suspended' },
+  { value: 'INVITED', label: 'Trial' },
+  { value: 'SUSPENDED', label: 'Expired' },
 ];
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
 
 /**
- * The roster filter bar: a debounced search box (name / email) and a status
- * select. Both write their state to the URL search params (the single source of
- * truth the server page reads), resetting to page 1 on any change so the pager
- * never lands past the end of a freshly-narrowed result set. Navigation runs in a
- * transition so the input stays responsive while the server re-renders.
+ * The roster's search + Filter row (Planflow "formacore"). A debounced search box
+ * (name / email) and a "Filter" button that reveals the status select — the
+ * segmented tabs are the primary status control, so this is the secondary path
+ * that also drives the `status` URL param. Both write their state to the URL
+ * search params (the single source of truth the server page reads), resetting to
+ * page 1 on any change so the pager never lands past the end of a freshly-narrowed
+ * result set. Navigation runs in a transition so the input stays responsive.
  */
 export function MembersFilters({ search, status }: { search: string; status: string }) {
   const router = useRouter();
@@ -28,6 +30,7 @@ export function MembersFilters({ search, status }: { search: string; status: str
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const [searchValue, setSearchValue] = useState(search);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Keep the input in sync if the URL changes from elsewhere (e.g. back button).
   useEffect(() => setSearchValue(search), [search]);
@@ -56,43 +59,60 @@ export function MembersFilters({ search, status }: { search: string; status: str
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="relative flex-1">
-        <label htmlFor="member-search" className="sr-only">
-          Search members by name or email
-        </label>
-        <Icon
-          name="search"
-          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
-        />
-        <input
-          id="member-search"
-          type="search"
-          value={searchValue}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search by name or email…"
-          className="h-11 w-full rounded-field border border-ink-200 bg-white pl-10 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
-        />
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <label htmlFor="member-search" className="sr-only">
+            Search members by name or email
+          </label>
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+          />
+          <input
+            id="member-search"
+            type="search"
+            value={searchValue}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search by name or email…"
+            className="h-11 w-full rounded-field border border-ink-200 bg-white pl-10 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          />
+        </div>
+
+        <Btn
+          v={status || filtersOpen ? 'primary' : 'outline'}
+          size="md"
+          icon="filter"
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen((open) => !open)}
+        >
+          Filter{status ? ' · 1' : ''}
+        </Btn>
       </div>
 
-      <div className="sm:w-48">
-        <label htmlFor="member-status" className="sr-only">
-          Filter by status
-        </label>
-        <select
-          id="member-status"
-          value={status}
-          onChange={(event) => commit('status', event.target.value)}
-          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
-        >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {filtersOpen ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label
+            htmlFor="member-status"
+            className="text-sm font-medium text-ink-600 dark:text-ink-300"
+          >
+            Status
+          </label>
+          <select
+            id="member-status"
+            value={status}
+            onChange={(event) => commit('status', event.target.value)}
+            className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white sm:w-48"
+          >
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
     </div>
   );
 }

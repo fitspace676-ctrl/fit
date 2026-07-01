@@ -64,6 +64,23 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="flex flex-col gap-6">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
+      >
+        <span>Iron Gym</span>
+        <Icon name="chevronRight" className="h-3.5 w-3.5" />
+        <Link href="/members" className="hover:text-ink-600 dark:hover:text-ink-300">
+          Members
+        </Link>
+        <Icon name="chevronRight" className="h-3.5 w-3.5" />
+        <Link href={`/members/${id}`} className="hover:text-ink-600 dark:hover:text-ink-300">
+          {member.name}
+        </Link>
+        <Icon name="chevronRight" className="h-3.5 w-3.5" />
+        <span className="text-ink-600 dark:text-ink-300">Edit</span>
+      </nav>
+
       <Link
         href={`/members/${id}`}
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"

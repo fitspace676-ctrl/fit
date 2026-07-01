@@ -6,18 +6,34 @@ import { MembersService } from './members.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
-/** A membership row as the service's projection selects it (superset of every select). */
+/**
+ * A membership row as the service's projection selects it (superset of every
+ * select). Carries the live `subscriptions` + latest `checkIns` the roster now
+ * joins for the "formacore" plan / next-billing / last-visit cells.
+ */
 interface MemberRecord {
   id: string;
   userId: string;
   status: GymMemberStatus;
   joinedAt: Date;
   user: { name: string | null; email: string; phone: string | null };
+  subscriptions: Array<{
+    id: string;
+    planId: string | null;
+    status: string;
+    priceAmount: number;
+    currency: string;
+    interval: 'MONTH' | 'YEAR';
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+    plan: { name: string } | null;
+  }>;
+  checkIns: Array<{ checkedInAt: Date }>;
 }
 
 /** The subset of a Prisma `findMany` arg shape the assertions inspect. */
 interface FindManyArgs {
-  where?: { role?: unknown; status?: unknown; user?: unknown };
+  where?: { role?: unknown; status?: unknown; user?: unknown; subscriptions?: unknown };
   orderBy?: unknown;
   skip?: number;
   take?: number;
@@ -33,7 +49,7 @@ function setup(overrides?: {
   findFirst?: MemberRecord | null;
   userFindUnique?: { id: string } | null;
   userCreate?: { id: string };
-  gymMemberCreate?: MemberRecord;
+  gymMemberCreate?: { id: string };
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<MemberRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -44,12 +60,13 @@ function setup(overrides?: {
   const findFirst = vi.fn<(args: WhereArgs) => Promise<MemberRecord | null>>(() =>
     Promise.resolve(overrides?.findFirst ?? null),
   );
-  const gymMemberCreate = vi.fn<(args: WhereArgs) => Promise<MemberRecord>>(() =>
-    Promise.resolve(overrides?.gymMemberCreate ?? row()),
+  const gymMemberCreate = vi.fn<(args: WhereArgs) => Promise<{ id: string }>>(() =>
+    Promise.resolve(overrides?.gymMemberCreate ?? { id: 'gm-1' }),
   );
-  const gymMemberUpdate = vi.fn<(args: WhereArgs) => Promise<MemberRecord>>(() =>
-    Promise.resolve(row()),
+  const gymMemberUpdate = vi.fn<(args: WhereArgs) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'gm-1' }),
   );
+  const gymMemberGroupBy = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
   const userFindUnique = vi.fn<(args: WhereArgs) => Promise<{ id: string } | null>>(() =>
     Promise.resolve(overrides?.userFindUnique ?? null),
   );
@@ -60,6 +77,26 @@ function setup(overrides?: {
     Promise.resolve({ id: 'u-1' }),
   );
 
+  // Permissive stubs for the enrichment queries — the detail path aggregates over
+  // these but the projection assertions don't depend on their shapes, so empty
+  // results / zero sums are the safe defaults.
+  const subscriptionGroupBy = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
+    Promise.resolve([]),
+  );
+  const subscriptionFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
+    Promise.resolve([]),
+  );
+  const subscriptionPlanFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
+    Promise.resolve([]),
+  );
+  const paymentAggregate = vi.fn<(args: unknown) => Promise<{ _sum: { amount: number | null } }>>(
+    () => Promise.resolve({ _sum: { amount: null } }),
+  );
+  const paymentFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
+  const checkInCount = vi.fn<(args: unknown) => Promise<number>>(() => Promise.resolve(0));
+  const checkInFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
+  const bookingFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
+
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
     gymMember: {
@@ -68,7 +105,13 @@ function setup(overrides?: {
       findFirst,
       create: gymMemberCreate,
       update: gymMemberUpdate,
+      groupBy: gymMemberGroupBy,
     },
+    subscription: { groupBy: subscriptionGroupBy, findMany: subscriptionFindMany },
+    subscriptionPlan: { findMany: subscriptionPlanFindMany },
+    payment: { aggregate: paymentAggregate, findMany: paymentFindMany },
+    checkIn: { count: checkInCount, findMany: checkInFindMany },
+    booking: { findMany: bookingFindMany },
   };
   // Interactive transaction: run the callback against the same scoped client.
   client.$transaction = vi.fn((cb: (tx: typeof client) => unknown) => cb(client));
@@ -111,6 +154,8 @@ const row = (over?: Partial<MemberRecord>): MemberRecord => ({
   status: GymMemberStatus.ACTIVE,
   joinedAt: new Date('2026-01-15T00:00:00.000Z'),
   user: { name: 'Nino Beridze', email: 'nino@example.com', phone: null },
+  subscriptions: [],
+  checkIns: [],
   ...over,
 });
 
@@ -130,7 +175,7 @@ describe('MembersService', () => {
 
       const result = await service.listMembers(query());
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         data: [
           {
             id: 'gm-1',
@@ -139,14 +184,89 @@ describe('MembersService', () => {
             phone: '+995 555 10 20 30',
             status: 'ACTIVE',
             planName: null,
+            plan: null,
             lastVisitAt: null,
             nextBillingAt: null,
+            billingState: 'none',
           },
         ],
         total: 1,
         page: 1,
         limit: 20,
+        planMix: { total: 0, plans: [] },
+        // `frozen` is a dedicated `gymMember.count` (live FROZEN subscription),
+        // which shares the single `count` stub with the pagination total (1 here);
+        // the other buckets come from the empty `groupBy` stub.
+        counts: { all: 0, active: 0, frozen: 1, trial: 0, expired: 0 },
       });
+    });
+
+    it('projects the live plan, last visit and next billing from the joins', async () => {
+      const { service } = setup({
+        findMany: [
+          row({
+            subscriptions: [
+              {
+                id: 'sub-1',
+                planId: 'plan-1',
+                status: 'ACTIVE',
+                priceAmount: 4500,
+                currency: 'GEL',
+                interval: 'MONTH',
+                currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
+                currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
+                plan: { name: 'Premium' },
+              },
+            ],
+            checkIns: [{ checkedInAt: new Date('2026-06-20T09:30:00.000Z') }],
+          }),
+        ],
+        count: 1,
+      });
+
+      const result = await service.listMembers(query());
+      const member = result.data[0];
+
+      expect(member?.plan).toMatchObject({
+        planId: 'plan-1',
+        name: 'Premium',
+        interval: 'MONTH',
+        priceAmount: 4500,
+        currency: 'GEL',
+        detail: 'monthly',
+      });
+      expect(member?.planName).toBe('Premium');
+      expect(member?.lastVisitAt).toBe('2026-06-20T09:30:00.000Z');
+      expect(member?.nextBillingAt).toBe('2026-07-01T00:00:00.000Z');
+      expect(member?.billingState).toBe('due');
+    });
+
+    it('reads a frozen subscription as a paused plan + next-billing cell', async () => {
+      const { service } = setup({
+        findMany: [
+          row({
+            subscriptions: [
+              {
+                id: 'sub-2',
+                planId: 'plan-2',
+                status: 'FROZEN',
+                priceAmount: 4500,
+                currency: 'GEL',
+                interval: 'MONTH',
+                currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
+                currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
+                plan: { name: 'Standard' },
+              },
+            ],
+          }),
+        ],
+        count: 1,
+      });
+
+      const member = (await service.listMembers(query())).data[0];
+      expect(member?.plan?.detail).toBe('paused');
+      expect(member?.billingState).toBe('paused');
+      expect(member?.nextBillingAt).toBeNull();
     });
 
     it('falls back to the email when the user has no name', async () => {
@@ -185,6 +305,16 @@ describe('MembersService', () => {
       expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({ status: 'SUSPENDED' });
     });
 
+    it('narrows to members holding a live subscription on the given plan', async () => {
+      const { service, findMany } = setup();
+
+      await service.listMembers(query({ planId: 'plan-1' }));
+
+      expect(findMany.mock.calls[0]?.[0]?.where?.subscriptions).toMatchObject({
+        some: { planId: 'plan-1' },
+      });
+    });
+
     it('builds a case-insensitive name/email search', async () => {
       const { service, findMany } = setup();
 
@@ -207,14 +337,14 @@ describe('MembersService', () => {
       await service.listMembers(query({ sort: 'status', dir: 'asc' }));
       expect(findMany.mock.calls[1]?.[0]?.orderBy).toEqual({ status: 'asc' });
 
-      // lastVisitAt has no column yet → stable joinedAt fallback.
+      // lastVisitAt has no scalar column → stable joinedAt fallback.
       await service.listMembers(query({ sort: 'lastVisitAt', dir: 'desc' }));
       expect(findMany.mock.calls[2]?.[0]?.orderBy).toEqual({ joinedAt: 'desc' });
     });
   });
 
   describe('getMember', () => {
-    it('returns the detail with the projected phone and empty deferred history tabs', async () => {
+    it('returns the detail with the projected phone and the formacore fields', async () => {
       const { service } = setup({
         findFirst: row({
           user: { name: 'Nino Beridze', email: 'nino@example.com', phone: '+995 555' },
@@ -223,21 +353,32 @@ describe('MembersService', () => {
 
       const result = await service.getMember('gm-1');
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         id: 'gm-1',
         name: 'Nino Beridze',
         email: 'nino@example.com',
         phone: '+995 555',
         status: 'ACTIVE',
         planName: null,
+        plan: null,
         lastVisitAt: null,
         nextBillingAt: null,
+        billingState: 'none',
         joinedAt: '2026-01-15T00:00:00.000Z',
+        lifetimeValue: 0,
+        totalVisits: 0,
+        currentPlan: null,
+        recentActivity: [
+          { kind: 'milestone', title: 'Joined the gym', at: '2026-01-15T00:00:00.000Z' },
+        ],
         subscriptions: [],
         bookings: [],
         payments: [],
+        tags: [],
         notes: '',
       });
+      // The attendance chart always frames a full 8 weeks.
+      expect(result.attendance8w).toHaveLength(8);
     });
 
     it('scopes the lookup to MEMBER-role rows', async () => {
@@ -260,7 +401,9 @@ describe('MembersService', () => {
       const { service, userFindUnique, userCreate, gymMemberCreate } = setup({
         userFindUnique: null,
         userCreate: { id: 'u-new' },
-        gymMemberCreate: row({ id: 'gm-new', userId: 'u-new' }),
+        gymMemberCreate: { id: 'gm-new' },
+        // The post-create re-read resolves the new member's detail.
+        findFirst: row({ id: 'gm-new', userId: 'u-new' }),
       });
 
       const result = await service.createMember(
@@ -290,9 +433,12 @@ describe('MembersService', () => {
     it('links an existing user (no duplicate user) when the email is already known', async () => {
       const { service, userCreate, gymMemberCreate, findFirst } = setup({
         userFindUnique: { id: 'u-existing' },
-        findFirst: null, // not yet a member of this gym
-        gymMemberCreate: row({ id: 'gm-2', userId: 'u-existing' }),
+        findFirst: row({ id: 'gm-2', userId: 'u-existing' }),
+        gymMemberCreate: { id: 'gm-2' },
       });
+      // First `findFirst` is the duplicate-membership guard (must miss so the
+      // create proceeds); the default row then satisfies the post-create re-read.
+      findFirst.mockResolvedValueOnce(null);
 
       await service.createMember(createInput({ email: 'existing@example.com' }));
 

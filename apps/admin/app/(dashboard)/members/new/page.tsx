@@ -28,6 +28,19 @@ export default async function NewMemberPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
+      >
+        <span>Iron Gym</span>
+        <Icon name="chevronRight" className="h-3.5 w-3.5" />
+        <Link href="/members" className="hover:text-ink-600 dark:hover:text-ink-300">
+          Members
+        </Link>
+        <Icon name="chevronRight" className="h-3.5 w-3.5" />
+        <span className="text-ink-600 dark:text-ink-300">Add member</span>
+      </nav>
+
       <Link
         href="/members"
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
@@ -38,7 +51,7 @@ export default async function NewMemberPage() {
 
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          New member
+          Add member
         </h1>
         <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
           Add a member to your gym. If someone with this email already belongs to another gym,
