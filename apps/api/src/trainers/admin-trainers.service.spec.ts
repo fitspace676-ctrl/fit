@@ -231,7 +231,9 @@ describe('AdminTrainersService', () => {
 
   describe('createTrainer', () => {
     it('stamps the tenant gymId and persists the profile fields', async () => {
-      const { service, create } = setup();
+      // `createTrainer` re-reads the created row via `getTrainer` to return the
+      // enriched detail, so the mock must resolve that lookup.
+      const { service, create } = setup({ findFirst: row() });
 
       await service.createTrainer(createInput({ name: 'New Coach', status: 'INACTIVE' }));
 
