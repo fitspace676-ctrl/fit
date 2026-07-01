@@ -32,7 +32,7 @@ function r2RemotePatterns() {
 // the root so its standalone `*.vercel.app` deployment is unaffected. Exposed to
 // the client as `NEXT_PUBLIC_ADMIN_BASE_PATH` so same-origin fetches can prefix it
 // (Next only auto-applies basePath to navigation/assets, not `fetch`).
-const adminBasePath = process.env.ADMIN_BASE_PATH ?? '';
+const adminBasePath = process.env.ADMIN_BASE_PATH ?? '/admin';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
