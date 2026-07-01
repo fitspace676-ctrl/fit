@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { TrainerStatus } from '@fit/types';
+import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
 import { setTrainerActiveAction } from '../actions';
 
 /**
@@ -44,27 +45,22 @@ export function TrainerActions({
       <div className="flex items-center gap-2">
         <Link
           href={`/trainers/${trainerId}/edit`}
-          className="rounded-card border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          className={buttonClasses('outline', 'sm')}
         >
+          <Icon name="settings" className="h-4 w-4" sw={2} />
           Edit
         </Link>
-        <button
-          type="button"
-          onClick={toggle}
-          disabled={pending}
-          className={
-            isInactive
-              ? 'rounded-card border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50'
-              : 'rounded-card border border-amber-200 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50'
-          }
-        >
+        <Btn v="outline" size="sm" onClick={toggle} disabled={pending}>
           {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
-        </button>
+        </Btn>
       </div>
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-1.5 text-sm text-red-700">
-          {error}
-        </p>
+        <Card className="flex items-start gap-2 border-danger-200 bg-danger-50 px-3 py-1.5 dark:border-danger-500/20 dark:bg-danger-500/10">
+          <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-danger-600 dark:text-danger-300" />
+          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+            {error}
+          </p>
+        </Card>
       ) : null}
     </div>
   );

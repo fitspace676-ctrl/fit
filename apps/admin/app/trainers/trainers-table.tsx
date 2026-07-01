@@ -4,11 +4,12 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminTrainerRow, SortDir, TrainerSort, TrainerStatus } from '@fit/types';
+import { Badge, Btn, Card, type Tone } from '@/components/ui';
 
-/** Visual treatment per trainer status — green active, slate inactive. */
-const STATUS_STYLES: Record<TrainerStatus, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
-  INACTIVE: { label: 'Inactive', className: 'bg-slate-100 text-slate-600' },
+/** Visual treatment per trainer status — success active, ink inactive. */
+const STATUS_STYLES: Record<TrainerStatus, { label: string; tone: Tone }> = {
+  ACTIVE: { label: 'Active', tone: 'success' },
+  INACTIVE: { label: 'Inactive', tone: 'ink' },
 };
 
 /** Sortable columns and their header labels, in render order. */
@@ -27,10 +28,8 @@ function initialsOf(name: string): string {
 
 /** A status pill mirroring the members roster styling. */
 function StatusPill({ status }: { status: TrainerStatus }) {
-  const { label, className } = STATUS_STYLES[status];
-  return (
-    <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
-  );
+  const { label, tone } = STATUS_STYLES[status];
+  return <Badge tone={tone}>{label}</Badge>;
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -98,73 +97,80 @@ export function TrainersTable({
 
   if (trainers.length === 0) {
     return (
-      <p className="rounded-card border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+      <Card className="px-4 py-12 text-center text-sm text-ink-500 dark:text-ink-400">
         No trainers match your filters yet.
-      </p>
+      </Card>
     );
   }
 
+  const headClass =
+    'py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+  const sortLinkClass = 'inline-flex items-center transition-colors hover:text-ink-600 dark:hover:text-ink-200';
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto">
+      <Card className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-              {SORTABLE.map((column) => (
-                <th key={column.key} className="py-2 pr-4 font-medium">
-                  <Link
-                    href={sortHref(column.key)}
-                    scroll={false}
-                    className="inline-flex items-center hover:text-slate-700"
-                  >
+            <tr className="border-b border-ink-100 dark:border-white/10">
+              {SORTABLE.map((column, index) => (
+                <th key={column.key} className={`${headClass} ${index === 0 ? 'pl-5' : ''}`}>
+                  <Link href={sortHref(column.key)} scroll={false} className={sortLinkClass}>
                     {column.label}
                     <span aria-hidden>{sortIndicator(column.key)}</span>
                   </Link>
                 </th>
               ))}
-              <th className="py-2 pr-4 font-medium">Specialties</th>
+              <th className={`${headClass} pr-5`}>Specialties</th>
             </tr>
           </thead>
           <tbody>
             {trainers.map((trainer) => (
-              <tr key={trainer.id} className="border-b border-slate-100 hover:bg-slate-50/60">
-                <td className="py-2 pr-4">
+              <tr
+                key={trainer.id}
+                className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+              >
+                <td className="py-3 pr-4 pl-5">
                   <div className="flex items-center gap-3">
                     {trainer.photoUrl ? (
                       <img
                         src={trainer.photoUrl}
                         alt=""
-                        className="h-9 w-9 rounded-full object-cover"
+                        className="h-9 w-9 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
                       />
                     ) : (
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
                         {initialsOf(trainer.name)}
                       </span>
                     )}
                     <div>
                       <Link
                         href={`/trainers/${trainer.id}`}
-                        className="font-medium text-slate-900 hover:text-brand-700"
+                        className="font-medium text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
                       >
                         {trainer.name}
                       </Link>
                       {trainer.headline ? (
-                        <div className="text-xs text-slate-500">{trainer.headline}</div>
+                        <div className="text-xs text-ink-500 dark:text-ink-400">
+                          {trainer.headline}
+                        </div>
                       ) : null}
                     </div>
                   </div>
                 </td>
-                <td className="py-2 pr-4">
+                <td className="py-3 pr-4">
                   <StatusPill status={trainer.status} />
                 </td>
-                <td className="py-2 pr-4 text-slate-700">{formatDate(trainer.createdAt)}</td>
-                <td className="py-2 pr-4 text-slate-700">
+                <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">
+                  {formatDate(trainer.createdAt)}
+                </td>
+                <td className="py-3 pr-5 text-ink-700 dark:text-ink-200">
                   {trainer.specialties.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                       {trainer.specialties.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-card bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                          className="rounded-pill bg-ink-100 px-2 py-0.5 text-xs text-ink-600 dark:bg-white/10 dark:text-ink-300"
                         >
                           {tag}
                         </span>
@@ -178,34 +184,34 @@ export function TrainersTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-slate-500">
-        <span className="tabular-nums">
+      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
+        <span className="font-mono tabular-nums">
           {from}–{to} of {total}
         </span>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasPrev}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Previous
-          </button>
-          <button
-            type="button"
+          </Btn>
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasNext}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Next
-          </button>
+          </Btn>
         </div>
       </div>
     </div>

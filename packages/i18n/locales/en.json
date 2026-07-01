@@ -37,7 +37,8 @@
         "title": "No bookings yet",
         "subtitle": "When you book a class it will show up here, along with your past sessions.",
         "action": "Browse classes"
-      }
+      },
+      "cancel": "Cancel"
     }
   },
   "common": {
@@ -642,6 +643,237 @@
       "description": "An unexpected error occurred. You can try again, and if the problem persists please contact support.",
       "reference": "Reference: {id}",
       "tryAgain": "Try again"
+    }
+  },
+  "member": {
+    "nav": {
+      "home": "Home",
+      "classes": "Classes",
+      "bookings": "Bookings",
+      "trainer": "Trainer",
+      "shop": "Shop",
+      "membership": "Membership",
+      "profile": "Profile",
+      "cart": "Cart"
+    },
+    "shell": {
+      "brand": "FormaCore",
+      "search": "Search classes, trainers…",
+      "notifications": "Notifications",
+      "noNotifications": "You're all caught up",
+      "themeToLight": "Switch to light",
+      "themeToDark": "Switch to dark",
+      "menu": "Menu",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "signOut": "Sign out",
+      "premium": "Premium",
+      "checkIn": "Check-in",
+      "viewProfile": "View profile",
+      "greetingFallback": "Member"
+    },
+    "home": {
+      "greeting": "Welcome back",
+      "greetingFallbackName": "Member",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "membership": "Membership",
+      "active": "Active",
+      "noPlan": "No active plan",
+      "memberId": "ID",
+      "daysLeft": "{used} of {total} days",
+      "showQr": "Show check-in QR",
+      "ptCredits": "PT credits",
+      "qrTitle": "Check-in QR",
+      "qrSub": "Show this at the front desk",
+      "done": "Done",
+      "nextClass": "Your next class",
+      "checkIn": "Check in",
+      "noClasses": "No classes booked yet",
+      "browseClasses": "Browse classes",
+      "dayStreak": "Day streak",
+      "checkInsMonth": "Check-ins",
+      "classesBooked": "Classes booked",
+      "bookClass": "Book a class",
+      "viewAll": "View all",
+      "book": "Book",
+      "booked": "Booked",
+      "joinWaitlist": "Join waitlist",
+      "noBookable": "No classes this week yet",
+      "yourTrainer": "Your trainer",
+      "bookSession": "Book session",
+      "forTraining": "For your training",
+      "membersGet": "Members −10%",
+      "visitShop": "Visit shop",
+      "noProducts": "No products yet",
+      "upcomingBookings": "Your upcoming bookings",
+      "confirmed": "Confirmed",
+      "waitlist": "Waitlist · #{position}"
+    },
+    "actions": {
+      "booked": "Booked! See you there",
+      "waitlisted": "Added to the waitlist",
+      "canceled": "Booking canceled",
+      "working": "…",
+      "errAlreadyBooked": "You're already booked",
+      "errNotBookable": "This class can't be booked",
+      "errWindowPassed": "Cancellation window has passed",
+      "errNotFound": "No booking found",
+      "errAuth": "Please sign in",
+      "errGeneric": "Something went wrong"
+    },
+    "membership": {
+      "title": "Membership",
+      "changePlan": "Change plan",
+      "choosePlan": "Choose a plan",
+      "status": {
+        "ACTIVE": "Active",
+        "FROZEN": "Frozen",
+        "CANCELED": "Canceled",
+        "PAST_DUE": "Past due",
+        "EXPIRED": "Inactive"
+      },
+      "noPlan": "No active plan",
+      "noPlanHint": "Pick a plan to unlock classes, trainers and member pricing.",
+      "perks": "Unlimited classes · 1 guest pass / mo · −10% shop",
+      "nextBilling": "Next billing",
+      "memberSince": "Member since",
+      "viewBookings": "My bookings",
+      "shopMember": "Member shop",
+      "paymentMethod": "Payment method",
+      "payAtDesk": "Pay at desk",
+      "thisPeriod": "This period",
+      "classes": "classes",
+      "ptCredits": "PT credits",
+      "buyMore": "Buy more sessions",
+      "invoices": "Invoice history",
+      "invoice": "Invoice",
+      "date": "Date",
+      "amount": "Amount",
+      "statusCol": "Status",
+      "invoiceStatus": {
+        "PAID": "Paid",
+        "PENDING": "Pending",
+        "FAILED": "Failed",
+        "REFUNDED": "Refunded"
+      },
+      "noInvoices": "No invoices yet"
+    },
+    "profile": {
+      "title": "Profile",
+      "save": "Save changes",
+      "saved": "Profile saved",
+      "namePlaceholder": "Your name",
+      "emailPlaceholder": "you@email.com",
+      "premiumMember": "Premium member",
+      "changePhoto": "Change photo",
+      "checkIns": "Check-ins",
+      "credits": "Credits",
+      "id": "ID",
+      "personalInfo": "Personal information",
+      "fields": {
+        "firstName": "First name",
+        "lastName": "Last name",
+        "email": "Email",
+        "phone": "Phone",
+        "emergency": "Emergency contact",
+        "address": "Address"
+      },
+      "preferences": "Preferences",
+      "language": "Language",
+      "units": "Units",
+      "unit": {
+        "metric": "Metric",
+        "imperial": "Imperial"
+      },
+      "theme": "Theme",
+      "themeName": {
+        "light": "Light",
+        "dark": "Dark"
+      },
+      "notifications": "Notifications",
+      "notif": {
+        "reminders": {
+          "title": "Class reminders",
+          "desc": "Before your booked classes"
+        },
+        "bookings": {
+          "title": "Booking updates",
+          "desc": "Confirmations and waitlist moves"
+        },
+        "billing": {
+          "title": "Billing",
+          "desc": "Payments and renewals"
+        },
+        "promotions": {
+          "title": "Promotions",
+          "desc": "Offers and member perks"
+        }
+      },
+      "security": "Security",
+      "changePassword": "Change password",
+      "twoFa": "Two-factor authentication",
+      "twoFaOn": "Enabled",
+      "twoFaOff": "Add an extra layer of security",
+      "deleteTitle": "Delete account",
+      "deleteDesc": "Permanently remove your account and data.",
+      "delete": "Delete",
+      "deleteToast": "Contact the front desk to delete your account",
+      "saving": "Saving…",
+      "saveAuth": "Please sign in",
+      "saveError": "Couldn't save, try again"
+    },
+    "cart": {
+      "title": "Your cart",
+      "summary": "Order summary",
+      "empty": "Your cart is empty",
+      "browseShop": "Browse shop",
+      "outOfStock": "Out of stock",
+      "remove": "Remove",
+      "decrease": "Decrease",
+      "increase": "Increase",
+      "pickup": "Collect at",
+      "payDesk": "Pay at desk",
+      "payCard": "Card",
+      "payApple": "Apple Pay",
+      "promo": "Promo code",
+      "subtotal": "Subtotal",
+      "discount": "Discount",
+      "total": "Total",
+      "placeOrder": "Place order",
+      "placing": "Placing…",
+      "securePayment": "Secure checkout · pay on collection",
+      "confirmed": "Order confirmed",
+      "orderNo": "Order",
+      "collectHint": "We'll have it ready at the front desk.",
+      "continueShopping": "Continue shopping",
+      "add": "Add",
+      "adding": "Adding…",
+      "added": "Added to cart",
+      "errAdd": "Couldn't add to cart",
+      "signInToAdd": "Sign in to add to cart",
+      "errUpdate": "Couldn't update the cart",
+      "errCheckout": "Checkout failed, try again",
+      "errPrice": "Prices changed — review your cart",
+      "pickLocation": "Choose a pickup location"
+    },
+    "goals": {
+      "title": "Your goals",
+      "edit": "Edit",
+      "add": "Add goal",
+      "addFirst": "Add a goal",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "remove": "Remove",
+      "empty": "No goals yet — set a target to track your progress.",
+      "saved": "Goals saved",
+      "error": "Couldn't save goals",
+      "signIn": "Please sign in",
+      "labelPh": "Goal (e.g. Workouts / week)",
+      "unitPh": "unit",
+      "current": "Current",
+      "target": "Target"
     }
   }
 }

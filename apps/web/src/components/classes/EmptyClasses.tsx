@@ -1,4 +1,5 @@
 import { useTranslations } from 'next-intl';
+import { Card, Icon } from '@/src/components/ui';
 
 /**
  * Empty state shown when the selected week (or the active gym) has no classes to
@@ -9,12 +10,17 @@ export function EmptyClasses() {
   const t = useTranslations('classes');
 
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-slate-200 bg-slate-50/60 px-6 py-16 text-center">
-      <span aria-hidden className="text-3xl">
-        🗓️
+    <Card glow className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+      <span
+        aria-hidden
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-white/10 dark:text-brand-300"
+      >
+        <Icon name="calendar" className="h-6 w-6" sw={2} />
       </span>
-      <p className="text-base font-semibold text-slate-900">{t('empty.title')}</p>
-      <p className="max-w-sm text-sm text-slate-500">{t('empty.subtitle')}</p>
-    </div>
+      <p className="font-display text-base font-bold text-ink-900 dark:text-white">
+        {t('empty.title')}
+      </p>
+      <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">{t('empty.subtitle')}</p>
+    </Card>
   );
 }

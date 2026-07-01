@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { MemberStatus } from '@fit/types';
+import { Icon } from '@/components/ui';
 
 /** The status options offered by the filter, in roster-priority order. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: MemberStatus; label: string }> = [
@@ -60,13 +61,17 @@ export function MembersFilters({ search, status }: { search: string; status: str
         <label htmlFor="member-search" className="sr-only">
           Search members by name or email
         </label>
+        <Icon
+          name="search"
+          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+        />
         <input
           id="member-search"
           type="search"
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search by name or email…"
-          className="w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className="h-11 w-full rounded-field border border-ink-200 bg-white pl-10 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
       </div>
 
@@ -78,7 +83,7 @@ export function MembersFilters({ search, status }: { search: string; status: str
           id="member-status"
           value={status}
           onChange={(event) => commit('status', event.target.value)}
-          className="w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         >
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((option) => (

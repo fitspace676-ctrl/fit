@@ -9,6 +9,7 @@ import {
   type ProductStatus,
   type ProductVariant,
 } from '@fit/types';
+import { Btn, Card, Icon } from '@/components/ui';
 import { inputToMinor, minorToInput } from './format-price';
 import {
   createProductAction,
@@ -24,7 +25,7 @@ const CREATE_STATUSES: ReadonlyArray<{ value: ProductStatus; label: string }> = 
 
 /** Shared field styling so create + edit render identically. */
 const FIELD_CLASS =
-  'w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:bg-slate-50 disabled:text-slate-500';
+  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
 
 /** Accepted image MIME types for the gallery, matching the storage service map. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -241,22 +242,27 @@ export function ProductForm(props: Props) {
     <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-4">
       {/* Image gallery. */}
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-slate-700">
-          Image gallery <span className="font-normal text-slate-400">(first is the primary)</span>
+        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">
+          Image gallery{' '}
+          <span className="font-normal text-ink-400">(first is the primary)</span>
         </span>
         {images.length > 0 ? (
           <div className="flex flex-wrap gap-3">
             {images.map((url, index) => (
               <div key={url} className="flex flex-col items-center gap-1">
-                <img src={url} alt="" className="h-20 w-20 rounded-card object-cover" />
+                <img
+                  src={url}
+                  alt=""
+                  className="h-20 w-20 rounded-card object-cover ring-1 ring-ink-200 dark:ring-white/10"
+                />
                 <div className="flex items-center gap-2 text-xs">
                   {index === 0 ? (
-                    <span className="font-medium text-brand-700">Primary</span>
+                    <span className="font-medium text-brand-700 dark:text-brand-300">Primary</span>
                   ) : (
                     <button
                       type="button"
                       onClick={() => makePrimary(url)}
-                      className="font-medium text-slate-500 hover:text-brand-700"
+                      className="font-medium text-ink-500 hover:text-brand-700 dark:text-ink-400 dark:hover:text-brand-300"
                     >
                       Make primary
                     </button>
@@ -264,7 +270,7 @@ export function ProductForm(props: Props) {
                   <button
                     type="button"
                     onClick={() => removeImage(url)}
-                    className="font-medium text-slate-500 hover:text-red-600"
+                    className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400 dark:hover:text-danger-400"
                   >
                     Remove
                   </button>
@@ -273,7 +279,7 @@ export function ProductForm(props: Props) {
             ))}
           </div>
         ) : (
-          <span className="flex h-20 w-full max-w-xs items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700">
+          <span className="flex h-20 w-full max-w-xs items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
             No images yet
           </span>
         )}
@@ -285,9 +291,9 @@ export function ProductForm(props: Props) {
             accept={ACCEPTED_IMAGE_TYPES.join(',')}
             onChange={(event) => void onImagesChange(event)}
             disabled={uploading || pending || atImageLimit}
-            className="text-sm text-slate-600 file:mr-3 file:rounded-card file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50"
+            className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/15 dark:file:text-brand-300 dark:hover:file:bg-brand-500/25"
           />
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-ink-400">
             {uploading
               ? 'Uploading…'
               : atImageLimit
@@ -296,14 +302,21 @@ export function ProductForm(props: Props) {
           </span>
         </div>
         {uploadError ? (
-          <p role="alert" className="rounded-card bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            {uploadError}
-          </p>
+          <Card
+            role="alert"
+            className="flex items-center gap-2 p-3 text-sm text-warning-800 dark:text-warning-200"
+          >
+            <Icon name="info" className="h-4 w-4 shrink-0" />
+            <span>{uploadError}</span>
+          </Card>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="product-name" className="text-sm font-medium text-slate-700">
+        <label
+          htmlFor="product-name"
+          className="text-sm font-medium text-ink-700 dark:text-ink-200"
+        >
           Name
         </label>
         <input
@@ -319,8 +332,11 @@ export function ProductForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="product-description" className="text-sm font-medium text-slate-700">
-          Description <span className="font-normal text-slate-400">(optional)</span>
+        <label
+          htmlFor="product-description"
+          className="text-sm font-medium text-ink-700 dark:text-ink-200"
+        >
+          Description <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <textarea
           id="product-description"
@@ -329,13 +345,16 @@ export function ProductForm(props: Props) {
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder="A short description of the product."
-          className={FIELD_CLASS}
+          className="w-full rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
       </div>
 
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="product-price" className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="product-price"
+            className="text-sm font-medium text-ink-700 dark:text-ink-200"
+          >
             Base price
           </label>
           <input
@@ -352,7 +371,10 @@ export function ProductForm(props: Props) {
           />
         </div>
         <div className="flex w-32 flex-col gap-1">
-          <label htmlFor="product-currency" className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="product-currency"
+            className="text-sm font-medium text-ink-700 dark:text-ink-200"
+          >
             Currency
           </label>
           <input
@@ -371,12 +393,12 @@ export function ProductForm(props: Props) {
 
       {/* Variants. */}
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-slate-700">
-          Variants <span className="font-normal text-slate-400">(optional)</span>
+        <legend className="text-sm font-medium text-ink-700 dark:text-ink-200">
+          Variants <span className="font-normal text-ink-400">(optional)</span>
         </legend>
         {variants.length > 0 ? (
           <div className="flex flex-col gap-2">
-            <div className="hidden grid-cols-[1fr_1fr_7rem_5rem_auto] gap-2 text-xs uppercase tracking-wide text-slate-400 sm:grid">
+            <div className="hidden grid-cols-[1fr_1fr_7rem_5rem_auto] gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400 sm:grid">
               <span>Name</span>
               <span>SKU</span>
               <span>Price</span>
@@ -428,7 +450,7 @@ export function ProductForm(props: Props) {
                 <button
                   type="button"
                   onClick={() => removeVariant(index)}
-                  className="justify-self-start rounded-card border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 hover:text-red-600 sm:justify-self-auto"
+                  className="justify-self-start rounded-btn border border-ink-200 px-3 py-2 text-sm font-medium text-ink-500 hover:text-danger-600 dark:border-white/10 dark:text-ink-400 dark:hover:text-danger-400 sm:justify-self-auto"
                 >
                   Remove
                 </button>
@@ -436,25 +458,23 @@ export function ProductForm(props: Props) {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-400">
             No variants. Add sizes, colours, or flavours as purchasable options.
           </p>
         )}
         <div>
-          <button
-            type="button"
-            onClick={addVariant}
-            disabled={atVariantLimit}
-            className="rounded-card border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
+          <Btn v="outline" size="sm" onClick={addVariant} disabled={atVariantLimit}>
             {atVariantLimit ? `Maximum of ${MAX_PRODUCT_VARIANTS} variants` : 'Add variant'}
-          </button>
+          </Btn>
         </div>
       </fieldset>
 
       {!isEdit ? (
         <div className="flex flex-col gap-1">
-          <label htmlFor="product-status" className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="product-status"
+            className="text-sm font-medium text-ink-700 dark:text-ink-200"
+          >
             Status
           </label>
           <select
@@ -474,20 +494,23 @@ export function ProductForm(props: Props) {
       ) : null}
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <Card
+          role="alert"
+          className="flex items-center gap-2 p-3 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </Card>
       ) : null}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending || uploading}
-          className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Btn type="submit" v="primary" size="md" disabled={pending || uploading}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
-        </button>
-        <Link href={cancelHref} className="text-sm font-medium text-slate-500 hover:text-slate-700">
+        </Btn>
+        <Link
+          href={cancelHref}
+          className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
+        >
           Cancel
         </Link>
       </div>

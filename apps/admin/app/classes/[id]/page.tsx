@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchClassTemplate } from '@/lib/api';
+import { Badge, Card, Icon } from '@/components/ui';
 import { STATUS_STYLES, formatDate, formatDateTime, formatDuration } from '../format';
 import { TemplateActions } from './template-actions';
 
@@ -43,29 +44,46 @@ export default async function ClassTemplateDetailPage({
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/classes" className="text-sm font-medium text-brand-700 hover:text-brand-800">
-          ← Back to classes
+        <Link
+          href="/classes"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+        >
+          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+          Back to classes
         </Link>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
+        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
+          <Icon
+            name="info"
+            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
+          />
+          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+            {message}
+          </p>
+        </Card>
       </div>
     );
   }
 
   const status = STATUS_STYLES[template.status] ?? {
     label: template.status,
-    className: 'bg-slate-100 text-slate-600',
+    tone: 'ink' as const,
   };
 
   // Write controls (edit + pause) are a `ClassWrite` capability.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
 
+  const labelClass =
+    'font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/classes" className="text-sm font-medium text-brand-700 hover:text-brand-800">
-        ← Back to classes
+      <Link
+        href="/classes"
+        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+      >
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+        Back to classes
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -76,67 +94,65 @@ export default async function ClassTemplateDetailPage({
               className="h-4 w-4 shrink-0 rounded-full"
               style={{ backgroundColor: template.color }}
             />
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{template.title}</h1>
-            <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${status.className}`}>
-              {status.label}
-            </span>
-            {template.category ? (
-              <span className="rounded-card bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                {template.category}
-              </span>
-            ) : null}
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+              {template.title}
+            </h1>
+            <Badge tone={status.tone}>{status.label}</Badge>
+            {template.category ? <Badge tone="ink">{template.category}</Badge> : null}
           </div>
-          <p className="text-sm text-slate-600">{template.recurrence}</p>
+          <p className="text-sm text-ink-600 dark:text-ink-300">{template.recurrence}</p>
         </div>
         {canWrite ? <TemplateActions templateId={template.id} status={template.status} /> : null}
       </header>
 
-      <section className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+      <Card className="flex flex-wrap gap-x-10 gap-y-4 p-5 text-sm">
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Capacity</span>
-          <span className="text-slate-800">{template.capacity} spots</span>
+          <span className={labelClass}>Capacity</span>
+          <span className="text-ink-800 dark:text-ink-100">{template.capacity} spots</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Duration</span>
-          <span className="text-slate-800">{formatDuration(template.durationMinutes)}</span>
+          <span className={labelClass}>Duration</span>
+          <span className="text-ink-800 dark:text-ink-100">
+            {formatDuration(template.durationMinutes)}
+          </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Trainer</span>
-          <span className="text-slate-800">{template.trainerName ?? '—'}</span>
+          <span className={labelClass}>Trainer</span>
+          <span className="text-ink-800 dark:text-ink-100">{template.trainerName ?? '—'}</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Location</span>
-          <span className="text-slate-800">
+          <span className={labelClass}>Location</span>
+          <span className="text-ink-800 dark:text-ink-100">
             {template.locationName ?? '—'}
             {template.room ? ` · ${template.room}` : ''}
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Runs</span>
-          <span className="text-slate-800">
+          <span className={labelClass}>Runs</span>
+          <span className="text-ink-800 dark:text-ink-100">
             {formatDate(template.validFrom)} –{' '}
             {template.validUntil ? formatDate(template.validUntil) : 'open-ended'}
           </span>
         </div>
-      </section>
+      </Card>
 
       <section className="flex flex-col gap-1">
-        <span className="text-xs uppercase tracking-wide text-slate-500">Recurrence rule</span>
-        <code className="w-fit rounded-card bg-slate-50 px-2 py-1 font-mono text-xs text-slate-500">
+        <span className={labelClass}>Recurrence rule</span>
+        <code className="w-fit rounded-field bg-ink-50 px-2 py-1 font-mono text-xs text-ink-500 dark:bg-white/5 dark:text-ink-400">
           {template.rrule}
         </code>
       </section>
 
       {template.description ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-xs uppercase tracking-wide text-slate-500">Description</h2>
-          <p className="max-w-2xl whitespace-pre-line text-sm text-slate-700">
+          <h2 className={labelClass}>Description</h2>
+          <p className="max-w-2xl whitespace-pre-line text-sm text-ink-700 dark:text-ink-200">
             {template.description}
           </p>
         </section>
       ) : null}
 
-      <p className="text-xs text-slate-400">Added {formatDateTime(template.createdAt)}.</p>
+      <p className="text-xs text-ink-400">Added {formatDateTime(template.createdAt)}.</p>
     </div>
   );
 }

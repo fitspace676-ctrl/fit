@@ -8,6 +8,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchPackagePlans } from '@/lib/api';
+import { buttonClasses } from '@/components/ui';
 import { PackagePlansFilters } from './packages-filters';
 import { PackagePlansTable } from './packages-table';
 
@@ -65,7 +66,10 @@ export default async function PackagePlansPage({
         ? `Could not load package plans (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+      <p
+        role="alert"
+        className="rounded-card border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-danger-700 dark:text-danger-300"
+      >
         {message}
       </p>
     );
@@ -75,18 +79,17 @@ export default async function PackagePlansPage({
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Packages</h1>
-          <p className="max-w-2xl text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Packages
+          </h1>
+          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
             Your gym’s personal-training package plans. Search by name or description, filter by
             status, sort any column, open a plan, or add a new one with pricing, a billing cadence,
             sessions, and features.
           </p>
         </div>
         {canWrite ? (
-          <Link
-            href="/packages/new"
-            className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
+          <Link href="/packages/new" className={buttonClasses('primary', 'md')}>
             New plan
           </Link>
         ) : null}

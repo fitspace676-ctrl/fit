@@ -1,6 +1,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import type { TrainerScheduleEntry } from '@fit/types';
 import { formatTime, groupByDay } from '@/src/components/classes/date-utils';
+import { Card, Icon } from '@/src/components/ui';
 
 export interface TrainerScheduleProps {
   schedule: TrainerScheduleEntry[];
@@ -21,10 +22,13 @@ export function TrainerSchedule({ schedule }: TrainerScheduleProps) {
   if (schedule.length === 0) {
     return (
       <section aria-labelledby="trainer-schedule-heading" className="flex flex-col gap-3">
-        <h2 id="trainer-schedule-heading" className="text-lg font-semibold text-slate-900">
+        <h2
+          id="trainer-schedule-heading"
+          className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white"
+        >
           {t('detail.schedule.title')}
         </h2>
-        <p className="rounded-card border border-dashed border-slate-200 bg-slate-50/60 px-6 py-10 text-center text-sm text-slate-500">
+        <p className="rounded-card border border-dashed border-ink-200 bg-ink-50 px-6 py-10 text-center text-sm text-ink-500 dark:border-white/10 dark:bg-white/5 dark:text-ink-400">
           {t('detail.schedule.empty')}
         </p>
       </section>
@@ -35,32 +39,38 @@ export function TrainerSchedule({ schedule }: TrainerScheduleProps) {
 
   return (
     <section aria-labelledby="trainer-schedule-heading" className="flex flex-col gap-3">
-      <h2 id="trainer-schedule-heading" className="text-lg font-semibold text-slate-900">
+      <h2
+        id="trainer-schedule-heading"
+        className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white"
+      >
         {t('detail.schedule.title')}
       </h2>
 
       <div className="flex flex-col gap-3">
         {groups.map((group) => (
-          <div key={group.key} className="overflow-hidden rounded-card border border-slate-200">
-            <p className="bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">
+          <Card key={group.key} glow className="overflow-hidden">
+            <p className="border-b border-ink-200 bg-ink-50 px-4 py-3 text-sm font-semibold text-ink-900 dark:border-white/10 dark:bg-white/5 dark:text-white">
               {group.date.toLocaleDateString(locale, {
                 weekday: 'long',
                 month: 'short',
                 day: 'numeric',
               })}
             </p>
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-ink-100 dark:divide-white/5">
               {group.items.map((entry) => (
                 <li key={entry.id} className="flex items-center gap-4 px-4 py-3">
-                  <span className="w-24 shrink-0 text-sm font-medium tabular-nums text-slate-700">
-                    {formatTime(entry.startsAt, locale)}–{formatTime(entry.endsAt, locale)}
+                  <span className="flex w-24 shrink-0 items-center gap-1.5 font-mono text-sm font-medium tabular-nums text-ink-700 dark:text-ink-200">
+                    <Icon name="clock" className="h-3.5 w-3.5 shrink-0 text-ink-400" sw={2} />
+                    <span className="truncate">
+                      {formatTime(entry.startsAt, locale)}–{formatTime(entry.endsAt, locale)}
+                    </span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">
+                    <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
                       {entry.title}
                     </span>
                     {entry.locationName && (
-                      <span className="block truncate text-xs text-slate-500">
+                      <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
                         {entry.locationName}
                       </span>
                     )}
@@ -68,7 +78,7 @@ export function TrainerSchedule({ schedule }: TrainerScheduleProps) {
                 </li>
               ))}
             </ul>
-          </div>
+          </Card>
         ))}
       </div>
     </section>

@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProduct } from '@/lib/api';
+import { Card, Icon } from '@/components/ui';
 import { ProductForm } from '../../product-form';
 
 export const metadata: Metadata = {
@@ -40,12 +41,20 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/products" className="text-sm font-medium text-brand-700 hover:text-brand-800">
-          ← Back to products
+        <Link
+          href="/products"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+        >
+          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+          Back to products
         </Link>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
+        <Card
+          role="alert"
+          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-5 w-5 shrink-0" />
+          <span>{message}</span>
+        </Card>
       </div>
     );
   }
@@ -54,14 +63,17 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     <div className="flex flex-col gap-6">
       <Link
         href={`/products/${id}`}
-        className="text-sm font-medium text-brand-700 hover:text-brand-800"
+        className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
       >
-        ← Back to product
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+        Back to product
       </Link>
 
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Edit product</h1>
-        <p className="text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Edit product
+        </h1>
+        <p className="text-sm text-ink-500 dark:text-ink-400">
           Update {product.name}’s details, price, images, and variants.
         </p>
       </header>

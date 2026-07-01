@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
+import { Icon } from '@/components/ui';
 import { SubscriptionPlanForm } from '../../subscription-plan-form';
 
 export const metadata: Metadata = {
@@ -46,11 +47,14 @@ export default async function EditSubscriptionPlanPage({
       <div className="flex flex-col gap-4">
         <Link
           href="/subscriptions"
-          className="text-sm font-medium text-brand-700 hover:text-brand-800"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
         >
-          ← Back to subscriptions
+          <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
         </Link>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-card border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-danger-700 dark:text-danger-300"
+        >
           {message}
         </p>
       </div>
@@ -61,14 +65,16 @@ export default async function EditSubscriptionPlanPage({
     <div className="flex flex-col gap-6">
       <Link
         href={`/subscriptions/${id}`}
-        className="text-sm font-medium text-brand-700 hover:text-brand-800"
+        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
       >
-        ← Back to plan
+        <Icon name="arrowLeft" className="h-4 w-4" /> Back to plan
       </Link>
 
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Edit subscription plan</h1>
-        <p className="text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Edit subscription plan
+        </h1>
+        <p className="text-sm text-ink-500 dark:text-ink-400">
           Update {plan.name}’s details, price, renewal cadence, and features.
         </p>
       </header>

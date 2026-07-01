@@ -10,6 +10,7 @@ import {
   type ClassTemplateStatus,
   type Recurrence,
 } from '@fit/types';
+import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
 import { createClassTemplateAction, updateClassTemplateAction } from './actions';
 import { RecurrenceEditor } from './recurrence-editor';
 
@@ -27,7 +28,14 @@ const CREATE_STATUSES: ReadonlyArray<{ value: ClassTemplateStatus; label: string
 
 /** Shared field styling so create + edit render identically. */
 const FIELD_CLASS =
-  'w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:bg-slate-50 disabled:text-slate-500';
+  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
+
+/** Field styling for multi-line inputs (textareas) — same tokens, no fixed height. */
+const TEXTAREA_CLASS =
+  'w-full rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
+
+/** Shared label styling. */
+const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
 
 /** The default recurrence a new template starts on — a weekly Monday class. */
 const DEFAULT_RECURRENCE: Recurrence = {
@@ -169,7 +177,7 @@ export function ClassTemplateForm(props: Props) {
   return (
     <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <label htmlFor="class-title" className="text-sm font-medium text-slate-700">
+        <label htmlFor="class-title" className={LABEL_CLASS}>
           Title
         </label>
         <input
@@ -187,8 +195,8 @@ export function ClassTemplateForm(props: Props) {
 
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-category" className="text-sm font-medium text-slate-700">
-            Category <span className="font-normal text-slate-400">(optional)</span>
+          <label htmlFor="class-category" className={LABEL_CLASS}>
+            Category <span className="font-normal text-ink-400">(optional)</span>
           </label>
           <input
             id="class-category"
@@ -202,7 +210,7 @@ export function ClassTemplateForm(props: Props) {
           />
         </div>
         <div className="flex w-32 flex-col gap-1">
-          <label htmlFor="class-color" className="text-sm font-medium text-slate-700">
+          <label htmlFor="class-color" className={LABEL_CLASS}>
             Color
           </label>
           <input
@@ -211,14 +219,14 @@ export function ClassTemplateForm(props: Props) {
             type="color"
             value={color}
             onChange={(event) => setColor(event.target.value)}
-            className="h-[38px] w-full rounded-card border border-slate-200 px-1 shadow-sm"
+            className="h-11 w-full rounded-field border border-ink-200 bg-white px-1 dark:border-white/10 dark:bg-white/[0.04]"
           />
         </div>
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="class-description" className="text-sm font-medium text-slate-700">
-          Description <span className="font-normal text-slate-400">(optional)</span>
+        <label htmlFor="class-description" className={LABEL_CLASS}>
+          Description <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <textarea
           id="class-description"
@@ -227,13 +235,13 @@ export function ClassTemplateForm(props: Props) {
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder="A short description of the class."
-          className={FIELD_CLASS}
+          className={TEXTAREA_CLASS}
         />
       </div>
 
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-capacity" className="text-sm font-medium text-slate-700">
+          <label htmlFor="class-capacity" className={LABEL_CLASS}>
             Capacity
           </label>
           <input
@@ -251,7 +259,7 @@ export function ClassTemplateForm(props: Props) {
           />
         </div>
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-duration" className="text-sm font-medium text-slate-700">
+          <label htmlFor="class-duration" className={LABEL_CLASS}>
             Duration (minutes)
           </label>
           <input
@@ -277,7 +285,7 @@ export function ClassTemplateForm(props: Props) {
       {/* Validity window. */}
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-valid-from" className="text-sm font-medium text-slate-700">
+          <label htmlFor="class-valid-from" className={LABEL_CLASS}>
             Starts
           </label>
           <input
@@ -291,8 +299,8 @@ export function ClassTemplateForm(props: Props) {
           />
         </div>
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-valid-until" className="text-sm font-medium text-slate-700">
-            Ends <span className="font-normal text-slate-400">(blank = open-ended)</span>
+          <label htmlFor="class-valid-until" className={LABEL_CLASS}>
+            Ends <span className="font-normal text-ink-400">(blank = open-ended)</span>
           </label>
           <input
             id="class-valid-until"
@@ -309,8 +317,8 @@ export function ClassTemplateForm(props: Props) {
       {/* Default trainer / location / room. */}
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-trainer" className="text-sm font-medium text-slate-700">
-            Trainer <span className="font-normal text-slate-400">(optional)</span>
+          <label htmlFor="class-trainer" className={LABEL_CLASS}>
+            Trainer <span className="font-normal text-ink-400">(optional)</span>
           </label>
           <select
             id="class-trainer"
@@ -328,8 +336,8 @@ export function ClassTemplateForm(props: Props) {
           </select>
         </div>
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-location" className="text-sm font-medium text-slate-700">
-            Location <span className="font-normal text-slate-400">(optional)</span>
+          <label htmlFor="class-location" className={LABEL_CLASS}>
+            Location <span className="font-normal text-ink-400">(optional)</span>
           </label>
           <select
             id="class-location"
@@ -349,8 +357,8 @@ export function ClassTemplateForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="class-room" className="text-sm font-medium text-slate-700">
-          Room <span className="font-normal text-slate-400">(optional)</span>
+        <label htmlFor="class-room" className={LABEL_CLASS}>
+          Room <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <input
           id="class-room"
@@ -366,7 +374,7 @@ export function ClassTemplateForm(props: Props) {
 
       {!isEdit ? (
         <div className="flex flex-col gap-1">
-          <label htmlFor="class-status" className="text-sm font-medium text-slate-700">
+          <label htmlFor="class-status" className={LABEL_CLASS}>
             Status
           </label>
           <select
@@ -386,20 +394,22 @@ export function ClassTemplateForm(props: Props) {
       ) : null}
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
+          <Icon
+            name="info"
+            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
+          />
+          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+            {error}
+          </p>
+        </Card>
       ) : null}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Btn type="submit" v="primary" size="md" disabled={pending}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create class'}
-        </button>
-        <Link href={cancelHref} className="text-sm font-medium text-slate-500 hover:text-slate-700">
+        </Btn>
+        <Link href={cancelHref} className={buttonClasses('ghost', 'md')}>
           Cancel
         </Link>
       </div>

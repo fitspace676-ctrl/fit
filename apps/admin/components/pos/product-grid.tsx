@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
 import { formatPrice } from '@/app/products/format-price';
 import { searchPosProductsAction, type PosProductRow } from '@/app/pos/actions';
+import { Card, Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke fires a new product search. */
 const SEARCH_DEBOUNCE_MS = 200;
@@ -70,19 +71,23 @@ export function ProductGrid({
           type="search"
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search products by name…  (F1)"
-          className="w-full rounded-card border border-slate-200 px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className="h-12 w-full rounded-field border border-ink-200 bg-white px-4 text-base text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
       </div>
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <Card
+          role="alert"
+          className="flex items-center gap-2 p-3 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </Card>
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {products.length === 0 && !isPending && !error ? (
-          <p className="px-1 py-8 text-center text-sm text-slate-500">
+          <p className="px-1 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
             No active products match this search.
           </p>
         ) : (
@@ -92,21 +97,21 @@ export function ProductGrid({
                 <button
                   type="button"
                   onClick={() => onAdd(product)}
-                  className="flex h-full w-full flex-col gap-2 rounded-card border border-slate-200 bg-white p-3 text-left transition hover:border-brand-400 hover:shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  className="flex h-full w-full flex-col gap-2 rounded-card border border-ink-200 bg-white p-3 text-left transition hover:border-brand-400 hover:shadow-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-brand-500/60"
                 >
-                  <div className="aspect-square w-full overflow-hidden rounded-card bg-slate-100">
+                  <div className="aspect-square w-full overflow-hidden rounded-btn bg-ink-100 dark:bg-white/5">
                     {product.imageUrl ? (
                       <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-2xl text-slate-300">
+                      <div className="flex h-full w-full items-center justify-center text-2xl text-ink-300 dark:text-ink-600">
                         {product.name.slice(0, 1).toUpperCase()}
                       </div>
                     )}
                   </div>
-                  <span className="line-clamp-2 text-sm font-medium text-slate-900">
+                  <span className="line-clamp-2 text-sm font-medium text-ink-900 dark:text-white">
                     {product.name}
                   </span>
-                  <span className="mt-auto text-sm font-semibold text-brand-700">
+                  <span className="mt-auto font-mono text-sm font-semibold text-brand-700 dark:text-brand-300">
                     {formatPrice(product.priceAmount, product.currency)}
                   </span>
                 </button>

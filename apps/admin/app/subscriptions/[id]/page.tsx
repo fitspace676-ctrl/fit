@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
+import { Badge, Icon, type Tone } from '@/components/ui';
 import { formatPrice, intervalLabel, intervalSuffix } from '../format';
 import { PlanActions } from './plan-actions';
 
@@ -16,9 +17,9 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster table's pills. */
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
-  INACTIVE: { label: 'Inactive', className: 'bg-slate-100 text-slate-600' },
+const STATUS_LABELS: Record<string, { label: string; tone: Tone }> = {
+  ACTIVE: { label: 'Active', tone: 'success' },
+  INACTIVE: { label: 'Inactive', tone: 'ink' },
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -60,11 +61,14 @@ export default async function SubscriptionPlanDetailPage({
       <div className="flex flex-col gap-4">
         <Link
           href="/subscriptions"
-          className="text-sm font-medium text-brand-700 hover:text-brand-800"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
         >
-          ← Back to subscriptions
+          <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
         </Link>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-card border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-danger-700 dark:text-danger-300"
+        >
           {message}
         </p>
       </div>
@@ -73,7 +77,7 @@ export default async function SubscriptionPlanDetailPage({
 
   const status = STATUS_LABELS[plan.status] ?? {
     label: plan.status,
-    className: 'bg-slate-100 text-slate-600',
+    tone: 'ink' as Tone,
   };
 
   // Write controls (edit + deactivate) are a `BillingManage` capability.
@@ -84,27 +88,23 @@ export default async function SubscriptionPlanDetailPage({
     <div className="flex flex-col gap-6">
       <Link
         href="/subscriptions"
-        className="text-sm font-medium text-brand-700 hover:text-brand-800"
+        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
       >
-        ← Back to subscriptions
+        <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{plan.name}</h1>
-            <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${status.className}`}>
-              {status.label}
-            </span>
-            {plan.popular ? (
-              <span className="rounded-card bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
-                Most popular
-              </span>
-            ) : null}
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+              {plan.name}
+            </h1>
+            <Badge tone={status.tone}>{status.label}</Badge>
+            {plan.popular ? <Badge tone="brand">Most popular</Badge> : null}
           </div>
-          <p className="text-lg font-semibold tabular-nums text-slate-800">
+          <p className="font-mono text-lg font-semibold tabular-nums text-ink-800 dark:text-ink-100">
             {formatPrice(plan.priceAmount, plan.currency)}{' '}
-            <span className="text-sm font-normal text-slate-400">
+            <span className="text-sm font-normal text-ink-400">
               {intervalSuffix(plan.interval)}
             </span>
           </p>
@@ -114,32 +114,38 @@ export default async function SubscriptionPlanDetailPage({
 
       <section className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Billing</span>
-          <span className="text-slate-800">{intervalLabel(plan.interval)}</span>
+          <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Billing
+          </span>
+          <span className="text-ink-800 dark:text-ink-100">{intervalLabel(plan.interval)}</span>
         </div>
       </section>
 
       {plan.description ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-xs uppercase tracking-wide text-slate-500">Description</h2>
-          <p className="max-w-2xl whitespace-pre-line text-sm text-slate-700">{plan.description}</p>
+          <h2 className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Description
+          </h2>
+          <p className="max-w-2xl whitespace-pre-line text-sm text-ink-700 dark:text-ink-200">
+            {plan.description}
+          </p>
         </section>
       ) : null}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-slate-500">Features</h2>
+        <h2 className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">Features</h2>
         {plan.features.length > 0 ? (
-          <ul className="flex max-w-xl list-disc flex-col gap-1 pl-5 text-sm text-slate-700">
+          <ul className="flex max-w-xl list-disc flex-col gap-1 pl-5 text-sm text-ink-700 dark:text-ink-200">
             {plan.features.map((feature, index) => (
               <li key={index}>{feature}</li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-slate-400">No features listed.</p>
+          <p className="text-sm text-ink-400">No features listed.</p>
         )}
       </section>
 
-      <p className="text-xs text-slate-400">Added {formatDate(plan.createdAt)}.</p>
+      <p className="text-xs text-ink-400">Added {formatDate(plan.createdAt)}.</p>
     </div>
   );
 }

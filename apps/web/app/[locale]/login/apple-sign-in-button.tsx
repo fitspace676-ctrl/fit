@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { loginWithApple } from '@/lib/auth';
+import { Icon, buttonClasses } from '@/src/components/ui';
 
 /** URL of the Sign in with Apple JS client library. */
 const APPLE_JS_SRC =
@@ -93,7 +94,7 @@ export function AppleSignInButton() {
 
   if (!CLIENT_ID || !REDIRECT_URI) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-ink-500 dark:text-ink-400">
         Apple sign-in is not configured (set <code>NEXT_PUBLIC_APPLE_CLIENT_ID</code> and{' '}
         <code>NEXT_PUBLIC_APPLE_REDIRECT_URI</code>).
       </p>
@@ -103,23 +104,23 @@ export function AppleSignInButton() {
   const busy = status === 'authenticating';
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex w-full flex-col items-center gap-3">
       <button
         type="button"
         aria-label="Sign in with Apple"
         disabled={!ready || busy}
         onClick={signIn}
-        className={`flex h-11 w-[280px] items-center justify-center gap-2 rounded-full bg-black px-6 text-base font-medium text-white ${
-          !ready || busy ? 'opacity-60' : ''
-        }`}
+        className={buttonClasses('outline', 'md', 'w-[280px] max-w-full')}
       >
-        <svg aria-hidden="true" viewBox="0 0 384 512" className="h-4 w-4 fill-current">
-          <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C73.3 141.6 24 184.8 24 272.4c0 25.9 4.7 52.7 14.1 80.3 12.6 36.5 58 126 105.5 124.6 24.8-.6 42.3-17.6 74.5-17.6 31.3 0 47.5 17.6 75.2 17.6 47.9-.7 89-82.1 101-118.7-64.2-30.3-60.7-88.7-60.6-89.9zM255.8 73.4c30.3-36 27.6-68.8 26.7-80.6-25.8 1.5-55.6 17.6-72.6 37.4-18.7 21.2-29.7 47.4-27.3 79.4 27.9 2.2 53.4-12.2 73.2-36.2z" />
-        </svg>
+        <Icon name="apple" className="h-4 w-4" sw={2} />
         {busy ? 'Signing you in…' : 'Continue with Apple'}
       </button>
-      {status === 'success' && <p className="text-sm text-green-600">Signed in successfully.</p>}
-      {status === 'error' && error && <p className="text-sm text-red-600">{error}</p>}
+      {status === 'success' && (
+        <p className="text-sm text-success-600 dark:text-success-300">Signed in successfully.</p>
+      )}
+      {status === 'error' && error && (
+        <p className="text-sm text-danger-600 dark:text-danger-300">{error}</p>
+      )}
     </div>
   );
 }

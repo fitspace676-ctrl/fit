@@ -3,6 +3,7 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AuditLogRow } from '@fit/types';
+import { Badge, Btn, Card } from '@/components/ui';
 import { auditActionLabel } from './audit-actions';
 
 /** Render an ISO instant as a short local date + time, or an em dash when absent. */
@@ -22,12 +23,14 @@ function formatTimestamp(iso: string): string {
 /** A user's display name + email as a stacked cell, or an em dash when there is none. */
 function ActorCell({ name, email }: { name: string | null; email: string | null }) {
   if (!name && !email) {
-    return <span className="text-slate-400">—</span>;
+    return <span className="text-ink-400">—</span>;
   }
   return (
     <div className="flex flex-col">
-      <span className="font-medium text-slate-900">{name ?? email}</span>
-      {name && email ? <span className="text-xs text-slate-500">{email}</span> : null}
+      <span className="font-medium text-ink-900 dark:text-white">{name ?? email}</span>
+      {name && email ? (
+        <span className="text-xs text-ink-500 dark:text-ink-400">{email}</span>
+      ) : null}
     </div>
   );
 }
@@ -53,13 +56,17 @@ function formatMetadataValue(value: unknown): string {
 function MetadataCell({ metadata }: { metadata: Record<string, unknown> | null }) {
   const entries = metadata ? Object.entries(metadata) : [];
   if (entries.length === 0) {
-    return <span className="text-slate-400">—</span>;
+    return <span className="text-ink-400">—</span>;
   }
   return (
     <div className="flex flex-wrap gap-1">
       {entries.map(([key, value]) => (
-        <span key={key} className="rounded-card bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-          <span className="font-medium text-slate-500">{key}:</span> {formatMetadataValue(value)}
+        <span
+          key={key}
+          className="rounded-pill bg-ink-100 px-2 py-0.5 text-xs text-ink-600 dark:bg-white/10 dark:text-ink-300"
+        >
+          <span className="font-medium text-ink-500 dark:text-ink-400">{key}:</span>{' '}
+          {formatMetadataValue(value)}
         </span>
       ))}
     </div>
@@ -103,76 +110,84 @@ export function AuditLogTable({
 
   if (entries.length === 0) {
     return (
-      <p className="rounded-card border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+      <Card className="px-4 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
         No audit entries match your filters yet.
-      </p>
+      </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto">
+      <Card className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-              <th className="py-2 pr-4 font-medium">When</th>
-              <th className="py-2 pr-4 font-medium">Action</th>
-              <th className="py-2 pr-4 font-medium">Actor</th>
-              <th className="py-2 pr-4 font-medium">Target</th>
-              <th className="py-2 pr-4 font-medium">Details</th>
+            <tr className="border-b border-ink-100 dark:border-white/10">
+              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                When
+              </th>
+              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                Action
+              </th>
+              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                Actor
+              </th>
+              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                Target
+              </th>
+              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                Details
+              </th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry) => (
               <tr
                 key={entry.id}
-                className="border-b border-slate-100 align-top hover:bg-slate-50/60"
+                className="border-b border-ink-50 align-top last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
               >
-                <td className="whitespace-nowrap py-2 pr-4 text-slate-700 tabular-nums">
+                <td className="whitespace-nowrap px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
                   {formatTimestamp(entry.createdAt)}
                 </td>
-                <td className="py-2 pr-4">
-                  <span className="rounded-card bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
-                    {auditActionLabel(entry.action)}
-                  </span>
+                <td className="px-4 py-3">
+                  <Badge tone="brand">{auditActionLabel(entry.action)}</Badge>
                 </td>
-                <td className="py-2 pr-4">
+                <td className="px-4 py-3">
                   <ActorCell name={entry.actorName} email={entry.actorEmail} />
                 </td>
-                <td className="py-2 pr-4">
+                <td className="px-4 py-3">
                   <ActorCell name={entry.targetName} email={entry.targetEmail} />
                 </td>
-                <td className="py-2 pr-4">
+                <td className="px-4 py-3">
                   <MetadataCell metadata={entry.metadata} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-slate-500">
+      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
         <span className="tabular-nums">
           {from}–{to} of {total}
         </span>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasPrev}
             onClick={() => startTransition(() => router.replace(pageHref(page - 1)))}
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Previous
-          </button>
-          <button
-            type="button"
+          </Btn>
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasNext}
             onClick={() => startTransition(() => router.replace(pageHref(page + 1)))}
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Next
-          </button>
+          </Btn>
         </div>
       </div>
     </div>

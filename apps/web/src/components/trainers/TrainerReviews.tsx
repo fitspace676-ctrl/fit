@@ -1,5 +1,6 @@
 import { useLocale, useTranslations } from 'next-intl';
 import type { PublicReview } from '@fit/types';
+import { Card, Icon } from '@/src/components/ui';
 
 export interface TrainerReviewsProps {
   /** The visible reviews on the current page (newest first), as the API returns them. */
@@ -26,10 +27,13 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
   if (total === 0) {
     return (
       <section aria-labelledby="trainer-reviews-heading" className="flex flex-col gap-3">
-        <h2 id="trainer-reviews-heading" className="text-lg font-semibold text-slate-900">
+        <h2
+          id="trainer-reviews-heading"
+          className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white"
+        >
           {t('detail.reviews.title')}
         </h2>
-        <p className="rounded-card border border-dashed border-slate-200 bg-slate-50/60 px-6 py-10 text-center text-sm text-slate-500">
+        <p className="rounded-card border border-dashed border-ink-200 bg-ink-50 px-6 py-10 text-center text-sm text-ink-500 dark:border-white/10 dark:bg-white/5 dark:text-ink-400">
           {t('detail.reviews.empty')}
         </p>
       </section>
@@ -39,41 +43,50 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
   return (
     <section aria-labelledby="trainer-reviews-heading" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="trainer-reviews-heading" className="text-lg font-semibold text-slate-900">
+        <h2
+          id="trainer-reviews-heading"
+          className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white"
+        >
           {t('detail.reviews.title')}
         </h2>
-        <p className="flex items-center gap-2 text-sm text-slate-500">
+        <p className="flex items-center gap-2 text-sm text-ink-500 dark:text-ink-400">
           <Stars
             rating={avgRating}
             label={t('detail.reviews.ratingLabel', { rating: avgRating })}
           />
-          <span className="font-semibold tabular-nums text-slate-900">{avgRating.toFixed(1)}</span>
+          <span className="font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
+            {avgRating.toFixed(1)}
+          </span>
           <span>{t('detail.reviews.count', { count: total })}</span>
         </p>
       </div>
 
       <ul className="flex flex-col gap-3">
         {reviews.map((review) => (
-          <li key={review.id} className="rounded-card border border-slate-200 px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <Stars
-                rating={review.rating}
-                label={t('detail.reviews.ratingLabel', { rating: review.rating })}
-              />
-              <span className="shrink-0 text-xs text-slate-400">
-                {new Date(review.createdAt).toLocaleDateString(locale, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </span>
-            </div>
-            {review.comment && (
-              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-600">
-                {review.comment}
+          <li key={review.id}>
+            <Card glow className="px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <Stars
+                  rating={review.rating}
+                  label={t('detail.reviews.ratingLabel', { rating: review.rating })}
+                />
+                <span className="shrink-0 font-mono text-xs text-ink-400">
+                  {new Date(review.createdAt).toLocaleDateString(locale, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+              </div>
+              {review.comment && (
+                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600 dark:text-ink-300">
+                  {review.comment}
+                </p>
+              )}
+              <p className="mt-2 text-xs font-semibold text-ink-500 dark:text-ink-400">
+                {review.authorName}
               </p>
-            )}
-            <p className="mt-2 text-xs font-medium text-slate-500">{review.authorName}</p>
+            </Card>
           </li>
         ))}
       </ul>
@@ -89,15 +102,18 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
 function Stars({ rating, label }: { rating: number; label: string }) {
   const filled = Math.round(rating);
   return (
-    <span role="img" aria-label={label} className="text-sm leading-none text-amber-500">
+    <span role="img" aria-label={label} className="inline-flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((star) => (
-        <span
+        <Icon
           key={star}
-          aria-hidden
-          className={star <= filled ? 'text-amber-500' : 'text-slate-300'}
-        >
-          ★
-        </span>
+          name="star"
+          className={`h-4 w-4 ${
+            star <= filled
+              ? 'fill-warning-400 text-warning-400'
+              : 'fill-ink-200 text-ink-200 dark:fill-white/10 dark:text-white/10'
+          }`}
+          sw={1.5}
+        />
       ))}
     </span>
   );

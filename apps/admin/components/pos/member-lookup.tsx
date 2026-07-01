@@ -6,6 +6,7 @@ import {
   resolvePosMemberByQrAction,
   type PosMemberRow,
 } from '@/app/pos/actions';
+import { Card, Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke fires a new member lookup. */
 const LOOKUP_DEBOUNCE_MS = 250;
@@ -154,17 +155,19 @@ export function MemberLookup({
 
   if (selectedMember) {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-card border border-brand-200 bg-brand-50 px-3 py-2">
+      <div className="flex items-center justify-between gap-3 rounded-card border border-brand-200 bg-brand-50 px-3 py-2 dark:border-brand-500/30 dark:bg-brand-500/10">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">{selectedMember.name}</p>
-          <p className="truncate text-xs text-slate-500">
+          <p className="truncate text-sm font-semibold text-ink-900 dark:text-white">
+            {selectedMember.name}
+          </p>
+          <p className="truncate text-xs text-ink-500 dark:text-ink-400">
             {selectedMember.phone ?? selectedMember.email}
           </p>
         </div>
         <button
           type="button"
           onClick={() => onSelect(null)}
-          className="shrink-0 rounded-card px-2 py-1 text-xs font-medium text-slate-600 hover:bg-white"
+          className="shrink-0 rounded-btn px-2 py-1 text-xs font-medium text-ink-600 hover:bg-white dark:text-ink-300 dark:hover:bg-white/10"
         >
           Remove
         </button>
@@ -185,49 +188,61 @@ export function MemberLookup({
             type="search"
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder="Member name or phone…  (F2)"
-            className="w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+            className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
           />
         </div>
         <button
           type="button"
           onClick={() => (scanState === 'scanning' ? stopScan() : void startScan())}
-          className="shrink-0 rounded-card border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:border-brand-400 hover:text-brand-700"
+          className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-btn border border-ink-200 px-3.5 text-sm font-medium text-ink-700 hover:border-brand-400 hover:text-brand-700 dark:border-white/10 dark:text-ink-200 dark:hover:border-brand-500/60 dark:hover:text-brand-300"
         >
+          <Icon name="qr" className="h-4 w-4" sw={2} />
           {scanState === 'scanning' ? 'Stop' : 'Scan QR'}
         </button>
       </div>
 
-      <p className="text-xs text-slate-400">Walk-in sale — no member required.</p>
+      <p className="text-xs text-ink-400">Walk-in sale — no member required.</p>
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-xs text-red-700">
-          {error}
-        </p>
+        <Card
+          role="alert"
+          className="flex items-center gap-2 p-3 text-xs text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </Card>
       ) : null}
 
       {scanState === 'unsupported' ? (
-        <p className="rounded-card bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          QR scanning isn’t supported on this device/browser. Search by name or phone instead.
-        </p>
+        <Card className="flex items-center gap-2 p-3 text-xs text-warning-800 dark:text-warning-200">
+          <Icon name="info" className="h-4 w-4 shrink-0" />
+          <span>
+            QR scanning isn’t supported on this device/browser. Search by name or phone instead.
+          </span>
+        </Card>
       ) : null}
 
       {scanState === 'scanning' ? (
-        <div className="overflow-hidden rounded-card border border-slate-200">
+        <div className="overflow-hidden rounded-card border border-ink-200 dark:border-white/10">
           <video ref={videoRef} className="h-40 w-full bg-black object-cover" muted playsInline />
         </div>
       ) : null}
 
       {results.length > 0 ? (
-        <ul className="max-h-56 overflow-y-auto rounded-card border border-slate-200">
+        <ul className="max-h-56 overflow-y-auto rounded-card border border-ink-200 dark:border-white/10">
           {results.map((member) => (
             <li key={member.id}>
               <button
                 type="button"
                 onClick={() => pick(member)}
-                className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                className="flex w-full flex-col items-start gap-0.5 border-b border-ink-100 px-3 py-2 text-left last:border-b-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
               >
-                <span className="text-sm font-medium text-slate-900">{member.name}</span>
-                <span className="text-xs text-slate-500">{member.phone ?? member.email}</span>
+                <span className="text-sm font-medium text-ink-900 dark:text-white">
+                  {member.name}
+                </span>
+                <span className="text-xs text-ink-500 dark:text-ink-400">
+                  {member.phone ?? member.email}
+                </span>
               </button>
             </li>
           ))}

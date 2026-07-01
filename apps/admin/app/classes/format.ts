@@ -6,11 +6,12 @@
 // drift on the display format.
 
 import type { ClassTemplateStatus, RecurrenceFreq, RecurrenceWeekday } from '@fit/types';
+import type { Tone } from '@/components/ui';
 
-/** Visual treatment per template status — green active, amber paused. */
-export const STATUS_STYLES: Record<ClassTemplateStatus, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
-  PAUSED: { label: 'Paused', className: 'bg-amber-50 text-amber-700' },
+/** Visual treatment per template status — success active, warning paused. */
+export const STATUS_STYLES: Record<ClassTemplateStatus, { label: string; tone: Tone }> = {
+  ACTIVE: { label: 'Active', tone: 'success' },
+  PAUSED: { label: 'Paused', tone: 'warning' },
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchStaff } from '@/lib/api';
+import { Card, Icon } from '@/components/ui';
 import { InviteForm } from './invite-form';
 import { PendingInvites } from './pending-invites';
 import { StaffTable } from './staff-table';
@@ -31,12 +32,14 @@ export default async function StaffPage() {
     content = (
       <>
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Team</h2>
+          <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+            Team
+          </h2>
           <StaffTable staff={staff} currentUserId={session?.userId ?? null} />
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
             Pending invitations
           </h2>
           <PendingInvites invites={invites} />
@@ -49,17 +52,22 @@ export default async function StaffPage() {
         ? `Could not load staff (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-        {message}
-      </p>
+      <Card className="flex items-start gap-3 bg-danger-50 p-4 dark:bg-danger-500/10">
+        <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300" />
+        <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+          {message}
+        </p>
+      </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Staff</h1>
-        <p className="max-w-2xl text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Staff
+        </h1>
+        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
           Invite people to your team, assign their role, and remove anyone who should no longer have
           access. Invitations are emailed a one-time link and expire after 7 days.
         </p>

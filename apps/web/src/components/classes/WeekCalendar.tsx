@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ClassInstanceCard } from '@fit/types';
+import { Btn, Card } from '@/src/components/ui';
 import { EmptyClasses } from './EmptyClasses';
 import {
   addWeeks,
@@ -84,25 +85,27 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
       {instances.length === 0 ? (
         <EmptyClasses />
       ) : (
-        <div className="overflow-x-auto">
+        <Card glow className="overflow-x-auto p-0">
           <div className="grid min-w-[720px] grid-cols-[3.5rem_repeat(7,1fr)]">
             {/* Header row: empty gutter + weekday headings. */}
-            <div className="border-b border-slate-100" />
+            <div className="border-b border-ink-200 dark:border-white/10" />
             {days.map((day) => {
               const isToday = isSameDay(day, today);
               return (
                 <div
                   key={day.toISOString()}
-                  className={`border-b border-l border-slate-100 px-2 py-2 text-center ${
-                    isToday ? 'bg-brand-50' : ''
+                  className={`border-b border-l border-ink-200 px-2 py-2 text-center dark:border-white/10 ${
+                    isToday ? 'bg-brand-50 dark:bg-brand-400/10' : ''
                   }`}
                 >
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                  <p className="text-xs uppercase tracking-wide text-ink-400">
                     {day.toLocaleDateString(locale, { weekday: 'short' })}
                   </p>
                   <p
-                    className={`text-sm font-semibold ${
-                      isToday ? 'text-brand-700' : 'text-slate-900'
+                    className={`font-mono text-sm font-bold tabular-nums ${
+                      isToday
+                        ? 'text-brand-700 dark:text-brand-300'
+                        : 'text-ink-900 dark:text-white'
                     }`}
                   >
                     {day.getDate()}
@@ -116,7 +119,7 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
               {hours.map((hour, i) => (
                 <div
                   key={hour}
-                  className="absolute right-1 -translate-y-1/2 text-[11px] tabular-nums text-slate-400"
+                  className="absolute right-1 -translate-y-1/2 font-mono text-[11px] tabular-nums text-ink-400"
                   style={{ top: i * HOUR_HEIGHT }}
                 >
                   {`${hour}`.padStart(2, '0')}:00
@@ -127,14 +130,14 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
             {days.map((day, dayIndex) => (
               <div
                 key={day.toISOString()}
-                className="relative border-l border-slate-100"
+                className="relative border-l border-ink-200 dark:border-white/10"
                 style={{ height: gridHeight }}
               >
                 {/* Hour gridlines. */}
                 {hours.map((hour, i) => (
                   <div
                     key={hour}
-                    className="absolute inset-x-0 border-t border-slate-50"
+                    className="absolute inset-x-0 border-t border-ink-100 dark:border-white/5"
                     style={{ top: i * HOUR_HEIGHT }}
                   />
                 ))}
@@ -155,7 +158,7 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
     </section>
   );
@@ -187,16 +190,16 @@ function ClassCard({
         width: `calc(${widthPct}% - 4px)`,
         borderInlineStartColor: instance.color,
       }}
-      className="absolute overflow-hidden rounded-md border border-slate-200 border-l-[3px] bg-white px-1.5 py-1 text-left shadow-sm transition-shadow hover:z-10 hover:shadow-md focus:z-10 focus:outline-none focus:ring-2 focus:ring-brand-200"
+      className="absolute overflow-hidden rounded-btn border border-ink-200 border-l-[3px] bg-white px-1.5 py-1 text-left shadow-sm transition-shadow hover:z-10 hover:shadow-md focus:z-10 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-white/10 dark:bg-white/[0.06]"
     >
-      <span className="block truncate text-[11px] font-semibold text-slate-900">
+      <span className="block truncate text-[11px] font-bold text-ink-900 dark:text-white">
         {instance.title}
       </span>
-      <span className="block truncate text-[10px] text-slate-500">
+      <span className="block truncate font-mono text-[10px] text-ink-500 dark:text-ink-400">
         {formatTime(instance.startsAt, locale)}
       </span>
       {height >= MIN_CARD_HEIGHT * 1.6 ? (
-        <span className="mt-0.5 block truncate text-[10px] text-slate-400">{spotsLeftLabel}</span>
+        <span className="mt-0.5 block truncate text-[10px] text-ink-400">{spotsLeftLabel}</span>
       ) : null}
     </button>
   );
@@ -222,32 +225,14 @@ function WeekNav({
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={onPrev}
-          aria-label={prevLabel}
-          className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50"
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          onClick={onNext}
-          aria-label={nextLabel}
-          className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50"
-        >
-          ›
-        </button>
-        <p className="ml-2 text-sm font-semibold text-slate-900">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <Btn v="outline" size="icon" icon="chevronLeft" aria-label={prevLabel} onClick={onPrev} />
+        <Btn v="outline" size="icon" icon="chevronRight" aria-label={nextLabel} onClick={onNext} />
+        <p className="ml-2 font-display text-sm font-bold text-ink-900 dark:text-white">{label}</p>
       </div>
-      <button
-        type="button"
-        onClick={onToday}
-        className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-      >
+      <Btn v="outline" size="sm" onClick={onToday}>
         {todayLabel}
-      </button>
+      </Btn>
     </div>
   );
 }

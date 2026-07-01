@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { Icon } from '@/components/ui';
 import { ProductForm } from '../product-form';
 
 export const metadata: Metadata = {
@@ -27,13 +28,19 @@ export default async function NewProductPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/products" className="text-sm font-medium text-brand-700 hover:text-brand-800">
-        ← Back to products
+      <Link
+        href="/products"
+        className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+      >
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+        Back to products
       </Link>
 
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">New product</h1>
-        <p className="max-w-2xl text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          New product
+        </h1>
+        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
           Add a product to your gym’s store. Set its price, upload an image gallery, and add any
           purchasable variants.
         </p>

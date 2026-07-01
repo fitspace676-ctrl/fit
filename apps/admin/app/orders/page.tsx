@@ -69,7 +69,7 @@ export default async function OrdersPage({
         ? `Could not load orders (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <p className="rounded-card border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <p className="rounded-card border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-700 dark:text-danger-300">
         {message}
       </p>
     );
@@ -78,8 +78,10 @@ export default async function OrdersPage({
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-slate-900">Orders</h1>
-        <p className="text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Orders
+        </h1>
+        <p className="text-sm text-ink-500 dark:text-ink-400">
           POS and online orders. Filter, open an order to view its items, payments, refunds and
           status history, or export the filtered set to CSV.
         </p>

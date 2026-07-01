@@ -14,7 +14,7 @@ import { FREQ_OPTIONS, WEEKDAY_OPTIONS, freqNoun } from './format';
 
 /** Shared field styling so the editor matches the rest of the form. */
 const FIELD_CLASS =
-  'rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400';
+  'h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
 
 /**
  * The visual RRULE editor (T5.2). Instead of typing an RFC-5545 string by hand,
@@ -67,13 +67,13 @@ export function RecurrenceEditor({
   }
 
   return (
-    <fieldset className="flex flex-col gap-4 rounded-card border border-slate-200 p-4">
-      <legend className="px-1 text-sm font-medium text-slate-700">Repeats</legend>
+    <fieldset className="flex flex-col gap-4 rounded-card border border-ink-200 p-4 dark:border-white/10">
+      <legend className="px-1 text-sm font-medium text-ink-700 dark:text-ink-200">Repeats</legend>
 
       {/* Frequency + interval. */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label htmlFor="rec-freq" className="text-xs font-medium text-slate-600">
+          <label htmlFor="rec-freq" className="text-xs font-medium text-ink-600 dark:text-ink-300">
             Frequency
           </label>
           <select
@@ -91,7 +91,7 @@ export function RecurrenceEditor({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="rec-interval" className="text-xs font-medium text-slate-600">
+          <label htmlFor="rec-interval" className="text-xs font-medium text-ink-600 dark:text-ink-300">
             Every
           </label>
           <div className="flex items-center gap-2">
@@ -106,7 +106,7 @@ export function RecurrenceEditor({
               onChange={(event) => setInterval(event.target.value)}
               className={`${FIELD_CLASS} w-20`}
             />
-            <span className="text-sm text-slate-500">
+            <span className="text-sm text-ink-500 dark:text-ink-400">
               {freqNoun(value.freq)}
               {value.interval === 1 ? '' : 's'}
             </span>
@@ -117,7 +117,7 @@ export function RecurrenceEditor({
       {/* Weekday toggles, only for a weekly recurrence. */}
       {value.freq === 'WEEKLY' ? (
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-slate-600">On these days</span>
+          <span className="text-xs font-medium text-ink-600 dark:text-ink-300">On these days</span>
           <div className="flex flex-wrap gap-2">
             {WEEKDAY_OPTIONS.map((day) => {
               const active = value.weekdays.includes(day.value);
@@ -128,10 +128,10 @@ export function RecurrenceEditor({
                   aria-pressed={active}
                   onClick={() => toggleWeekday(day.value)}
                   className={[
-                    'rounded-card border px-3 py-1.5 text-sm font-medium transition-colors',
+                    'rounded-btn border px-3 py-1.5 text-sm font-medium transition-colors',
                     active
-                      ? 'border-brand-500 bg-brand-50 text-brand-700'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                      ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400/40 dark:bg-brand-500/15 dark:text-brand-200'
+                      : 'border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/5',
                   ].join(' ')}
                 >
                   {day.label}
@@ -140,16 +140,18 @@ export function RecurrenceEditor({
             })}
           </div>
           {weeklyNeedsDay ? (
-            <p className="text-xs text-amber-600">Pick at least one weekday.</p>
+            <p className="text-xs text-warning-700 dark:text-warning-300">
+              Pick at least one weekday.
+            </p>
           ) : null}
         </div>
       ) : null}
 
       {/* End condition. */}
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-medium text-slate-600">Ends</span>
+        <span className="text-xs font-medium text-ink-600 dark:text-ink-300">Ends</span>
         <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
             <input
               type="radio"
               name="rec-end"
@@ -160,7 +162,7 @@ export function RecurrenceEditor({
             Never
           </label>
 
-          <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+          <label className="flex flex-wrap items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
             <input
               type="radio"
               name="rec-end"
@@ -180,12 +182,12 @@ export function RecurrenceEditor({
               onChange={(event) =>
                 setEnd({ type: 'count', count: Math.max(1, Number(event.target.value) || 1) })
               }
-              className={`${FIELD_CLASS} w-20 disabled:bg-slate-50 disabled:text-slate-400`}
+              className={`${FIELD_CLASS} w-20 disabled:bg-ink-50 disabled:text-ink-400 dark:disabled:bg-white/5`}
             />
             occurrences
           </label>
 
-          <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+          <label className="flex flex-wrap items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
             <input
               type="radio"
               name="rec-end"
@@ -201,21 +203,21 @@ export function RecurrenceEditor({
               disabled={value.end.type !== 'until'}
               value={value.end.type === 'until' ? value.end.until : ''}
               onChange={(event) => setEnd({ type: 'until', until: event.target.value })}
-              className={`${FIELD_CLASS} disabled:bg-slate-50 disabled:text-slate-400`}
+              className={`${FIELD_CLASS} disabled:bg-ink-50 disabled:text-ink-400 dark:disabled:bg-white/5`}
             />
           </label>
         </div>
       </div>
 
       {/* Live preview of what the rule schedules. */}
-      <div className="rounded-card bg-slate-50 px-3 py-2 text-sm">
+      <div className="rounded-field bg-ink-50 px-3 py-2 text-sm dark:bg-white/5">
         {summary ? (
           <>
-            <p className="font-medium text-slate-700">{summary}</p>
-            <p className="mt-0.5 font-mono text-xs text-slate-400">{rrule}</p>
+            <p className="font-medium text-ink-700 dark:text-ink-200">{summary}</p>
+            <p className="mt-0.5 font-mono text-xs text-ink-400">{rrule}</p>
           </>
         ) : (
-          <p className="text-slate-400">Finish the recurrence to see a preview.</p>
+          <p className="text-ink-400">Finish the recurrence to see a preview.</p>
         )}
       </div>
     </fieldset>

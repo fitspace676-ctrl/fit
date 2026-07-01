@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainer } from '@/lib/api';
+import { Card, Icon } from '@/components/ui';
 import { TrainerForm } from '../../trainer-form';
 
 export const metadata: Metadata = {
@@ -40,12 +41,22 @@ export default async function EditTrainerPage({ params }: { params: Promise<{ id
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/trainers" className="text-sm font-medium text-brand-700 hover:text-brand-800">
-          ← Back to trainers
+        <Link
+          href="/trainers"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+        >
+          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+          Back to trainers
         </Link>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
+        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
+          <Icon
+            name="info"
+            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
+          />
+          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+            {message}
+          </p>
+        </Card>
       </div>
     );
   }
@@ -54,14 +65,19 @@ export default async function EditTrainerPage({ params }: { params: Promise<{ id
     <div className="flex flex-col gap-6">
       <Link
         href={`/trainers/${id}`}
-        className="text-sm font-medium text-brand-700 hover:text-brand-800"
+        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
       >
-        ← Back to trainer
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+        Back to trainer
       </Link>
 
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Edit trainer</h1>
-        <p className="text-sm text-slate-500">Update {trainer.name}’s profile and photo.</p>
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Edit trainer
+        </h1>
+        <p className="text-sm text-ink-500 dark:text-ink-400">
+          Update {trainer.name}’s profile and photo.
+        </p>
       </header>
 
       <TrainerForm

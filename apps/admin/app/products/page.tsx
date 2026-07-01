@@ -8,6 +8,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProducts } from '@/lib/api';
+import { Card, Icon, buttonClasses } from '@/components/ui';
 import { ProductsFilters } from './products-filters';
 import { ProductsTable } from './products-table';
 
@@ -65,9 +66,13 @@ export default async function ProductsPage({
         ? `Could not load products (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-        {message}
-      </p>
+      <Card
+        role="alert"
+        className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
+      >
+        <Icon name="info" className="h-5 w-5 shrink-0" />
+        <span>{message}</span>
+      </Card>
     );
   }
 
@@ -75,24 +80,21 @@ export default async function ProductsPage({
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Products</h1>
-          <p className="max-w-2xl text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Products
+          </h1>
+          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
             Your gym’s retail products. Search by name or description, filter by status, sort any
             column, open a product, or add a new one with an image gallery and variants.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href="/products/low-stock"
-            className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
+          <Link href="/products/low-stock" className={buttonClasses('outline', 'md')}>
             Low stock
           </Link>
           {canWrite ? (
-            <Link
-              href="/products/new"
-              className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-            >
+            <Link href="/products/new" className={buttonClasses('primary', 'md')}>
+              <Icon name="plus" className="h-4 w-4" sw={2} />
               New product
             </Link>
           ) : null}

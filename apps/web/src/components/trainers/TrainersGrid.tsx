@@ -20,10 +20,8 @@ export function TrainersGrid({ trainers }: TrainersGridProps) {
       className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
     >
       {trainers.map((trainer) => (
-        <li key={trainer.id} className="flex">
-          <div className="w-full">
-            <TrainerCard trainer={trainer} />
-          </div>
+        <li key={trainer.id}>
+          <TrainerCard trainer={trainer} />
         </li>
       ))}
     </ul>

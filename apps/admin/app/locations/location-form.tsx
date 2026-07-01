@@ -11,6 +11,7 @@ import {
   type LocationStatus,
   type Weekday,
 } from '@fit/types';
+import { Btn, buttonClasses } from '@/components/ui';
 import {
   createLocationAction,
   requestLocationPhotoUploadAction,
@@ -25,7 +26,11 @@ const CREATE_STATUSES: ReadonlyArray<{ value: LocationStatus; label: string }> =
 
 /** Shared field styling so create + edit render identically. */
 const FIELD_CLASS =
-  'w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:bg-slate-50 disabled:text-slate-500';
+  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
+
+/** Compact time input styling for the opening-hours editor. */
+const TIME_CLASS =
+  'h-9 rounded-field border border-ink-200 bg-white px-2.5 text-sm text-ink-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
 
 /** Accepted image MIME types for the photo, matching the storage service map. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -189,10 +194,13 @@ export function LocationForm(props: Props) {
   const cancelHref = isEdit ? `/locations/${props.locationId}` : '/locations';
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-4">
+    <form
+      onSubmit={onSubmit}
+      className="flex max-w-2xl flex-col gap-4 rounded-card border border-ink-200 bg-white p-5 shadow-[0_14px_40px_-18px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-white/[0.035] dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl"
+    >
       {/* Photo. */}
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-slate-700">Photo</span>
+        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">Photo</span>
         <div className="flex items-center gap-4">
           {photoUrl ? (
             <img
@@ -201,7 +209,7 @@ export function LocationForm(props: Props) {
               className="h-16 w-24 rounded-card object-cover"
             />
           ) : (
-            <span className="flex h-16 w-24 items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700">
+            <span className="flex h-16 w-24 items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
               No photo
             </span>
           )}
@@ -212,15 +220,15 @@ export function LocationForm(props: Props) {
               accept={ACCEPTED_IMAGE_TYPES.join(',')}
               onChange={(event) => void onPhotoChange(event)}
               disabled={uploading || pending}
-              className="text-sm text-slate-600 file:mr-3 file:rounded-card file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50"
+              className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/10 dark:file:text-brand-300 dark:hover:file:bg-brand-500/20"
             />
-            <div className="flex items-center gap-3 text-xs text-slate-400">
+            <div className="flex items-center gap-3 text-xs text-ink-400">
               <span>{uploading ? 'Uploading…' : 'JPEG, PNG, WebP or GIF, up to 5 MB.'}</span>
               {photoUrl && !uploading ? (
                 <button
                   type="button"
                   onClick={removePhoto}
-                  className="font-medium text-slate-500 hover:text-red-600"
+                  className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400"
                 >
                   Remove
                 </button>
@@ -229,14 +237,20 @@ export function LocationForm(props: Props) {
           </div>
         </div>
         {uploadError ? (
-          <p role="alert" className="rounded-card bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <p
+            role="alert"
+            className="rounded-card bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-300"
+          >
             {uploadError}
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="location-name" className="text-sm font-medium text-slate-700">
+        <label
+          htmlFor="location-name"
+          className="text-sm font-medium text-ink-700 dark:text-ink-200"
+        >
           Name
         </label>
         <input
@@ -252,8 +266,11 @@ export function LocationForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="location-address" className="text-sm font-medium text-slate-700">
-          Address <span className="font-normal text-slate-400">(optional)</span>
+        <label
+          htmlFor="location-address"
+          className="text-sm font-medium text-ink-700 dark:text-ink-200"
+        >
+          Address <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <input
           id="location-address"
@@ -268,8 +285,11 @@ export function LocationForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="location-phone" className="text-sm font-medium text-slate-700">
-          Phone <span className="font-normal text-slate-400">(optional)</span>
+        <label
+          htmlFor="location-phone"
+          className="text-sm font-medium text-ink-700 dark:text-ink-200"
+        >
+          Phone <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <input
           id="location-phone"
@@ -284,8 +304,11 @@ export function LocationForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="location-amenities" className="text-sm font-medium text-slate-700">
-          Amenities <span className="font-normal text-slate-400">(comma separated)</span>
+        <label
+          htmlFor="location-amenities"
+          className="text-sm font-medium text-ink-700 dark:text-ink-200"
+        >
+          Amenities <span className="font-normal text-ink-400">(comma separated)</span>
         </label>
         <input
           id="location-amenities"
@@ -301,19 +324,21 @@ export function LocationForm(props: Props) {
 
       {/* Weekly opening hours. */}
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-slate-700">Opening hours</legend>
+        <legend className="text-sm font-medium text-ink-700 dark:text-ink-200">Opening hours</legend>
         <div className="flex flex-col gap-1.5">
           {WEEKDAYS.map((day) => {
             const value = hours[day];
             return (
               <div key={day} className="flex flex-wrap items-center gap-3">
-                <span className="w-24 text-sm text-slate-600">{WEEKDAY_LABELS[day]}</span>
-                <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="w-24 text-sm text-ink-600 dark:text-ink-300">
+                  {WEEKDAY_LABELS[day]}
+                </span>
+                <label className="flex items-center gap-1.5 text-xs text-ink-500 dark:text-ink-400">
                   <input
                     type="checkbox"
                     checked={value.closed}
                     onChange={(event) => setDay(day, { closed: event.target.checked })}
-                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                    className="rounded border-ink-300 text-brand-600 focus:ring-brand-500 dark:border-white/20 dark:bg-white/[0.04]"
                   />
                   Closed
                 </label>
@@ -324,19 +349,19 @@ export function LocationForm(props: Props) {
                       aria-label={`${WEEKDAY_LABELS[day]} opening time`}
                       value={value.open}
                       onChange={(event) => setDay(day, { open: event.target.value })}
-                      className="rounded-card border border-slate-200 px-2 py-1 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                      className={TIME_CLASS}
                     />
-                    <span className="text-slate-400">–</span>
+                    <span className="text-ink-400">–</span>
                     <input
                       type="time"
                       aria-label={`${WEEKDAY_LABELS[day]} closing time`}
                       value={value.close}
                       onChange={(event) => setDay(day, { close: event.target.value })}
-                      className="rounded-card border border-slate-200 px-2 py-1 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                      className={TIME_CLASS}
                     />
                   </div>
                 ) : (
-                  <span className="text-sm text-slate-400">Closed all day</span>
+                  <span className="text-sm text-ink-400">Closed all day</span>
                 )}
               </div>
             );
@@ -346,7 +371,10 @@ export function LocationForm(props: Props) {
 
       {!isEdit ? (
         <div className="flex flex-col gap-1">
-          <label htmlFor="location-status" className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="location-status"
+            className="text-sm font-medium text-ink-700 dark:text-ink-200"
+          >
             Status
           </label>
           <select
@@ -366,20 +394,19 @@ export function LocationForm(props: Props) {
       ) : null}
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-card bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:bg-danger-500/10 dark:text-danger-300"
+        >
           {error}
         </p>
       ) : null}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending || uploading}
-          className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Btn type="submit" v="primary" disabled={pending || uploading}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create location'}
-        </button>
-        <Link href={cancelHref} className="text-sm font-medium text-slate-500 hover:text-slate-700">
+        </Btn>
+        <Link href={cancelHref} className={buttonClasses('ghost', 'md')}>
           Cancel
         </Link>
       </div>

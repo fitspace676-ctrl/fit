@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProduct } from '@/lib/api';
+import { Badge, Card, Icon, type Tone } from '@/components/ui';
 import { formatPrice } from '../format-price';
 import { ProductActions } from './product-actions';
 
@@ -16,9 +17,9 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster table's pills. */
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
-  INACTIVE: { label: 'Inactive', className: 'bg-slate-100 text-slate-600' },
+const STATUS_LABELS: Record<string, { label: string; tone: Tone }> = {
+  ACTIVE: { label: 'Active', tone: 'success' },
+  INACTIVE: { label: 'Inactive', tone: 'ink' },
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -53,19 +54,27 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/products" className="text-sm font-medium text-brand-700 hover:text-brand-800">
-          ← Back to products
+        <Link
+          href="/products"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+        >
+          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+          Back to products
         </Link>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
+        <Card
+          role="alert"
+          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-5 w-5 shrink-0" />
+          <span>{message}</span>
+        </Card>
       </div>
     );
   }
 
   const status = STATUS_LABELS[product.status] ?? {
     label: product.status,
-    className: 'bg-slate-100 text-slate-600',
+    tone: 'ink' as Tone,
   };
 
   // Write controls (edit + deactivate) are a `ProductWrite` capability.
@@ -74,19 +83,23 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/products" className="text-sm font-medium text-brand-700 hover:text-brand-800">
-        ← Back to products
+      <Link
+        href="/products"
+        className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+      >
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+        Back to products
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{product.name}</h1>
-            <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${status.className}`}>
-              {status.label}
-            </span>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+              {product.name}
+            </h1>
+            <Badge tone={status.tone}>{status.label}</Badge>
           </div>
-          <p className="text-lg font-semibold tabular-nums text-slate-800">
+          <p className="text-lg font-semibold tabular-nums text-ink-800 dark:text-ink-100">
             {formatPrice(product.priceAmount, product.currency)}
           </p>
         </div>
@@ -100,7 +113,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               key={url}
               src={url}
               alt={`${product.name} image ${index + 1}`}
-              className="h-32 w-32 rounded-card object-cover"
+              className="h-32 w-32 rounded-card object-cover ring-1 ring-ink-200 dark:ring-white/10"
             />
           ))}
         </section>
@@ -108,48 +121,69 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
       {product.description ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-xs uppercase tracking-wide text-slate-500">Description</h2>
-          <p className="max-w-2xl whitespace-pre-line text-sm text-slate-700">
+          <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+            Description
+          </h2>
+          <p className="max-w-2xl whitespace-pre-line text-sm text-ink-700 dark:text-ink-200">
             {product.description}
           </p>
         </section>
       ) : null}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-slate-500">Variants</h2>
+        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+          Variants
+        </h2>
         {product.variants.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full max-w-xl border-collapse text-left text-sm">
+          <Card className="max-w-xl overflow-x-auto">
+            <table className="w-full border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4 font-medium">Name</th>
-                  <th className="py-2 pr-4 font-medium">SKU</th>
-                  <th className="py-2 pr-4 font-medium">Price</th>
-                  <th className="py-2 pr-4 font-medium">Stock</th>
+                <tr className="border-b border-ink-100 dark:border-white/10">
+                  <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Name
+                  </th>
+                  <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    SKU
+                  </th>
+                  <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Price
+                  </th>
+                  <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Stock
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {product.variants.map((variant, index) => (
-                  <tr key={index} className="border-b border-slate-100">
-                    <td className="py-2 pr-4 font-medium text-slate-800">{variant.name}</td>
-                    <td className="py-2 pr-4 text-slate-500">{variant.sku || '—'}</td>
-                    <td className="py-2 pr-4 tabular-nums text-slate-700">
+                  <tr
+                    key={index}
+                    className="border-b border-ink-50 last:border-b-0 dark:border-white/5"
+                  >
+                    <td className="px-4 py-3 font-medium text-ink-800 dark:text-ink-100">
+                      {variant.name}
+                    </td>
+                    <td className="px-4 py-3 text-ink-500 dark:text-ink-400">
+                      {variant.sku || '—'}
+                    </td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
                       {variant.priceAmount === null
                         ? formatPrice(product.priceAmount, product.currency)
                         : formatPrice(variant.priceAmount, product.currency)}
                     </td>
-                    <td className="py-2 pr-4 tabular-nums text-slate-700">{variant.stock}</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
+                      {variant.stock}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         ) : (
-          <p className="text-sm text-slate-400">No variants.</p>
+          <p className="text-sm text-ink-400">No variants.</p>
         )}
       </section>
 
-      <p className="text-xs text-slate-400">Added {formatDate(product.createdAt)}.</p>
+      <p className="text-xs text-ink-400">Added {formatDate(product.createdAt)}.</p>
     </div>
   );
 }

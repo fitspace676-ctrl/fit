@@ -8,6 +8,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchMembers } from '@/lib/api';
+import { buttonClasses, Card, Icon } from '@/components/ui';
 import { MembersFilters } from './members-filters';
 import { MembersTable } from './members-table';
 
@@ -64,9 +65,12 @@ export default async function MembersPage({
         ? `Could not load members (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-        {message}
-      </p>
+      <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
+        <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300" />
+        <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+          {message}
+        </p>
+      </Card>
     );
   }
 
@@ -74,17 +78,17 @@ export default async function MembersPage({
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Members</h1>
-          <p className="max-w-2xl text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Members
+          </h1>
+          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
             Every member of your gym. Search by name or email, filter by status, sort any column,
             open a profile, or export a selection to CSV.
           </p>
         </div>
         {canWrite ? (
-          <Link
-            href="/members/new"
-            className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
+          <Link href="/members/new" className={buttonClasses('primary', 'md')}>
+            <Icon name="plus" className="h-4 w-4" sw={2} />
             New member
           </Link>
         ) : null}

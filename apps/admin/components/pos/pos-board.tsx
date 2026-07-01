@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePosCart } from '@/stores/pos-cart-store';
 import type { PosMemberRow, PosProductRow } from '@/app/pos/actions';
+import { Card } from '@/components/ui';
 import { MemberLookup } from './member-lookup';
 import { PosCart } from './pos-cart';
 import { PosPayment } from './pos-payment';
@@ -79,10 +80,10 @@ export function PosBoard() {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
-      <section className="min-h-0 rounded-card border border-slate-200 bg-white p-4">
+      <Card className="min-h-0 p-4">
         <ProductGrid searchRef={productSearchRef} onAdd={onAdd} />
-      </section>
-      <section className="flex min-h-0 flex-col gap-3 rounded-card border border-slate-200 bg-white p-4">
+      </Card>
+      <Card className="flex min-h-0 flex-col gap-3 p-4">
         <MemberLookup
           searchRef={memberSearchRef}
           selectedMember={selectedMember}
@@ -91,7 +92,7 @@ export function PosBoard() {
         <div className="min-h-0 flex-1">
           <PosCart onCharge={() => setIsPaying(true)} />
         </div>
-      </section>
+      </Card>
 
       {isPaying ? (
         <PosPayment

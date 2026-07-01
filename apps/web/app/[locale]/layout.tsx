@@ -1,14 +1,37 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { Archivo, JetBrains_Mono, Manrope } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
+import { getMessages, setRequestLocale } from 'next-intl/server';
 import { isLocale } from '@fit/i18n';
-import { Link } from '@/src/i18n/navigation';
 import { routing } from '@/src/i18n/routing';
-import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
+import { ThemeProvider, THEME_COOKIE, type Theme } from '@/src/components/theme/theme-provider';
 import { SentryInit } from '../sentry-init';
 import '../globals.css';
+
+/** UI body font — Manrope, exposed as a CSS variable Tailwind's `font-sans` reads. */
+const manrope = Manrope({
+  subsets: ['latin'],
+  variable: '--font-manrope',
+  display: 'swap',
+});
+
+/** Display font — Archivo, for headings (`font-display`). */
+const archivo = Archivo({
+  subsets: ['latin'],
+  weight: ['500', '600', '700', '800', '900'],
+  variable: '--font-archivo',
+  display: 'swap',
+});
+
+/** Data/mono font — JetBrains Mono (`font-mono`), for numbers and codes. */
+const jetbrains = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Fit — Web',
@@ -34,34 +57,23 @@ export default async function LocaleLayout({
   // Opt this layout into static rendering for the resolved locale.
   setRequestLocale(locale);
 
-  const [messages, t] = await Promise.all([getMessages(), getTranslations('common')]);
+  const [messages, cookieStore] = await Promise.all([getMessages(), cookies()]);
+
+  // Seed the theme from the cookie so the painted `<html>` class matches the
+  // client provider on first render — the member portal defaults to the dark
+  // Aurora-glass skin until the visitor flips the header toggle.
+  const theme: Theme = cookieStore.get(THEME_COOKIE)?.value === 'light' ? 'light' : 'dark';
 
   return (
-    <html lang={locale}>
-      <body className="min-h-screen bg-white font-sans text-slate-900 antialiased">
+    <html
+      lang={locale}
+      className={`${manrope.variable} ${archivo.variable} ${jetbrains.variable} ${theme === 'dark' ? 'dark' : ''}`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-screen bg-white font-sans text-ink-900 antialiased dark:bg-ink-950 dark:text-white">
         <SentryInit />
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <header className="flex items-center justify-between gap-4 border-b border-slate-100 px-gutter py-4">
-            <nav className="flex items-center gap-6 text-sm font-medium text-slate-600">
-              <Link href="/" className="font-semibold text-brand-600">
-                {t('appName')}
-              </Link>
-              <Link href="/" className="hover:text-brand-600">
-                {t('nav.home')}
-              </Link>
-              <Link href="/classes" className="hover:text-brand-600">
-                {t('nav.classes')}
-              </Link>
-              <Link href="/trainers" className="hover:text-brand-600">
-                {t('nav.trainers')}
-              </Link>
-              <Link href="/shop" className="hover:text-brand-600">
-                {t('nav.shop')}
-              </Link>
-            </nav>
-            <LocaleSwitcher />
-          </header>
-          {children}
+          <ThemeProvider initial={theme}>{children}</ThemeProvider>
         </NextIntlClientProvider>
       </body>
     </html>

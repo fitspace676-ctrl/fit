@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { TrainerCard as TrainerCardModel } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchTrainers } from '@/lib/trainers';
+import { Btn } from '@/src/components/ui';
 import { EmptyTrainers } from './EmptyTrainers';
 import { TrainerFilters } from './TrainerFilters';
 import { TrainersGrid } from './TrainersGrid';
@@ -96,17 +97,13 @@ export function TrainersBrowser({ gymId, initialFilters }: TrainersBrowserProps)
       )}
 
       {load.status === 'loading' ? (
-        <p className="py-16 text-center text-sm text-slate-400">{t('loading')}</p>
+        <p className="py-16 text-center text-sm text-ink-400">{t('loading')}</p>
       ) : load.status === 'error' ? (
         <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="text-sm text-slate-500">{t('error')}</p>
-          <button
-            type="button"
-            onClick={() => setReloadKey((key) => key + 1)}
-            className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
+          <p className="text-sm text-ink-500 dark:text-ink-400">{t('error')}</p>
+          <Btn v="outline" size="sm" onClick={() => setReloadKey((key) => key + 1)}>
             {t('retry')}
-          </button>
+          </Btn>
         </div>
       ) : load.trainers.length === 0 ? (
         <EmptyTrainers />
@@ -114,15 +111,13 @@ export function TrainersBrowser({ gymId, initialFilters }: TrainersBrowserProps)
         // Trainers exist but the active filters exclude them all — a distinct
         // state from "no trainers", with a one-tap reset.
         <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="text-sm font-medium text-slate-900">{t('filters.noMatch.title')}</p>
-          <p className="text-sm text-slate-500">{t('filters.noMatch.subtitle')}</p>
-          <button
-            type="button"
-            onClick={() => setFilters(EMPTY_FILTERS)}
-            className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
+          <p className="text-sm font-semibold text-ink-900 dark:text-white">
+            {t('filters.noMatch.title')}
+          </p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{t('filters.noMatch.subtitle')}</p>
+          <Btn v="outline" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
             {t('filters.noMatch.action')}
-          </button>
+          </Btn>
         </div>
       ) : (
         <TrainersGrid trainers={filtered} />

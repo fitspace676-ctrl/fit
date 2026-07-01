@@ -16,11 +16,23 @@ import {
   type Weekday,
   type WeeklyHours,
 } from '@fit/types';
+import { Btn } from '@/components/ui';
 import { finalizeGymLogoAction, requestLogoUploadAction, updateGymSettingsAction } from './actions';
 
 /** Shared field styling, matching the other admin forms. */
 const FIELD_CLASS =
-  'w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:bg-slate-50 disabled:text-slate-500';
+  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
+
+/** Compact time input styling for the business-hours editor. */
+const TIME_CLASS =
+  'h-9 rounded-field border border-ink-200 bg-white px-2.5 text-sm text-ink-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
+
+/** Section legend styling for the settings fieldsets. */
+const LEGEND_CLASS =
+  'font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+
+/** Field label styling shared across the settings form. */
+const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
 
 /** Accepted logo MIME types, matching the storage service's extension map. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
@@ -229,24 +241,25 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-8">
+    <form
+      onSubmit={onSubmit}
+      className="flex max-w-2xl flex-col gap-8 rounded-card border border-ink-200 bg-white p-6 shadow-[0_14px_40px_-18px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-white/[0.035] dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl"
+    >
       {/* ── Brand ─────────────────────────────────────────────────────────── */}
       <fieldset className="flex flex-col gap-4">
-        <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Brand
-        </legend>
+        <legend className={LEGEND_CLASS}>Brand</legend>
 
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-slate-700">Logo</span>
+          <span className={LABEL_CLASS}>Logo</span>
           <div className="flex items-center gap-4">
             {logoUrl ? (
               <img
                 src={logoUrl}
                 alt={`${name || 'Gym'} logo`}
-                className="h-16 w-16 rounded-card border border-slate-200 object-contain"
+                className="h-16 w-16 rounded-card border border-ink-200 object-contain dark:border-white/10"
               />
             ) : (
-              <span className="flex h-16 w-16 items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700">
+              <span className="flex h-16 w-16 items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
                 No logo
               </span>
             )}
@@ -257,9 +270,9 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                 accept={ACCEPTED_IMAGE_TYPES.join(',')}
                 onChange={(event) => void onLogoChange(event)}
                 disabled={uploading || pending}
-                className="text-sm text-slate-600 file:mr-3 file:rounded-card file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50"
+                className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/10 dark:file:text-brand-300 dark:hover:file:bg-brand-500/20"
               />
-              <div className="flex items-center gap-3 text-xs text-slate-400">
+              <div className="flex items-center gap-3 text-xs text-ink-400">
                 <span>
                   {uploading
                     ? 'Uploading…'
@@ -269,7 +282,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                   <button
                     type="button"
                     onClick={removeLogo}
-                    className="font-medium text-slate-500 hover:text-red-600"
+                    className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400"
                   >
                     Remove
                   </button>
@@ -278,14 +291,17 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
             </div>
           </div>
           {uploadError ? (
-            <p role="alert" className="rounded-card bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <p
+              role="alert"
+              className="rounded-card bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-300"
+            >
               {uploadError}
             </p>
           ) : null}
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="brand-name" className="text-sm font-medium text-slate-700">
+          <label htmlFor="brand-name" className={LABEL_CLASS}>
             Gym name
           </label>
           <input
@@ -317,12 +333,10 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
 
       {/* ── Locale ────────────────────────────────────────────────────────── */}
       <fieldset className="flex flex-col gap-4">
-        <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Locale
-        </legend>
+        <legend className={LEGEND_CLASS}>Locale</legend>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="locale-language" className="text-sm font-medium text-slate-700">
+          <label htmlFor="locale-language" className={LABEL_CLASS}>
             Default language
           </label>
           <select
@@ -340,7 +354,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="locale-currency" className="text-sm font-medium text-slate-700">
+          <label htmlFor="locale-currency" className={LABEL_CLASS}>
             Currency
           </label>
           <select
@@ -358,7 +372,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="locale-timezone" className="text-sm font-medium text-slate-700">
+          <label htmlFor="locale-timezone" className={LABEL_CLASS}>
             Time zone
           </label>
           <select
@@ -373,7 +387,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
               </option>
             ))}
           </select>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-ink-400">
             All displayed times use this zone. Past records keep their original time.
           </span>
         </div>
@@ -381,10 +395,8 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
 
       {/* ── Business hours ────────────────────────────────────────────────── */}
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Business hours
-        </legend>
-        <p className="text-xs text-slate-400">
+        <legend className={LEGEND_CLASS}>Business hours</legend>
+        <p className="text-xs text-ink-400">
           The gym’s default opening hours. New locations start from these.
         </p>
         <div className="mt-1 flex flex-col gap-1.5">
@@ -392,13 +404,15 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
             const value = hours[day];
             return (
               <div key={day} className="flex flex-wrap items-center gap-3">
-                <span className="w-24 text-sm text-slate-600">{WEEKDAY_LABELS[day]}</span>
-                <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="w-24 text-sm text-ink-600 dark:text-ink-300">
+                  {WEEKDAY_LABELS[day]}
+                </span>
+                <label className="flex items-center gap-1.5 text-xs text-ink-500 dark:text-ink-400">
                   <input
                     type="checkbox"
                     checked={value.closed}
                     onChange={(event) => setDay(day, { closed: event.target.checked })}
-                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                    className="rounded border-ink-300 text-brand-600 focus:ring-brand-500 dark:border-white/20 dark:bg-white/[0.04]"
                   />
                   Closed
                 </label>
@@ -409,19 +423,19 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                       aria-label={`${WEEKDAY_LABELS[day]} opening time`}
                       value={value.open}
                       onChange={(event) => setDay(day, { open: event.target.value })}
-                      className="rounded-card border border-slate-200 px-2 py-1 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                      className={TIME_CLASS}
                     />
-                    <span className="text-slate-400">–</span>
+                    <span className="text-ink-400">–</span>
                     <input
                       type="time"
                       aria-label={`${WEEKDAY_LABELS[day]} closing time`}
                       value={value.close}
                       onChange={(event) => setDay(day, { close: event.target.value })}
-                      className="rounded-card border border-slate-200 px-2 py-1 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                      className={TIME_CLASS}
                     />
                   </div>
                 ) : (
-                  <span className="text-sm text-slate-400">Closed all day</span>
+                  <span className="text-sm text-ink-400">Closed all day</span>
                 )}
               </div>
             );
@@ -431,16 +445,14 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
 
       {/* ── Notifications ─────────────────────────────────────────────────── */}
       <fieldset className="flex flex-col gap-4">
-        <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Notifications
-        </legend>
-        <p className="text-xs text-slate-400">
+        <legend className={LEGEND_CLASS}>Notifications</legend>
+        <p className="text-xs text-ink-400">
           The sender shown on member emails. Leave blank to use the platform default.
         </p>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="notif-from-name" className="text-sm font-medium text-slate-700">
-            From name <span className="font-normal text-slate-400">(optional)</span>
+          <label htmlFor="notif-from-name" className={LABEL_CLASS}>
+            From name <span className="font-normal text-ink-400">(optional)</span>
           </label>
           <input
             id="notif-from-name"
@@ -454,8 +466,8 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="notif-from-email" className="text-sm font-medium text-slate-700">
-            From email <span className="font-normal text-slate-400">(optional)</span>
+          <label htmlFor="notif-from-email" className={LABEL_CLASS}>
+            From email <span className="font-normal text-ink-400">(optional)</span>
           </label>
           <input
             id="notif-from-email"
@@ -469,8 +481,8 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="notif-reply-to" className="text-sm font-medium text-slate-700">
-            Reply-to <span className="font-normal text-slate-400">(optional)</span>
+          <label htmlFor="notif-reply-to" className={LABEL_CLASS}>
+            Reply-to <span className="font-normal text-ink-400">(optional)</span>
           </label>
           <input
             id="notif-reply-to"
@@ -486,15 +498,13 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
 
       {/* ── Booking policy ────────────────────────────────────────────────── */}
       <fieldset className="flex flex-col gap-4">
-        <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Booking policy
-        </legend>
-        <p className="text-xs text-slate-400">
+        <legend className={LEGEND_CLASS}>Booking policy</legend>
+        <p className="text-xs text-ink-400">
           How close to a class members can still cancel a confirmed spot.
         </p>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="booking-cutoff" className="text-sm font-medium text-slate-700">
+          <label htmlFor="booking-cutoff" className={LABEL_CLASS}>
             Cancellation cutoff
           </label>
           <div className="flex items-center gap-2">
@@ -518,9 +528,9 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
               }
               className={`${FIELD_CLASS} max-w-28`}
             />
-            <span className="text-sm text-slate-600">hours before start</span>
+            <span className="text-sm text-ink-600 dark:text-ink-300">hours before start</span>
           </div>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-ink-400">
             {cancellationCutoffHours > 0
               ? `Members can't cancel a booked spot within ${cancellationCutoffHours} hour${cancellationCutoffHours === 1 ? '' : 's'} of the class. Leaving a waitlist is always allowed.`
               : 'No cutoff — members can cancel right up to the class start.'}
@@ -529,24 +539,26 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
       </fieldset>
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-card bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:bg-danger-500/10 dark:text-danger-300"
+        >
           {error}
         </p>
       ) : null}
       {saved && !error ? (
-        <p role="status" className="rounded-card bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <p
+          role="status"
+          className="rounded-card bg-success-50 px-3 py-2 text-sm text-success-700 dark:bg-success-500/10 dark:text-success-300"
+        >
           Settings saved.
         </p>
       ) : null}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending || uploading}
-          className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Btn type="submit" v="primary" disabled={pending || uploading}>
           {pending ? 'Saving…' : 'Save changes'}
-        </button>
+        </Btn>
       </div>
     </form>
   );
@@ -566,7 +578,7 @@ function ColorField({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-slate-700">
+      <label htmlFor={id} className="text-sm font-medium text-ink-700 dark:text-ink-200">
         {label}
       </label>
       <div className="flex items-center gap-2">
@@ -575,9 +587,9 @@ function ColorField({
           type="color"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-9 w-12 cursor-pointer rounded-card border border-slate-200 bg-white p-0.5"
+          className="h-9 w-12 cursor-pointer rounded-field border border-ink-200 bg-white p-0.5 dark:border-white/10 dark:bg-white/[0.04]"
         />
-        <span className="font-mono text-sm uppercase text-slate-500">{value}</span>
+        <span className="font-mono text-sm uppercase text-ink-500 dark:text-ink-400">{value}</span>
       </div>
     </div>
   );

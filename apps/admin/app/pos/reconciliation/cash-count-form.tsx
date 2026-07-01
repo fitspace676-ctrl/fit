@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { computeCashVariance } from '@fit/types';
 import { formatPrice, inputToMinor } from '@/app/products/format-price';
+import { Card } from '@/components/ui';
 
 /**
  * The cash-drawer balance control on the reconciliation report. The operator counts
@@ -30,23 +31,23 @@ export function CashCountForm({
     variance === null
       ? ''
       : variance.status === 'balanced'
-        ? 'text-green-600'
+        ? 'text-success-700 dark:text-success-300'
         : variance.status === 'over'
-          ? 'text-amber-600'
-          : 'text-red-600';
+          ? 'text-warning-700 dark:text-warning-300'
+          : 'text-danger-600 dark:text-danger-400';
 
   return (
-    <section className="flex flex-col gap-3 rounded-card border border-slate-200 p-4">
-      <h2 className="text-sm font-semibold text-slate-900">Balance the drawer</h2>
+    <Card className="flex flex-col gap-3 p-4">
+      <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Balance the drawer</h2>
 
       <dl className="flex items-center justify-between text-sm">
-        <dt className="text-slate-500">Expected cash</dt>
-        <dd className="font-semibold tabular-nums text-slate-900">
+        <dt className="text-ink-500 dark:text-ink-400">Expected cash</dt>
+        <dd className="font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
           {formatPrice(expectedCash, currency)}
         </dd>
       </dl>
 
-      <label className="flex items-center justify-between gap-2 text-sm font-medium text-slate-700">
+      <label className="flex items-center justify-between gap-2 text-sm font-medium text-ink-700 dark:text-ink-200">
         <span>Counted cash</span>
         <input
           type="number"
@@ -56,25 +57,25 @@ export function CashCountForm({
           onChange={(event) => setCounted(event.target.value)}
           placeholder="0.00"
           aria-label="Counted cash"
-          className="w-36 rounded-card border border-slate-200 px-2 py-1 text-right text-base text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className="w-36 rounded-field border border-ink-200 bg-white px-2 py-1 text-right text-base text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
       </label>
 
       {variance !== null ? (
-        <dl className="flex items-center justify-between border-t border-slate-100 pt-3 text-base">
-          <dt className="font-medium text-slate-600">
+        <dl className="flex items-center justify-between border-t border-ink-100 pt-3 text-base dark:border-white/10">
+          <dt className="font-medium text-ink-600 dark:text-ink-300">
             {variance.status === 'balanced'
               ? 'Balanced'
               : variance.status === 'over'
                 ? 'Over'
                 : 'Short'}
           </dt>
-          <dd className={`font-bold tabular-nums ${tone}`}>
+          <dd className={`font-mono font-bold tabular-nums ${tone}`}>
             {variance.variance > 0 ? '+' : ''}
             {formatPrice(variance.variance, currency)}
           </dd>
         </dl>
       ) : null}
-    </section>
+    </Card>
   );
 }

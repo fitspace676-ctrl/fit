@@ -21,6 +21,7 @@ import { ProductsModule } from './products/products.module';
 import { RedisModule } from './redis/redis.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { StaffModule } from './staff/staff.module';
+import { MeModule } from './me/me.module';
 import { StorageModule } from './storage/storage.module';
 import { SubscriptionPlansModule } from './subscriptions/subscription-plans.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
@@ -106,6 +107,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     PackagePlansModule,
     SubscriptionPlansModule,
     SubscriptionsModule,
+    MeModule,
     BillingModule,
     ReviewsModule,
     NotificationsModule,

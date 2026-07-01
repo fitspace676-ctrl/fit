@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { TrainerStatus } from '@fit/types';
+import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
 import {
   createTrainerAction,
   requestTrainerPhotoUploadAction,
@@ -18,7 +19,14 @@ const CREATE_STATUSES: ReadonlyArray<{ value: TrainerStatus; label: string }> = 
 
 /** Shared field styling so create + edit render identically. */
 const FIELD_CLASS =
-  'w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:bg-slate-50 disabled:text-slate-500';
+  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
+
+/** Field styling for multi-line inputs (textareas) — same tokens, no fixed height. */
+const TEXTAREA_CLASS =
+  'w-full rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
+
+/** Shared label styling. */
+const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
 
 /** Accepted image MIME types for the headshot, matching the storage service map. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -166,16 +174,16 @@ export function TrainerForm(props: Props) {
     <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-4">
       {/* Photo. */}
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-slate-700">Photo</span>
+        <span className={LABEL_CLASS}>Photo</span>
         <div className="flex items-center gap-4">
           {photoUrl ? (
             <img
               src={photoUrl}
               alt={`${name || 'Trainer'} photo`}
-              className="h-16 w-16 rounded-full object-cover"
+              className="h-16 w-16 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
             />
           ) : (
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-lg font-semibold text-brand-700">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-lg font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
               {initialsOf(name)}
             </span>
           )}
@@ -186,15 +194,15 @@ export function TrainerForm(props: Props) {
               accept={ACCEPTED_IMAGE_TYPES.join(',')}
               onChange={(event) => void onPhotoChange(event)}
               disabled={uploading || pending}
-              className="text-sm text-slate-600 file:mr-3 file:rounded-card file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50"
+              className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/15 dark:file:text-brand-200 dark:hover:file:bg-brand-500/25"
             />
-            <div className="flex items-center gap-3 text-xs text-slate-400">
+            <div className="flex items-center gap-3 text-xs text-ink-400">
               <span>{uploading ? 'Uploading…' : 'JPEG, PNG, WebP or GIF, up to 5 MB.'}</span>
               {photoUrl && !uploading ? (
                 <button
                   type="button"
                   onClick={removePhoto}
-                  className="font-medium text-slate-500 hover:text-red-600"
+                  className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400 dark:hover:text-danger-300"
                 >
                   Remove
                 </button>
@@ -203,14 +211,20 @@ export function TrainerForm(props: Props) {
           </div>
         </div>
         {uploadError ? (
-          <p role="alert" className="rounded-card bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            {uploadError}
-          </p>
+          <Card className="flex items-start gap-3 border-warning-200 bg-warning-50 p-4 dark:border-warning-500/20 dark:bg-warning-500/10">
+            <Icon
+              name="info"
+              className="mt-0.5 h-5 w-5 shrink-0 text-warning-600 dark:text-warning-300"
+            />
+            <p role="alert" className="text-sm text-warning-800 dark:text-warning-200">
+              {uploadError}
+            </p>
+          </Card>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="trainer-name" className="text-sm font-medium text-slate-700">
+        <label htmlFor="trainer-name" className={LABEL_CLASS}>
           Name
         </label>
         <input
@@ -226,8 +240,8 @@ export function TrainerForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="trainer-headline" className="text-sm font-medium text-slate-700">
-          Headline <span className="font-normal text-slate-400">(optional)</span>
+        <label htmlFor="trainer-headline" className={LABEL_CLASS}>
+          Headline <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <input
           id="trainer-headline"
@@ -242,8 +256,8 @@ export function TrainerForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="trainer-bio" className="text-sm font-medium text-slate-700">
-          Bio <span className="font-normal text-slate-400">(optional)</span>
+        <label htmlFor="trainer-bio" className={LABEL_CLASS}>
+          Bio <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <textarea
           id="trainer-bio"
@@ -251,13 +265,13 @@ export function TrainerForm(props: Props) {
           rows={4}
           value={bio}
           onChange={(event) => setBio(event.target.value)}
-          className={FIELD_CLASS}
+          className={TEXTAREA_CLASS}
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="trainer-specialties" className="text-sm font-medium text-slate-700">
-          Specialties <span className="font-normal text-slate-400">(comma separated)</span>
+        <label htmlFor="trainer-specialties" className={LABEL_CLASS}>
+          Specialties <span className="font-normal text-ink-400">(comma separated)</span>
         </label>
         <input
           id="trainer-specialties"
@@ -273,7 +287,7 @@ export function TrainerForm(props: Props) {
 
       {!isEdit ? (
         <div className="flex flex-col gap-1">
-          <label htmlFor="trainer-status" className="text-sm font-medium text-slate-700">
+          <label htmlFor="trainer-status" className={LABEL_CLASS}>
             Status
           </label>
           <select
@@ -293,20 +307,22 @@ export function TrainerForm(props: Props) {
       ) : null}
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
+          <Icon
+            name="info"
+            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
+          />
+          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+            {error}
+          </p>
+        </Card>
       ) : null}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending || uploading}
-          className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Btn type="submit" v="primary" size="md" disabled={pending || uploading}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create trainer'}
-        </button>
-        <Link href={cancelHref} className="text-sm font-medium text-slate-500 hover:text-slate-700">
+        </Btn>
+        <Link href={cancelHref} className={buttonClasses('ghost', 'md')}>
           Cancel
         </Link>
       </div>

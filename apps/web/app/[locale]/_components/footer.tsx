@@ -43,19 +43,21 @@ export async function Footer() {
   ];
 
   return (
-    <footer className="border-t border-slate-100 bg-white">
+    <footer className="border-t border-ink-200 bg-white dark:border-white/10 dark:bg-ink-950">
       <div className="mx-auto grid max-w-6xl gap-10 px-gutter py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div className="max-w-xs">
-          <span className="text-lg font-semibold text-brand-600">Fit</span>
-          <p className="mt-3 text-sm text-slate-500">{t('tagline')}</p>
+          <span className="font-display text-lg font-extrabold text-brand-600 dark:text-brand-300">
+            Fit
+          </span>
+          <p className="mt-3 text-sm text-ink-500 dark:text-ink-400">{t('tagline')}</p>
         </div>
         {columns.map((column) => (
           <div key={column.heading}>
-            <h3 className="text-sm font-semibold text-slate-900">{column.heading}</h3>
-            <ul className="mt-4 flex flex-col gap-3 text-sm text-slate-500">
+            <h3 className="text-sm font-semibold text-ink-900 dark:text-white">{column.heading}</h3>
+            <ul className="mt-4 flex flex-col gap-3 text-sm text-ink-500 dark:text-ink-400">
               {column.links.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href} className="hover:text-brand-600">
+                  <Link href={link.href} className="hover:text-brand-600 dark:hover:text-white">
                     {link.label}
                   </Link>
                 </li>
@@ -64,8 +66,8 @@ export async function Footer() {
           </div>
         ))}
       </div>
-      <div className="border-t border-slate-100 px-gutter py-6">
-        <p className="mx-auto max-w-6xl text-sm text-slate-400">{t('copyright', { year })}</p>
+      <div className="border-t border-ink-200 px-gutter py-6 dark:border-white/10">
+        <p className="mx-auto max-w-6xl text-sm text-ink-400">{t('copyright', { year })}</p>
       </div>
     </footer>
   );

@@ -11,6 +11,7 @@ import type {
   OrderChannel,
   PaymentMethod,
 } from '@fit/types';
+import type { Tone } from '@/components/ui';
 
 /** Assumed minor units per major unit (USD/EUR/GEL — all two-decimal). */
 const MINOR_PER_MAJOR = 100;
@@ -59,22 +60,19 @@ export const CHANNEL_LABELS: Record<OrderChannel, string> = {
 };
 
 /** Visual treatment + label per order status, matching the roster pills. */
-export const ORDER_STATUS_STYLES: Record<AdminOrderStatus, { label: string; className: string }> = {
-  PENDING: { label: 'Pending', className: 'bg-amber-50 text-amber-700' },
-  PAID: { label: 'Paid', className: 'bg-emerald-50 text-emerald-700' },
-  CANCELLED: { label: 'Cancelled', className: 'bg-slate-100 text-slate-600' },
-  REFUNDED: { label: 'Refunded', className: 'bg-rose-50 text-rose-700' },
+export const ORDER_STATUS_STYLES: Record<AdminOrderStatus, { label: string; tone: Tone }> = {
+  PENDING: { label: 'Pending', tone: 'warning' },
+  PAID: { label: 'Paid', tone: 'success' },
+  CANCELLED: { label: 'Cancelled', tone: 'ink' },
+  REFUNDED: { label: 'Refunded', tone: 'danger' },
 };
 
 /** Visual treatment + label per payment status. */
-export const PAYMENT_STATUS_STYLES: Record<
-  AdminPaymentStatus,
-  { label: string; className: string }
-> = {
-  PENDING: { label: 'Pending', className: 'bg-amber-50 text-amber-700' },
-  CAPTURED: { label: 'Captured', className: 'bg-emerald-50 text-emerald-700' },
-  FAILED: { label: 'Failed', className: 'bg-rose-50 text-rose-700' },
-  REFUNDED: { label: 'Refunded', className: 'bg-rose-50 text-rose-700' },
+export const PAYMENT_STATUS_STYLES: Record<AdminPaymentStatus, { label: string; tone: Tone }> = {
+  PENDING: { label: 'Pending', tone: 'warning' },
+  CAPTURED: { label: 'Captured', tone: 'success' },
+  FAILED: { label: 'Failed', tone: 'danger' },
+  REFUNDED: { label: 'Refunded', tone: 'danger' },
 };
 
 /** Settlement-method label — the staff-facing channel a sale was settled through. */

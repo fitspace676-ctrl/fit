@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Permission, WEEKDAYS, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchLocation } from '@/lib/api';
+import { Badge, Card, Icon, type Tone } from '@/components/ui';
 import { formatDayHours, weekdayLabel } from '../format-hours';
 import { LocationActions } from './location-actions';
 
@@ -16,9 +17,9 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster table's pills. */
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
-  INACTIVE: { label: 'Inactive', className: 'bg-slate-100 text-slate-600' },
+const STATUS_LABELS: Record<string, { label: string; tone: Tone }> = {
+  ACTIVE: { label: 'Active', tone: 'success' },
+  INACTIVE: { label: 'Inactive', tone: 'ink' },
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -53,19 +54,28 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/locations" className="text-sm font-medium text-brand-700 hover:text-brand-800">
+        <Link
+          href="/locations"
+          className="text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+        >
           ← Back to locations
         </Link>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
+        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
+          <Icon
+            name="info"
+            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
+          />
+          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+            {message}
+          </p>
+        </Card>
       </div>
     );
   }
 
   const status = STATUS_LABELS[location.status] ?? {
     label: location.status,
-    className: 'bg-slate-100 text-slate-600',
+    tone: 'ink' as Tone,
   };
 
   // Write controls (edit + deactivate) are a `LocationWrite` capability.
@@ -74,20 +84,27 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/locations" className="text-sm font-medium text-brand-700 hover:text-brand-800">
+      <Link
+        href="/locations"
+        className="text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+      >
         ← Back to locations
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{location.name}</h1>
-            <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${status.className}`}>
-              {status.label}
-            </span>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+              {location.name}
+            </h1>
+            <Badge tone={status.tone}>{status.label}</Badge>
           </div>
-          {location.address ? <p className="text-sm text-slate-500">{location.address}</p> : null}
-          {location.phone ? <p className="text-sm text-slate-500">{location.phone}</p> : null}
+          {location.address ? (
+            <p className="text-sm text-ink-500 dark:text-ink-400">{location.address}</p>
+          ) : null}
+          {location.phone ? (
+            <p className="text-sm text-ink-500 dark:text-ink-400">{location.phone}</p>
+          ) : null}
         </div>
         {canWrite ? <LocationActions locationId={location.id} status={location.status} /> : null}
       </header>
@@ -101,34 +118,38 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
       ) : null}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-slate-500">Amenities</h2>
+        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+          Amenities
+        </h2>
         {location.amenities.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {location.amenities.map((tag) => (
               <span
                 key={tag}
-                className="rounded-card bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                className="rounded-pill bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-600 dark:bg-white/10 dark:text-ink-300"
               >
                 {tag}
               </span>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-slate-400">No amenities listed.</p>
+          <p className="text-sm text-ink-400">No amenities listed.</p>
         )}
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-slate-500">Opening hours</h2>
-        <dl className="max-w-sm divide-y divide-slate-100 rounded-card border border-slate-200">
+        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+          Opening hours
+        </h2>
+        <dl className="max-w-sm divide-y divide-ink-100 overflow-hidden rounded-card border border-ink-200 bg-white shadow-[0_14px_40px_-18px_rgba(0,0,0,0.18)] dark:divide-white/10 dark:border-white/10 dark:bg-white/[0.035] dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl">
           {WEEKDAYS.map((day) => (
-            <div key={day} className="flex items-center justify-between px-3 py-1.5 text-sm">
-              <dt className="text-slate-600">{weekdayLabel(day)}</dt>
+            <div key={day} className="flex items-center justify-between px-3.5 py-2 text-sm">
+              <dt className="text-ink-600 dark:text-ink-300">{weekdayLabel(day)}</dt>
               <dd
                 className={
                   location.hours[day].closed
-                    ? 'text-slate-400'
-                    : 'tabular-nums font-medium text-slate-800'
+                    ? 'text-ink-400'
+                    : 'font-mono font-medium tabular-nums text-ink-800 dark:text-ink-100'
                 }
               >
                 {formatDayHours(location.hours[day])}
@@ -138,7 +159,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         </dl>
       </section>
 
-      <p className="text-xs text-slate-400">Added {formatDate(location.createdAt)}.</p>
+      <p className="text-xs text-ink-400">Added {formatDate(location.createdAt)}.</p>
     </div>
   );
 }

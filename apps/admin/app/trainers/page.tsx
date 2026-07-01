@@ -8,6 +8,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainers } from '@/lib/api';
+import { buttonClasses, Card, Icon } from '@/components/ui';
 import { TrainersFilters } from './trainers-filters';
 import { TrainersTable } from './trainers-table';
 
@@ -65,9 +66,12 @@ export default async function TrainersPage({
         ? `Could not load trainers (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-        {message}
-      </p>
+      <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
+        <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300" />
+        <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+          {message}
+        </p>
+      </Card>
     );
   }
 
@@ -75,17 +79,17 @@ export default async function TrainersPage({
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Trainers</h1>
-          <p className="max-w-2xl text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Trainers
+          </h1>
+          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
             Your gym’s trainers. Search by name or headline, filter by status, sort any column, open
             a profile, or add a new trainer with a photo.
           </p>
         </div>
         {canWrite ? (
-          <Link
-            href="/trainers/new"
-            className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
+          <Link href="/trainers/new" className={buttonClasses('primary', 'md')}>
+            <Icon name="plus" className="h-4 w-4" sw={2} />
             New trainer
           </Link>
         ) : null}

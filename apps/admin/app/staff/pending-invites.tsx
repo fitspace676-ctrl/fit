@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import type { PendingInvite, StaffRole } from '@fit/types';
+import { Badge, Btn, Card, Icon } from '@/components/ui';
 import { inviteStaffAction, revokeInviteAction } from './actions';
 
 /** Display labels for the assignable staff roles. */
@@ -63,71 +64,68 @@ export function PendingInvites({ invites }: { invites: PendingInvite[] }) {
 
   if (invites.length === 0) {
     return (
-      <p className="rounded-card border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
-        No pending invitations.
-      </p>
+      <Card className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+        <Icon name="bell" className="h-7 w-7 text-ink-300 dark:text-ink-500" />
+        <p className="text-sm text-ink-500 dark:text-ink-400">No pending invitations.</p>
+      </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
       {note ? (
-        <p role="status" className="rounded-card bg-brand-50 px-3 py-2 text-sm text-brand-700">
+        <p
+          role="status"
+          className="rounded-card bg-brand-50 px-3 py-2 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-200"
+        >
           {note}
         </p>
       ) : null}
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-card bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:bg-danger-500/10 dark:text-danger-200"
+        >
           {error}
         </p>
       ) : null}
 
-      <ul className="flex flex-col divide-y divide-slate-100 rounded-card border border-slate-200 bg-white">
-        {invites.map((invite) => {
-          const rowBusy = busyId === invite.id && pending;
-          return (
-            <li
-              key={invite.id}
-              className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-900">{invite.email}</span>
-                  {invite.expired ? (
-                    <span className="rounded-card bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
-                      Expired
+      <Card className="overflow-hidden">
+        <ul className="flex flex-col divide-y divide-ink-100 dark:divide-white/10">
+          {invites.map((invite) => {
+            const rowBusy = busyId === invite.id && pending;
+            return (
+              <li
+                key={invite.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-ink-900 dark:text-white">
+                      {invite.email}
                     </span>
-                  ) : null}
+                    {invite.expired ? <Badge tone="warning">Expired</Badge> : null}
+                  </div>
+                  <div className="text-xs text-ink-500 dark:text-ink-400">
+                    {ROLE_LABELS[invite.role]} ·{' '}
+                    {invite.expired
+                      ? `expired ${formatDate(invite.expiresAt)}`
+                      : `expires ${formatDate(invite.expiresAt)}`}
+                  </div>
                 </div>
-                <div className="text-xs text-slate-500">
-                  {ROLE_LABELS[invite.role]} ·{' '}
-                  {invite.expired
-                    ? `expired ${formatDate(invite.expiresAt)}`
-                    : `expires ${formatDate(invite.expiresAt)}`}
+                <div className="flex gap-2">
+                  <Btn v="outline" size="sm" disabled={rowBusy} onClick={() => resend(invite)}>
+                    Resend
+                  </Btn>
+                  <Btn v="ghost" size="sm" disabled={rowBusy} onClick={() => revoke(invite)}>
+                    Revoke
+                  </Btn>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={rowBusy}
-                  onClick={() => resend(invite)}
-                  className="rounded-card border border-brand-200 px-3 py-1 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-40"
-                >
-                  Resend
-                </button>
-                <button
-                  type="button"
-                  disabled={rowBusy}
-                  onClick={() => revoke(invite)}
-                  className="rounded-card border border-slate-200 px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Revoke
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
     </div>
   );
 }

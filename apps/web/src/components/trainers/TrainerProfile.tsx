@@ -1,83 +1,93 @@
 import { useTranslations } from 'next-intl';
 import type { TrainerDetail } from '@fit/types';
+import { Avatar, Badge, buttonClasses, Card, Icon } from '@/src/components/ui';
 
 export interface TrainerProfileProps {
   trainer: TrainerDetail;
 }
 
 /**
- * The profile header of a trainer's detail page: avatar (or an initials
- * placeholder when there's no photo), name + headline, the full (untruncated)
- * bio, and the specialty / location facets the index card only summarised.
- * Purely presentational — the page owns the layout and the data fetch.
+ * The profile header of a trainer's detail page: avatar (or a Dicebear initials
+ * fallback when there's no photo), name + headline, the full (untruncated) bio,
+ * the specialty / location facets the index card only summarised, and a primary
+ * action linking to the trainer's upcoming sessions. Purely presentational — the
+ * page owns the layout and the data fetch.
  */
 export function TrainerProfile({ trainer }: TrainerProfileProps) {
   const t = useTranslations('trainers');
 
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex items-center gap-5">
-        {trainer.avatarUrl ? (
-          <img
-            src={trainer.avatarUrl}
-            alt=""
-            className="h-20 w-20 shrink-0 rounded-full object-cover"
+    <Card glow className="p-6 sm:p-8">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] opacity-[0.08] dark:opacity-20"
+      />
+
+      <section className="relative flex flex-col gap-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <Avatar
+            src={avatarSrc(trainer.avatarUrl, trainer.name)}
+            ring
+            size="h-20 w-20 sm:h-24 sm:w-24"
           />
-        ) : (
-          <span
-            aria-hidden
-            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-brand-50 text-2xl font-semibold text-brand-700"
+          <div className="min-w-0 flex-1">
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+              {trainer.name}
+            </h1>
+            {trainer.headline && (
+              <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{trainer.headline}</p>
+            )}
+          </div>
+          <a
+            href="#trainer-schedule-heading"
+            className={buttonClasses('primary', 'md', 'shrink-0')}
           >
-            {initials(trainer.name)}
-          </span>
+            <Icon name="calendarPlus" className="h-4 w-4" sw={2} />
+            {t('detail.schedule.title')}
+          </a>
+        </div>
+
+        {trainer.bio && (
+          <p className="whitespace-pre-line text-sm leading-relaxed text-ink-600 dark:text-ink-300">
+            {trainer.bio}
+          </p>
         )}
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-slate-900">{trainer.name}</h1>
-          {trainer.headline && <p className="text-sm text-slate-500">{trainer.headline}</p>}
-        </div>
-      </div>
 
-      {trainer.bio && (
-        <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">{trainer.bio}</p>
-      )}
+        {trainer.specialties.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+              {t('detail.specialties')}
+            </h2>
+            <ul aria-label={t('detail.specialties')} className="flex flex-wrap gap-1.5">
+              {trainer.specialties.map((specialty) => (
+                <li key={specialty}>
+                  <Badge tone="brand">{specialty}</Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-      {trainer.specialties.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            {t('detail.specialties')}
-          </h2>
-          <ul aria-label={t('detail.specialties')} className="flex flex-wrap gap-1.5">
-            {trainer.specialties.map((specialty) => (
-              <li
-                key={specialty}
-                className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
-              >
-                {specialty}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {trainer.locationNames.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            {t('detail.locations')}
-          </h2>
-          <p className="text-sm text-slate-600">{trainer.locationNames.join(' · ')}</p>
-        </div>
-      )}
-    </section>
+        {trainer.locationNames.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+              {t('detail.locations')}
+            </h2>
+            <p className="flex items-center gap-1.5 text-sm text-ink-600 dark:text-ink-300">
+              <Icon name="pin" className="h-4 w-4 shrink-0 text-ink-400" sw={2} />
+              {trainer.locationNames.join(' · ')}
+            </p>
+          </div>
+        )}
+      </section>
+    </Card>
   );
 }
 
-/** First letters of the first and last words of a name, upper-cased (max 2). */
-function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) {
-    return '?';
-  }
-  const first = words[0]?.[0] ?? '';
-  const last = words.length > 1 ? (words[words.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase() || '?';
+/**
+ * The avatar URL to render, falling back to a Dicebear initials avatar seeded by
+ * the trainer's name when no photo is set.
+ */
+function avatarSrc(url: string | null | undefined, name: string): string {
+  return url || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`;
 }

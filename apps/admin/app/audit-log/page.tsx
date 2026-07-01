@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { listAuditLogQuerySchema, type ListAuditLogQuery } from '@fit/types';
 import { ApiError, fetchAuditLogs } from '@/lib/api';
+import { Card, Icon } from '@/components/ui';
 import { AuditLogFilters } from './audit-log-filters';
 import { AuditLogTable } from './audit-log-table';
 
@@ -51,17 +52,22 @@ export default async function AuditLogPage({
         ? `Could not load the audit log (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-        {message}
-      </p>
+      <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
+        <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300" />
+        <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+          {message}
+        </p>
+      </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Audit log</h1>
-        <p className="max-w-2xl text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Audit log
+        </h1>
+        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
           A record of privileged actions taken on your gym — owner impersonation and status changes.
           Filter by action or narrow to a date range.
         </p>

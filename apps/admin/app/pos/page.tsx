@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { Card, Icon } from '@/components/ui';
 import { PosBoard } from '@/components/pos/pos-board';
 
 export const metadata: Metadata = {
@@ -32,11 +33,17 @@ export default async function PosPage() {
 
   if (!canSell) {
     return (
-      <div className="flex flex-col gap-2 p-6">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Point of sale</h1>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          You don’t have permission to use the point of sale.
-        </p>
+      <div className="flex flex-col gap-3 p-6">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Point of sale
+        </h1>
+        <Card
+          role="alert"
+          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-5 w-5 shrink-0" />
+          <span>You don’t have permission to use the point of sale.</span>
+        </Card>
       </div>
     );
   }
@@ -44,15 +51,17 @@ export default async function PosPage() {
   return (
     <div className="flex h-screen flex-col gap-4 p-4">
       <header className="flex items-baseline justify-between gap-4">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">Point of sale</h1>
+        <h1 className="font-display text-xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-2xl">
+          Point of sale
+        </h1>
         <div className="flex items-baseline gap-4">
-          <p className="hidden text-xs text-slate-400 sm:block">
+          <p className="hidden text-xs text-ink-400 sm:block">
             F1 search products · F2 find member · Esc clear sale
           </p>
           {canReconcile ? (
             <Link
               href="/pos/reconciliation"
-              className="text-sm font-medium text-brand-600 hover:text-brand-700"
+              className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
             >
               End-of-day report
             </Link>

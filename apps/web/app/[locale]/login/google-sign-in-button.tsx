@@ -83,18 +83,24 @@ export function GoogleSignInButton() {
 
   if (!CLIENT_ID) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-ink-500 dark:text-ink-400">
         Google sign-in is not configured (set <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>).
       </p>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex w-full flex-col items-center gap-3">
       <div ref={buttonRef} aria-label="Sign in with Google" />
-      {status === 'authenticating' && <p className="text-sm text-slate-500">Signing you in…</p>}
-      {status === 'success' && <p className="text-sm text-green-600">Signed in successfully.</p>}
-      {status === 'error' && error && <p className="text-sm text-red-600">{error}</p>}
+      {status === 'authenticating' && (
+        <p className="text-sm text-ink-500 dark:text-ink-400">Signing you in…</p>
+      )}
+      {status === 'success' && (
+        <p className="text-sm text-success-600 dark:text-success-300">Signed in successfully.</p>
+      )}
+      {status === 'error' && error && (
+        <p className="text-sm text-danger-600 dark:text-danger-300">{error}</p>
+      )}
     </div>
   );
 }

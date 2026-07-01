@@ -37,7 +37,8 @@
         "title": "ჯავშნები ჯერ არ გაქვს",
         "subtitle": "როცა გაკვეთილს დაჯავშნი, ის აქ გამოჩნდება შენი წარსული სესიების გვერდით.",
         "action": "გაკვეთილების დათვალიერება"
-      }
+      },
+      "cancel": "გაუქმება"
     }
   },
   "common": {
@@ -642,6 +643,237 @@
       "description": "მოხდა მოულოდნელი შეცდომა. სცადე თავიდან და თუ პრობლემა გრძელდება, დაუკავშირდი მხარდაჭერას.",
       "reference": "ნომერი: {id}",
       "tryAgain": "ხელახლა ცდა"
+    }
+  },
+  "member": {
+    "nav": {
+      "home": "მთავარი",
+      "classes": "გაკვეთილები",
+      "bookings": "ჯავშნები",
+      "trainer": "მწვრთნელი",
+      "shop": "მაღაზია",
+      "membership": "აბონემენტი",
+      "profile": "პროფილი",
+      "cart": "კალათა"
+    },
+    "shell": {
+      "brand": "FormaCore",
+      "search": "მოძებნე გაკვეთილი, მწვრთნელი…",
+      "notifications": "შეტყობინებები",
+      "noNotifications": "ყველაფერი წაკითხულია",
+      "themeToLight": "ნათელ რეჟიმზე",
+      "themeToDark": "მუქ რეჟიმზე",
+      "menu": "მენიუ",
+      "openMenu": "მენიუს გახსნა",
+      "closeMenu": "მენიუს დახურვა",
+      "signOut": "გასვლა",
+      "premium": "Premium",
+      "checkIn": "გამოცხადება",
+      "viewProfile": "პროფილის ნახვა",
+      "greetingFallback": "წევრი"
+    },
+    "home": {
+      "greeting": "კეთილი დაბრუნება",
+      "greetingFallbackName": "წევრი",
+      "today": "დღეს",
+      "tomorrow": "ხვალ",
+      "membership": "აბონემენტი",
+      "active": "აქტიური",
+      "noPlan": "გეგმა არ არის",
+      "memberId": "ID",
+      "daysLeft": "{used} / {total} დღე",
+      "showQr": "გამოცხადების QR",
+      "ptCredits": "PT კრედიტი",
+      "qrTitle": "გამოცხადების QR",
+      "qrSub": "აჩვენე ეს მიმღებთან",
+      "done": "მზადაა",
+      "nextClass": "შენი მომდევნო გაკვეთილი",
+      "checkIn": "გამოცხადება",
+      "noClasses": "გაკვეთილი ჯერ არ გაქვს დაჯავშნილი",
+      "browseClasses": "გაკვეთილების ნახვა",
+      "dayStreak": "დღის სერია",
+      "checkInsMonth": "გამოცხადება",
+      "classesBooked": "დაჯავშნილი",
+      "bookClass": "დაჯავშნე გაკვეთილი",
+      "viewAll": "ყველა",
+      "book": "დაჯავშნა",
+      "booked": "დაჯავშნილია",
+      "joinWaitlist": "მოლოდინის სია",
+      "noBookable": "ამ კვირას გაკვეთილი ჯერ არ არის",
+      "yourTrainer": "შენი მწვრთნელი",
+      "bookSession": "სესიის დაჯავშნა",
+      "forTraining": "შენი ვარჯიშისთვის",
+      "membersGet": "წევრებს −10%",
+      "visitShop": "მაღაზიაში",
+      "noProducts": "პროდუქტი ჯერ არ არის",
+      "upcomingBookings": "მომავალი ჯავშნები",
+      "confirmed": "დადასტურებული",
+      "waitlist": "მოლოდინი · #{position}"
+    },
+    "actions": {
+      "booked": "დაჯავშნილია! შევხვდებით",
+      "waitlisted": "მოლოდინის სიაში დაგამატეთ",
+      "canceled": "ჯავშანი გაუქმდა",
+      "working": "…",
+      "errAlreadyBooked": "უკვე დაჯავშნილი ხარ",
+      "errNotBookable": "ამ გაკვეთილის დაჯავშნა ვერ ხერხდება",
+      "errWindowPassed": "გაუქმების ვადა გავიდა",
+      "errNotFound": "ჯავშანი ვერ მოიძებნა",
+      "errAuth": "გთხოვ შეხვიდე",
+      "errGeneric": "რაღაც ვერ მოხერხდა"
+    },
+    "membership": {
+      "title": "აბონემენტი",
+      "changePlan": "გეგმის შეცვლა",
+      "choosePlan": "აირჩიე გეგმა",
+      "status": {
+        "ACTIVE": "აქტიური",
+        "FROZEN": "გაყინული",
+        "CANCELED": "გაუქმებული",
+        "PAST_DUE": "ვადაგადაცილებული",
+        "EXPIRED": "არააქტიური"
+      },
+      "noPlan": "აქტიური გეგმა არ არის",
+      "noPlanHint": "აირჩიე გეგმა გაკვეთილების, მწვრთნელებისა და ფასდაკლების მისაღებად.",
+      "perks": "შეუზღუდავი გაკვეთილები · 1 სტუმარი / თვე · −10% მაღაზია",
+      "nextBilling": "შემდეგი გადახდა",
+      "memberSince": "წევრი",
+      "viewBookings": "ჩემი ჯავშნები",
+      "shopMember": "წევრის მაღაზია",
+      "paymentMethod": "გადახდის მეთოდი",
+      "payAtDesk": "გადახდა ადგილზე",
+      "thisPeriod": "ამ პერიოდში",
+      "classes": "გაკვეთილი",
+      "ptCredits": "PT კრედიტი",
+      "buyMore": "სესიების ყიდვა",
+      "invoices": "გადახდების ისტორია",
+      "invoice": "ინვოისი",
+      "date": "თარიღი",
+      "amount": "თანხა",
+      "statusCol": "სტატუსი",
+      "invoiceStatus": {
+        "PAID": "გადახდილი",
+        "PENDING": "მოლოდინში",
+        "FAILED": "ვერ შესრულდა",
+        "REFUNDED": "დაბრუნებული"
+      },
+      "noInvoices": "ინვოისები ჯერ არ არის"
+    },
+    "profile": {
+      "title": "პროფილი",
+      "save": "შენახვა",
+      "saved": "პროფილი შენახულია",
+      "namePlaceholder": "შენი სახელი",
+      "emailPlaceholder": "you@email.com",
+      "premiumMember": "Premium წევრი",
+      "changePhoto": "ფოტოს შეცვლა",
+      "checkIns": "გამოცხადება",
+      "credits": "კრედიტი",
+      "id": "ID",
+      "personalInfo": "პერსონალური ინფორმაცია",
+      "fields": {
+        "firstName": "სახელი",
+        "lastName": "გვარი",
+        "email": "ელფოსტა",
+        "phone": "ტელეფონი",
+        "emergency": "საგანგებო კონტაქტი",
+        "address": "მისამართი"
+      },
+      "preferences": "პრეფერენსები",
+      "language": "ენა",
+      "units": "ერთეულები",
+      "unit": {
+        "metric": "მეტრული",
+        "imperial": "იმპერიული"
+      },
+      "theme": "თემა",
+      "themeName": {
+        "light": "ნათელი",
+        "dark": "მუქი"
+      },
+      "notifications": "შეტყობინებები",
+      "notif": {
+        "reminders": {
+          "title": "გაკვეთილის შეხსენება",
+          "desc": "დაჯავშნილ გაკვეთილებამდე"
+        },
+        "bookings": {
+          "title": "ჯავშნის განახლება",
+          "desc": "დადასტურება და მოლოდინის სია"
+        },
+        "billing": {
+          "title": "გადახდები",
+          "desc": "გადახდები და განახლებები"
+        },
+        "promotions": {
+          "title": "აქციები",
+          "desc": "შეთავაზებები და ბენეფიტები"
+        }
+      },
+      "security": "უსაფრთხოება",
+      "changePassword": "პაროლის შეცვლა",
+      "twoFa": "ორფაქტორიანი ავთენტიფიკაცია",
+      "twoFaOn": "ჩართულია",
+      "twoFaOff": "დაამატე დაცვის დამატებითი ფენა",
+      "deleteTitle": "ანგარიშის წაშლა",
+      "deleteDesc": "სამუდამოდ წაშალე შენი ანგარიში და მონაცემები.",
+      "delete": "წაშლა",
+      "deleteToast": "ანგარიშის წასაშლელად დაუკავშირდი მიმღებს",
+      "saving": "ინახება…",
+      "saveAuth": "გთხოვ შეხვიდე",
+      "saveError": "ვერ შეინახა, სცადე ისევ"
+    },
+    "cart": {
+      "title": "შენი კალათა",
+      "summary": "შეკვეთის შეჯამება",
+      "empty": "კალათა ცარიელია",
+      "browseShop": "მაღაზიაში",
+      "outOfStock": "არ არის მარაგში",
+      "remove": "წაშლა",
+      "decrease": "შემცირება",
+      "increase": "გაზრდა",
+      "pickup": "აიღე",
+      "payDesk": "გადახდა ადგილზე",
+      "payCard": "ბარათი",
+      "payApple": "Apple Pay",
+      "promo": "პრომო კოდი",
+      "subtotal": "ჯამი",
+      "discount": "ფასდაკლება",
+      "total": "სულ",
+      "placeOrder": "შეკვეთა",
+      "placing": "მუშავდება…",
+      "securePayment": "უსაფრთხო ჩექაუთი · გადახდა აღებისას",
+      "confirmed": "შეკვეთა დადასტურდა",
+      "orderNo": "შეკვეთა",
+      "collectHint": "მოვამზადებთ მიმღებთან.",
+      "continueShopping": "შოპინგის გაგრძელება",
+      "add": "დამატება",
+      "adding": "ემატება…",
+      "added": "კალათაში დაემატა",
+      "errAdd": "ვერ დაემატა",
+      "signInToAdd": "შესვლა საჭიროა",
+      "errUpdate": "კალათა ვერ განახლდა",
+      "errCheckout": "ჩექაუთი ვერ შესრულდა",
+      "errPrice": "ფასები შეიცვალა — გადახედე კალათას",
+      "pickLocation": "აირჩიე აღების ლოკაცია"
+    },
+    "goals": {
+      "title": "შენი მიზნები",
+      "edit": "რედაქტირება",
+      "add": "მიზნის დამატება",
+      "addFirst": "დაამატე მიზანი",
+      "save": "შენახვა",
+      "saving": "ინახება…",
+      "cancel": "გაუქმება",
+      "remove": "წაშლა",
+      "empty": "მიზნები ჯერ არ გაქვს — დაისახე და თვალი ადევნე პროგრესს.",
+      "saved": "მიზნები შენახულია",
+      "error": "მიზნები ვერ შეინახა",
+      "signIn": "გთხოვ შეხვიდე",
+      "labelPh": "მიზანი (მაგ. ვარჯიში / კვირა)",
+      "unitPh": "ერთ.",
+      "current": "მიმდინარე",
+      "target": "სამიზნე"
     }
   }
 }
