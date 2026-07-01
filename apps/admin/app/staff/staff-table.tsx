@@ -47,6 +47,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.WorkoutWrite]: 'Create & assign workouts',
   [Permission.ReportView]: 'View reports',
   [Permission.AuditRead]: 'View audit log',
+  [Permission.ProfileManage]: 'Edit own profile',
 };
 
 /** Visual treatment per staff status — green active, slate invited, amber suspended. */

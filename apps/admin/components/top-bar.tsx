@@ -1,14 +1,14 @@
 'use client';
 
-// @fit/admin — console top bar.
+// @fit/admin — console top bar (formacore).
 //
-// Sits above the page content: the mobile drawer toggle (hidden on `md`+ where
-// the sidebar is always visible), the gym the operator is managing, and a
-// session control showing the role plus a sign-out button. Sign-out clears the
-// shared session cookie via `DELETE /api/session` and returns to the sign-in
-// flow — the same cookie the `web` app sets, so it logs out everywhere.
+// Sits above the page content: the mobile drawer toggle, the gym being managed, a
+// search field, a theme toggle, notifications, and a session control (role +
+// sign out). Sign-out clears the shared session cookie via `DELETE /api/session`.
 
 import { useSession } from '@/hooks/use-session';
+import { Icon } from '@/components/ui';
+import { useTheme } from '@/components/theme/theme-provider';
 
 /** Base path (`/admin` behind the tenant proxy); applied to non-router fetch/redirect. */
 const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '';
@@ -22,6 +22,8 @@ interface TopBarProps {
 
 export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
   const { user, isLoading } = useSession();
+  const { theme, toggle } = useTheme();
+  const isDark = theme === 'dark';
 
   const signOut = async (): Promise<void> => {
     try {
@@ -33,48 +35,75 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
   };
 
   return (
-    <header className="flex h-14 items-center gap-3 border-b border-slate-100 bg-white px-4">
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-ink-100 bg-white/80 px-4 backdrop-blur-xl dark:border-white/10 dark:bg-ink-950/70 sm:px-6">
       <button
         type="button"
         onClick={onOpenNav}
         aria-label="Open navigation"
-        className="rounded-card p-2 text-slate-600 hover:bg-slate-50 md:hidden"
+        className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-white/5 md:hidden"
       >
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.75}
-          strokeLinecap="round"
-          className="h-5 w-5"
-        >
-          <path d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+        <Icon name="filter" className="h-5 w-5" />
       </button>
 
-      <div className="min-w-0 flex-1">
+      {/* Search */}
+      <div className="hidden max-w-md flex-1 items-center gap-2.5 rounded-field border border-ink-200 bg-ink-50 px-3.5 py-2 text-ink-400 dark:border-white/10 dark:bg-white/[0.04] sm:flex">
+        <Icon name="search" className="h-4 w-4" />
+        <input
+          type="search"
+          placeholder="Search…"
+          className="w-full bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400 dark:text-white"
+        />
+      </div>
+
+      <div className="min-w-0 flex-1 sm:hidden">
         {gymSlug ? (
-          <span className="truncate text-sm font-medium text-slate-900">{gymSlug}</span>
+          <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">{gymSlug}</span>
         ) : (
-          <span className="truncate text-sm text-slate-400">Fit Admin</span>
+          <span className="truncate text-sm text-ink-400">FormaCore Admin</span>
         )}
       </div>
 
-      {!isLoading && user && (
-        <div className="flex items-center gap-3">
-          <span className="hidden rounded-card bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 sm:inline">
-            {user.role}
+      <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        {gymSlug && (
+          <span className="hidden rounded-pill bg-ink-100 px-2.5 py-1 font-mono text-[11px] font-semibold text-ink-600 dark:bg-white/10 dark:text-ink-300 lg:inline">
+            {gymSlug}
           </span>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="rounded-card px-2 py-1 text-sm font-medium text-slate-600 hover:text-brand-600"
-          >
-            Sign out
-          </button>
-        </div>
-      )}
+        )}
+
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={isDark ? 'Switch to light' : 'Switch to dark'}
+          className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
+        >
+          <Icon name={isDark ? 'sun' : 'moon'} className="h-5 w-5" />
+        </button>
+
+        <button
+          type="button"
+          aria-label="Notifications"
+          className="relative grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
+        >
+          <Icon name="bell" className="h-5 w-5" />
+          <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-brand-500 ring-2 ring-white dark:ring-ink-950" />
+        </button>
+
+        {!isLoading && user && (
+          <div className="flex items-center gap-2 pl-1">
+            <span className="hidden rounded-pill bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-600 dark:bg-white/10 dark:text-ink-300 sm:inline">
+              {user.role}
+            </span>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              aria-label="Sign out"
+              className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-danger-50 hover:text-danger-600 dark:text-ink-400 dark:hover:bg-danger-500/10 dark:hover:text-danger-300"
+            >
+              <Icon name="logout" className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+      </div>
     </header>
   );
 }

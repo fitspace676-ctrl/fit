@@ -33,14 +33,21 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const items = visibleNavItems(user?.role ?? null);
 
   return (
-    <nav aria-label="Primary" className="flex h-full flex-col gap-1 p-4">
+    <nav aria-label="Primary" className="flex h-full flex-col gap-0.5 p-4 text-ink-300">
       <Link
         href="/"
         onClick={onNavigate}
-        className="mb-4 flex items-center gap-2 px-2 text-lg font-bold tracking-tight text-brand-600"
+        className="mb-6 flex items-center gap-2.5 px-2"
       >
-        <span className="rounded-card bg-brand-600 px-2 py-0.5 text-sm text-white">Fit</span>
-        Admin
+        <span className="grid h-9 w-9 place-items-center rounded-btn bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+            <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
+          </svg>
+        </span>
+        <span className="font-display text-lg font-extrabold tracking-tight text-white">
+          FormaCore
+          <span className="ml-1 font-mono text-[10px] font-medium text-ink-500">admin</span>
+        </span>
       </Link>
 
       {isLoading ? (
@@ -55,10 +62,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               aria-current={active ? 'page' : undefined}
               className={[
-                'flex items-center gap-3 rounded-card px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-btn px-3 py-2 text-sm font-semibold transition-colors',
                 active
-                  ? 'bg-brand-50 text-brand-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                  ? 'bg-brand-500 text-white shadow-[0_4px_16px_-4px_rgba(98,87,227,0.8)]'
+                  : 'text-ink-400 hover:bg-white/5 hover:text-white',
               ].join(' ')}
             >
               <NavIcon name={item.icon} />
@@ -77,8 +84,8 @@ function SidebarSkeleton() {
     <div className="flex flex-col gap-1" aria-hidden="true">
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 px-3 py-2">
-          <div className="h-5 w-5 animate-pulse rounded bg-slate-100" />
-          <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
+          <div className="h-5 w-5 animate-pulse rounded bg-white/10" />
+          <div className="h-3 w-24 animate-pulse rounded bg-white/10" />
         </div>
       ))}
     </div>
