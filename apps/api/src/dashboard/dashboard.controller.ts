@@ -1,5 +1,10 @@
-import { Controller, Get, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
-import { Permission, type DashboardStatsResponse } from '@fit/types';
+import { Controller, Get, HttpCode, HttpStatus, Query, UseGuards } from '@nestjs/common';
+import {
+  Permission,
+  dashboardOverviewQuerySchema,
+  type DashboardOverviewResponse,
+  type DashboardStatsResponse,
+} from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -29,5 +34,20 @@ export class DashboardController {
   @RequirePermissions(Permission.ReportView)
   async stats(): Promise<DashboardStatsResponse> {
     return this.dashboard.getStats();
+  }
+
+  /**
+   * `GET /dashboard/overview?range=` — the FormaCore control-room overview: the
+   * live occupancy card, today's revenue / check-ins / new-member KPIs, a
+   * range-windowed revenue series (`7d` default, `30d`, `12w`), the live plan mix,
+   * today's class schedule, real-event alerts, and the recent-check-ins feed. All
+   * scoped to the caller's own gym; `range` is re-validated by the same Zod schema.
+   */
+  @Get('overview')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ReportView)
+  async overview(@Query() query: unknown): Promise<DashboardOverviewResponse> {
+    const { range } = dashboardOverviewQuerySchema.parse(query);
+    return this.dashboard.getOverview(range);
   }
 }

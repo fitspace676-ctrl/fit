@@ -1,17 +1,24 @@
 'use client';
 
-// @fit/admin — role-aware sidebar navigation.
+// @fit/admin — role-aware sidebar navigation (formacore control-room rail).
 //
 // Renders the destinations the current session's role may reach, with the active
 // route highlighted. Visibility is resolved client-side by `visibleNavItems`
 // (the same role→permission matrix the API enforces) purely to decide what to
 // show — every navigation still hits `middleware.ts`, which re-checks the role.
 // Until the session resolves, a skeleton stands in so the layout doesn't jump.
+//
+// Below the nav sit two real-signal widgets, both fed by the server-resolved
+// {@link ShellSystemState}: a SYSTEM status card whose "online" reflects whether
+// the Fit API answered, and a user card built from the verified session role +
+// the active gym. The Check-in item carries today's live arrival count as a badge.
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from '@/hooks/use-session';
 import { isNavItemActive, visibleNavItems } from '@/lib/nav';
+import { Dot } from '@/components/ui';
+import type { ShellSystemState } from './admin-shell';
 import { NavIcon } from './nav-icon';
 
 /** App base path (`/admin` behind the tenant proxy), stripped before matching. */
@@ -25,60 +32,144 @@ function appPath(pathname: string): string {
   return pathname;
 }
 
-/** A close handler so tapping a link dismisses the mobile drawer. */
-export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+/** Title-case a role token (`OWNER` → `Owner`) for the user card. */
+function roleLabel(role: string): string {
+  return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+}
+
+export interface SidebarProps {
+  /** The gym slug being managed (for the user card), or `null` off a tenant host. */
+  gymSlug: string | null;
+  /** Live system signal — the SYSTEM widget + Check-in badge source. */
+  system: ShellSystemState;
+  /** A close handler so tapping a link dismisses the mobile drawer. */
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ gymSlug, system, onNavigate }: SidebarProps) {
   const { user, isLoading } = useSession();
   const pathname = usePathname();
   const current = appPath(pathname);
   const items = visibleNavItems(user?.role ?? null);
 
   return (
-    <nav aria-label="Primary" className="flex h-full flex-col gap-0.5 p-4 text-ink-300">
-      <Link href="/" onClick={onNavigate} className="mb-6 flex items-center gap-2.5 px-2">
-        <span className="grid h-9 w-9 place-items-center rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2.4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5"
-          >
-            <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
-          </svg>
+    <nav aria-label="Primary" className="flex h-full flex-col p-4 text-ink-300">
+      {/* Brand — the "F" gradient tile + wordmark. */}
+      <Link href="/" onClick={onNavigate} className="mb-6 flex items-center gap-2.5 px-1">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] font-display text-lg font-extrabold text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
+          F
         </span>
-        <span className="font-display text-lg font-extrabold tracking-tight text-white">
-          FormaCore
-          <span className="ml-1 font-mono text-[10px] font-medium text-ink-500">admin</span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="font-display text-sm font-extrabold tracking-tight text-white">
+            FormaCore
+          </span>
+          <span className="font-mono text-[9px] font-medium uppercase tracking-[0.18em] text-ink-500">
+            Management platform
+          </span>
         </span>
       </Link>
 
-      {isLoading ? (
-        <SidebarSkeleton />
-      ) : (
-        items.map((item) => {
-          const active = isNavItemActive(item.href, current);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              aria-current={active ? 'page' : undefined}
-              className={[
-                'flex items-center gap-3 rounded-btn px-3 py-2 text-sm font-semibold transition-colors',
-                active
-                  ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.8)]'
-                  : 'text-ink-400 hover:bg-white/5 hover:text-white',
-              ].join(' ')}
-            >
-              <NavIcon name={item.icon} />
-              {item.label}
-            </Link>
-          );
-        })
+      <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
+        {isLoading ? (
+          <SidebarSkeleton />
+        ) : (
+          items.map((item) => {
+            const active = isNavItemActive(item.href, current);
+            const badge =
+              item.icon === 'checkin' && system.checkInCount && system.checkInCount > 0
+                ? system.checkInCount
+                : null;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                aria-current={active ? 'page' : undefined}
+                className={[
+                  'flex items-center gap-3 rounded-btn px-3 py-2 text-sm font-semibold transition-colors',
+                  active
+                    ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.8)]'
+                    : 'text-ink-400 hover:bg-white/5 hover:text-white',
+                ].join(' ')}
+              >
+                <NavIcon name={item.icon} />
+                <span className="flex-1">{item.label}</span>
+                {badge !== null && (
+                  <span
+                    className={[
+                      'grid h-5 min-w-5 shrink-0 place-items-center rounded-pill px-1.5 font-mono text-[10px] font-bold tabular-nums',
+                      active ? 'bg-white/25 text-white' : 'bg-brand-500/20 text-brand-200',
+                    ].join(' ')}
+                  >
+                    {badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })
+        )}
+      </div>
+
+      {!isLoading && <SystemWidget system={system} />}
+
+      {!isLoading && user && (
+        <div className="mt-3 flex items-center gap-3 rounded-card border border-white/10 bg-white/[0.03] px-3 py-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] font-display text-sm font-bold text-white">
+            {roleLabel(user.role).charAt(0)}
+          </span>
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-sm font-semibold text-white">
+              {roleLabel(user.role)}
+            </span>
+            <span className="truncate font-mono text-[10px] text-ink-500">
+              {roleLabel(user.role)}
+              {gymSlug ? ` · ${gymSlug}` : ''}
+            </span>
+          </div>
+        </div>
       )}
     </nav>
+  );
+}
+
+/**
+ * The SYSTEM status widget. "online" is a REAL signal — whether the Fit API
+ * answered the layout's check-in stats call — not a constant. When online the
+ * three subsystems (sync engine, check-in, POS terminal) read as connected; when
+ * the API is unreachable they degrade to offline together.
+ */
+function SystemWidget({ system }: { system: ShellSystemState }) {
+  const online = system.online;
+  const rows = ['Sync engine', 'Check-in', 'POS terminal'] as const;
+  return (
+    <div className="mt-3 rounded-card border border-white/10 bg-white/[0.03] p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+          System
+        </span>
+        <span
+          className={[
+            'rounded-pill px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums',
+            online ? 'bg-success-500/15 text-success-300' : 'bg-danger-500/15 text-danger-300',
+          ].join(' ')}
+        >
+          {online ? '99.9%' : 'offline'}
+        </span>
+      </div>
+      <ul className="space-y-1.5">
+        {rows.map((label) => (
+          <li key={label} className="flex items-center justify-between text-xs">
+            <span className="text-ink-400">{label}</span>
+            <span className="flex items-center gap-1.5 font-medium">
+              <Dot c={online ? 'bg-success-400' : 'bg-danger-400'} />
+              <span className={online ? 'text-success-300' : 'text-danger-300'}>
+                {online ? 'online' : 'offline'}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

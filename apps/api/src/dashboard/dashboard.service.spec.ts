@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GymMemberStatus, LocationStatus, ProductStatus, Role, TrainerStatus } from '@fit/db';
 import { DashboardService } from './dashboard.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { TenantContext } from '../common/tenant/tenant.context';
 
 /** The subset of the Prisma count arg the assertions inspect. */
 interface CountArgs {
@@ -34,8 +35,18 @@ function setup(counts?: Partial<Record<string, number>>) {
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
+  // `getStats` never touches the tenant context; a minimal stub satisfies the
+  // constructor for these unit tests (the overview's tenant-scoped reads are
+  // exercised against the real client in integration).
+  const tenant = { gymId: 'gym_test', userId: 'user_test', role: Role.MANAGER } as TenantContext;
 
-  return { service: new DashboardService(prisma), gymMember, trainer, location, product };
+  return {
+    service: new DashboardService(prisma, tenant),
+    gymMember,
+    trainer,
+    location,
+    product,
+  };
 }
 
 describe('DashboardService', () => {
