@@ -3,7 +3,7 @@
 import { type FormEvent, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loginWithCredentials } from '@/lib/auth';
+import { loginWithCredentials, postLoginPath } from '@/lib/auth';
 import { FormError, SubmitButton, TextField } from '../_components/auth/form-controls';
 
 /**
@@ -45,8 +45,8 @@ export function CredentialsLoginForm() {
     setPending(true);
     setError(null);
     loginWithCredentials(email, password, inviteToken)
-      .then(() => {
-        const destination = safeFrom(searchParams.get('from')) ?? `/${locale}`;
+      .then(async () => {
+        const destination = await postLoginPath(safeFrom(searchParams.get('from')), locale);
         router.replace(destination);
       })
       .catch((err: unknown) => {

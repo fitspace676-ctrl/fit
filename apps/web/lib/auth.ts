@@ -214,3 +214,28 @@ export async function logout(): Promise<void> {
   if (typeof window === 'undefined') return;
   await fetch(SESSION_ENDPOINT, { method: 'DELETE', credentials: 'same-origin' });
 }
+
+/**
+ * Where to send a user right after they sign in.
+ *
+ * An explicit, already-validated `from` (the path the middleware stashed when it
+ * bounced them to login) always wins. Otherwise we look at the freshly-set
+ * session: **staff** (any role other than `MEMBER`) land in the admin console at
+ * `/admin` — the tenant proxy serves it at the same origin — while members go to
+ * their localized home. The session is read from the verified `GET /api/session`
+ * (the sign-in has already persisted the cookie); any failure falls back to the
+ * member home, so a hiccup never traps someone on the login page.
+ */
+export async function postLoginPath(from: string | null, locale: string): Promise<string> {
+  if (from) return from;
+  try {
+    const res = await fetch(SESSION_ENDPOINT, { credentials: 'same-origin' });
+    if (res.ok) {
+      const { user } = (await res.json()) as { user: { role?: string } | null };
+      if (user?.role && user.role !== 'MEMBER') return '/admin';
+    }
+  } catch {
+    /* fall through to the member home */
+  }
+  return `/${locale}`;
+}

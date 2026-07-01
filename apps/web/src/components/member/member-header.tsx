@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Link, usePathname } from '@/src/i18n/navigation';
+import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
 import { useSession } from '@/hooks/use-session';
+import { logout } from '@/lib/auth';
 import { ThemeToggle } from './theme-toggle';
 import { NAV_ITEMS, isActive } from './nav-items';
 
@@ -64,12 +65,92 @@ function Notifications() {
   );
 }
 
+/**
+ * Avatar button + account dropdown: view profile, an "Admin console" shortcut for
+ * staff (any role other than `MEMBER` — the tenant proxy serves `/admin` on this
+ * same origin), and sign out. Sign-out clears the session cookie and returns to
+ * the login page.
+ */
+function AccountMenu() {
+  const t = useTranslations('member');
+  const router = useRouter();
+  const { user } = useSession();
+  const [open, setOpen] = useState(false);
+  const isStaff = Boolean(user && user.role !== 'MEMBER');
+
+  const onLogout = (): void => {
+    setOpen(false);
+    void logout().finally(() => router.replace('/login'));
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={t('nav.profile')}
+        aria-expanded={open}
+        className="grid h-10 w-10 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white ring-2 ring-white transition-transform hover:scale-105 dark:ring-ink-950"
+      >
+        <Icon name="user" className="h-5 w-5" sw={2.2} />
+      </button>
+
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-40 cursor-default"
+          />
+          <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-card border border-ink-200 bg-white py-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-ink-900">
+            <Link
+              href="/account/profile"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/5"
+            >
+              <Icon name="user" className="h-4 w-4" sw={2.1} />
+              {t('shell.viewProfile')}
+            </Link>
+            {isStaff && (
+              <a
+                href="/admin"
+                className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/5"
+              >
+                <Icon name="grid" className="h-4 w-4" sw={2.1} />
+                {t('shell.adminConsole')}
+              </a>
+            )}
+            <div className="my-1 border-t border-ink-100 dark:border-white/10" />
+            <button
+              type="button"
+              onClick={onLogout}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-semibold text-danger-600 transition-colors hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10"
+            >
+              <Icon name="logout" className="h-4 w-4" sw={2.1} />
+              {t('shell.signOut')}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Persistent member-portal header: logo, primary nav, theme/notifications/avatar. */
 export function MemberHeader() {
   const t = useTranslations('member');
+  const router = useRouter();
   const pathname = usePathname();
   const { user } = useSession();
   const [navOpen, setNavOpen] = useState(false);
+  const isStaff = Boolean(user && user.role !== 'MEMBER');
+
+  const onLogout = (): void => {
+    setNavOpen(false);
+    void logout().finally(() => router.replace('/login'));
+  };
 
   return (
     <header className="sticky top-0 z-30 border-b border-ink-100 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-ink-950/70">
@@ -107,18 +188,7 @@ export function MemberHeader() {
             <Icon name="bag" className="h-5 w-5" />
           </Link>
           <Notifications />
-
-          <Link
-            href="/account/profile"
-            aria-label={t('nav.profile')}
-            className="grid h-10 w-10 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white ring-2 ring-white transition-transform hover:scale-105 dark:ring-ink-950"
-          >
-            {user ? (
-              <Icon name="user" className="h-5 w-5" sw={2.2} />
-            ) : (
-              <Icon name="user" className="h-5 w-5 opacity-80" sw={2.2} />
-            )}
-          </Link>
+          <AccountMenu />
 
           {/* Mobile menu toggle */}
           <button
@@ -154,6 +224,25 @@ export function MemberHeader() {
                 </Link>
               );
             })}
+
+            <div className="my-1 border-t border-ink-100 dark:border-white/10" />
+            {isStaff && (
+              <a
+                href="/admin"
+                className="flex h-11 items-center gap-3 rounded-btn px-3.5 text-sm font-semibold text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/5"
+              >
+                <Icon name="grid" className="h-5 w-5" sw={2.1} />
+                {t('shell.adminConsole')}
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={onLogout}
+              className="flex h-11 items-center gap-3 rounded-btn px-3.5 text-left text-sm font-semibold text-danger-600 hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10"
+            >
+              <Icon name="logout" className="h-5 w-5" sw={2.1} />
+              {t('shell.signOut')}
+            </button>
           </nav>
         </div>
       )}

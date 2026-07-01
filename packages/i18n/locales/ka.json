@@ -670,7 +670,8 @@
       "premium": "Premium",
       "checkIn": "გამოცხადება",
       "viewProfile": "პროფილის ნახვა",
-      "greetingFallback": "წევრი"
+      "greetingFallback": "წევრი",
+      "adminConsole": "ადმინის კონსოლი"
     },
     "home": {
       "greeting": "კეთილი დაბრუნება",
