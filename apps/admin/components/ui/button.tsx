@@ -20,7 +20,7 @@ const SIZES: Record<BtnSize, string> = {
  */
 const VARIANTS: Record<BtnVariant, string> = {
   primary:
-    'bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_6px_24px_-6px_rgba(98,87,227,0.7)] hover:brightness-110 active:brightness-95 focus-visible:ring-brand-500/40',
+    'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_24px_-6px_rgba(98,87,227,0.7)] hover:brightness-110 active:brightness-95 focus-visible:ring-brand-500/40',
   white:
     'bg-white text-ink-950 shadow-[0_6px_24px_-8px_rgba(255,255,255,0.5)] hover:bg-ink-100 active:bg-ink-200 focus-visible:ring-white/40',
   glass:

@@ -12,7 +12,7 @@ import { NAV_ITEMS, isActive } from './nav-items';
 function Logo({ label }: { label: string }) {
   return (
     <Link href="/home" className="flex items-center gap-2.5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
+      <span className="grid h-10 w-10 place-items-center rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
         <Icon name="bolt" className="h-5 w-5" sw={2.4} />
       </span>
       <span className="font-display text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">
@@ -86,7 +86,7 @@ export function MemberHeader() {
                 href={item.href}
                 className={`flex h-10 items-center gap-2 rounded-btn px-3.5 text-sm font-semibold transition-colors ${
                   active
-                    ? 'bg-brand-500 text-white shadow-[0_4px_16px_-6px_rgba(98,87,227,0.8)]'
+                    ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_16px_-6px_rgba(124,58,237,0.8)]'
                     : 'text-ink-500 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white'
                 }`}
               >
@@ -111,7 +111,7 @@ export function MemberHeader() {
           <Link
             href="/account/profile"
             aria-label={t('nav.profile')}
-            className="grid h-10 w-10 place-items-center rounded-full bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white ring-2 ring-white transition-transform hover:scale-105 dark:ring-ink-950"
+            className="grid h-10 w-10 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white ring-2 ring-white transition-transform hover:scale-105 dark:ring-ink-950"
           >
             {user ? (
               <Icon name="user" className="h-5 w-5" sw={2.2} />
@@ -145,7 +145,7 @@ export function MemberHeader() {
                   onClick={() => setNavOpen(false)}
                   className={`flex h-11 items-center gap-3 rounded-btn px-3.5 text-sm font-semibold transition-colors ${
                     active
-                      ? 'bg-brand-500 text-white'
+                      ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white'
                       : 'text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/5'
                   }`}
                 >

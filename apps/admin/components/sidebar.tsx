@@ -35,7 +35,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav aria-label="Primary" className="flex h-full flex-col gap-0.5 p-4 text-ink-300">
       <Link href="/" onClick={onNavigate} className="mb-6 flex items-center gap-2.5 px-2">
-        <span className="grid h-9 w-9 place-items-center rounded-btn bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
+        <span className="grid h-9 w-9 place-items-center rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -68,7 +68,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               className={[
                 'flex items-center gap-3 rounded-btn px-3 py-2 text-sm font-semibold transition-colors',
                 active
-                  ? 'bg-brand-500 text-white shadow-[0_4px_16px_-4px_rgba(98,87,227,0.8)]'
+                  ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.8)]'
                   : 'text-ink-400 hover:bg-white/5 hover:text-white',
               ].join(' ')}
             >

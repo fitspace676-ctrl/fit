@@ -104,7 +104,7 @@ export function ProfileScreen({
         <Card glow className="h-fit p-6 lg:sticky lg:top-24">
           <div className="flex flex-col items-center text-center">
             <div className="relative">
-              <span className="grid h-24 w-24 place-items-center rounded-full bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white ring-2 ring-white dark:ring-ink-950">
+              <span className="grid h-24 w-24 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white ring-2 ring-white dark:ring-ink-950">
                 <Icon name="user" className="h-10 w-10" sw={2} />
               </span>
               <button

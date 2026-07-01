@@ -25,7 +25,7 @@ export function HeroElement() {
       <Card glow className="p-5">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white">
-            <span className="flex h-9 w-9 items-center justify-center rounded-btn bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white">
+            <span className="flex h-9 w-9 items-center justify-center rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white">
               <Icon name="dumbbell" className="h-5 w-5" sw={2.1} />
             </span>
             Fit
@@ -53,7 +53,7 @@ export function HeroElement() {
           ))}
         </div>
 
-        <div className="mt-5 flex items-center justify-between rounded-btn bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] px-4 py-3 text-white">
+        <div className="mt-5 flex items-center justify-between rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] px-4 py-3 text-white">
           <span className="text-sm font-semibold">Pro</span>
           <span className="font-display text-lg font-extrabold">99₾</span>
         </div>

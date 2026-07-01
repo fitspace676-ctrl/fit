@@ -126,7 +126,7 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                           className={`inline-flex items-center rounded-pill px-3 py-1.5 text-xs font-semibold ${
                             isFull
                               ? 'bg-ink-100 text-ink-500 dark:bg-white/10 dark:text-ink-300'
-                              : 'bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_6px_24px_-6px_rgba(98,87,227,0.7)]'
+                              : 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_24px_-6px_rgba(98,87,227,0.7)]'
                           }`}
                         >
                           {isFull ? t('card.full') : t('drawer.book')}
