@@ -15,6 +15,8 @@ import type {
   CreateLocationData,
   CreateLocationResponse,
   DashboardStatsResponse,
+  AdminAnalyticsResponse,
+  AnalyticsRange,
   CreateMemberInput,
   CreateMemberResponse,
   CreateTrainerData,
@@ -952,6 +954,24 @@ export async function fetchMemberEligibility(gymMemberId: string): Promise<Membe
     },
   );
   return unwrap<MemberEligibility>(res);
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+/**
+ * `GET /admin/analytics?range=` — one range-windowed analytics snapshot (KPIs,
+ * revenue series, channel/plan mix, top classes) for the caller's own gym. Gated
+ * `ReportView` API-side. `range` defaults to `30d` when omitted; the API
+ * re-validates it with the same Zod schema.
+ */
+export async function fetchAnalytics(range?: AnalyticsRange): Promise<AdminAnalyticsResponse> {
+  const qs = range ? `?range=${encodeURIComponent(range)}` : '';
+  const res = await fetch(`${apiBaseUrl()}/admin/analytics${qs}`, {
+    headers: await authHeaders(),
+    // Analytics reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<AdminAnalyticsResponse>(res);
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────
