@@ -670,7 +670,8 @@
       "premium": "Premium",
       "checkIn": "Check-in",
       "viewProfile": "View profile",
-      "greetingFallback": "Member"
+      "greetingFallback": "Member",
+      "adminConsole": "Admin console"
     },
     "home": {
       "greeting": "Welcome back",

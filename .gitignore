@@ -62,3 +62,6 @@ Thumbs.db
 # PlanFlow local metadata
 .planflow/
 .planflow/worktrees.json
+
+# Claude Code agent worktrees (transient, auto-cleaned)
+.claude/worktrees/
