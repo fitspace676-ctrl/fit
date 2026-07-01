@@ -6,8 +6,9 @@
 // search field, a theme toggle, notifications, and a session control (role +
 // sign out). Sign-out clears the shared session cookie via `DELETE /api/session`.
 
+import Link from 'next/link';
 import { useSession } from '@/hooks/use-session';
-import { Icon } from '@/components/ui';
+import { Icon, buttonClasses } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
 
 /** Base path (`/admin` behind the tenant proxy); applied to non-router fetch/redirect. */
@@ -53,6 +54,9 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
           placeholder="Search…"
           className="w-full bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400 dark:text-white"
         />
+        <kbd className="hidden shrink-0 rounded border border-ink-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink-400 dark:border-white/10 dark:bg-white/5 dark:text-ink-500 lg:inline-block">
+          ⌘K
+        </kbd>
       </div>
 
       <div className="min-w-0 flex-1 sm:hidden">
@@ -71,6 +75,15 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
             {gymSlug}
           </span>
         )}
+
+        <Link
+          href="/pos"
+          className={buttonClasses('primary', 'sm', 'hidden sm:inline-flex')}
+          aria-label="Quick sale"
+        >
+          <Icon name="plus" className="h-4 w-4" sw={2.4} />
+          Quick sale
+        </Link>
 
         <button
           type="button"

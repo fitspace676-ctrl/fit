@@ -7,7 +7,21 @@
 //
 // Run with:  pnpm db:seed   (or `fit db seed`, or `prisma db seed`)
 
-import { prisma, Role, GymMemberStatus, InstanceStatus } from '../index';
+import {
+  prisma,
+  Role,
+  GymMemberStatus,
+  InstanceStatus,
+  BookingStatus,
+  CheckInMethod,
+  LocationStatus,
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+  SubscriptionInterval,
+  SubscriptionStatus,
+  TrainerStatus,
+} from '../index';
 
 /**
  * Shared dev password for the seeded login fixtures (`alex@example.com` /
@@ -170,6 +184,16 @@ async function main() {
     });
   }
 
+  // ── Demo enrichment for the `downtown` gym (dashboard/analytics fixtures) ──
+  //
+  // Populates the control-room dashboard with realistic, tenant-scoped data so the
+  // FormaCore reference screen renders against real queries: subscription plans +
+  // members on them, captured payments across the last ~30 days, trainers,
+  // locations (the dashboard's "areas"), today's classes with bookings, and
+  // today's check-ins. Every insert is guarded by existence/upsert — idempotent
+  // and non-destructive, safe to re-run, never deletes.
+  await enrichDowntown(downtown.id);
+
   const memberships = await prisma.gymMember.findMany({
     where: { userId: alex.id },
     select: { gymId: true, role: true },
@@ -179,12 +203,401 @@ async function main() {
     where: { gymId: downtown.id },
   });
 
+  const downtownMembers = await prisma.gymMember.count({
+    where: { gymId: downtown.id, role: Role.MEMBER },
+  });
+  const downtownCheckInsToday = await prisma.checkIn.count({
+    where: { gymId: downtown.id, checkedInAt: { gte: startOfToday() } },
+  });
+
   console.log('[@fit/db] seed complete:', {
     gyms: [downtown.slug, riverside.slug],
     alexRoles: memberships.map((m) => m.role),
     classTemplate: `${CLASS_TITLE} (${classInstanceCount} instances)`,
+    downtownMembers,
+    downtownCheckInsToday,
     superAdmin:
       process.env.NODE_ENV !== 'production' ? 'superadmin@fit.local' : '(skipped in prod)',
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Demo enrichment                                                            */
+/* -------------------------------------------------------------------------- */
+
+/** Start of the current calendar day in the server's zone. */
+function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** `n` days before now (local zone), preserving the current time-of-day. */
+function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+}
+
+/** Today at `hour:minute` (local zone) — for today's class + check-in timestamps. */
+function todayAt(hour: number, minute = 0): Date {
+  const d = startOfToday();
+  d.setHours(hour, minute, 0, 0);
+  return d;
+}
+
+/**
+ * The demo catalogue of subscription plans the dashboard's plan-mix renders. Each
+ * is upserted by (gymId, name) so re-running the seed never duplicates a plan and
+ * never re-prices an existing one it didn't create.
+ */
+const DEMO_PLANS = [
+  { name: 'Premium', priceAmount: 12000, interval: SubscriptionInterval.MONTH, popular: true },
+  { name: 'Standard', priceAmount: 7500, interval: SubscriptionInterval.MONTH, popular: false },
+  { name: 'PT Pack', priceAmount: 20000, interval: SubscriptionInterval.MONTH, popular: false },
+  { name: 'Student', priceAmount: 4500, interval: SubscriptionInterval.MONTH, popular: false },
+  { name: 'Trial', priceAmount: 0, interval: SubscriptionInterval.MONTH, popular: false },
+] as const;
+
+/** The demo members: name, email, and the plan they sit on. */
+const DEMO_MEMBERS: ReadonlyArray<{ name: string; plan: (typeof DEMO_PLANS)[number]['name'] }> = [
+  { name: 'Nino Kapanadze', plan: 'Premium' },
+  { name: 'Giorgi Beridze', plan: 'Premium' },
+  { name: 'Mariam Tsiklauri', plan: 'Premium' },
+  { name: 'Luka Gelashvili', plan: 'Standard' },
+  { name: 'Tamar Chkheidze', plan: 'Standard' },
+  { name: 'Davit Kvaratskhelia', plan: 'Standard' },
+  { name: 'Salome Meladze', plan: 'Standard' },
+  { name: 'Irakli Chubinidze', plan: 'PT Pack' },
+  { name: 'Ana Dolidze', plan: 'PT Pack' },
+  { name: 'Nika Bakradze', plan: 'Student' },
+  { name: 'Elene Gogoladze', plan: 'Student' },
+  { name: 'Sandro Maisuradze', plan: 'Student' },
+  { name: 'Keti Ramishvili', plan: 'Trial' },
+  { name: 'Vato Lomidze', plan: 'Trial' },
+];
+
+/** The demo trainers the schedule + trainer index render. */
+const DEMO_TRAINERS = ['Ana G.', 'Levan M.', 'Sandro K.', 'Nika B.'] as const;
+
+/** The demo locations — the dashboard's live-occupancy "areas". */
+const DEMO_LOCATIONS = ['Main Floor', 'Studio A'] as const;
+
+/**
+ * The demo classes materialised for *today* so the schedule / alerts / bookings
+ * light up. `hour` is local-time start; `capacity` is the occurrence capacity;
+ * `booked` is how many confirmed bookings to seed (kept under capacity, one row
+ * near-full to exercise the "≥90% full" alert).
+ */
+const DEMO_TODAY_CLASSES = [
+  { title: 'Morning Yoga', hour: 8, capacity: 20, booked: 14, color: '#10B981', trainer: 'Ana G.' },
+  {
+    title: 'CrossFit WOD',
+    hour: 12,
+    capacity: 14,
+    booked: 14,
+    color: '#EC4899',
+    trainer: 'Levan M.',
+  },
+  {
+    title: 'Spin Express',
+    hour: 18,
+    capacity: 24,
+    booked: 20,
+    color: '#7C3AED',
+    trainer: 'Sandro K.',
+  },
+  {
+    title: 'Boxing Basics',
+    hour: 19,
+    capacity: 12,
+    booked: 7,
+    color: '#F59E0B',
+    trainer: 'Nika B.',
+  },
+] as const;
+
+/**
+ * Idempotently populate the `downtown` gym. Guards every insert by existence /
+ * upsert; never deletes. Uses fixed timestamps derived from `new Date()` at seed
+ * runtime so "today" is always the real current day.
+ */
+async function enrichDowntown(gymId: string): Promise<void> {
+  // ── Subscription plans (upsert by name) ─────────────────────────────────
+  const planIdByName = new Map<string, string>();
+  for (const spec of DEMO_PLANS) {
+    const existing = await prisma.subscriptionPlan.findFirst({
+      where: { gymId, name: spec.name },
+      select: { id: true },
+    });
+    if (existing) {
+      planIdByName.set(spec.name, existing.id);
+      continue;
+    }
+    const created = await prisma.subscriptionPlan.create({
+      data: {
+        gymId,
+        name: spec.name,
+        priceAmount: spec.priceAmount,
+        currency: 'GEL',
+        interval: spec.interval,
+        popular: spec.popular,
+      },
+      select: { id: true },
+    });
+    planIdByName.set(spec.name, created.id);
+  }
+
+  // ── Trainers (upsert by name) ───────────────────────────────────────────
+  const trainerIdByName = new Map<string, string>();
+  for (const name of DEMO_TRAINERS) {
+    const existing = await prisma.trainer.findFirst({
+      where: { gymId, name },
+      select: { id: true },
+    });
+    if (existing) {
+      trainerIdByName.set(name, existing.id);
+      continue;
+    }
+    const created = await prisma.trainer.create({
+      data: { gymId, name, headline: `${name} · Coach`, status: TrainerStatus.ACTIVE },
+      select: { id: true },
+    });
+    trainerIdByName.set(name, created.id);
+  }
+
+  // ── Locations (the dashboard's areas; upsert by name) ───────────────────
+  const locationIds: string[] = [];
+  for (const name of DEMO_LOCATIONS) {
+    const existing = await prisma.location.findFirst({
+      where: { gymId, name },
+      select: { id: true },
+    });
+    if (existing) {
+      locationIds.push(existing.id);
+      continue;
+    }
+    const created = await prisma.location.create({
+      data: { gymId, name, status: LocationStatus.ACTIVE },
+      select: { id: true },
+    });
+    locationIds.push(created.id);
+  }
+
+  // ── Members + their subscriptions + a couple of captured payments ───────
+  const now = new Date();
+  const memberIds: string[] = [];
+  for (let i = 0; i < DEMO_MEMBERS.length; i++) {
+    const spec = DEMO_MEMBERS[i]!;
+    const email = `${spec.name.toLowerCase().replace(/[^a-z]+/g, '.')}@downtown.demo`;
+
+    const user = await prisma.user.upsert({
+      where: { email },
+      update: { name: spec.name },
+      create: { name: spec.name, email, emailVerifiedAt: new Date() },
+      select: { id: true },
+    });
+
+    // Spread joinedAt across the last ~30 days; a few land inside the last 7 so
+    // the "new members · 7d" KPI is populated.
+    const joinedAt = daysAgo(i < 4 ? i + 1 : (i % 25) + 5);
+    const membership = await prisma.gymMember.upsert({
+      where: { userId_gymId: { userId: user.id, gymId } },
+      update: {},
+      create: {
+        userId: user.id,
+        gymId,
+        role: Role.MEMBER,
+        status: GymMemberStatus.ACTIVE,
+        joinedAt,
+      },
+      select: { id: true },
+    });
+    memberIds.push(membership.id);
+
+    // One live subscription per member, on their plan. Guard by an existing live
+    // subscription (the partial unique already enforces one live sub per member).
+    const planId = planIdByName.get(spec.plan) ?? null;
+    const planPrice = DEMO_PLANS.find((p) => p.name === spec.plan)?.priceAmount ?? 0;
+    const liveSub = await prisma.subscription.findFirst({
+      where: {
+        gymId,
+        memberId: membership.id,
+        status: {
+          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE, SubscriptionStatus.FROZEN],
+        },
+      },
+      select: { id: true },
+    });
+    if (!liveSub) {
+      const periodStart = joinedAt;
+      const periodEnd = new Date(now);
+      periodEnd.setDate(periodEnd.getDate() + 30);
+      await prisma.subscription.create({
+        data: {
+          gymId,
+          planId,
+          memberId: membership.id,
+          status: SubscriptionStatus.ACTIVE,
+          priceAmount: planPrice,
+          currency: 'GEL',
+          interval: SubscriptionInterval.MONTH,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+        },
+      });
+    }
+
+    // A couple of captured payments per paying member, spread across ~30 days.
+    // A Payment needs a one-to-one Order, so we mint a paid Order alongside it.
+    if (planPrice > 0) {
+      for (let k = 0; k < 2; k++) {
+        // Recent one for a couple of members lands today so "today's revenue" pops.
+        const paidAt = k === 0 && i < 3 ? todayAt(9 + i, 15) : daysAgo(3 + i + k * 11);
+        await ensurePayment(gymId, membership.id, planPrice, paidAt, spec.name);
+      }
+    }
+  }
+
+  // ── Today's classes (templates → today's instance) + bookings ───────────
+  for (const cls of DEMO_TODAY_CLASSES) {
+    const trainerId = trainerIdByName.get(cls.trainer) ?? null;
+    const locationId = locationIds[0] ?? null;
+
+    let template = await prisma.classTemplate.findFirst({
+      where: { gymId, title: cls.title },
+      select: { id: true },
+    });
+    if (!template) {
+      template = await prisma.classTemplate.create({
+        data: {
+          gymId,
+          title: cls.title,
+          category: 'Group',
+          trainerId,
+          locationId,
+          capacity: cls.capacity,
+          durationMinutes: 60,
+          rrule: 'FREQ=DAILY',
+          color: cls.color,
+          validFrom: daysAgo(30),
+        },
+        select: { id: true },
+      });
+    }
+
+    const startsAt = todayAt(cls.hour);
+    const endsAt = new Date(startsAt);
+    endsAt.setHours(endsAt.getHours() + 1);
+
+    let instance = await prisma.classInstance.findFirst({
+      where: { gymId, templateId: template.id, startsAt },
+      select: { id: true },
+    });
+    if (!instance) {
+      instance = await prisma.classInstance.create({
+        data: {
+          gymId,
+          templateId: template.id,
+          startsAt,
+          endsAt,
+          capacityOverride: cls.capacity,
+          status: InstanceStatus.SCHEDULED,
+        },
+        select: { id: true },
+      });
+    }
+
+    // Seed confirmed bookings up to `cls.booked`, guarded by a per-(member,
+    // instance) idempotency key so re-running never double-books.
+    const target = Math.min(cls.booked, memberIds.length);
+    for (let m = 0; m < target; m++) {
+      const memberId = memberIds[m]!;
+      const idempotencyKey = `seed:${instance.id}:${memberId}`;
+      const existing = await prisma.booking.findUnique({
+        where: { idempotencyKey },
+        select: { id: true },
+      });
+      if (!existing) {
+        await prisma.booking.create({
+          data: {
+            gymId,
+            classInstanceId: instance.id,
+            memberId,
+            status: BookingStatus.BOOKED,
+            idempotencyKey,
+          },
+        });
+      }
+    }
+    // Keep the denormalised counter in step with what we seeded.
+    await prisma.classInstance.update({
+      where: { id: instance.id },
+      data: { bookedCount: target },
+    });
+  }
+
+  // ── Today's check-ins (varied members / locations) ──────────────────────
+  const existingCheckIns = await prisma.checkIn.count({
+    where: { gymId, checkedInAt: { gte: startOfToday() } },
+  });
+  if (existingCheckIns === 0) {
+    const feed = memberIds.slice(0, 9);
+    await prisma.checkIn.createMany({
+      data: feed.map((memberId, idx) => ({
+        gymId,
+        gymMemberId: memberId,
+        method: idx % 3 === 0 ? CheckInMethod.QR : CheckInMethod.MANUAL,
+        checkedInAt: todayAt(7 + idx, (idx * 13) % 60),
+        locationId: locationIds[idx % locationIds.length] ?? null,
+      })),
+    });
+  }
+}
+
+/**
+ * Idempotently create one CAPTURED payment (with its backing paid Order) for a
+ * member. Guarded by an existing captured payment at the same instant for the gym,
+ * so re-running the seed never stacks duplicate takings.
+ */
+async function ensurePayment(
+  gymId: string,
+  memberId: string,
+  amount: number,
+  paidAt: Date,
+  customerName: string,
+): Promise<void> {
+  const existing = await prisma.payment.findFirst({
+    where: { gymId, amount, createdAt: paidAt, status: PaymentStatus.CAPTURED },
+    select: { id: true },
+  });
+  if (existing) {
+    return;
+  }
+  const order = await prisma.order.create({
+    data: {
+      gymId,
+      memberId,
+      customerName,
+      total: amount,
+      currency: 'GEL',
+      status: OrderStatus.PAID,
+      createdAt: paidAt,
+      updatedAt: paidAt,
+    },
+    select: { id: true },
+  });
+  await prisma.payment.create({
+    data: {
+      gymId,
+      orderId: order.id,
+      amount,
+      currency: 'GEL',
+      status: PaymentStatus.CAPTURED,
+      method: PaymentMethod.CARD,
+      provider: 'stub',
+      createdAt: paidAt,
+      updatedAt: paidAt,
+    },
   });
 }
 

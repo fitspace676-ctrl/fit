@@ -15,6 +15,8 @@ import type {
   CreateLocationData,
   CreateLocationResponse,
   DashboardStatsResponse,
+  DashboardOverviewResponse,
+  DashboardRange,
   AdminAnalyticsResponse,
   AnalyticsRange,
   CreateMemberInput,
@@ -910,6 +912,25 @@ export async function fetchDashboardStats(): Promise<DashboardStatsResponse> {
     cache: 'no-store',
   });
   return unwrap<DashboardStatsResponse>(res);
+}
+
+/**
+ * `GET /dashboard/overview?range=` — the FormaCore control-room overview (live
+ * occupancy, today's KPIs, the range-windowed revenue series, plan mix, today's
+ * schedule, real-event alerts, recent check-ins) for the caller's own gym. Gated
+ * `ReportView` API-side. `range` defaults to `7d` when omitted; the API
+ * re-validates it with the same Zod schema.
+ */
+export async function fetchDashboardOverview(
+  range?: DashboardRange,
+): Promise<DashboardOverviewResponse> {
+  const qs = range ? `?range=${encodeURIComponent(range)}` : '';
+  const res = await fetch(`${apiBaseUrl()}/dashboard/overview${qs}`, {
+    headers: await authHeaders(),
+    // The dashboard reflects live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardOverviewResponse>(res);
 }
 
 // ── Reception / check-in (T4.12) ──────────────────────────────────────────────
