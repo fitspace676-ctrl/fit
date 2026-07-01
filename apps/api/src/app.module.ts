@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
 import { CartModule } from './cart/cart.module';
 import { CartIdentityMiddleware } from './cart/cart-identity.middleware';
+import { CheckInModule } from './check-in/check-in.module';
 import { ClassesModule } from './classes/classes.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { GymsModule } from './gyms/gyms.module';
@@ -61,6 +62,9 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   (`/audit-logs` — filtered, paginated read of the gym's action trail; `AuditRead`).
  * - {@link DashboardModule} serves the staff console's tenant-scoped dashboard KPIs
  *   (`/dashboard/stats` — live member/trainer/location/product counts; `ReportView`).
+ * - {@link CheckInModule} serves the staff console's tenant-scoped reception
+ *   (`/admin/check-ins` — record arrivals, today's live feed, KPI stats, and
+ *   per-member eligibility; `MemberRead` / `MemberWrite`).
  * - {@link LocationsModule} serves the staff console's tenant-scoped location
  *   management (`/admin/locations` — CRUD with hours + amenities; `LocationRead`
  *   / `LocationWrite`).
@@ -117,6 +121,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     StaffModule,
     AuditModule,
     DashboardModule,
+    CheckInModule,
     GymsModule,
     SuperAdminModule,
     TenantModule,
