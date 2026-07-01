@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePosCart } from '@/stores/pos-cart-store';
-import type { PosMemberRow, PosProductRow } from '@/app/pos/actions';
+import type { PosMemberRow, PosProductRow } from '@/app/(dashboard)/pos/actions';
 import { Card } from '@/components/ui';
 import { MemberLookup } from './member-lookup';
 import { PosCart } from './pos-cart';

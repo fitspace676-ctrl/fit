@@ -5,7 +5,7 @@ import {
   lookupPosMembersAction,
   resolvePosMemberByQrAction,
   type PosMemberRow,
-} from '@/app/pos/actions';
+} from '@/app/(dashboard)/pos/actions';
 import { Card, Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke fires a new member lookup. */
