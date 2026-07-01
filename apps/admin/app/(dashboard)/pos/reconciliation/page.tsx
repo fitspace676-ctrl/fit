@@ -8,7 +8,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCashReconciliation } from '@/lib/api';
-import { formatPrice } from '@/app/products/format-price';
+import { formatPrice } from '@/app/(dashboard)/products/format-price';
 import { Card, Icon } from '@/components/ui';
 import { ReconciliationDateForm } from './reconciliation-date-form';
 import { CashCountForm } from './cash-count-form';

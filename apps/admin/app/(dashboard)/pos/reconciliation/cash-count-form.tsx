@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { computeCashVariance } from '@fit/types';
-import { formatPrice, inputToMinor } from '@/app/products/format-price';
+import { formatPrice, inputToMinor } from '@/app/(dashboard)/products/format-price';
 import { Card } from '@/components/ui';
 
 /**

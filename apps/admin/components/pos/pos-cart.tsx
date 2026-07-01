@@ -1,6 +1,6 @@
 'use client';
 
-import { formatPrice, inputToMinor, minorToInput } from '@/app/products/format-price';
+import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/products/format-price';
 import { Btn } from '@/components/ui';
 import {
   lineTotal,

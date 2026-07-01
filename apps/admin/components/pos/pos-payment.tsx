@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PaymentMethod, PosReceipt } from '@fit/types';
-import { formatPrice, inputToMinor, minorToInput } from '@/app/products/format-price';
-import { emailReceiptAction, recordPosSaleAction, type PosMemberRow } from '@/app/pos/actions';
+import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/products/format-price';
+import {
+  emailReceiptAction,
+  recordPosSaleAction,
+  type PosMemberRow,
+} from '@/app/(dashboard)/pos/actions';
 import { Btn, Card, Icon } from '@/components/ui';
 import {
   lineTotal,

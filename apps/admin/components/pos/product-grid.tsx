@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
-import { formatPrice } from '@/app/products/format-price';
-import { searchPosProductsAction, type PosProductRow } from '@/app/pos/actions';
+import { formatPrice } from '@/app/(dashboard)/products/format-price';
+import { searchPosProductsAction, type PosProductRow } from '@/app/(dashboard)/pos/actions';
 import { Card, Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke fires a new product search. */
