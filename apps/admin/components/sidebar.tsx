@@ -34,13 +34,17 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav aria-label="Primary" className="flex h-full flex-col gap-0.5 p-4 text-ink-300">
-      <Link
-        href="/"
-        onClick={onNavigate}
-        className="mb-6 flex items-center gap-2.5 px-2"
-      >
+      <Link href="/" onClick={onNavigate} className="mb-6 flex items-center gap-2.5 px-2">
         <span className="grid h-9 w-9 place-items-center rounded-btn bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+          >
             <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
           </svg>
         </span>

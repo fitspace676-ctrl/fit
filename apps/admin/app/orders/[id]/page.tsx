@@ -138,7 +138,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </thead>
               <tbody>
                 {order.items.map((item) => (
-                  <tr key={item.id} className="border-b border-ink-50 last:border-0 dark:border-white/5">
+                  <tr
+                    key={item.id}
+                    className="border-b border-ink-50 last:border-0 dark:border-white/5"
+                  >
                     <td className="py-1.5 pr-4 text-ink-700 dark:text-ink-200">{item.label}</td>
                     <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-ink-700 dark:text-ink-200">
                       {item.qty}
@@ -228,9 +231,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   className="flex items-center gap-3"
                 >
                   <Badge tone={pill.tone}>{pill.label}</Badge>
-                  <span className="text-ink-500 dark:text-ink-400">
-                    {formatDateTime(entry.at)}
-                  </span>
+                  <span className="text-ink-500 dark:text-ink-400">{formatDateTime(entry.at)}</span>
                 </li>
               );
             })}

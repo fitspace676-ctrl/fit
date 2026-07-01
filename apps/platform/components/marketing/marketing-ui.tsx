@@ -562,9 +562,7 @@ export const MarketingFooter = () => (
       <Link href="/" className="flex items-center" aria-label="FormaCore home">
         <Logo className="h-16" />
       </Link>
-      <span className="font-mono text-xs text-subtle">
-        © 2026 FormaCore · Tbilisi, Georgia
-      </span>
+      <span className="font-mono text-xs text-subtle">© 2026 FormaCore · Tbilisi, Georgia</span>
       <div className="flex items-center gap-5 text-xs text-subtle">
         <Link href="/" className="hover:text-muted">
           Core

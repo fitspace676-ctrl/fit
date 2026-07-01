@@ -48,7 +48,13 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
   const status = subscription?.status ?? (planName ? 'ACTIVE' : 'EXPIRED');
 
   const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(activeLocale, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+    iso
+      ? new Date(iso).toLocaleDateString(activeLocale, {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })
+      : '—';
 
   return (
     <div className="space-y-6">
@@ -82,7 +88,9 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
                   <p className="text-white/60">{t('nextBilling')}</p>
                   <p className="font-semibold">
                     {fmtDate(subscription?.currentPeriodEnd ?? null)}
-                    {subscription ? ` · ${formatMoney(subscription.priceAmount, subscription.currency, activeLocale)}` : ''}
+                    {subscription
+                      ? ` · ${formatMoney(subscription.priceAmount, subscription.currency, activeLocale)}`
+                      : ''}
                   </p>
                 </div>
                 <div>
@@ -99,9 +107,13 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         {/* Actions */}
         <Card glow className="flex flex-col gap-2 p-5 sm:p-6">
           <Link href="/checkout" className={buttonClasses('outline', 'md', 'w-full justify-start')}>
-            <Icon name="ticket" className="h-4 w-4" /> {hasMembership ? t('changePlan') : t('choosePlan')}
+            <Icon name="ticket" className="h-4 w-4" />{' '}
+            {hasMembership ? t('changePlan') : t('choosePlan')}
           </Link>
-          <Link href="/account/bookings" className={buttonClasses('ghost', 'md', 'w-full justify-start')}>
+          <Link
+            href="/account/bookings"
+            className={buttonClasses('ghost', 'md', 'w-full justify-start')}
+          >
             <Icon name="calendar" className="h-4 w-4" /> {t('viewBookings')}
           </Link>
           <Link href="/shop" className={buttonClasses('ghost', 'md', 'w-full justify-start')}>
@@ -172,16 +184,31 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
               </thead>
               <tbody>
                 {invoices.map((inv) => (
-                  <tr key={inv.id} className="border-b border-ink-50 last:border-0 dark:border-white/5">
+                  <tr
+                    key={inv.id}
+                    className="border-b border-ink-50 last:border-0 dark:border-white/5"
+                  >
                     <td className="px-5 py-3 font-mono text-ink-700 dark:text-ink-200">{inv.id}</td>
                     <td className="px-5 py-3 text-ink-600 dark:text-ink-300">
-                      {new Date(inv.date).toLocaleDateString(activeLocale, { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {new Date(inv.date).toLocaleDateString(activeLocale, {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     </td>
                     <td className="px-5 py-3 font-mono tabular-nums text-ink-900 dark:text-white">
                       {formatMoney(inv.amount, inv.currency, activeLocale)}
                     </td>
                     <td className="px-5 py-3">
-                      <Badge tone={inv.status === 'PAID' ? 'success' : inv.status === 'FAILED' ? 'danger' : 'warning'}>
+                      <Badge
+                        tone={
+                          inv.status === 'PAID'
+                            ? 'success'
+                            : inv.status === 'FAILED'
+                              ? 'danger'
+                              : 'warning'
+                        }
+                      >
                         {t(`invoiceStatus.${inv.status}`)}
                       </Badge>
                     </td>

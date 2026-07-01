@@ -1,14 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Icon, type IconName } from './icon';
 
-export type BtnVariant =
-  | 'primary'
-  | 'white'
-  | 'glass'
-  | 'outline'
-  | 'ghost'
-  | 'ink'
-  | 'danger';
+export type BtnVariant = 'primary' | 'white' | 'glass' | 'outline' | 'ghost' | 'ink' | 'danger';
 
 export type BtnSize = 'sm' | 'md' | 'lg' | 'icon';
 

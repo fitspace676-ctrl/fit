@@ -243,8 +243,7 @@ export function ProductForm(props: Props) {
       {/* Image gallery. */}
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-ink-700 dark:text-ink-200">
-          Image gallery{' '}
-          <span className="font-normal text-ink-400">(first is the primary)</span>
+          Image gallery <span className="font-normal text-ink-400">(first is the primary)</span>
         </span>
         {images.length > 0 ? (
           <div className="flex flex-wrap gap-3">

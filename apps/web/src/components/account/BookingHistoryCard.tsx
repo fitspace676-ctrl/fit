@@ -108,10 +108,7 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
                 size="sm"
               />
             ) : past ? (
-              <Link
-                href={`/classes/${instance.id}`}
-                className={buttonClasses('primary', 'sm')}
-              >
+              <Link href={`/classes/${instance.id}`} className={buttonClasses('primary', 'sm')}>
                 {t('bookAgain')}
               </Link>
             ) : (

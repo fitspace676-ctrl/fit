@@ -91,7 +91,10 @@ export function RecurrenceEditor({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="rec-interval" className="text-xs font-medium text-ink-600 dark:text-ink-300">
+          <label
+            htmlFor="rec-interval"
+            className="text-xs font-medium text-ink-600 dark:text-ink-300"
+          >
             Every
           </label>
           <div className="flex items-center gap-2">

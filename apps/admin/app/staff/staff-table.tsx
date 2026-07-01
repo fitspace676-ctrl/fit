@@ -311,11 +311,7 @@ function ConfirmDialog({
           <Btn v="outline" onClick={onCancel} disabled={busy}>
             Cancel
           </Btn>
-          <Btn
-            v={destructive ? 'danger' : 'primary'}
-            onClick={onConfirm}
-            disabled={busy}
-          >
+          <Btn v={destructive ? 'danger' : 'primary'} onClick={onConfirm} disabled={busy}>
             {busy ? 'Working…' : confirmLabel}
           </Btn>
         </div>

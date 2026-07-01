@@ -297,7 +297,12 @@ export function ProfileScreen({
                 </p>
                 <p className="text-xs text-ink-500 dark:text-ink-400">{t('deleteDesc')}</p>
               </div>
-              <Btn v="danger" icon="trash" size="sm" onClick={() => toast(t('deleteToast'), { tone: 'danger', icon: 'info' })}>
+              <Btn
+                v="danger"
+                icon="trash"
+                size="sm"
+                onClick={() => toast(t('deleteToast'), { tone: 'danger', icon: 'info' })}
+              >
                 {t('delete')}
               </Btn>
             </div>

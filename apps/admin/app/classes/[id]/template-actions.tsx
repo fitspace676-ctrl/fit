@@ -43,10 +43,7 @@ export function TemplateActions({
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
-        <Link
-          href={`/classes/${templateId}/edit`}
-          className={buttonClasses('outline', 'sm')}
-        >
+        <Link href={`/classes/${templateId}/edit`} className={buttonClasses('outline', 'sm')}>
           <Icon name="settings" className="h-4 w-4" sw={2} />
           Edit
         </Link>
@@ -56,7 +53,10 @@ export function TemplateActions({
       </div>
       {error ? (
         <Card className="flex items-start gap-2 border-danger-200 bg-danger-50 px-3 py-1.5 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-danger-600 dark:text-danger-300" />
+          <Icon
+            name="info"
+            className="mt-0.5 h-4 w-4 shrink-0 text-danger-600 dark:text-danger-300"
+          />
           <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
             {error}
           </p>

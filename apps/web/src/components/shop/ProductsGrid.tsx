@@ -14,10 +14,7 @@ export function ProductsGrid({ products }: ProductsGridProps) {
   const t = useTranslations('shop');
 
   return (
-    <ul
-      aria-label={t('grid.label')}
-      className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-    >
+    <ul aria-label={t('grid.label')} className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {products.map((product) => (
         <li key={product.id} className="flex">
           <div className="w-full">

@@ -101,9 +101,7 @@ export function PendingInvites({ invites }: { invites: PendingInvite[] }) {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-ink-900 dark:text-white">
-                      {invite.email}
-                    </span>
+                    <span className="font-medium text-ink-900 dark:text-white">{invite.email}</span>
                     {invite.expired ? <Badge tone="warning">Expired</Badge> : null}
                   </div>
                   <div className="text-xs text-ink-500 dark:text-ink-400">

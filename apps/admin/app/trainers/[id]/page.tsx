@@ -89,8 +89,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.TrainerWrite);
 
-  const labelClass =
-    'font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+  const labelClass = 'font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
 
   return (
     <div className="flex flex-col gap-6">

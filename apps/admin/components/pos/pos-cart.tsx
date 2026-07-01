@@ -176,13 +176,7 @@ function CartSummary({ currency, onCharge }: { currency: string; onCharge: () =>
         <span className="font-mono tabular-nums">{formatPrice(total, currency)}</span>
       </div>
 
-      <Btn
-        v="primary"
-        size="lg"
-        onClick={onCharge}
-        disabled={total <= 0}
-        className="mt-1 w-full"
-      >
+      <Btn v="primary" size="lg" onClick={onCharge} disabled={total <= 0} className="mt-1 w-full">
         Charge {formatPrice(total, currency)}
       </Btn>
     </div>

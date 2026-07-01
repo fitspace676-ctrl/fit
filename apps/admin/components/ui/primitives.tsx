@@ -55,7 +55,13 @@ export interface AvatarProps {
 }
 
 /** A circular avatar image, optionally with the brand selection ring. */
-export function Avatar({ src, alt = '', ring = false, size = 'h-9 w-9', className = '' }: AvatarProps) {
+export function Avatar({
+  src,
+  alt = '',
+  ring = false,
+  size = 'h-9 w-9',
+  className = '',
+}: AvatarProps) {
   return (
     <img
       src={src}
@@ -85,9 +91,7 @@ export interface ProgressProps {
 export function Progress({ value, tone = 'bg-brand-500', className = '' }: ProgressProps) {
   const pct = Math.max(0, Math.min(100, value));
   return (
-    <div
-      className={`h-2 overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10 ${className}`}
-    >
+    <div className={`h-2 overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10 ${className}`}>
       <div
         className={`h-full rounded-pill transition-[width] duration-700 ease-out ${tone}`}
         style={{ width: `${pct}%` }}

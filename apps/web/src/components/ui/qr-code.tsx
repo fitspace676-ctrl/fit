@@ -27,8 +27,7 @@ function bitAt(seed: string, index: number): boolean {
 
 /** Is this cell part of one of the three finder squares (corners)? */
 function isFinder(row: number, col: number): boolean {
-  const inBox = (r0: number, c0: number) =>
-    row >= r0 && row < r0 + 7 && col >= c0 && col < c0 + 7;
+  const inBox = (r0: number, c0: number) => row >= r0 && row < r0 + 7 && col >= c0 && col < c0 + 7;
   return inBox(0, 0) || inBox(0, GRID - 7) || inBox(GRID - 7, 0);
 }
 

@@ -43,8 +43,15 @@ export async function updateProfileAction(input: {
       cache: 'no-store',
     });
     if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { code?: string; message?: string } | null;
-      return { ok: false, error: body?.message ?? `Update failed (${response.status})`, code: body?.code };
+      const body = (await response.json().catch(() => null)) as {
+        code?: string;
+        message?: string;
+      } | null;
+      return {
+        ok: false,
+        error: body?.message ?? `Update failed (${response.status})`,
+        code: body?.code,
+      };
     }
     return { ok: true };
   } catch {
