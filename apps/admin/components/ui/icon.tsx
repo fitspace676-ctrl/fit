@@ -52,6 +52,8 @@ export const I = {
   filter: 'M3 5h18l-7 8v5l-4 2v-7L3 5Z',
   calendarPlus: 'M8 2v4M16 2v4M3 9h18M5 5h14a2 2 0 0 1 2 2v6M21 17h-6M18 14v6',
   info: 'M12 8h.01M11 12h1v4h1M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z',
+  chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+  grid: 'M4 4h7v7H4V4ZM13 4h7v7h-7V4ZM4 13h7v7H4v-7ZM13 13h7v7h-7v-7Z',
 } as const;
 
 export type IconName = keyof typeof I;

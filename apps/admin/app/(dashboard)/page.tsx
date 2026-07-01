@@ -27,10 +27,12 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-        <p className="max-w-2xl text-sm text-slate-500">
-          Welcome to the Fit admin console. Use the navigation to manage members, workouts, billing,
-          and staff — you only see the areas your role can access.
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Dashboard
+        </h1>
+        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
+          Welcome to the FormaCore admin console. Use the navigation to manage members, workouts,
+          billing, and staff — you only see the areas your role can access.
         </p>
       </header>
 
@@ -54,7 +56,10 @@ async function DashboardKpis() {
         ? `Could not load dashboard stats (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
-      <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+      <p
+        role="alert"
+        className="rounded-card border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-300"
+      >
         {message}
       </p>
     );
@@ -70,24 +75,28 @@ async function DashboardKpis() {
         value={stats.members.active}
         total={stats.members.total}
         href="/members"
+        icon="users"
       />
       <KpiCard
         label="Active trainers"
         value={stats.trainers.active}
         total={stats.trainers.total}
         href="/trainers"
+        icon="dumbbell"
       />
       <KpiCard
         label="Active locations"
         value={stats.locations.active}
         total={stats.locations.total}
         href="/locations"
+        icon="pin"
       />
       <KpiCard
         label="Active products"
         value={stats.products.active}
         total={stats.products.total}
         href="/products"
+        icon="bag"
       />
     </section>
   );

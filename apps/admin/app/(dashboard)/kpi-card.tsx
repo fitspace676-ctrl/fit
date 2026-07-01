@@ -1,47 +1,47 @@
 import Link from 'next/link';
+import { Card, CountUp, Icon, type IconName } from '@/components/ui';
 
 /**
- * One dashboard KPI widget (T4.10). Leads with a single headline `value` (the
- * gym's active count), with `total` shown beneath as context and `label` naming
- * the metric. When `href` is set the whole card is a link into that section; the
- * card is a server component — no client JS, it renders inside the dashboard's
- * server-rendered grid.
+ * One dashboard KPI widget, on the formacore design system: an icon, an animated
+ * headline `value` (the gym's active count), `total`/inactive context, and the
+ * metric `label`. When `href` is set the whole card links into that section.
  */
 export interface KpiCardProps {
-  /** Metric name, e.g. "Active members". */
   label: string;
-  /** Headline figure — the active count. */
   value: number;
-  /** All-statuses count shown as the sub-label context. */
   total: number;
-  /** Optional section to link the card to (e.g. `/members`). */
   href?: string;
+  icon?: IconName;
 }
 
-export function KpiCard({ label, value, total, href }: KpiCardProps) {
+export function KpiCard({ label, value, total, href, icon = 'chart' }: KpiCardProps) {
   const inactive = total - value;
-  const body = (
-    <>
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
-        {value.toLocaleString()}
+  const inner = (
+    <Card className="flex h-full flex-col p-5 transition-colors hover:border-brand-300 dark:hover:border-brand-500/50">
+      <div className="flex items-center justify-between">
+        <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <Icon name={icon} className="h-5 w-5" />
+        </span>
+        {href && <Icon name="arrow" className="h-4 w-4 text-ink-300 dark:text-ink-600" />}
+      </div>
+      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+        <CountUp to={value} />
       </p>
-      <p className="mt-1 text-sm text-slate-500 tabular-nums">
+      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+        {label}
+      </p>
+      <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">
         {total.toLocaleString()} total
         {inactive > 0 ? ` · ${inactive.toLocaleString()} inactive` : ''}
       </p>
-    </>
+    </Card>
   );
 
-  const className = 'flex flex-col rounded-card border border-slate-200 bg-white p-5 transition';
-
-  if (href) {
-    return (
-      <Link href={href} className={`${className} hover:border-brand-300 hover:shadow-sm`}>
-        {body}
-      </Link>
-    );
-  }
-
-  return <div className={className}>{body}</div>;
+  return href ? (
+    <Link href={href} className="block">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  );
 }
