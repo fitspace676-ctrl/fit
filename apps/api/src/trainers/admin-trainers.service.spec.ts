@@ -22,6 +22,8 @@ interface TrainerRecord {
   status: TrainerStatus;
   createdAt: Date;
   updatedAt: Date;
+  rating: number;
+  reviewCount: number;
   availability?: unknown;
 }
 
@@ -46,6 +48,8 @@ const row = (over?: Partial<TrainerRecord>): TrainerRecord => ({
   status: TrainerStatus.ACTIVE,
   createdAt: new Date('2026-02-01T00:00:00.000Z'),
   updatedAt: new Date('2026-02-02T00:00:00.000Z'),
+  rating: 4.9,
+  reviewCount: 128,
   ...over,
 });
 
@@ -66,8 +70,26 @@ function setup(overrides?: {
   const create = vi.fn<(args: WhereArgs) => Promise<TrainerRecord>>(() => Promise.resolve(row()));
   const update = vi.fn<(args: WhereArgs) => Promise<TrainerRecord>>(() => Promise.resolve(row()));
 
+  // The enrichment (KPI summary, per-trainer classes/next-class, show-up rate,
+  // this-week counts) reads other models. These permissive stubs let the list /
+  // detail projections resolve without a live DB; each returns an "empty" figure,
+  // so the tests below assert the projection shape via `toMatchObject`.
+  const aggregate = vi.fn(() => Promise.resolve({ _avg: { rating: null } }));
+  const classInstance = {
+    findMany: vi.fn(() => Promise.resolve([] as unknown[])),
+    count: vi.fn(() => Promise.resolve(0)),
+  };
+  const booking = {
+    count: vi.fn(() => Promise.resolve(0)),
+    findMany: vi.fn(() => Promise.resolve([] as unknown[])),
+  };
+  const review = { count: vi.fn(() => Promise.resolve(0)) };
+
   const client: Record<string, unknown> = {
-    trainer: { findMany, count, findFirst, create, update },
+    trainer: { findMany, count, findFirst, create, update, aggregate },
+    classInstance,
+    booking,
+    review,
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -115,7 +137,9 @@ describe('AdminTrainersService', () => {
 
       const result = await service.listTrainers(query());
 
-      expect(result).toEqual({
+      // Core projection (matchObject tolerates the additive KPI fields —
+      // rating/reviewCount/classesThisWeek/nextClass — and the `summary` block).
+      expect(result).toMatchObject({
         data: [
           {
             id: 't-1',
@@ -164,13 +188,16 @@ describe('AdminTrainersService', () => {
       const { service, findMany } = setup();
 
       await service.listTrainers(query({ sort: 'name', dir: 'desc' }));
-      expect(findMany.mock.calls[0]?.[0]?.orderBy).toEqual({ name: 'desc' });
-
       await service.listTrainers(query({ sort: 'status', dir: 'asc' }));
-      expect(findMany.mock.calls[1]?.[0]?.orderBy).toEqual({ status: 'asc' });
-
       await service.listTrainers(query({ sort: 'createdAt', dir: 'desc' }));
-      expect(findMany.mock.calls[2]?.[0]?.orderBy).toEqual({ createdAt: 'desc' });
+
+      // The roster query is the only `trainer.findMany` that carries an `orderBy`
+      // (the KPI-summary's id lookup does not), so filter to those to stay robust
+      // against the enrichment's interleaved calls.
+      const orderBys = findMany.mock.calls
+        .map((c) => c[0]?.orderBy)
+        .filter((o): o is NonNullable<typeof o> => Boolean(o));
+      expect(orderBys).toEqual([{ name: 'desc' }, { status: 'asc' }, { createdAt: 'desc' }]);
     });
   });
 
@@ -180,7 +207,9 @@ describe('AdminTrainersService', () => {
 
       const result = await service.getTrainer('t-1');
 
-      expect(result).toEqual({
+      // Core detail projection (matchObject tolerates the additive KPI fields —
+      // rating/reviewCount/hiredAt/showUpRate/thisWeek).
+      expect(result).toMatchObject({
         id: 't-1',
         name: 'Giorgi Maisuradze',
         headline: 'Strength coach',
@@ -202,7 +231,9 @@ describe('AdminTrainersService', () => {
 
   describe('createTrainer', () => {
     it('stamps the tenant gymId and persists the profile fields', async () => {
-      const { service, create } = setup();
+      // `createTrainer` re-reads the created row via `getTrainer` to return the
+      // enriched detail, so the mock must resolve that lookup.
+      const { service, create } = setup({ findFirst: row() });
 
       await service.createTrainer(createInput({ name: 'New Coach', status: 'INACTIVE' }));
 

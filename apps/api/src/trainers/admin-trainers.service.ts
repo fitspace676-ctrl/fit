@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, TrainerStatus } from '@fit/db';
+import { BookingStatus, InstanceStatus, Prisma, ReviewStatus, TrainerStatus } from '@fit/db';
 import {
   weeklyAvailabilitySchema,
   type AdminTrainerDetail,
   type AdminTrainerRow,
+  type AdminTrainerSummary,
   type CreateTrainerData,
   type CreateTrainerResponse,
   type GetAdminTrainerResponse,
@@ -13,15 +14,22 @@ import {
   type SetTrainerAvailabilityData,
   type SetTrainerAvailabilityResponse,
   type SetTrainerStatusResponse,
+  type TrainerNextClass,
+  type TrainerThisWeek,
   type UpdateTrainerData,
   type UpdateTrainerResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
+/** Milliseconds in a day — the window arithmetic for the show-up rate. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
  * The columns the roster/detail queries select off `Trainer`. Every field is the
  * gym's own content (no cross-tenant join), so the whole row is safe to project.
+ * `rating` / `reviewCount` are the denormalised aggregate the reviews service
+ * keeps live (T5.12), so the card renders the real rating without a COUNT/AVG join.
  */
 const TRAINER_SELECT = {
   id: true,
@@ -31,11 +39,27 @@ const TRAINER_SELECT = {
   photoUrl: true,
   specialties: true,
   status: true,
+  rating: true,
+  reviewCount: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.TrainerSelect;
 
 type TrainerRecord = Prisma.TrainerGetPayload<{ select: typeof TRAINER_SELECT }>;
+
+/**
+ * The [start, end) instants of the current calendar week (Monday 00:00 local →
+ * the following Monday 00:00). "Classes / week" and the "This week" counts both
+ * measure this window, so a gym operator reads them as literally "this week".
+ */
+function currentWeekRange(now = new Date()): { start: Date; end: Date } {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // getDay(): 0 = Sunday … 6 = Saturday. Rewind to the most recent Monday.
+  const daysSinceMonday = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - daysSinceMonday);
+  const end = new Date(start.getTime() + 7 * DAY_MS);
+  return { start, end };
+}
 
 /**
  * Staff-console trainer management for a gym (read + write, T4.4).
@@ -65,8 +89,9 @@ export class AdminTrainersService {
   async listTrainers(query: ListAdminTrainersQuery): Promise<ListAdminTrainersResponse> {
     const where = this.buildWhere(query);
     const skip = (query.page - 1) * query.limit;
+    const week = currentWeekRange();
 
-    const [rows, total] = await Promise.all([
+    const [rows, total, summary] = await Promise.all([
       this.prisma.client.trainer.findMany({
         where,
         select: TRAINER_SELECT,
@@ -75,13 +100,26 @@ export class AdminTrainersService {
         take: query.limit,
       }),
       this.prisma.client.trainer.count({ where }),
+      this.buildSummary(where, week),
+    ]);
+
+    // Enrich only the visible page with the two per-trainer figures that need a
+    // per-row query (this week's class count + the next class), keyed by id so the
+    // two lookups run as two set-based queries rather than N per card.
+    const ids = rows.map((row) => row.id);
+    const [classesByTrainer, nextByTrainer] = await Promise.all([
+      this.classesThisWeekByTrainer(ids, week),
+      this.nextClassByTrainer(ids, week.start),
     ]);
 
     return {
-      data: rows.map((row) => this.toRow(row)),
+      data: rows.map((row) =>
+        this.toRow(row, classesByTrainer.get(row.id) ?? 0, nextByTrainer.get(row.id) ?? null),
+      ),
       total,
       page: query.page,
       limit: query.limit,
+      summary,
     };
   }
 
@@ -98,7 +136,24 @@ export class AdminTrainersService {
     if (!row) {
       throw new NotFoundException({ message: 'Trainer not found', code: 'TRAINER_NOT_FOUND' });
     }
-    return this.toDetail(row);
+
+    const week = currentWeekRange();
+    // The detail page's live figures — each a real, tenant-scoped query over the
+    // trainer's classes / reviews. Run in parallel; the row is already resolved.
+    const [classesByTrainer, nextByTrainer, showUpRate, thisWeek] = await Promise.all([
+      this.classesThisWeekByTrainer([id], week),
+      this.nextClassByTrainer([id], week.start),
+      this.showUpRate(id),
+      this.thisWeekCounts(id, week),
+    ]);
+
+    return this.toDetail(
+      row,
+      classesByTrainer.get(id) ?? 0,
+      nextByTrainer.get(id) ?? null,
+      showUpRate,
+      thisWeek,
+    );
   }
 
   /**
@@ -118,9 +173,11 @@ export class AdminTrainersService {
         specialties: input.specialties,
         status: input.status,
       },
-      select: TRAINER_SELECT,
+      select: { id: true },
     });
-    return this.toDetail(row);
+    // Return through the detail read so the response carries the same enriched
+    // shape as `GET /admin/trainers/:id` (a fresh trainer's KPIs are all empty).
+    return this.getTrainer(row.id);
   }
 
   /**
@@ -255,8 +312,16 @@ export class AdminTrainersService {
     }
   }
 
-  /** Project a queried row to the denormalised roster {@link AdminTrainerRow}. */
-  private toRow(row: TrainerRecord): AdminTrainerRow {
+  /**
+   * Project a queried row + its computed figures to the roster {@link AdminTrainerRow}.
+   * `rating` / `reviewCount` are the denormalised aggregate; `classesThisWeek` and
+   * `nextClass` are the per-trainer figures the caller resolved in set-based queries.
+   */
+  private toRow(
+    row: TrainerRecord,
+    classesThisWeek: number,
+    nextClass: TrainerNextClass | null,
+  ): AdminTrainerRow {
     return {
       id: row.id,
       name: row.name,
@@ -265,15 +330,201 @@ export class AdminTrainersService {
       specialties: row.specialties,
       status: row.status,
       createdAt: row.createdAt.toISOString(),
+      rating: row.rating,
+      reviewCount: row.reviewCount,
+      classesThisWeek,
+      nextClass,
     };
   }
 
-  /** Project a queried row to the full {@link AdminTrainerDetail}. */
-  private toDetail(row: TrainerRecord): AdminTrainerDetail {
+  /** Project a queried row + its detail-only KPIs to the full {@link AdminTrainerDetail}. */
+  private toDetail(
+    row: TrainerRecord,
+    classesThisWeek: number,
+    nextClass: TrainerNextClass | null,
+    showUpRate: number | null,
+    thisWeek: TrainerThisWeek,
+  ): AdminTrainerDetail {
     return {
-      ...this.toRow(row),
+      ...this.toRow(row, classesThisWeek, nextClass),
       bio: row.bio,
       updatedAt: row.updatedAt.toISOString(),
+      // The schema has no dedicated hire date — the trainer's createdAt is when
+      // they joined the roster, which is what "Hired <month year>" describes.
+      hiredAt: row.createdAt.toISOString(),
+      showUpRate,
+      thisWeek,
     };
+  }
+
+  /**
+   * The gym-wide roster KPIs for the list page's four cards, aggregated across the
+   * whole filtered roster (the same `where`, no pagination): the total + active
+   * counts, the sum of every matched trainer's current-week `ClassInstance`s, and
+   * the mean rating over the trainers that have at least one review. Every figure
+   * is real; `PT clients` has no source and is deliberately absent.
+   */
+  private async buildSummary(
+    where: Prisma.TrainerWhereInput,
+    week: { start: Date; end: Date },
+  ): Promise<AdminTrainerSummary> {
+    const [total, active, ratingAgg, allIds] = await Promise.all([
+      this.prisma.client.trainer.count({ where }),
+      this.prisma.client.trainer.count({ where: { ...where, status: TrainerStatus.ACTIVE } }),
+      // Mean over trainers that actually have reviews, so an unreviewed roster
+      // doesn't drag the average toward 0.
+      this.prisma.client.trainer.aggregate({
+        where: { ...where, reviewCount: { gt: 0 } },
+        _avg: { rating: true },
+      }),
+      this.prisma.client.trainer.findMany({ where, select: { id: true } }),
+    ]);
+
+    const classesByTrainer = await this.classesThisWeekByTrainer(
+      allIds.map((row) => row.id),
+      week,
+    );
+    let classesPerWeek = 0;
+    for (const count of classesByTrainer.values()) {
+      classesPerWeek += count;
+    }
+
+    return {
+      total,
+      active,
+      classesPerWeek,
+      avgRating: Math.round((ratingAgg._avg.rating ?? 0) * 10) / 10,
+    };
+  }
+
+  /**
+   * The count of each trainer's `ClassInstance`s in the current calendar week,
+   * keyed by trainer id. One `groupBy` over the occurrences whose template belongs
+   * to one of `trainerIds` and whose `startsAt` falls in the week — a set-based
+   * query, not one per card. Trainers with no classes this week are simply absent
+   * from the map (the caller defaults them to `0`).
+   */
+  private async classesThisWeekByTrainer(
+    trainerIds: string[],
+    week: { start: Date; end: Date },
+  ): Promise<Map<string, number>> {
+    if (trainerIds.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.client.classInstance.findMany({
+      where: {
+        startsAt: { gte: week.start, lt: week.end },
+        template: { trainerId: { in: trainerIds } },
+      },
+      select: { template: { select: { trainerId: true } } },
+    });
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      const trainerId = row.template.trainerId;
+      if (trainerId) {
+        counts.set(trainerId, (counts.get(trainerId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }
+
+  /**
+   * The soonest upcoming (`SCHEDULED`, `startsAt >= from`) class each of
+   * `trainerIds` leads, keyed by trainer id. Ordered soonest-first and reduced to
+   * the first hit per trainer, so the map holds each trainer's *next* class only.
+   * A trainer with nothing upcoming is absent (the caller defaults to `null`).
+   */
+  private async nextClassByTrainer(
+    trainerIds: string[],
+    from: Date,
+  ): Promise<Map<string, TrainerNextClass>> {
+    if (trainerIds.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.client.classInstance.findMany({
+      where: {
+        startsAt: { gte: from },
+        status: InstanceStatus.SCHEDULED,
+        template: { trainerId: { in: trainerIds } },
+      },
+      select: {
+        startsAt: true,
+        template: { select: { trainerId: true, title: true } },
+      },
+      orderBy: { startsAt: 'asc' },
+    });
+    const next = new Map<string, TrainerNextClass>();
+    for (const row of rows) {
+      const trainerId = row.template.trainerId;
+      if (trainerId && !next.has(trainerId)) {
+        next.set(trainerId, { startsAt: row.startsAt.toISOString(), title: row.template.title });
+      }
+    }
+    return next;
+  }
+
+  /**
+   * The trainer's attendance rate over the last 90 days —
+   * `ATTENDED / (ATTENDED + NO_SHOW)` across bookings on the trainer's classes,
+   * rounded to a whole percentage. Returns `null` (not a misleading `0`) when no
+   * booking in the window was attended or missed, so the UI can show "—".
+   */
+  private async showUpRate(trainerId: string): Promise<number | null> {
+    const since = new Date(Date.now() - 90 * DAY_MS);
+    const bookingWhere = (status: BookingStatus): Prisma.BookingWhereInput => ({
+      status,
+      classInstance: {
+        startsAt: { gte: since },
+        template: { trainerId },
+      },
+    });
+    const [attended, noShow] = await Promise.all([
+      this.prisma.client.booking.count({ where: bookingWhere(BookingStatus.ATTENDED) }),
+      this.prisma.client.booking.count({ where: bookingWhere(BookingStatus.NO_SHOW) }),
+    ]);
+    const denom = attended + noShow;
+    if (denom === 0) {
+      return null;
+    }
+    return Math.round((attended / denom) * 100);
+  }
+
+  /**
+   * The trainer's own current-week activity: classes led (their `ClassInstance`s
+   * this week), new `VISIBLE` reviews posted this week, and the distinct members
+   * who *attended* one of their classes this week. Each is a real, tenant-scoped
+   * count over the same Mon–Sun window the "Classes / week" figure uses.
+   */
+  private async thisWeekCounts(
+    trainerId: string,
+    week: { start: Date; end: Date },
+  ): Promise<TrainerThisWeek> {
+    const [classesLed, newReviews, attendedMembers] = await Promise.all([
+      this.prisma.client.classInstance.count({
+        where: {
+          startsAt: { gte: week.start, lt: week.end },
+          template: { trainerId },
+        },
+      }),
+      this.prisma.client.review.count({
+        where: {
+          trainerId,
+          status: ReviewStatus.VISIBLE,
+          createdAt: { gte: week.start, lt: week.end },
+        },
+      }),
+      this.prisma.client.booking.findMany({
+        where: {
+          status: BookingStatus.ATTENDED,
+          classInstance: {
+            startsAt: { gte: week.start, lt: week.end },
+            template: { trainerId },
+          },
+        },
+        select: { memberId: true },
+        distinct: ['memberId'],
+      }),
+    ]);
+    return { classesLed, newReviews, membersTrained: attendedMembers.length };
   }
 }

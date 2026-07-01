@@ -26,12 +26,25 @@ const detail = (over?: Partial<GetAdminTrainerResponse>): GetAdminTrainerRespons
   createdAt: '2026-02-01T00:00:00.000Z',
   bio: 'Bio.',
   updatedAt: '2026-02-01T00:00:00.000Z',
+  rating: 4.9,
+  reviewCount: 128,
+  classesThisWeek: 12,
+  nextClass: null,
+  hiredAt: '2026-02-01T00:00:00.000Z',
+  showUpRate: 0.96,
+  thisWeek: { classesLed: 12, newReviews: 3, membersTrained: 146 },
   ...over,
 });
 
 function setup() {
   const listTrainers = vi.fn<() => Promise<ListAdminTrainersResponse>>(() =>
-    Promise.resolve({ data: [], total: 0, page: 1, limit: 20 }),
+    Promise.resolve({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      summary: { total: 0, active: 0, classesPerWeek: 0, avgRating: 0 },
+    }),
   );
   const getTrainer = vi.fn<() => Promise<GetAdminTrainerResponse>>(() => Promise.resolve(detail()));
   const createTrainer = vi.fn<() => Promise<CreateTrainerResponse>>(() =>

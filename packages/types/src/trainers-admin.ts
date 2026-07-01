@@ -52,10 +52,28 @@ export const listAdminTrainersQuerySchema = z.object({
 export type ListAdminTrainersQuery = z.infer<typeof listAdminTrainersQuerySchema>;
 
 /**
- * One trainer as the roster table renders it. `photoUrl` is `null` when the
- * trainer has no headshot (the table renders an initials avatar). `specialties`
+ * The soonest upcoming class a trainer is scheduled to lead — the "next class"
+ * footer each roster card shows (e.g. "Today 18:00 · Power Spin"). `null` when the
+ * trainer has no future `SCHEDULED` occurrence. `startsAt` is an ISO-8601 instant
+ * the card formats in the staff member's local zone; `title` is the class
+ * template's title.
+ */
+export interface TrainerNextClass {
+  startsAt: string;
+  title: string;
+}
+
+/**
+ * One trainer as the roster card renders it. `photoUrl` is `null` when the
+ * trainer has no headshot (the card renders an initials avatar). `specialties`
  * is the denormalised tag list shown as chips. `createdAt` is an ISO-8601 instant
- * the table formats in the staff member's local zone.
+ * the card formats in the staff member's local zone.
+ *
+ * The card's live figures are backed by real tenant-scoped queries: `rating` /
+ * `reviewCount` are the trainer's denormalised aggregate over `VISIBLE` reviews
+ * (T5.12); `classesThisWeek` counts the trainer's `ClassInstance`s in the current
+ * calendar week (Mon–Sun); `nextClass` is the soonest upcoming occurrence they
+ * lead. No metric is fabricated — a trainer with no reviews reads `0` / `0`.
  */
 export interface AdminTrainerRow {
   id: string;
@@ -65,29 +83,78 @@ export interface AdminTrainerRow {
   specialties: string[];
   status: TrainerStatus;
   createdAt: string;
+  /** Average star rating over the trainer's `VISIBLE` reviews (`0` when none). */
+  rating: number;
+  /** Number of the trainer's `VISIBLE` reviews (`0` when none). */
+  reviewCount: number;
+  /** Count of this trainer's `ClassInstance`s in the current calendar week. */
+  classesThisWeek: number;
+  /** The soonest upcoming class the trainer leads, or `null` when none is scheduled. */
+  nextClass: TrainerNextClass | null;
+}
+
+/**
+ * The gym-wide roster KPIs the list page's four cards render, aggregated across
+ * the *whole filtered roster* (not just the visible page). Every figure is real:
+ * `total` / `active` are counts; `classesPerWeek` sums each trainer's current-week
+ * `ClassInstance`s; `avgRating` is the mean of the reviewed trainers' ratings
+ * (`0` when none have reviews). `PT clients` has no data source in the schema and
+ * is deliberately omitted rather than fabricated.
+ */
+export interface AdminTrainerSummary {
+  total: number;
+  active: number;
+  classesPerWeek: number;
+  avgRating: number;
 }
 
 /**
  * Successful `GET /admin/trainers` response — one page of the roster plus the
- * totals the pager needs. `total` is the count *after* filters, `page` / `limit`
- * echo the request. An empty `data` is a normal result the table renders as its
- * empty state.
+ * totals the pager needs and the gym-wide `summary` KPIs. `total` is the count
+ * *after* filters, `page` / `limit` echo the request. An empty `data` is a normal
+ * result the grid renders as its empty state.
  */
 export interface ListAdminTrainersResponse {
   data: AdminTrainerRow[];
   total: number;
   page: number;
   limit: number;
+  summary: AdminTrainerSummary;
 }
 
 /**
- * One trainer as the detail / edit page needs it — the roster row plus the full
- * `bio` and the `updatedAt` instant. A missing / cross-tenant id is a `404`, not
- * an empty body, so the page distinguishes "no such trainer" from a valid record.
+ * The trainer's own "This week" figures the detail Overview side card renders,
+ * each backed by a real tenant-scoped query over the current calendar week
+ * (Mon–Sun): `classesLed` counts the trainer's `ClassInstance`s this week,
+ * `newReviews` the `VISIBLE` reviews posted this week, and `membersTrained` the
+ * distinct members who *attended* one of the trainer's classes this week.
+ */
+export interface TrainerThisWeek {
+  classesLed: number;
+  newReviews: number;
+  membersTrained: number;
+}
+
+/**
+ * One trainer as the detail page needs it — the roster row plus the full `bio`,
+ * the `updatedAt` instant, and the detail-only KPIs. A missing / cross-tenant id
+ * is a `404`, not an empty body, so the page distinguishes "no such trainer" from
+ * a valid record.
+ *
+ * `hiredAt` is the trainer's `createdAt` (the schema has no separate hire date);
+ * `showUpRate` is `ATTENDED / (ATTENDED + NO_SHOW)` across the trainer's classes
+ * over the last 90 days, or `null` when there were no attended-or-missed bookings
+ * to measure (rather than a misleading `0`). `PT clients` is omitted — no source.
  */
 export interface AdminTrainerDetail extends AdminTrainerRow {
   bio: string;
   updatedAt: string;
+  /** The trainer's hire date — the schema's `createdAt` (ISO-8601). */
+  hiredAt: string;
+  /** Attendance rate over the last 90 days, or `null` when nothing to measure. */
+  showUpRate: number | null;
+  /** The trainer's own current-week activity counts. */
+  thisWeek: TrainerThisWeek;
 }
 
 /** Successful `GET /admin/trainers/:id` response — the trainer detail spread flat. */
