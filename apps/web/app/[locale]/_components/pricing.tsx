@@ -48,7 +48,7 @@ export async function Pricing() {
                 }
               >
                 {popular && (
-                  <span className="absolute -top-px left-1/2 -translate-x-1/2 rounded-b-pill bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] px-3 py-1 text-xs font-semibold text-white shadow-[0_6px_24px_-6px_rgba(98,87,227,0.7)]">
+                  <span className="absolute -top-px left-1/2 -translate-x-1/2 rounded-b-pill bg-[linear-gradient(135deg,#7C3AED,#EC4899)] px-3 py-1 text-xs font-semibold text-white shadow-[0_6px_24px_-6px_rgba(98,87,227,0.7)]">
                     {t('mostPopular')}
                   </span>
                 )}

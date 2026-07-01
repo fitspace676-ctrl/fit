@@ -69,7 +69,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
 
       <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
         {/* Current plan */}
-        <div className="relative overflow-hidden rounded-card bg-[linear-gradient(135deg,#5044D2,#7A5AF8)] p-6 text-white shadow-[0_24px_60px_-24px_rgba(80,68,210,0.8)] sm:p-7">
+        <div className="relative overflow-hidden rounded-card bg-[linear-gradient(135deg,#7C3AED,#EC4899)] p-6 text-white shadow-[0_24px_60px_-24px_rgba(80,68,210,0.8)] sm:p-7">
           <span className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/15 blur-3xl" />
           <div className="relative flex items-center gap-2">
             <span className="grid h-9 w-9 place-items-center rounded-btn bg-white/15">

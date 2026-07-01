@@ -20,7 +20,7 @@ export function TrainerProfile({ trainer }: TrainerProfileProps) {
     <Card glow className="p-6 sm:p-8">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] opacity-[0.08] dark:opacity-20"
+        className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(135deg,#7C3AED,#EC4899)] opacity-[0.08] dark:opacity-20"
       />
 
       <section className="relative flex flex-col gap-6">

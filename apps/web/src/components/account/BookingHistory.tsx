@@ -78,7 +78,7 @@ export function BookingHistory({ entries, now }: BookingHistoryProps) {
               aria-pressed={view === tab.k}
               className={`h-9 rounded-pill px-4 text-sm font-semibold transition ${
                 view === tab.k
-                  ? 'bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_6px_18px_-8px_rgba(98,87,227,0.8)]'
+                  ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_18px_-8px_rgba(98,87,227,0.8)]'
                   : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
               }`}
             >
@@ -145,7 +145,7 @@ function NextUpHero({
   const day = relativeDayLabel(instance.startsAt, now, locale, t);
 
   return (
-    <div className="relative overflow-hidden rounded-card bg-[linear-gradient(135deg,#5044D2,#7A5AF8)] p-5 text-white shadow-[0_30px_70px_-24px_rgba(80,68,210,0.8)] sm:p-6">
+    <div className="relative overflow-hidden rounded-card bg-[linear-gradient(135deg,#7C3AED,#EC4899)] p-5 text-white shadow-[0_30px_70px_-24px_rgba(80,68,210,0.8)] sm:p-6">
       <div className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
       <div className="relative flex flex-wrap items-center gap-4">
         <div className="w-16 shrink-0 rounded-card bg-white/20 py-2 text-center backdrop-blur">

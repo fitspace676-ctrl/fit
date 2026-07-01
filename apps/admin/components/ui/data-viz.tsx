@@ -163,7 +163,7 @@ export function Switch({
       onClick={() => onChange(!checked)}
       className={`relative h-6 w-11 shrink-0 rounded-pill transition-colors ${
         checked
-          ? 'bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]'
+          ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]'
           : 'bg-ink-200 dark:bg-white/15'
       }`}
     >

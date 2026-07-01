@@ -167,7 +167,7 @@ export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
                         onClick={() => setTime(band)}
                         className={`rounded-btn px-3 py-1.5 text-sm font-medium transition-colors ${
                           active
-                            ? 'bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white'
+                            ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white'
                             : 'border border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/5'
                         }`}
                       >
@@ -212,7 +212,7 @@ function Chip({
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
         active
-          ? 'border-transparent bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_6px_24px_-8px_rgba(98,87,227,0.7)]'
+          ? 'border-transparent bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_24px_-8px_rgba(98,87,227,0.7)]'
           : 'border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/5'
       }`}
     >

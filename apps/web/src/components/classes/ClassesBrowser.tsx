@@ -213,7 +213,7 @@ function ViewToggle({
             onClick={() => onChange(value)}
             className={`rounded-pill px-4 py-1.5 text-sm font-semibold transition-colors ${
               active
-                ? 'bg-[linear-gradient(135deg,#6257E3,#7A5AF8)] text-white shadow-[0_6px_24px_-8px_rgba(98,87,227,0.7)]'
+                ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_24px_-8px_rgba(98,87,227,0.7)]'
                 : 'text-ink-600 hover:bg-ink-50 dark:text-ink-300 dark:hover:bg-white/5'
             }`}
           >
