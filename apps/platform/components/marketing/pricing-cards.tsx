@@ -92,7 +92,6 @@ export const PricingCards = () => (
           <div className="flex items-center justify-between">
             {tier.highlight ? (
               // The featured tier carries the FormaCore brand mark (favicon).
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src="/favicon.png"
                 alt="FormaCore"
@@ -131,7 +130,13 @@ export const PricingCards = () => (
           </p>
 
           <div className="mt-6">
-            <Btn v={tier.ctaVariant} size="md" full icon={I.arrow} href={tier.ctaHref ?? SIGNUP_HREF}>
+            <Btn
+              v={tier.ctaVariant}
+              size="md"
+              full
+              icon={I.arrow}
+              href={tier.ctaHref ?? SIGNUP_HREF}
+            >
               {tier.cta}
             </Btn>
           </div>

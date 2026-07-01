@@ -9,6 +9,15 @@
 
 import { prisma, Role, GymMemberStatus, InstanceStatus } from '../index';
 
+/**
+ * Shared dev password for the seeded login fixtures (`alex@example.com` /
+ * `sam@example.com`): **Test1234!**. This is an argon2id hash of that string
+ * (the same scheme the API's auth service verifies against), so the seed needs
+ * no argon2 dependency of its own. Dev/staging only — never a real credential.
+ */
+const DEV_PASSWORD_HASH =
+  '$argon2id$v=19$m=65536,t=3,p=4$jCGqxpstwpznNArLCpqm2A$nrUjuzLd6+rpCm7GP/sDQoVxyVI3e2/OoLtieTHsBq8';
+
 async function main() {
   // Two tenants.
   const downtown = await prisma.gym.upsert({
@@ -26,8 +35,13 @@ async function main() {
   // One shared user who belongs to both gyms with different roles.
   const alex = await prisma.user.upsert({
     where: { email: 'alex@example.com' },
-    update: {},
-    create: { email: 'alex@example.com', name: 'Alex Owner' },
+    update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
+    create: {
+      email: 'alex@example.com',
+      name: 'Alex Owner',
+      passwordHash: DEV_PASSWORD_HASH,
+      emailVerifiedAt: new Date(),
+    },
   });
 
   // OWNER at Downtown, TRAINER at Riverside — proves per-gym roles.
@@ -59,8 +73,26 @@ async function main() {
   // A second user, invited as a member of one gym only.
   const sam = await prisma.user.upsert({
     where: { email: 'sam@example.com' },
-    update: {},
-    create: { email: 'sam@example.com', name: 'Sam Member' },
+    update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
+    create: {
+      email: 'sam@example.com',
+      name: 'Sam Member',
+      passwordHash: DEV_PASSWORD_HASH,
+      emailVerifiedAt: new Date(),
+    },
+  });
+
+  // ACTIVE MEMBER at Downtown — the member-portal login fixture (log in as
+  // sam@example.com to exercise the member app against the `downtown` tenant).
+  await prisma.gymMember.upsert({
+    where: { userId_gymId: { userId: sam.id, gymId: downtown.id } },
+    update: { role: Role.MEMBER, status: GymMemberStatus.ACTIVE },
+    create: {
+      userId: sam.id,
+      gymId: downtown.id,
+      role: Role.MEMBER,
+      status: GymMemberStatus.ACTIVE,
+    },
   });
 
   await prisma.gymMember.upsert({

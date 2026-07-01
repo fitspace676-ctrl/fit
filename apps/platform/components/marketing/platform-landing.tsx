@@ -394,7 +394,6 @@ export default function PlatformLanding() {
               {/* decorative glow + oversized corner icon */}
               <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
               {a.iconImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={a.iconImage}
                   alt=""
