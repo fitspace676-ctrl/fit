@@ -40,7 +40,6 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
           {/* decorative glow + oversized corner icon */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
           {audience.iconImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={audience.iconImage}
               alt=""
@@ -102,10 +101,7 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pt-8 pb-8">
         <div className="space-y-12 md:space-y-20">
           {audience.features.map((f, i) => (
-            <div
-              key={f.eyebrow}
-              className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14"
-            >
+            <div key={f.eyebrow} className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
               {/* copy */}
               <Reveal className={cn(i % 2 === 1 && 'lg:order-2')}>
                 <div className="flex items-center gap-3">
@@ -130,7 +126,9 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
                       <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-iris-600 text-white">
                         <Icon d={I.check} c="h-3 w-3" sw={3} />
                       </span>
-                      <span className="text-sm leading-relaxed text-strong sm:text-[15px]">{b}</span>
+                      <span className="text-sm leading-relaxed text-strong sm:text-[15px]">
+                        {b}
+                      </span>
                     </li>
                   ))}
                 </ul>
