@@ -9,13 +9,12 @@ import {
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainers } from '@/lib/api';
 import { buttonClasses, Card, Icon } from '@/components/ui';
-import { TrainersFilters } from './trainers-filters';
-import { TrainersTable } from './trainers-table';
+import { TrainersRoster } from './trainers-roster';
 
 export const metadata: Metadata = {
   title: 'Trainers — Fit Admin',
   description:
-    'The gym trainer roster: search, filter, sort, open a profile, add or edit trainers.',
+    'The gym trainer roster: KPIs, specialty filter, search, and a card per coach with live rating, classes this week and next class.',
 };
 
 // The roster reflects live tenant state and the staff session token, so it must
@@ -26,11 +25,12 @@ export const dynamic = 'force-dynamic';
 type SearchParams = Record<string, string | string[] | undefined>;
 
 /**
- * The trainers roster (T4.4). Server-renders one filtered, server-paginated page
- * of `GET /admin/trainers` from the URL search params and hands it to the client
- * table (sort links) and the client filters (search + status). The `/trainers`
- * route already requires staff (middleware) and the API enforces `TrainerRead`,
- * so the only failure handled here is the API call itself.
+ * The trainers roster (T4.4), reskinned to the Planflow "formacore" card grid.
+ * Server-renders one filtered, server-paginated page of `GET /admin/trainers`
+ * (now carrying the gym-wide KPI `summary` and each card's live figures) and hands
+ * it to the client roster (specialty segment + search + the card grid). The
+ * `/trainers` route already requires staff (middleware) and the API enforces
+ * `TrainerRead`, so the only failure handled here is the API call itself.
  */
 export default async function TrainersPage({
   searchParams,
@@ -43,21 +43,27 @@ export default async function TrainersPage({
     ? parsed.data
     : listAdminTrainersQuerySchema.parse({});
 
-  // "New trainer" is a `TrainerWrite` capability — shown only to staff who hold it.
+  // "Add trainer" is a `TrainerWrite` capability — shown only to staff who hold it.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.TrainerWrite);
 
+  let subtitle = 'Your gym’s coaching roster.';
   let content;
   try {
     const result = await fetchTrainers(query);
+    const { total, active } = result.summary;
+    subtitle =
+      total === 0
+        ? 'No coaches on the roster yet.'
+        : `${total} ${total === 1 ? 'coach' : 'coaches'} · ${active} active`;
     content = (
-      <TrainersTable
+      <TrainersRoster
         trainers={result.data}
+        summary={result.summary}
         total={result.total}
         page={result.page}
         limit={result.limit}
-        sort={query.sort}
-        dir={query.dir}
+        canWrite={canWrite}
       />
     );
   } catch (error) {
@@ -80,25 +86,29 @@ export default async function TrainersPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
+      >
+        <span>Iron Gym</span>
+        <Icon name="chevronRight" className="h-3.5 w-3.5" />
+        <span className="text-ink-600 dark:text-ink-300">Trainers</span>
+      </nav>
+
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
             Trainers
           </h1>
-          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-            Your gym’s trainers. Search by name or headline, filter by status, sort any column, open
-            a profile, or add a new trainer with a photo.
-          </p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{subtitle}</p>
         </div>
         {canWrite ? (
           <Link href="/trainers/new" className={buttonClasses('primary', 'md')}>
             <Icon name="plus" className="h-4 w-4" sw={2} />
-            New trainer
+            Add trainer
           </Link>
         ) : null}
       </header>
-
-      <TrainersFilters search={query.search ?? ''} status={query.status ?? ''} />
 
       {content}
     </div>
