@@ -9,6 +9,7 @@ import {
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCashReconciliation } from '@/lib/api';
 import { formatPrice } from '@/app/products/format-price';
+import { Card, Icon } from '@/components/ui';
 import { ReconciliationDateForm } from './reconciliation-date-form';
 import { CashCountForm } from './cash-count-form';
 
@@ -58,11 +59,17 @@ export default async function ReconciliationPage({
 
   if (!canView) {
     return (
-      <div className="flex flex-col gap-2 p-6">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Cash reconciliation</h1>
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          You don’t have permission to view the cash reconciliation report.
-        </p>
+      <div className="flex flex-col gap-3 p-6">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Cash reconciliation
+        </h1>
+        <Card
+          role="alert"
+          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-5 w-5 shrink-0" />
+          <span>You don’t have permission to view the cash reconciliation report.</span>
+        </Card>
       </div>
     );
   }
@@ -87,8 +94,10 @@ export default async function ReconciliationPage({
   return (
     <div className="flex flex-col gap-6 p-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Cash reconciliation</h1>
-        <p className="max-w-2xl text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          Cash reconciliation
+        </h1>
+        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
           The day’s takings grouped by how they were settled. Count the cash drawer and balance it
           against the expected cash below.
         </p>
@@ -97,52 +106,65 @@ export default async function ReconciliationPage({
       <ReconciliationDateForm date={date} />
 
       {error !== null ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <Card
+          role="alert"
+          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-5 w-5 shrink-0" />
+          <span>{error}</span>
+        </Card>
       ) : report !== null ? (
         <div className="flex flex-col gap-6">
-          <section className="overflow-hidden rounded-card border border-slate-200">
+          <Card className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Method</th>
-                  <th className="px-4 py-2 text-right font-medium">Sales</th>
-                  <th className="px-4 py-2 text-right font-medium">Total</th>
+              <thead>
+                <tr className="border-b border-ink-100 dark:border-white/10">
+                  <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Method
+                  </th>
+                  <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Sales
+                  </th>
+                  <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Total
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {report.methods.map((row) => (
-                  <tr key={row.method} className={row.method === 'cash' ? 'bg-brand-50/40' : ''}>
-                    <td className="px-4 py-2 font-medium text-slate-900">
+                  <tr
+                    key={row.method}
+                    className={`border-b border-ink-50 dark:border-white/5 ${row.method === 'cash' ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''}`}
+                  >
+                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
                       {METHOD_LABELS[row.method]}
                     </td>
-                    <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                    <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-600 dark:text-ink-300">
                       {row.count}
                     </td>
-                    <td className="px-4 py-2 text-right tabular-nums text-slate-900">
+                    <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-900 dark:text-white">
                       {formatPrice(row.total, report.currency)}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="border-t border-slate-200 bg-slate-50">
+              <tfoot className="border-t border-ink-100 bg-ink-50 dark:border-white/10 dark:bg-white/5">
                 <tr>
-                  <td className="px-4 py-2 font-semibold text-slate-900">Total</td>
-                  <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">
+                  <td className="px-4 py-3 font-semibold text-ink-900 dark:text-white">Total</td>
+                  <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
                     {report.salesCount}
                   </td>
-                  <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">
+                  <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
                     {formatPrice(report.grossTotal, report.currency)}
                   </td>
                 </tr>
               </tfoot>
             </table>
-          </section>
+          </Card>
 
           <CashCountForm expectedCash={report.expectedCash} currency={report.currency} />
 
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-ink-400">
             Generated {new Date(report.generatedAt).toLocaleString()}.
           </p>
         </div>

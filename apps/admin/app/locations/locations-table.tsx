@@ -4,11 +4,12 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminLocationRow, LocationSort, LocationStatus, SortDir } from '@fit/types';
+import { Badge, Btn, Card, type Tone } from '@/components/ui';
 
-/** Visual treatment per location status — green active, slate inactive. */
-const STATUS_STYLES: Record<LocationStatus, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
-  INACTIVE: { label: 'Inactive', className: 'bg-slate-100 text-slate-600' },
+/** Visual treatment per location status — green active, ink inactive. */
+const STATUS_STYLES: Record<LocationStatus, { label: string; tone: Tone }> = {
+  ACTIVE: { label: 'Active', tone: 'success' },
+  INACTIVE: { label: 'Inactive', tone: 'ink' },
 };
 
 /** Sortable columns and their header labels, in render order. */
@@ -20,10 +21,8 @@ const SORTABLE: ReadonlyArray<{ key: LocationSort; label: string }> = [
 
 /** A status pill mirroring the trainers roster styling. */
 function StatusPill({ status }: { status: LocationStatus }) {
-  const { label, className } = STATUS_STYLES[status];
-  return (
-    <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
-  );
+  const { label, tone } = STATUS_STYLES[status];
+  return <Badge tone={tone}>{label}</Badge>;
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -91,60 +90,72 @@ export function LocationsTable({
 
   if (locations.length === 0) {
     return (
-      <p className="rounded-card border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+      <Card className="px-4 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
         No locations match your filters yet.
-      </p>
+      </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto">
+      <Card className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-ink-100 dark:border-white/10">
               {SORTABLE.map((column) => (
-                <th key={column.key} className="py-2 pr-4 font-medium">
+                <th
+                  key={column.key}
+                  className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
+                >
                   <Link
                     href={sortHref(column.key)}
                     scroll={false}
-                    className="inline-flex items-center hover:text-slate-700"
+                    className="inline-flex items-center hover:text-ink-600 dark:hover:text-ink-200"
                   >
                     {column.label}
                     <span aria-hidden>{sortIndicator(column.key)}</span>
                   </Link>
                 </th>
               ))}
-              <th className="py-2 pr-4 font-medium">Amenities</th>
+              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                Amenities
+              </th>
             </tr>
           </thead>
           <tbody>
             {locations.map((location) => (
-              <tr key={location.id} className="border-b border-slate-100 hover:bg-slate-50/60">
-                <td className="py-2 pr-4">
+              <tr
+                key={location.id}
+                className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+              >
+                <td className="px-4 py-3">
                   <div>
                     <Link
                       href={`/locations/${location.id}`}
-                      className="font-medium text-slate-900 hover:text-brand-700"
+                      className="font-medium text-ink-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300"
                     >
                       {location.name}
                     </Link>
                     {location.address ? (
-                      <div className="text-xs text-slate-500">{location.address}</div>
+                      <div className="text-xs text-ink-500 dark:text-ink-400">
+                        {location.address}
+                      </div>
                     ) : null}
                   </div>
                 </td>
-                <td className="py-2 pr-4">
+                <td className="px-4 py-3">
                   <StatusPill status={location.status} />
                 </td>
-                <td className="py-2 pr-4 text-slate-700">{formatDate(location.createdAt)}</td>
-                <td className="py-2 pr-4 text-slate-700">
+                <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
+                  {formatDate(location.createdAt)}
+                </td>
+                <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
                   {location.amenities.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                       {location.amenities.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-card bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                          className="rounded-pill bg-ink-100 px-2 py-0.5 text-xs text-ink-600 dark:bg-white/10 dark:text-ink-300"
                         >
                           {tag}
                         </span>
@@ -158,34 +169,34 @@ export function LocationsTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-slate-500">
+      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
         <span className="tabular-nums">
           {from}–{to} of {total}
         </span>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasPrev}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Previous
-          </button>
-          <button
-            type="button"
+          </Btn>
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasNext}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Next
-          </button>
+          </Btn>
         </div>
       </div>
     </div>

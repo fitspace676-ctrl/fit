@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminOrderRow, AdminOrderStatus } from '@fit/types';
+import { Badge, Btn, Card, buttonClasses } from '@/components/ui';
 import {
   CHANNEL_LABELS,
   ORDER_STATUS_STYLES,
@@ -14,10 +15,8 @@ import {
 
 /** A status pill mirroring the products roster styling. */
 function StatusPill({ status }: { status: AdminOrderStatus }) {
-  const { label, className } = ORDER_STATUS_STYLES[status];
-  return (
-    <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
-  );
+  const { label, tone } = ORDER_STATUS_STYLES[status];
+  return <Badge tone={tone}>{label}</Badge>;
 }
 
 /**
@@ -68,99 +67,119 @@ export function OrdersTable({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-end">
-        <a
-          href={`/orders/export${exportQuery}`}
-          className="rounded-card border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
+        <a href={`/orders/export${exportQuery}`} className={buttonClasses('outline', 'sm')}>
           Export CSV
         </a>
       </div>
 
       {orders.length === 0 ? (
-        <p className="rounded-card border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+        <Card className="px-4 py-10 text-center text-sm text-ink-500 dark:text-ink-400">
           No orders match your filters yet.
-        </p>
+        </Card>
       ) : (
-        <div className="overflow-x-auto">
+        <Card className="overflow-x-auto p-0">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                <th className="py-2 pr-4 font-medium">Order</th>
-                <th className="py-2 pr-4 font-medium">Date</th>
-                <th className="py-2 pr-4 font-medium">Channel</th>
-                <th className="py-2 pr-4 font-medium">Status</th>
-                <th className="py-2 pr-4 font-medium">Customer</th>
-                <th className="py-2 pr-4 font-medium">Method</th>
-                <th className="py-2 pr-4 text-right font-medium">Total</th>
-                <th className="py-2 pr-4 text-right font-medium">Items</th>
+              <tr className="border-b border-ink-100 dark:border-white/10">
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Order
+                </th>
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Date
+                </th>
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Channel
+                </th>
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Status
+                </th>
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Customer
+                </th>
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Method
+                </th>
+                <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Total
+                </th>
+                <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Items
+                </th>
               </tr>
             </thead>
             <tbody>
               {orders.map((order) => (
-                <tr key={order.id} className="border-b border-slate-100 hover:bg-slate-50/60">
-                  <td className="py-2 pr-4">
+                <tr
+                  key={order.id}
+                  className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+                >
+                  <td className="px-4 py-3">
                     <Link
                       href={`/orders/${order.id}`}
-                      className="font-mono text-xs font-medium text-slate-900 hover:text-brand-700"
+                      className="font-mono text-xs font-medium text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
                     >
                       {order.id.slice(-8)}
                     </Link>
                   </td>
-                  <td className="py-2 pr-4 text-slate-700">{formatDateTime(order.createdAt)}</td>
-                  <td className="py-2 pr-4 text-slate-700">{CHANNEL_LABELS[order.channel]}</td>
-                  <td className="py-2 pr-4">
+                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
+                    {formatDateTime(order.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
+                    {CHANNEL_LABELS[order.channel]}
+                  </td>
+                  <td className="px-4 py-3">
                     <StatusPill status={order.status} />
                   </td>
-                  <td className="py-2 pr-4 text-slate-700">
+                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
                     {order.customerName ?? (order.memberId ? 'Member' : 'Walk-in')}
                   </td>
-                  <td className="py-2 pr-4 text-slate-700">
+                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
                     {order.paymentMethod ? PAYMENT_METHOD_LABELS[order.paymentMethod] : '—'}
                   </td>
-                  <td className="py-2 pr-4 text-right tabular-nums text-slate-900">
+                  <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-900 dark:text-white">
                     {formatMoney(order.total, order.currency)}
                     {order.refundedAmount > 0 && (
-                      <span className="block text-xs font-normal text-rose-600">
+                      <span className="block text-xs font-normal text-danger-600 dark:text-danger-300">
                         −{formatMoney(order.refundedAmount, order.currency)} refunded
                       </span>
                     )}
                   </td>
-                  <td className="py-2 pr-4 text-right tabular-nums text-slate-700">
+                  <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-700 dark:text-ink-200">
                     {order.itemCount}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-slate-500">
-        <span className="tabular-nums">
+      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
+        <span className="font-mono tabular-nums">
           {from}–{to} of {total}
         </span>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasPrev}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Previous
-          </button>
-          <button
-            type="button"
+          </Btn>
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasNext}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Next
-          </button>
+          </Btn>
         </div>
       </div>
     </div>

@@ -27,13 +27,18 @@ export default async function NewLocationPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/locations" className="text-sm font-medium text-brand-700 hover:text-brand-800">
+      <Link
+        href="/locations"
+        className="text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+      >
         ← Back to locations
       </Link>
 
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">New location</h1>
-        <p className="max-w-2xl text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          New location
+        </h1>
+        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
           Add a branch to your gym. Set its address, opening hours, and amenities so members can
           find and choose where to train.
         </p>

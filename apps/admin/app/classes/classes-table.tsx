@@ -9,14 +9,13 @@ import type {
   ClassTemplateStatus,
   SortDir,
 } from '@fit/types';
+import { Badge, Btn, Card } from '@/components/ui';
 import { STATUS_STYLES, formatDate, formatDuration } from './format';
 
 /** A status pill mirroring the packages roster styling. */
 function StatusPill({ status }: { status: ClassTemplateStatus }) {
-  const { label, className } = STATUS_STYLES[status];
-  return (
-    <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
-  );
+  const { label, tone } = STATUS_STYLES[status];
+  return <Badge tone={tone}>{label}</Badge>;
 }
 
 /**
@@ -77,57 +76,45 @@ export function ClassTemplatesTable({
 
   if (templates.length === 0) {
     return (
-      <p className="rounded-card border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+      <Card className="px-4 py-12 text-center text-sm text-ink-500 dark:text-ink-400">
         No class templates match your filters yet.
-      </p>
+      </Card>
     );
   }
 
+  const headClass =
+    'py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+  const sortLinkClass = 'inline-flex items-center transition-colors hover:text-ink-600 dark:hover:text-ink-200';
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto">
+      <Card className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-              <th className="py-2 pr-4 font-medium">
-                <Link
-                  href={sortHref('title')}
-                  scroll={false}
-                  className="inline-flex items-center hover:text-slate-700"
-                >
+            <tr className="border-b border-ink-100 dark:border-white/10">
+              <th className={`${headClass} pl-5`}>
+                <Link href={sortHref('title')} scroll={false} className={sortLinkClass}>
                   Title
                   <span aria-hidden>{sortIndicator('title')}</span>
                 </Link>
               </th>
-              <th className="py-2 pr-4 font-medium">Recurrence</th>
-              <th className="py-2 pr-4 font-medium">Trainer</th>
-              <th className="py-2 pr-4 font-medium">
-                <Link
-                  href={sortHref('capacity')}
-                  scroll={false}
-                  className="inline-flex items-center hover:text-slate-700"
-                >
+              <th className={headClass}>Recurrence</th>
+              <th className={headClass}>Trainer</th>
+              <th className={headClass}>
+                <Link href={sortHref('capacity')} scroll={false} className={sortLinkClass}>
                   Capacity
                   <span aria-hidden>{sortIndicator('capacity')}</span>
                 </Link>
               </th>
-              <th className="py-2 pr-4 font-medium">Duration</th>
-              <th className="py-2 pr-4 font-medium">
-                <Link
-                  href={sortHref('status')}
-                  scroll={false}
-                  className="inline-flex items-center hover:text-slate-700"
-                >
+              <th className={headClass}>Duration</th>
+              <th className={headClass}>
+                <Link href={sortHref('status')} scroll={false} className={sortLinkClass}>
                   Status
                   <span aria-hidden>{sortIndicator('status')}</span>
                 </Link>
               </th>
-              <th className="py-2 pr-4 font-medium">
-                <Link
-                  href={sortHref('validFrom')}
-                  scroll={false}
-                  className="inline-flex items-center hover:text-slate-700"
-                >
+              <th className={`${headClass} pr-5`}>
+                <Link href={sortHref('validFrom')} scroll={false} className={sortLinkClass}>
                   Starts
                   <span aria-hidden>{sortIndicator('validFrom')}</span>
                 </Link>
@@ -136,8 +123,11 @@ export function ClassTemplatesTable({
           </thead>
           <tbody>
             {templates.map((template) => (
-              <tr key={template.id} className="border-b border-slate-100 hover:bg-slate-50/60">
-                <td className="py-2 pr-4">
+              <tr
+                key={template.id}
+                className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+              >
+                <td className="py-3 pr-4 pl-5">
                   <div className="flex items-center gap-2">
                     <span
                       aria-hidden
@@ -146,59 +136,65 @@ export function ClassTemplatesTable({
                     />
                     <Link
                       href={`/classes/${template.id}`}
-                      className="font-medium text-slate-900 hover:text-brand-700"
+                      className="font-medium text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
                     >
                       {template.title}
                     </Link>
                     {template.category ? (
-                      <span className="rounded-card bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                      <span className="rounded-pill bg-ink-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500 dark:bg-white/10 dark:text-ink-400">
                         {template.category}
                       </span>
                     ) : null}
                   </div>
                 </td>
-                <td className="py-2 pr-4 text-slate-700">{template.recurrence}</td>
-                <td className="py-2 pr-4 text-slate-700">{template.trainerName ?? '—'}</td>
-                <td className="py-2 pr-4 tabular-nums text-slate-700">{template.capacity}</td>
-                <td className="py-2 pr-4 text-slate-700">
+                <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">{template.recurrence}</td>
+                <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">
+                  {template.trainerName ?? '—'}
+                </td>
+                <td className="py-3 pr-4 font-mono tabular-nums text-ink-700 dark:text-ink-200">
+                  {template.capacity}
+                </td>
+                <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">
                   {formatDuration(template.durationMinutes)}
                 </td>
-                <td className="py-2 pr-4">
+                <td className="py-3 pr-4">
                   <StatusPill status={template.status} />
                 </td>
-                <td className="py-2 pr-4 text-slate-700">{formatDate(template.validFrom)}</td>
+                <td className="py-3 pr-5 text-ink-700 dark:text-ink-200">
+                  {formatDate(template.validFrom)}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-slate-500">
-        <span className="tabular-nums">
+      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
+        <span className="font-mono tabular-nums">
           {from}–{to} of {total}
         </span>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasPrev}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Previous
-          </button>
-          <button
-            type="button"
+          </Btn>
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasNext}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Next
-          </button>
+          </Btn>
         </div>
       </div>
     </div>

@@ -2,10 +2,15 @@
 
 import { useState } from 'react';
 import type { MemberDetail } from '@fit/types';
+import { Card, Icon } from '@/components/ui';
 
 /** The detail page's history tabs, in display order. */
 const TABS = ['Subscriptions', 'Bookings', 'Payments', 'Notes'] as const;
 type Tab = (typeof TABS)[number];
+
+/** Shared list-row surface, matching the formacore card treatment. */
+const ROW_CLASS =
+  'flex items-center justify-between rounded-card border border-ink-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-white/[0.035]';
 
 /** Format minor currency units (tetri) as a Georgian Lari amount. */
 function formatAmount(minorUnits: number): string {
@@ -26,9 +31,10 @@ function formatDate(iso: string): string {
 /** A centered empty-state line shown when a tab has no records yet. */
 function EmptyState({ children }: { children: string }) {
   return (
-    <p className="rounded-card border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-      {children}
-    </p>
+    <Card className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+      <Icon name="info" className="h-7 w-7 text-ink-300 dark:text-ink-500" />
+      <p className="text-sm text-ink-500 dark:text-ink-400">{children}</p>
+    </Card>
   );
 }
 
@@ -44,7 +50,7 @@ export function MemberTabs({ member }: { member: MemberDetail }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" className="flex gap-1 border-b border-slate-200">
+      <div role="tablist" className="flex gap-1 border-b border-ink-200 dark:border-white/10">
         {TABS.map((tab) => {
           const isActive = tab === active;
           return (
@@ -56,8 +62,8 @@ export function MemberTabs({ member }: { member: MemberDetail }) {
               onClick={() => setActive(tab)}
               className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
                 isActive
-                  ? 'border-brand-500 text-brand-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'border-brand-500 text-brand-700 dark:text-brand-300'
+                  : 'border-transparent text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200'
               }`}
             >
               {tab}
@@ -73,18 +79,17 @@ export function MemberTabs({ member }: { member: MemberDetail }) {
           ) : (
             <ul className="flex flex-col gap-2">
               {member.subscriptions.map((sub) => (
-                <li
-                  key={sub.id}
-                  className="flex items-center justify-between rounded-card border border-slate-100 px-4 py-3 text-sm"
-                >
+                <li key={sub.id} className={ROW_CLASS}>
                   <div>
-                    <p className="font-medium text-slate-900">{sub.planName}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="font-medium text-ink-900 dark:text-white">{sub.planName}</p>
+                    <p className="text-xs text-ink-500 dark:text-ink-400">
                       Started {formatDate(sub.startedAt)}
                       {sub.renewsAt ? ` · renews ${formatDate(sub.renewsAt)}` : ''}
                     </p>
                   </div>
-                  <span className="text-xs font-medium text-slate-600">{sub.status}</span>
+                  <span className="text-xs font-medium text-ink-600 dark:text-ink-300">
+                    {sub.status}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -96,15 +101,16 @@ export function MemberTabs({ member }: { member: MemberDetail }) {
           ) : (
             <ul className="flex flex-col gap-2">
               {member.bookings.map((booking) => (
-                <li
-                  key={booking.id}
-                  className="flex items-center justify-between rounded-card border border-slate-100 px-4 py-3 text-sm"
-                >
+                <li key={booking.id} className={ROW_CLASS}>
                   <div>
-                    <p className="font-medium text-slate-900">{booking.title}</p>
-                    <p className="text-xs text-slate-500">{formatDate(booking.startsAt)}</p>
+                    <p className="font-medium text-ink-900 dark:text-white">{booking.title}</p>
+                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                      {formatDate(booking.startsAt)}
+                    </p>
                   </div>
-                  <span className="text-xs font-medium text-slate-600">{booking.status}</span>
+                  <span className="text-xs font-medium text-ink-600 dark:text-ink-300">
+                    {booking.status}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -116,15 +122,18 @@ export function MemberTabs({ member }: { member: MemberDetail }) {
           ) : (
             <ul className="flex flex-col gap-2">
               {member.payments.map((payment) => (
-                <li
-                  key={payment.id}
-                  className="flex items-center justify-between rounded-card border border-slate-100 px-4 py-3 text-sm"
-                >
+                <li key={payment.id} className={ROW_CLASS}>
                   <div>
-                    <p className="font-medium text-slate-900">{formatAmount(payment.amount)}</p>
-                    <p className="text-xs text-slate-500">{formatDate(payment.paidAt)}</p>
+                    <p className="font-mono font-medium tabular-nums text-ink-900 dark:text-white">
+                      {formatAmount(payment.amount)}
+                    </p>
+                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                      {formatDate(payment.paidAt)}
+                    </p>
                   </div>
-                  <span className="text-xs font-medium text-slate-600">{payment.status}</span>
+                  <span className="text-xs font-medium text-ink-600 dark:text-ink-300">
+                    {payment.status}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -134,7 +143,7 @@ export function MemberTabs({ member }: { member: MemberDetail }) {
           (member.notes.trim().length === 0 ? (
             <EmptyState>No notes yet.</EmptyState>
           ) : (
-            <p className="whitespace-pre-wrap rounded-card border border-slate-100 px-4 py-3 text-sm text-slate-700">
+            <p className="whitespace-pre-wrap rounded-card border border-ink-200 bg-white px-4 py-3 text-sm text-ink-700 dark:border-white/10 dark:bg-white/[0.035] dark:text-ink-200">
               {member.notes}
             </p>
           ))}

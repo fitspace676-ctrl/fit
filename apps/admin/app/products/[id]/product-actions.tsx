@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { ProductStatus } from '@fit/types';
+import { Btn, Card, Icon, buttonClasses } from '@/components/ui';
 import { setProductActiveAction } from '../actions';
 
 /**
@@ -42,29 +43,26 @@ export function ProductActions({
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
-        <Link
-          href={`/products/${productId}/edit`}
-          className="rounded-card border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
+        <Link href={`/products/${productId}/edit`} className={buttonClasses('outline', 'sm')}>
           Edit
         </Link>
-        <button
-          type="button"
+        <Btn
+          v={isInactive ? 'primary' : 'outline'}
+          size="sm"
           onClick={toggle}
           disabled={pending}
-          className={
-            isInactive
-              ? 'rounded-card border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50'
-              : 'rounded-card border border-amber-200 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50'
-          }
         >
           {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
-        </button>
+        </Btn>
       </div>
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-1.5 text-sm text-red-700">
-          {error}
-        </p>
+        <Card
+          role="alert"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </Card>
       ) : null}
     </div>
   );

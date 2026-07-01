@@ -13,6 +13,10 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: LocationStatus; label: string }> = 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
 
+/** Shared field styling, matching the other admin forms. */
+const FIELD_CLASS =
+  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
+
 /**
  * The location roster filter bar: a debounced search box (name / address) and a
  * status select. Both write their state to the URL search params (the single
@@ -61,7 +65,7 @@ export function LocationsFilters({ search, status }: { search: string; status: s
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search by name or address…"
-          className="w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className={FIELD_CLASS}
         />
       </div>
 
@@ -73,7 +77,7 @@ export function LocationsFilters({ search, status }: { search: string; status: s
           id="location-status"
           value={status}
           onChange={(event) => commit('status', event.target.value)}
-          className="w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className={FIELD_CLASS}
         >
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((option) => (

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Permission, roleHasPermission, type AdminPayment } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchOrder } from '@/lib/api';
+import { Badge, Card, Icon } from '@/components/ui';
 import {
   CHANNEL_LABELS,
   FULFILLMENT_LABELS,
@@ -51,10 +52,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/orders" className="text-sm text-brand-700 hover:underline">
-          ← Back to orders
+        <Link
+          href="/orders"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+        >
+          <Icon name="arrowLeft" className="h-4 w-4" /> Back to orders
         </Link>
-        <p className="rounded-card border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <p className="rounded-card border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-700 dark:text-danger-300">
           {message}
         </p>
       </div>
@@ -70,40 +74,42 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/orders" className="text-sm text-brand-700 hover:underline">
-        ← Back to orders
+      <Link
+        href="/orders"
+        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+      >
+        <Icon name="arrowLeft" className="h-4 w-4" /> Back to orders
       </Link>
 
       {/* Identity header. */}
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-mono text-lg font-semibold text-slate-900">{order.id}</h1>
-          <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${status.className}`}>
-            {status.label}
-          </span>
-          <span className="rounded-card bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-            {CHANNEL_LABELS[order.channel]}
-          </span>
-          <span className="rounded-card bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-            {FULFILLMENT_LABELS[order.fulfillment]}
-          </span>
+          <h1 className="font-mono text-lg font-semibold text-ink-900 dark:text-white">
+            {order.id}
+          </h1>
+          <Badge tone={status.tone}>{status.label}</Badge>
+          <Badge tone="ink">{CHANNEL_LABELS[order.channel]}</Badge>
+          <Badge tone="ink">{FULFILLMENT_LABELS[order.fulfillment]}</Badge>
         </div>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-ink-500 dark:text-ink-400">
           {formatDateTime(order.createdAt)} ·{' '}
           {order.customerName ?? (order.memberId ? `Member ${order.memberId}` : 'Walk-in')}
         </p>
-        <p className="text-sm text-slate-700">
-          Total <span className="font-semibold">{formatMoney(order.total, order.currency)}</span>
+        <p className="text-sm text-ink-700 dark:text-ink-200">
+          Total{' '}
+          <span className="font-mono font-semibold tabular-nums">
+            {formatMoney(order.total, order.currency)}
+          </span>
           {order.refundedAmount > 0 && (
-            <span className="text-rose-600">
+            <span className="font-mono tabular-nums text-danger-600 dark:text-danger-300">
               {' '}
               · {formatMoney(order.refundedAmount, order.currency)} refunded
             </span>
           )}
         </p>
         {order.fulfillment === 'DELIVERY' && order.deliveryAddress && (
-          <p className="text-sm text-slate-700">
-            <span className="text-slate-500">Deliver to:</span>{' '}
+          <p className="text-sm text-ink-700 dark:text-ink-200">
+            <span className="text-ink-500 dark:text-ink-400">Deliver to:</span>{' '}
             <span className="whitespace-pre-line">{order.deliveryAddress}</span>
           </p>
         )}
@@ -111,27 +117,33 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Items. */}
-        <section className="flex flex-col gap-3 rounded-card border border-slate-200 p-4">
-          <h2 className="text-sm font-semibold text-slate-900">Items</h2>
+        <Card className="flex flex-col gap-3 p-4">
+          <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Items</h2>
           {order.items.length === 0 ? (
-            <p className="text-sm text-slate-500">No line items.</p>
+            <p className="text-sm text-ink-500 dark:text-ink-400">No line items.</p>
           ) : (
             <table className="w-full border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-1.5 pr-4 font-medium">Item</th>
-                  <th className="py-1.5 pr-4 text-right font-medium">Qty</th>
-                  <th className="py-1.5 text-right font-medium">Amount</th>
+                <tr className="border-b border-ink-100 dark:border-white/10">
+                  <th className="py-1.5 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Item
+                  </th>
+                  <th className="py-1.5 pr-4 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Qty
+                  </th>
+                  <th className="py-1.5 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                    Amount
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {order.items.map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100">
-                    <td className="py-1.5 pr-4 text-slate-700">{item.label}</td>
-                    <td className="py-1.5 pr-4 text-right tabular-nums text-slate-700">
+                  <tr key={item.id} className="border-b border-ink-50 last:border-0 dark:border-white/5">
+                    <td className="py-1.5 pr-4 text-ink-700 dark:text-ink-200">{item.label}</td>
+                    <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-ink-700 dark:text-ink-200">
                       {item.qty}
                     </td>
-                    <td className="py-1.5 text-right tabular-nums text-slate-900">
+                    <td className="py-1.5 text-right font-mono tabular-nums text-ink-900 dark:text-white">
                       {formatMoney(item.amount, order.currency)}
                     </td>
                   </tr>
@@ -139,13 +151,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </tbody>
             </table>
           )}
-        </section>
+        </Card>
 
         {/* Payments. */}
-        <section className="flex flex-col gap-3 rounded-card border border-slate-200 p-4">
-          <h2 className="text-sm font-semibold text-slate-900">Payments</h2>
+        <Card className="flex flex-col gap-3 p-4">
+          <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Payments</h2>
           {order.payments.length === 0 ? (
-            <p className="text-sm text-slate-500">No payment recorded.</p>
+            <p className="text-sm text-ink-500 dark:text-ink-400">No payment recorded.</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {order.payments.map((pay) => {
@@ -153,17 +165,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 return (
                   <li key={pay.id} className="flex items-center justify-between gap-3 text-sm">
                     <span className="flex items-center gap-2">
-                      <span
-                        className={`rounded-card px-2 py-0.5 text-xs font-medium ${pillStatus.className}`}
-                      >
-                        {pillStatus.label}
+                      <Badge tone={pillStatus.tone}>{pillStatus.label}</Badge>
+                      <span className="text-ink-700 dark:text-ink-200">
+                        {PAYMENT_METHOD_LABELS[pay.method]}
                       </span>
-                      <span className="text-slate-700">{PAYMENT_METHOD_LABELS[pay.method]}</span>
                     </span>
-                    <span className="tabular-nums text-slate-900">
+                    <span className="font-mono tabular-nums text-ink-900 dark:text-white">
                       {formatMoney(pay.amount, pay.currency)}
                       {pay.refundedAmount > 0 && (
-                        <span className="text-rose-600">
+                        <span className="text-danger-600 dark:text-danger-300">
                           {' '}
                           (−{formatMoney(pay.refundedAmount, pay.currency)})
                         </span>
@@ -174,39 +184,41 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               })}
             </ul>
           )}
-        </section>
+        </Card>
 
         {/* Refunds. */}
-        <section className="flex flex-col gap-3 rounded-card border border-slate-200 p-4">
-          <h2 className="text-sm font-semibold text-slate-900">Refunds</h2>
+        <Card className="flex flex-col gap-3 p-4">
+          <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Refunds</h2>
           {order.refunds.length === 0 ? (
-            <p className="text-sm text-slate-500">No refunds issued.</p>
+            <p className="text-sm text-ink-500 dark:text-ink-400">No refunds issued.</p>
           ) : (
             <ul className="flex flex-col gap-2 text-sm">
               {order.refunds.map((refund) => (
                 <li
                   key={refund.id}
-                  className="flex flex-col gap-0.5 border-b border-slate-100 pb-2"
+                  className="flex flex-col gap-0.5 border-b border-ink-50 pb-2 last:border-0 dark:border-white/5"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">{formatDateTime(refund.createdAt)}</span>
-                    <span className="tabular-nums font-medium text-rose-700">
+                    <span className="text-ink-500 dark:text-ink-400">
+                      {formatDateTime(refund.createdAt)}
+                    </span>
+                    <span className="font-mono font-medium tabular-nums text-danger-700 dark:text-danger-300">
                       −{formatMoney(refund.amount, order.currency)}
                     </span>
                   </div>
-                  <span className="text-slate-700">{refund.reason}</span>
+                  <span className="text-ink-700 dark:text-ink-200">{refund.reason}</span>
                   {!refund.restockItems && (
-                    <span className="text-xs text-slate-400">Items not restocked</span>
+                    <span className="text-xs text-ink-400">Items not restocked</span>
                   )}
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </Card>
 
         {/* Status timeline. */}
-        <section className="flex flex-col gap-3 rounded-card border border-slate-200 p-4">
-          <h2 className="text-sm font-semibold text-slate-900">Status timeline</h2>
+        <Card className="flex flex-col gap-3 p-4">
+          <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Status timeline</h2>
           <ol className="flex flex-col gap-2 text-sm">
             {order.statusTimeline.map((entry, index) => {
               const pill = ORDER_STATUS_STYLES[entry.status];
@@ -215,25 +227,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   key={`${entry.status}-${entry.at}-${index}`}
                   className="flex items-center gap-3"
                 >
-                  <span
-                    className={`rounded-card px-2 py-0.5 text-xs font-medium ${pill.className}`}
-                  >
-                    {pill.label}
+                  <Badge tone={pill.tone}>{pill.label}</Badge>
+                  <span className="text-ink-500 dark:text-ink-400">
+                    {formatDateTime(entry.at)}
                   </span>
-                  <span className="text-slate-500">{formatDateTime(entry.at)}</span>
                 </li>
               );
             })}
           </ol>
-        </section>
+        </Card>
       </div>
 
       {/* Refund control — BillingManage staff, while a balance remains. */}
       {canRefund && refundable > 0 && payment && (
-        <section className="flex flex-col gap-3 rounded-card border border-slate-200 p-4">
-          <h2 className="text-sm font-semibold text-slate-900">Issue a refund</h2>
+        <Card className="flex flex-col gap-3 p-4">
+          <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Issue a refund</h2>
           <RefundForm orderId={order.id} currency={order.currency} refundableMinor={refundable} />
-        </section>
+        </Card>
       )}
     </div>
   );

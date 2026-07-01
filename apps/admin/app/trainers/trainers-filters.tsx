@@ -61,7 +61,7 @@ export function TrainersFilters({ search, status }: { search: string; status: st
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search by name or headline…"
-          className="w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
       </div>
 
@@ -73,7 +73,7 @@ export function TrainersFilters({ search, status }: { search: string; status: st
           id="trainer-status"
           value={status}
           onChange={(event) => commit('status', event.target.value)}
-          className="w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         >
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((option) => (

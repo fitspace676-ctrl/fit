@@ -8,6 +8,7 @@ import {
   type SubscriptionInterval,
   type SubscriptionPlanStatus,
 } from '@fit/types';
+import { Btn } from '@/components/ui';
 import { SUBSCRIPTION_INTERVALS, inputToMinor, minorToInput } from './format';
 import { createSubscriptionPlanAction, updateSubscriptionPlanAction } from './actions';
 
@@ -19,7 +20,10 @@ const CREATE_STATUSES: ReadonlyArray<{ value: SubscriptionPlanStatus; label: str
 
 /** Shared field styling so create + edit render identically. */
 const FIELD_CLASS =
-  'w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:bg-slate-50 disabled:text-slate-500';
+  'w-full rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
+
+/** Shared label styling. */
+const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
 
 type Initial = {
   name: string;
@@ -127,7 +131,7 @@ export function SubscriptionPlanForm(props: Props) {
   return (
     <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <label htmlFor="plan-name" className="text-sm font-medium text-slate-700">
+        <label htmlFor="plan-name" className={LABEL_CLASS}>
           Name
         </label>
         <input
@@ -144,8 +148,8 @@ export function SubscriptionPlanForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="plan-description" className="text-sm font-medium text-slate-700">
-          Description <span className="font-normal text-slate-400">(optional)</span>
+        <label htmlFor="plan-description" className={LABEL_CLASS}>
+          Description <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <textarea
           id="plan-description"
@@ -160,7 +164,7 @@ export function SubscriptionPlanForm(props: Props) {
 
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="plan-price" className="text-sm font-medium text-slate-700">
+          <label htmlFor="plan-price" className={LABEL_CLASS}>
             Price
           </label>
           <input
@@ -173,11 +177,11 @@ export function SubscriptionPlanForm(props: Props) {
             value={price}
             onChange={(event) => setPrice(event.target.value)}
             placeholder="0.00"
-            className={FIELD_CLASS}
+            className={`${FIELD_CLASS} font-mono tabular-nums`}
           />
         </div>
         <div className="flex w-32 flex-col gap-1">
-          <label htmlFor="plan-currency" className="text-sm font-medium text-slate-700">
+          <label htmlFor="plan-currency" className={LABEL_CLASS}>
             Currency
           </label>
           <input
@@ -195,7 +199,7 @@ export function SubscriptionPlanForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="plan-interval" className="text-sm font-medium text-slate-700">
+        <label htmlFor="plan-interval" className={LABEL_CLASS}>
           Billing
         </label>
         <select
@@ -215,8 +219,8 @@ export function SubscriptionPlanForm(props: Props) {
 
       {/* Features. */}
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-slate-700">
-          Features <span className="font-normal text-slate-400">(optional)</span>
+        <legend className={LABEL_CLASS}>
+          Features <span className="font-normal text-ink-400">(optional)</span>
         </legend>
         {features.length > 0 ? (
           <div className="flex flex-col gap-2">
@@ -230,47 +234,38 @@ export function SubscriptionPlanForm(props: Props) {
                   placeholder="e.g. Unlimited gym access"
                   className={FIELD_CLASS}
                 />
-                <button
-                  type="button"
-                  onClick={() => removeFeature(index)}
-                  className="rounded-card border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 hover:text-red-600"
-                >
+                <Btn type="button" v="outline" size="md" onClick={() => removeFeature(index)}>
                   Remove
-                </button>
+                </Btn>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-400">
             No features. Add the perks this plan includes as bullet points.
           </p>
         )}
         <div>
-          <button
-            type="button"
-            onClick={addFeature}
-            disabled={atFeatureLimit}
-            className="rounded-card border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
+          <Btn type="button" v="outline" size="sm" onClick={addFeature} disabled={atFeatureLimit}>
             {atFeatureLimit ? `Maximum of ${MAX_SUBSCRIPTION_FEATURES} features` : 'Add feature'}
-          </button>
+          </Btn>
         </div>
       </fieldset>
 
-      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+      <label className="flex items-center gap-2 text-sm font-medium text-ink-700 dark:text-ink-200">
         <input
           type="checkbox"
           name="popular"
           checked={popular}
           onChange={(event) => setPopular(event.target.checked)}
-          className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+          className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-400 dark:border-white/20 dark:bg-white/10"
         />
         Mark as “Most popular”
       </label>
 
       {!isEdit ? (
         <div className="flex flex-col gap-1">
-          <label htmlFor="plan-status" className="text-sm font-medium text-slate-700">
+          <label htmlFor="plan-status" className={LABEL_CLASS}>
             Status
           </label>
           <select
@@ -290,20 +285,22 @@ export function SubscriptionPlanForm(props: Props) {
       ) : null}
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-card border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-danger-700 dark:text-danger-300"
+        >
           {error}
         </p>
       ) : null}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Btn type="submit" v="primary" size="md" disabled={pending}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create plan'}
-        </button>
-        <Link href={cancelHref} className="text-sm font-medium text-slate-500 hover:text-slate-700">
+        </Btn>
+        <Link
+          href={cancelHref}
+          className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
+        >
           Cancel
         </Link>
       </div>

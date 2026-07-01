@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { MemberStatus } from '@fit/types';
+import { Btn, Card, Icon } from '@/components/ui';
 import { createMemberAction, updateMemberAction } from './actions';
 
 /** Selectable initial statuses when creating a member (lifecycle change is a separate action). */
@@ -14,7 +15,10 @@ const CREATE_STATUSES: ReadonlyArray<{ value: MemberStatus; label: string }> = [
 
 /** Shared field styling so create + edit render identically. */
 const FIELD_CLASS =
-  'w-full rounded-card border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:bg-slate-50 disabled:text-slate-500';
+  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/[0.02] dark:disabled:text-ink-400';
+
+/** Shared label styling. */
+const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
 
 type Props =
   | { mode: 'create' }
@@ -65,7 +69,7 @@ export function MemberForm(props: Props) {
   return (
     <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <label htmlFor="member-name" className="text-sm font-medium text-slate-700">
+        <label htmlFor="member-name" className={LABEL_CLASS}>
           Name
         </label>
         <input
@@ -81,7 +85,7 @@ export function MemberForm(props: Props) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="member-email" className="text-sm font-medium text-slate-700">
+        <label htmlFor="member-email" className={LABEL_CLASS}>
           Email
         </label>
         <input
@@ -96,15 +100,15 @@ export function MemberForm(props: Props) {
           className={FIELD_CLASS}
         />
         {isEdit ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-ink-400">
             Email is the member’s sign-in identity and can’t be changed here.
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="member-phone" className="text-sm font-medium text-slate-700">
-          Phone <span className="font-normal text-slate-400">(optional)</span>
+        <label htmlFor="member-phone" className={LABEL_CLASS}>
+          Phone <span className="font-normal text-ink-400">(optional)</span>
         </label>
         <input
           id="member-phone"
@@ -119,7 +123,7 @@ export function MemberForm(props: Props) {
 
       {!isEdit ? (
         <div className="flex flex-col gap-1">
-          <label htmlFor="member-status" className="text-sm font-medium text-slate-700">
+          <label htmlFor="member-status" className={LABEL_CLASS}>
             Status
           </label>
           <select
@@ -139,20 +143,25 @@ export function MemberForm(props: Props) {
       ) : null}
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <Card className="flex items-start gap-2 bg-danger-50 px-3 py-2 dark:bg-danger-500/10">
+          <Icon
+            name="info"
+            className="mt-0.5 h-4 w-4 shrink-0 text-danger-600 dark:text-danger-300"
+          />
+          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+            {error}
+          </p>
+        </Card>
       ) : null}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-card bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Btn type="submit" v="primary" disabled={pending}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create member'}
-        </button>
-        <Link href={cancelHref} className="text-sm font-medium text-slate-500 hover:text-slate-700">
+        </Btn>
+        <Link
+          href={cancelHref}
+          className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
+        >
           Cancel
         </Link>
       </div>

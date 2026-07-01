@@ -29,7 +29,7 @@ export function ReconciliationDateForm({ date }: { date: string }) {
       <div className="sm:w-52">
         <label
           htmlFor="reconciliation-date"
-          className="mb-1 block text-xs font-medium text-slate-500"
+          className="mb-1 block text-xs font-medium text-ink-500 dark:text-ink-400"
         >
           Business day
         </label>
@@ -39,10 +39,10 @@ export function ReconciliationDateForm({ date }: { date: string }) {
           value={date}
           max={today}
           onChange={(event) => commit(event.target.value)}
-          className="w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
       </div>
-      {isPending ? <span className="pb-2 text-xs text-slate-400">Loading…</span> : null}
+      {isPending ? <span className="pb-2 text-xs text-ink-400">Loading…</span> : null}
     </div>
   );
 }

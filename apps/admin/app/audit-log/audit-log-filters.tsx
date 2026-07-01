@@ -2,7 +2,16 @@
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Btn } from '@/components/ui';
 import { ACTION_OPTIONS } from './audit-actions';
+
+/** Shared field styling, matching the other admin forms. */
+const FIELD_CLASS =
+  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
+
+/** Filter label styling. */
+const FILTER_LABEL_CLASS =
+  'mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
 
 /**
  * The audit-log filter bar: an action select and a `from`/`to` date range. Each
@@ -41,14 +50,14 @@ export function AuditLogFilters({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
       <div className="sm:w-64">
-        <label htmlFor="audit-action" className="mb-1 block text-xs font-medium text-slate-500">
+        <label htmlFor="audit-action" className={FILTER_LABEL_CLASS}>
           Action
         </label>
         <select
           id="audit-action"
           value={action}
           onChange={(event) => commit('action', event.target.value)}
-          className="w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className={FIELD_CLASS}
         >
           <option value="">All actions</option>
           {ACTION_OPTIONS.map((option) => (
@@ -60,7 +69,7 @@ export function AuditLogFilters({
       </div>
 
       <div className="sm:w-44">
-        <label htmlFor="audit-from" className="mb-1 block text-xs font-medium text-slate-500">
+        <label htmlFor="audit-from" className={FILTER_LABEL_CLASS}>
           From
         </label>
         <input
@@ -69,12 +78,12 @@ export function AuditLogFilters({
           value={from}
           max={to || undefined}
           onChange={(event) => commit('from', event.target.value)}
-          className="w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className={FIELD_CLASS}
         />
       </div>
 
       <div className="sm:w-44">
-        <label htmlFor="audit-to" className="mb-1 block text-xs font-medium text-slate-500">
+        <label htmlFor="audit-to" className={FILTER_LABEL_CLASS}>
           To
         </label>
         <input
@@ -83,18 +92,19 @@ export function AuditLogFilters({
           value={to}
           min={from || undefined}
           onChange={(event) => commit('to', event.target.value)}
-          className="w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          className={FIELD_CLASS}
         />
       </div>
 
       {action || from || to ? (
-        <button
-          type="button"
+        <Btn
+          v="outline"
+          size="md"
           onClick={() => startTransition(() => router.replace(pathname))}
-          className="self-start rounded-card border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 sm:self-auto"
+          className="self-start sm:self-auto"
         >
           Clear
-        </button>
+        </Btn>
       ) : null}
     </div>
   );

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { SubscriptionPlanStatus } from '@fit/types';
+import { Btn, buttonClasses } from '@/components/ui';
 import { setSubscriptionPlanActiveAction } from '../actions';
 
 /**
@@ -42,27 +43,23 @@ export function PlanActions({
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
-        <Link
-          href={`/subscriptions/${planId}/edit`}
-          className="rounded-card border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
+        <Link href={`/subscriptions/${planId}/edit`} className={buttonClasses('outline', 'sm')}>
           Edit
         </Link>
-        <button
-          type="button"
+        <Btn
+          v={isInactive ? 'primary' : 'outline'}
+          size="sm"
           onClick={toggle}
           disabled={pending}
-          className={
-            isInactive
-              ? 'rounded-card border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50'
-              : 'rounded-card border border-amber-200 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50'
-          }
         >
           {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
-        </button>
+        </Btn>
       </div>
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-1.5 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-card border border-danger-500/30 bg-danger-500/10 px-3 py-1.5 text-sm text-danger-700 dark:text-danger-300"
+        >
           {error}
         </p>
       ) : null}

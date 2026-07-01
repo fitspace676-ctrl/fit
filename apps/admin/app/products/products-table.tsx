@@ -4,12 +4,13 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminProductRow, ProductSort, ProductStatus, SortDir } from '@fit/types';
+import { Badge, Btn, Card, type Tone } from '@/components/ui';
 import { formatPrice } from './format-price';
 
-/** Visual treatment per product status — green active, slate inactive. */
-const STATUS_STYLES: Record<ProductStatus, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
-  INACTIVE: { label: 'Inactive', className: 'bg-slate-100 text-slate-600' },
+/** Visual treatment per product status — success active, ink inactive. */
+const STATUS_STYLES: Record<ProductStatus, { label: string; tone: Tone }> = {
+  ACTIVE: { label: 'Active', tone: 'success' },
+  INACTIVE: { label: 'Inactive', tone: 'ink' },
 };
 
 /** Sortable columns and their header labels, in render order. */
@@ -22,10 +23,8 @@ const SORTABLE: ReadonlyArray<{ key: ProductSort; label: string }> = [
 
 /** A status pill mirroring the locations roster styling. */
 function StatusPill({ status }: { status: ProductStatus }) {
-  const { label, className } = STATUS_STYLES[status];
-  return (
-    <span className={`rounded-card px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
-  );
+  const { label, tone } = STATUS_STYLES[status];
+  return <Badge tone={tone}>{label}</Badge>;
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -94,69 +93,79 @@ export function ProductsTable({
 
   if (products.length === 0) {
     return (
-      <p className="rounded-card border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+      <Card className="px-4 py-10 text-center text-sm text-ink-500 dark:text-ink-400">
         No products match your filters yet.
-      </p>
+      </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto">
+      <Card className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-ink-100 dark:border-white/10">
               {SORTABLE.map((column) => (
-                <th key={column.key} className="py-2 pr-4 font-medium">
+                <th
+                  key={column.key}
+                  className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
+                >
                   <Link
                     href={sortHref(column.key)}
                     scroll={false}
-                    className="inline-flex items-center hover:text-slate-700"
+                    className="inline-flex items-center hover:text-ink-700 dark:hover:text-ink-200"
                   >
                     {column.label}
                     <span aria-hidden>{sortIndicator(column.key)}</span>
                   </Link>
                 </th>
               ))}
-              <th className="py-2 pr-4 font-medium">Variants</th>
+              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                Variants
+              </th>
             </tr>
           </thead>
           <tbody>
             {products.map((product) => (
-              <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50/60">
-                <td className="py-2 pr-4">
+              <tr
+                key={product.id}
+                className="border-b border-ink-50 last:border-b-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+              >
+                <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     {product.imageUrl ? (
                       <img
                         src={product.imageUrl}
                         alt=""
-                        className="h-10 w-10 shrink-0 rounded-card object-cover"
+                        className="h-10 w-10 shrink-0 rounded-btn object-cover"
                       />
                     ) : (
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-brand-50 text-[10px] font-semibold text-brand-700">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-brand-50 text-[10px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                         No img
                       </span>
                     )}
                     <Link
                       href={`/products/${product.id}`}
-                      className="font-medium text-slate-900 hover:text-brand-700"
+                      className="font-medium text-ink-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300"
                     >
                       {product.name}
                     </Link>
                   </div>
                 </td>
-                <td className="py-2 pr-4 tabular-nums text-slate-700">
+                <td className="px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
                   {formatPrice(product.priceAmount, product.currency)}
                 </td>
-                <td className="py-2 pr-4">
+                <td className="px-4 py-3">
                   <StatusPill status={product.status} />
                 </td>
-                <td className="py-2 pr-4 text-slate-700">{formatDate(product.createdAt)}</td>
-                <td className="py-2 pr-4 text-slate-700">
+                <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
+                  {formatDate(product.createdAt)}
+                </td>
+                <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
                   {product.variantCount > 0 ? (
-                    <span className="rounded-card bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                    <Badge tone="ink">
                       {product.variantCount} {product.variantCount === 1 ? 'variant' : 'variants'}
-                    </span>
+                    </Badge>
                   ) : (
                     '—'
                   )}
@@ -165,34 +174,34 @@ export function ProductsTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-slate-500">
-        <span className="tabular-nums">
+      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
+        <span className="font-mono tabular-nums">
           {from}–{to} of {total}
         </span>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasPrev}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Previous
-          </button>
-          <button
-            type="button"
+          </Btn>
+          <Btn
+            v="outline"
+            size="sm"
             disabled={!hasNext}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-            className="rounded-card border border-slate-200 px-3 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             Next
-          </button>
+          </Btn>
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import {
   type ListLowStockResponse,
 } from '@fit/types';
 import { ApiError, fetchLowStockProducts } from '@/lib/api';
+import { Badge, Card, Icon, buttonClasses } from '@/components/ui';
 
 export const metadata: Metadata = {
   title: 'Low stock — Fit Admin',
@@ -52,71 +53,84 @@ export default async function LowStockPage({
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Low stock</h1>
-          <p className="max-w-2xl text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Low stock
+          </h1>
+          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
             Active products with a variant at or below {threshold} on hand, most urgent first.
             Restock before a line sells out — open a product to adjust its variant stock.
           </p>
         </div>
-        <Link
-          href="/products"
-          className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
+        <Link href="/products" className={buttonClasses('outline', 'md')}>
           All products
         </Link>
       </header>
 
       {error !== null ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <Card
+          role="alert"
+          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
+        >
+          <Icon name="info" className="h-5 w-5 shrink-0" />
+          <span>{error}</span>
+        </Card>
       ) : report !== null && report.data.length === 0 ? (
-        <p className="rounded-card border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+        <Card className="px-4 py-8 text-sm text-ink-500 dark:text-ink-400">
           Nothing is low on stock at or below {threshold} units. You’re all stocked up.
-        </p>
+        </Card>
       ) : report !== null ? (
-        <section className="overflow-hidden rounded-card border border-slate-200">
+        <Card className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-2 font-medium">Product</th>
-                <th className="px-4 py-2 font-medium">Variant</th>
-                <th className="px-4 py-2 font-medium">SKU</th>
-                <th className="px-4 py-2 text-right font-medium">On hand</th>
+            <thead>
+              <tr className="border-b border-ink-100 dark:border-white/10">
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Product
+                </th>
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  Variant
+                </th>
+                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  SKU
+                </th>
+                <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+                  On hand
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {report.data.flatMap((product) =>
                 product.variants.map((variant, index) => (
-                  <tr key={`${product.id}:${variant.variantIndex}`}>
-                    <td className="px-4 py-2 font-medium text-slate-900">
+                  <tr
+                    key={`${product.id}:${variant.variantIndex}`}
+                    className="border-b border-ink-50 last:border-b-0 dark:border-white/5"
+                  >
+                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
                       {index === 0 ? (
-                        <Link href={`/products/${product.id}`} className="hover:underline">
+                        <Link
+                          href={`/products/${product.id}`}
+                          className="hover:text-brand-700 hover:underline dark:hover:text-brand-300"
+                        >
                           {product.name}
                         </Link>
                       ) : (
-                        <span className="text-slate-400">↳</span>
+                        <span className="text-ink-400">↳</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-slate-600">{variant.name}</td>
-                    <td className="px-4 py-2 tabular-nums text-slate-500">{variant.sku || '—'}</td>
-                    <td className="px-4 py-2 text-right">
-                      <span
-                        className={
-                          variant.stock === 0
-                            ? 'rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-red-700'
-                            : 'rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-700'
-                        }
-                      >
+                    <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{variant.name}</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-ink-500 dark:text-ink-400">
+                      {variant.sku || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Badge tone={variant.stock === 0 ? 'danger' : 'warning'}>
                         {variant.stock === 0 ? 'Out of stock' : variant.stock}
-                      </span>
+                      </Badge>
                     </td>
                   </tr>
                 )),
               )}
             </tbody>
           </table>
-        </section>
+        </Card>
       ) : null}
     </div>
   );
