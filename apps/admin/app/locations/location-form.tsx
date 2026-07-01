@@ -324,7 +324,9 @@ export function LocationForm(props: Props) {
 
       {/* Weekly opening hours. */}
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-ink-700 dark:text-ink-200">Opening hours</legend>
+        <legend className="text-sm font-medium text-ink-700 dark:text-ink-200">
+          Opening hours
+        </legend>
         <div className="flex flex-col gap-1.5">
           {WEEKDAYS.map((day) => {
             const value = hours[day];

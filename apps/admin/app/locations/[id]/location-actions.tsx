@@ -46,12 +46,7 @@ export function LocationActions({
         <Link href={`/locations/${locationId}/edit`} className={buttonClasses('outline', 'sm')}>
           Edit
         </Link>
-        <Btn
-          v={isInactive ? 'primary' : 'outline'}
-          size="sm"
-          onClick={toggle}
-          disabled={pending}
-        >
+        <Btn v={isInactive ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>
           {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
         </Btn>
       </div>

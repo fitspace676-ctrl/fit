@@ -18,9 +18,9 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').rep
  * expire first). Returns `[]` when there is no session or the API answers
  * `401`/`403`; any other non-OK status throws, as does a malformed payload.
  */
-export async function fetchMyCreditPacks({
-  signal,
-}: { signal?: AbortSignal } = {}): Promise<CreditPackSummary[]> {
+export async function fetchMyCreditPacks({ signal }: { signal?: AbortSignal } = {}): Promise<
+  CreditPackSummary[]
+> {
   const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
   if (!token) {
     return [];

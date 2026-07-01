@@ -44,11 +44,7 @@ function dayLabel(iso: string, locale: string, today: string, tomorrow: string):
   return d.toLocaleDateString(locale, { weekday: 'short' });
 }
 
-export default async function MemberHomePage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function MemberHomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
 
@@ -132,7 +128,12 @@ export default async function MemberHomePage({
               <p className="text-sm font-bold text-ink-900 dark:text-white">{t('nextClass')}</p>
               {nextBooking && (
                 <Badge tone="brand" icon="clock">
-                  {dayLabel(nextBooking.classInstance.startsAt, activeLocale, todayLabel, tomorrowLabel)}
+                  {dayLabel(
+                    nextBooking.classInstance.startsAt,
+                    activeLocale,
+                    todayLabel,
+                    tomorrowLabel,
+                  )}
                 </Badge>
               )}
             </div>
@@ -178,9 +179,24 @@ export default async function MemberHomePage({
           {/* Stat strip */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: t('dayStreak'), value: Math.min(attended, 30), icon: 'flame' as const, tone: 'text-flame-500' },
-              { label: t('checkInsMonth'), value: attended, icon: 'spark' as const, tone: 'text-accent-500' },
-              { label: t('classesBooked'), value: upcoming.length, icon: 'calendar' as const, tone: 'text-iris-500' },
+              {
+                label: t('dayStreak'),
+                value: Math.min(attended, 30),
+                icon: 'flame' as const,
+                tone: 'text-flame-500',
+              },
+              {
+                label: t('checkInsMonth'),
+                value: attended,
+                icon: 'spark' as const,
+                tone: 'text-accent-500',
+              },
+              {
+                label: t('classesBooked'),
+                value: upcoming.length,
+                icon: 'calendar' as const,
+                tone: 'text-iris-500',
+              },
             ].map((s) => (
               <Card key={s.label} className="p-4">
                 <Icon name={s.icon} className={`h-5 w-5 ${s.tone}`} />
@@ -259,7 +275,10 @@ export default async function MemberHomePage({
             <p className="text-sm font-bold text-ink-900 dark:text-white">{t('yourTrainer')}</p>
             <div className="mt-4 flex items-center gap-4">
               <Avatar
-                src={trainer.avatarUrl ?? `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(trainer.name)}`}
+                src={
+                  trainer.avatarUrl ??
+                  `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(trainer.name)}`
+                }
                 ring
                 size="h-16 w-16"
               />
@@ -267,7 +286,9 @@ export default async function MemberHomePage({
                 <p className="truncate font-display text-lg font-bold text-ink-900 dark:text-white">
                   {trainer.name}
                 </p>
-                <p className="truncate text-sm text-ink-500 dark:text-ink-400">{trainer.headline}</p>
+                <p className="truncate text-sm text-ink-500 dark:text-ink-400">
+                  {trainer.headline}
+                </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {trainer.specialties.slice(0, 3).map((s) => (
                     <Badge key={s} tone="iris">

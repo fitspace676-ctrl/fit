@@ -53,7 +53,10 @@ export default async function AuditLogPage({
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
       <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-        <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300" />
+        <Icon
+          name="info"
+          className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
+        />
         <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
           {message}
         </p>

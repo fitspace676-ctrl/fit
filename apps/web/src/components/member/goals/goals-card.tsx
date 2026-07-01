@@ -33,7 +33,9 @@ export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
   const [pending, startSaving] = useTransition();
 
   function startEdit(): void {
-    setDrafts(goals.length > 0 ? goals.map(toDraft) : [{ label: '', current: '0', target: '10', unit: '' }]);
+    setDrafts(
+      goals.length > 0 ? goals.map(toDraft) : [{ label: '', current: '0', target: '10', unit: '' }],
+    );
     setEditing(true);
   }
 
@@ -56,7 +58,10 @@ export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
         toast(t('saved'), { tone: 'success', icon: 'check' });
         router.refresh();
       } else {
-        toast(res.code === 'UNAUTHENTICATED' ? t('signIn') : t('error'), { tone: 'danger', icon: 'x' });
+        toast(res.code === 'UNAUTHENTICATED' ? t('signIn') : t('error'), {
+          tone: 'danger',
+          icon: 'x',
+        });
       }
     });
   }
@@ -93,14 +98,20 @@ export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
               <input
                 value={d.label}
                 placeholder={t('labelPh')}
-                onChange={(e) => setDrafts((p) => p.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+                onChange={(e) =>
+                  setDrafts((p) => p.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
+                }
                 className="h-10 min-w-0 flex-1 rounded-field border border-ink-200 bg-white px-3 text-sm text-ink-900 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
               />
               <input
                 type="number"
                 value={d.current}
                 aria-label={t('current')}
-                onChange={(e) => setDrafts((p) => p.map((x, j) => (j === i ? { ...x, current: e.target.value } : x)))}
+                onChange={(e) =>
+                  setDrafts((p) =>
+                    p.map((x, j) => (j === i ? { ...x, current: e.target.value } : x)),
+                  )
+                }
                 className="h-10 w-16 rounded-field border border-ink-200 bg-white px-2 text-center text-sm text-ink-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
               />
               <span className="text-ink-400">/</span>
@@ -108,13 +119,19 @@ export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
                 type="number"
                 value={d.target}
                 aria-label={t('target')}
-                onChange={(e) => setDrafts((p) => p.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))}
+                onChange={(e) =>
+                  setDrafts((p) =>
+                    p.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)),
+                  )
+                }
                 className="h-10 w-16 rounded-field border border-ink-200 bg-white px-2 text-center text-sm text-ink-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
               />
               <input
                 value={d.unit}
                 placeholder={t('unitPh')}
-                onChange={(e) => setDrafts((p) => p.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)))}
+                onChange={(e) =>
+                  setDrafts((p) => p.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)))
+                }
                 className="h-10 w-20 rounded-field border border-ink-200 bg-white px-2 text-sm text-ink-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
               />
               <button
@@ -132,7 +149,9 @@ export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
               v="outline"
               size="sm"
               icon="plus"
-              onClick={() => setDrafts((p) => [...p, { label: '', current: '0', target: '10', unit: '' }])}
+              onClick={() =>
+                setDrafts((p) => [...p, { label: '', current: '0', target: '10', unit: '' }])
+              }
             >
               {t('add')}
             </Btn>

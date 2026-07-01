@@ -1,15 +1,7 @@
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from './icon';
 
-export type Tone =
-  | 'ink'
-  | 'brand'
-  | 'success'
-  | 'warning'
-  | 'danger'
-  | 'accent'
-  | 'iris'
-  | 'flame';
+export type Tone = 'ink' | 'brand' | 'success' | 'warning' | 'danger' | 'accent' | 'iris' | 'flame';
 
 /** Per-tone light + dark classes (text + gradient fill + ring). */
 const TONES: Record<Tone, string> = {

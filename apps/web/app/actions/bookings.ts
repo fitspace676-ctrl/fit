@@ -22,9 +22,7 @@ import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 /** A booking action's outcome — `ok` with data, or an error with the API code. */
-export type ActionResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; code?: string };
+export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string; code?: string };
 
 /** Shared request plumbing: forward the session token, map non-OK to an error. */
 async function callBookingApi(

@@ -78,7 +78,7 @@ export const BUILT_FOR: AudiencePage[] = [
         icon: I.members,
         eyebrow: 'Member Management',
         headline: "Know who's about to leave - before they do.",
-        body: 'Every member has a pattern. When they stop showing up, their membership is the next thing they cancel. Track attendance, engagement, and payment history in real time so you always know who\'s drifting - and still have time to act.',
+        body: "Every member has a pattern. When they stop showing up, their membership is the next thing they cancel. Track attendance, engagement, and payment history in real time so you always know who's drifting - and still have time to act.",
         bullets: [
           'At-risk members flagged automatically when attendance drops or visits go cold',
           'Full profile per member showing visit frequency, membership history, and payment status',
@@ -125,8 +125,8 @@ export const BUILT_FOR: AudiencePage[] = [
         body: "Check-in isn't just access control - it's your most important retention data. Every scan tells you who's active, who's slowing down, and who hasn't been in for three weeks. Turn the front door into a live attendance feed.",
         bullets: [
           'QR code check-in via the mobile app, or receptionist check-in from the admin panel',
-          'Live arrivals stream so your team always knows who\'s in the building',
-          'Absence patterns flagged automatically - re-engagement workflows fire before it\'s too late',
+          "Live arrivals stream so your team always knows who's in the building",
+          "Absence patterns flagged automatically - re-engagement workflows fire before it's too late",
         ],
       },
     ],
@@ -303,7 +303,10 @@ export const BUILT_FOR: AudiencePage[] = [
     subline:
       "Pilates members are goal-driven. They signed up to feel stronger, move better, recover faster. When they can't see their progress - or feel like the studio has stopped paying attention - they leave. Make progress visible and keep every member engaged.",
     stats: [
-      { value: '47', label: 'sessions - the milestone that separates committed members from churned ones' },
+      {
+        value: '47',
+        label: 'sessions - the milestone that separates committed members from churned ones',
+      },
       { value: '16', label: 'days without a visit before a Pilates member mentally quits' },
       { value: '3×', label: 'more likely to stay when they can see their own progress' },
       { value: '0', label: 'sessions should go untracked' },
@@ -625,7 +628,7 @@ export const BUILT_FOR: AudiencePage[] = [
         body: 'Two weeks before term ends, re-enrolment reminders go out to every family automatically. Parents confirm online, payment is processed, and your next term is filled - without your staff making a single phone call.',
         bullets: [
           'Automated re-enrolment reminders sent 2 weeks before each term ends',
-          'End-of-term progress updates sent to parents - what their child achieved, what\'s next',
+          "End-of-term progress updates sent to parents - what their child achieved, what's next",
           "Win-back campaigns for students who didn't re-enrol - giving them a reason to return",
         ],
       },
@@ -752,7 +755,10 @@ export const BUILT_FOR: AudiencePage[] = [
       'Tennis club members stay when they feel connected - to the club, the community, and the value of their membership. Keep that connection alive with consistent communication, easy self-service, and a membership experience that feels worth renewing.',
     stats: [
       { value: '22', label: 'days without activity before a tennis member mentally exits' },
-      { value: '3×', label: 'higher renewal rate when members receive regular club communications' },
+      {
+        value: '3×',
+        label: 'higher renewal rate when members receive regular club communications',
+      },
       { value: '84%', label: 'retention rate when membership value is made visible' },
       { value: '0', label: 'renewals should lapse without a reminder' },
     ],

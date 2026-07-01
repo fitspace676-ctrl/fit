@@ -75,7 +75,10 @@ export function RefundForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <label htmlFor="refund-amount" className="text-xs font-medium text-ink-500 dark:text-ink-400">
+        <label
+          htmlFor="refund-amount"
+          className="text-xs font-medium text-ink-500 dark:text-ink-400"
+        >
           Amount ({currency})
         </label>
         <input
@@ -94,7 +97,10 @@ export function RefundForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="refund-reason" className="text-xs font-medium text-ink-500 dark:text-ink-400">
+        <label
+          htmlFor="refund-reason"
+          className="text-xs font-medium text-ink-500 dark:text-ink-400"
+        >
           Reason
         </label>
         <textarea

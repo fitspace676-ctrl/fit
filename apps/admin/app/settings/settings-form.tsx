@@ -28,8 +28,7 @@ const TIME_CLASS =
   'h-9 rounded-field border border-ink-200 bg-white px-2.5 text-sm text-ink-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
 
 /** Section legend styling for the settings fieldsets. */
-const LEGEND_CLASS =
-  'font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+const LEGEND_CLASS = 'font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
 
 /** Field label styling shared across the settings form. */
 const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';

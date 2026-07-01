@@ -57,7 +57,9 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
 
       <div className="min-w-0 flex-1 sm:hidden">
         {gymSlug ? (
-          <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">{gymSlug}</span>
+          <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">
+            {gymSlug}
+          </span>
         ) : (
           <span className="truncate text-sm text-ink-400">FormaCore Admin</span>
         )}

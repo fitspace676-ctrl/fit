@@ -150,9 +150,7 @@ export function MembersTable({
     return (
       <Card className="flex flex-col items-center gap-3 px-4 py-12 text-center">
         <Icon name="users" className="h-8 w-8 text-ink-300 dark:text-ink-500" />
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          No members match your filters yet.
-        </p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">No members match your filters yet.</p>
       </Card>
     );
   }
@@ -161,13 +159,7 @@ export function MembersTable({
     <div className="flex flex-col gap-4">
       {/* Selection + export toolbar. */}
       <div className="flex flex-wrap items-center gap-3">
-        <Btn
-          v="outline"
-          size="sm"
-          icon="download"
-          onClick={exportSelected}
-          disabled={exporting}
-        >
+        <Btn v="outline" size="sm" icon="download" onClick={exportSelected} disabled={exporting}>
           {exporting
             ? 'Starting export…'
             : selected.size > 0

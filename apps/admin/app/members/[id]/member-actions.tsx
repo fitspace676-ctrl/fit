@@ -37,19 +37,11 @@ export function MemberActions({ memberId, status }: { memberId: string; status: 
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
-        <Link
-          href={`/members/${memberId}/edit`}
-          className={buttonClasses('outline', 'sm')}
-        >
+        <Link href={`/members/${memberId}/edit`} className={buttonClasses('outline', 'sm')}>
           <Icon name="settings" className="h-4 w-4" sw={2} />
           Edit
         </Link>
-        <Btn
-          v={isSuspended ? 'primary' : 'outline'}
-          size="sm"
-          onClick={toggle}
-          disabled={pending}
-        >
+        <Btn v={isSuspended ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>
           {pending ? 'Saving…' : isSuspended ? 'Reactivate' : 'Deactivate'}
         </Btn>
       </div>

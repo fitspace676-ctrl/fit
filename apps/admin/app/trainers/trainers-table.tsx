@@ -105,7 +105,8 @@ export function TrainersTable({
 
   const headClass =
     'py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
-  const sortLinkClass = 'inline-flex items-center transition-colors hover:text-ink-600 dark:hover:text-ink-200';
+  const sortLinkClass =
+    'inline-flex items-center transition-colors hover:text-ink-600 dark:hover:text-ink-200';
 
   return (
     <div className="flex flex-col gap-4">

@@ -43,13 +43,7 @@ function persist(theme: Theme): void {
  * comes from the server (the cookie), so the first client render already matches
  * the painted DOM and there is no flicker.
  */
-export function ThemeProvider({
-  initial,
-  children,
-}: {
-  initial: Theme;
-  children: ReactNode;
-}) {
+export function ThemeProvider({ initial, children }: { initial: Theme; children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(initial);
 
   const setTheme = useCallback((next: Theme) => {

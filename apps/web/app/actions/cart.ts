@@ -45,9 +45,17 @@ async function cartRequest(
     body: body ? JSON.stringify(body) : undefined,
     cache: 'no-store',
   });
-  const json = (await response.json().catch(() => null)) as { cart?: unknown; code?: string; message?: string } | null;
+  const json = (await response.json().catch(() => null)) as {
+    cart?: unknown;
+    code?: string;
+    message?: string;
+  } | null;
   if (!response.ok) {
-    return { ok: false, error: json?.message ?? `Request failed (${response.status})`, code: json?.code };
+    return {
+      ok: false,
+      error: json?.message ?? `Request failed (${response.status})`,
+      code: json?.code,
+    };
   }
   return { ok: true, cart: parseCartView(json?.cart) };
 }
@@ -58,7 +66,10 @@ export async function addToCartAction(variantId: string, qty = 1): Promise<CartA
 }
 
 /** Set a cart line's absolute quantity. */
-export async function updateCartItemAction(variantId: string, qty: number): Promise<CartActionResult> {
+export async function updateCartItemAction(
+  variantId: string,
+  qty: number,
+): Promise<CartActionResult> {
   return cartRequest(`/cart/items/${encodeURIComponent(variantId)}`, 'PATCH', { qty });
 }
 
@@ -78,7 +89,11 @@ export async function checkoutCartAction(
   }
   const response = await fetch(`${API_URL}/cart/checkout`, {
     method: 'POST',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${t}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
       fulfillment: 'PICKUP',
       locationId,
@@ -86,9 +101,17 @@ export async function checkoutCartAction(
     }),
     cache: 'no-store',
   });
-  const json = (await response.json().catch(() => null)) as { orderId?: string; code?: string; message?: string } | null;
+  const json = (await response.json().catch(() => null)) as {
+    orderId?: string;
+    code?: string;
+    message?: string;
+  } | null;
   if (!response.ok || !json?.orderId) {
-    return { ok: false, error: json?.message ?? `Checkout failed (${response.status})`, code: json?.code };
+    return {
+      ok: false,
+      error: json?.message ?? `Checkout failed (${response.status})`,
+      code: json?.code,
+    };
   }
   return { ok: true, orderId: json.orderId };
 }

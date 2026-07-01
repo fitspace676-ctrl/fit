@@ -6,11 +6,7 @@ import type { CartView, LocationSummary } from '@fit/types';
 import { Badge, Btn, buttonClasses, Card, Icon, useToast } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { formatMoney } from '@/lib/shop';
-import {
-  checkoutCartAction,
-  removeCartItemAction,
-  updateCartItemAction,
-} from '@/app/actions/cart';
+import { checkoutCartAction, removeCartItemAction, updateCartItemAction } from '@/app/actions/cart';
 
 export interface CartScreenProps {
   initialCart: CartView;
@@ -36,9 +32,10 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
 
   function setQty(variantId: string, qty: number): void {
     startTransition(async () => {
-      const res = qty <= 0
-        ? await removeCartItemAction(variantId)
-        : await updateCartItemAction(variantId, qty);
+      const res =
+        qty <= 0
+          ? await removeCartItemAction(variantId)
+          : await updateCartItemAction(variantId, qty);
       if (res.ok) {
         setCart(res.cart);
       } else {
@@ -94,7 +91,9 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
         </h1>
         <Card className="grid place-items-center gap-3 py-14 text-center">
           <Icon name="bag" className="h-10 w-10 text-ink-300 dark:text-ink-600" />
-          <p className="font-display text-lg font-bold text-ink-900 dark:text-white">{t('empty')}</p>
+          <p className="font-display text-lg font-bold text-ink-900 dark:text-white">
+            {t('empty')}
+          </p>
           <Link href="/shop" className={buttonClasses('primary', 'md')}>
             {t('browseShop')}
           </Link>
@@ -227,7 +226,9 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
               >
                 <Icon name={m.icon} className="h-4 w-4 text-ink-500 dark:text-ink-300" />
                 <span className="flex-1 font-medium text-ink-900 dark:text-white">{m.label}</span>
-                {pay === m.k && <Icon name="check" className="h-4 w-4 text-brand-600 dark:text-brand-300" />}
+                {pay === m.k && (
+                  <Icon name="check" className="h-4 w-4 text-brand-600 dark:text-brand-300" />
+                )}
               </button>
             ))}
           </div>
@@ -246,7 +247,11 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
           <div className="mt-5 space-y-2 border-t border-ink-100 pt-4 text-sm dark:border-white/10">
             <Row label={t('subtotal')} value={money(cart.subtotal)} />
             {cart.discount > 0 && (
-              <Row label={t('discount')} value={`−${money(cart.discount)}`} tone="text-success-600 dark:text-success-300" />
+              <Row
+                label={t('discount')}
+                value={`−${money(cart.discount)}`}
+                tone="text-success-600 dark:text-success-300"
+              />
             )}
             <div className="flex items-center justify-between pt-2">
               <span className="font-semibold text-ink-900 dark:text-white">{t('total')}</span>

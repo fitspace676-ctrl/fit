@@ -43,7 +43,10 @@ export class MeGoalsService {
       select: { id: true },
     });
     if (!member) {
-      throw new ForbiddenException({ message: 'You are not a member of this gym', code: 'NOT_A_MEMBER' });
+      throw new ForbiddenException({
+        message: 'You are not a member of this gym',
+        code: 'NOT_A_MEMBER',
+      });
     }
     return member.id;
   }
