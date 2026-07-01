@@ -194,7 +194,10 @@ describe('MembersService', () => {
         page: 1,
         limit: 20,
         planMix: { total: 0, plans: [] },
-        counts: { all: 0, active: 0, frozen: 0, trial: 0, expired: 0 },
+        // `frozen` is a dedicated `gymMember.count` (live FROZEN subscription),
+        // which shares the single `count` stub with the pagination total (1 here);
+        // the other buckets come from the empty `groupBy` stub.
+        counts: { all: 0, active: 0, frozen: 1, trial: 0, expired: 0 },
       });
     });
 
@@ -433,6 +436,9 @@ describe('MembersService', () => {
         findFirst: row({ id: 'gm-2', userId: 'u-existing' }),
         gymMemberCreate: { id: 'gm-2' },
       });
+      // First `findFirst` is the duplicate-membership guard (must miss so the
+      // create proceeds); the default row then satisfies the post-create re-read.
+      findFirst.mockResolvedValueOnce(null);
 
       await service.createMember(createInput({ email: 'existing@example.com' }));
 
