@@ -92,6 +92,11 @@ import type {
   AdminOrderDetail,
   RefundOrderInput,
   RefundOrderResponse,
+  CheckInStatsResponse,
+  TodayCheckInsResponse,
+  RecordCheckInInput,
+  RecordCheckInResponse,
+  MemberEligibility,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -903,6 +908,50 @@ export async function fetchDashboardStats(): Promise<DashboardStatsResponse> {
     cache: 'no-store',
   });
   return unwrap<DashboardStatsResponse>(res);
+}
+
+// ── Reception / check-in (T4.12) ──────────────────────────────────────────────
+
+/** `GET /admin/check-ins/stats` — the reception KPI snapshot (today's figures). */
+export async function fetchCheckInStats(): Promise<CheckInStatsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/check-ins/stats`, {
+    headers: await authHeaders(),
+    // Reception reflects live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<CheckInStatsResponse>(res);
+}
+
+/** `GET /admin/check-ins/today` — today's arrivals, most recent first (live feed). */
+export async function fetchTodayCheckIns(): Promise<TodayCheckInsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/check-ins/today`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<TodayCheckInsResponse>(res);
+}
+
+/** `POST /admin/check-ins` — record a member's arrival; returns the row + eligibility. */
+export async function recordCheckIn(input: RecordCheckInInput): Promise<RecordCheckInResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/check-ins`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<RecordCheckInResponse>(res);
+}
+
+/** `GET /admin/check-ins/eligibility?gymMemberId=` — one member's access standing + plan. */
+export async function fetchMemberEligibility(gymMemberId: string): Promise<MemberEligibility> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/check-ins/eligibility?gymMemberId=${encodeURIComponent(gymMemberId)}`,
+    {
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<MemberEligibility>(res);
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────

@@ -37,6 +37,15 @@ enum GymMemberStatus {
   SUSPENDED
 }
 
+/// How a member's gym check-in (reception arrival) was recorded (T4.12). `QR` is
+/// a scanned member code at the reception kiosk; `MANUAL` is a receptionist
+/// looking the member up and checking them in by hand. Mirrors the Prisma enum
+/// `checkInMethodSchema` in `@fit/types`.
+enum CheckInMethod {
+  QR
+  MANUAL
+}
+
 /// Platform-level lifecycle of a whole gym (tenant). A `SUSPENDED` gym is gated
 /// at login/refresh so its staff + members can no longer obtain a session, and
 /// is toggled from the SuperAdmin console (T2.12). Distinct from
@@ -296,6 +305,7 @@ model Gym {
   subscriptions     Subscription[]
   creditPacks       CreditPack[]
   memberGoals       MemberGoal[]
+  checkIns          CheckIn[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -383,6 +393,7 @@ model GymMember {
   subscriptions Subscription[]
   creditPacks   CreditPack[]
   goals         MemberGoal[]
+  checkIns      CheckIn[]
 
   @@unique([userId, gymId])
   @@index([gymId])
@@ -410,6 +421,31 @@ model MemberGoal {
   @@index([gymId])
   @@index([memberId])
   @@map("member_goals")
+}
+
+/// A member's reception check-in — one live arrival at the gym (T4.12). Recorded
+/// from the staff console's Reception screen either by scanning the member's QR
+/// (`method = QR`) or a manual receptionist lookup (`method = MANUAL`).
+/// Tenant-scoped by `gymId`; `gymMemberId` is the arriving member. `locationId`
+/// is the branch they checked in at when the gym has multiple locations, else
+/// null. The `(gymId, checkedInAt)` index backs the "today's arrivals" feed and
+/// the reception stats (checked-in / peak); `(gymMemberId)` backs a member's own
+/// visit history. Append-only: a check-in is never edited, so there is no
+/// `updatedAt`.
+model CheckIn {
+  id          String        @id @default(cuid())
+  gymId       String
+  gymMemberId String
+  method      CheckInMethod @default(MANUAL)
+  checkedInAt DateTime      @default(now())
+  locationId  String?
+
+  gym    Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member GymMember @relation(fields: [gymMemberId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, checkedInAt])
+  @@index([gymMemberId])
+  @@map("check_ins")
 }
 
 /// A trainer profile a gym curates from the staff console (T4.4). A gym-scoped
