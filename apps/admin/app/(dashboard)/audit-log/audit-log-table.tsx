@@ -3,34 +3,56 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AuditLogRow } from '@fit/types';
-import { Badge, Btn, Card } from '@/components/ui';
-import { auditActionLabel } from './audit-actions';
+import { Btn, Card, Icon } from '@/components/ui';
+import { auditActionDot, auditActionLabel } from './audit-actions';
 
-/** Render an ISO instant as a short local date + time, or an em dash when absent. */
-function formatTimestamp(iso: string): string {
+/**
+ * Render an ISO instant the way the reference table does — "Today · 09:12",
+ * "Yesterday · 18:22", then "1 Jun · 09:00" (with the year once it differs) —
+ * in the staff member's local zone. An unparsable value renders an em dash.
+ */
+function formatWhen(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+  const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000);
+  if (dayDiff === 0) return `Today · ${time}`;
+  if (dayDiff === 1) return `Yesterday · ${time}`;
+  const day = date.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(date.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}),
+  });
+  return `${day} · ${time}`;
 }
 
-/** A user's display name + email as a stacked cell, or an em dash when there is none. */
+/** A user's initials for the avatar placeholder (no photo on the wire). */
+function initialsOf(name: string | null, email: string | null): string {
+  const source = name ?? email ?? '';
+  const parts = source.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return (parts[0]![0]! + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
+/** The STAFF cell — initials avatar + display name over email, per the reference. */
 function ActorCell({ name, email }: { name: string | null; email: string | null }) {
   if (!name && !email) {
-    return <span className="text-ink-400">—</span>;
+    return <span className="text-ink-400 dark:text-ink-500">—</span>;
   }
   return (
-    <div className="flex flex-col">
-      <span className="font-medium text-ink-900 dark:text-white">{name ?? email}</span>
-      {name && email ? (
-        <span className="text-xs text-ink-500 dark:text-ink-400">{email}</span>
-      ) : null}
+    <div className="flex min-w-0 items-center gap-2.5">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-100 text-[11px] font-bold text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-200">
+        {initialsOf(name, email)}
+      </span>
+      <div className="min-w-0">
+        <p className="truncate font-semibold text-ink-900 dark:text-white">{name ?? email}</p>
+        {name && email ? (
+          <p className="truncate text-xs text-ink-400 dark:text-ink-500">{email}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -52,32 +74,26 @@ function formatMetadataValue(value: unknown): string {
   }
 }
 
-/** Render the action's JSON metadata as compact `key: value` chips. */
+/** The action's JSON metadata as one compact mono `key: value · …` line. */
 function MetadataCell({ metadata }: { metadata: Record<string, unknown> | null }) {
   const entries = metadata ? Object.entries(metadata) : [];
   if (entries.length === 0) {
-    return <span className="text-ink-400">—</span>;
+    return <span className="text-ink-400 dark:text-ink-500">—</span>;
   }
+  const text = entries.map(([key, value]) => `${key}: ${formatMetadataValue(value)}`).join(' · ');
   return (
-    <div className="flex flex-wrap gap-1">
-      {entries.map(([key, value]) => (
-        <span
-          key={key}
-          className="rounded-pill bg-ink-100 px-2 py-0.5 text-xs text-ink-600 dark:bg-white/10 dark:text-ink-300"
-        >
-          <span className="font-medium text-ink-500 dark:text-ink-400">{key}:</span>{' '}
-          {formatMetadataValue(value)}
-        </span>
-      ))}
-    </div>
+    <span className="block max-w-56 truncate" title={text}>
+      {text}
+    </span>
   );
 }
 
 /**
- * The audit-log viewer table (T4.9). Server-rendered, read-only data with a
- * client-side pager that reads/writes the URL search params so the server page
- * stays the single source of truth. Nothing here mutates — the audit trail is
- * append-only and viewed, never edited.
+ * The audit-log viewer table (T4.9), reskinned to the Planflow "formacore"
+ * Activity reference. Server-rendered, read-only data with a client-side pager
+ * that reads/writes the URL search params so the server page stays the single
+ * source of truth. Nothing here mutates — the audit trail is append-only and
+ * viewed, never edited.
  */
 export function AuditLogTable({
   entries,
@@ -110,71 +126,84 @@ export function AuditLogTable({
 
   if (entries.length === 0) {
     return (
-      <Card className="px-4 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
-        No audit entries match your filters yet.
+      <Card glow className="flex flex-col items-center gap-3 px-4 py-14 text-center">
+        <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <Icon name="shield" className="h-6 w-6" />
+        </span>
+        <p className="text-sm font-medium text-ink-700 dark:text-ink-200">No audit entries</p>
+        <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
+          No privileged actions match your filters yet.
+        </p>
       </Card>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-ink-100 dark:border-white/10">
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                When
-              </th>
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Action
-              </th>
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Actor
-              </th>
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Target
-              </th>
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Details
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry) => (
-              <tr
-                key={entry.id}
-                className="border-b border-ink-50 align-top last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
-              >
-                <td className="whitespace-nowrap px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                  {formatTimestamp(entry.createdAt)}
-                </td>
-                <td className="px-4 py-3">
-                  <Badge tone="brand">{auditActionLabel(entry.action)}</Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <ActorCell name={entry.actorName} email={entry.actorEmail} />
-                </td>
-                <td className="px-4 py-3">
-                  <ActorCell name={entry.targetName} email={entry.targetEmail} />
-                </td>
-                <td className="px-4 py-3">
-                  <MetadataCell metadata={entry.metadata} />
-                </td>
+    <div className="flex flex-col gap-5">
+      <Card glow>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-ink-500 dark:text-ink-400">
+                {['Staff', 'Action', 'Target', 'Details', 'When'].map((heading) => (
+                  <th
+                    key={heading}
+                    className="border-b border-ink-200 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] dark:border-white/10"
+                  >
+                    {heading}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr
+                  key={entry.id}
+                  className="border-b border-ink-200 transition last:border-0 hover:bg-ink-50 dark:border-white/10 dark:hover:bg-white/[0.025]"
+                >
+                  <td className="px-5 py-3.5">
+                    <ActorCell name={entry.actorName} email={entry.actorEmail} />
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${auditActionDot(entry.action)}`}
+                      />
+                      <span className="font-medium text-ink-600 dark:text-ink-300">
+                        {auditActionLabel(entry.action)}
+                      </span>
+                    </span>
+                  </td>
+                  <td
+                    className="px-5 py-3.5 text-ink-600 dark:text-ink-300"
+                    title={entry.targetEmail ?? undefined}
+                  >
+                    {entry.targetName ?? entry.targetEmail ?? '—'}
+                  </td>
+                  <td className="px-5 py-3.5 font-mono text-xs text-ink-400 dark:text-ink-500">
+                    <MetadataCell metadata={entry.metadata} />
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3.5 text-ink-500 dark:text-ink-400">
+                    {formatWhen(entry.createdAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
-      {/* Pager. */}
+      {/* Footer + pager. */}
       <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="tabular-nums">
-          {from}–{to} of {total}
+        <span className="font-mono tabular-nums">
+          Showing {from}–{to} of {total} entries
         </span>
         <div className="flex gap-2">
           <Btn
             v="outline"
             size="sm"
+            icon="chevronLeft"
             disabled={!hasPrev}
             onClick={() => startTransition(() => router.replace(pageHref(page - 1)))}
           >
@@ -183,6 +212,7 @@ export function AuditLogTable({
           <Btn
             v="outline"
             size="sm"
+            iconRight="chevronRight"
             disabled={!hasNext}
             onClick={() => startTransition(() => router.replace(pageHref(page + 1)))}
           >

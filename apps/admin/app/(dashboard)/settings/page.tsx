@@ -21,8 +21,10 @@ export const dynamic = 'force-dynamic';
  */
 export default async function SettingsPage() {
   let content;
+  let gymName: string | null = null;
   try {
     const settings = await fetchGymSettings();
+    gymName = settings.brand.name;
     content = <SettingsForm initial={settings} />;
   } catch (error) {
     const message =
@@ -43,14 +45,13 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5 pb-24">
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
           Settings
         </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          Configure your gym’s brand, default locale and time zone, business hours, and the sender
-          used for member emails. These apply across the whole gym.
+        <p className="text-sm text-ink-500 dark:text-ink-400">
+          Configure how {gymName ?? 'your gym'} runs on FormaCore.
         </p>
       </header>
 

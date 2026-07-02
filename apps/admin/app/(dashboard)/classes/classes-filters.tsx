@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ClassTemplateStatus } from '@fit/types';
+import { Icon } from '@/components/ui';
 
 /** The status options offered by the filter, in roster-priority order. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: ClassTemplateStatus; label: string }> = [
@@ -55,13 +56,16 @@ export function ClassTemplatesFilters({ search, status }: { search: string; stat
         <label htmlFor="class-search" className="sr-only">
           Search class templates by title or category
         </label>
+        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-400">
+          <Icon name="search" className="h-4 w-4" />
+        </span>
         <input
           id="class-search"
           type="search"
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search by title or category…"
-          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          className="h-11 w-full rounded-field border border-ink-200 bg-white pl-9 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
       </div>
 

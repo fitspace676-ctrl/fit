@@ -6,7 +6,7 @@ import { AuditLogFilters } from './audit-log-filters';
 import { AuditLogTable } from './audit-log-table';
 
 export const metadata: Metadata = {
-  title: 'Audit log — Fit Admin',
+  title: 'Activity — Fit Admin',
   description: "The gym's trail of privileged actions: filter by action and date range.",
 };
 
@@ -65,15 +65,16 @@ export default async function AuditLogPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Audit log
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          A record of privileged actions taken on your gym — owner impersonation and status changes.
-          Filter by action or narrow to a date range.
-        </p>
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-wrap items-center gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Activity
+          </h1>
+          <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
+            Everything happening across your gym, as it happens.
+          </p>
+        </div>
       </header>
 
       <AuditLogFilters action={query.action ?? ''} from={query.from ?? ''} to={query.to ?? ''} />

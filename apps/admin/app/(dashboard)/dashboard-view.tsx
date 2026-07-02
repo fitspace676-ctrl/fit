@@ -12,6 +12,7 @@
 // truth stays server-side.
 
 import { useMemo, useTransition, type ReactNode } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type {
   DashboardAlert,
@@ -21,11 +22,13 @@ import type {
 } from '@fit/types';
 import {
   AreaChart,
+  Badge,
   Card,
   CountUp,
   Donut,
+  Dot,
   Icon,
-  Occupancy,
+  Progress,
   type AreaPoint,
   type IconName,
 } from '@/components/ui';
@@ -63,58 +66,65 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
   }
 
   const now = new Date();
-  const eyebrow = now
-    .toLocaleDateString(undefined, {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    })
-    .toUpperCase();
+  const eyebrow = `${now.toLocaleDateString(undefined, { weekday: 'long' })} · ${now.toLocaleDateString(
+    undefined,
+    { day: 'numeric', month: 'long', year: 'numeric' },
+  )}`;
   const greeting = greetingFor(now.getHours());
   const firstName = data.viewer.name.split(' ')[0] || data.viewer.name;
 
   return (
     <div className={`flex flex-col gap-6 ${isPending ? 'opacity-70 transition-opacity' : ''}`}>
       {/* Eyebrow + greeting */}
-      <header className="flex flex-col gap-2">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-500 dark:text-brand-400">
-          {eyebrow}
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-500 dark:text-ink-400">
+            {eyebrow}
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
             {greeting}, {firstName}
           </h1>
-          <span className="inline-flex items-center gap-1.5 rounded-pill bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-300">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success-500" />
-            All systems live
-          </span>
         </div>
+        <Badge tone="success">
+          <Dot c="bg-success-400" />
+          All systems live
+        </Badge>
       </header>
 
-      {/* In the gym now + KPIs */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* Hero row — live occupancy focal + KPI cards */}
+      <section className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[1.1fr_2fr]">
         <InGymNow data={data} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-2 lg:grid-cols-1 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-5">
           <KpiCard
             label="Today's revenue"
             icon="card"
+            tone="text-success-400"
             kpi={data.kpis.todaysRevenue}
             format={(v) => money.format(v / 100)}
           />
-          <KpiCard label="Check-ins today" icon="check" kpi={data.kpis.checkInsToday} />
-          <KpiCard label="New members · 7d" icon="users" kpi={data.kpis.newMembers7d} />
+          <KpiCard
+            label="Check-ins today"
+            icon="qr"
+            tone="text-accent-400"
+            kpi={data.kpis.checkInsToday}
+          />
+          <KpiCard
+            label="New members · 7d"
+            icon="users"
+            tone="text-iris-400"
+            kpi={data.kpis.newMembers7d}
+          />
         </div>
       </section>
 
       {/* Revenue + plan mix */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">
         <RevenueCard data={data} money={money} onSelectRange={selectRange} disabled={isPending} />
         <PlanMixCard data={data} />
       </section>
 
       {/* Today's schedule + alerts */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">
         <ScheduleCard data={data} />
         <AlertsCard data={data} />
       </section>
@@ -134,50 +144,87 @@ function InGymNow({ data }: { data: DashboardOverviewResponse }) {
   const pct = capacity > 0 ? Math.round((current / capacity) * 100) : 0;
 
   return (
-    <Card glow className="flex flex-col p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          In the gym now
-        </h2>
-        <span className="inline-flex items-center gap-1.5 rounded-pill bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
-          Live
-        </span>
+    <Card glow className="p-5 sm:p-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-16 right-0 h-40 w-56 bg-brand-500/20 blur-3xl"
+      />
+      <div className="relative flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Icon name="users" className="h-5 w-5 text-brand-400" />
+          <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
+            In the gym now
+          </h2>
+        </div>
+        <Badge tone="brand">
+          <Dot c="bg-brand-400" />
+          live
+        </Badge>
       </div>
 
-      <div className="flex items-center gap-5">
-        <Donut pct={pct} size={104} stroke={10}>
-          <div className="flex flex-col leading-none">
-            <span className="font-display text-2xl font-extrabold tabular-nums text-ink-900 dark:text-white">
-              <CountUp to={current} />
-            </span>
-            <span className="mt-0.5 font-mono text-[10px] text-ink-400">of {capacity}</span>
+      <div className="relative mt-5 flex items-center gap-6">
+        <Donut pct={pct} size={120} stroke={12} color="text-brand-400">
+          <div className="text-center">
+            <CountUp
+              to={current}
+              className="font-display text-3xl font-black leading-none tabular-nums text-ink-900 dark:text-white"
+            />
+            <div className="mt-1 font-mono text-[10px] text-ink-400 dark:text-ink-500">
+              /{capacity} cap
+            </div>
           </div>
         </Donut>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm text-ink-500 dark:text-ink-400">
-            {current === 0
-              ? 'Quiet right now — no members checked in today yet.'
-              : `${pct}% of capacity in use across ${areas.length} area${
-                  areas.length === 1 ? '' : 's'
-                }.`}
-          </p>
+        <div className="min-w-0 flex-1 space-y-2.5">
+          {areas.length === 0 ? (
+            <p className="text-sm text-ink-500 dark:text-ink-400">
+              {current === 0
+                ? 'Quiet right now — no members checked in today yet.'
+                : `${pct}% of capacity in use.`}
+            </p>
+          ) : (
+            areas.map((area) => (
+              <div key={area.name}>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <span className="truncate text-ink-600 dark:text-ink-300">{area.name}</span>
+                  <span className="font-mono tabular-nums text-ink-500 dark:text-ink-400">
+                    {area.occupancy}/{area.capacity}
+                  </span>
+                </div>
+                <Meter value={area.occupancy} cap={area.capacity} />
+              </div>
+            ))
+          )}
         </div>
       </div>
-
-      {areas.length > 0 && (
-        <ul className="mt-5 space-y-3">
-          {areas.map((area) => (
-            <li key={area.name}>
-              <p className="mb-1 truncate text-xs font-semibold text-ink-600 dark:text-ink-300">
-                {area.name}
-              </p>
-              <Occupancy value={area.occupancy} cap={area.capacity} />
-            </li>
-          ))}
-        </ul>
-      )}
     </Card>
+  );
+}
+
+/**
+ * The design's compact occupancy meter: a small mono "value/cap" + percent header
+ * over a colour-coded fill bar (green → blue → amber → red as it fills).
+ */
+function Meter({ value, cap }: { value: number; cap: number }) {
+  const pct = cap > 0 ? Math.round((value / cap) * 100) : 0;
+  const tone =
+    pct >= 100
+      ? 'bg-danger-500'
+      : pct > 85
+        ? 'bg-warning-500'
+        : pct > 60
+          ? 'bg-accent-500'
+          : 'bg-success-500';
+  return (
+    <div>
+      <div className="mb-1.5 flex items-end justify-between">
+        <span className="font-mono text-sm font-bold tabular-nums text-ink-900 dark:text-white">
+          {value}
+          <span className="text-ink-400 dark:text-ink-500">/{cap}</span>
+        </span>
+        <span className="font-mono text-[11px] text-ink-500 dark:text-ink-400">{pct}%</span>
+      </div>
+      <Progress value={pct} tone={tone} />
+    </div>
   );
 }
 
@@ -188,29 +235,51 @@ function InGymNow({ data }: { data: DashboardOverviewResponse }) {
 function KpiCard({
   label,
   icon,
+  tone,
   kpi,
   format,
 }: {
   label: string;
   icon: IconName;
+  /** The icon's accent colour class (per the design: success / accent / iris). */
+  tone: string;
   kpi: DashboardKpi;
   format?: (value: number) => string;
 }) {
   return (
-    <Card glow className="flex h-full flex-col p-5">
+    <Card glow className="flex h-full flex-col p-5 transition-colors dark:hover:bg-white/[0.06]">
       <div className="flex items-center justify-between">
-        <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-          <Icon name={icon} className="h-5 w-5" />
-        </span>
+        <Icon name={icon} className={`h-6 w-6 ${tone}`} />
         <DeltaChip kpi={kpi} />
       </div>
       <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
         {format ? format(kpi.value) : <CountUp to={Math.round(kpi.value)} />}
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-400">
         {label}
       </p>
     </Card>
+  );
+}
+
+/** The design's trend-arrow marks (not in the shared icon set, so drawn locally). */
+const TREND_UP = 'M3 17l6-6 4 4 8-8M21 11V7h-4';
+const TREND_DOWN = 'M3 7l6 6 4-4 8 8M21 13v4h-4';
+
+function TrendIcon({ down = false }: { down?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3.5 w-3.5"
+      aria-hidden
+    >
+      <path d={down ? TREND_DOWN : TREND_UP} />
+    </svg>
   );
 }
 
@@ -219,17 +288,15 @@ function DeltaChip({ kpi }: { kpi: DashboardKpi }) {
     return <span className="text-xs text-ink-300 dark:text-ink-600">no prior data</span>;
   }
   const good = kpi.deltaPct >= 0;
-  const arrow = good ? '▲' : '▼';
-  const text = `${Math.abs(kpi.deltaPct)}%`;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-xs font-semibold tabular-nums ${
-        good
-          ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-300'
-          : 'bg-danger-50 text-danger-700 dark:bg-danger-500/15 dark:text-danger-300'
+      className={`inline-flex items-center gap-1 font-mono text-xs font-semibold tabular-nums ${
+        good ? 'text-success-700 dark:text-success-300' : 'text-danger-700 dark:text-danger-300'
       }`}
     >
-      {arrow} {text}
+      <TrendIcon down={!good} />
+      {good ? '+' : ''}
+      {kpi.deltaPct}%
     </span>
   );
 }
@@ -257,20 +324,23 @@ function RevenueCard({
   const hasData = points.some((p) => p.value > 0);
 
   return (
-    <Card glow className="flex flex-col p-5 lg:col-span-2">
+    <Card glow className="flex flex-col p-5 sm:p-6 lg:col-span-2">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
+          <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
             Revenue
           </h2>
-          <p className="mt-0.5 font-mono text-xs text-ink-400">
-            {rangeCaption(data.revenue.range)} · total {money.format(data.revenue.total / 100)}
+          <p className="mt-0.5 text-sm text-ink-500 dark:text-ink-400">
+            {rangeCaption(data.revenue.range)} · total{' '}
+            <span className="font-mono text-brand-600 dark:text-brand-300">
+              {money.format(data.revenue.total / 100)}
+            </span>
           </p>
         </div>
         <div
           role="tablist"
           aria-label="Revenue range"
-          className="inline-flex w-fit rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
+          className="inline-flex w-fit rounded-btn bg-ink-100 p-1 ring-1 ring-inset ring-ink-200 dark:bg-white/[0.06] dark:ring-white/10"
         >
           {RANGE_OPTIONS.map((option) => {
             const active = option.value === data.revenue.range;
@@ -282,9 +352,9 @@ function RevenueCard({
                 aria-selected={active}
                 disabled={disabled}
                 onClick={() => onSelectRange(option.value)}
-                className={`rounded-btn px-3 py-1 text-xs font-semibold transition-colors disabled:pointer-events-none ${
+                className={`h-8 rounded-[7px] px-3 text-xs font-semibold transition disabled:pointer-events-none ${
                   active
-                    ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]'
+                    ? 'bg-white text-ink-900 shadow-sm dark:text-ink-950 dark:shadow-none'
                     : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
                 }`}
               >
@@ -297,8 +367,8 @@ function RevenueCard({
 
       {hasData ? (
         <>
-          <AreaChart data={points} ariaLabel="Revenue over the selected range" />
-          <div className="mt-1 flex justify-between font-mono text-[10px] text-ink-400">
+          <AreaChart data={points} height={170} ariaLabel="Revenue over the selected range" />
+          <div className="mt-2 flex justify-between px-1 font-mono text-[10px] text-ink-400 dark:text-ink-500">
             {points.map((p, i) => (
               <span key={i}>{p.label}</span>
             ))}
@@ -330,19 +400,19 @@ function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
   const { total, plans } = data.planMix;
 
   return (
-    <Card glow className="flex flex-col p-5">
-      <div className="mb-4 flex items-baseline justify-between">
-        <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          Plan mix
-        </h2>
-        <span className="font-mono text-xs text-ink-400">{total} paid members</span>
-      </div>
+    <Card glow className="flex flex-col p-5 sm:p-6">
+      <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
+        Plan mix
+      </h2>
+      <p className="mb-4 mt-0.5 font-mono text-sm tabular-nums text-ink-500 dark:text-ink-400">
+        {total.toLocaleString()} paid members
+      </p>
 
       {plans.length === 0 || total === 0 ? (
         <EmptyState>No active subscribers yet.</EmptyState>
       ) : (
         <>
-          <div className="mb-4 flex h-3 overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
+          <div className="flex h-2.5 overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
             {plans.map((plan) => (
               <span
                 key={plan.planId ?? plan.name}
@@ -354,20 +424,20 @@ function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
               />
             ))}
           </div>
-          <ul className="space-y-2">
+          <ul className="mt-4 space-y-2.5">
             {plans.map((plan) => (
-              <li
-                key={plan.planId ?? plan.name}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span className="flex min-w-0 items-center gap-2 text-ink-600 dark:text-ink-300">
-                  <span
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: plan.color ?? '#7C3AED' }}
-                  />
-                  <span className="truncate">{plan.name}</span>
+              <li key={plan.planId ?? plan.name} className="flex items-center gap-2.5 text-sm">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ backgroundColor: plan.color ?? '#7C3AED' }}
+                />
+                <span className="min-w-0 flex-1 truncate text-ink-600 dark:text-ink-300">
+                  {plan.name}
                 </span>
-                <span className="shrink-0 font-mono tabular-nums text-ink-900 dark:text-white">
+                <span
+                  className="shrink-0 font-mono font-semibold tabular-nums"
+                  style={{ color: plan.color ?? '#7C3AED' }}
+                >
                   {plan.count}
                 </span>
               </li>
@@ -387,55 +457,65 @@ function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
   const rows = data.todaysSchedule;
 
   return (
-    <Card glow className="flex flex-col p-5 lg:col-span-2">
-      <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-        Today's schedule
-      </h2>
+    <Card glow className="flex flex-col p-2 lg:col-span-2">
+      <div className="flex items-center justify-between px-3 pb-2 pt-3">
+        <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
+          Today's schedule
+        </h2>
+        <Link
+          href="/classes"
+          className="text-xs font-semibold text-brand-600 transition hover:opacity-80 dark:text-brand-300"
+        >
+          Full schedule →
+        </Link>
+      </div>
       {rows.length === 0 ? (
-        <EmptyState>No classes scheduled today.</EmptyState>
+        <div className="p-1 pt-0">
+          <EmptyState>No classes scheduled today.</EmptyState>
+        </div>
       ) : (
-        <ul className="space-y-2">
-          {rows.map((row, i) => {
-            const fill = row.capacity > 0 ? Math.round((row.booked / row.capacity) * 100) : 0;
-            return (
-              <li
-                key={`${row.startsAt}-${i}`}
-                className="flex items-center gap-3 rounded-field border border-ink-100 px-3 py-2.5 dark:border-white/5"
+        <ul className="space-y-0.5">
+          {rows.map((row, i) => (
+            <li key={`${row.startsAt}-${i}`}>
+              <Link
+                href="/classes"
+                className="group flex items-center gap-3.5 rounded-btn px-3 py-3 transition hover:bg-ink-50 dark:hover:bg-white/[0.04]"
               >
-                <span
-                  className="h-8 w-1 shrink-0 rounded-pill"
-                  style={{ backgroundColor: row.color ?? '#7C3AED' }}
-                />
-                <span className="w-14 shrink-0 font-mono text-xs tabular-nums text-ink-500 dark:text-ink-400">
+                <span className="w-14 shrink-0 text-center font-mono text-sm font-bold tabular-nums text-ink-900 dark:text-white">
                   {formatTime(row.startsAt)}
                 </span>
+                <span
+                  className="w-1 self-stretch rounded-full"
+                  style={{ backgroundColor: row.color ?? '#7C3AED' }}
+                />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
+                  <span className="block truncate font-semibold text-ink-900 dark:text-white">
                     {row.title}
                   </span>
                   <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
                     {row.trainerName ?? 'Unassigned'}
                   </span>
                 </span>
-                <span className="shrink-0 text-right">
-                  <span className="block font-mono text-sm tabular-nums text-ink-900 dark:text-white">
-                    {row.booked}/{row.capacity}
-                  </span>
-                  <span
-                    className={`block font-mono text-[10px] tabular-nums ${
-                      fill > 85
-                        ? 'text-danger-500'
-                        : fill > 60
-                          ? 'text-warning-500'
-                          : 'text-success-500'
-                    }`}
-                  >
-                    {fill}% full
-                  </span>
+                <span className="hidden w-28 sm:block">
+                  <Meter value={row.booked} cap={row.capacity} />
                 </span>
-              </li>
-            );
-          })}
+                <span className="sm:hidden">
+                  {row.booked >= row.capacity ? (
+                    <Badge tone="danger">Full</Badge>
+                  ) : (
+                    <span className="font-mono text-sm tabular-nums text-ink-700 dark:text-ink-200">
+                      {row.booked}/{row.capacity}
+                    </span>
+                  )}
+                </span>
+                <Icon
+                  name="arrow"
+                  sw={2}
+                  className="h-4 w-4 shrink-0 text-ink-400 transition group-hover:text-brand-400 dark:text-ink-500"
+                />
+              </Link>
+            </li>
+          ))}
         </ul>
       )}
     </Card>
@@ -446,49 +526,83 @@ function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
 /*  Alerts                                                                     */
 /* -------------------------------------------------------------------------- */
 
-const ALERT_ICON: Record<DashboardAlert['kind'], IconName> = {
-  payment: 'card',
-  class_full: 'users',
-  payment_failed: 'info',
-};
-
-const ALERT_TONE: Record<DashboardAlert['kind'], string> = {
-  payment: 'bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-300',
-  class_full: 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-300',
-  payment_failed: 'bg-danger-50 text-danger-600 dark:bg-danger-500/15 dark:text-danger-300',
+/** Per-kind icon + tone treatment, mirroring the design's alert rows. */
+const ALERT_STYLE: Record<
+  DashboardAlert['kind'],
+  { icon: IconName; sw: number; bar: string; glow: string; ic: string; title: string }
+> = {
+  payment: {
+    icon: 'check',
+    sw: 2.4,
+    bar: 'bg-success-500 dark:bg-success-400',
+    glow: 'bg-success-500/20 dark:bg-success-500/30',
+    ic: 'text-success-600 dark:text-success-300',
+    title: 'text-success-800 dark:text-success-200',
+  },
+  class_full: {
+    icon: 'flame',
+    sw: 2,
+    bar: 'bg-warning-500 dark:bg-warning-400',
+    glow: 'bg-warning-500/20 dark:bg-warning-500/30',
+    ic: 'text-warning-600 dark:text-warning-300',
+    title: 'text-warning-800 dark:text-warning-200',
+  },
+  payment_failed: {
+    icon: 'card',
+    sw: 1.9,
+    bar: 'bg-danger-500 dark:bg-danger-400',
+    glow: 'bg-danger-500/20 dark:bg-danger-500/30',
+    ic: 'text-danger-600 dark:text-danger-300',
+    title: 'text-danger-800 dark:text-danger-200',
+  },
 };
 
 function AlertsCard({ data }: { data: DashboardOverviewResponse }) {
   const alerts = data.alerts;
   return (
     <Card glow className="flex flex-col p-5">
-      <div className="mb-4 flex items-baseline justify-between">
-        <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
+      <div className="mb-3.5 flex items-center justify-between">
+        <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
           Alerts
         </h2>
-        <span className="font-mono text-xs text-ink-400">{alerts.length}</span>
+        <Badge tone="warning">{alerts.length}</Badge>
       </div>
       {alerts.length === 0 ? (
         <EmptyState>All clear — no alerts right now.</EmptyState>
       ) : (
         <ul className="space-y-2.5">
-          {alerts.map((alert, i) => (
-            <li key={`${alert.kind}-${i}`} className="flex items-start gap-3">
-              <span
-                className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-btn ${ALERT_TONE[alert.kind]}`}
+          {alerts.map((alert, i) => {
+            const s = ALERT_STYLE[alert.kind];
+            return (
+              <li
+                key={`${alert.kind}-${i}`}
+                className="relative flex items-center gap-3 overflow-hidden rounded-card bg-ink-50 p-3 pl-4 ring-1 ring-inset ring-ink-200 transition hover:bg-white dark:bg-white/[0.04] dark:ring-white/10 dark:hover:bg-white/[0.07]"
               >
-                <Icon name={ALERT_ICON[alert.kind]} className="h-4 w-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
-                  {alert.title}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 top-0 hidden h-px bg-gradient-to-r from-transparent via-white/20 to-transparent dark:block"
+                />
+                <span
+                  className={`absolute bottom-2.5 left-0 top-2.5 w-[3px] rounded-full ${s.bar}`}
+                />
+                <span className="relative grid h-9 w-9 shrink-0 place-items-center">
+                  <span aria-hidden className={`absolute inset-0 blur-md ${s.glow}`} />
+                  <Icon name={s.icon} sw={s.sw} className={`relative h-6 w-6 ${s.ic}`} />
                 </span>
-                <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
-                  {alert.detail} · {timeAgo(alert.at)}
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-sm font-semibold leading-tight ${s.title}`}>
+                    {alert.title}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs text-ink-500 dark:text-ink-400">
+                    {alert.detail}
+                  </span>
                 </span>
-              </span>
-            </li>
-          ))}
+                <span className="shrink-0 font-mono text-[10px] tabular-nums text-ink-400 dark:text-ink-500">
+                  {timeAgo(alert.at)}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
@@ -502,26 +616,34 @@ function AlertsCard({ data }: { data: DashboardOverviewResponse }) {
 function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
   const rows = data.recentCheckIns;
   return (
-    <Card glow className="flex flex-col p-5">
+    <Card glow className="flex flex-col p-5 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          Recent check-ins
-        </h2>
-        <span className="inline-flex items-center gap-1.5 rounded-pill bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
-          Live
-        </span>
+        <div className="flex items-center gap-2.5">
+          <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
+            Recent check-ins
+          </h2>
+          <Badge tone="brand">
+            <Dot c="bg-brand-400" />
+            live
+          </Badge>
+        </div>
+        <Link
+          href="/check-in"
+          className="text-xs font-semibold text-brand-600 transition hover:opacity-80 dark:text-brand-300"
+        >
+          View all →
+        </Link>
       </div>
       {rows.length === 0 ? (
         <EmptyState>No check-ins today yet.</EmptyState>
       ) : (
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {rows.map((row, i) => (
             <li
               key={`${row.checkedInAt}-${i}`}
-              className="flex items-center gap-3 rounded-field border border-ink-100 px-3 py-2 dark:border-white/5"
+              className="flex items-center gap-3 rounded-card bg-ink-50 p-3 ring-1 ring-inset ring-ink-200 transition hover:bg-white dark:bg-white/[0.03] dark:ring-white/10 dark:hover:bg-white/[0.06]"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] font-display text-xs font-bold text-white">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] font-display text-xs font-bold text-white">
                 {initials(row.name)}
               </span>
               <span className="min-w-0 flex-1">
@@ -529,8 +651,11 @@ function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
                   {row.name}
                 </span>
                 <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
-                  {row.planName ?? 'No plan'} · {timeAgo(row.checkedInAt)}
+                  {row.planName ?? 'No plan'}
                 </span>
+              </span>
+              <span className="shrink-0 font-mono text-[10px] text-ink-400 dark:text-ink-500">
+                {timeAgo(row.checkedInAt)}
               </span>
             </li>
           ))}
@@ -569,12 +694,12 @@ function initials(name: string): string {
   return (first + last).toUpperCase() || '?';
 }
 
+/** The design's compact relative timestamp: "now", "2m", "1h", "3d". */
 function timeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
 }

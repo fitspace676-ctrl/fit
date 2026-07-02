@@ -6,7 +6,7 @@ import { getServerSession } from '@/lib/session';
 import { LocationForm } from '../location-form';
 
 export const metadata: Metadata = {
-  title: 'New location — Fit Admin',
+  title: 'Add location — Fit Admin',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.
@@ -36,11 +36,11 @@ export default async function NewLocationPage() {
 
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          New location
+          Add location
         </h1>
         <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          Add a branch to your gym. Set its address, opening hours, and amenities so members can
-          find and choose where to train.
+          A new Iron Gym site — set its address, opening hours, and amenities so members can find
+          and choose where to train.
         </p>
       </header>
 

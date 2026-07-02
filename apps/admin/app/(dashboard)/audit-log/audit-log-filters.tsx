@@ -2,23 +2,27 @@
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Btn } from '@/components/ui';
 import { ACTION_OPTIONS } from './audit-actions';
 
-/** Shared field styling, matching the other admin forms. */
-const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
+/** Filter-chip styling per the reference: a soft pill at rest, brand-tinted when active. */
+const CHIP_BASE =
+  'h-9 shrink-0 rounded-pill px-3.5 text-xs font-semibold ring-1 ring-inset transition';
+const CHIP_ACTIVE = 'bg-brand-500/10 text-brand-600 ring-brand-500/60 dark:text-brand-300';
+const CHIP_IDLE =
+  'bg-ink-50 text-ink-600 ring-ink-200 hover:bg-ink-100 dark:bg-white/[0.03] dark:text-ink-300 dark:ring-white/10 dark:hover:bg-white/[0.06]';
 
-/** Filter label styling. */
-const FILTER_LABEL_CLASS =
-  'mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+/** Compact date fields, styled to sit inside the chip row. */
+const DATE_CLASS =
+  'h-9 rounded-pill bg-ink-50 px-3.5 text-xs font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 focus:outline-none focus:ring-brand-500/60 dark:bg-white/[0.03] dark:text-ink-300 dark:ring-white/10 dark:[color-scheme:dark]';
 
 /**
- * The audit-log filter bar: an action select and a `from`/`to` date range. Each
- * control writes its state to the URL search params (the single source of truth
- * the server page reads), resetting to page 1 on any change so the pager never
- * lands past the end of a freshly-narrowed result set. Navigation runs in a
- * transition so the controls stay responsive while the server re-renders.
+ * The audit-log filter bar, laid out as the reference's chip row: an "All" chip
+ * plus one chip per known action, with the `from`/`to` date range tucked at the
+ * right end. Each control writes its state to the URL search params (the single
+ * source of truth the server page reads), resetting to page 1 on any change so
+ * the pager never lands past the end of a freshly-narrowed result set.
+ * Navigation runs in a transition so the controls stay responsive while the
+ * server re-renders.
  */
 export function AuditLogFilters({
   action,
@@ -48,64 +52,60 @@ export function AuditLogFilters({
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <div className="sm:w-64">
-        <label htmlFor="audit-action" className={FILTER_LABEL_CLASS}>
-          Action
-        </label>
-        <select
-          id="audit-action"
-          value={action}
-          onChange={(event) => commit('action', event.target.value)}
-          className={FIELD_CLASS}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <button
+        type="button"
+        aria-pressed={action === ''}
+        onClick={() => commit('action', '')}
+        className={`${CHIP_BASE} ${action === '' ? CHIP_ACTIVE : CHIP_IDLE}`}
+      >
+        All
+      </button>
+      {ACTION_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={action === option.value}
+          onClick={() => commit('action', option.value)}
+          className={`${CHIP_BASE} ${action === option.value ? CHIP_ACTIVE : CHIP_IDLE}`}
         >
-          <option value="">All actions</option>
-          {ACTION_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          {option.label}
+        </button>
+      ))}
 
-      <div className="sm:w-44">
-        <label htmlFor="audit-from" className={FILTER_LABEL_CLASS}>
-          From
-        </label>
+      {/* Date range, right-aligned on wide screens. */}
+      <div className="ml-auto flex items-center gap-1.5">
         <input
           id="audit-from"
+          aria-label="From date"
           type="date"
           value={from}
           max={to || undefined}
           onChange={(event) => commit('from', event.target.value)}
-          className={FIELD_CLASS}
+          className={DATE_CLASS}
         />
-      </div>
-
-      <div className="sm:w-44">
-        <label htmlFor="audit-to" className={FILTER_LABEL_CLASS}>
-          To
-        </label>
+        <span aria-hidden className="text-xs text-ink-400 dark:text-ink-500">
+          –
+        </span>
         <input
           id="audit-to"
+          aria-label="To date"
           type="date"
           value={to}
           min={from || undefined}
           onChange={(event) => commit('to', event.target.value)}
-          className={FIELD_CLASS}
+          className={DATE_CLASS}
         />
+        {action || from || to ? (
+          <button
+            type="button"
+            onClick={() => startTransition(() => router.replace(pathname))}
+            className="h-9 rounded-pill px-3 text-xs font-semibold text-ink-500 transition hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
-
-      {action || from || to ? (
-        <Btn
-          v="outline"
-          size="md"
-          onClick={() => startTransition(() => router.replace(pathname))}
-          className="self-start sm:self-auto"
-        >
-          Clear
-        </Btn>
-      ) : null}
     </div>
   );
 }
