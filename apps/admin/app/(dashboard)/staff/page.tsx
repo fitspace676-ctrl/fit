@@ -3,8 +3,7 @@ import { getServerSession } from '@/lib/session';
 import { ApiError, fetchStaff } from '@/lib/api';
 import { Card, Icon } from '@/components/ui';
 import { InviteForm } from './invite-form';
-import { PendingInvites } from './pending-invites';
-import { StaffTable } from './staff-table';
+import { StaffView } from './staff-view';
 
 export const metadata: Metadata = {
   title: 'Staff — Fit Admin',
@@ -17,11 +16,12 @@ export const dynamic = 'force-dynamic';
 
 /**
  * The staff management page (T4.7). Server-renders the gym's active staff and its
- * pending invitations from `GET /staff`, with an invite form on top. The whole
- * `/staff` route already requires an `OWNER` session (middleware + the API's
- * `StaffManage` guard), so the only failure handled here is the API call itself.
- * The signed-in user's id is passed to the table so it can flag their own row and
- * stop them removing themselves.
+ * pending invitations from `GET /staff` into the Planflow "formacore" staff
+ * screen: page header with the invite-staff modal trigger, People / Invitations
+ * tabs, KPI cards, and the staff table. The whole `/staff` route already requires
+ * an `OWNER` session (middleware + the API's `StaffManage` guard), so the only
+ * failure handled here is the API call itself. The signed-in user's id is passed
+ * down so the table can flag their own row and stop them removing themselves.
  */
 export default async function StaffPage() {
   const session = await getServerSession();
@@ -29,23 +29,7 @@ export default async function StaffPage() {
   let content;
   try {
     const { staff, invites } = await fetchStaff();
-    content = (
-      <>
-        <section className="flex flex-col gap-3">
-          <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-            Team
-          </h2>
-          <StaffTable staff={staff} currentUserId={session?.userId ?? null} />
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-            Pending invitations
-          </h2>
-          <PendingInvites invites={invites} />
-        </section>
-      </>
-    );
+    content = <StaffView staff={staff} invites={invites} currentUserId={session?.userId ?? null} />;
   } catch (error) {
     const message =
       error instanceof ApiError
@@ -65,18 +49,18 @@ export default async function StaffPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Staff
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          Invite people to your team, assign their role, and remove anyone who should no longer have
-          access. Invitations are emailed a one-time link and expire after 7 days.
-        </p>
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Staff
+          </h1>
+          <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
+            Manage the people who run your gym — roles, access and invitations.
+          </p>
+        </div>
+        <InviteForm />
       </header>
-
-      <InviteForm />
 
       {content}
     </div>
