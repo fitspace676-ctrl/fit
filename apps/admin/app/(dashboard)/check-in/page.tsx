@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCheckInStats, fetchTodayCheckIns } from '@/lib/api';
-import { Card, Icon } from '@/components/ui';
+import { Badge, Card, Icon } from '@/components/ui';
 import { ReceptionBoard } from './reception-board';
 
 export const metadata: Metadata = {
@@ -56,24 +56,27 @@ export default async function CheckInPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            Reception
-          </h1>
-          <span className="inline-flex items-center gap-1.5 rounded-pill bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 ring-1 ring-inset ring-success-500/30 dark:bg-success-500/10 dark:text-success-200">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-500 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success-500" />
-            </span>
-            Live
-          </span>
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+              Reception
+            </h1>
+            <Badge tone="success">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-400 opacity-70" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-success-500" />
+                </span>
+                Live
+              </span>
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
+            Scan a member&apos;s QR or check them in by name.
+          </p>
         </div>
-        <p className="max-w-md text-sm text-ink-500 dark:text-ink-400">
-          Scan a member&apos;s QR or look them up to check them in. Arrivals appear in the live feed
-          as they happen.
-        </p>
       </header>
 
       {board}
