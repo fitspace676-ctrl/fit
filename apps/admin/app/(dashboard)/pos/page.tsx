@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { Card, Icon } from '@/components/ui';
@@ -48,27 +47,13 @@ export default async function PosPage() {
     );
   }
 
+  // The design's POS terminal has no in-content page header — the board's search
+  // row is the top of the screen — so the title is screen-reader-only and the
+  // end-of-day entry point rides in the board's toolbar.
   return (
-    <div className="flex h-screen flex-col gap-4 p-4">
-      <header className="flex items-baseline justify-between gap-4">
-        <h1 className="font-display text-xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-2xl">
-          Point of sale
-        </h1>
-        <div className="flex items-baseline gap-4">
-          <p className="hidden text-xs text-ink-400 sm:block">
-            F1 search products · F2 find member · Esc clear sale
-          </p>
-          {canReconcile ? (
-            <Link
-              href="/pos/reconciliation"
-              className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-            >
-              End-of-day report
-            </Link>
-          ) : null}
-        </div>
-      </header>
-      <PosBoard />
+    <div>
+      <h1 className="sr-only">Point of sale</h1>
+      <PosBoard reconciliationHref={canReconcile ? '/pos/reconciliation' : null} />
     </div>
   );
 }

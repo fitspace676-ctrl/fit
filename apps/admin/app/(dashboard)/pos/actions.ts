@@ -42,6 +42,8 @@ export interface PosMemberRow {
   phone: string | null;
   email: string;
   photoUrl: string | null;
+  /** The member's live plan name (`null` for none) — shown beside the lookup row. */
+  planName: string | null;
 }
 
 /** Max products the grid shows for one search — a tablet screen of tiles. */
@@ -83,6 +85,7 @@ function toPosMember(row: MemberRow): PosMemberRow {
     phone: row.phone,
     email: row.email,
     photoUrl: null,
+    planName: row.planName,
   };
 }
 
