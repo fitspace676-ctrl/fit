@@ -67,6 +67,21 @@ export const ORDER_STATUS_STYLES: Record<AdminOrderStatus, { label: string; tone
   REFUNDED: { label: 'Refunded', tone: 'danger' },
 };
 
+/**
+ * The 6px status-dot colour paired with each badge tone — the reference design
+ * leads every status pill with a `*-400` dot in the pill's own hue.
+ */
+export const TONE_DOTS: Record<Tone, string> = {
+  ink: 'bg-ink-400',
+  brand: 'bg-brand-400',
+  success: 'bg-success-400',
+  warning: 'bg-warning-400',
+  danger: 'bg-danger-400',
+  accent: 'bg-accent-400',
+  iris: 'bg-iris-400',
+  flame: 'bg-flame-400',
+};
+
 /** Visual treatment + label per payment status. */
 export const PAYMENT_STATUS_STYLES: Record<AdminPaymentStatus, { label: string; tone: Tone }> = {
   PENDING: { label: 'Pending', tone: 'warning' },

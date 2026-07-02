@@ -6,9 +6,9 @@ import { Btn } from '@/components/ui';
 import { formatMoney } from '../format';
 import { refundOrderAction } from './actions';
 
-/** Shared kit field styling for the refund inputs. */
+/** Shared design-skin field styling (soft fill + inset ring) for the refund inputs. */
 const FIELD_CLASS =
-  'rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
+  'rounded-field bg-ink-50 px-3.5 py-2.5 text-sm text-ink-900 ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-white/[0.04] dark:text-white dark:ring-white/10 dark:placeholder:text-ink-500';
 
 /** Minor units per major unit (USD/EUR/GEL — all two-decimal). */
 const MINOR_PER_MAJOR = 100;

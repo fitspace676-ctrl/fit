@@ -4,42 +4,70 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminOrderRow, AdminOrderStatus } from '@fit/types';
-import { Badge, Btn, Card, buttonClasses } from '@/components/ui';
+import { Badge, Btn, Card, Dot } from '@/components/ui';
 import {
   CHANNEL_LABELS,
   ORDER_STATUS_STYLES,
-  PAYMENT_METHOD_LABELS,
+  TONE_DOTS,
   formatDateTime,
   formatMoney,
 } from './format';
+import { OrderGlyph } from './icons';
 
-/** A status pill mirroring the products roster styling. */
+/** Column headers, in render order (design: Order · Customer · Items · Channel · Total · Status · ⋯). */
+const HEADERS: ReadonlyArray<{ label: string; align?: 'right' }> = [
+  { label: 'Order' },
+  { label: 'Customer' },
+  { label: 'Items' },
+  { label: 'Channel' },
+  { label: 'Total', align: 'right' },
+  { label: 'Status' },
+  { label: '', align: 'right' },
+];
+
+/** A status pill mirroring the reference styling — leading tone dot + label. */
 function StatusPill({ status }: { status: AdminOrderStatus }) {
   const { label, tone } = ORDER_STATUS_STYLES[status];
-  return <Badge tone={tone}>{label}</Badge>;
+  return (
+    <Badge tone={tone}>
+      <span className="inline-flex items-center gap-1.5">
+        <Dot c={TONE_DOTS[tone]} />
+        {label}
+      </span>
+    </Badge>
+  );
+}
+
+/** Render a customer's initials for the avatar placeholder. */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return (parts[0]![0]! + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
+/** The staff-facing customer label — the name, or who the order was rung up for. */
+function customerLabel(order: AdminOrderRow): string {
+  return order.customerName ?? (order.memberId ? 'Member' : 'Walk-in');
 }
 
 /**
  * The orders roster table (T7.9). Server-rendered data, client-side interaction:
- * pagination and a CSV-export link, both reading the URL search params so the
- * server page stays the single source of truth. Each row shows the order's date,
- * channel, status, who it's for, the settlement method, the net total (with the
- * refunded amount called out), and the item count. The data never mutates here —
- * refunds happen on the detail page.
+ * row navigation into the detail page plus pagination, reading the URL search
+ * params so the server page stays the single source of truth. Each row shows the
+ * order id + date, who it's for, the item count, the sales channel, the total
+ * (with the refunded amount called out), and the status pill. The data never
+ * mutates here — refunds happen on the detail page.
  */
 export function OrdersTable({
   orders,
   total,
   page,
   limit,
-  exportQuery,
 }: {
   orders: AdminOrderRow[];
   total: number;
   page: number;
   limit: number;
-  /** The active filters as a `?key=value` string, forwarded to the export link. */
-  exportQuery: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -66,77 +94,66 @@ export function OrdersTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-end">
-        <a href={`/orders/export${exportQuery}`} className={buttonClasses('outline', 'sm')}>
-          Export CSV
-        </a>
-      </div>
-
-      {orders.length === 0 ? (
-        <Card className="px-4 py-10 text-center text-sm text-ink-500 dark:text-ink-400">
-          No orders match your filters yet.
-        </Card>
-      ) : (
-        <Card className="overflow-x-auto p-0">
+      <Card glow className="p-0">
+        <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-ink-100 dark:border-white/10">
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Order
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Date
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Channel
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Status
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Customer
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Method
-                </th>
-                <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Total
-                </th>
-                <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Items
-                </th>
+              <tr className="border-b border-ink-200 dark:border-white/10">
+                {HEADERS.map((header, index) => (
+                  <th
+                    key={index}
+                    className={`px-5 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400 ${
+                      header.align === 'right' ? 'text-right' : ''
+                    }`}
+                  >
+                    {header.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {orders.map((order) => (
                 <tr
                   key={order.id}
-                  className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+                  onClick={() => router.push(`/orders/${order.id}`)}
+                  className="cursor-pointer border-b border-ink-200 transition last:border-0 hover:bg-ink-50 dark:border-white/10 dark:hover:bg-white/[0.025]"
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-3.5">
                     <Link
                       href={`/orders/${order.id}`}
-                      className="font-mono text-xs font-medium text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
+                      onClick={(event) => event.stopPropagation()}
+                      className="font-mono text-xs font-semibold text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
                     >
                       {order.id.slice(-8)}
                     </Link>
+                    <p className="text-xs text-ink-400 dark:text-ink-500">
+                      {formatDateTime(order.createdAt)}
+                    </p>
                   </td>
-                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                    {formatDateTime(order.createdAt)}
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-200">
+                        {initialsOf(customerLabel(order))}
+                      </span>
+                      <span className="font-medium text-ink-600 dark:text-ink-300">
+                        {customerLabel(order)}
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                    {CHANNEL_LABELS[order.channel]}
+                  <td className="px-5 py-3.5 text-ink-600 dark:text-ink-300">
+                    {order.itemCount} item{order.itemCount === 1 ? '' : 's'}
                   </td>
-                  <td className="px-4 py-3">
-                    <StatusPill status={order.status} />
+                  <td className="px-5 py-3.5">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300">
+                      <OrderGlyph
+                        name={order.channel === 'POS' ? 'pos' : 'globe'}
+                        className="h-3.5 w-3.5 text-ink-500 dark:text-ink-400"
+                        sw={2}
+                      />
+                      {CHANNEL_LABELS[order.channel]}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                    {order.customerName ?? (order.memberId ? 'Member' : 'Walk-in')}
-                  </td>
-                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                    {order.paymentMethod ? PAYMENT_METHOD_LABELS[order.paymentMethod] : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-900 dark:text-white">
+                  <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink-900 dark:text-white">
                     {formatMoney(order.total, order.currency)}
                     {order.refundedAmount > 0 && (
                       <span className="block text-xs font-normal text-danger-600 dark:text-danger-300">
@@ -144,15 +161,37 @@ export function OrdersTable({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                    {order.itemCount}
+                  <td className="px-5 py-3.5">
+                    <StatusPill status={order.status} />
+                  </td>
+                  <td className="px-5 py-3.5" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex justify-end">
+                      <Link
+                        href={`/orders/${order.id}`}
+                        aria-label={`Open order ${order.id.slice(-8)}`}
+                        className="grid h-9 w-9 place-items-center rounded-btn text-ink-500 transition hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                      >
+                        <OrderGlyph name="dots" className="h-5 w-5" />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </Card>
-      )}
+          {orders.length === 0 && (
+            <div className="py-16 text-center">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-card bg-ink-50 ring-1 ring-inset ring-ink-200 dark:bg-white/[0.03] dark:ring-white/10">
+                <OrderGlyph name="box" className="h-6 w-6 text-ink-400 dark:text-ink-500" />
+              </div>
+              <p className="mt-3 font-semibold text-ink-900 dark:text-white">No orders here</p>
+              <p className="text-sm text-ink-500 dark:text-ink-400">
+                Try a different status or search.
+              </p>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Pager. */}
       <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
@@ -163,6 +202,7 @@ export function OrdersTable({
           <Btn
             v="outline"
             size="sm"
+            icon="chevronLeft"
             disabled={!hasPrev}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
@@ -173,6 +213,7 @@ export function OrdersTable({
           <Btn
             v="outline"
             size="sm"
+            iconRight="chevronRight"
             disabled={!hasNext}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
