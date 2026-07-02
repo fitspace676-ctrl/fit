@@ -7,7 +7,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchAnalytics } from '@/lib/api';
-import { AnalyticsView } from './analytics-view';
+import { AnalyticsRangeControl, AnalyticsView } from './analytics-view';
 
 export const metadata: Metadata = {
   title: 'Analytics — Fit Admin',
@@ -39,16 +39,18 @@ export default async function AnalyticsPage({
   const range: AnalyticsRange = parsedRange.success ? parsedRange.data : '30d';
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Analytics
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          Revenue, membership, attendance, and subscription trends for your gym — every figure is
-          computed live from your real data.
-        </p>
-      </header>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <header className="flex flex-col gap-1">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Analytics
+          </h1>
+          <p className="text-sm text-ink-500 dark:text-ink-400">
+            Revenue, retention and attendance across your gym.
+          </p>
+        </header>
+        {canViewReports && <AnalyticsRangeControl value={range} />}
+      </div>
 
       {canViewReports ? (
         <AnalyticsBody range={range} />
