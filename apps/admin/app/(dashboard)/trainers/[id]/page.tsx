@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { Permission, roleHasPermission, type AdminTrainerDetail } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainer } from '@/lib/api';
-import { Badge, Btn, Card, Icon, type IconName, type Tone } from '@/components/ui';
+import { Badge, Btn, Card, Dot, Icon, type IconName, type Tone } from '@/components/ui';
 import { TrainerActions } from './trainer-actions';
 import { TrainerTabs } from './trainer-tabs';
 
@@ -17,26 +17,17 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster cards' pills. */
-const STATUS_LABELS: Record<string, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'On leave', tone: 'warning' },
+const STATUS_LABELS: Record<string, { label: string; tone: Tone; dot: string }> = {
+  ACTIVE: { label: 'Active', tone: 'success', dot: 'bg-success-400' },
+  INACTIVE: { label: 'On leave', tone: 'warning', dot: 'bg-warning-400' },
 };
 
-/** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null): string {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-/** "Hired March 2025" from an ISO instant, or an em dash when absent/invalid. */
+/** "Hired Mar 2025" from an ISO instant, or an em dash when absent/invalid. */
 function formatHired(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : `Hired ${date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`;
+    : `Hired ${date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
 }
 
 /** Render a trainer's initials for the avatar placeholder. */
@@ -46,30 +37,30 @@ function initialsOf(name: string): string {
   return (parts[0]![0]! + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
-/** One detail KPI card — icon tile, headline value, label, and sub-context. */
+/** One detail KPI card — toned icon, headline value, micro label, sub-context. */
 function DetailKpi({
   label,
   value,
   context,
   icon,
+  tone,
 }: {
   label: string;
   value: string;
   context: string;
   icon: IconName;
+  tone: string;
 }) {
   return (
-    <Card className="flex h-full flex-col p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-5 w-5" />
-      </span>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+    <Card className="p-4 sm:p-5">
+      <Icon name={icon} className={`h-5 w-5 ${tone}`} />
+      <p className="mt-3 font-display text-2xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
         {value}
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-400">
         {label}
       </p>
-      <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">{context}</p>
+      <p className="mt-0.5 text-[11px] text-ink-400 dark:text-ink-500">{context}</p>
     </Card>
   );
 }
@@ -118,7 +109,11 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     );
   }
 
-  const status = STATUS_LABELS[trainer.status] ?? { label: trainer.status, tone: 'ink' as const };
+  const status = STATUS_LABELS[trainer.status] ?? {
+    label: trainer.status,
+    tone: 'ink' as const,
+    dot: 'bg-ink-400',
+  };
 
   // Write controls (edit + deactivate) are a `TrainerWrite` capability.
   const session = await getServerSession();
@@ -139,94 +134,95 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
           <Icon name="chevronRight" className="h-3.5 w-3.5" />
           <span className="text-ink-600 dark:text-ink-300">{trainer.name}</span>
         </nav>
-        <Btn v="outline" size="sm" icon="message" disabled>
+        <Btn v="primary" size="sm" icon="message" disabled>
           Message
         </Btn>
       </div>
 
       <Link
         href="/trainers"
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
       >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2.2} />
         Back to trainers
       </Link>
 
       {/* Identity header card. */}
-      <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-4">
+      <Card className="p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           {trainer.photoUrl ? (
             <img
               src={trainer.photoUrl}
               alt={`${trainer.name} photo`}
-              className="h-16 w-16 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
+              className="h-24 w-24 shrink-0 rounded-full object-cover ring-2 ring-brand-500 ring-offset-2 ring-offset-white dark:ring-offset-ink-950"
             />
           ) : (
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-xl font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
+            <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-brand-50 text-2xl font-semibold text-brand-700 ring-2 ring-brand-500 ring-offset-2 ring-offset-white dark:bg-brand-500/15 dark:text-brand-200 dark:ring-offset-ink-950">
               {initialsOf(trainer.name)}
             </span>
           )}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">
                 {trainer.name}
               </h1>
-              <Badge tone={status.tone}>{status.label}</Badge>
-              {trainer.specialties[0] ? <Badge tone="brand">{trainer.specialties[0]}</Badge> : null}
+              <Badge tone={status.tone}>
+                <Dot c={status.dot} className="mr-1.5" />
+                {status.label}
+              </Badge>
+              {trainer.headline || trainer.specialties[0] ? (
+                <Badge tone="brand">{trainer.headline || trainer.specialties[0]}</Badge>
+              ) : null}
             </div>
-            {trainer.headline ? (
-              <p className="text-sm text-ink-500 dark:text-ink-400">{trainer.headline}</p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500 dark:text-ink-400">
-              <span className="inline-flex items-center gap-1">
-                <Icon name="star" className="h-3.5 w-3.5 text-amber-500" />
-                <span className="font-semibold tabular-nums text-ink-700 dark:text-ink-200">
-                  {trainer.rating.toFixed(1)}
-                </span>
-                · {trainer.reviewCount} {trainer.reviewCount === 1 ? 'review' : 'reviews'}
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-500 dark:text-ink-400">
+              <span className="inline-flex items-center gap-1 text-warning-600 dark:text-warning-300">
+                <Icon name="star" className="h-3.5 w-3.5" sw={1.8} />
+                {trainer.rating.toFixed(1)} · {trainer.reviewCount}{' '}
+                {trainer.reviewCount === 1 ? 'review' : 'reviews'}
               </span>
-              <span aria-hidden>·</span>
-              <span>{formatHired(trainer.hiredAt)}</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="calendar" className="h-3.5 w-3.5" sw={2} />
+                {formatHired(trainer.hiredAt)}
+              </span>
             </div>
           </div>
+          {canWrite ? <TrainerActions trainerId={trainer.id} status={trainer.status} /> : null}
         </div>
-        {canWrite ? <TrainerActions trainerId={trainer.id} status={trainer.status} /> : null}
       </Card>
 
       {/* Four live KPI cards. */}
-      <section
-        aria-label="Trainer metrics"
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
+      <section aria-label="Trainer metrics" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <DetailKpi
           label="Rating"
           value={trainer.rating.toFixed(1)}
           context={`${trainer.reviewCount} ${trainer.reviewCount === 1 ? 'review' : 'reviews'}`}
           icon="star"
+          tone="text-warning-400"
         />
         <DetailKpi
           label="Classes / week"
           value={String(trainer.classesThisWeek)}
           context="this week"
           icon="calendar"
+          tone="text-accent-400"
         />
         <DetailKpi
           label="Reviews"
           value={String(trainer.reviewCount)}
           context={`${trainer.thisWeek.newReviews} new this week`}
           icon="message"
+          tone="text-iris-400"
         />
         <DetailKpi
           label="Show-up rate"
           value={trainer.showUpRate === null ? '—' : `${trainer.showUpRate}%`}
           context="last 90 days"
-          icon="check"
+          icon="chart"
+          tone="text-success-400"
         />
       </section>
 
       <TrainerTabs trainer={trainer} />
-
-      <p className="text-xs text-ink-400">Profile added {formatDate(trainer.createdAt)}.</p>
     </div>
   );
 }

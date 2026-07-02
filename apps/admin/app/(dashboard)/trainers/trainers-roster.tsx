@@ -4,16 +4,16 @@ import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminTrainerRow, AdminTrainerSummary, TrainerStatus } from '@fit/types';
-import { Badge, Btn, Card, CountUp, Icon, type IconName, type Tone } from '@/components/ui';
+import { Badge, Btn, Card, CountUp, Dot, Icon, type IconName, type Tone } from '@/components/ui';
 
-/** Visual treatment per trainer status — success active, ink inactive. */
-const STATUS_STYLES: Record<TrainerStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'On leave', tone: 'warning' },
+/** Visual treatment per trainer status — success active, warning on leave. */
+const STATUS_STYLES: Record<TrainerStatus, { label: string; tone: Tone; dot: string }> = {
+  ACTIVE: { label: 'Active', tone: 'success', dot: 'bg-success-400' },
+  INACTIVE: { label: 'On leave', tone: 'warning', dot: 'bg-warning-400' },
 };
 
-/** The engine gradient shared by the primary controls (Planflow "formacore"). */
-const ENGINE_GRADIENT = 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)]';
+/** The soft inset tile/chip surface (Planflow "formacore" `soft`). */
+const SOFT = 'bg-ink-50 ring-1 ring-inset ring-ink-200 dark:bg-white/[0.03] dark:ring-white/10';
 
 /** Render a trainer's initials for the avatar placeholder. */
 function initialsOf(name: string): string {
@@ -41,107 +41,109 @@ function formatNextClass(iso: string): string {
   return `${day} ${time}`;
 }
 
-/** One roster KPI card — icon tile, animated headline value, label, and context. */
+/** One roster KPI card — toned icon, animated headline value, micro label. */
 function KpiCard({
   label,
   value,
-  context,
   icon,
+  tone,
   decimals = false,
 }: {
   label: string;
   value: number;
-  context: string;
   icon: IconName;
+  tone: string;
   decimals?: boolean;
 }) {
   return (
-    <Card className="flex h-full flex-col p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-5 w-5" />
-      </span>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+    <Card className="p-4 sm:p-5">
+      <Icon name={icon} className={`h-5 w-5 ${tone}`} />
+      <p className="mt-3 font-display text-2xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
         {decimals ? value.toFixed(1) : <CountUp to={value} />}
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-400">
         {label}
       </p>
-      <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">{context}</p>
     </Card>
   );
 }
 
-/** A compact stat tile inside a trainer card (Classes / wk · PT clients). */
+/** A compact stat tile inside a trainer card (Classes / wk · Reviews). */
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-btn border border-ink-100 bg-ink-50/60 px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
-      <p className="font-display text-lg font-extrabold tabular-nums leading-none text-ink-900 dark:text-white">
+    <div className={`rounded-card p-2.5 ${SOFT}`}>
+      <p className="font-display text-lg font-extrabold tabular-nums text-ink-900 dark:text-white">
         {value}
       </p>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-400">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-500 dark:text-ink-400">
         {label}
       </p>
     </div>
   );
 }
 
-/** A single trainer card in the 2-up grid. */
+/** A single trainer card in the roster grid. */
 function TrainerCard({ trainer }: { trainer: AdminTrainerRow }) {
   const status = STATUS_STYLES[trainer.status];
   return (
-    <Card className="flex flex-col gap-4 p-5 transition-colors hover:border-brand-300 dark:hover:border-brand-500/50">
-      <div className="flex items-start gap-3">
-        {trainer.photoUrl ? (
-          <img
-            src={trainer.photoUrl}
-            alt=""
-            className="h-12 w-12 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
-          />
-        ) : (
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
-            {initialsOf(trainer.name)}
-          </span>
-        )}
+    <Card className="p-5 transition-colors dark:hover:bg-white/[0.06]">
+      <div className="flex items-start gap-3.5">
+        <Link href={`/trainers/${trainer.id}`} className="shrink-0">
+          {trainer.photoUrl ? (
+            <img
+              src={trainer.photoUrl}
+              alt=""
+              className="h-14 w-14 rounded-full object-cover ring-2 ring-brand-500 ring-offset-2 ring-offset-white dark:ring-offset-ink-950"
+            />
+          ) : (
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 ring-2 ring-brand-500 ring-offset-2 ring-offset-white dark:bg-brand-500/15 dark:text-brand-200 dark:ring-offset-ink-950">
+              {initialsOf(trainer.name)}
+            </span>
+          )}
+        </Link>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/trainers/${trainer.id}`}
-              className="truncate font-semibold text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
-            >
-              {trainer.name}
-            </Link>
-            <Badge tone={status.tone}>{status.label}</Badge>
-          </div>
+          <Link
+            href={`/trainers/${trainer.id}`}
+            className="block truncate font-display text-base font-bold tracking-tight text-ink-900 transition-colors hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
+          >
+            {trainer.name}
+          </Link>
           {trainer.headline ? (
             <p className="truncate text-xs text-ink-500 dark:text-ink-400">{trainer.headline}</p>
           ) : null}
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-500 dark:text-ink-400">
-            <Icon name="star" className="h-3.5 w-3.5 text-amber-500" />
-            <span className="font-semibold tabular-nums text-ink-700 dark:text-ink-200">
+          <div className="mt-1.5 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 font-mono text-[11px] text-warning-600 dark:text-warning-300">
+              <Icon name="star" className="h-3.5 w-3.5" sw={1.8} />
               {trainer.rating.toFixed(1)}
             </span>
-            <span>
+            <span className="font-mono text-[11px] text-ink-400 dark:text-ink-500">
               · {trainer.reviewCount} {trainer.reviewCount === 1 ? 'review' : 'reviews'}
             </span>
           </div>
         </div>
-        <Link
-          href={`/trainers/${trainer.id}`}
-          aria-label={`Open ${trainer.name}`}
-          className="grid h-8 w-8 place-items-center rounded-btn text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 dark:hover:bg-white/5 dark:hover:text-white"
-        >
-          <span aria-hidden className="text-lg leading-none">
-            ⋯
-          </span>
-        </Link>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Badge tone={status.tone}>
+            <Dot c={status.dot} className="mr-1.5" />
+            {status.label}
+          </Badge>
+          <Link
+            href={`/trainers/${trainer.id}`}
+            aria-label={`Open ${trainer.name}`}
+            className="grid h-8 w-8 place-items-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/[0.08] dark:hover:text-white"
+          >
+            <span aria-hidden className="text-lg leading-none">
+              ⋯
+            </span>
+          </Link>
+        </div>
       </div>
 
       {trainer.specialties.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="mt-3.5 flex flex-wrap gap-1.5">
           {trainer.specialties.map((tag) => (
             <span
               key={tag}
-              className="rounded-pill bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600 dark:bg-white/10 dark:text-ink-300"
+              className={`inline-flex h-6 items-center rounded-pill px-2 text-[11px] font-semibold text-ink-600 dark:text-ink-300 ${SOFT}`}
             >
               {tag}
             </span>
@@ -149,27 +151,28 @@ function TrainerCard({ trainer }: { trainer: AdminTrainerRow }) {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2.5">
         <StatTile label="Classes / wk" value={String(trainer.classesThisWeek)} />
         <StatTile label="Reviews" value={String(trainer.reviewCount)} />
       </div>
 
-      <div className="mt-auto flex items-center justify-between border-t border-ink-100 pt-3 text-xs dark:border-white/10">
-        <span className="flex items-center gap-1.5 text-ink-500 dark:text-ink-400">
-          <Icon name="calendar" className="h-3.5 w-3.5" />
-          {trainer.nextClass ? (
-            <span className="truncate">
-              {formatNextClass(trainer.nextClass.startsAt)} · {trainer.nextClass.title}
-            </span>
-          ) : (
-            <span>No upcoming class</span>
-          )}
+      <div className="mt-3.5 flex items-center gap-2 border-t border-ink-200 pt-3.5 dark:border-white/10">
+        <Icon
+          name="calendar"
+          className="h-4 w-4 shrink-0 text-brand-600 dark:text-brand-300"
+          sw={2}
+        />
+        <span className="truncate text-xs text-ink-500 dark:text-ink-400">
+          {trainer.nextClass
+            ? `${formatNextClass(trainer.nextClass.startsAt)} · ${trainer.nextClass.title}`
+            : 'No upcoming class'}
         </span>
         <Link
           href={`/trainers/${trainer.id}`}
-          className="shrink-0 font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+          className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-600 transition-opacity hover:opacity-80 dark:text-brand-300"
         >
-          View →
+          View
+          <Icon name="arrow" className="h-3.5 w-3.5" sw={2.2} />
         </Link>
       </div>
     </Card>
@@ -178,9 +181,9 @@ function TrainerCard({ trainer }: { trainer: AdminTrainerRow }) {
 
 /**
  * The trainers roster (client): the four gym-wide KPI cards, a specialty
- * segmented filter + search, and the 2-up card grid with a pager. The KPI figures
- * and each card's live numbers are backed by real tenant-scoped queries (they
- * arrive on the server response). The specialty segment + search filter the
+ * segmented filter + search, and the responsive card grid with a pager. The KPI
+ * figures and each card's live numbers are backed by real tenant-scoped queries
+ * (they arrive on the server response). The specialty segment + search filter the
  * *current page* client-side over real specialties; sort/pagination stay on the
  * server via the URL. Renders correctly with an empty roster.
  */
@@ -244,45 +247,37 @@ export function TrainersRoster({
   const hasNext = page * limit < total;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {/* Gym-wide KPI cards — real aggregates over the whole filtered roster. */}
-      <section
-        aria-label="Roster metrics"
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
-        <KpiCard
-          label="Trainers"
-          value={summary.total}
-          context={`${summary.active} active`}
-          icon="users"
-        />
+      <section aria-label="Roster metrics" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiCard label="Trainers" value={summary.total} icon="users" tone="text-brand-400" />
         <KpiCard
           label="Classes / week"
           value={summary.classesPerWeek}
-          context="across the roster"
           icon="calendar"
+          tone="text-accent-400"
         />
         <KpiCard
           label="Avg rating"
           value={summary.avgRating}
-          context="from member reviews"
           icon="star"
+          tone="text-warning-400"
           decimals
         />
         <KpiCard
           label="Reviews"
           value={trainers.reduce((sum, t) => sum + t.reviewCount, 0)}
-          context="on this page"
           icon="message"
+          tone="text-iris-400"
         />
       </section>
 
       {/* Specialty segment + search. */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-wrap items-center gap-3">
         <div
           role="tablist"
           aria-label="Filter by specialty"
-          className="inline-flex flex-wrap gap-1 rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
+          className="inline-flex overflow-x-auto rounded-btn bg-ink-100 p-1 ring-1 ring-inset ring-ink-200 dark:bg-white/[0.06] dark:ring-white/10"
         >
           {specialties.map((option) => {
             const active = option === specialty;
@@ -293,9 +288,9 @@ export function TrainersRoster({
                 role="tab"
                 aria-selected={active}
                 onClick={() => setSpecialty(option)}
-                className={`rounded-btn px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                className={`h-9 whitespace-nowrap rounded-[7px] px-3.5 text-sm font-semibold transition-colors ${
                   active
-                    ? `${ENGINE_GRADIENT} text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]`
+                    ? 'bg-white text-ink-900 shadow-sm dark:text-ink-950 dark:shadow-none'
                     : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
                 }`}
               >
@@ -305,43 +300,61 @@ export function TrainersRoster({
           })}
         </div>
 
-        <div className="relative lg:w-72">
+        <div className="ml-auto flex h-10 w-full items-center gap-2.5 rounded-field bg-ink-50 px-3.5 ring-1 ring-inset ring-ink-200 dark:bg-white/[0.04] dark:ring-white/10 sm:w-64">
           <label htmlFor="trainer-search" className="sr-only">
             Search trainers by name or headline
           </label>
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-400">
-            <Icon name="search" className="h-4 w-4" />
-          </span>
+          <Icon
+            name="search"
+            className="h-[18px] w-[18px] shrink-0 text-ink-500 dark:text-ink-400"
+            sw={2}
+          />
           <input
             id="trainer-search"
-            type="search"
+            type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search coaches…"
-            className="h-11 w-full rounded-field border border-ink-200 bg-white pl-9 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+            placeholder="Search trainers…"
+            className="min-w-0 flex-1 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400 dark:text-white dark:placeholder:text-ink-500"
           />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="text-ink-400 transition-colors hover:text-ink-900 dark:text-ink-500 dark:hover:text-white"
+            >
+              <Icon name="x" className="h-4 w-4" sw={2.2} />
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {/* The 2-up card grid. */}
+      {/* The trainer card grid. */}
       {trainers.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 px-4 py-14 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-            <Icon name="users" className="h-6 w-6" />
-          </span>
-          <p className="text-sm font-medium text-ink-700 dark:text-ink-200">No trainers yet</p>
-          <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
+        <Card className="px-4 py-16 text-center">
+          <Icon name="users" className="mx-auto h-9 w-9 text-ink-400 dark:text-ink-500" sw={1.8} />
+          <p className="mt-3 font-display text-lg font-bold text-ink-900 dark:text-white">
+            No trainers yet
+          </p>
+          <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
             {canWrite
               ? 'Add your first coach to build the roster.'
               : 'Your gym has no trainers on the roster yet.'}
           </p>
         </Card>
       ) : visible.length === 0 ? (
-        <Card className="px-4 py-12 text-center text-sm text-ink-500 dark:text-ink-400">
-          No coaches match this filter.
+        <Card className="px-4 py-16 text-center">
+          <Icon name="search" className="mx-auto h-9 w-9 text-ink-400 dark:text-ink-500" sw={1.8} />
+          <p className="mt-3 font-display text-lg font-bold text-ink-900 dark:text-white">
+            No trainers found
+          </p>
+          <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
+            Try another specialty or search term.
+          </p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visible.map((trainer) => (
             <TrainerCard key={trainer.id} trainer={trainer} />
           ))}

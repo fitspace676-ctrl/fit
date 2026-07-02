@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Permission,
@@ -47,15 +48,21 @@ export default async function TrainersPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.TrainerWrite);
 
-  let subtitle = 'Your gym’s coaching roster.';
+  let subtitle: ReactNode = 'Your gym’s coaching roster.';
   let content;
   try {
     const result = await fetchTrainers(query);
     const { total, active } = result.summary;
     subtitle =
-      total === 0
-        ? 'No coaches on the roster yet.'
-        : `${total} ${total === 1 ? 'coach' : 'coaches'} · ${active} active`;
+      total === 0 ? (
+        'No coaches on the roster yet.'
+      ) : (
+        <>
+          <span className="font-mono font-semibold text-ink-900 dark:text-white">{total}</span>{' '}
+          {total === 1 ? 'coach' : 'coaches'} ·{' '}
+          <span className="font-semibold text-success-400">{active} active</span>
+        </>
+      );
     content = (
       <TrainersRoster
         trainers={result.data}

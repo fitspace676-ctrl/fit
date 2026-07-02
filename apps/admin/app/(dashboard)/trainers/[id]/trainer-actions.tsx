@@ -42,7 +42,7 @@ export function TrainerActions({
 
   return (
     <div className="flex flex-col items-end gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <Link href={`/trainers/${trainerId}/edit`} className={buttonClasses('outline', 'sm')}>
           <Icon name="settings" className="h-4 w-4" sw={2} />
           Edit
