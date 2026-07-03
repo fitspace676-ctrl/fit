@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { InstanceStatus } from '@fit/db';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BookingStatus, InstanceStatus } from '@fit/db';
 import type { AdminScheduleQuery } from '@fit/types';
 import { AdminScheduleService } from './admin-schedule.service';
+import type { CreditPacksService } from '../billing/credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 
 /** A joined occurrence row as the schedule projection selects it. */
@@ -61,7 +63,8 @@ function setup(findManyResult: ScheduleRow[] = []) {
   );
   const client = { classInstance: { findMany } } as unknown;
   const prisma = { client } as unknown as TenantPrismaService;
-  return { service: new AdminScheduleService(prisma), findMany };
+  const creditPacks = { refundCredit: vi.fn() } as unknown as CreditPacksService;
+  return { service: new AdminScheduleService(prisma, creditPacks), findMany };
 }
 
 const query = (over?: Partial<AdminScheduleQuery>): AdminScheduleQuery => ({
@@ -169,5 +172,147 @@ describe('AdminScheduleService', () => {
     const { service } = setup([]);
 
     await expect(service.listSchedule(query())).resolves.toEqual({ instances: [] });
+  });
+});
+
+/** A roster booking row as ROSTER_SELECT projects it. */
+const rosterRow = (
+  id: string,
+  status: BookingStatus,
+  over?: {
+    waitlistPosition?: number | null;
+    createdAt?: Date;
+    name?: string | null;
+    email?: string;
+    creditPackId?: string | null;
+  },
+) => ({
+  id,
+  memberId: `gm-${id}`,
+  status,
+  waitlistPosition: over?.waitlistPosition ?? null,
+  createdAt: over?.createdAt ?? new Date('2026-06-01T08:00:00.000Z'),
+  member: { user: { name: over?.name ?? 'Ada Lovelace', email: over?.email ?? 'ada@example.com' } },
+});
+
+/** Wire the tenant-scoped Prisma + credit-packs mocks for the drawer methods. */
+function setupDetail() {
+  const classInstance = {
+    findFirst: vi.fn<(args: unknown) => Promise<unknown>>(),
+    update: vi.fn<(args: unknown) => Promise<unknown>>(),
+  };
+  const booking = {
+    findMany: vi.fn<(args: { where?: Record<string, unknown> }) => Promise<unknown>>(() =>
+      Promise.resolve([]),
+    ),
+    updateMany: vi.fn<(args: unknown) => Promise<unknown>>(),
+  };
+  const $transaction = vi.fn<(cb: (tx: unknown) => unknown) => unknown>();
+  const client = { classInstance, booking, $transaction };
+  $transaction.mockImplementation((cb) => cb(client));
+  const prisma = { client } as unknown as TenantPrismaService;
+  const refundCredit = vi.fn<(tx: unknown, id: string | null) => Promise<void>>(() =>
+    Promise.resolve(),
+  );
+  const creditPacks = { refundCredit } as unknown as CreditPacksService;
+  return {
+    service: new AdminScheduleService(prisma, creditPacks),
+    classInstance,
+    booking,
+    refundCredit,
+  };
+}
+
+describe('AdminScheduleService.getInstanceDetail', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('404s an unknown / cross-tenant occurrence', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce(null);
+
+    await expect(ctx.service.getInstanceDetail('nope')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('projects the block with its roster, ordering held seats before the waitlist', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce(row({ bookedCount: 2 }));
+    // Returned in booking order; the projection re-orders held-seats-first.
+    ctx.booking.findMany.mockResolvedValueOnce([
+      rosterRow('wl-1', BookingStatus.WAITLIST, { waitlistPosition: 1 }),
+      rosterRow('bk-1', BookingStatus.BOOKED, { createdAt: new Date('2026-06-01T07:00:00.000Z') }),
+      rosterRow('bk-2', BookingStatus.ATTENDED, {
+        createdAt: new Date('2026-06-01T07:30:00.000Z'),
+      }),
+      rosterRow('wl-2', BookingStatus.WAITLIST, { waitlistPosition: 2 }),
+    ]);
+
+    const detail = await ctx.service.getInstanceDetail('ci-1');
+
+    expect(detail.roster.map((entry) => entry.bookingId)).toEqual(['bk-1', 'bk-2', 'wl-1', 'wl-2']);
+    expect(detail.waitlistCount).toBe(2);
+    expect(detail.roster[0]).toMatchObject({
+      status: 'BOOKED',
+      memberName: 'Ada Lovelace',
+      memberEmail: 'ada@example.com',
+      waitlistPosition: null,
+    });
+    expect(detail.roster[2]).toMatchObject({ status: 'WAITLIST', waitlistPosition: 1 });
+    // Only non-canceled bookings are read for the roster.
+    const rosterWhere = ctx.booking.findMany.mock.calls[0]![0].where ?? {};
+    expect(rosterWhere.classInstanceId).toBe('ci-1');
+    expect(rosterWhere.status).toHaveProperty('in');
+  });
+});
+
+describe('AdminScheduleService.cancelInstance', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('404s an unknown occurrence', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce(null);
+
+    await expect(ctx.service.cancelInstance('nope')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('409s a non-scheduled occurrence (already canceled / completed)', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce({
+      id: 'ci-1',
+      status: InstanceStatus.CANCELED,
+    });
+
+    await expect(ctx.service.cancelInstance('ci-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(ctx.classInstance.update).not.toHaveBeenCalled();
+  });
+
+  it('refunds each held seat, releases all bookings, and empties the occurrence', async () => {
+    const ctx = setupDetail();
+    // 1) tx: load instance (SCHEDULED) → 2) tx: held-seat credit reads →
+    // then getInstanceDetail re-reads the instance + (empty) roster.
+    ctx.classInstance.findFirst
+      .mockResolvedValueOnce({ id: 'ci-1', status: InstanceStatus.SCHEDULED })
+      .mockResolvedValueOnce(row({ status: InstanceStatus.CANCELED, bookedCount: 0 }));
+    ctx.booking.findMany
+      .mockResolvedValueOnce([{ creditPackId: 'cp-1' }, { creditPackId: null }])
+      .mockResolvedValueOnce([]); // getInstanceDetail roster read
+
+    const detail = await ctx.service.cancelInstance('ci-1');
+
+    // Only the credit-charged held seat is refunded (null pack is a no-op input).
+    expect(ctx.refundCredit).toHaveBeenCalledTimes(2);
+    expect(ctx.refundCredit.mock.calls[0]![1]).toBe('cp-1');
+    // Every live booking is flipped to CANCELED with its queue slot cleared.
+    expect(ctx.booking.updateMany).toHaveBeenCalledWith({
+      where: { classInstanceId: 'ci-1', status: { not: BookingStatus.CANCELED } },
+      data: { status: BookingStatus.CANCELED, waitlistPosition: null },
+    });
+    // The occurrence is canceled and emptied.
+    expect(ctx.classInstance.update).toHaveBeenCalledWith({
+      where: { id: 'ci-1' },
+      data: { status: InstanceStatus.CANCELED, bookedCount: 0 },
+    });
+    expect(detail.status).toBe('CANCELED');
+    expect(detail.bookedCount).toBe(0);
+    expect(detail.roster).toEqual([]);
   });
 });
