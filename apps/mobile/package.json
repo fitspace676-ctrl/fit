@@ -20,6 +20,7 @@
     "@fit/env": "workspace:*",
     "@fit/i18n": "workspace:^",
     "@fit/types": "workspace:*",
+    "@fit/ui-mobile": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@sentry/react-native": "^8.13.0",
     "@tanstack/react-query": "^5.101.0",
