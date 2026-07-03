@@ -101,6 +101,8 @@ import type {
   RecordCheckInInput,
   RecordCheckInResponse,
   MemberEligibility,
+  AdminScheduleQuery,
+  AdminScheduleResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -975,6 +977,42 @@ export async function fetchMemberEligibility(gymMemberId: string): Promise<Membe
     },
   );
   return unwrap<MemberEligibility>(res);
+}
+
+// ── Schedule week-view (T3.1 → T3.2) ──────────────────────────────────────────
+
+/**
+ * Serialise a schedule window query to a `?key=value` string, dropping empty
+ * values so a bare window carries no filter noise. The API re-coerces and
+ * re-validates with the same Zod schema (`adminScheduleQuerySchema`), so passing
+ * the calendar's raw filter values is safe.
+ */
+export function scheduleQueryString(query: Partial<AdminScheduleQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/**
+ * `GET /admin/schedule?from=&to=&trainerId=&locationId=` — the gym's class
+ * occurrences whose `startsAt` falls in `[from, to)`, ordered by start, each with
+ * its resolved occupancy, trainer, branch, and lifecycle status (T3.1). The
+ * calendar issues this as staff page between weeks; an empty `instances` array is
+ * a normal result the grid renders as its empty state.
+ */
+export async function fetchSchedule(query: AdminScheduleQuery): Promise<AdminScheduleResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/schedule${scheduleQueryString(query)}`, {
+    headers: await authHeaders(),
+    // The calendar reflects live tenant state — never serve a stale week.
+    cache: 'no-store',
+  });
+  return unwrap<AdminScheduleResponse>(res);
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────

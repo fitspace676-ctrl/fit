@@ -77,7 +77,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: Permission.StaffManage,
     minRole: 'OWNER',
   },
-  { labelKey: 'nav.schedule', href: '/classes', icon: 'classes', permission: Permission.ClassRead },
+  {
+    labelKey: 'nav.schedule',
+    href: '/schedule',
+    icon: 'classes',
+    permission: Permission.ClassRead,
+  },
   {
     labelKey: 'nav.checkIn',
     href: '/check-in',

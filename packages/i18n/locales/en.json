@@ -1094,6 +1094,48 @@
         "hours": "{hours}h ago"
       }
     },
+    "schedule": {
+      "title": "Schedule",
+      "subtitle": "Your gym's week at a glance. Page between weeks and filter by trainer or location; each class shows its time, coach, branch, and how full it is.",
+      "error": {
+        "withStatus": "Could not load the schedule ({status}): {message}",
+        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      },
+      "manageClasses": "Manage classes",
+      "newClass": "New class",
+      "toolbar": {
+        "prev": "Previous week",
+        "next": "Next week",
+        "today": "Today"
+      },
+      "filters": {
+        "aria": "Schedule filters",
+        "trainer": "Filter by trainer",
+        "allTrainers": "All trainers",
+        "location": "Filter by location",
+        "allLocations": "All locations",
+        "clear": "Clear"
+      },
+      "week": {
+        "gridAria": "Week schedule"
+      },
+      "status": {
+        "SCHEDULED": "Scheduled",
+        "CANCELED": "Canceled",
+        "COMPLETED": "Completed"
+      },
+      "card": {
+        "viewAria": "{title} at {time} — open class",
+        "spots": "{booked}/{cap} booked",
+        "remaining": "{remaining} left",
+        "full": "Full"
+      },
+      "empty": {
+        "day": "No classes",
+        "week": "No classes scheduled this week.",
+        "filtered": "No classes match these filters this week."
+      }
+    },
     "members": {
       "list": {
         "title": "Members",
