@@ -63,6 +63,11 @@ export {
   type SubscriptionEvent,
 } from './prisma/subscription-state-machine';
 
+// Subscription billing-period arithmetic (T5.3). The pure calendar-correct rule
+// for advancing a paid period by one interval, re-exported so enrolment computes
+// the first period and the recurring-billing job (T5.4) advances it identically.
+export { addInterval, initialBillingPeriod } from './prisma/subscription-period';
+
 // Credit-pack expiry job (T8.5). The pure set-based UPDATE that flips lapsed credit
 // packs to `EXPIRED`, re-exported so the API / a scheduled runner share one pass.
 export {

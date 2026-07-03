@@ -194,3 +194,23 @@ export type UpdateSubscriptionPlanResponse = AdminSubscriptionPlanDetail;
  * response — the plan detail with the new `status` (`INACTIVE` / `ACTIVE`).
  */
 export type SetSubscriptionPlanStatusResponse = AdminSubscriptionPlanDetail;
+
+/* -------------------------------------------------------------------------- */
+/*  POST /admin/subscriptions/enroll  (staff-initiated enrolment, T5.3)         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Body for `POST /admin/subscriptions/enroll` — staff enrolling a *specific*
+ * member on a plan from the console. Unlike the member self-checkout
+ * (`POST /subscriptions`, `enrollSubscriptionSchema` in `subscriptions.ts`), this
+ * carries the `memberId` of the member being enrolled; both the member and the
+ * plan are validated to belong to the caller's gym server-side. The successful
+ * response is the shared {@link EnrollSubscriptionResponse}.
+ */
+export const adminEnrollSubscriptionSchema = z.object({
+  memberId: z.string().trim().min(1, 'A member is required'),
+  planId: z.string().trim().min(1, 'A plan is required'),
+});
+
+/** Validated `POST /admin/subscriptions/enroll` body — {@link adminEnrollSubscriptionSchema}. */
+export type AdminEnrollSubscriptionData = z.infer<typeof adminEnrollSubscriptionSchema>;

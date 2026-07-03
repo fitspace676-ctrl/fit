@@ -11,13 +11,16 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  enrollSubscriptionSchema,
   freezeSubscriptionSchema,
+  type EnrollSubscriptionResponse,
   type FreezeSubscriptionResponse,
   type UnfreezeSubscriptionResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
+import { SubscriptionEnrollmentService } from './subscription-enrollment.service';
 import { SubscriptionFreezeService } from './subscription-freeze.service';
 
 /**
@@ -34,7 +37,25 @@ import { SubscriptionFreezeService } from './subscription-freeze.service';
 @Controller('subscriptions')
 @UseGuards(TenantGuard, PermissionsGuard)
 export class SubscriptionsController {
-  constructor(private readonly freeze: SubscriptionFreezeService) {}
+  constructor(
+    private readonly freeze: SubscriptionFreezeService,
+    private readonly enrollment: SubscriptionEnrollmentService,
+  ) {}
+
+  /**
+   * `POST /subscriptions` — the calling member enrols themselves on a plan (T5.3).
+   * The body carries only `planId`; the member is resolved from the session and the
+   * price / period are computed server-side. Returns `201 { subscription }`.
+   * Failure modes: `404 SUBSCRIPTION_PLAN_NOT_FOUND`, `409
+   * SUBSCRIPTION_PLAN_INACTIVE`, and `409 ALREADY_SUBSCRIBED` when the member
+   * already holds a live subscription.
+   */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.SubscriptionManage)
+  async enroll(@Body() body: unknown): Promise<EnrollSubscriptionResponse> {
+    return this.enrollment.enrollSelf(parse(enrollSubscriptionSchema, body).planId);
+  }
 
   /**
    * `POST /subscriptions/:id/freeze` — pause the caller's membership from

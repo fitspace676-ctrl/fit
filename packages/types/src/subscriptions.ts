@@ -14,6 +14,71 @@
 
 import { z } from 'zod';
 
+/* -------------------------------------------------------------------------- */
+/*  POST /subscriptions  &  POST /admin/subscriptions/enroll  (enrolment, T5.3) */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Body for `POST /subscriptions` — a member enrolling *themselves* on a plan. Only
+ * the `planId` crosses the wire; the member is resolved from the session (never a
+ * member id on the wire) and the price / currency / interval are snapshotted
+ * server-side from the plan, so the client can't dictate the terms it pays.
+ */
+export const enrollSubscriptionSchema = z.object({
+  planId: z.string().trim().min(1, 'A plan is required'),
+});
+
+/** Validated `POST /subscriptions` body — {@link enrollSubscriptionSchema}. */
+export type EnrollSubscriptionData = z.infer<typeof enrollSubscriptionSchema>;
+
+/**
+ * A subscription's lifecycle state on the wire — mirrors the Prisma
+ * `SubscriptionStatus` enum. A fresh enrolment is always `ACTIVE`.
+ */
+export const enrolledSubscriptionStatusSchema = z.enum([
+  'ACTIVE',
+  'PAST_DUE',
+  'FROZEN',
+  'CANCELED',
+  'EXPIRED',
+]);
+
+/**
+ * The subscription an enrolment created, echoed back so the caller (member
+ * checkout or the staff console) can render the new membership without a follow-up
+ * read. `priceAmount` is in the currency's MINOR units, snapshotted from the plan
+ * at enrolment; `planName` is `null` only if the plan is later deleted (the
+ * subscription survives via `SetNull`). `currentPeriodStart` / `currentPeriodEnd`
+ * are ISO-8601 instants bounding the first paid period.
+ */
+export const enrolledSubscriptionSchema = z.object({
+  id: z.string().min(1),
+  status: enrolledSubscriptionStatusSchema,
+  planId: z.string().nullable(),
+  planName: z.string().nullable(),
+  priceAmount: z.number().int().nonnegative(),
+  currency: z.string(),
+  interval: z.enum(['MONTH', 'YEAR']),
+  currentPeriodStart: z.string(),
+  currentPeriodEnd: z.string(),
+  cancelAtPeriodEnd: z.boolean(),
+  createdAt: z.string(),
+});
+export type EnrolledSubscription = z.infer<typeof enrolledSubscriptionSchema>;
+
+/**
+ * Successful enrolment response (`201`) for both `POST /subscriptions` (member)
+ * and `POST /admin/subscriptions/enroll` (staff): the newly created
+ * {@link EnrolledSubscription}. Enrolment is rejected with `404
+ * SUBSCRIPTION_PLAN_NOT_FOUND` (unknown / cross-tenant plan), `409
+ * SUBSCRIPTION_PLAN_INACTIVE` (a deactivated plan), and `409 ALREADY_SUBSCRIBED`
+ * (the member already holds a live subscription — one live membership per member
+ * per gym).
+ */
+export interface EnrollSubscriptionResponse {
+  subscription: EnrolledSubscription;
+}
+
 /** The most days a single freeze request may span (one year — a generous ceiling the schema rejects past). */
 export const MAX_FREEZE_DURATION_DAYS = 365;
 
