@@ -1543,6 +1543,67 @@
         "invalidRole": "არასწორი როლი",
         "unexpected": "მოულოდნელი შეცდომა"
       }
+    },
+    "locations": {
+      "breadcrumb": {
+        "label": "ნავიგაცია",
+        "locations": "ლოკაციები"
+      },
+      "title": "ლოკაციები",
+      "subtitle": "თქვენი დარბაზის ყველა ფილიალი — საათები, კეთილმოწყობა და მიმდინარე ღიაობა.",
+      "add": "ახალი ლოკაცია",
+      "kpi": {
+        "total": "ლოკაციები",
+        "totalContext": "{count} აქტიური",
+        "active": "აქტიური",
+        "activeContext": "საჯარო სიაში",
+        "openNow": "ახლა ღიაა",
+        "openNowContext": "იღებს წევრებს",
+        "amenities": "კეთილმოწყობა",
+        "amenitiesContext": "სხვადასხვა ფილიალებში"
+      },
+      "filters": {
+        "searchLabel": "ლოკაციების ძებნა",
+        "searchPlaceholder": "ძებნა სახელით ან მისამართით…",
+        "statusAria": "სტატუსის მიხედვით ფილტრი",
+        "all": "ყველა"
+      },
+      "status": {
+        "ACTIVE": "აქტიური",
+        "INACTIVE": "არააქტიური"
+      },
+      "card": {
+        "open": "ღიაა",
+        "closed": "დაკეტილია",
+        "inactive": "არააქტიური",
+        "todayOpen": "დღეს {hours}",
+        "todayClosed": "დღეს დაკეტილია",
+        "noAmenities": "კეთილმოწყობა მითითებული არ არის",
+        "noAddress": "მისამართი მითითებული არ არის",
+        "viewCta": "ფილიალის ნახვა"
+      },
+      "rowMenu": {
+        "open": "მოქმედებები {name}-თვის",
+        "view": "დეტალების ნახვა",
+        "edit": "დეტალების რედაქტირება",
+        "activate": "გახდეს აქტიური",
+        "deactivate": "გახდეს არააქტიური"
+      },
+      "empty": {
+        "emptyTitle": "ლოკაციები ჯერ არ არის",
+        "emptyHint": "დაამატეთ პირველი ფილიალი, რომ წევრებმა იპოვონ სავარჯიშო ადგილი.",
+        "noMatchTitle": "ვერაფერი მოიძებნა",
+        "noMatchHint": "სცადეთ სხვა სტატუსი ან საძიებო სიტყვა."
+      },
+      "toast": {
+        "activated": "{name} ახლა აქტიურია.",
+        "deactivated": "{name} ახლა არააქტიურია.",
+        "actionFailed": "ვერ მოხერხდა. გთხოვთ, სცადოთ თავიდან."
+      },
+      "errors": {
+        "loadLocations": "ლოკაციების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+        "apiUnreachable": "Fit API-სთან დაკავშირება ვერ მოხერხდა. შეამოწმეთ NEXT_PUBLIC_API_URL და რომ API გაშვებულია."
+      }
     }
   }
 }
