@@ -13,19 +13,17 @@ import type {
   MemberTabCounts,
   SortDir,
 } from '@fit/types';
-import { Badge, Btn, Card, Icon, type Tone } from '@/components/ui';
+import { Badge, Btn, Card, Dot, Icon, buttonClasses, type Tone } from '@/components/ui';
+import { Glyph } from './glyphs';
 import { MembersFilters } from './members-filters';
 import { bulkExportMembersAction } from './actions';
 
-/** Visual treatment per member status — green active, slate invited, amber suspended. */
-const STATUS_STYLES: Record<MemberStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INVITED: { label: 'Trial', tone: 'ink' },
-  SUSPENDED: { label: 'Expired', tone: 'warning' },
+/** Visual treatment per member status — the reference's badge tone + dot colour. */
+const STATUS_STYLES: Record<MemberStatus, { label: string; tone: Tone; dot: string }> = {
+  ACTIVE: { label: 'Active', tone: 'success', dot: 'bg-success-400' },
+  INVITED: { label: 'Trial', tone: 'iris', dot: 'bg-iris-400' },
+  SUSPENDED: { label: 'Expired', tone: 'danger', dot: 'bg-danger-400' },
 };
-
-/** The engine gradient shared by the active tab (Planflow "formacore"). */
-const ENGINE_GRADIENT = 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)]';
 
 /**
  * The roster's segmented tabs, mapped to the `status` URL param. "All" clears the
@@ -45,17 +43,19 @@ const TABS: ReadonlyArray<{
   { label: 'Expired', status: 'SUSPENDED', countKey: 'expired' },
 ];
 
-/** Sortable columns and their header labels, in render order. */
-const SORTABLE: ReadonlyArray<{ key: MemberSort; label: string }> = [
-  { key: 'name', label: 'Member' },
-  { key: 'status', label: 'Status' },
-  { key: 'lastVisitAt', label: 'Last visit' },
-];
+/** The reference's table-header cell treatment. */
+const TH_CLASS =
+  'px-4 py-3 text-left font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-500 dark:text-ink-400';
 
-/** A status pill mirroring the roster styling. */
+/** A status pill mirroring the reference's dot-in-badge styling. */
 function StatusPill({ status }: { status: MemberStatus }) {
-  const { label, tone } = STATUS_STYLES[status];
-  return <Badge tone={tone}>{label}</Badge>;
+  const { label, tone, dot } = STATUS_STYLES[status];
+  return (
+    <Badge tone={tone}>
+      <Dot c={dot} />
+      {label}
+    </Badge>
+  );
 }
 
 /** Render a member's initials for the avatar placeholder. */
@@ -94,7 +94,7 @@ function formatLastVisit(iso: string | null): string {
   return formatDate(iso);
 }
 
-/** The NEXT-BILLING cell — a date, a paused/overdue chip, or an em dash. */
+/** The NEXT-BILLING cell — a date, a paused/overdue label, or an em dash. */
 function nextBillingLabel(row: {
   nextBillingAt: string | null;
   billingState: MemberBillingState;
@@ -112,7 +112,7 @@ function nextBillingLabel(row: {
   }
 }
 
-/** The PLAN cell — a colour dot + plan name + a small detail. */
+/** The PLAN cell — the reference's colour square + plan name + a small detail. */
 function PlanCell({ plan }: { plan: MemberPlan | null }) {
   if (!plan) {
     return <span className="text-ink-400 dark:text-ink-500">No plan</span>;
@@ -121,11 +121,13 @@ function PlanCell({ plan }: { plan: MemberPlan | null }) {
     <div className="flex items-center gap-2">
       <span
         aria-hidden
-        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+        className="inline-block h-2 w-2 shrink-0 rounded-sm"
         style={{ backgroundColor: plan.color ?? '#7C3AED' }}
       />
-      <span className="font-medium text-ink-800 dark:text-ink-100">{plan.name}</span>
-      <span className="text-xs text-ink-400 dark:text-ink-500">{plan.detail}</span>
+      <span className="text-ink-900 dark:text-white">{plan.name}</span>
+      <span className="hidden text-xs text-ink-400 dark:text-ink-500 lg:inline">
+        · {plan.detail}
+      </span>
     </div>
   );
 }
@@ -134,13 +136,13 @@ function PlanCell({ plan }: { plan: MemberPlan | null }) {
 function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
   const { total, plans } = planMix;
   return (
-    <Card glow className="flex flex-col gap-4 p-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+    <Card glow className="p-4 sm:p-5">
+      <div className="mb-2.5 flex items-center justify-between">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-400">
           Plan mix
         </h2>
-        <span className="font-mono text-xs tabular-nums text-ink-400">
-          {total} {total === 1 ? 'paid' : 'paid'}
+        <span className="font-mono text-[11px] tabular-nums text-ink-500 dark:text-ink-400">
+          {total.toLocaleString()} paid
         </span>
       </div>
 
@@ -150,11 +152,11 @@ function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
         </div>
       ) : (
         <>
-          <div className="flex h-3 w-full overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
+          <div className="flex h-2.5 w-full overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
             {plans.map((slice) => (
               <span
                 key={slice.planId ?? slice.name}
-                className="h-full first:rounded-l-pill last:rounded-r-pill"
+                className="h-full"
                 style={{
                   width: `${(slice.count / total) * 100}%`,
                   backgroundColor: slice.color ?? '#7C3AED',
@@ -163,16 +165,19 @@ function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
               />
             ))}
           </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
             {plans.map((slice) => (
-              <div key={slice.planId ?? slice.name} className="flex items-center gap-2">
+              <div key={slice.planId ?? slice.name} className="flex items-center gap-1.5 text-xs">
                 <span
                   aria-hidden
-                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  className="inline-block h-2 w-2 rounded-sm"
                   style={{ backgroundColor: slice.color ?? '#7C3AED' }}
                 />
-                <span className="text-sm text-ink-600 dark:text-ink-300">{slice.name}</span>
-                <span className="font-mono text-sm font-semibold tabular-nums text-ink-900 dark:text-white">
+                <span className="text-ink-600 dark:text-ink-300">{slice.name}</span>
+                <span
+                  className="font-mono font-semibold tabular-nums"
+                  style={{ color: slice.color ?? '#7C3AED' }}
+                >
                   {slice.count}
                 </span>
               </div>
@@ -184,14 +189,19 @@ function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
   );
 }
 
+/** The reference's custom checkbox treatment, applied to a real input. */
+const CHECKBOX_CLASS =
+  'h-[18px] w-[18px] rounded-[5px] border-ink-300 accent-brand-500 dark:border-white/25';
+
 /**
  * The members roster table (T4.2), reskinned to the Planflow "formacore"
- * reference. Server-rendered data, client-side interaction: the plan-mix bar +
- * segmented tabs (which write `status` to the URL), the search + filter row,
- * row selection feeding the CSV export, sortable column headers, and pagination —
- * all of which read/write the URL search params so the server page stays the
- * single source of truth. The data itself never mutates here; selection is the
- * only local state. Renders correctly with an empty roster.
+ * reference. Server-rendered data, client-side interaction: the plan-mix bar,
+ * one toolbar row of segmented tabs (which write `status` to the URL) + search +
+ * filter + export, row selection feeding the floating bulk-action bar's CSV
+ * export, sortable column headers, and pagination — all of which read/write the
+ * URL search params so the server page stays the single source of truth. The data
+ * itself never mutates here; selection is the only local state. Renders correctly
+ * with an empty roster.
  */
 export function MembersTable({
   members,
@@ -230,6 +240,7 @@ export function MembersTable({
 
   const pageIds = useMemo(() => members.map((m) => m.id), [members]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const filtered = Boolean(search || status);
 
   /** Build a URL with one set of params overridden (and page reset unless given). */
   function hrefWith(overrides: Record<string, string>): string {
@@ -302,68 +313,67 @@ export function MembersTable({
     return dir === 'asc' ? ' ▲' : ' ▼';
   }
 
+  /** A sortable header label wrapped in the sort link. */
+  function sortableHeader(key: MemberSort, label: string) {
+    return (
+      <Link
+        href={sortHref(key)}
+        scroll={false}
+        className="inline-flex items-center hover:text-ink-700 dark:hover:text-ink-200"
+      >
+        {label}
+        <span aria-hidden>{sortIndicator(key)}</span>
+      </Link>
+    );
+  }
+
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to = Math.min(page * limit, total);
   const hasPrev = page > 1;
   const hasNext = page * limit < total;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PlanMixCard planMix={planMix} />
 
-      {/* Segmented tabs-with-counts. */}
-      <div
-        role="tablist"
-        aria-label="Filter by member state"
-        className="inline-flex w-fit flex-wrap gap-1 rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
-      >
-        {TABS.map((tab) => {
-          const active = tab.status === status || (tab.label === 'All' && status === '');
-          return (
-            <button
-              key={tab.label}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => selectTab(tab.status)}
-              className={`inline-flex items-center gap-1.5 rounded-btn px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                active
-                  ? `${ENGINE_GRADIENT} text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]`
-                  : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
-              }`}
-            >
-              {tab.label}
-              <span
-                className={`font-mono text-xs tabular-nums ${active ? 'text-white/80' : 'text-ink-400'}`}
-              >
-                {counts[tab.countKey]}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Search + Filter row. */}
-      <MembersFilters search={search} status={status} />
-
-      {/* Selection + export toolbar. */}
+      {/* Toolbar: segmented tabs + search + filter + export, one wrapping row. */}
       <div className="flex flex-wrap items-center gap-3">
+        <div
+          role="tablist"
+          aria-label="Filter by member state"
+          className="inline-flex overflow-x-auto rounded-btn bg-ink-100 p-1 ring-1 ring-inset ring-ink-200 dark:bg-white/[0.06] dark:ring-white/10"
+        >
+          {TABS.map((tab) => {
+            const active = tab.status === status || (tab.label === 'All' && status === '');
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => selectTab(tab.status)}
+                className={`inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 text-sm font-semibold transition ${
+                  active
+                    ? 'bg-white text-ink-900 shadow-sm dark:text-ink-950'
+                    : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
+                }`}
+              >
+                {tab.label}
+                <span className="font-mono text-[11px] tabular-nums text-ink-400 dark:text-ink-500">
+                  {counts[tab.countKey]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search + Filter (right-aligned, per the reference toolbar). */}
+        <MembersFilters search={search} status={status} />
+
+        {/* Export-all is real functionality with no reference slot — kept beside the filter. */}
         <Btn v="outline" size="sm" icon="download" onClick={exportSelected} disabled={exporting}>
-          {exporting
-            ? 'Starting export…'
-            : selected.size > 0
-              ? `Export ${selected.size} selected`
-              : 'Export all'}
+          {exporting ? 'Exporting…' : 'Export'}
         </Btn>
-        {selected.size > 0 ? (
-          <button
-            type="button"
-            onClick={() => setSelected(new Set())}
-            className="text-xs font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
-          >
-            Clear selection
-          </button>
-        ) : null}
       </div>
 
       {exportNote ? (
@@ -382,53 +392,72 @@ export function MembersTable({
       ) : null}
 
       {members.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 px-4 py-14 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-            <Icon name="users" className="h-6 w-6" />
-          </span>
-          <p className="text-sm font-medium text-ink-700 dark:text-ink-200">No members yet</p>
-          <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
-            {canWrite
-              ? 'Add your first member, or adjust the filters above.'
-              : 'No members match your filters yet.'}
+        <Card className="px-6 py-16 text-center">
+          <div className="relative mx-auto grid h-14 w-14 place-items-center">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-brand-500/20 blur-2xl"
+            />
+            <Icon
+              name="search"
+              className="relative h-12 w-12 text-ink-400 dark:text-ink-300"
+              sw={1.8}
+            />
+          </div>
+          <p className="mt-4 font-display text-lg font-bold text-ink-900 dark:text-white">
+            No members found
           </p>
+          <p className="mx-auto mt-1 max-w-xs text-sm text-ink-500 dark:text-ink-400">
+            {filtered
+              ? `No one matches ${search ? `“${search}”` : 'these filters'}. Try a different search or filter.`
+              : canWrite
+                ? 'No members on the roster yet — add your first member.'
+                : 'No members on the roster yet.'}
+          </p>
+          <div className="mt-5 flex items-center justify-center gap-3">
+            {filtered ? (
+              <Btn
+                v="outline"
+                size="sm"
+                onClick={() =>
+                  startTransition(() =>
+                    router.replace(hrefWith({ search: '', status: '', page: '' })),
+                  )
+                }
+              >
+                Clear filters
+              </Btn>
+            ) : null}
+            {canWrite ? (
+              <Link href="/members/new" className={buttonClasses('primary', 'sm')}>
+                <Icon name="plus" className="h-4 w-4" sw={2} />
+                Add member
+              </Link>
+            ) : null}
+          </div>
         </Card>
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-sm">
+            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-ink-100 dark:border-white/10">
-                  <th className="w-10 py-3 pl-5 pr-4">
+                <tr className="border-b border-ink-200 dark:border-white/10">
+                  <th className="w-10 py-3 pl-5 pr-2">
                     <input
                       type="checkbox"
                       aria-label="Select all members on this page"
                       checked={allSelected}
                       onChange={toggleAll}
-                      className="h-4 w-4 rounded border-ink-300 dark:border-white/20"
+                      className={CHECKBOX_CLASS}
                     />
                   </th>
-                  {SORTABLE.map((column) => (
-                    <th
-                      key={column.key}
-                      className="py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
-                    >
-                      <Link
-                        href={sortHref(column.key)}
-                        scroll={false}
-                        className="inline-flex items-center hover:text-ink-600 dark:hover:text-ink-200"
-                      >
-                        {column.label}
-                        <span aria-hidden>{sortIndicator(column.key)}</span>
-                      </Link>
-                    </th>
-                  ))}
-                  <th className="py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    Plan
+                  <th className={TH_CLASS}>{sortableHeader('name', 'Member')}</th>
+                  <th className={TH_CLASS}>Plan</th>
+                  <th className={TH_CLASS}>{sortableHeader('status', 'Status')}</th>
+                  <th className={`${TH_CLASS} hidden md:table-cell`}>
+                    {sortableHeader('lastVisitAt', 'Last visit')}
                   </th>
-                  <th className="py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    Next billing
-                  </th>
+                  <th className={`${TH_CLASS} hidden md:table-cell`}>Next billing</th>
                   <th className="w-10 py-3 pr-5" aria-label="Actions" />
                 </tr>
               </thead>
@@ -436,26 +465,30 @@ export function MembersTable({
                 {members.map((member) => (
                   <tr
                     key={member.id}
-                    className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+                    className={`border-b last:border-0 ${
+                      selected.has(member.id)
+                        ? 'border-ink-100 bg-brand-50/60 dark:border-white/5 dark:bg-brand-500/[0.06]'
+                        : 'border-ink-100 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]'
+                    } transition`}
                   >
-                    <td className="py-3 pl-5 pr-4">
+                    <td className="py-3 pl-5 pr-2">
                       <input
                         type="checkbox"
                         aria-label={`Select ${member.name}`}
                         checked={selected.has(member.id)}
                         onChange={() => toggleRow(member.id)}
-                        className="h-4 w-4 rounded border-ink-300 dark:border-white/20"
+                        className={CHECKBOX_CLASS}
                       />
                     </td>
-                    <td className="py-3 pr-4">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-200">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700 ring-1 ring-ink-900/10 dark:bg-brand-500/15 dark:text-brand-200 dark:ring-white/10">
                           {initialsOf(member.name)}
                         </span>
                         <div className="min-w-0">
                           <Link
                             href={`/members/${member.id}`}
-                            className="block truncate font-medium text-ink-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300"
+                            className="block truncate font-semibold text-ink-900 transition hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
                           >
                             {member.name}
                           </Link>
@@ -465,27 +498,31 @@ export function MembersTable({
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 pr-4">
-                      <StatusPill status={member.status} />
-                    </td>
-                    <td className="py-3 pr-4 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                      {formatLastVisit(member.lastVisitAt)}
-                    </td>
-                    <td className="py-3 pr-4">
+                    <td className="px-4 py-3">
                       <PlanCell plan={member.plan} />
                     </td>
-                    <td className="py-3 pr-4 font-mono tabular-nums text-ink-700 dark:text-ink-200">
+                    <td className="px-4 py-3">
+                      <StatusPill status={member.status} />
+                    </td>
+                    <td className="hidden px-4 py-3 text-ink-500 dark:text-ink-400 md:table-cell">
+                      {formatLastVisit(member.lastVisitAt)}
+                    </td>
+                    <td
+                      className={`hidden px-4 py-3 font-mono text-xs tabular-nums md:table-cell ${
+                        member.billingState === 'overdue'
+                          ? 'text-danger-400'
+                          : 'text-ink-500 dark:text-ink-400'
+                      }`}
+                    >
                       {nextBillingLabel(member)}
                     </td>
-                    <td className="py-3 pr-5">
+                    <td className="px-4 py-3 pr-5 text-right">
                       <Link
                         href={`/members/${member.id}`}
                         aria-label={`Open ${member.name}`}
-                        className="grid h-8 w-8 place-items-center rounded-btn text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 dark:hover:bg-white/5 dark:hover:text-white"
+                        className="grid h-8 w-8 place-items-center rounded-btn text-ink-500 transition hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/10 dark:hover:text-white"
                       >
-                        <span aria-hidden className="text-lg leading-none">
-                          ⋯
-                        </span>
+                        <Glyph name="dots" className="h-5 w-5" sw={2.2} />
                       </Link>
                     </td>
                   </tr>
@@ -497,8 +534,8 @@ export function MembersTable({
       )}
 
       {/* Footer + pager. */}
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="font-mono tabular-nums">
+      <div className="flex items-center justify-between gap-3">
+        <span className="px-1 text-xs text-ink-400 dark:text-ink-500">
           Showing {from}–{to} of {total} members
         </span>
         <div className="flex gap-2">
@@ -524,6 +561,40 @@ export function MembersTable({
           >
             Next
           </Btn>
+        </div>
+      </div>
+
+      {/* Floating bulk-action bar — appears when rows are selected (reference). */}
+      <div
+        className={`fixed bottom-5 left-1/2 z-40 -translate-x-1/2 transition-all duration-300 ${
+          selected.size > 0
+            ? 'translate-y-0 opacity-100'
+            : 'pointer-events-none translate-y-4 opacity-0'
+        }`}
+      >
+        <div className="flex items-center gap-2.5 rounded-card bg-ink-900 px-3 py-2.5 text-white ring-1 ring-white/10 shadow-[0_24px_60px_-16px_rgba(0,0,0,0.8)]">
+          <span className="inline-grid h-[26px] min-w-[26px] place-items-center rounded-pill bg-brand-500 px-1.5 text-xs font-bold tabular-nums text-white">
+            {selected.size}
+          </span>
+          <span className="hidden text-sm font-medium text-ink-300 sm:inline">selected</span>
+          <span aria-hidden className="mx-0.5 h-5 w-px bg-white/15" />
+          <button
+            type="button"
+            onClick={exportSelected}
+            disabled={exporting}
+            className="inline-flex h-9 items-center gap-1.5 rounded-btn px-2.5 text-sm font-semibold text-ink-300 transition hover:bg-white/10 hover:text-white disabled:opacity-40 sm:px-3"
+          >
+            <Icon name="download" className="h-4 w-4" sw={2} />
+            <span className="hidden sm:inline">{exporting ? 'Exporting…' : 'Export'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            aria-label="Clear selection"
+            className="ml-0.5 grid h-8 w-8 place-items-center rounded-btn text-ink-400 transition hover:bg-white/10 hover:text-white"
+          >
+            <Icon name="x" className="h-4 w-4" sw={2.2} />
+          </button>
         </div>
       </div>
     </div>

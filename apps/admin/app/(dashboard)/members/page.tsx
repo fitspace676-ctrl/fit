@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
@@ -48,12 +49,20 @@ export default async function MembersPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
 
-  let subtitle = 'Your gym’s member roster.';
+  let subtitle: ReactNode = 'Your gym’s member roster.';
   let content;
   try {
     const result = await fetchMembers(query);
     const { all, active } = result.counts;
-    subtitle = all === 0 ? 'No members on the roster yet.' : `${all} total · ${active} active`;
+    subtitle =
+      all === 0 ? (
+        'No members on the roster yet.'
+      ) : (
+        <>
+          <span className="font-mono font-semibold text-ink-900 dark:text-white">{all}</span> total
+          · <span className="font-semibold text-success-400">{active} active</span>
+        </>
+      );
     content = (
       <MembersTable
         members={result.data}
@@ -106,7 +115,7 @@ export default async function MembersPage({
           <p className="text-sm text-ink-500 dark:text-ink-400">{subtitle}</p>
         </div>
         {canWrite ? (
-          <Link href="/members/new" className={buttonClasses('primary', 'md')}>
+          <Link href="/members/new" className={buttonClasses('primary', 'sm')}>
             <Icon name="plus" className="h-4 w-4" sw={2} />
             Add member
           </Link>

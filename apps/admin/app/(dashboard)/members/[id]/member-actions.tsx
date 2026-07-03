@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { MemberStatus } from '@fit/types';
 import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
+import { Glyph } from '../glyphs';
 import { setMemberActiveAction } from '../actions';
 
 /**
@@ -36,9 +37,9 @@ export function MemberActions({ memberId, status }: { memberId: string; status: 
 
   return (
     <div className="flex flex-col items-end gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <Link href={`/members/${memberId}/edit`} className={buttonClasses('outline', 'sm')}>
-          <Icon name="settings" className="h-4 w-4" sw={2} />
+          <Glyph name="pencil" className="h-4 w-4" />
           Edit
         </Link>
         <Btn v={isSuspended ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { MemberStatus } from '@fit/types';
-import { Btn, Card, Icon } from '@/components/ui';
+import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
 import { createMemberAction, updateMemberAction } from './actions';
 
 /** Selectable initial statuses when creating a member (lifecycle change is a separate action). */
@@ -13,12 +13,18 @@ const CREATE_STATUSES: ReadonlyArray<{ value: MemberStatus; label: string }> = [
   { value: 'INVITED', label: 'Invited' },
 ];
 
-/** Shared field styling so create + edit render identically. */
+/** Shared field styling (the reference's inset field surface) so create + edit render identically. */
 const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/[0.02] dark:disabled:text-ink-400';
+  'h-11 w-full rounded-field bg-ink-50 px-3.5 text-sm text-ink-900 ring-1 ring-inset ring-ink-200 outline-none transition placeholder:text-ink-400 focus:ring-2 focus:ring-brand-500 disabled:text-ink-500 dark:bg-white/[0.04] dark:text-white dark:ring-white/10 dark:placeholder:text-ink-500 dark:disabled:text-ink-400';
 
-/** Shared label styling. */
-const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
+/** Shared label styling (the reference's tiny caps labels). */
+const LABEL_CLASS =
+  'text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-500 dark:text-ink-400';
+
+/** The required-field marker. */
+function Req() {
+  return <span className="normal-case text-danger-400"> *</span>;
+}
 
 type Props =
   | { mode: 'create' }
@@ -68,9 +74,10 @@ export function MemberForm(props: Props) {
 
   return (
     <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-4">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <label htmlFor="member-name" className={LABEL_CLASS}>
           Name
+          <Req />
         </label>
         <input
           id="member-name"
@@ -84,9 +91,10 @@ export function MemberForm(props: Props) {
         />
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <label htmlFor="member-email" className={LABEL_CLASS}>
           Email
+          {!isEdit ? <Req /> : null}
         </label>
         <input
           id="member-email"
@@ -106,9 +114,9 @@ export function MemberForm(props: Props) {
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <label htmlFor="member-phone" className={LABEL_CLASS}>
-          Phone <span className="font-normal text-ink-400">(optional)</span>
+          Phone <span className="font-normal normal-case text-ink-400">(optional)</span>
         </label>
         <input
           id="member-phone"
@@ -122,7 +130,7 @@ export function MemberForm(props: Props) {
       </div>
 
       {!isEdit ? (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           <label htmlFor="member-status" className={LABEL_CLASS}>
             Status
           </label>
@@ -155,15 +163,12 @@ export function MemberForm(props: Props) {
       ) : null}
 
       <div className="flex items-center gap-3">
-        <Btn type="submit" v="primary" disabled={pending}>
-          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create member'}
-        </Btn>
-        <Link
-          href={cancelHref}
-          className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
-        >
+        <Link href={cancelHref} className={buttonClasses('ghost', 'md')}>
           Cancel
         </Link>
+        <Btn type="submit" v="primary" icon="check" disabled={pending}>
+          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create member'}
+        </Btn>
       </div>
     </form>
   );
