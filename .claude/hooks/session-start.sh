@@ -24,8 +24,8 @@ corepack enable >/dev/null 2>&1 || true
 # has not been configured yet, fall back to a harmless dummy so generation, type
 # checks and unit tests (which mock the DB) still work. If the store provides a
 # real DATABASE_URL it is already in the environment and this block is skipped.
+DUMMY_DB_URL="postgresql://user:pass@localhost:5432/fit?schema=public"
 if [ -z "${DATABASE_URL:-}" ]; then
-  DUMMY_DB_URL="postgresql://user:pass@localhost:5432/fit?schema=public"
   export DATABASE_URL="$DUMMY_DB_URL"
   echo "export DATABASE_URL=\"$DUMMY_DB_URL\"" >> "$CLAUDE_ENV_FILE"
   echo "session-start: DATABASE_URL not set — using a dummy URL for Prisma generate only."
@@ -39,5 +39,21 @@ pnpm install
 # Generate the Prisma client into packages/db (offline; no DB connection).
 echo "session-start: generating Prisma client (pnpm db:generate)…"
 pnpm db:generate
+
+# When the secret store provides a REAL DATABASE_URL (a dedicated Railway dev
+# instance — never production), apply pending migrations so the dev schema is up
+# to date. `migrate deploy` only applies committed migrations; it never resets
+# data. Skipped entirely on the dummy fallback so a mis-configured session can't
+# reach out to a localhost that isn't there.
+if [ "${DATABASE_URL:-}" != "$DUMMY_DB_URL" ]; then
+  echo "session-start: applying migrations to the dev database (pnpm db:migrate)…"
+  pnpm db:migrate || echo "session-start: WARN migrate failed (dev DB unreachable?) — continuing."
+
+  # Seed is opt-in (FIT_SANDBOX_SEED=true) so it never clobbers dev data unasked.
+  if [ "${FIT_SANDBOX_SEED:-}" = "true" ]; then
+    echo "session-start: seeding dev database (pnpm db:seed)…"
+    pnpm db:seed || echo "session-start: WARN seed failed — continuing."
+  fi
+fi
 
 echo "session-start: Fit sandbox ready — dependencies installed, Prisma client generated."
