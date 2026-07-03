@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   listMembersQuerySchema,
@@ -38,6 +39,7 @@ export default async function MembersPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const t = await getTranslations('admin.members');
   const raw = await searchParams;
   // The same schema the API validates with — coerces page/limit, applies defaults,
   // and drops anything malformed so a hand-edited URL can't break the page.
@@ -48,12 +50,12 @@ export default async function MembersPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
 
-  let subtitle = 'Your gym’s member roster.';
+  let subtitle = t('list.subtitle');
   let content;
   try {
     const result = await fetchMembers(query);
     const { all, active } = result.counts;
-    subtitle = all === 0 ? 'No members on the roster yet.' : `${all} total · ${active} active`;
+    subtitle = all === 0 ? t('list.subtitleEmpty') : t('list.subtitleCounts', { all, active });
     content = (
       <MembersTable
         members={result.data}
@@ -72,8 +74,8 @@ export default async function MembersPage({
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load members (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadMembers', { status: error.status, message: error.message })
+        : t('errors.apiUnreachable');
     content = (
       <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
         <Icon
@@ -90,25 +92,25 @@ export default async function MembersPage({
   return (
     <div className="flex flex-col gap-6">
       <nav
-        aria-label="Breadcrumb"
+        aria-label={t('breadcrumb.label')}
         className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
       >
         <span>Iron Gym</span>
         <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <span className="text-ink-600 dark:text-ink-300">Members</span>
+        <span className="text-ink-600 dark:text-ink-300">{t('breadcrumb.members')}</span>
       </nav>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            Members
+            {t('list.title')}
           </h1>
           <p className="text-sm text-ink-500 dark:text-ink-400">{subtitle}</p>
         </div>
         {canWrite ? (
           <Link href="/members/new" className={buttonClasses('primary', 'md')}>
             <Icon name="plus" className="h-4 w-4" sw={2} />
-            Add member
+            {t('list.addMember')}
           </Link>
         ) : null}
       </header>

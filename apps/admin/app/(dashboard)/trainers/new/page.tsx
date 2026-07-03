@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { Icon } from '@/components/ui';
@@ -21,6 +22,7 @@ export const dynamic = 'force-dynamic';
  * the Server Action it calls both re-check, and the API enforces it again.
  */
 export default async function NewTrainerPage() {
+  const t = await getTranslations('admin.trainers');
   const session = await getServerSession();
   if (!session || !roleHasPermission(session.role, Permission.TrainerWrite)) {
     redirect('/403');
@@ -33,17 +35,14 @@ export default async function NewTrainerPage() {
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
       >
         <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-        Back to trainers
+        {t('form.backToTrainers')}
       </Link>
 
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          New trainer
+          {t('form.newTitle')}
         </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          Add a trainer to your gym’s roster. Upload a photo and list their specialties so members
-          can find the right coach.
-        </p>
+        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('form.newSubtitle')}</p>
       </header>
 
       <TrainerForm mode="create" />

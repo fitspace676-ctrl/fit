@@ -2,20 +2,32 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 import type { AdminTrainerDetail } from '@fit/types';
 import { Card, Icon } from '@/components/ui';
+
+type T = ReturnType<typeof useTranslations>;
 
 /** The detail tabs, matching the Planflow "formacore" reference order. */
 const TABS = ['Overview', 'Schedule', 'Clients', 'Reviews', 'Availability'] as const;
 type Tab = (typeof TABS)[number];
 
+/** Translation key per tab. */
+const TAB_LABEL_KEYS: Record<Tab, string> = {
+  Overview: 'tabs.overview',
+  Schedule: 'tabs.schedule',
+  Clients: 'tabs.clients',
+  Reviews: 'tabs.reviews',
+  Availability: 'tabs.availability',
+};
+
 /** Format an ISO instant as a short local date-time, or an em dash when absent. */
-function formatDateTime(iso: string | null | undefined): string {
+function formatDateTime(iso: string | null | undefined, locale: string): string {
   if (!iso) return '—';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleString(undefined, {
+    : date.toLocaleString(locale, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
@@ -44,6 +56,8 @@ function WeekRow({ label, value }: { label: string; value: number }) {
  * honestly where the schema has no source (PT clients aren't modelled).
  */
 export function TrainerTabs({ trainer }: { trainer: AdminTrainerDetail }) {
+  const t = useTranslations('admin.trainers');
+  const locale = useLocale();
   const [active, setActive] = useState<Tab>('Overview');
 
   return (
@@ -64,44 +78,44 @@ export function TrainerTabs({ trainer }: { trainer: AdminTrainerDetail }) {
                   : 'border-transparent text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200'
               }`}
             >
-              {tab}
+              {t(TAB_LABEL_KEYS[tab])}
             </button>
           );
         })}
       </div>
 
       <div role="tabpanel">
-        {active === 'Overview' && <OverviewPanel trainer={trainer} />}
-        {active === 'Schedule' && <SchedulePanel trainer={trainer} />}
-        {active === 'Clients' && <ClientsPanel />}
-        {active === 'Reviews' && <ReviewsPanel trainer={trainer} />}
-        {active === 'Availability' && <AvailabilityPanel trainer={trainer} />}
+        {active === 'Overview' && <OverviewPanel trainer={trainer} t={t} />}
+        {active === 'Schedule' && <SchedulePanel trainer={trainer} t={t} locale={locale} />}
+        {active === 'Clients' && <ClientsPanel t={t} />}
+        {active === 'Reviews' && <ReviewsPanel trainer={trainer} t={t} />}
+        {active === 'Availability' && <AvailabilityPanel trainer={trainer} t={t} />}
       </div>
     </div>
   );
 }
 
 /** Overview — the About card plus the "This week" side card. */
-function OverviewPanel({ trainer }: { trainer: AdminTrainerDetail }) {
+function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <Card className="flex flex-col gap-5 p-5 lg:col-span-2">
         <div className="flex flex-col gap-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-            About
+            {t('tabs.about')}
           </h3>
           {trainer.bio ? (
             <p className="whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">
               {trainer.bio}
             </p>
           ) : (
-            <p className="text-sm text-ink-400">No bio yet.</p>
+            <p className="text-sm text-ink-400">{t('tabs.noBio')}</p>
           )}
         </div>
 
         <div className="flex flex-col gap-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-            Specialties
+            {t('tabs.specialties')}
           </h3>
           {trainer.specialties.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -115,14 +129,14 @@ function OverviewPanel({ trainer }: { trainer: AdminTrainerDetail }) {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-ink-400">No specialties listed.</p>
+            <p className="text-sm text-ink-400">{t('tabs.noSpecialties')}</p>
           )}
         </div>
 
         <div className="flex flex-col gap-2">
           <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
             <Icon name="award" className="h-3.5 w-3.5" />
-            Certifications
+            {t('tabs.certifications')}
           </h3>
           {trainer.specialties.length > 0 ? (
             <ul className="flex flex-col divide-y divide-ink-100 dark:divide-white/10">
@@ -132,27 +146,25 @@ function OverviewPanel({ trainer }: { trainer: AdminTrainerDetail }) {
                     <Icon name="award" className="h-4 w-4" />
                   </span>
                   <span className="text-sm font-medium text-ink-800 dark:text-ink-100">
-                    Certified · {tag}
+                    {t('tabs.certified', { tag })}
                   </span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-ink-400">
-              No certifications recorded — this gym tracks specialties, not formal certificates.
-            </p>
+            <p className="text-sm text-ink-400">{t('tabs.noCertifications')}</p>
           )}
         </div>
       </Card>
 
       <Card className="flex h-full flex-col gap-1 p-5">
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          This week
+          {t('tabs.thisWeek')}
         </h3>
         <div className="mt-1 flex flex-col divide-y divide-ink-100 dark:divide-white/10">
-          <WeekRow label="Classes led" value={trainer.thisWeek.classesLed} />
-          <WeekRow label="New reviews" value={trainer.thisWeek.newReviews} />
-          <WeekRow label="Members trained" value={trainer.thisWeek.membersTrained} />
+          <WeekRow label={t('tabs.classesLed')} value={trainer.thisWeek.classesLed} />
+          <WeekRow label={t('tabs.newReviews')} value={trainer.thisWeek.newReviews} />
+          <WeekRow label={t('tabs.membersTrained')} value={trainer.thisWeek.membersTrained} />
         </div>
       </Card>
     </div>
@@ -160,11 +172,19 @@ function OverviewPanel({ trainer }: { trainer: AdminTrainerDetail }) {
 }
 
 /** Schedule — the trainer's next class this cycle (real upcoming occurrence). */
-function SchedulePanel({ trainer }: { trainer: AdminTrainerDetail }) {
+function SchedulePanel({
+  trainer,
+  t,
+  locale,
+}: {
+  trainer: AdminTrainerDetail;
+  t: T;
+  locale: string;
+}) {
   return (
     <Card className="flex flex-col gap-4 p-5">
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        Next class
+        {t('tabs.nextClass')}
       </h3>
       {trainer.nextClass ? (
         <div className="flex items-center gap-3">
@@ -176,23 +196,25 @@ function SchedulePanel({ trainer }: { trainer: AdminTrainerDetail }) {
               {trainer.nextClass.title}
             </p>
             <p className="text-xs text-ink-500 dark:text-ink-400">
-              {formatDateTime(trainer.nextClass.startsAt)}
+              {formatDateTime(trainer.nextClass.startsAt, locale)}
             </p>
           </div>
         </div>
       ) : (
-        <p className="text-sm text-ink-400">No upcoming class scheduled.</p>
+        <p className="text-sm text-ink-400">{t('tabs.noUpcomingClass')}</p>
       )}
       <p className="text-xs text-ink-500 dark:text-ink-400">
-        {trainer.classesThisWeek} {trainer.classesThisWeek === 1 ? 'class' : 'classes'} on the
-        calendar this week. Manage the full timetable from{' '}
-        <Link
-          href="/classes"
-          className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          Classes
-        </Link>
-        .
+        {t.rich('tabs.scheduleCalendarNote', {
+          count: trainer.classesThisWeek,
+          link: (chunks) => (
+            <Link
+              href="/classes"
+              className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     </Card>
   );
@@ -202,25 +224,20 @@ function SchedulePanel({ trainer }: { trainer: AdminTrainerDetail }) {
  * Clients — the schema has no personal-training relationship, so this states that
  * honestly rather than fabricating a client list or count.
  */
-function ClientsPanel() {
+function ClientsPanel({ t }: { t: T }) {
   return (
     <Card className="flex flex-col items-center gap-2 px-4 py-12 text-center">
       <span className="grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-500 dark:bg-white/10 dark:text-ink-300">
         <Icon name="users" className="h-6 w-6" />
       </span>
-      <p className="text-sm font-medium text-ink-700 dark:text-ink-200">
-        Personal-training clients aren’t tracked yet
-      </p>
-      <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
-        This gym doesn’t model one-to-one PT relationships, so there’s no client roster to show
-        here.
-      </p>
+      <p className="text-sm font-medium text-ink-700 dark:text-ink-200">{t('tabs.clientsTitle')}</p>
+      <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">{t('tabs.clientsBody')}</p>
     </Card>
   );
 }
 
 /** Reviews — the live aggregate + a link into the moderation queue. */
-function ReviewsPanel({ trainer }: { trainer: AdminTrainerDetail }) {
+function ReviewsPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
     <Card className="flex flex-col gap-4 p-5">
       <div className="flex items-center gap-4">
@@ -231,38 +248,36 @@ function ReviewsPanel({ trainer }: { trainer: AdminTrainerDetail }) {
           </span>
         </div>
         <p className="text-sm text-ink-500 dark:text-ink-400">
-          {trainer.reviewCount} {trainer.reviewCount === 1 ? 'review' : 'reviews'} ·{' '}
-          {trainer.thisWeek.newReviews} new this week
+          {t('tabs.reviewsSummary', {
+            count: trainer.reviewCount,
+            newReviews: trainer.thisWeek.newReviews,
+          })}
         </p>
       </div>
       {trainer.reviewCount === 0 ? (
-        <p className="text-sm text-ink-400">No reviews yet.</p>
+        <p className="text-sm text-ink-400">{t('tabs.noReviews')}</p>
       ) : (
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          Read and moderate individual reviews from the trainer’s review queue.
-        </p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('tabs.reviewsModerate')}</p>
       )}
     </Card>
   );
 }
 
 /** Availability — a link to the trainer's weekly availability editor. */
-function AvailabilityPanel({ trainer }: { trainer: AdminTrainerDetail }) {
+function AvailabilityPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
     <Card className="flex flex-col gap-3 p-5">
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        Weekly availability
+        {t('tabs.weeklyAvailability')}
       </h3>
       <p className="text-sm text-ink-500 dark:text-ink-400">
-        {trainer.name} teaches {trainer.classesThisWeek}{' '}
-        {trainer.classesThisWeek === 1 ? 'class' : 'classes'} this week. Set the recurring hours
-        they can coach from the availability editor.
+        {t('tabs.availabilityBody', { name: trainer.name, count: trainer.classesThisWeek })}
       </p>
       <Link
         href={`/trainers/${trainer.id}/edit`}
         className="text-sm font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
       >
-        Manage availability →
+        {t('tabs.manageAvailability')}
       </Link>
     </Card>
   );

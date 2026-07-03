@@ -2,6 +2,7 @@
 
 import { useMemo, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import type {
   AdminAnalyticsResponse,
   AnalyticsChannelSlice,
@@ -10,12 +11,14 @@ import type {
 } from '@fit/types';
 import { AreaChart, Card, CountUp, Icon, type AreaPoint, type IconName } from '@/components/ui';
 
+type T = ReturnType<typeof useTranslations>;
+
 /** The range options offered by the segmented control, in ascending span order. */
-const RANGE_OPTIONS: ReadonlyArray<{ value: AnalyticsRange; label: string }> = [
-  { value: '7d', label: '7 days' },
-  { value: '30d', label: '30 days' },
-  { value: '12w', label: '12 weeks' },
-  { value: '12m', label: '12 months' },
+const RANGE_OPTIONS: ReadonlyArray<{ value: AnalyticsRange; labelKey: string }> = [
+  { value: '7d', labelKey: 'range7d' },
+  { value: '30d', labelKey: 'range30d' },
+  { value: '12w', labelKey: 'range12w' },
+  { value: '12m', labelKey: 'range12m' },
 ];
 
 /** Fixed palette for the channel-mix slices, brand-first. */
@@ -24,9 +27,9 @@ const CHANNEL_COLORS: Record<AnalyticsChannelSlice['channel'], string> = {
   ONLINE: 'text-accent-500 dark:text-accent-400',
 };
 
-const CHANNEL_LABELS: Record<AnalyticsChannelSlice['channel'], string> = {
-  POS: 'Point of sale',
-  ONLINE: 'Online orders',
+const CHANNEL_LABEL_KEYS: Record<AnalyticsChannelSlice['channel'], string> = {
+  POS: 'channelPos',
+  ONLINE: 'channelOnline',
 };
 
 /**
@@ -38,6 +41,8 @@ const CHANNEL_LABELS: Record<AnalyticsChannelSlice['channel'], string> = {
  * truth stays server-side).
  */
 export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
+  const t = useTranslations('admin.analytics');
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -51,12 +56,12 @@ export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
 
   const money = useMemo(
     () =>
-      new Intl.NumberFormat(undefined, {
+      new Intl.NumberFormat(locale, {
         style: 'currency',
         currency: data.currency,
         maximumFractionDigits: 0,
       }),
-    [data.currency],
+    [data.currency, locale],
   );
 
   const revenuePoints: AreaPoint[] = data.revenueSeries.map((p) => ({
@@ -67,22 +72,36 @@ export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
 
   return (
     <div className={`flex flex-col gap-6 ${isPending ? 'opacity-70 transition-opacity' : ''}`}>
-      <RangeControl value={data.range} onSelect={selectRange} disabled={isPending} />
+      <RangeControl value={data.range} onSelect={selectRange} disabled={isPending} t={t} />
 
       {/* KPI cards */}
       <section
-        aria-label="Key metrics"
+        aria-label={t('keyMetrics')}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         <KpiCard
-          label="Revenue"
+          label={t('revenue')}
           icon="card"
           kpi={data.kpis.revenue}
           format={(v) => money.format(v / 100)}
+          t={t}
         />
-        <KpiCard label="Active members" icon="users" kpi={data.kpis.activeMembers} />
-        <KpiCard label="Attendance rate" icon="check" kpi={data.kpis.attendanceRate} suffix="%" />
-        <KpiCard label="Churn" icon="logout" kpi={data.kpis.churn} suffix="%" invertDelta />
+        <KpiCard label={t('activeMembers')} icon="users" kpi={data.kpis.activeMembers} t={t} />
+        <KpiCard
+          label={t('attendanceRate')}
+          icon="check"
+          kpi={data.kpis.attendanceRate}
+          suffix="%"
+          t={t}
+        />
+        <KpiCard
+          label={t('churn')}
+          icon="logout"
+          kpi={data.kpis.churn}
+          suffix="%"
+          invertDelta
+          t={t}
+        />
       </section>
 
       {/* Revenue + channel mix */}
@@ -90,22 +109,22 @@ export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
         <Card glow className="p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-              Revenue
+              {t('revenue')}
             </h2>
-            <span className="font-mono text-xs text-ink-400">captured payments</span>
+            <span className="font-mono text-xs text-ink-400">{t('capturedPayments')}</span>
           </div>
           {revenuePoints.some((p) => p.value > 0) ? (
-            <AreaChart data={revenuePoints} ariaLabel="Revenue over the selected range" />
+            <AreaChart data={revenuePoints} ariaLabel={t('revenueChartLabel')} />
           ) : (
-            <EmptyState>No captured revenue in this window yet.</EmptyState>
+            <EmptyState>{t('emptyRevenue')}</EmptyState>
           )}
         </Card>
 
         <Card glow className="p-5">
           <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-            Channel mix
+            {t('channelMix')}
           </h2>
-          <ChannelMix slices={data.channelMix} format={(v) => money.format(v / 100)} />
+          <ChannelMix slices={data.channelMix} format={(v) => money.format(v / 100)} t={t} />
         </Card>
       </section>
 
@@ -113,16 +132,16 @@ export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card glow className="p-5">
           <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-            Subscribers by plan
+            {t('subscribersByPlan')}
           </h2>
-          <PlanMix data={data} />
+          <PlanMix data={data} t={t} />
         </Card>
 
         <Card glow className="p-5">
           <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-            Top classes
+            {t('topClasses')}
           </h2>
-          <TopClasses data={data} />
+          <TopClasses data={data} t={t} />
         </Card>
       </section>
     </div>
@@ -137,15 +156,17 @@ function RangeControl({
   value,
   onSelect,
   disabled,
+  t,
 }: {
   value: AnalyticsRange;
   onSelect: (next: AnalyticsRange) => void;
   disabled: boolean;
+  t: T;
 }) {
   return (
     <div
       role="tablist"
-      aria-label="Reporting range"
+      aria-label={t('reportingRange')}
       className="inline-flex w-fit rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
     >
       {RANGE_OPTIONS.map((option) => {
@@ -164,7 +185,7 @@ function RangeControl({
                 : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
             }`}
           >
-            {option.label}
+            {t(option.labelKey)}
           </button>
         );
       })}
@@ -183,6 +204,7 @@ function KpiCard({
   suffix = '',
   format,
   invertDelta = false,
+  t,
 }: {
   label: string;
   icon: IconName;
@@ -191,6 +213,7 @@ function KpiCard({
   format?: (value: number) => string;
   /** For metrics where down is good (churn): a negative delta reads as positive. */
   invertDelta?: boolean;
+  t: T;
 }) {
   return (
     <Card glow className="flex h-full flex-col p-5">
@@ -198,7 +221,7 @@ function KpiCard({
         <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
           <Icon name={icon} className="h-5 w-5" />
         </span>
-        <DeltaChip deltaPct={kpi.deltaPct} invert={invertDelta} />
+        <DeltaChip deltaPct={kpi.deltaPct} invert={invertDelta} t={t} />
       </div>
       <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
         {format ? (
@@ -217,9 +240,9 @@ function KpiCard({
   );
 }
 
-function DeltaChip({ deltaPct, invert }: { deltaPct: number | null; invert: boolean }) {
+function DeltaChip({ deltaPct, invert, t }: { deltaPct: number | null; invert: boolean; t: T }) {
   if (deltaPct === null) {
-    return <span className="text-xs text-ink-300 dark:text-ink-600">no prior data</span>;
+    return <span className="text-xs text-ink-300 dark:text-ink-600">{t('noPriorData')}</span>;
   }
   const isGood = invert ? deltaPct <= 0 : deltaPct >= 0;
   const arrow = deltaPct >= 0 ? '▲' : '▼';
@@ -243,13 +266,15 @@ function DeltaChip({ deltaPct, invert }: { deltaPct: number | null; invert: bool
 function ChannelMix({
   slices,
   format,
+  t,
 }: {
   slices: AnalyticsChannelSlice[];
   format: (amount: number) => string;
+  t: T;
 }) {
   const total = slices.reduce((sum, s) => sum + s.amount, 0);
   if (total <= 0) {
-    return <EmptyState>No captured revenue to split yet.</EmptyState>;
+    return <EmptyState>{t('emptyChannelMix')}</EmptyState>;
   }
 
   const size = 120;
@@ -311,7 +336,7 @@ function ChannelMix({
                 className={`inline-block h-2.5 w-2.5 rounded-full ${CHANNEL_COLORS[slice.channel]}`}
                 style={{ backgroundColor: 'currentColor' }}
               />
-              {CHANNEL_LABELS[slice.channel]}
+              {t(CHANNEL_LABEL_KEYS[slice.channel])}
             </span>
             <span className="font-mono tabular-nums text-ink-900 dark:text-white">
               {format(slice.amount)}
@@ -327,10 +352,10 @@ function ChannelMix({
 /*  Plan mix (bar list)                                                        */
 /* -------------------------------------------------------------------------- */
 
-function PlanMix({ data }: { data: AdminAnalyticsResponse }) {
+function PlanMix({ data, t }: { data: AdminAnalyticsResponse; t: T }) {
   const { planMix } = data;
   if (planMix.length === 0) {
-    return <EmptyState>No active subscribers yet.</EmptyState>;
+    return <EmptyState>{t('emptyPlanMix')}</EmptyState>;
   }
   const max = Math.max(1, ...planMix.map((p) => p.subscribers));
 
@@ -360,10 +385,10 @@ function PlanMix({ data }: { data: AdminAnalyticsResponse }) {
 /*  Top classes                                                                */
 /* -------------------------------------------------------------------------- */
 
-function TopClasses({ data }: { data: AdminAnalyticsResponse }) {
+function TopClasses({ data, t }: { data: AdminAnalyticsResponse; t: T }) {
   const { topClasses } = data;
   if (topClasses.length === 0) {
-    return <EmptyState>No bookings in this window yet.</EmptyState>;
+    return <EmptyState>{t('emptyTopClasses')}</EmptyState>;
   }
   return (
     <ol className="space-y-2">
@@ -379,7 +404,7 @@ function TopClasses({ data }: { data: AdminAnalyticsResponse }) {
             <span className="truncate text-ink-700 dark:text-ink-200">{row.title}</span>
           </span>
           <span className="shrink-0 font-mono tabular-nums text-ink-500 dark:text-ink-400">
-            {row.bookings} booking{row.bookings === 1 ? '' : 's'}
+            {t('bookingsCount', { count: row.bookings })}
           </span>
         </li>
       ))}

@@ -998,6 +998,398 @@
         "fri": "პარ",
         "sat": "შაბ"
       }
+    },
+    "analytics": {
+      "title": "ანალიტიკა",
+      "description": "შემოსავალი, წევრობა, დასწრება და გამოწერების ტენდენციები შენი დარბაზისთვის — ყველა მაჩვენებელი რეალურ დროში, შენი ნამდვილი მონაცემებიდან იანგარიშება.",
+      "noAccess": "შენს როლს ანალიტიკაზე წვდომა არ აქვს. სთხოვე მფლობელს ან მენეჯერს ანგარიშგების უფლება.",
+      "loadError": "ანალიტიკის ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+      "apiUnreachable": "Fit API-სთან დაკავშირება ვერ მოხერხდა. შეამოწმე NEXT_PUBLIC_API_URL და დარწმუნდი, რომ API გაშვებულია.",
+      "range7d": "7 დღე",
+      "range30d": "30 დღე",
+      "range12w": "12 კვირა",
+      "range12m": "12 თვე",
+      "reportingRange": "ანგარიშგების პერიოდი",
+      "keyMetrics": "ძირითადი მაჩვენებლები",
+      "revenue": "შემოსავალი",
+      "activeMembers": "აქტიური წევრები",
+      "attendanceRate": "დასწრების მაჩვენებელი",
+      "churn": "გადინება",
+      "capturedPayments": "მიღებული გადახდები",
+      "revenueChartLabel": "შემოსავალი არჩეულ პერიოდში",
+      "emptyRevenue": "ამ პერიოდში მიღებული შემოსავალი ჯერ არ არის.",
+      "channelMix": "არხების განაწილება",
+      "channelPos": "გაყიდვის წერტილი",
+      "channelOnline": "ონლაინ შეკვეთები",
+      "emptyChannelMix": "გასანაწილებელი შემოსავალი ჯერ არ არის.",
+      "subscribersByPlan": "გამომწერები გეგმის მიხედვით",
+      "emptyPlanMix": "აქტიური გამომწერები ჯერ არ არის.",
+      "topClasses": "პოპულარული გაკვეთილები",
+      "emptyTopClasses": "ამ პერიოდში ჯავშნები ჯერ არ არის.",
+      "bookingsCount": "{count, plural, one {# ჯავშანი} other {# ჯავშანი}}",
+      "noPriorData": "წინა მონაცემები არ არის"
+    },
+    "checkin": {
+      "title": "მიმღები",
+      "live": "პირდაპირი",
+      "subtitle": "დაასკანერეთ წევრის QR ან მოძებნეთ ის გამოსაცხადებლად. გამოცხადებები ცოცხალ ლენტში დროულად გამოჩნდება.",
+      "error": {
+        "withStatus": "მიმღების მონაცემების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+        "unreachable": "Fit API-სთან დაკავშირება ვერ მოხერხდა. შეამოწმეთ NEXT_PUBLIC_API_URL და რომ API გაშვებულია."
+      },
+      "metrics": {
+        "aria": "მიმღების მაჩვენებლები"
+      },
+      "stats": {
+        "checkedInToday": "დღეს გამოცხადდა",
+        "inGymNow": "ახლა დარბაზში",
+        "peakToday": "დღის პიკი",
+        "noShows": "არგამოცხადებულები"
+      },
+      "scanner": {
+        "title": "QR გამოცხადება",
+        "subtitle": "მიმართეთ წევრის QR სკანერისკენ.",
+        "ready": "სკანერი მზადაა",
+        "simulate": "სკანირების სიმულაცია"
+      },
+      "manual": {
+        "title": "ხელით გამოცხადება",
+        "subtitle": "მოძებნეთ სახელით ან ელფოსტით და გამოაცხადეთ წევრი.",
+        "searchLabel": "წევრების ძებნა სახელით ან ელფოსტით",
+        "searchPlaceholder": "ძებნა სახელით ან ელფოსტით…",
+        "searching": "იძებნება…",
+        "noMatch": "„{query}“-ს წევრი არ ემთხვევა."
+      },
+      "toast": {
+        "checkedIn": "{name} გამოცხადდა"
+      },
+      "eligibility": {
+        "ACTIVE": "აქტიური",
+        "FROZEN": "გაყინული",
+        "EXPIRED": "ვადაგასული",
+        "checking": "მოწმდება…",
+        "plan": "გეგმა",
+        "access": "წვდომა",
+        "granted": "მინიჭებული",
+        "review": "გადასამოწმებელი",
+        "frozenWarning": "აბონემენტი გაყინულია. დაადასტურეთ წვდომის მინიჭებამდე.",
+        "inactiveWarning": "აქტიური აბონემენტი არ არის. დაადასტურეთ წვდომის მინიჭებამდე.",
+        "checkingIn": "ცხადდება…",
+        "checkIn": "გამოცხადება",
+        "cancel": "გაუქმება",
+        "readOnly": "თქვენს როლს შეუძლია წევრების ნახვა, მაგრამ გამოცხადების დაფიქსირება — არა."
+      },
+      "arrivals": {
+        "title": "ცოცხალი გამოცხადებები",
+        "count": "{count, plural, one {# დღეს} other {# დღეს}}",
+        "empty": "დღეს ჯერ არავინ გამოცხადებულა. გამოცხადებული წევრები აქ გამოჩნდება."
+      },
+      "method": {
+        "QR": "QR",
+        "MANUAL": "ხელით"
+      },
+      "timeAgo": {
+        "justNow": "ახლახან",
+        "minutes": "{minutes} წთ წინ",
+        "hours": "{hours} სთ წინ"
+      }
+    },
+    "members": {
+      "list": {
+        "title": "წევრები",
+        "subtitle": "შენი დარბაზის წევრების სია.",
+        "subtitleEmpty": "სიაში ჯერ არცერთი წევრი არ არის.",
+        "subtitleCounts": "{all} სულ · {active} აქტიური",
+        "addMember": "წევრის დამატება",
+        "planMix": "გეგმების განაწილება",
+        "paid": "ფასიანი",
+        "planMixEmpty": "ფასიანი გამოწერები ჯერ არ არის.",
+        "tablistLabel": "გაფილტვრა წევრის სტატუსით",
+        "exportStarting": "ექსპორტი იწყება…",
+        "exportSelected": "{count} მონიშნულის ექსპორტი",
+        "exportAll": "ყველას ექსპორტი",
+        "exportStartedAll": "ყველა წევრის ექსპორტი დაიწყო (დავალება {jobId}). CSV-ის ჩამოტვირთვას შეძლებ დასრულების შემდეგ.",
+        "exportStartedSelected": "{count, plural, one {# წევრის} other {# წევრის}} ექსპორტი დაიწყო (დავალება {jobId}). CSV-ის ჩამოტვირთვას შეძლებ დასრულების შემდეგ.",
+        "clearSelection": "მონიშვნის გასუფთავება",
+        "emptyTitle": "წევრები ჯერ არ არის",
+        "emptyHintWrite": "დაამატე პირველი წევრი ან შეცვალე ფილტრები ზემოთ.",
+        "emptyHintRead": "ფილტრებს ჯერ არცერთი წევრი არ ემთხვევა.",
+        "selectAll": "ამ გვერდის ყველა წევრის მონიშვნა",
+        "selectMember": "{name}-ის მონიშვნა",
+        "columnPlan": "გეგმა",
+        "columnNextBilling": "შემდეგი გადახდა",
+        "rowActions": "მოქმედებები",
+        "openMember": "{name}-ის გახსნა",
+        "noPlan": "გეგმის გარეშე",
+        "showing": "ნაჩვენებია {from}–{to} / {total} წევრი",
+        "previous": "წინა",
+        "next": "შემდეგი"
+      },
+      "breadcrumb": {
+        "label": "ნავიგაცია",
+        "members": "წევრები"
+      },
+      "tabs": {
+        "all": "ყველა",
+        "active": "აქტიური",
+        "frozen": "გაყინული",
+        "trial": "საცდელი",
+        "expired": "ვადაგასული"
+      },
+      "columns": {
+        "name": "წევრი",
+        "status": "სტატუსი",
+        "lastVisitAt": "ბოლო ვიზიტი"
+      },
+      "status": {
+        "ACTIVE": "აქტიური",
+        "INVITED": "საცდელი",
+        "SUSPENDED": "ვადაგასული"
+      },
+      "lastVisit": {
+        "never": "არასდროს",
+        "justNow": "ახლახან",
+        "hoursAgo": "{hours}სთ წინ",
+        "today": "დღეს",
+        "yesterday": "გუშინ",
+        "days": "{count} დღე"
+      },
+      "billing": {
+        "paused": "შეჩერებული",
+        "overdue": "ვადაგადაცილებული"
+      },
+      "filters": {
+        "searchLabel": "წევრების ძებნა სახელით ან ელფოსტით",
+        "searchPlaceholder": "ძებნა სახელით ან ელფოსტით…",
+        "filter": "ფილტრი",
+        "filterActive": "ფილტრი · 1",
+        "statusLabel": "სტატუსი",
+        "allStatuses": "ყველა სტატუსი"
+      },
+      "form": {
+        "name": "სახელი",
+        "email": "ელფოსტა",
+        "emailReadonlyHint": "ელფოსტა წევრის შესვლის იდენტიფიკატორია და აქ ვერ შეიცვლება.",
+        "phone": "ტელეფონი",
+        "phoneOptional": "(არასავალდებულო)",
+        "status": "სტატუსი",
+        "statusActive": "აქტიური",
+        "statusInvited": "მოწვეული",
+        "saving": "ინახება…",
+        "saveChanges": "ცვლილებების შენახვა",
+        "createMember": "წევრის შექმნა",
+        "cancel": "გაუქმება"
+      },
+      "actions": {
+        "edit": "რედაქტირება",
+        "reactivate": "ხელახლა გააქტიურება",
+        "deactivate": "დეაქტივაცია"
+      },
+      "nav": {
+        "backToMembers": "წევრებში დაბრუნება",
+        "backToMember": "წევრთან დაბრუნება"
+      },
+      "newPage": {
+        "subtitle": "დაამატე წევრი შენს დარბაზში. თუ ამ ელფოსტით ვინმე უკვე სხვა დარბაზს ეკუთვნის, ის დაუკავშირდება და არ დუბლირდება."
+      },
+      "editPage": {
+        "title": "წევრის რედაქტირება",
+        "subtitle": "განაახლე {name}-ის საკონტაქტო მონაცემები.",
+        "breadcrumb": "რედაქტირება"
+      },
+      "detail": {
+        "message": "შეტყობინება",
+        "memberMetrics": "წევრის მაჩვენებლები",
+        "lifetimeValue": "სრული ღირებულება",
+        "capturedPayments": "მიღებული გადახდები",
+        "totalVisits": "სულ ვიზიტები",
+        "allTimeCheckins": "ყველა დროის ჩექინები",
+        "memberSince": "წევრობის დასაწყისი",
+        "joined": "შემოუერთდა {date}",
+        "nextBilling": "შემდეგი გადახდა",
+        "noLivePlan": "აქტიური გეგმა არ არის",
+        "nextBillingPaused": "შეჩერებული",
+        "nextBillingOverdue": "ვადაგადაცილებული",
+        "noSubscriptions": "გამოწერები ჯერ არ არის.",
+        "noBookings": "ჯავშნები ჯერ არ არის.",
+        "noPayments": "გადახდები ჯერ არ არის.",
+        "noNotes": "ჩანაწერები ჯერ არ არის.",
+        "subStarted": "დაიწყო {date}",
+        "subRenews": " · განახლდება {date}",
+        "recentActivity": "ბოლო აქტივობა",
+        "noRecentActivity": "ბოლო აქტივობა არ არის.",
+        "attendanceTitle": "დასწრება · ბოლო 8 კვირა",
+        "totalCount": "{count} სულ",
+        "visits": "{count, plural, one {# ვიზიტი} other {# ვიზიტი}}",
+        "currentPlan": "მიმდინარე გეგმა",
+        "noLiveSubscription": "აქტიური გამოწერა არ არის.",
+        "perInterval": "/{interval}",
+        "intervalYear": "წელი",
+        "intervalMonth": "თვე",
+        "intervalPeriod": "პერიოდი",
+        "renews": "განახლდება {date}",
+        "daysLeft": "დარჩა {count, plural, one {# დღე} other {# დღე}}",
+        "freeze": "გაყინვა",
+        "addCredit": "კრედიტის დამატება",
+        "tags": "ტეგები",
+        "noTags": "ტეგები ჯერ არ არის.",
+        "add": "დამატება",
+        "tagsDisabledTitle": "წევრის ტეგები ჯერ არ არის მოდელირებული"
+      },
+      "memberTabs": {
+        "overview": "მიმოხილვა",
+        "subscriptions": "გამოწერები",
+        "bookings": "ჯავშნები",
+        "payments": "გადახდები",
+        "notes": "ჩანაწერები"
+      },
+      "errors": {
+        "loadMembers": "წევრების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+        "loadMember": "ამ წევრის ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+        "apiUnreachable": "Fit API-სთან დაკავშირება ვერ მოხერხდა. შეამოწმე NEXT_PUBLIC_API_URL და რომ API გაშვებულია.",
+        "notAuthorized": "წვდომა აკრძალულია",
+        "memberExists": "ამ ელფოსტით წევრი უკვე არსებობს შენს დარბაზში.",
+        "memberNotFound": "ეს წევრი აღარ არსებობს.",
+        "requestFailed": "მოთხოვნა ვერ შესრულდა ({status}): {message}",
+        "unexpected": "მოულოდნელი შეცდომა",
+        "invalidDetails": "წევრის არასწორი მონაცემები"
+      }
+    },
+    "trainers": {
+      "reviews": "{count, plural, one {# შეფასება} other {# შეფასება}}",
+      "relative": {
+        "today": "დღეს",
+        "tomorrow": "ხვალ"
+      },
+      "status": {
+        "active": "აქტიური",
+        "onLeave": "შვებულებაში",
+        "inactive": "არააქტიური"
+      },
+      "list": {
+        "title": "მწვრთნელები",
+        "breadcrumb": "მწვრთნელები",
+        "breadcrumbAria": "ნავიგაცია",
+        "subtitleDefault": "შენი დარბაზის მწვრთნელთა შემადგენლობა.",
+        "subtitleEmpty": "შემადგენლობაში ჯერ არცერთი მწვრთნელი არ არის.",
+        "subtitleCount": "{total, plural, one {# მწვრთნელი} other {# მწვრთნელი}} · {active} აქტიური",
+        "addTrainer": "მწვრთნელის დამატება",
+        "rosterMetricsAria": "შემადგენლობის მაჩვენებლები",
+        "kpiTrainers": "მწვრთნელები",
+        "kpiTrainersContext": "{count} აქტიური",
+        "kpiClassesPerWeek": "გაკვეთილები / კვირა",
+        "kpiClassesPerWeekContext": "მთელ შემადგენლობაში",
+        "kpiAvgRating": "საშ. რეიტინგი",
+        "kpiAvgRatingContext": "წევრების შეფასებებით",
+        "kpiReviews": "შეფასებები",
+        "kpiReviewsContext": "ამ გვერდზე",
+        "filterBySpecialtyAria": "ფილტრი სპეციალობით",
+        "filterAll": "ყველა",
+        "searchLabel": "მოძებნე მწვრთნელი სახელით ან სათაურით",
+        "searchPlaceholder": "მოძებნე მწვრთნელი…",
+        "statClassesPerWk": "გაკვეთილი / კვ.",
+        "statReviews": "შეფასებები",
+        "openTrainer": "{name}-ის გახსნა",
+        "noUpcomingClass": "მომავალი გაკვეთილი არ არის",
+        "view": "ნახვა →",
+        "emptyTitle": "მწვრთნელები ჯერ არ არის",
+        "emptyHintCanWrite": "დაამატე პირველი მწვრთნელი, რომ შექმნა შემადგენლობა.",
+        "emptyHint": "შენს დარბაზში ჯერ არცერთი მწვრთნელი არ არის.",
+        "noMatch": "ამ ფილტრს არცერთი მწვრთნელი არ ემთხვევა.",
+        "pageRange": "{from}–{to} / {total}",
+        "previous": "წინა",
+        "next": "შემდეგი"
+      },
+      "form": {
+        "photo": "ფოტო",
+        "photoAlt": "{name}-ის ფოტო",
+        "trainerFallback": "მწვრთნელი",
+        "uploading": "იტვირთება…",
+        "photoHint": "JPEG, PNG, WebP ან GIF, 5 MB-მდე.",
+        "remove": "წაშლა",
+        "name": "სახელი",
+        "headline": "სათაური",
+        "optional": "(არასავალდებულო)",
+        "headlinePlaceholder": "მაგ. ძალისა და ფიზიკური მომზადების მწვრთნელი",
+        "bio": "ბიოგრაფია",
+        "specialties": "სპეციალობები",
+        "commaSeparated": "(მძიმეებით გამოყოფილი)",
+        "specialtiesPlaceholder": "ძალა, მობილურობა, კვება",
+        "status": "სტატუსი",
+        "saving": "ინახება…",
+        "saveChanges": "ცვლილებების შენახვა",
+        "createTrainer": "მწვრთნელის შექმნა",
+        "cancel": "გაუქმება",
+        "uploadWrongType": "აირჩიე JPEG, PNG, WebP ან GIF გამოსახულება.",
+        "uploadTooLarge": "ეს გამოსახულება 5 MB-ზე დიდია. აირჩიე უფრო პატარა ფაილი.",
+        "uploadFailed": "ატვირთვა ვერ მოხერხდა ({status}). სცადე თავიდან.",
+        "uploadNoPublicUrl": "ფოტო აიტვირთა, მაგრამ საჯარო URL არ არის კონფიგურირებული. შენახულია ფოტოს გარეშე.",
+        "uploadError": "ფოტოს ატვირთვა ვერ მოხერხდა. შეამოწმე კავშირი და სცადე თავიდან.",
+        "backToTrainers": "მწვრთნელებზე დაბრუნება",
+        "backToTrainer": "მწვრთნელზე დაბრუნება",
+        "newTitle": "ახალი მწვრთნელი",
+        "newSubtitle": "დაამატე მწვრთნელი შენი დარბაზის შემადგენლობაში. ატვირთე ფოტო და მიუთითე მისი სპეციალობები, რომ წევრებმა შესაფერისი მწვრთნელი იპოვონ.",
+        "editTitle": "მწვრთნელის რედაქტირება",
+        "editSubtitle": "განაახლე {name}-ის პროფილი და ფოტო."
+      },
+      "detail": {
+        "backToTrainers": "მწვრთნელებზე დაბრუნება",
+        "message": "შეტყობინება",
+        "photoAlt": "{name}-ის ფოტო",
+        "hired": "დაქირავდა {date}",
+        "edit": "რედაქტირება",
+        "reactivate": "გააქტიურება",
+        "deactivate": "დეაქტივაცია",
+        "metricsAria": "მწვრთნელის მაჩვენებლები",
+        "kpiRating": "რეიტინგი",
+        "kpiClassesPerWeek": "გაკვეთილები / კვირა",
+        "kpiClassesPerWeekContext": "ამ კვირაში",
+        "kpiReviews": "შეფასებები",
+        "kpiReviewsContext": "{count} ახალი ამ კვირაში",
+        "kpiShowUpRate": "გამოცხადების მაჩვენებელი",
+        "kpiShowUpRateContext": "ბოლო 90 დღე",
+        "profileAdded": "პროფილი დაემატა {date}."
+      },
+      "tabs": {
+        "overview": "მიმოხილვა",
+        "schedule": "განრიგი",
+        "clients": "კლიენტები",
+        "reviews": "შეფასებები",
+        "availability": "ხელმისაწვდომობა",
+        "about": "შესახებ",
+        "noBio": "ბიოგრაფია ჯერ არ არის.",
+        "specialties": "სპეციალობები",
+        "noSpecialties": "სპეციალობები არ არის მითითებული.",
+        "certifications": "სერტიფიკატები",
+        "certified": "სერტიფიცირებული · {tag}",
+        "noCertifications": "სერტიფიკატები არ არის დაფიქსირებული — ეს დარბაზი აღრიცხავს სპეციალობებს და არა ფორმალურ სერტიფიკატებს.",
+        "thisWeek": "ამ კვირაში",
+        "classesLed": "ჩატარებული გაკვეთილები",
+        "newReviews": "ახალი შეფასებები",
+        "membersTrained": "ნავარჯიშები წევრები",
+        "nextClass": "შემდეგი გაკვეთილი",
+        "noUpcomingClass": "დაგეგმილი გაკვეთილი არ არის.",
+        "scheduleCalendarNote": "ამ კვირაში კალენდარში {count, plural, one {# გაკვეთილია} other {# გაკვეთილია}}. მართე სრული განრიგი <link>გაკვეთილებიდან</link>.",
+        "clientsTitle": "პერსონალური ვარჯიშის კლიენტები ჯერ არ აღირიცხება",
+        "clientsBody": "ეს დარბაზი არ მოდელირებს ინდივიდუალურ სავარჯიშო ურთიერთობებს, ამიტომ აქ საჩვენებელი კლიენტების სია არ არის.",
+        "reviewsSummary": "{count, plural, one {# შეფასება} other {# შეფასება}} · {newReviews} ახალი ამ კვირაში",
+        "noReviews": "შეფასებები ჯერ არ არის.",
+        "reviewsModerate": "წაიკითხე და მოახდინე ცალკეული შეფასებების მოდერაცია მწვრთნელის შეფასებების რიგიდან.",
+        "weeklyAvailability": "კვირის ხელმისაწვდომობა",
+        "availabilityBody": "{name} ამ კვირაში {count, plural, one {# გაკვეთილს} other {# გაკვეთილს}} ატარებს. დააყენე განმეორებადი საათები, როცა მას ვარჯიშის ჩატარება შეუძლია, ხელმისაწვდომობის რედაქტორიდან.",
+        "manageAvailability": "ხელმისაწვდომობის მართვა →"
+      },
+      "errors": {
+        "loadTrainers": "მწვრთნელების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+        "loadTrainer": "ამ მწვრთნელის ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+        "unreachable": "Fit API-სთან დაკავშირება ვერ მოხერხდა. შეამოწმე NEXT_PUBLIC_API_URL და რომ API გაშვებულია.",
+        "notAuthorized": "წვდომა აკრძალულია",
+        "invalidDetails": "მწვრთნელის არასწორი მონაცემები",
+        "trainerNotFound": "ეს მწვრთნელი აღარ არსებობს.",
+        "photoStorage": "ფოტოს საცავი არ არის კონფიგურირებული. შეინახე მწვრთნელი ფოტოს გარეშე ან სცადე მოგვიანებით.",
+        "requestFailed": "მოთხოვნა ვერ შესრულდა ({status}): {message}",
+        "unexpected": "მოულოდნელი შეცდომა"
+      }
     }
   }
 }

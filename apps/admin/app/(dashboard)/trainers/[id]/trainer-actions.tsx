@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { TrainerStatus } from '@fit/types';
 import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
 import { setTrainerActiveAction } from '../actions';
@@ -22,6 +23,7 @@ export function TrainerActions({
   trainerId: string;
   status: TrainerStatus;
 }) {
+  const t = useTranslations('admin.trainers');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -45,10 +47,14 @@ export function TrainerActions({
       <div className="flex items-center gap-2">
         <Link href={`/trainers/${trainerId}/edit`} className={buttonClasses('outline', 'sm')}>
           <Icon name="settings" className="h-4 w-4" sw={2} />
-          Edit
+          {t('detail.edit')}
         </Link>
         <Btn v="outline" size="sm" onClick={toggle} disabled={pending}>
-          {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
+          {pending
+            ? t('form.saving')
+            : isInactive
+              ? t('detail.reactivate')
+              : t('detail.deactivate')}
         </Btn>
       </div>
       {error ? (

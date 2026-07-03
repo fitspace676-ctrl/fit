@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { TrainerStatus } from '@fit/types';
 import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
 import {
@@ -12,9 +13,9 @@ import {
 } from './actions';
 
 /** Selectable initial statuses when creating (lifecycle change is a separate action). */
-const CREATE_STATUSES: ReadonlyArray<{ value: TrainerStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
+const CREATE_STATUSES: ReadonlyArray<{ value: TrainerStatus; labelKey: string }> = [
+  { value: 'ACTIVE', labelKey: 'status.active' },
+  { value: 'INACTIVE', labelKey: 'status.inactive' },
 ];
 
 /** Shared field styling so create + edit render identically. */
@@ -67,6 +68,7 @@ function initialsOf(name: string): string {
  * surfaces any API error inline without throwing across the Server Action boundary.
  */
 export function TrainerForm(props: Props) {
+  const t = useTranslations('admin.trainers');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -102,11 +104,11 @@ export function TrainerForm(props: Props) {
     setUploadError(null);
 
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setUploadError('Choose a JPEG, PNG, WebP, or GIF image.');
+      setUploadError(t('form.uploadWrongType'));
       return;
     }
     if (file.size > MAX_PHOTO_BYTES) {
-      setUploadError('That image is larger than 5 MB. Choose a smaller file.');
+      setUploadError(t('form.uploadTooLarge'));
       return;
     }
 
@@ -127,18 +129,16 @@ export function TrainerForm(props: Props) {
         body: file,
       });
       if (!put.ok) {
-        setUploadError(`Upload failed (${put.status}). Please try again.`);
+        setUploadError(t('form.uploadFailed', { status: put.status }));
         return;
       }
       if (!signed.data.publicUrl) {
-        setUploadError(
-          'The photo uploaded but has no public URL configured. Saved without a photo.',
-        );
+        setUploadError(t('form.uploadNoPublicUrl'));
         return;
       }
       setPhotoUrl(signed.data.publicUrl);
     } catch {
-      setUploadError('Could not upload the photo. Check your connection and try again.');
+      setUploadError(t('form.uploadError'));
     } finally {
       setUploading(false);
       // Allow re-selecting the same file after an error.
@@ -174,12 +174,12 @@ export function TrainerForm(props: Props) {
     <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-4">
       {/* Photo. */}
       <div className="flex flex-col gap-2">
-        <span className={LABEL_CLASS}>Photo</span>
+        <span className={LABEL_CLASS}>{t('form.photo')}</span>
         <div className="flex items-center gap-4">
           {photoUrl ? (
             <img
               src={photoUrl}
-              alt={`${name || 'Trainer'} photo`}
+              alt={t('form.photoAlt', { name: name || t('form.trainerFallback') })}
               className="h-16 w-16 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
             />
           ) : (
@@ -197,14 +197,14 @@ export function TrainerForm(props: Props) {
               className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/15 dark:file:text-brand-200 dark:hover:file:bg-brand-500/25"
             />
             <div className="flex items-center gap-3 text-xs text-ink-400">
-              <span>{uploading ? 'Uploading…' : 'JPEG, PNG, WebP or GIF, up to 5 MB.'}</span>
+              <span>{uploading ? t('form.uploading') : t('form.photoHint')}</span>
               {photoUrl && !uploading ? (
                 <button
                   type="button"
                   onClick={removePhoto}
                   className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400 dark:hover:text-danger-300"
                 >
-                  Remove
+                  {t('form.remove')}
                 </button>
               ) : null}
             </div>
@@ -225,7 +225,7 @@ export function TrainerForm(props: Props) {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="trainer-name" className={LABEL_CLASS}>
-          Name
+          {t('form.name')}
         </label>
         <input
           id="trainer-name"
@@ -241,7 +241,8 @@ export function TrainerForm(props: Props) {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="trainer-headline" className={LABEL_CLASS}>
-          Headline <span className="font-normal text-ink-400">(optional)</span>
+          {t('form.headline')}{' '}
+          <span className="font-normal text-ink-400">{t('form.optional')}</span>
         </label>
         <input
           id="trainer-headline"
@@ -249,7 +250,7 @@ export function TrainerForm(props: Props) {
           type="text"
           value={headline}
           onChange={(event) => setHeadline(event.target.value)}
-          placeholder="e.g. Strength &amp; conditioning coach"
+          placeholder={t('form.headlinePlaceholder')}
           autoComplete="off"
           className={FIELD_CLASS}
         />
@@ -257,7 +258,7 @@ export function TrainerForm(props: Props) {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="trainer-bio" className={LABEL_CLASS}>
-          Bio <span className="font-normal text-ink-400">(optional)</span>
+          {t('form.bio')} <span className="font-normal text-ink-400">{t('form.optional')}</span>
         </label>
         <textarea
           id="trainer-bio"
@@ -271,7 +272,8 @@ export function TrainerForm(props: Props) {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="trainer-specialties" className={LABEL_CLASS}>
-          Specialties <span className="font-normal text-ink-400">(comma separated)</span>
+          {t('form.specialties')}{' '}
+          <span className="font-normal text-ink-400">{t('form.commaSeparated')}</span>
         </label>
         <input
           id="trainer-specialties"
@@ -279,7 +281,7 @@ export function TrainerForm(props: Props) {
           type="text"
           value={specialties}
           onChange={(event) => setSpecialties(event.target.value)}
-          placeholder="Strength, Mobility, Nutrition"
+          placeholder={t('form.specialtiesPlaceholder')}
           autoComplete="off"
           className={FIELD_CLASS}
         />
@@ -288,7 +290,7 @@ export function TrainerForm(props: Props) {
       {!isEdit ? (
         <div className="flex flex-col gap-1">
           <label htmlFor="trainer-status" className={LABEL_CLASS}>
-            Status
+            {t('form.status')}
           </label>
           <select
             id="trainer-status"
@@ -299,7 +301,7 @@ export function TrainerForm(props: Props) {
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.labelKey)}
               </option>
             ))}
           </select>
@@ -320,10 +322,10 @@ export function TrainerForm(props: Props) {
 
       <div className="flex items-center gap-3">
         <Btn type="submit" v="primary" size="md" disabled={pending || uploading}>
-          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create trainer'}
+          {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createTrainer')}
         </Btn>
         <Link href={cancelHref} className={buttonClasses('ghost', 'md')}>
-          Cancel
+          {t('form.cancel')}
         </Link>
       </div>
     </form>

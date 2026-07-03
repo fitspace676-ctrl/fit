@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   createTrainerSchema,
@@ -36,18 +37,20 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 
 const requireTrainerWrite = () => sessionHas(Permission.TrainerWrite);
 
+type T = Awaited<ReturnType<typeof getTranslations>>;
+
 /** Map a thrown API error to a short, staff-facing message. */
-function toMessage(error: unknown): string {
+function toMessage(error: unknown, t: T): string {
   if (error instanceof ApiError) {
     if (error.message === 'TRAINER_NOT_FOUND') {
-      return 'That trainer no longer exists.';
+      return t('errors.trainerNotFound');
     }
     if (error.status === 503) {
-      return 'Photo storage is not configured. Save the trainer without a photo, or try again later.';
+      return t('errors.photoStorage');
     }
-    return `Request failed (${error.status}): ${error.message}`;
+    return t('errors.requestFailed', { status: error.status, message: error.message });
   }
-  return error instanceof Error ? error.message : 'Unexpected error';
+  return error instanceof Error ? error.message : t('errors.unexpected');
 }
 
 /**
@@ -58,19 +61,20 @@ function toMessage(error: unknown): string {
 export async function createTrainerAction(
   input: CreateTrainerInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.trainers');
   if (!(await requireTrainerWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = createTrainerSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid trainer details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
   }
   try {
     const trainer = await createTrainer(parsed.data);
     revalidatePath('/trainers');
     return { ok: true, data: { id: trainer.id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -82,12 +86,13 @@ export async function updateTrainerAction(
   id: string,
   input: UpdateTrainerInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.trainers');
   if (!(await requireTrainerWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = updateTrainerSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid trainer details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
   }
   try {
     await updateTrainer(id, parsed.data);
@@ -95,7 +100,7 @@ export async function updateTrainerAction(
     revalidatePath(`/trainers/${id}`);
     return { ok: true, data: { id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -108,8 +113,9 @@ export async function setTrainerActiveAction(
   id: string,
   active: boolean,
 ): Promise<ActionResult<{ status: SetTrainerStatusResponse['status'] }>> {
+  const t = await getTranslations('admin.trainers');
   if (!(await requireTrainerWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   try {
     const trainer = active ? await reactivateTrainer(id) : await deactivateTrainer(id);
@@ -117,7 +123,7 @@ export async function setTrainerActiveAction(
     revalidatePath(`/trainers/${id}`);
     return { ok: true, data: { status: trainer.status } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -132,13 +138,14 @@ export async function requestTrainerPhotoUploadAction(input: {
   contentLength: number;
   fileName?: string;
 }): Promise<ActionResult<SignedUploadResponse>> {
+  const t = await getTranslations('admin.trainers');
   if (!(await requireTrainerWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   try {
     const signed = await createUpload({ ...input, entity: 'trainers' });
     return { ok: true, data: signed };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
