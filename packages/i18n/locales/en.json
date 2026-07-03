@@ -1604,6 +1604,118 @@
         "loadLocations": "Could not load locations ({status}): {message}",
         "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
       }
+    },
+    "settings": {
+      "breadcrumb": {
+        "label": "Breadcrumb",
+        "settings": "Settings"
+      },
+      "title": "Settings",
+      "subtitle": "Configure your gym’s brand, locale, business hours, and the sender used for member emails. These apply across the whole gym.",
+      "sections": {
+        "general": "General",
+        "hours": "Business hours",
+        "booking": "Booking rules",
+        "notifications": "Notifications"
+      },
+      "language": {
+        "en": "English",
+        "ka": "Georgian",
+        "ru": "Russian"
+      },
+      "weekday": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
+      },
+      "general": {
+        "title": "Gym profile",
+        "subtitle": "Your gym’s brand and the locale members see.",
+        "nameLabel": "Gym name",
+        "primaryColor": "Primary color",
+        "secondaryColor": "Secondary color",
+        "localeLegend": "Locale",
+        "language": "Default language",
+        "currency": "Currency",
+        "timezone": "Time zone",
+        "timezoneHint": "All displayed times use this zone. Past records keep their original time."
+      },
+      "logo": {
+        "label": "Logo",
+        "alt": "{name} logo",
+        "fallbackName": "Gym",
+        "none": "No logo",
+        "uploading": "Uploading…",
+        "hint": "JPEG, PNG, WebP or SVG, up to {max}px wide.",
+        "remove": "Remove",
+        "errorType": "Choose a JPEG, PNG, WebP, or SVG image.",
+        "errorSize": "That image is larger than 2 MB. Choose a smaller file.",
+        "errorWidth": "That image is {width}px wide. Use a logo no wider than {max}px.",
+        "errorRead": "Could not read that image. Try a different file.",
+        "errorUpload": "Upload failed ({status}). Please try again.",
+        "errorNetwork": "Could not upload the logo. Check your connection and try again."
+      },
+      "hours": {
+        "title": "Business hours",
+        "subtitle": "Your gym’s default opening hours. New locations start from these.",
+        "closed": "Closed all day",
+        "open": "Open",
+        "openAria": "{day} opening time",
+        "closeAria": "{day} closing time",
+        "toggleAria": "Toggle {day} open"
+      },
+      "booking": {
+        "title": "Booking rules",
+        "subtitle": "How close to a class members can still cancel a confirmed spot.",
+        "cutoffLabel": "Cancellation cutoff (hours before start)",
+        "hintNone": "No cutoff — members can cancel right up to the class start.",
+        "hintActive": "Members can’t cancel a booked spot within {count, plural, one {# hour} other {# hours}} of the class. Leaving a waitlist is always allowed."
+      },
+      "notifications": {
+        "title": "Notifications",
+        "subtitle": "The sender shown on member emails. Leave blank to use the platform default.",
+        "fromNameLabel": "From name (optional)",
+        "fromNamePlaceholder": "e.g. Iron Gym",
+        "fromEmailLabel": "From email (optional)",
+        "fromEmailPlaceholder": "hello@yourgym.com",
+        "replyToLabel": "Reply-to (optional)",
+        "replyToPlaceholder": "support@yourgym.com"
+      },
+      "saveBar": {
+        "unsaved": "Unsaved changes",
+        "discard": "Discard",
+        "saving": "Saving…",
+        "save": "Save changes"
+      },
+      "toast": {
+        "saved": "Settings saved.",
+        "saveFailed": "Couldn’t save your settings. Please try again."
+      },
+      "errors": {
+        "email": "Enter a valid email address.",
+        "time": "Enter a time as HH:MM.",
+        "closeAfterOpen": "Closing time must be after opening time.",
+        "nameRequired": "Gym name is required.",
+        "color": "Enter a hex colour like #4f46e5.",
+        "currency": "Choose a valid currency.",
+        "timezone": "Choose a valid time zone.",
+        "cutoffNumber": "Enter a whole number of hours.",
+        "cutoffMin": "The cutoff can’t be negative.",
+        "cutoffMax": "The cutoff can’t be more than {max} hours.",
+        "loadSettings": "Could not load settings ({status}): {message}",
+        "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "gymNotFound": "This gym no longer exists.",
+        "forbidden": "You do not have permission to change gym settings.",
+        "storageUnavailable": "Image storage is not configured. Save your other changes, or try the logo again later.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Unexpected error.",
+        "notAuthorized": "Not authorized.",
+        "invalid": "Invalid settings."
+      }
     }
   }
 }
