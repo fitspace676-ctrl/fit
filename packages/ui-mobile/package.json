@@ -4,14 +4,31 @@
   "private": true,
   "main": "./index.ts",
   "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
   "scripts": {
-    "build": "echo '[@fit/ui-mobile] build: nothing to do yet'",
+    "build": "echo '[@fit/ui-mobile] build: source package, consumed directly by Metro — nothing to compile'",
     "lint": "eslint . --max-warnings 0",
-    "test": "echo '[@fit/ui-mobile] test: nothing to do yet'",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
   },
+  "peerDependencies": {
+    "nativewind": ">=4",
+    "react": ">=19",
+    "react-native": ">=0.80"
+  },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "@types/react": "~19.2.14",
+    "expo": "^56.0.0",
+    "nativewind": "^4.2.4",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-css-interop": "0.2.4",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
   }
 }

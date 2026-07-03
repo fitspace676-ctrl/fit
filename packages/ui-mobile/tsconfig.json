@@ -1,5 +1,19 @@
 {
-  "extends": "@fit/config/tsconfig.base.json",
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "build", ".next", ".expo", ".turbo", "coverage"]
+  // This package ships React Native components, so — like `apps/mobile` — it
+  // extends Expo's base (which provides the `react-native` jsx/lib/module
+  // resolution) rather than the bundler-targeted `@fit/config` base, then
+  // mirrors that base's *strictness* flags so it gets the same type safety as
+  // every other workspace.
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts"],
+  "exclude": ["node_modules", "dist", "build", ".expo", ".turbo", "coverage"]
 }
