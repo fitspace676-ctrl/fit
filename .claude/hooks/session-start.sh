@@ -104,8 +104,8 @@ if [ "$DB_UP" = "1" ] && "$PGBIN/pg_isready" -h 127.0.0.1 -p "$PGPORT" -q 2>/dev
 
   # Seed is opt-in (FIT_SANDBOX_SEED=true) so it never runs unasked.
   if [ "${FIT_SANDBOX_SEED:-}" = "true" ]; then
-    echo "session-start: seeding demo data (pnpm db:seed)…"
-    pnpm db:seed || echo "session-start: WARN seed failed."
+    echo "session-start: seeding demo data (pnpm --filter @fit/db db:seed)…"
+    pnpm --filter @fit/db db:seed || echo "session-start: WARN seed failed."
   fi
 else
   echo "session-start: DB not up — skipping migrations (unit/lint/build still work)."
