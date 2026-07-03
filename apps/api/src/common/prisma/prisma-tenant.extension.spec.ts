@@ -165,5 +165,10 @@ describe('tenantExtension (load-bearing isolation)', () => {
     // write another gym's takings.
     expect(TENANT_SCOPED_MODELS.has('Order')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('Payment')).toBe(true);
+    // SubscriptionPlan + Subscription carry a gymId (T8.1) and must be scoped so
+    // enrolment (T5.3), the plan CRUD (T8.2), and the analytics/dashboard rollups
+    // can never read or write another gym's plans or memberships.
+    expect(TENANT_SCOPED_MODELS.has('SubscriptionPlan')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('Subscription')).toBe(true);
   });
 });
