@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   roleHasPermission,
@@ -32,21 +33,28 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 
 const requireGymManage = () => sessionHas(Permission.GymManage);
 
-/** Map a thrown API error to a short, staff-facing message. */
-function toMessage(error: unknown): string {
+/** Map a thrown API error to a short, translated, staff-facing message. */
+async function toMessage(error: unknown): Promise<string> {
+  const t = await getTranslations('admin.settings.errors');
   if (error instanceof ApiError) {
     if (error.message === 'GYM_NOT_FOUND') {
-      return 'This gym no longer exists.';
+      return t('gymNotFound');
     }
     if (error.status === 403) {
-      return 'You do not have permission to change gym settings.';
+      return t('forbidden');
     }
     if (error.status === 503) {
-      return 'Image storage is not configured. Save your other changes, or try the logo again later.';
+      return t('storageUnavailable');
     }
-    return `Request failed (${error.status}): ${error.message}`;
+    return t('requestFailed', { status: error.status, message: error.message });
   }
-  return error instanceof Error ? error.message : 'Unexpected error';
+  return error instanceof Error ? error.message : t('unexpected');
+}
+
+/** The translated "not authorized" message, shared by every action's session gate. */
+async function notAuthorized(): Promise<{ ok: false; error: string }> {
+  const t = await getTranslations('admin.settings.errors');
+  return { ok: false, error: t('notAuthorized') };
 }
 
 /**
@@ -58,18 +66,19 @@ export async function updateGymSettingsAction(
   input: UpdateGymSettingsInput,
 ): Promise<ActionResult<GymSettings>> {
   if (!(await requireGymManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return notAuthorized();
   }
   const parsed = updateGymSettingsSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid settings' };
+    const t = await getTranslations('admin.settings.errors');
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalid') };
   }
   try {
     const settings = await updateGymSettings(parsed.data);
     revalidatePath('/settings');
     return { ok: true, data: settings };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: await toMessage(error) };
   }
 }
 
@@ -85,13 +94,13 @@ export async function requestLogoUploadAction(input: {
   fileName?: string;
 }): Promise<ActionResult<SignedUploadResponse>> {
   if (!(await requireGymManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return notAuthorized();
   }
   try {
     const signed = await createUpload({ ...input, entity: 'logos' });
     return { ok: true, data: signed };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: await toMessage(error) };
   }
 }
 
@@ -104,13 +113,13 @@ export async function finalizeGymLogoAction(
   photoKey: string,
 ): Promise<ActionResult<{ logoUrl: string }>> {
   if (!(await requireGymManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return notAuthorized();
   }
   try {
     const result = await uploadGymLogo({ photoKey });
     revalidatePath('/settings');
     return { ok: true, data: result };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: await toMessage(error) };
   }
 }
