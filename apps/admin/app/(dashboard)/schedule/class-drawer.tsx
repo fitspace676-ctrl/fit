@@ -8,6 +8,7 @@ import type {
   AdminClassInstanceDetail,
   AdminClassInstanceRosterEntry,
   AdminScheduleInstance,
+  AttendanceStatus,
 } from '@fit/types';
 import {
   Badge,
@@ -18,9 +19,10 @@ import {
   Icon,
   Progress,
   useToast,
+  type IconName,
   type Tone,
 } from '@/components/ui';
-import { cancelInstanceAction, loadInstanceDetailAction } from './actions';
+import { cancelInstanceAction, loadInstanceDetailAction, markAttendanceAction } from './actions';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -72,6 +74,10 @@ export function ClassDrawer({
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cancelling, startCancel] = useTransition();
+  // The booking whose attendance mark is currently in flight (drives the row's
+  // busy state and disables the other rows' controls while one is recording).
+  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [, startMark] = useTransition();
 
   const id = instance?.id ?? null;
 
@@ -118,11 +124,37 @@ export function ClassDrawer({
     });
   }, [id, router, t, toast]);
 
+  const runMark = useCallback(
+    (bookingId: string, status: AttendanceStatus) => {
+      if (id === null) {
+        return;
+      }
+      setMarkingId(bookingId);
+      startMark(async () => {
+        const result = await markAttendanceAction(id, bookingId, status);
+        if (result.ok) {
+          setDetail(result.data);
+          // The occurrence is now COMPLETED and its tallies changed — refresh
+          // the underlying week grid so the block's badge follows.
+          router.refresh();
+        } else {
+          toast(result.error, { tone: 'danger', icon: 'info' });
+        }
+        setMarkingId(null);
+      });
+    },
+    [id, router, toast],
+  );
+
   // The header reads from the loaded detail once present, else the clicked
   // summary; the two agree on every shared field.
   const head = detail ?? instance;
   const status = head?.status ?? 'SCHEDULED';
   const canCancel = canWrite && status === 'SCHEDULED';
+  // Attendance can be marked once the class has started and while it isn't
+  // canceled; the API re-checks and a mark flips the occurrence to COMPLETED.
+  const canMark =
+    canWrite && status !== 'CANCELED' && head !== null && Date.parse(head.startsAt) <= Date.now();
 
   return (
     <>
@@ -179,7 +211,15 @@ export function ClassDrawer({
             />
 
             {/* Roster. */}
-            <Roster t={t} loading={loading} error={error} detail={detail} />
+            <Roster
+              t={t}
+              loading={loading}
+              error={error}
+              detail={detail}
+              canMark={canMark}
+              markingId={markingId}
+              onMark={runMark}
+            />
           </div>
         ) : error ? (
           <p role="alert" className="text-sm text-danger-600 dark:text-danger-300">
@@ -256,11 +296,19 @@ function Roster({
   loading,
   error,
   detail,
+  canMark,
+  markingId,
+  onMark,
 }: {
   t: T;
   loading: boolean;
   error: string | null;
   detail: AdminClassInstanceDetail | null;
+  /** Whether attendance can be marked (occurrence started, not canceled, ClassWrite). */
+  canMark: boolean;
+  /** The booking currently recording, if any — its controls show a busy state. */
+  markingId: string | null;
+  onMark: (bookingId: string, status: AttendanceStatus) => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -280,7 +328,17 @@ function Roster({
       ) : (
         <ul className="flex flex-col gap-1.5">
           {detail.roster.map((entry) => (
-            <RosterRow key={entry.bookingId} entry={entry} t={t} />
+            <RosterRow
+              key={entry.bookingId}
+              entry={entry}
+              t={t}
+              // Only held seats are markable; a waitlisted entry never got one.
+              canMark={canMark && entry.status !== 'WAITLIST'}
+              // While one mark is in flight, freeze every row's controls.
+              busy={markingId !== null}
+              marking={markingId === entry.bookingId}
+              onMark={onMark}
+            />
           ))}
         </ul>
       )}
@@ -288,8 +346,27 @@ function Roster({
   );
 }
 
-/** One roster row: avatar initials, name/email, and the booking status. */
-function RosterRow({ entry, t }: { entry: AdminClassInstanceRosterEntry; t: T }) {
+/**
+ * One roster row: avatar initials, name/email, and the booking status. For a
+ * held-seat booking on a started occurrence (`canMark`), the status badge is
+ * replaced by an attended / no-show toggle so staff record attendance inline;
+ * the current outcome stays highlighted and is re-markable for corrections.
+ */
+function RosterRow({
+  entry,
+  t,
+  canMark,
+  busy,
+  marking,
+  onMark,
+}: {
+  entry: AdminClassInstanceRosterEntry;
+  t: T;
+  canMark: boolean;
+  busy: boolean;
+  marking: boolean;
+  onMark: (bookingId: string, status: AttendanceStatus) => void;
+}) {
   const label = entry.memberName?.trim() || entry.memberEmail;
   return (
     <li className="flex items-center gap-3 rounded-card border border-ink-100 bg-white p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
@@ -302,12 +379,90 @@ function RosterRow({ entry, t }: { entry: AdminClassInstanceRosterEntry; t: T })
           <span className="truncate text-xs text-ink-400">{entry.memberEmail}</span>
         ) : null}
       </div>
-      <Badge tone={ROSTER_TONES[entry.status]} className="shrink-0">
-        {entry.status === 'WAITLIST' && entry.waitlistPosition
-          ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
-          : t(`roster.status.${entry.status}`)}
-      </Badge>
+      {canMark ? (
+        <div
+          role="group"
+          aria-label={t('roster.markGroup', { member: label })}
+          className="flex shrink-0 items-center gap-1"
+        >
+          <MarkButton
+            icon="check"
+            label={t('roster.status.ATTENDED')}
+            active={entry.status === 'ATTENDED'}
+            activeClass="border-success-500 bg-success-500 text-white"
+            busy={marking}
+            disabled={busy}
+            onClick={() => onMark(entry.bookingId, 'ATTENDED')}
+          />
+          <MarkButton
+            icon="x"
+            label={t('roster.status.NO_SHOW')}
+            active={entry.status === 'NO_SHOW'}
+            activeClass="border-warning-500 bg-warning-500 text-white"
+            busy={marking}
+            disabled={busy}
+            onClick={() => onMark(entry.bookingId, 'NO_SHOW')}
+          />
+        </div>
+      ) : (
+        <Badge tone={ROSTER_TONES[entry.status]} className="shrink-0">
+          {entry.status === 'WAITLIST' && entry.waitlistPosition
+            ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
+            : t(`roster.status.${entry.status}`)}
+        </Badge>
+      )}
     </li>
+  );
+}
+
+/**
+ * One outcome toggle in a roster row's attendance control. `aria-pressed`
+ * reflects the current outcome so a screen reader announces which is set; the
+ * active button carries its tone fill, the inactive one a neutral outline. While
+ * any mark in the drawer is recording every button is `disabled`, and the one
+ * that was clicked shows a spinner in place of its icon.
+ */
+function MarkButton({
+  icon,
+  label,
+  active,
+  activeClass,
+  busy,
+  disabled,
+  onClick,
+}: {
+  icon: IconName;
+  label: string;
+  active: boolean;
+  activeClass: string;
+  busy: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex h-8 items-center gap-1 rounded-btn border px-2.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-4 focus-visible:ring-brand-500/30 disabled:opacity-40 disabled:pointer-events-none ${
+        active
+          ? activeClass
+          : 'border-ink-200 text-ink-500 hover:bg-ink-50 dark:border-white/15 dark:text-ink-300 dark:hover:bg-white/10'
+      }`}
+    >
+      {busy ? (
+        <span
+          className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
+          aria-hidden
+        />
+      ) : (
+        <Icon name={icon} className="h-3.5 w-3.5" sw={2.5} />
+      )}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }
 

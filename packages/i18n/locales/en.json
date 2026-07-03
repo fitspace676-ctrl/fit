@@ -1152,6 +1152,7 @@
           "title": "Roster",
           "empty": "No bookings yet.",
           "waitlistPosition": "Waitlist #{position}",
+          "markGroup": "Attendance for {member}",
           "status": {
             "BOOKED": "Booked",
             "ATTENDED": "Attended",
@@ -1175,6 +1176,9 @@
         "errors": {
           "notFound": "This class no longer exists.",
           "notCancelable": "Only a scheduled class can be canceled.",
+          "notStarted": "Attendance can only be recorded once the class has started.",
+          "attendanceUnavailable": "Attendance can't be tracked for a canceled class.",
+          "bookingNotAttendable": "That booking can no longer be marked.",
           "forbidden": "You don't have permission to manage this class.",
           "requestFailed": "Request failed ({status}): {message}",
           "unexpected": "Something went wrong. Please try again."

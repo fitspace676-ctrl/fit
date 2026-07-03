@@ -105,6 +105,8 @@ import type {
   AdminScheduleResponse,
   GetAdminClassInstanceResponse,
   CancelClassInstanceResponse,
+  MarkAttendanceData,
+  MarkAttendanceResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -1047,6 +1049,31 @@ export async function cancelScheduleInstance(id: string): Promise<CancelClassIns
     },
   );
   return unwrap<CancelClassInstanceResponse>(res);
+}
+
+/**
+ * `POST /admin/class-instances/:id/attendance` — record attendance for one or
+ * more held seats on an occurrence and return the refreshed attendance roster
+ * (T3.5). Each entry flips a held-seat booking to `ATTENDED` / `NO_SHOW` and the
+ * occurrence transitions to `COMPLETED`. Gated `ClassWrite` API-side; a class
+ * that has not started is a `409 CLASS_NOT_STARTED`, a canceled one a `409
+ * ATTENDANCE_NOT_AVAILABLE`, and an unknown / cross-tenant id a `404
+ * CLASS_INSTANCE_NOT_FOUND`.
+ */
+export async function markAttendance(
+  id: string,
+  data: MarkAttendanceData,
+): Promise<MarkAttendanceResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/class-instances/${encodeURIComponent(id)}/attendance`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(data),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<MarkAttendanceResponse>(res);
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
