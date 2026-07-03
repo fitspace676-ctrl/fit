@@ -87,6 +87,7 @@ export default async function EditPackagePlanPage({ params }: { params: Promise<
           sessionCount: plan.sessionCount,
           features: plan.features,
           popular: plan.popular,
+          status: plan.status,
         }}
       />
     </div>

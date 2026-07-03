@@ -2,28 +2,19 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { SubscriptionPlanStatus } from '@fit/types';
-
-/** The status options offered by the filter, in roster-priority order. */
-const STATUS_OPTIONS: ReadonlyArray<{ value: SubscriptionPlanStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
-];
+import { Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
 
-/** Shared kit field styling for the filter input + select. */
-const FIELD_CLASS =
-  'w-full h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
-
 /**
- * The subscription-plan roster filter bar: a debounced search box (name /
- * description) and a status select. Both write their state to the URL search
- * params (the single source of truth the server page reads), resetting to page 1
- * on any change. Navigation runs in a transition so the input stays responsive.
+ * The plan roster's search box: a debounced name / description search that
+ * writes its state to the URL search params (the single source of truth the
+ * server page reads), resetting to page 1 on any change. The status filter
+ * lives in the roster's segmented control. Navigation runs in a transition so
+ * the input stays responsive.
  */
-export function SubscriptionPlansFilters({ search, status }: { search: string; status: string }) {
+export function SubscriptionPlansFilters({ search }: { search: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -32,12 +23,12 @@ export function SubscriptionPlansFilters({ search, status }: { search: string; s
 
   useEffect(() => setSearchValue(search), [search]);
 
-  function commit(key: string, value: string): void {
+  function commit(value: string): void {
     const params = new URLSearchParams(searchParams.toString());
     if (value) {
-      params.set(key, value);
+      params.set('search', value);
     } else {
-      params.delete(key);
+      params.delete('search');
     }
     params.delete('page');
     const qs = params.toString();
@@ -50,43 +41,27 @@ export function SubscriptionPlansFilters({ search, status }: { search: string; s
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-    debounceRef.current = setTimeout(() => commit('search', value.trim()), SEARCH_DEBOUNCE_MS);
+    debounceRef.current = setTimeout(() => commit(value.trim()), SEARCH_DEBOUNCE_MS);
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="relative flex-1">
-        <label htmlFor="subscription-search" className="sr-only">
-          Search subscription plans by name or description
-        </label>
-        <input
-          id="subscription-search"
-          type="search"
-          value={searchValue}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search by name or description…"
-          className={FIELD_CLASS}
-        />
-      </div>
-
-      <div className="sm:w-48">
-        <label htmlFor="subscription-status" className="sr-only">
-          Filter by status
-        </label>
-        <select
-          id="subscription-status"
-          value={status}
-          onChange={(event) => commit('status', event.target.value)}
-          className={FIELD_CLASS}
-        >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="relative max-w-md">
+      <label htmlFor="subscription-search" className="sr-only">
+        Search plans by name or description
+      </label>
+      <Icon
+        name="search"
+        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400 dark:text-ink-500"
+        sw={2}
+      />
+      <input
+        id="subscription-search"
+        type="search"
+        value={searchValue}
+        onChange={(event) => onSearchChange(event.target.value)}
+        placeholder="Search plans…"
+        className="h-11 w-full rounded-field bg-white pl-10 pr-3.5 text-sm text-ink-900 outline-none ring-1 ring-inset ring-ink-200 transition placeholder:text-ink-400 focus:ring-2 focus:ring-brand-500 dark:bg-white/[0.04] dark:text-white dark:ring-white/10 dark:placeholder:text-ink-500"
+      />
     </div>
   );
 }

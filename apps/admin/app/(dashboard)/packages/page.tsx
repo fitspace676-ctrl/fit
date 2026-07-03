@@ -8,14 +8,15 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchPackagePlans } from '@/lib/api';
-import { buttonClasses } from '@/components/ui';
+import { Icon, buttonClasses } from '@/components/ui';
+import { BillingTabs } from '../subscriptions/billing-tabs';
 import { PackagePlansFilters } from './packages-filters';
 import { PackagePlansTable } from './packages-table';
 
 export const metadata: Metadata = {
-  title: 'Packages — Fit Admin',
+  title: 'Billing · PT packages — Fit Admin',
   description:
-    'The gym’s personal-training package plans: search, filter, sort, open a plan, or add and edit plans with pricing, billing cadence, sessions, and features.',
+    'The gym’s personal-training package plans: search, filter, open a plan, or add and edit plans with pricing, billing cadence, sessions, and features.',
 };
 
 // The roster reflects live tenant state and the staff session token, so it must
@@ -26,11 +27,13 @@ export const dynamic = 'force-dynamic';
 type SearchParams = Record<string, string | string[] | undefined>;
 
 /**
- * The package-plans roster (T4.11). Server-renders one filtered, server-paginated
- * page of `GET /admin/packages` from the URL search params and hands it to the
- * client table (sort links) and the client filters (search + status). The
- * `/packages` route already requires staff (middleware) and the API enforces
- * `PackageRead`, so the only failure handled here is the API call itself.
+ * The package-plans roster (T4.11), presented as the "PT packages" tab of the
+ * reference Billing screen. Server-renders one filtered, server-paginated page
+ * of `GET /admin/packages` from the URL search params and hands it to the
+ * client card grid (segments + lifecycle switches) and the client search box.
+ * The `/packages` route already requires staff (middleware) and the API
+ * enforces `PackageRead`, so the only failure handled here is the API call
+ * itself.
  */
 export default async function PackagePlansPage({
   searchParams,
@@ -43,7 +46,7 @@ export default async function PackagePlansPage({
     ? parsed.data
     : listAdminPackagePlansQuerySchema.parse({});
 
-  // "New plan" is a `PackageWrite` capability — shown only to staff who hold it.
+  // "New package" + the lifecycle switches are a `PackageWrite` capability.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.PackageWrite);
 
@@ -56,8 +59,8 @@ export default async function PackagePlansPage({
         total={result.total}
         page={result.page}
         limit={result.limit}
-        sort={query.sort}
-        dir={query.dir}
+        status={query.status ?? ''}
+        canWrite={canWrite}
       />
     );
   } catch (error) {
@@ -76,26 +79,26 @@ export default async function PackagePlansPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-5">
+      {/* Page header + Billing sub-tabs. */}
+      <div>
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            Packages
+            Billing
           </h1>
-          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-            Your gym’s personal-training package plans. Search by name or description, filter by
-            status, sort any column, open a plan, or add a new one with pricing, a billing cadence,
-            sessions, and features.
-          </p>
+          {canWrite ? (
+            <Link href="/packages/new" className={buttonClasses('primary', 'sm')}>
+              <Icon name="plus" className="h-4 w-4" />
+              New package
+            </Link>
+          ) : null}
         </div>
-        {canWrite ? (
-          <Link href="/packages/new" className={buttonClasses('primary', 'md')}>
-            New plan
-          </Link>
-        ) : null}
-      </header>
+        <div className="mt-3">
+          <BillingTabs active="PT packages" />
+        </div>
+      </div>
 
-      <PackagePlansFilters search={query.search ?? ''} status={query.status ?? ''} />
+      <PackagePlansFilters search={query.search ?? ''} />
 
       {content}
     </div>

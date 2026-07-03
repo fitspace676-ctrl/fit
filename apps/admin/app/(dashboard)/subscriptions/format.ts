@@ -61,14 +61,14 @@ export const SUBSCRIPTION_INTERVALS: ReadonlyArray<{ value: SubscriptionInterval
     { value: 'YEAR', label: 'Yearly' },
   ];
 
-/** The short price suffix per cadence (`/ mo`, `/ yr`). */
+/** The short price suffix per cadence (`/mo`, `/yr` — reference-design copy). */
 export function intervalSuffix(interval: SubscriptionInterval): string {
   switch (interval) {
     case 'YEAR':
-      return '/ yr';
+      return '/yr';
     case 'MONTH':
     default:
-      return '/ mo';
+      return '/mo';
   }
 }
 

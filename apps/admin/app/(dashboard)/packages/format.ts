@@ -60,16 +60,16 @@ export const BILLING_INTERVALS: ReadonlyArray<{ value: PackageBillingInterval; l
   { value: 'ONE_TIME', label: 'One-time' },
 ];
 
-/** The short price suffix per cadence (`/ mo`, `/ yr`, or none for one-off). */
+/** The short price suffix per cadence (`/mo`, `/yr`, `one-off` — reference-design copy). */
 export function intervalSuffix(interval: PackageBillingInterval): string {
   switch (interval) {
     case 'MONTH':
-      return '/ mo';
+      return '/mo';
     case 'YEAR':
-      return '/ yr';
+      return '/yr';
     case 'ONE_TIME':
     default:
-      return '';
+      return 'one-off';
   }
 }
 

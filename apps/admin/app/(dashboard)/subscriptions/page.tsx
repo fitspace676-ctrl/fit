@@ -8,14 +8,15 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlans } from '@/lib/api';
-import { buttonClasses } from '@/components/ui';
+import { Icon, buttonClasses } from '@/components/ui';
+import { BillingTabs } from './billing-tabs';
 import { SubscriptionPlansFilters } from './subscriptions-filters';
 import { SubscriptionPlansTable } from './subscriptions-table';
 
 export const metadata: Metadata = {
-  title: 'Subscriptions — Fit Admin',
+  title: 'Billing · Plans — Fit Admin',
   description:
-    'The gym’s recurring membership subscription plans: search, filter, sort, open a plan, or add and edit plans with pricing, renewal cadence, and features.',
+    'The gym’s recurring membership subscription plans: search, filter, open a plan, or add and edit plans with pricing, renewal cadence, and features.',
 };
 
 // The roster reflects live tenant state and the staff session token, so it must
@@ -26,11 +27,12 @@ export const dynamic = 'force-dynamic';
 type SearchParams = Record<string, string | string[] | undefined>;
 
 /**
- * The subscription-plans roster (T8.2). Server-renders one filtered,
- * server-paginated page of `GET /admin/subscriptions` from the URL search params
- * and hands it to the client table (sort links) and the client filters (search +
- * status). The `/subscriptions` route already requires staff (middleware) and the
- * API enforces `BillingRead`, so the only failure handled here is the API call
+ * The subscription-plans roster (T8.2), presented as the reference "Billing ·
+ * Plans" screen. Server-renders one filtered, server-paginated page of
+ * `GET /admin/subscriptions` from the URL search params and hands it to the
+ * client card grid (segments + lifecycle switches) and the client search box.
+ * The `/subscriptions` route already requires staff (middleware) and the API
+ * enforces `BillingRead`, so the only failure handled here is the API call
  * itself.
  */
 export default async function SubscriptionPlansPage({
@@ -44,7 +46,7 @@ export default async function SubscriptionPlansPage({
     ? parsed.data
     : listAdminSubscriptionPlansQuerySchema.parse({});
 
-  // "New plan" is a `BillingManage` capability — shown only to staff who hold it.
+  // "New plan" + the lifecycle switches are a `BillingManage` capability.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.BillingManage);
 
@@ -57,8 +59,8 @@ export default async function SubscriptionPlansPage({
         total={result.total}
         page={result.page}
         limit={result.limit}
-        sort={query.sort}
-        dir={query.dir}
+        status={query.status ?? ''}
+        canWrite={canWrite}
       />
     );
   } catch (error) {
@@ -77,26 +79,26 @@ export default async function SubscriptionPlansPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-5">
+      {/* Page header + Billing sub-tabs. */}
+      <div>
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            Subscriptions
+            Billing
           </h1>
-          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-            Your gym’s recurring membership plans. Search by name or description, filter by status,
-            sort any column, open a plan, or add a new one with pricing, a renewal cadence, and
-            features.
-          </p>
+          {canWrite ? (
+            <Link href="/subscriptions/new" className={buttonClasses('primary', 'sm')}>
+              <Icon name="plus" className="h-4 w-4" />
+              New plan
+            </Link>
+          ) : null}
         </div>
-        {canWrite ? (
-          <Link href="/subscriptions/new" className={buttonClasses('primary', 'md')}>
-            New plan
-          </Link>
-        ) : null}
-      </header>
+        <div className="mt-3">
+          <BillingTabs active="Plans" />
+        </div>
+      </div>
 
-      <SubscriptionPlansFilters search={query.search ?? ''} status={query.status ?? ''} />
+      <SubscriptionPlansFilters search={query.search ?? ''} />
 
       {content}
     </div>

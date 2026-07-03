@@ -44,10 +44,16 @@ export function PlanActions({
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
         <Link href={`/subscriptions/${planId}/edit`} className={buttonClasses('outline', 'sm')}>
-          Edit
+          Edit plan
         </Link>
-        <Btn v={isInactive ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>
-          {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
+        <Btn
+          v={isInactive ? 'primary' : 'danger'}
+          size="sm"
+          icon={isInactive ? 'check' : 'trash'}
+          onClick={toggle}
+          disabled={pending}
+        >
+          {pending ? 'Saving…' : isInactive ? 'Restore' : 'Archive'}
         </Btn>
       </div>
       {error ? (

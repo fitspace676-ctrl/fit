@@ -1,36 +1,70 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type {
-  AdminSubscriptionPlanRow,
-  SubscriptionPlanSort,
-  SubscriptionPlanStatus,
-  SortDir,
-} from '@fit/types';
-import { Badge, Btn, Card, type Tone } from '@/components/ui';
+import type { AdminSubscriptionPlanRow, SubscriptionPlanStatus } from '@fit/types';
+import { Badge, Card, Btn, Switch } from '@/components/ui';
 import { formatPrice, intervalSuffix } from './format';
+import { setSubscriptionPlanActiveAction } from './actions';
 
-/** Visual treatment per plan status — green active, slate inactive. */
-const STATUS_STYLES: Record<SubscriptionPlanStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'Inactive', tone: 'ink' },
-};
+/**
+ * Extra stroke glyphs the plan cards need beyond the shared icon set (kebab
+ * menu, edit pencil, archive box). Same 24×24 Lucide-style grid as
+ * `components/ui/icon`, kept local to the billing screens.
+ */
+const GLYPHS = {
+  dots: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2M19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2M5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2',
+  pencil: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z',
+  archive: 'M3 4h18v4H3zM5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M9 12h6',
+} as const;
 
-/** Sortable columns and their header labels, in render order. */
-const SORTABLE: ReadonlyArray<{ key: SubscriptionPlanSort; label: string }> = [
-  { key: 'name', label: 'Name' },
-  { key: 'price', label: 'Price' },
-  { key: 'status', label: 'Status' },
-  { key: 'createdAt', label: 'Added' },
-];
-
-/** A status pill mirroring the packages roster styling. */
-function StatusPill({ status }: { status: SubscriptionPlanStatus }) {
-  const { label, tone } = STATUS_STYLES[status];
-  return <Badge tone={tone}>{label}</Badge>;
+/** Render one local glyph as a stroke SVG (mirrors the shared `Icon`). */
+function Glyph({
+  d,
+  className = 'h-5 w-5',
+  sw = 2.1,
+}: {
+  d: string;
+  className?: string;
+  sw?: number;
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={sw}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d={d} />
+    </svg>
+  );
 }
+
+/**
+ * The reference design gives every plan card an accent tone (a small colour
+ * square + a soft glow). The schema carries no colour, so tones are assigned
+ * deterministically by row position; archived plans always read as slate.
+ * Full literal class strings so Tailwind can see them.
+ */
+const CARD_TONES: ReadonlyArray<{ dot: string; glow: string | null }> = [
+  { dot: 'bg-iris-500', glow: 'bg-iris-500/15' },
+  { dot: 'bg-accent-500', glow: 'bg-accent-500/15' },
+  { dot: 'bg-brand-500', glow: 'bg-brand-500/15' },
+  { dot: 'bg-success-500', glow: 'bg-success-500/15' },
+];
+const INK_TONE = { dot: 'bg-ink-500', glow: null } as const;
+
+/** The status segments, mapped to the `status` URL param the server page reads. */
+const SEGMENTS: ReadonlyArray<{ label: string; status: SubscriptionPlanStatus | '' }> = [
+  { label: 'All', status: '' },
+  { label: 'Active', status: 'ACTIVE' },
+  { label: 'Archived', status: 'INACTIVE' },
+];
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 function formatDate(iso: string | null): string {
@@ -42,31 +76,194 @@ function formatDate(iso: string | null): string {
 }
 
 /**
- * The subscription-plans roster table (T8.2). Server-rendered data, client-side
- * interaction: sortable column headers and pagination, both of which read/write
- * the URL search params so the server page stays the single source of truth. Each
- * row shows the formatted price (with a per-interval suffix), the status, and the
- * feature count. The data never mutates here.
+ * One membership plan card, matching the reference "Billing · Plans" card: tone
+ * dot + title + Popular badge, a kebab menu (edit / archive), the display price
+ * with its cadence suffix, and a footer of mini stats plus the Live/Off switch.
+ * The switch and the menu's archive item both go through the real
+ * {@link setSubscriptionPlanActiveAction}; read-only staff see a status badge
+ * instead of the switch.
+ */
+function PlanCard({
+  plan,
+  tone,
+  canWrite,
+  menuOpen,
+  onToggleMenu,
+}: {
+  plan: AdminSubscriptionPlanRow;
+  tone: { dot: string; glow: string | null };
+  canWrite: boolean;
+  menuOpen: boolean;
+  onToggleMenu: (id: string | null) => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const isActive = plan.status === 'ACTIVE';
+
+  function setActive(next: boolean): void {
+    if (pending) return;
+    setError(null);
+    onToggleMenu(null);
+    startTransition(async () => {
+      const result = await setSubscriptionPlanActiveAction(plan.id, next);
+      if (result.ok) {
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
+  return (
+    <Card
+      glow
+      className={`flex flex-col p-5 transition dark:hover:bg-white/[0.06] ${!isActive ? 'opacity-75' : ''}`}
+    >
+      {tone.glow ? (
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute -top-14 right-0 h-28 w-40 blur-3xl ${tone.glow}`}
+        />
+      ) : null}
+
+      {/* Title row + kebab menu. */}
+      <div className="relative flex items-start justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <span aria-hidden className={`h-2.5 w-2.5 rounded-sm ${tone.dot}`} />
+          <Link
+            href={`/subscriptions/${plan.id}`}
+            className="font-display text-lg font-bold tracking-tight text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
+          >
+            {plan.name}
+          </Link>
+          {plan.popular ? <Badge tone="iris">Popular</Badge> : null}
+        </div>
+        {canWrite ? (
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={`More actions for ${plan.name}`}
+              aria-expanded={menuOpen}
+              onClick={() => onToggleMenu(menuOpen ? null : plan.id)}
+              className="grid h-8 w-8 place-items-center rounded-btn text-ink-500 transition hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/[0.08] dark:hover:text-white"
+            >
+              <Glyph d={GLYPHS.dots} className="h-5 w-5" />
+            </button>
+            {menuOpen ? (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => onToggleMenu(null)} />
+                <div className="absolute right-0 z-40 mt-1 w-48 overflow-hidden rounded-card bg-white p-1.5 shadow-[0_30px_70px_-16px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-ink-200 dark:bg-ink-900/95 dark:ring-white/10">
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 hidden h-px bg-gradient-to-r from-transparent via-white/25 to-transparent dark:block"
+                  />
+                  <Link
+                    href={`/subscriptions/${plan.id}/edit`}
+                    className="flex h-9 w-full items-center gap-3 rounded-btn px-2.5 text-sm font-semibold text-ink-600 transition hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/[0.06]"
+                  >
+                    <Glyph d={GLYPHS.pencil} className="h-[18px] w-[18px]" sw={2} />
+                    Edit plan
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => setActive(!isActive)}
+                    className="flex h-9 w-full items-center gap-3 rounded-btn px-2.5 text-sm font-semibold text-ink-600 transition hover:bg-ink-100 disabled:opacity-40 dark:text-ink-300 dark:hover:bg-white/[0.06]"
+                  >
+                    <Glyph d={GLYPHS.archive} className="h-[18px] w-[18px]" sw={2} />
+                    {isActive ? 'Archive' : 'Restore'}
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Price. */}
+      <div className="relative mt-3 flex items-end gap-1">
+        <span className="font-display text-3xl font-black tabular-nums tracking-tight text-ink-900 dark:text-white">
+          {formatPrice(plan.priceAmount, plan.currency)}
+        </span>
+        <span className="mb-1 text-sm font-semibold text-ink-500 dark:text-ink-400">
+          {intervalSuffix(plan.interval)}
+        </span>
+      </div>
+
+      {/* Footer stats + live switch. */}
+      <div className="relative mt-4 flex flex-1 items-end gap-3 border-t border-ink-200 pt-4 dark:border-white/10">
+        <div>
+          <div className="font-display text-base font-extrabold tabular-nums text-ink-900 dark:text-white">
+            {plan.featureCount}
+          </div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-500 dark:text-ink-400">
+            {plan.featureCount === 1 ? 'feature' : 'features'}
+          </div>
+        </div>
+        <div className="border-l border-ink-200 pl-3 dark:border-white/10">
+          <div className="font-display text-base font-extrabold tabular-nums text-ink-900 dark:text-white">
+            {formatDate(plan.createdAt)}
+          </div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-500 dark:text-ink-400">
+            added
+          </div>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <span
+            className={`text-xs font-semibold ${
+              isActive ? 'text-success-700 dark:text-success-300' : 'text-ink-400 dark:text-ink-500'
+            }`}
+          >
+            {isActive ? 'Live' : 'Off'}
+          </span>
+          {canWrite ? (
+            <Switch
+              checked={isActive}
+              onChange={(next) => setActive(next)}
+              label={`${plan.name} is ${isActive ? 'live' : 'off'}`}
+            />
+          ) : null}
+        </div>
+      </div>
+
+      {error ? (
+        <p role="alert" className="relative mt-2 text-xs text-danger-600 dark:text-danger-300">
+          {error}
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
+/**
+ * The subscription-plans roster (T8.2), reskinned from a table to the reference
+ * "Billing · Plans" card grid. Server-rendered data, client-side interaction:
+ * the Active/Archived segmented control and pagination read/write the URL search
+ * params so the server page stays the single source of truth, while each card's
+ * Live switch and kebab menu call the real lifecycle Server Action.
  */
 export function SubscriptionPlansTable({
   plans,
   total,
   page,
   limit,
-  sort,
-  dir,
+  status,
+  canWrite,
 }: {
   plans: AdminSubscriptionPlanRow[];
   total: number;
   page: number;
   limit: number;
-  sort: SubscriptionPlanSort;
-  dir: SortDir;
+  status: string;
+  canWrite: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const [menuFor, setMenuFor] = useState<string | null>(null);
 
   function hrefWith(overrides: Record<string, string>): string {
     const params = new URLSearchParams(searchParams.toString());
@@ -81,14 +278,10 @@ export function SubscriptionPlansTable({
     return qs ? `${pathname}?${qs}` : pathname;
   }
 
-  function sortHref(key: SubscriptionPlanSort): string {
-    const nextDir: SortDir = sort === key && dir === 'asc' ? 'desc' : 'asc';
-    return hrefWith({ sort: key, dir: nextDir });
-  }
-
-  function sortIndicator(key: SubscriptionPlanSort): string {
-    if (sort !== key) return '';
-    return dir === 'asc' ? ' ▲' : ' ▼';
+  /** Navigate to a status segment, always resetting to page 1. */
+  function selectSegment(next: SubscriptionPlanStatus | ''): void {
+    setMenuFor(null);
+    startTransition(() => router.replace(hrefWith({ status: next, page: '' })));
   }
 
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
@@ -96,85 +289,84 @@ export function SubscriptionPlansTable({
   const hasPrev = page > 1;
   const hasNext = page * limit < total;
 
-  if (plans.length === 0) {
-    return (
-      <Card className="px-4 py-10 text-center text-sm text-ink-500 dark:text-ink-400">
-        No subscription plans match your filters yet.
-      </Card>
-    );
-  }
+  // Cycle the accent tones by row position; archived plans read as slate.
+  let colourIndex = 0;
+  const toneFor = (plan: AdminSubscriptionPlanRow) =>
+    plan.status === 'ACTIVE' ? CARD_TONES[colourIndex++ % CARD_TONES.length]! : INK_TONE;
+
+  const emptyCopy =
+    status === 'INACTIVE'
+      ? 'Archived plans will appear here.'
+      : status === 'ACTIVE'
+        ? 'Create your first plan to start selling memberships.'
+        : 'No plans match your filters yet.';
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="overflow-x-auto p-0">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-ink-100 dark:border-white/10">
-              {SORTABLE.map((column) => (
-                <th
-                  key={column.key}
-                  className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
-                >
-                  <Link
-                    href={sortHref(column.key)}
-                    scroll={false}
-                    className="inline-flex items-center hover:text-ink-600 dark:hover:text-ink-200"
-                  >
-                    {column.label}
-                    <span aria-hidden>{sortIndicator(column.key)}</span>
-                  </Link>
-                </th>
-              ))}
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Features
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {plans.map((plan) => (
-              <tr
-                key={plan.id}
-                className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+    <div className="flex flex-col gap-5">
+      {/* Segmented status control + plan count. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div
+          role="tablist"
+          aria-label="Filter plans by status"
+          className="inline-flex rounded-btn bg-ink-100 p-1 ring-1 ring-inset ring-ink-200 dark:bg-white/[0.06] dark:ring-white/10"
+        >
+          {SEGMENTS.map((segment) => {
+            const active = segment.status === status;
+            return (
+              <button
+                key={segment.label}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => selectSegment(segment.status)}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-[7px] px-3.5 text-sm font-semibold transition ${
+                  active
+                    ? 'bg-white text-ink-900 shadow-sm dark:text-ink-950'
+                    : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
+                }`}
               >
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/subscriptions/${plan.id}`}
-                      className="font-medium text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
-                    >
-                      {plan.name}
-                    </Link>
-                    {plan.popular ? (
-                      <Badge tone="brand" className="text-[10px] uppercase tracking-wide">
-                        Popular
-                      </Badge>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                  {formatPrice(plan.priceAmount, plan.currency)}
-                  <span className="ml-1 text-xs text-ink-400">{intervalSuffix(plan.interval)}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <StatusPill status={plan.status} />
-                </td>
-                <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                  {formatDate(plan.createdAt)}
-                </td>
-                <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                  {plan.featureCount > 0 ? (
-                    <Badge tone="ink">
-                      {plan.featureCount} {plan.featureCount === 1 ? 'feature' : 'features'}
-                    </Badge>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+                {segment.label}
+                {active ? (
+                  <span className="font-mono text-[11px] tabular-nums text-ink-400 dark:text-ink-500">
+                    {total}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        <span className="font-mono text-xs tabular-nums text-ink-500 dark:text-ink-400">
+          {total} {total === 1 ? 'plan' : 'plans'}
+        </span>
+      </div>
+
+      {/* Plan cards. */}
+      {plans.length === 0 ? (
+        <Card glow className="py-16 text-center">
+          <Glyph
+            d={GLYPHS.archive}
+            className="mx-auto h-9 w-9 text-ink-400 dark:text-ink-500"
+            sw={1.8}
+          />
+          <p className="mt-3 font-display text-lg font-bold text-ink-900 dark:text-white">
+            No {status === 'INACTIVE' ? 'archived' : status === 'ACTIVE' ? 'active' : ''} plans
+          </p>
+          <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{emptyCopy}</p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {plans.map((plan) => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              tone={toneFor(plan)}
+              canWrite={canWrite}
+              menuOpen={menuFor === plan.id}
+              onToggleMenu={setMenuFor}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Pager. */}
       <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
@@ -185,6 +377,7 @@ export function SubscriptionPlansTable({
           <Btn
             v="outline"
             size="sm"
+            icon="chevronLeft"
             disabled={!hasPrev}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
@@ -195,6 +388,7 @@ export function SubscriptionPlansTable({
           <Btn
             v="outline"
             size="sm"
+            iconRight="chevronRight"
             disabled={!hasNext}
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))

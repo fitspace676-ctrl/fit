@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui';
 import { SubscriptionPlanForm } from '../subscription-plan-form';
 
 export const metadata: Metadata = {
-  title: 'New subscription plan — Fit Admin',
+  title: 'New plan — Fit Admin',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.
@@ -28,21 +28,21 @@ export default async function NewSubscriptionPlanPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col pb-24">
       <Link
         href="/subscriptions"
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+        className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
       >
-        <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2.2} />
+        Back to plans
       </Link>
 
-      <header className="flex flex-col gap-1">
+      <header className="mb-5 flex flex-col gap-1">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          New subscription plan
+          New plan
         </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          Add a recurring membership plan to your gym. Set its price, renewal cadence, and the
-          features it includes.
+        <p className="text-sm text-ink-500 dark:text-ink-400">
+          Create a membership plan for your gym.
         </p>
       </header>
 

@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
-import { Badge, Icon, type Tone } from '@/components/ui';
+import { Badge, Dot, Icon, type Tone } from '@/components/ui';
 import { formatPrice, intervalLabel, intervalSuffix } from '../format';
 import { PlanActions } from './plan-actions';
 
@@ -61,9 +61,9 @@ export default async function SubscriptionPlanDetailPage({
       <div className="flex flex-col gap-4">
         <Link
           href="/subscriptions"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
         >
-          <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
+          <Icon name="arrowLeft" className="h-4 w-4" sw={2.2} /> Back to plans
         </Link>
         <p
           role="alert"
@@ -88,23 +88,28 @@ export default async function SubscriptionPlanDetailPage({
     <div className="flex flex-col gap-6">
       <Link
         href="/subscriptions"
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
       >
-        <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2.2} /> Back to plans
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
               {plan.name}
             </h1>
-            <Badge tone={status.tone}>{status.label}</Badge>
-            {plan.popular ? <Badge tone="brand">Most popular</Badge> : null}
+            <Badge tone={status.tone}>
+              <Dot c={plan.status === 'ACTIVE' ? 'bg-success-400' : 'bg-ink-400'} />
+              {status.label}
+            </Badge>
+            {plan.popular ? <Badge tone="iris">Popular</Badge> : null}
           </div>
-          <p className="font-mono text-lg font-semibold tabular-nums text-ink-800 dark:text-ink-100">
-            {formatPrice(plan.priceAmount, plan.currency)}{' '}
-            <span className="text-sm font-normal text-ink-400">
+          <p className="mt-1 flex items-end gap-1">
+            <span className="font-display text-3xl font-black tabular-nums tracking-tight text-ink-900 dark:text-white">
+              {formatPrice(plan.priceAmount, plan.currency)}
+            </span>
+            <span className="mb-1 text-sm font-semibold text-ink-500 dark:text-ink-400">
               {intervalSuffix(plan.interval)}
             </span>
           </p>
@@ -135,9 +140,16 @@ export default async function SubscriptionPlanDetailPage({
       <section className="flex flex-col gap-2">
         <h2 className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">Features</h2>
         {plan.features.length > 0 ? (
-          <ul className="flex max-w-xl list-disc flex-col gap-1 pl-5 text-sm text-ink-700 dark:text-ink-200">
+          <ul className="flex max-w-xl flex-col gap-1.5 text-sm text-ink-600 dark:text-ink-300">
             {plan.features.map((feature, index) => (
-              <li key={index}>{feature}</li>
+              <li key={index} className="flex items-center gap-2">
+                <Icon
+                  name="check"
+                  className="h-4 w-4 shrink-0 text-success-600 dark:text-success-300"
+                  sw={2.6}
+                />
+                {feature}
+              </li>
             ))}
           </ul>
         ) : (

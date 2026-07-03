@@ -4,11 +4,11 @@ import { notFound, redirect } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
-import { Icon } from '@/components/ui';
+import { Badge, Dot, Icon } from '@/components/ui';
 import { SubscriptionPlanForm } from '../../subscription-plan-form';
 
 export const metadata: Metadata = {
-  title: 'Edit subscription plan — Fit Admin',
+  title: 'Edit plan — Fit Admin',
 };
 
 // Reflects the staff session and writes live plan state — never cached.
@@ -47,9 +47,10 @@ export default async function EditSubscriptionPlanPage({
       <div className="flex flex-col gap-4">
         <Link
           href="/subscriptions"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
         >
-          <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
+          <Icon name="arrowLeft" className="h-4 w-4" sw={2.2} />
+          Back to plans
         </Link>
         <p
           role="alert"
@@ -61,23 +62,27 @@ export default async function EditSubscriptionPlanPage({
     );
   }
 
+  const isActive = plan.status === 'ACTIVE';
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col pb-24">
       <Link
         href={`/subscriptions/${id}`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+        className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
       >
-        <Icon name="arrowLeft" className="h-4 w-4" /> Back to plan
+        <Icon name="arrowLeft" className="h-4 w-4" sw={2.2} />
+        Back to plans
       </Link>
 
-      <header className="flex flex-col gap-1">
+      <div className="mb-5 flex flex-wrap items-center gap-2.5">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Edit subscription plan
+          Edit plan
         </h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          Update {plan.name}’s details, price, renewal cadence, and features.
-        </p>
-      </header>
+        <Badge tone={isActive ? 'success' : 'ink'}>
+          <Dot c={isActive ? 'bg-success-400' : 'bg-ink-400'} />
+          {isActive ? 'Active' : 'Inactive'}
+        </Badge>
+      </div>
 
       <SubscriptionPlanForm
         mode="edit"
@@ -90,6 +95,7 @@ export default async function EditSubscriptionPlanPage({
           interval: plan.interval,
           features: plan.features,
           popular: plan.popular,
+          status: plan.status,
         }}
       />
     </div>
