@@ -15,6 +15,7 @@
     "@fit/env": "workspace:*",
     "@fit/i18n": "workspace:*",
     "@fit/types": "workspace:*",
+    "@fit/ui-web": "workspace:*",
     "@fit/utils": "workspace:*",
     "@sentry/nextjs": "^9",
     "motion": "^12.40.0",

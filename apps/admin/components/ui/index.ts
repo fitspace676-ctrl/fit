@@ -7,6 +7,20 @@ export { Icon, I, type IconName } from './icon';
 export { Btn, buttonClasses, type BtnProps, type BtnVariant, type BtnSize } from './button';
 export { Badge, type Tone } from './badge';
 export { Card, Dot, Avatar, Progress } from './primitives';
+export {
+  Field,
+  Label,
+  Input,
+  Textarea,
+  Select,
+  Tabs,
+  type FieldProps,
+  type InputProps,
+  type TextareaProps,
+  type SelectProps,
+  type TabItem,
+  type TabsProps,
+} from '@fit/ui-web';
 export { CountUp, Occupancy, Donut, Switch, AreaChart, type AreaPoint } from './data-viz';
 export { QRCode } from './qr-code';
 export { AuroraBackground } from './aurora';

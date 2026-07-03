@@ -19,7 +19,14 @@ import preset from '@fit/config/tailwind';
 export default {
   presets: [preset],
   darkMode: 'class',
-  content: ['./app/**/*.{ts,tsx,mdx}', './components/**/*.{ts,tsx,mdx}', './src/**/*.{ts,tsx,mdx}'],
+  content: [
+    './app/**/*.{ts,tsx,mdx}',
+    './components/**/*.{ts,tsx,mdx}',
+    './src/**/*.{ts,tsx,mdx}',
+    // Generate the utility classes used by the shared design-system package so
+    // its primitives render fully styled here (T1.3).
+    '../../packages/ui-web/**/*.{ts,tsx}',
+  ],
   theme: {
     extend: {
       colors: {
