@@ -34,6 +34,29 @@ export {
   type DrawerProps,
   type DrawerSide,
 } from '@fit/ui-web';
+export {
+  DataTable,
+  EmptyState,
+  FilterChips,
+  FilterBar,
+  TableSearch,
+  TablePager,
+  nextSortDir,
+  sortIndicator,
+  pageBounds,
+  alignClass,
+  type Column,
+  type SortDir,
+  type CellAlign,
+  type PageBounds,
+  type TableSelection,
+  type DataTableProps,
+  type EmptyStateProps,
+  type FilterChip,
+  type FilterChipsProps,
+  type TableSearchProps,
+  type TablePagerProps,
+} from '@fit/ui-web';
 export { CountUp, Occupancy, Donut, Switch, AreaChart, type AreaPoint } from './data-viz';
 export { QRCode } from './qr-code';
 export { AuroraBackground } from './aurora';
