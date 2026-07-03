@@ -21,6 +21,19 @@ export {
   type TabItem,
   type TabsProps,
 } from '@fit/ui-web';
+export {
+  Overlay,
+  Modal,
+  ConfirmDialog,
+  Drawer,
+  modalPanelClasses,
+  drawerPanelClasses,
+  type ModalProps,
+  type ModalSize,
+  type ConfirmDialogProps,
+  type DrawerProps,
+  type DrawerSide,
+} from '@fit/ui-web';
 export { CountUp, Occupancy, Donut, Switch, AreaChart, type AreaPoint } from './data-viz';
 export { QRCode } from './qr-code';
 export { AuroraBackground } from './aurora';

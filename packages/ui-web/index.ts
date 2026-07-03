@@ -31,3 +31,20 @@ export {
   type SelectProps,
 } from './src/field';
 export { Tabs, type TabItem, type TabsProps } from './src/tabs';
+export {
+  Overlay,
+  Modal,
+  ConfirmDialog,
+  Drawer,
+  modalPanelClasses,
+  drawerPanelClasses,
+  OVERLAY_ROOT,
+  OVERLAY_BACKDROP,
+  type OverlayProps,
+  type ModalProps,
+  type ModalSize,
+  type ConfirmDialogProps,
+  type DrawerProps,
+  type DrawerSide,
+} from './src/overlay';
+export { ToastProvider, useToast, type ToastContextValue } from './src/toast';
