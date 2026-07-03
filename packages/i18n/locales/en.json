@@ -876,5 +876,128 @@
       "current": "Current",
       "target": "Target"
     }
+  },
+  "admin": {
+    "common": {
+      "brand": "FormaCore",
+      "brandTagline": "Management platform",
+      "consoleName": "FormaCore Admin",
+      "search": "Search…",
+      "openNav": "Open navigation",
+      "closeNav": "Close navigation",
+      "quickSale": "Quick sale",
+      "notifications": "Notifications",
+      "signOut": "Sign out",
+      "switchToLight": "Switch to light",
+      "switchToDark": "Switch to dark",
+      "language": {
+        "label": "Language",
+        "ka": "ქართული",
+        "en": "English"
+      }
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "members": "Members",
+      "trainers": "Trainers",
+      "staff": "Staff",
+      "schedule": "Schedule",
+      "checkIn": "Check-in",
+      "pos": "POS",
+      "shop": "Shop",
+      "orders": "Orders",
+      "billing": "Billing",
+      "analytics": "Analytics",
+      "reports": "Reports",
+      "locations": "Locations",
+      "activity": "Activity",
+      "settings": "Settings"
+    },
+    "system": {
+      "title": "System",
+      "uptime": "99.9%",
+      "online": "online",
+      "offline": "offline",
+      "syncEngine": "Sync engine",
+      "checkIn": "Check-in",
+      "posTerminal": "POS terminal"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "welcomeBody": "Welcome to the FormaCore admin console. Use the navigation to manage members, schedule, billing, and staff — you only see the areas your role can access.",
+      "allSystemsLive": "All systems live",
+      "greeting": {
+        "morning": "Good morning",
+        "afternoon": "Good afternoon",
+        "evening": "Good evening"
+      },
+      "error": {
+        "withStatus": "Could not load the dashboard ({status}): {message}",
+        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      },
+      "inGymNow": {
+        "title": "In the gym now",
+        "live": "Live",
+        "of": "of {capacity}",
+        "quiet": "Quiet right now — no members checked in today yet.",
+        "capacity": "{pct}% of capacity in use across {areas, plural, one {# area} other {# areas}}."
+      },
+      "kpi": {
+        "todaysRevenue": "Today's revenue",
+        "checkInsToday": "Check-ins today",
+        "newMembers7d": "New members · 7d",
+        "noPriorData": "no prior data"
+      },
+      "revenue": {
+        "title": "Revenue",
+        "caption": "{range} · total {total}",
+        "range7d": "Last 7 days",
+        "range30d": "Last 30 days",
+        "range12w": "Last 12 weeks",
+        "rangeAria": "Revenue range",
+        "chartAria": "Revenue over the selected range",
+        "empty": "No captured revenue in this window yet."
+      },
+      "ranges": {
+        "7d": "7d",
+        "30d": "30d",
+        "12w": "12w"
+      },
+      "planMix": {
+        "title": "Plan mix",
+        "count": "{total} paid members",
+        "empty": "No active subscribers yet."
+      },
+      "schedule": {
+        "title": "Today's schedule",
+        "empty": "No classes scheduled today.",
+        "unassigned": "Unassigned",
+        "full": "{fill}% full"
+      },
+      "alerts": {
+        "title": "Alerts",
+        "empty": "All clear — no alerts right now."
+      },
+      "recentCheckIns": {
+        "title": "Recent check-ins",
+        "empty": "No check-ins today yet.",
+        "noPlan": "No plan"
+      },
+      "relative": {
+        "justNow": "just now",
+        "minutes": "{mins}m ago",
+        "hours": "{hours}h ago",
+        "days": "{days}d ago"
+      },
+      "weekdays": {
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat"
+      }
+    }
   }
 }

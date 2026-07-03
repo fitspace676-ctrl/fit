@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { Archivo, JetBrains_Mono, Manrope } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { SentryInit } from './sentry-init';
 import { ThemeProvider, THEME_COOKIE, type Theme } from '@/components/theme/theme-provider';
@@ -32,15 +34,23 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // client provider on first render — the console defaults to the dark skin.
   const theme: Theme = (await cookies()).get(THEME_COOKIE)?.value === 'light' ? 'light' : 'dark';
 
+  // Resolve the active locale (from the `NEXT_LOCALE` cookie via i18n/request.ts)
+  // and its catalogue so both server components and the client provider translate
+  // against the same source of truth.
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${manrope.variable} ${archivo.variable} ${jetbrains.variable} ${theme === 'dark' ? 'dark' : ''}`}
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-ink-50 font-sans text-ink-900 antialiased dark:bg-ink-950 dark:text-white">
         <SentryInit />
-        <ThemeProvider initial={theme}>{children}</ThemeProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ThemeProvider initial={theme}>{children}</ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

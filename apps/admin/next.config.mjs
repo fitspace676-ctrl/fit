@@ -1,4 +1,8 @@
 import { withSentryConfig } from '@sentry/nextjs';
+import createNextIntlPlugin from 'next-intl/plugin';
+
+// Point the next-intl plugin at the per-request config (cookie locale + messages).
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
 /**
  * Allow `next/image` to optimise objects served from the Cloudflare R2 public
@@ -51,7 +55,7 @@ const nextConfig = {
 // un-minified. The auth token comes from the `SENTRY_AUTH_TOKEN` build env var
 // (set in Vercel); without it the plugin no-ops the upload (non-fatal), so local
 // and unauthenticated builds still succeed.
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withNextIntl(nextConfig), {
   org: 'forma-0r',
   project: 'fit-admin',
   sentryUrl: 'https://de.sentry.io/',

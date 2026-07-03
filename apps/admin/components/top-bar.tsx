@@ -7,9 +7,11 @@
 // sign out). Sign-out clears the shared session cookie via `DELETE /api/session`.
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useSession } from '@/hooks/use-session';
 import { Icon, buttonClasses } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
+import { LocaleSwitcher } from './locale-switcher';
 
 /** Base path (`/admin` behind the tenant proxy); applied to non-router fetch/redirect. */
 const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '';
@@ -24,6 +26,7 @@ interface TopBarProps {
 export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
   const { user, isLoading } = useSession();
   const { theme, toggle } = useTheme();
+  const t = useTranslations('admin.common');
   const isDark = theme === 'dark';
 
   const signOut = async (): Promise<void> => {
@@ -40,7 +43,7 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
       <button
         type="button"
         onClick={onOpenNav}
-        aria-label="Open navigation"
+        aria-label={t('openNav')}
         className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-white/5 md:hidden"
       >
         <Icon name="filter" className="h-5 w-5" />
@@ -51,7 +54,7 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
         <Icon name="search" className="h-4 w-4" />
         <input
           type="search"
-          placeholder="Search…"
+          placeholder={t('search')}
           className="w-full bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400 dark:text-white"
         />
         <kbd className="hidden shrink-0 rounded border border-ink-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink-400 dark:border-white/10 dark:bg-white/5 dark:text-ink-500 lg:inline-block">
@@ -65,7 +68,7 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
             {gymSlug}
           </span>
         ) : (
-          <span className="truncate text-sm text-ink-400">FormaCore Admin</span>
+          <span className="truncate text-sm text-ink-400">{t('consoleName')}</span>
         )}
       </div>
 
@@ -79,16 +82,18 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
         <Link
           href="/pos"
           className={buttonClasses('primary', 'sm', 'hidden sm:inline-flex')}
-          aria-label="Quick sale"
+          aria-label={t('quickSale')}
         >
           <Icon name="plus" className="h-4 w-4" sw={2.4} />
-          Quick sale
+          {t('quickSale')}
         </Link>
+
+        <LocaleSwitcher />
 
         <button
           type="button"
           onClick={toggle}
-          aria-label={isDark ? 'Switch to light' : 'Switch to dark'}
+          aria-label={isDark ? t('switchToLight') : t('switchToDark')}
           className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
         >
           <Icon name={isDark ? 'sun' : 'moon'} className="h-5 w-5" />
@@ -96,7 +101,7 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
 
         <button
           type="button"
-          aria-label="Notifications"
+          aria-label={t('notifications')}
           className="relative grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
         >
           <Icon name="bell" className="h-5 w-5" />
@@ -111,7 +116,7 @@ export function TopBar({ gymSlug, onOpenNav }: TopBarProps) {
             <button
               type="button"
               onClick={() => void signOut()}
-              aria-label="Sign out"
+              aria-label={t('signOut')}
               className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-danger-50 hover:text-danger-600 dark:text-ink-400 dark:hover:bg-danger-500/10 dark:hover:text-danger-300"
             >
               <Icon name="logout" className="h-5 w-5" />

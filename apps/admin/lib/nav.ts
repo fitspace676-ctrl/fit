@@ -16,8 +16,8 @@ import { hasRoleAtLeast, type Role } from './auth-session';
 
 /** A single sidebar destination. */
 export interface NavItem {
-  /** Human label shown in the sidebar. */
-  label: string;
+  /** i18n key (under the `admin` namespace) for the label shown in the sidebar. */
+  labelKey: string;
   /** App-relative path (basePath is applied by `next/link`). */
   href: string;
   /** Capability the role must hold for the link to appear. Omit for "all staff". */
@@ -57,48 +57,68 @@ export type NavIcon =
  *   • Settings is gym configuration — `GymManage`, which only `OWNER` holds.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: 'dashboard' },
-  { label: 'Members', href: '/members', icon: 'members', permission: Permission.MemberRead },
-  { label: 'Trainers', href: '/trainers', icon: 'trainers', permission: Permission.TrainerRead },
+  { labelKey: 'nav.dashboard', href: '/', icon: 'dashboard' },
   {
-    label: 'Staff',
+    labelKey: 'nav.members',
+    href: '/members',
+    icon: 'members',
+    permission: Permission.MemberRead,
+  },
+  {
+    labelKey: 'nav.trainers',
+    href: '/trainers',
+    icon: 'trainers',
+    permission: Permission.TrainerRead,
+  },
+  {
+    labelKey: 'nav.staff',
     href: '/staff',
     icon: 'staff',
     permission: Permission.StaffManage,
     minRole: 'OWNER',
   },
-  { label: 'Schedule', href: '/classes', icon: 'classes', permission: Permission.ClassRead },
-  { label: 'Check-in', href: '/check-in', icon: 'checkin', permission: Permission.MemberRead },
-  { label: 'POS', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
-  { label: 'Shop', href: '/products', icon: 'products', permission: Permission.ProductRead },
-  { label: 'Orders', href: '/orders', icon: 'orders', permission: Permission.BillingRead },
+  { labelKey: 'nav.schedule', href: '/classes', icon: 'classes', permission: Permission.ClassRead },
   {
-    label: 'Billing',
+    labelKey: 'nav.checkIn',
+    href: '/check-in',
+    icon: 'checkin',
+    permission: Permission.MemberRead,
+  },
+  { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
+  { labelKey: 'nav.shop', href: '/products', icon: 'products', permission: Permission.ProductRead },
+  { labelKey: 'nav.orders', href: '/orders', icon: 'orders', permission: Permission.BillingRead },
+  {
+    labelKey: 'nav.billing',
     href: '/subscriptions',
     icon: 'billing',
     permission: Permission.BillingRead,
   },
   {
-    label: 'Analytics',
+    labelKey: 'nav.analytics',
     href: '/analytics',
     icon: 'analytics',
     permission: Permission.ReportView,
   },
-  { label: 'Reports', href: '/reports', icon: 'reports', permission: Permission.ReportView },
+  { labelKey: 'nav.reports', href: '/reports', icon: 'reports', permission: Permission.ReportView },
   {
-    label: 'Locations',
+    labelKey: 'nav.locations',
     href: '/locations',
     icon: 'locations',
     permission: Permission.LocationRead,
   },
   {
-    label: 'Activity',
+    labelKey: 'nav.activity',
     href: '/audit-log',
     icon: 'audit',
     permission: Permission.AuditRead,
     minRole: 'MANAGER',
   },
-  { label: 'Settings', href: '/settings', icon: 'settings', permission: Permission.GymManage },
+  {
+    labelKey: 'nav.settings',
+    href: '/settings',
+    icon: 'settings',
+    permission: Permission.GymManage,
+  },
 ];
 
 /**
