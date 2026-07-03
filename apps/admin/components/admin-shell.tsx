@@ -7,6 +7,7 @@
 // drawer toggled from the top bar. Owns only the drawer open/closed state.
 
 import { useState, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { AuroraBackground, ToastProvider } from '@/components/ui';
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
@@ -33,6 +34,7 @@ export function AdminShell({
 }) {
   const [navOpen, setNavOpen] = useState(false);
   const closeNav = (): void => setNavOpen(false);
+  const t = useTranslations('admin.common');
 
   return (
     <ToastProvider>
@@ -50,7 +52,7 @@ export function AdminShell({
           <div className="fixed inset-0 z-40 md:hidden">
             <button
               type="button"
-              aria-label="Close navigation"
+              aria-label={t('closeNav')}
               onClick={closeNav}
               className="absolute inset-0 bg-ink-950/60 backdrop-blur-sm"
             />

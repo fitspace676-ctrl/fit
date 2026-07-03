@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState, useTransition } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import type {
   CheckInMethod,
   CheckInRow,
@@ -16,20 +17,22 @@ import {
   type CheckInMemberRow,
 } from './actions';
 
+type T = ReturnType<typeof useTranslations>;
+
 /** Debounce (ms) before a keystroke in the member search triggers a lookup. */
 const SEARCH_DEBOUNCE_MS = 220;
 
 /** Visual treatment per eligibility status — green active, amber frozen, red expired. */
-const ELIGIBILITY_STYLES: Record<EligibilityStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  FROZEN: { label: 'Frozen', tone: 'warning' },
-  EXPIRED: { label: 'Expired', tone: 'danger' },
+const ELIGIBILITY_TONES: Record<EligibilityStatus, Tone> = {
+  ACTIVE: 'success',
+  FROZEN: 'warning',
+  EXPIRED: 'danger',
 };
 
-/** Per-method label + tone for the arrivals feed tag. */
-const METHOD_STYLES: Record<CheckInMethod, { label: string; tone: Tone }> = {
-  QR: { label: 'QR', tone: 'brand' },
-  MANUAL: { label: 'Manual', tone: 'ink' },
+/** Per-method tone for the arrivals feed tag. */
+const METHOD_TONES: Record<CheckInMethod, Tone> = {
+  QR: 'brand',
+  MANUAL: 'ink',
 };
 
 /**
@@ -49,6 +52,7 @@ export function ReceptionBoard({
   initialArrivals: CheckInRow[];
   canCheckIn: boolean;
 }) {
+  const t = useTranslations('admin.checkin');
   const [arrivals, setArrivals] = useState<CheckInRow[]>(initialArrivals);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,27 +88,28 @@ export function ReceptionBoard({
   return (
     <div className="flex flex-col gap-6">
       <section
-        aria-label="Reception metrics"
+        aria-label={t('metrics.aria')}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <StatCard label="Checked in today" value={stats.checkedInToday} icon="check" />
-        <StatCard label="In the gym now" value={stats.inGymNow} icon="users" />
-        <StatCard label="Peak today" value={stats.peakToday} icon="chart" />
-        <StatCard label="No-shows" value={stats.noShowsToday} icon="clock" />
+        <StatCard label={t('stats.checkedInToday')} value={stats.checkedInToday} icon="check" />
+        <StatCard label={t('stats.inGymNow')} value={stats.inGymNow} icon="users" />
+        <StatCard label={t('stats.peakToday')} value={stats.peakToday} icon="chart" />
+        <StatCard label={t('stats.noShows')} value={stats.noShowsToday} icon="clock" />
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-7">
-          <ScannerCard onSimulate={focusSearch} />
+          <ScannerCard onSimulate={focusSearch} t={t} />
           <ManualCheckInCard
             searchInputRef={searchInputRef}
             canCheckIn={canCheckIn}
             onCheckedIn={addArrival}
+            t={t}
           />
         </div>
 
         <div className="lg:col-span-5">
-          <ArrivalsCard arrivals={arrivals} />
+          <ArrivalsCard arrivals={arrivals} t={t} />
         </div>
       </div>
     </div>
@@ -142,20 +147,18 @@ function StatCard({
  * button just focuses the manual lookup so a receptionist can still complete a
  * check-in by hand.
  */
-function ScannerCard({ onSimulate }: { onSimulate: () => void }) {
+function ScannerCard({ onSimulate, t }: { onSimulate: () => void; t: T }) {
   return (
     <Card glow className="flex flex-col gap-5 p-6">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
           <h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">
-            QR check-in
+            {t('scanner.title')}
           </h2>
-          <p className="text-sm text-ink-500 dark:text-ink-400">
-            Point a member&apos;s QR at the scanner.
-          </p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{t('scanner.subtitle')}</p>
         </div>
         <Badge tone="success" icon="spark">
-          Scanner ready
+          {t('scanner.ready')}
         </Badge>
       </div>
 
@@ -170,7 +173,7 @@ function ScannerCard({ onSimulate }: { onSimulate: () => void }) {
       </div>
 
       <Btn v="outline" icon="qr" onClick={onSimulate} className="w-full">
-        Simulate scan
+        {t('scanner.simulate')}
       </Btn>
     </Card>
   );
@@ -185,10 +188,12 @@ function ManualCheckInCard({
   searchInputRef,
   canCheckIn,
   onCheckedIn,
+  t,
 }: {
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   canCheckIn: boolean;
   onCheckedIn: (row: CheckInRow) => void;
+  t: T;
 }) {
   const { toast } = useToast();
   const [query, setQuery] = useState('');
@@ -268,7 +273,10 @@ function ManualCheckInCard({
     setCheckingIn(false);
     if (result.ok) {
       onCheckedIn(result.data.checkIn);
-      toast(`${result.data.checkIn.name} checked in`, { tone: 'success', icon: 'check' });
+      toast(t('toast.checkedIn', { name: result.data.checkIn.name }), {
+        tone: 'success',
+        icon: 'check',
+      });
       reset();
     } else {
       toast(result.error, { tone: 'danger', icon: 'info' });
@@ -279,11 +287,9 @@ function ManualCheckInCard({
     <Card className="flex flex-col gap-4 p-6">
       <div className="flex flex-col gap-0.5">
         <h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">
-          Manual check-in
+          {t('manual.title')}
         </h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          Search by name or email, then check the member in.
-        </p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('manual.subtitle')}</p>
       </div>
 
       {picked ? (
@@ -295,11 +301,12 @@ function ManualCheckInCard({
           checkingIn={checkingIn}
           onCheckIn={() => void checkIn()}
           onReset={reset}
+          t={t}
         />
       ) : (
         <div className="relative">
           <label htmlFor="checkin-search" className="sr-only">
-            Search members by name or email
+            {t('manual.searchLabel')}
           </label>
           <Icon
             name="search"
@@ -311,7 +318,7 @@ function ManualCheckInCard({
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Search by name or email…"
+            placeholder={t('manual.searchPlaceholder')}
             className="h-11 w-full rounded-field border border-ink-200 bg-white pl-10 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
           />
 
@@ -324,10 +331,12 @@ function ManualCheckInCard({
           {query.trim() !== '' && !searchError ? (
             <div className="mt-2 overflow-hidden rounded-card border border-ink-200 dark:border-white/10">
               {searching && results.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-ink-500 dark:text-ink-400">Searching…</p>
+                <p className="px-4 py-3 text-sm text-ink-500 dark:text-ink-400">
+                  {t('manual.searching')}
+                </p>
               ) : results.length === 0 ? (
                 <p className="px-4 py-3 text-sm text-ink-500 dark:text-ink-400">
-                  No members match “{query.trim()}”.
+                  {t('manual.noMatch', { query: query.trim() })}
                 </p>
               ) : (
                 <ul className="divide-y divide-ink-100 dark:divide-white/5">
@@ -370,6 +379,7 @@ function EligibilityCard({
   checkingIn,
   onCheckIn,
   onReset,
+  t,
 }: {
   member: CheckInMemberRow;
   eligibility: MemberEligibility | null;
@@ -378,8 +388,11 @@ function EligibilityCard({
   checkingIn: boolean;
   onCheckIn: () => void;
   onReset: () => void;
+  t: T;
 }) {
-  const style = eligibility ? ELIGIBILITY_STYLES[eligibility.status] : null;
+  const style = eligibility
+    ? { tone: ELIGIBILITY_TONES[eligibility.status], label: t(`eligibility.${eligibility.status}`) }
+    : null;
   return (
     <div className="flex flex-col gap-4 rounded-card border border-ink-200 bg-ink-50/60 p-4 dark:border-white/10 dark:bg-white/[0.03]">
       <div className="flex items-center gap-3">
@@ -389,7 +402,7 @@ function EligibilityCard({
           <p className="truncate text-xs text-ink-500 dark:text-ink-400">{member.email}</p>
         </div>
         {loading ? (
-          <Badge tone="ink">Checking…</Badge>
+          <Badge tone="ink">{t('eligibility.checking')}</Badge>
         ) : style ? (
           <Badge tone={style.tone}>{style.label}</Badge>
         ) : null}
@@ -398,15 +411,17 @@ function EligibilityCard({
       {eligibility ? (
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <div className="flex flex-col gap-0.5">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">Plan</dt>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+              {t('eligibility.plan')}
+            </dt>
             <dd className="text-ink-900 dark:text-white">{eligibility.planName ?? '—'}</dd>
           </div>
           <div className="flex flex-col gap-0.5">
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
-              Access
+              {t('eligibility.access')}
             </dt>
             <dd className="text-ink-900 dark:text-white">
-              {eligibility.status === 'ACTIVE' ? 'Granted' : 'Review'}
+              {eligibility.status === 'ACTIVE' ? t('eligibility.granted') : t('eligibility.review')}
             </dd>
           </div>
         </dl>
@@ -415,8 +430,8 @@ function EligibilityCard({
       {eligibility && eligibility.status !== 'ACTIVE' ? (
         <p className="rounded-btn bg-warning-50 px-3 py-2 text-xs text-warning-800 dark:bg-warning-500/10 dark:text-warning-200">
           {eligibility.status === 'FROZEN'
-            ? 'This membership is frozen. Confirm before granting access.'
-            : 'No active membership. Confirm before granting access.'}
+            ? t('eligibility.frozenWarning')
+            : t('eligibility.inactiveWarning')}
         </p>
       ) : null}
 
@@ -428,30 +443,27 @@ function EligibilityCard({
           disabled={!canCheckIn || loading || checkingIn}
           className="flex-1"
         >
-          {checkingIn ? 'Checking in…' : 'Check in'}
+          {checkingIn ? t('eligibility.checkingIn') : t('eligibility.checkIn')}
         </Btn>
         <Btn v="ghost" icon="x" onClick={onReset} disabled={checkingIn}>
-          Cancel
+          {t('eligibility.cancel')}
         </Btn>
       </div>
-      {!canCheckIn ? (
-        <p className="text-xs text-ink-400">
-          Your role can look members up but not record check-ins.
-        </p>
-      ) : null}
+      {!canCheckIn ? <p className="text-xs text-ink-400">{t('eligibility.readOnly')}</p> : null}
     </div>
   );
 }
 
 /** The live arrivals feed — today's check-ins, most recent first. */
-function ArrivalsCard({ arrivals }: { arrivals: CheckInRow[] }) {
+function ArrivalsCard({ arrivals, t }: { arrivals: CheckInRow[]; t: T }) {
+  const locale = useLocale();
   return (
     <Card className="flex h-full flex-col p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">
-          Live arrivals
+          {t('arrivals.title')}
         </h2>
-        <Badge tone="ink">{arrivals.length} today</Badge>
+        <Badge tone="ink">{t('arrivals.count', { count: arrivals.length })}</Badge>
       </div>
 
       {arrivals.length === 0 ? (
@@ -460,30 +472,25 @@ function ArrivalsCard({ arrivals }: { arrivals: CheckInRow[] }) {
             <span className="grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-400 dark:bg-white/5">
               <Icon name="users" className="h-6 w-6" />
             </span>
-            <p className="text-sm text-ink-500 dark:text-ink-400">
-              No arrivals yet today. Checked-in members appear here.
-            </p>
+            <p className="text-sm text-ink-500 dark:text-ink-400">{t('arrivals.empty')}</p>
           </div>
         </div>
       ) : (
         <ul className="flex flex-col divide-y divide-ink-100 dark:divide-white/5">
-          {arrivals.map((arrival) => {
-            const method = METHOD_STYLES[arrival.method];
-            return (
-              <li key={arrival.id} className="flex items-center gap-3 py-3">
-                <MemberAvatar name={arrival.name} photoUrl={arrival.photoUrl} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink-900 dark:text-white">
-                    {arrival.name}
-                  </p>
-                  <p className="text-xs text-ink-500 dark:text-ink-400">
-                    {timeAgo(arrival.checkedInAt)}
-                  </p>
-                </div>
-                <Badge tone={method.tone}>{method.label}</Badge>
-              </li>
-            );
-          })}
+          {arrivals.map((arrival) => (
+            <li key={arrival.id} className="flex items-center gap-3 py-3">
+              <MemberAvatar name={arrival.name} photoUrl={arrival.photoUrl} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-ink-900 dark:text-white">
+                  {arrival.name}
+                </p>
+                <p className="text-xs text-ink-500 dark:text-ink-400">
+                  {timeAgo(arrival.checkedInAt, t, locale)}
+                </p>
+              </div>
+              <Badge tone={METHOD_TONES[arrival.method]}>{t(`method.${arrival.method}`)}</Badge>
+            </li>
+          ))}
         </ul>
       )}
     </Card>
@@ -535,22 +542,22 @@ function initials(name: string): string {
 }
 
 /** Render an ISO instant as a compact "time ago" string ("just now", "3m ago", …). */
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: T, locale: string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) {
     return '';
   }
   const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
   if (seconds < 45) {
-    return 'just now';
+    return t('timeAgo.justNow');
   }
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) {
-    return `${minutes}m ago`;
+    return t('timeAgo.minutes', { minutes });
   }
   const hours = Math.round(minutes / 60);
   if (hours < 24) {
-    return `${hours}h ago`;
+    return t('timeAgo.hours', { hours });
   }
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }

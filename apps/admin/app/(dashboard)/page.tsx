@@ -5,6 +5,7 @@ import {
   dashboardRangeSchema,
   type DashboardRange,
 } from '@fit/types';
+import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchDashboardOverview } from '@/lib/api';
 import { DashboardView } from './dashboard-view';
@@ -45,10 +46,11 @@ export default async function DashboardPage({
   try {
     overview = await fetchDashboardOverview(range);
   } catch (error) {
+    const t = await getTranslations('admin.dashboard.error');
     const message =
       error instanceof ApiError
-        ? `Could not load the dashboard (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('withStatus', { status: error.status, message: error.message })
+        : t('unreachable');
     return (
       <div className="flex flex-col gap-6">
         <Welcome />
@@ -66,16 +68,14 @@ export default async function DashboardPage({
 }
 
 /** The role-degraded welcome shown to staff without `ReportView` (and as a fallback). */
-function Welcome() {
+async function Welcome() {
+  const t = await getTranslations('admin.dashboard');
   return (
     <header className="flex flex-col gap-1">
       <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-        Dashboard
+        {t('title')}
       </h1>
-      <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-        Welcome to the FormaCore admin console. Use the navigation to manage members, schedule,
-        billing, and staff — you only see the areas your role can access.
-      </p>
+      <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('welcomeBody')}</p>
     </header>
   );
 }

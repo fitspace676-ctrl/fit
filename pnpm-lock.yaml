@@ -41,6 +41,9 @@ importers:
       '@fit/env':
         specifier: workspace:*
         version: link:../../packages/env
+      '@fit/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@fit/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -56,6 +59,9 @@ importers:
       next:
         specifier: ^15.1.6
         version: 15.5.18(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      next-intl:
+        specifier: ^3.26.0
+        version: 3.26.5(next@15.5.18(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       react:
         specifier: ^19.0.0
         version: 19.2.6

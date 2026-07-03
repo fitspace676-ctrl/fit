@@ -876,5 +876,520 @@
       "current": "Current",
       "target": "Target"
     }
+  },
+  "admin": {
+    "common": {
+      "brand": "FormaCore",
+      "brandTagline": "Management platform",
+      "consoleName": "FormaCore Admin",
+      "search": "Search…",
+      "openNav": "Open navigation",
+      "closeNav": "Close navigation",
+      "quickSale": "Quick sale",
+      "notifications": "Notifications",
+      "signOut": "Sign out",
+      "switchToLight": "Switch to light",
+      "switchToDark": "Switch to dark",
+      "language": {
+        "label": "Language",
+        "ka": "ქართული",
+        "en": "English"
+      }
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "members": "Members",
+      "trainers": "Trainers",
+      "staff": "Staff",
+      "schedule": "Schedule",
+      "checkIn": "Check-in",
+      "pos": "POS",
+      "shop": "Shop",
+      "orders": "Orders",
+      "billing": "Billing",
+      "analytics": "Analytics",
+      "reports": "Reports",
+      "locations": "Locations",
+      "activity": "Activity",
+      "settings": "Settings"
+    },
+    "system": {
+      "title": "System",
+      "uptime": "99.9%",
+      "online": "online",
+      "offline": "offline",
+      "syncEngine": "Sync engine",
+      "checkIn": "Check-in",
+      "posTerminal": "POS terminal"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "welcomeBody": "Welcome to the FormaCore admin console. Use the navigation to manage members, schedule, billing, and staff — you only see the areas your role can access.",
+      "allSystemsLive": "All systems live",
+      "greeting": {
+        "morning": "Good morning",
+        "afternoon": "Good afternoon",
+        "evening": "Good evening"
+      },
+      "error": {
+        "withStatus": "Could not load the dashboard ({status}): {message}",
+        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      },
+      "inGymNow": {
+        "title": "In the gym now",
+        "live": "Live",
+        "of": "of {capacity}",
+        "quiet": "Quiet right now — no members checked in today yet.",
+        "capacity": "{pct}% of capacity in use across {areas, plural, one {# area} other {# areas}}."
+      },
+      "kpi": {
+        "todaysRevenue": "Today's revenue",
+        "checkInsToday": "Check-ins today",
+        "newMembers7d": "New members · 7d",
+        "noPriorData": "no prior data"
+      },
+      "revenue": {
+        "title": "Revenue",
+        "caption": "{range} · total {total}",
+        "range7d": "Last 7 days",
+        "range30d": "Last 30 days",
+        "range12w": "Last 12 weeks",
+        "rangeAria": "Revenue range",
+        "chartAria": "Revenue over the selected range",
+        "empty": "No captured revenue in this window yet."
+      },
+      "ranges": {
+        "7d": "7d",
+        "30d": "30d",
+        "12w": "12w"
+      },
+      "planMix": {
+        "title": "Plan mix",
+        "count": "{total} paid members",
+        "empty": "No active subscribers yet."
+      },
+      "schedule": {
+        "title": "Today's schedule",
+        "empty": "No classes scheduled today.",
+        "unassigned": "Unassigned",
+        "full": "{fill}% full"
+      },
+      "alerts": {
+        "title": "Alerts",
+        "empty": "All clear — no alerts right now."
+      },
+      "recentCheckIns": {
+        "title": "Recent check-ins",
+        "empty": "No check-ins today yet.",
+        "noPlan": "No plan"
+      },
+      "relative": {
+        "justNow": "just now",
+        "minutes": "{mins}m ago",
+        "hours": "{hours}h ago",
+        "days": "{days}d ago"
+      },
+      "weekdays": {
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat"
+      }
+    },
+    "analytics": {
+      "title": "Analytics",
+      "description": "Revenue, membership, attendance, and subscription trends for your gym — every figure is computed live from your real data.",
+      "noAccess": "Your role does not have access to analytics. Ask an owner or manager for the reporting permission.",
+      "loadError": "Could not load analytics ({status}): {message}",
+      "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+      "range7d": "7 days",
+      "range30d": "30 days",
+      "range12w": "12 weeks",
+      "range12m": "12 months",
+      "reportingRange": "Reporting range",
+      "keyMetrics": "Key metrics",
+      "revenue": "Revenue",
+      "activeMembers": "Active members",
+      "attendanceRate": "Attendance rate",
+      "churn": "Churn",
+      "capturedPayments": "captured payments",
+      "revenueChartLabel": "Revenue over the selected range",
+      "emptyRevenue": "No captured revenue in this window yet.",
+      "channelMix": "Channel mix",
+      "channelPos": "Point of sale",
+      "channelOnline": "Online orders",
+      "emptyChannelMix": "No captured revenue to split yet.",
+      "subscribersByPlan": "Subscribers by plan",
+      "emptyPlanMix": "No active subscribers yet.",
+      "topClasses": "Top classes",
+      "emptyTopClasses": "No bookings in this window yet.",
+      "bookingsCount": "{count, plural, one {# booking} other {# bookings}}",
+      "noPriorData": "no prior data"
+    },
+    "checkin": {
+      "title": "Reception",
+      "live": "Live",
+      "subtitle": "Scan a member's QR or look them up to check them in. Arrivals appear in the live feed as they happen.",
+      "error": {
+        "withStatus": "Could not load reception data ({status}): {message}",
+        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      },
+      "metrics": {
+        "aria": "Reception metrics"
+      },
+      "stats": {
+        "checkedInToday": "Checked in today",
+        "inGymNow": "In the gym now",
+        "peakToday": "Peak today",
+        "noShows": "No-shows"
+      },
+      "scanner": {
+        "title": "QR check-in",
+        "subtitle": "Point a member's QR at the scanner.",
+        "ready": "Scanner ready",
+        "simulate": "Simulate scan"
+      },
+      "manual": {
+        "title": "Manual check-in",
+        "subtitle": "Search by name or email, then check the member in.",
+        "searchLabel": "Search members by name or email",
+        "searchPlaceholder": "Search by name or email…",
+        "searching": "Searching…",
+        "noMatch": "No members match “{query}”."
+      },
+      "toast": {
+        "checkedIn": "{name} checked in"
+      },
+      "eligibility": {
+        "ACTIVE": "Active",
+        "FROZEN": "Frozen",
+        "EXPIRED": "Expired",
+        "checking": "Checking…",
+        "plan": "Plan",
+        "access": "Access",
+        "granted": "Granted",
+        "review": "Review",
+        "frozenWarning": "This membership is frozen. Confirm before granting access.",
+        "inactiveWarning": "No active membership. Confirm before granting access.",
+        "checkingIn": "Checking in…",
+        "checkIn": "Check in",
+        "cancel": "Cancel",
+        "readOnly": "Your role can look members up but not record check-ins."
+      },
+      "arrivals": {
+        "title": "Live arrivals",
+        "count": "{count, plural, one {# today} other {# today}}",
+        "empty": "No arrivals yet today. Checked-in members appear here."
+      },
+      "method": {
+        "QR": "QR",
+        "MANUAL": "Manual"
+      },
+      "timeAgo": {
+        "justNow": "just now",
+        "minutes": "{minutes}m ago",
+        "hours": "{hours}h ago"
+      }
+    },
+    "members": {
+      "list": {
+        "title": "Members",
+        "subtitle": "Your gym’s member roster.",
+        "subtitleEmpty": "No members on the roster yet.",
+        "subtitleCounts": "{all} total · {active} active",
+        "addMember": "Add member",
+        "planMix": "Plan mix",
+        "paid": "paid",
+        "planMixEmpty": "No paid subscriptions yet.",
+        "tablistLabel": "Filter by member state",
+        "exportStarting": "Starting export…",
+        "exportSelected": "Export {count} selected",
+        "exportAll": "Export all",
+        "exportStartedAll": "Export started for all members (job {jobId}). You’ll be able to download the CSV when it finishes.",
+        "exportStartedSelected": "Export started for {count, plural, one {# member} other {# members}} (job {jobId}). You’ll be able to download the CSV when it finishes.",
+        "clearSelection": "Clear selection",
+        "emptyTitle": "No members yet",
+        "emptyHintWrite": "Add your first member, or adjust the filters above.",
+        "emptyHintRead": "No members match your filters yet.",
+        "selectAll": "Select all members on this page",
+        "selectMember": "Select {name}",
+        "columnPlan": "Plan",
+        "columnNextBilling": "Next billing",
+        "rowActions": "Actions",
+        "openMember": "Open {name}",
+        "noPlan": "No plan",
+        "showing": "Showing {from}–{to} of {total} members",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "breadcrumb": {
+        "label": "Breadcrumb",
+        "members": "Members"
+      },
+      "tabs": {
+        "all": "All",
+        "active": "Active",
+        "frozen": "Frozen",
+        "trial": "Trial",
+        "expired": "Expired"
+      },
+      "columns": {
+        "name": "Member",
+        "status": "Status",
+        "lastVisitAt": "Last visit"
+      },
+      "status": {
+        "ACTIVE": "Active",
+        "INVITED": "Trial",
+        "SUSPENDED": "Expired"
+      },
+      "lastVisit": {
+        "never": "Never",
+        "justNow": "Just now",
+        "hoursAgo": "{hours}h ago",
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "days": "{count} days"
+      },
+      "billing": {
+        "paused": "paused",
+        "overdue": "overdue"
+      },
+      "filters": {
+        "searchLabel": "Search members by name or email",
+        "searchPlaceholder": "Search by name or email…",
+        "filter": "Filter",
+        "filterActive": "Filter · 1",
+        "statusLabel": "Status",
+        "allStatuses": "All statuses"
+      },
+      "form": {
+        "name": "Name",
+        "email": "Email",
+        "emailReadonlyHint": "Email is the member’s sign-in identity and can’t be changed here.",
+        "phone": "Phone",
+        "phoneOptional": "(optional)",
+        "status": "Status",
+        "statusActive": "Active",
+        "statusInvited": "Invited",
+        "saving": "Saving…",
+        "saveChanges": "Save changes",
+        "createMember": "Create member",
+        "cancel": "Cancel"
+      },
+      "actions": {
+        "edit": "Edit",
+        "reactivate": "Reactivate",
+        "deactivate": "Deactivate"
+      },
+      "nav": {
+        "backToMembers": "Back to members",
+        "backToMember": "Back to member"
+      },
+      "newPage": {
+        "subtitle": "Add a member to your gym. If someone with this email already belongs to another gym, they’ll be linked rather than duplicated."
+      },
+      "editPage": {
+        "title": "Edit member",
+        "subtitle": "Update {name}’s contact details.",
+        "breadcrumb": "Edit"
+      },
+      "detail": {
+        "message": "Message",
+        "memberMetrics": "Member metrics",
+        "lifetimeValue": "Lifetime value",
+        "capturedPayments": "captured payments",
+        "totalVisits": "Total visits",
+        "allTimeCheckins": "all-time check-ins",
+        "memberSince": "Member since",
+        "joined": "joined {date}",
+        "nextBilling": "Next billing",
+        "noLivePlan": "no live plan",
+        "nextBillingPaused": "Paused",
+        "nextBillingOverdue": "Overdue",
+        "noSubscriptions": "No subscriptions yet.",
+        "noBookings": "No bookings yet.",
+        "noPayments": "No payments yet.",
+        "noNotes": "No notes yet.",
+        "subStarted": "Started {date}",
+        "subRenews": " · renews {date}",
+        "recentActivity": "Recent activity",
+        "noRecentActivity": "No recent activity.",
+        "attendanceTitle": "Attendance · last 8 weeks",
+        "totalCount": "{count} total",
+        "visits": "{count, plural, one {# visit} other {# visits}}",
+        "currentPlan": "Current plan",
+        "noLiveSubscription": "No live subscription.",
+        "perInterval": "/{interval}",
+        "intervalYear": "year",
+        "intervalMonth": "month",
+        "intervalPeriod": "period",
+        "renews": "Renews {date}",
+        "daysLeft": "{count, plural, one {# day} other {# days}} left",
+        "freeze": "Freeze",
+        "addCredit": "Add credit",
+        "tags": "Tags",
+        "noTags": "No tags yet.",
+        "add": "Add",
+        "tagsDisabledTitle": "Member tags aren’t modelled yet"
+      },
+      "memberTabs": {
+        "overview": "Overview",
+        "subscriptions": "Subscriptions",
+        "bookings": "Bookings",
+        "payments": "Payments",
+        "notes": "Notes"
+      },
+      "errors": {
+        "loadMembers": "Could not load members ({status}): {message}",
+        "loadMember": "Could not load this member ({status}): {message}",
+        "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "notAuthorized": "Not authorized",
+        "memberExists": "A member with that email already exists in your gym.",
+        "memberNotFound": "That member no longer exists.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Unexpected error",
+        "invalidDetails": "Invalid member details"
+      }
+    },
+    "trainers": {
+      "reviews": "{count, plural, one {# review} other {# reviews}}",
+      "relative": {
+        "today": "Today",
+        "tomorrow": "Tomorrow"
+      },
+      "status": {
+        "active": "Active",
+        "onLeave": "On leave",
+        "inactive": "Inactive"
+      },
+      "list": {
+        "title": "Trainers",
+        "breadcrumb": "Trainers",
+        "breadcrumbAria": "Breadcrumb",
+        "subtitleDefault": "Your gym’s coaching roster.",
+        "subtitleEmpty": "No coaches on the roster yet.",
+        "subtitleCount": "{total, plural, one {# coach} other {# coaches}} · {active} active",
+        "addTrainer": "Add trainer",
+        "rosterMetricsAria": "Roster metrics",
+        "kpiTrainers": "Trainers",
+        "kpiTrainersContext": "{count} active",
+        "kpiClassesPerWeek": "Classes / week",
+        "kpiClassesPerWeekContext": "across the roster",
+        "kpiAvgRating": "Avg rating",
+        "kpiAvgRatingContext": "from member reviews",
+        "kpiReviews": "Reviews",
+        "kpiReviewsContext": "on this page",
+        "filterBySpecialtyAria": "Filter by specialty",
+        "filterAll": "All",
+        "searchLabel": "Search trainers by name or headline",
+        "searchPlaceholder": "Search coaches…",
+        "statClassesPerWk": "Classes / wk",
+        "statReviews": "Reviews",
+        "openTrainer": "Open {name}",
+        "noUpcomingClass": "No upcoming class",
+        "view": "View →",
+        "emptyTitle": "No trainers yet",
+        "emptyHintCanWrite": "Add your first coach to build the roster.",
+        "emptyHint": "Your gym has no trainers on the roster yet.",
+        "noMatch": "No coaches match this filter.",
+        "pageRange": "{from}–{to} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "form": {
+        "photo": "Photo",
+        "photoAlt": "{name} photo",
+        "trainerFallback": "Trainer",
+        "uploading": "Uploading…",
+        "photoHint": "JPEG, PNG, WebP or GIF, up to 5 MB.",
+        "remove": "Remove",
+        "name": "Name",
+        "headline": "Headline",
+        "optional": "(optional)",
+        "headlinePlaceholder": "e.g. Strength & conditioning coach",
+        "bio": "Bio",
+        "specialties": "Specialties",
+        "commaSeparated": "(comma separated)",
+        "specialtiesPlaceholder": "Strength, Mobility, Nutrition",
+        "status": "Status",
+        "saving": "Saving…",
+        "saveChanges": "Save changes",
+        "createTrainer": "Create trainer",
+        "cancel": "Cancel",
+        "uploadWrongType": "Choose a JPEG, PNG, WebP, or GIF image.",
+        "uploadTooLarge": "That image is larger than 5 MB. Choose a smaller file.",
+        "uploadFailed": "Upload failed ({status}). Please try again.",
+        "uploadNoPublicUrl": "The photo uploaded but has no public URL configured. Saved without a photo.",
+        "uploadError": "Could not upload the photo. Check your connection and try again.",
+        "backToTrainers": "Back to trainers",
+        "backToTrainer": "Back to trainer",
+        "newTitle": "New trainer",
+        "newSubtitle": "Add a trainer to your gym’s roster. Upload a photo and list their specialties so members can find the right coach.",
+        "editTitle": "Edit trainer",
+        "editSubtitle": "Update {name}’s profile and photo."
+      },
+      "detail": {
+        "backToTrainers": "Back to trainers",
+        "message": "Message",
+        "photoAlt": "{name} photo",
+        "hired": "Hired {date}",
+        "edit": "Edit",
+        "reactivate": "Reactivate",
+        "deactivate": "Deactivate",
+        "metricsAria": "Trainer metrics",
+        "kpiRating": "Rating",
+        "kpiClassesPerWeek": "Classes / week",
+        "kpiClassesPerWeekContext": "this week",
+        "kpiReviews": "Reviews",
+        "kpiReviewsContext": "{count} new this week",
+        "kpiShowUpRate": "Show-up rate",
+        "kpiShowUpRateContext": "last 90 days",
+        "profileAdded": "Profile added {date}."
+      },
+      "tabs": {
+        "overview": "Overview",
+        "schedule": "Schedule",
+        "clients": "Clients",
+        "reviews": "Reviews",
+        "availability": "Availability",
+        "about": "About",
+        "noBio": "No bio yet.",
+        "specialties": "Specialties",
+        "noSpecialties": "No specialties listed.",
+        "certifications": "Certifications",
+        "certified": "Certified · {tag}",
+        "noCertifications": "No certifications recorded — this gym tracks specialties, not formal certificates.",
+        "thisWeek": "This week",
+        "classesLed": "Classes led",
+        "newReviews": "New reviews",
+        "membersTrained": "Members trained",
+        "nextClass": "Next class",
+        "noUpcomingClass": "No upcoming class scheduled.",
+        "scheduleCalendarNote": "{count, plural, one {# class} other {# classes}} on the calendar this week. Manage the full timetable from <link>Classes</link>.",
+        "clientsTitle": "Personal-training clients aren’t tracked yet",
+        "clientsBody": "This gym doesn’t model one-to-one PT relationships, so there’s no client roster to show here.",
+        "reviewsSummary": "{count, plural, one {# review} other {# reviews}} · {newReviews} new this week",
+        "noReviews": "No reviews yet.",
+        "reviewsModerate": "Read and moderate individual reviews from the trainer’s review queue.",
+        "weeklyAvailability": "Weekly availability",
+        "availabilityBody": "{name} teaches {count, plural, one {# class} other {# classes}} this week. Set the recurring hours they can coach from the availability editor.",
+        "manageAvailability": "Manage availability →"
+      },
+      "errors": {
+        "loadTrainers": "Could not load trainers ({status}): {message}",
+        "loadTrainer": "Could not load this trainer ({status}): {message}",
+        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "notAuthorized": "Not authorized",
+        "invalidDetails": "Invalid trainer details",
+        "trainerNotFound": "That trainer no longer exists.",
+        "photoStorage": "Photo storage is not configured. Save the trainer without a photo, or try again later.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Unexpected error"
+      }
+    }
   }
 }

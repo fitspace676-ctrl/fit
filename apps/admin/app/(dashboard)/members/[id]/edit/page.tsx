@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchMember } from '@/lib/api';
@@ -29,6 +30,8 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
     redirect('/403');
   }
 
+  const t = await getTranslations('admin.members');
+
   let member;
   try {
     member = await fetchMember(id);
@@ -38,8 +41,8 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
     }
     const message =
       error instanceof ApiError
-        ? `Could not load this member (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadMember', { status: error.status, message: error.message })
+        : t('errors.apiUnreachable');
     return (
       <div className="flex flex-col gap-4">
         <Link
@@ -47,7 +50,7 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
           className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
         >
           <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-          Back to members
+          {t('nav.backToMembers')}
         </Link>
         <Card className="flex items-start gap-3 bg-danger-50 p-4 dark:bg-danger-500/10">
           <Icon
@@ -65,20 +68,20 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
   return (
     <div className="flex flex-col gap-6">
       <nav
-        aria-label="Breadcrumb"
+        aria-label={t('breadcrumb.label')}
         className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
       >
         <span>Iron Gym</span>
         <Icon name="chevronRight" className="h-3.5 w-3.5" />
         <Link href="/members" className="hover:text-ink-600 dark:hover:text-ink-300">
-          Members
+          {t('breadcrumb.members')}
         </Link>
         <Icon name="chevronRight" className="h-3.5 w-3.5" />
         <Link href={`/members/${id}`} className="hover:text-ink-600 dark:hover:text-ink-300">
           {member.name}
         </Link>
         <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <span className="text-ink-600 dark:text-ink-300">Edit</span>
+        <span className="text-ink-600 dark:text-ink-300">{t('editPage.breadcrumb')}</span>
       </nav>
 
       <Link
@@ -86,15 +89,15 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
       >
         <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-        Back to member
+        {t('nav.backToMember')}
       </Link>
 
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Edit member
+          {t('editPage.title')}
         </h1>
         <p className="text-sm text-ink-500 dark:text-ink-400">
-          Update {member.name}’s contact details.
+          {t('editPage.subtitle', { name: member.name })}
         </p>
       </header>
 

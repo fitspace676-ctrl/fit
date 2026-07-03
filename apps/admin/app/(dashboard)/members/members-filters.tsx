@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { MemberStatus } from '@fit/types';
 import { Btn, Icon } from '@/components/ui';
 
-/** The status options offered by the Filter panel, in roster-priority order. */
-const STATUS_OPTIONS: ReadonlyArray<{ value: MemberStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INVITED', label: 'Trial' },
-  { value: 'SUSPENDED', label: 'Expired' },
+/** The status options offered by the Filter panel, in roster-priority order; labels come from `status.<value>`. */
+const STATUS_OPTIONS: ReadonlyArray<{ value: MemberStatus }> = [
+  { value: 'ACTIVE' },
+  { value: 'INVITED' },
+  { value: 'SUSPENDED' },
 ];
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
@@ -25,6 +26,7 @@ const SEARCH_DEBOUNCE_MS = 200;
  * result set. Navigation runs in a transition so the input stays responsive.
  */
 export function MembersFilters({ search, status }: { search: string; status: string }) {
+  const t = useTranslations('admin.members');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -63,7 +65,7 @@ export function MembersFilters({ search, status }: { search: string; status: str
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <label htmlFor="member-search" className="sr-only">
-            Search members by name or email
+            {t('filters.searchLabel')}
           </label>
           <Icon
             name="search"
@@ -74,7 +76,7 @@ export function MembersFilters({ search, status }: { search: string; status: str
             type="search"
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search by name or email…"
+            placeholder={t('filters.searchPlaceholder')}
             className="h-11 w-full rounded-field border border-ink-200 bg-white pl-10 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
           />
         </div>
@@ -86,7 +88,7 @@ export function MembersFilters({ search, status }: { search: string; status: str
           aria-expanded={filtersOpen}
           onClick={() => setFiltersOpen((open) => !open)}
         >
-          Filter{status ? ' · 1' : ''}
+          {status ? t('filters.filterActive') : t('filters.filter')}
         </Btn>
       </div>
 
@@ -96,7 +98,7 @@ export function MembersFilters({ search, status }: { search: string; status: str
             htmlFor="member-status"
             className="text-sm font-medium text-ink-600 dark:text-ink-300"
           >
-            Status
+            {t('filters.statusLabel')}
           </label>
           <select
             id="member-status"
@@ -104,10 +106,10 @@ export function MembersFilters({ search, status }: { search: string; status: str
             onChange={(event) => commit('status', event.target.value)}
             className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white sm:w-48"
           >
-            <option value="">All statuses</option>
+            <option value="">{t('filters.allStatuses')}</option>
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(`status.${option.value}`)}
               </option>
             ))}
           </select>

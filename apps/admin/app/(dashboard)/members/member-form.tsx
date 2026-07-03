@@ -3,14 +3,15 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { MemberStatus } from '@fit/types';
 import { Btn, Card, Icon } from '@/components/ui';
 import { createMemberAction, updateMemberAction } from './actions';
 
-/** Selectable initial statuses when creating a member (lifecycle change is a separate action). */
-const CREATE_STATUSES: ReadonlyArray<{ value: MemberStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INVITED', label: 'Invited' },
+/** Selectable initial statuses when creating a member; labels come from `form.status<Value>`. */
+const CREATE_STATUSES: ReadonlyArray<{ value: MemberStatus; labelKey: string }> = [
+  { value: 'ACTIVE', labelKey: 'statusActive' },
+  { value: 'INVITED', labelKey: 'statusInvited' },
 ];
 
 /** Shared field styling so create + edit render identically. */
@@ -38,6 +39,7 @@ type Props =
  * Server Action boundary.
  */
 export function MemberForm(props: Props) {
+  const t = useTranslations('admin.members');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export function MemberForm(props: Props) {
     <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-4">
       <div className="flex flex-col gap-1">
         <label htmlFor="member-name" className={LABEL_CLASS}>
-          Name
+          {t('form.name')}
         </label>
         <input
           id="member-name"
@@ -86,7 +88,7 @@ export function MemberForm(props: Props) {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="member-email" className={LABEL_CLASS}>
-          Email
+          {t('form.email')}
         </label>
         <input
           id="member-email"
@@ -99,16 +101,13 @@ export function MemberForm(props: Props) {
           autoComplete="off"
           className={FIELD_CLASS}
         />
-        {isEdit ? (
-          <p className="text-xs text-ink-400">
-            Email is the member’s sign-in identity and can’t be changed here.
-          </p>
-        ) : null}
+        {isEdit ? <p className="text-xs text-ink-400">{t('form.emailReadonlyHint')}</p> : null}
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="member-phone" className={LABEL_CLASS}>
-          Phone <span className="font-normal text-ink-400">(optional)</span>
+          {t('form.phone')}{' '}
+          <span className="font-normal text-ink-400">{t('form.phoneOptional')}</span>
         </label>
         <input
           id="member-phone"
@@ -124,7 +123,7 @@ export function MemberForm(props: Props) {
       {!isEdit ? (
         <div className="flex flex-col gap-1">
           <label htmlFor="member-status" className={LABEL_CLASS}>
-            Status
+            {t('form.status')}
           </label>
           <select
             id="member-status"
@@ -135,7 +134,7 @@ export function MemberForm(props: Props) {
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(`form.${option.labelKey}`)}
               </option>
             ))}
           </select>
@@ -156,13 +155,13 @@ export function MemberForm(props: Props) {
 
       <div className="flex items-center gap-3">
         <Btn type="submit" v="primary" disabled={pending}>
-          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create member'}
+          {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createMember')}
         </Btn>
         <Link
           href={cancelHref}
           className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
         >
-          Cancel
+          {t('form.cancel')}
         </Link>
       </div>
     </form>

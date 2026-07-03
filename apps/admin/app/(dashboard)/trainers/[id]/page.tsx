@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { Permission, roleHasPermission, type AdminTrainerDetail } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainer } from '@/lib/api';
@@ -16,27 +17,39 @@ export const metadata: Metadata = {
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
 
-/** Visual treatment per status, matching the roster cards' pills. */
-const STATUS_LABELS: Record<string, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'On leave', tone: 'warning' },
+/** Tone treatment per status, matching the roster cards' pills. */
+const STATUS_TONES: Record<string, Tone> = {
+  ACTIVE: 'success',
+  INACTIVE: 'warning',
+};
+
+/** Translation key per status. */
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  ACTIVE: 'status.active',
+  INACTIVE: 'status.onLeave',
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null): string {
+function formatDate(iso: string | null, locale: string): string {
   if (!iso) return '—';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /** "Hired March 2025" from an ISO instant, or an em dash when absent/invalid. */
-function formatHired(iso: string): string {
+function formatHired(
+  iso: string,
+  t: Awaited<ReturnType<typeof getTranslations>>,
+  locale: string,
+): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : `Hired ${date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`;
+    : t('detail.hired', {
+        date: date.toLocaleDateString(locale, { month: 'long', year: 'numeric' }),
+      });
 }
 
 /** Render a trainer's initials for the avatar placeholder. */
@@ -84,6 +97,8 @@ function DetailKpi({
  */
 export default async function TrainerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const t = await getTranslations('admin.trainers');
+  const locale = await getLocale();
 
   let trainer: AdminTrainerDetail;
   try {
@@ -94,8 +109,8 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     }
     const message =
       error instanceof ApiError
-        ? `Could not load this trainer (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadTrainer', { status: error.status, message: error.message })
+        : t('errors.unreachable');
     return (
       <div className="flex flex-col gap-4">
         <Link
@@ -103,7 +118,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
           className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
         >
           <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-          Back to trainers
+          {t('detail.backToTrainers')}
         </Link>
         <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
           <Icon
@@ -118,7 +133,10 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     );
   }
 
-  const status = STATUS_LABELS[trainer.status] ?? { label: trainer.status, tone: 'ink' as const };
+  const statusTone = STATUS_TONES[trainer.status] ?? ('ink' as const);
+  const statusLabel = STATUS_LABEL_KEYS[trainer.status]
+    ? t(STATUS_LABEL_KEYS[trainer.status]!)
+    : trainer.status;
 
   // Write controls (edit + deactivate) are a `TrainerWrite` capability.
   const session = await getServerSession();
@@ -128,19 +146,19 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav
-          aria-label="Breadcrumb"
+          aria-label={t('list.breadcrumbAria')}
           className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
         >
           <span>Iron Gym</span>
           <Icon name="chevronRight" className="h-3.5 w-3.5" />
           <Link href="/trainers" className="hover:text-ink-600 dark:hover:text-ink-300">
-            Trainers
+            {t('list.breadcrumb')}
           </Link>
           <Icon name="chevronRight" className="h-3.5 w-3.5" />
           <span className="text-ink-600 dark:text-ink-300">{trainer.name}</span>
         </nav>
         <Btn v="outline" size="sm" icon="message" disabled>
-          Message
+          {t('detail.message')}
         </Btn>
       </div>
 
@@ -149,7 +167,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
       >
         <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-        Back to trainers
+        {t('detail.backToTrainers')}
       </Link>
 
       {/* Identity header card. */}
@@ -158,7 +176,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
           {trainer.photoUrl ? (
             <img
               src={trainer.photoUrl}
-              alt={`${trainer.name} photo`}
+              alt={t('detail.photoAlt', { name: trainer.name })}
               className="h-16 w-16 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
             />
           ) : (
@@ -171,7 +189,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
               <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
                 {trainer.name}
               </h1>
-              <Badge tone={status.tone}>{status.label}</Badge>
+              <Badge tone={statusTone}>{statusLabel}</Badge>
               {trainer.specialties[0] ? <Badge tone="brand">{trainer.specialties[0]}</Badge> : null}
             </div>
             {trainer.headline ? (
@@ -183,10 +201,10 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
                 <span className="font-semibold tabular-nums text-ink-700 dark:text-ink-200">
                   {trainer.rating.toFixed(1)}
                 </span>
-                · {trainer.reviewCount} {trainer.reviewCount === 1 ? 'review' : 'reviews'}
+                · {t('reviews', { count: trainer.reviewCount })}
               </span>
               <span aria-hidden>·</span>
-              <span>{formatHired(trainer.hiredAt)}</span>
+              <span>{formatHired(trainer.hiredAt, t, locale)}</span>
             </div>
           </div>
         </div>
@@ -195,38 +213,40 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
 
       {/* Four live KPI cards. */}
       <section
-        aria-label="Trainer metrics"
+        aria-label={t('detail.metricsAria')}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         <DetailKpi
-          label="Rating"
+          label={t('detail.kpiRating')}
           value={trainer.rating.toFixed(1)}
-          context={`${trainer.reviewCount} ${trainer.reviewCount === 1 ? 'review' : 'reviews'}`}
+          context={t('reviews', { count: trainer.reviewCount })}
           icon="star"
         />
         <DetailKpi
-          label="Classes / week"
+          label={t('detail.kpiClassesPerWeek')}
           value={String(trainer.classesThisWeek)}
-          context="this week"
+          context={t('detail.kpiClassesPerWeekContext')}
           icon="calendar"
         />
         <DetailKpi
-          label="Reviews"
+          label={t('detail.kpiReviews')}
           value={String(trainer.reviewCount)}
-          context={`${trainer.thisWeek.newReviews} new this week`}
+          context={t('detail.kpiReviewsContext', { count: trainer.thisWeek.newReviews })}
           icon="message"
         />
         <DetailKpi
-          label="Show-up rate"
+          label={t('detail.kpiShowUpRate')}
           value={trainer.showUpRate === null ? '—' : `${trainer.showUpRate}%`}
-          context="last 90 days"
+          context={t('detail.kpiShowUpRateContext')}
           icon="check"
         />
       </section>
 
       <TrainerTabs trainer={trainer} />
 
-      <p className="text-xs text-ink-400">Profile added {formatDate(trainer.createdAt)}.</p>
+      <p className="text-xs text-ink-400">
+        {t('detail.profileAdded', { date: formatDate(trainer.createdAt, locale) })}
+      </p>
     </div>
   );
 }

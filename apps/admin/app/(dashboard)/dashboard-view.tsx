@@ -13,6 +13,7 @@
 
 import { useMemo, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import type {
   DashboardAlert,
   DashboardKpi,
@@ -30,30 +31,31 @@ import {
   type IconName,
 } from '@/components/ui';
 
-/** The range options offered by the segmented control, in ascending span order. */
-const RANGE_OPTIONS: ReadonlyArray<{ value: DashboardRange; label: string }> = [
-  { value: '7d', label: '7d' },
-  { value: '30d', label: '30d' },
-  { value: '12w', label: '12w' },
-];
+/** Translator for the `admin.dashboard` namespace (from `useTranslations`). */
+type T = ReturnType<typeof useTranslations>;
 
-/** Weekday axis labels for the revenue chart (Mon–Sun), derived from each point's date. */
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+/** The range values offered by the segmented control, in ascending span order. */
+const RANGE_VALUES = ['7d', '30d', '12w'] as const satisfies readonly DashboardRange[];
+
+/** i18n keys (under `admin.dashboard.weekdays`) indexed by JS day-of-week (0 = Sun). */
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const t = useTranslations('admin.dashboard');
+  const locale = useLocale();
 
   const money = useMemo(
     () =>
-      new Intl.NumberFormat(undefined, {
+      new Intl.NumberFormat(locale, {
         style: 'currency',
         currency: data.currency,
         maximumFractionDigits: 0,
       }),
-    [data.currency],
+    [data.currency, locale],
   );
 
   function selectRange(next: DashboardRange): void {
@@ -64,14 +66,14 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
 
   const now = new Date();
   const eyebrow = now
-    .toLocaleDateString(undefined, {
+    .toLocaleDateString(locale, {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
       year: 'numeric',
     })
     .toUpperCase();
-  const greeting = greetingFor(now.getHours());
+  const greeting = t(greetingKey(now.getHours()));
   const firstName = data.viewer.name.split(' ')[0] || data.viewer.name;
 
   return (
@@ -87,7 +89,7 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
           </h1>
           <span className="inline-flex items-center gap-1.5 rounded-pill bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-300">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success-500" />
-            All systems live
+            {t('allSystemsLive')}
           </span>
         </div>
       </header>
@@ -97,13 +99,13 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
         <InGymNow data={data} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-2 lg:grid-cols-1 xl:grid-cols-3">
           <KpiCard
-            label="Today's revenue"
+            label={t('kpi.todaysRevenue')}
             icon="card"
             kpi={data.kpis.todaysRevenue}
             format={(v) => money.format(v / 100)}
           />
-          <KpiCard label="Check-ins today" icon="check" kpi={data.kpis.checkInsToday} />
-          <KpiCard label="New members · 7d" icon="users" kpi={data.kpis.newMembers7d} />
+          <KpiCard label={t('kpi.checkInsToday')} icon="check" kpi={data.kpis.checkInsToday} />
+          <KpiCard label={t('kpi.newMembers7d')} icon="users" kpi={data.kpis.newMembers7d} />
         </div>
       </section>
 
@@ -130,6 +132,7 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
 /* -------------------------------------------------------------------------- */
 
 function InGymNow({ data }: { data: DashboardOverviewResponse }) {
+  const t = useTranslations('admin.dashboard');
   const { current, capacity, areas } = data.inGymNow;
   const pct = capacity > 0 ? Math.round((current / capacity) * 100) : 0;
 
@@ -137,11 +140,11 @@ function InGymNow({ data }: { data: DashboardOverviewResponse }) {
     <Card glow className="flex flex-col p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          In the gym now
+          {t('inGymNow.title')}
         </h2>
         <span className="inline-flex items-center gap-1.5 rounded-pill bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
-          Live
+          {t('inGymNow.live')}
         </span>
       </div>
 
@@ -151,16 +154,16 @@ function InGymNow({ data }: { data: DashboardOverviewResponse }) {
             <span className="font-display text-2xl font-extrabold tabular-nums text-ink-900 dark:text-white">
               <CountUp to={current} />
             </span>
-            <span className="mt-0.5 font-mono text-[10px] text-ink-400">of {capacity}</span>
+            <span className="mt-0.5 font-mono text-[10px] text-ink-400">
+              {t('inGymNow.of', { capacity })}
+            </span>
           </div>
         </Donut>
         <div className="min-w-0 flex-1">
           <p className="text-sm text-ink-500 dark:text-ink-400">
             {current === 0
-              ? 'Quiet right now — no members checked in today yet.'
-              : `${pct}% of capacity in use across ${areas.length} area${
-                  areas.length === 1 ? '' : 's'
-                }.`}
+              ? t('inGymNow.quiet')
+              : t('inGymNow.capacity', { pct, areas: areas.length })}
           </p>
         </div>
       </div>
@@ -215,8 +218,9 @@ function KpiCard({
 }
 
 function DeltaChip({ kpi }: { kpi: DashboardKpi }) {
+  const t = useTranslations('admin.dashboard');
   if (kpi.deltaPct === null) {
-    return <span className="text-xs text-ink-300 dark:text-ink-600">no prior data</span>;
+    return <span className="text-xs text-ink-300 dark:text-ink-600">{t('kpi.noPriorData')}</span>;
   }
   const good = kpi.deltaPct >= 0;
   const arrow = good ? '▲' : '▼';
@@ -249,9 +253,10 @@ function RevenueCard({
   onSelectRange: (next: DashboardRange) => void;
   disabled: boolean;
 }) {
+  const t = useTranslations('admin.dashboard');
   const points: AreaPoint[] = data.revenue.series.map((p) => ({
     // Money is carried in MINOR units; the chart plots major units.
-    label: WEEKDAYS[new Date(`${p.date}T00:00:00.000Z`).getUTCDay()] ?? p.date,
+    label: t(`weekdays.${WEEKDAY_KEYS[new Date(`${p.date}T00:00:00.000Z`).getUTCDay()]}`),
     value: p.value / 100,
   }));
   const hasData = points.some((p) => p.value > 0);
@@ -261,34 +266,37 @@ function RevenueCard({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-            Revenue
+            {t('revenue.title')}
           </h2>
           <p className="mt-0.5 font-mono text-xs text-ink-400">
-            {rangeCaption(data.revenue.range)} · total {money.format(data.revenue.total / 100)}
+            {t('revenue.caption', {
+              range: t(rangeCaptionKey(data.revenue.range)),
+              total: money.format(data.revenue.total / 100),
+            })}
           </p>
         </div>
         <div
           role="tablist"
-          aria-label="Revenue range"
+          aria-label={t('revenue.rangeAria')}
           className="inline-flex w-fit rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
         >
-          {RANGE_OPTIONS.map((option) => {
-            const active = option.value === data.revenue.range;
+          {RANGE_VALUES.map((value) => {
+            const active = value === data.revenue.range;
             return (
               <button
-                key={option.value}
+                key={value}
                 type="button"
                 role="tab"
                 aria-selected={active}
                 disabled={disabled}
-                onClick={() => onSelectRange(option.value)}
+                onClick={() => onSelectRange(value)}
                 className={`rounded-btn px-3 py-1 text-xs font-semibold transition-colors disabled:pointer-events-none ${
                   active
                     ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]'
                     : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
                 }`}
               >
-                {option.label}
+                {t(`ranges.${value}`)}
               </button>
             );
           })}
@@ -297,7 +305,7 @@ function RevenueCard({
 
       {hasData ? (
         <>
-          <AreaChart data={points} ariaLabel="Revenue over the selected range" />
+          <AreaChart data={points} ariaLabel={t('revenue.chartAria')} />
           <div className="mt-1 flex justify-between font-mono text-[10px] text-ink-400">
             {points.map((p, i) => (
               <span key={i}>{p.label}</span>
@@ -305,20 +313,21 @@ function RevenueCard({
           </div>
         </>
       ) : (
-        <EmptyState>No captured revenue in this window yet.</EmptyState>
+        <EmptyState>{t('revenue.empty')}</EmptyState>
       )}
     </Card>
   );
 }
 
-function rangeCaption(range: DashboardRange): string {
+/** i18n key (under `admin.dashboard`) for a range's human caption. */
+function rangeCaptionKey(range: DashboardRange): string {
   switch (range) {
     case '7d':
-      return 'Last 7 days';
+      return 'revenue.range7d';
     case '30d':
-      return 'Last 30 days';
+      return 'revenue.range30d';
     case '12w':
-      return 'Last 12 weeks';
+      return 'revenue.range12w';
   }
 }
 
@@ -327,19 +336,20 @@ function rangeCaption(range: DashboardRange): string {
 /* -------------------------------------------------------------------------- */
 
 function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
+  const t = useTranslations('admin.dashboard');
   const { total, plans } = data.planMix;
 
   return (
     <Card glow className="flex flex-col p-5">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          Plan mix
+          {t('planMix.title')}
         </h2>
-        <span className="font-mono text-xs text-ink-400">{total} paid members</span>
+        <span className="font-mono text-xs text-ink-400">{t('planMix.count', { total })}</span>
       </div>
 
       {plans.length === 0 || total === 0 ? (
-        <EmptyState>No active subscribers yet.</EmptyState>
+        <EmptyState>{t('planMix.empty')}</EmptyState>
       ) : (
         <>
           <div className="mb-4 flex h-3 overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
@@ -384,15 +394,17 @@ function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
 /* -------------------------------------------------------------------------- */
 
 function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
+  const t = useTranslations('admin.dashboard');
+  const locale = useLocale();
   const rows = data.todaysSchedule;
 
   return (
     <Card glow className="flex flex-col p-5 lg:col-span-2">
       <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-        Today's schedule
+        {t('schedule.title')}
       </h2>
       {rows.length === 0 ? (
-        <EmptyState>No classes scheduled today.</EmptyState>
+        <EmptyState>{t('schedule.empty')}</EmptyState>
       ) : (
         <ul className="space-y-2">
           {rows.map((row, i) => {
@@ -407,14 +419,14 @@ function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
                   style={{ backgroundColor: row.color ?? '#7C3AED' }}
                 />
                 <span className="w-14 shrink-0 font-mono text-xs tabular-nums text-ink-500 dark:text-ink-400">
-                  {formatTime(row.startsAt)}
+                  {formatTime(locale, row.startsAt)}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
                     {row.title}
                   </span>
                   <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
-                    {row.trainerName ?? 'Unassigned'}
+                    {row.trainerName ?? t('schedule.unassigned')}
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
@@ -430,7 +442,7 @@ function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
                           : 'text-success-500'
                     }`}
                   >
-                    {fill}% full
+                    {t('schedule.full', { fill })}
                   </span>
                 </span>
               </li>
@@ -459,17 +471,18 @@ const ALERT_TONE: Record<DashboardAlert['kind'], string> = {
 };
 
 function AlertsCard({ data }: { data: DashboardOverviewResponse }) {
+  const t = useTranslations('admin.dashboard');
   const alerts = data.alerts;
   return (
     <Card glow className="flex flex-col p-5">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          Alerts
+          {t('alerts.title')}
         </h2>
         <span className="font-mono text-xs text-ink-400">{alerts.length}</span>
       </div>
       {alerts.length === 0 ? (
-        <EmptyState>All clear — no alerts right now.</EmptyState>
+        <EmptyState>{t('alerts.empty')}</EmptyState>
       ) : (
         <ul className="space-y-2.5">
           {alerts.map((alert, i) => (
@@ -484,7 +497,7 @@ function AlertsCard({ data }: { data: DashboardOverviewResponse }) {
                   {alert.title}
                 </span>
                 <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
-                  {alert.detail} · {timeAgo(alert.at)}
+                  {alert.detail} · {timeAgo(t, alert.at)}
                 </span>
               </span>
             </li>
@@ -500,20 +513,21 @@ function AlertsCard({ data }: { data: DashboardOverviewResponse }) {
 /* -------------------------------------------------------------------------- */
 
 function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
+  const t = useTranslations('admin.dashboard');
   const rows = data.recentCheckIns;
   return (
     <Card glow className="flex flex-col p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          Recent check-ins
+          {t('recentCheckIns.title')}
         </h2>
         <span className="inline-flex items-center gap-1.5 rounded-pill bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
-          Live
+          {t('inGymNow.live')}
         </span>
       </div>
       {rows.length === 0 ? (
-        <EmptyState>No check-ins today yet.</EmptyState>
+        <EmptyState>{t('recentCheckIns.empty')}</EmptyState>
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((row, i) => (
@@ -529,7 +543,7 @@ function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
                   {row.name}
                 </span>
                 <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
-                  {row.planName ?? 'No plan'} · {timeAgo(row.checkedInAt)}
+                  {row.planName ?? t('recentCheckIns.noPlan')} · {timeAgo(t, row.checkedInAt)}
                 </span>
               </span>
             </li>
@@ -552,14 +566,15 @@ function EmptyState({ children }: { children: ReactNode }) {
   );
 }
 
-function greetingFor(hour: number): string {
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
+/** i18n key (under `admin.dashboard.greeting`) for the time-of-day greeting. */
+function greetingKey(hour: number): string {
+  if (hour < 12) return 'greeting.morning';
+  if (hour < 18) return 'greeting.afternoon';
+  return 'greeting.evening';
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+function formatTime(locale: string, iso: string): string {
+  return new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 function initials(name: string): string {
@@ -569,12 +584,12 @@ function initials(name: string): string {
   return (first + last).toUpperCase() || '?';
 }
 
-function timeAgo(iso: string): string {
+function timeAgo(t: T, iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.round(diffMs / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t('relative.justNow');
+  if (mins < 60) return t('relative.minutes', { mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return t('relative.hours', { hours });
+  return t('relative.days', { days: Math.round(hours / 24) });
 }

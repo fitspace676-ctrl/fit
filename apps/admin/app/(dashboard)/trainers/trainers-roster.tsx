@@ -3,13 +3,22 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import type { AdminTrainerRow, AdminTrainerSummary, TrainerStatus } from '@fit/types';
 import { Badge, Btn, Card, CountUp, Icon, type IconName, type Tone } from '@/components/ui';
 
-/** Visual treatment per trainer status — success active, ink inactive. */
-const STATUS_STYLES: Record<TrainerStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'On leave', tone: 'warning' },
+type T = ReturnType<typeof useTranslations>;
+
+/** Tone treatment per trainer status — success active, warning inactive. */
+const STATUS_TONES: Record<TrainerStatus, Tone> = {
+  ACTIVE: 'success',
+  INACTIVE: 'warning',
+};
+
+/** Translation key per trainer status. */
+const STATUS_LABEL_KEYS: Record<TrainerStatus, string> = {
+  ACTIVE: 'status.active',
+  INACTIVE: 'status.onLeave',
 };
 
 /** The engine gradient shared by the primary controls (Planflow "formacore"). */
@@ -26,18 +35,18 @@ function initialsOf(name: string): string {
  * Format an upcoming class instant into the card's "next class" footer, e.g.
  * "Today 18:00", "Tomorrow 07:30", or "Mon 18:00". Local to the staff member.
  */
-function formatNextClass(iso: string): string {
+function formatNextClass(iso: string, t: T, locale: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const dayDiff = Math.round((startOfDay(date) - startOfDay(new Date())) / 86_400_000);
   const day =
     dayDiff === 0
-      ? 'Today'
+      ? t('relative.today')
       : dayDiff === 1
-        ? 'Tomorrow'
-        : date.toLocaleDateString(undefined, { weekday: 'short' });
+        ? t('relative.tomorrow')
+        : date.toLocaleDateString(locale, { weekday: 'short' });
   return `${day} ${time}`;
 }
 
@@ -86,8 +95,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
 }
 
 /** A single trainer card in the 2-up grid. */
-function TrainerCard({ trainer }: { trainer: AdminTrainerRow }) {
-  const status = STATUS_STYLES[trainer.status];
+function TrainerCard({ trainer, t, locale }: { trainer: AdminTrainerRow; t: T; locale: string }) {
   return (
     <Card className="flex flex-col gap-4 p-5 transition-colors hover:border-brand-300 dark:hover:border-brand-500/50">
       <div className="flex items-start gap-3">
@@ -110,7 +118,9 @@ function TrainerCard({ trainer }: { trainer: AdminTrainerRow }) {
             >
               {trainer.name}
             </Link>
-            <Badge tone={status.tone}>{status.label}</Badge>
+            <Badge tone={STATUS_TONES[trainer.status]}>
+              {t(STATUS_LABEL_KEYS[trainer.status])}
+            </Badge>
           </div>
           {trainer.headline ? (
             <p className="truncate text-xs text-ink-500 dark:text-ink-400">{trainer.headline}</p>
@@ -120,14 +130,12 @@ function TrainerCard({ trainer }: { trainer: AdminTrainerRow }) {
             <span className="font-semibold tabular-nums text-ink-700 dark:text-ink-200">
               {trainer.rating.toFixed(1)}
             </span>
-            <span>
-              · {trainer.reviewCount} {trainer.reviewCount === 1 ? 'review' : 'reviews'}
-            </span>
+            <span>· {t('reviews', { count: trainer.reviewCount })}</span>
           </div>
         </div>
         <Link
           href={`/trainers/${trainer.id}`}
-          aria-label={`Open ${trainer.name}`}
+          aria-label={t('list.openTrainer', { name: trainer.name })}
           className="grid h-8 w-8 place-items-center rounded-btn text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 dark:hover:bg-white/5 dark:hover:text-white"
         >
           <span aria-hidden className="text-lg leading-none">
@@ -150,8 +158,8 @@ function TrainerCard({ trainer }: { trainer: AdminTrainerRow }) {
       ) : null}
 
       <div className="grid grid-cols-2 gap-2">
-        <StatTile label="Classes / wk" value={String(trainer.classesThisWeek)} />
-        <StatTile label="Reviews" value={String(trainer.reviewCount)} />
+        <StatTile label={t('list.statClassesPerWk')} value={String(trainer.classesThisWeek)} />
+        <StatTile label={t('list.statReviews')} value={String(trainer.reviewCount)} />
       </div>
 
       <div className="mt-auto flex items-center justify-between border-t border-ink-100 pt-3 text-xs dark:border-white/10">
@@ -159,17 +167,17 @@ function TrainerCard({ trainer }: { trainer: AdminTrainerRow }) {
           <Icon name="calendar" className="h-3.5 w-3.5" />
           {trainer.nextClass ? (
             <span className="truncate">
-              {formatNextClass(trainer.nextClass.startsAt)} · {trainer.nextClass.title}
+              {formatNextClass(trainer.nextClass.startsAt, t, locale)} · {trainer.nextClass.title}
             </span>
           ) : (
-            <span>No upcoming class</span>
+            <span>{t('list.noUpcomingClass')}</span>
           )}
         </span>
         <Link
           href={`/trainers/${trainer.id}`}
           className="shrink-0 font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
         >
-          View →
+          {t('list.view')}
         </Link>
       </div>
     </Card>
@@ -199,6 +207,8 @@ export function TrainersRoster({
   limit: number;
   canWrite: boolean;
 }) {
+  const t = useTranslations('admin.trainers');
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -247,32 +257,32 @@ export function TrainersRoster({
     <div className="flex flex-col gap-6">
       {/* Gym-wide KPI cards — real aggregates over the whole filtered roster. */}
       <section
-        aria-label="Roster metrics"
+        aria-label={t('list.rosterMetricsAria')}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         <KpiCard
-          label="Trainers"
+          label={t('list.kpiTrainers')}
           value={summary.total}
-          context={`${summary.active} active`}
+          context={t('list.kpiTrainersContext', { count: summary.active })}
           icon="users"
         />
         <KpiCard
-          label="Classes / week"
+          label={t('list.kpiClassesPerWeek')}
           value={summary.classesPerWeek}
-          context="across the roster"
+          context={t('list.kpiClassesPerWeekContext')}
           icon="calendar"
         />
         <KpiCard
-          label="Avg rating"
+          label={t('list.kpiAvgRating')}
           value={summary.avgRating}
-          context="from member reviews"
+          context={t('list.kpiAvgRatingContext')}
           icon="star"
           decimals
         />
         <KpiCard
-          label="Reviews"
-          value={trainers.reduce((sum, t) => sum + t.reviewCount, 0)}
-          context="on this page"
+          label={t('list.kpiReviews')}
+          value={trainers.reduce((sum, row) => sum + row.reviewCount, 0)}
+          context={t('list.kpiReviewsContext')}
           icon="message"
         />
       </section>
@@ -281,7 +291,7 @@ export function TrainersRoster({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div
           role="tablist"
-          aria-label="Filter by specialty"
+          aria-label={t('list.filterBySpecialtyAria')}
           className="inline-flex flex-wrap gap-1 rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
         >
           {specialties.map((option) => {
@@ -299,7 +309,7 @@ export function TrainersRoster({
                     : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
                 }`}
               >
-                {option}
+                {option === 'All' ? t('list.filterAll') : option}
               </button>
             );
           })}
@@ -307,7 +317,7 @@ export function TrainersRoster({
 
         <div className="relative lg:w-72">
           <label htmlFor="trainer-search" className="sr-only">
-            Search trainers by name or headline
+            {t('list.searchLabel')}
           </label>
           <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-400">
             <Icon name="search" className="h-4 w-4" />
@@ -317,7 +327,7 @@ export function TrainersRoster({
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search coaches…"
+            placeholder={t('list.searchPlaceholder')}
             className="h-11 w-full rounded-field border border-ink-200 bg-white pl-9 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
           />
         </div>
@@ -329,21 +339,21 @@ export function TrainersRoster({
           <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
             <Icon name="users" className="h-6 w-6" />
           </span>
-          <p className="text-sm font-medium text-ink-700 dark:text-ink-200">No trainers yet</p>
+          <p className="text-sm font-medium text-ink-700 dark:text-ink-200">
+            {t('list.emptyTitle')}
+          </p>
           <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
-            {canWrite
-              ? 'Add your first coach to build the roster.'
-              : 'Your gym has no trainers on the roster yet.'}
+            {canWrite ? t('list.emptyHintCanWrite') : t('list.emptyHint')}
           </p>
         </Card>
       ) : visible.length === 0 ? (
         <Card className="px-4 py-12 text-center text-sm text-ink-500 dark:text-ink-400">
-          No coaches match this filter.
+          {t('list.noMatch')}
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {visible.map((trainer) => (
-            <TrainerCard key={trainer.id} trainer={trainer} />
+            <TrainerCard key={trainer.id} trainer={trainer} t={t} locale={locale} />
           ))}
         </div>
       )}
@@ -351,9 +361,7 @@ export function TrainersRoster({
       {/* Server-side pager (the search/segment are client-side over this page). */}
       {total > limit ? (
         <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-          <span className="font-mono tabular-nums">
-            {from}–{to} of {total}
-          </span>
+          <span className="font-mono tabular-nums">{t('list.pageRange', { from, to, total })}</span>
           <div className="flex gap-2">
             <Btn
               v="outline"
@@ -361,7 +369,7 @@ export function TrainersRoster({
               disabled={!hasPrev}
               onClick={() => startTransition(() => router.replace(pageHref(page - 1)))}
             >
-              Previous
+              {t('list.previous')}
             </Btn>
             <Btn
               v="outline"
@@ -369,7 +377,7 @@ export function TrainersRoster({
               disabled={!hasNext}
               onClick={() => startTransition(() => router.replace(pageHref(page + 1)))}
             >
-              Next
+              {t('list.next')}
             </Btn>
           </div>
         </div>

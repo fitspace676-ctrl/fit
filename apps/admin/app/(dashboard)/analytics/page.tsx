@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import {
   analyticsRangeSchema,
   Permission,
@@ -31,6 +32,7 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<{ range?: string }>;
 }) {
+  const t = await getTranslations('admin.analytics');
   const session = await getServerSession();
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
 
@@ -42,20 +44,16 @@ export default async function AnalyticsPage({
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Analytics
+          {t('title')}
         </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          Revenue, membership, attendance, and subscription trends for your gym — every figure is
-          computed live from your real data.
-        </p>
+        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('description')}</p>
       </header>
 
       {canViewReports ? (
         <AnalyticsBody range={range} />
       ) : (
         <p className="rounded-card border border-ink-200 bg-white px-4 py-3 text-sm text-ink-500 dark:border-white/10 dark:bg-white/[0.035] dark:text-ink-400">
-          Your role does not have access to analytics. Ask an owner or manager for the reporting
-          permission.
+          {t('noAccess')}
         </p>
       )}
     </div>
@@ -68,14 +66,15 @@ export default async function AnalyticsPage({
  * alert the dashboard uses, rather than crashing the page.
  */
 async function AnalyticsBody({ range }: { range: AnalyticsRange }) {
+  const t = await getTranslations('admin.analytics');
   try {
     const data = await fetchAnalytics(range);
     return <AnalyticsView data={data} />;
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load analytics (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('loadError', { status: error.status, message: error.message })
+        : t('apiUnreachable');
     return (
       <p
         role="alert"

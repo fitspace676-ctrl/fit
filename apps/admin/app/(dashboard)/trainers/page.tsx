@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   listAdminTrainersQuerySchema,
@@ -37,6 +38,7 @@ export default async function TrainersPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const t = await getTranslations('admin.trainers');
   const raw = await searchParams;
   const parsed = listAdminTrainersQuerySchema.safeParse(raw);
   const query: ListAdminTrainersQuery = parsed.success
@@ -47,15 +49,12 @@ export default async function TrainersPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.TrainerWrite);
 
-  let subtitle = 'Your gym’s coaching roster.';
+  let subtitle = t('list.subtitleDefault');
   let content;
   try {
     const result = await fetchTrainers(query);
     const { total, active } = result.summary;
-    subtitle =
-      total === 0
-        ? 'No coaches on the roster yet.'
-        : `${total} ${total === 1 ? 'coach' : 'coaches'} · ${active} active`;
+    subtitle = total === 0 ? t('list.subtitleEmpty') : t('list.subtitleCount', { total, active });
     content = (
       <TrainersRoster
         trainers={result.data}
@@ -69,8 +68,8 @@ export default async function TrainersPage({
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load trainers (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadTrainers', { status: error.status, message: error.message })
+        : t('errors.unreachable');
     content = (
       <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
         <Icon
@@ -87,25 +86,25 @@ export default async function TrainersPage({
   return (
     <div className="flex flex-col gap-6">
       <nav
-        aria-label="Breadcrumb"
+        aria-label={t('list.breadcrumbAria')}
         className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
       >
         <span>Iron Gym</span>
         <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <span className="text-ink-600 dark:text-ink-300">Trainers</span>
+        <span className="text-ink-600 dark:text-ink-300">{t('list.breadcrumb')}</span>
       </nav>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            Trainers
+            {t('list.title')}
           </h1>
           <p className="text-sm text-ink-500 dark:text-ink-400">{subtitle}</p>
         </div>
         {canWrite ? (
           <Link href="/trainers/new" className={buttonClasses('primary', 'md')}>
             <Icon name="plus" className="h-4 w-4" sw={2} />
-            Add trainer
+            {t('list.addTrainer')}
           </Link>
         ) : null}
       </header>

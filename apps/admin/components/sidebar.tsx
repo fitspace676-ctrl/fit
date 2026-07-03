@@ -15,6 +15,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useSession } from '@/hooks/use-session';
 import { isNavItemActive, visibleNavItems } from '@/lib/nav';
 import { Dot } from '@/components/ui';
@@ -49,6 +50,7 @@ export interface SidebarProps {
 export function Sidebar({ gymSlug, system, onNavigate }: SidebarProps) {
   const { user, isLoading } = useSession();
   const pathname = usePathname();
+  const t = useTranslations('admin');
   const current = appPath(pathname);
   const items = visibleNavItems(user?.role ?? null);
 
@@ -61,10 +63,10 @@ export function Sidebar({ gymSlug, system, onNavigate }: SidebarProps) {
         </span>
         <span className="flex min-w-0 flex-col leading-tight">
           <span className="font-display text-sm font-extrabold tracking-tight text-white">
-            FormaCore
+            {t('common.brand')}
           </span>
           <span className="font-mono text-[9px] font-medium uppercase tracking-[0.18em] text-ink-500">
-            Management platform
+            {t('common.brandTagline')}
           </span>
         </span>
       </Link>
@@ -93,7 +95,7 @@ export function Sidebar({ gymSlug, system, onNavigate }: SidebarProps) {
                 ].join(' ')}
               >
                 <NavIcon name={item.icon} />
-                <span className="flex-1">{item.label}</span>
+                <span className="flex-1">{t(item.labelKey)}</span>
                 {badge !== null && (
                   <span
                     className={[
@@ -139,13 +141,14 @@ export function Sidebar({ gymSlug, system, onNavigate }: SidebarProps) {
  * the API is unreachable they degrade to offline together.
  */
 function SystemWidget({ system }: { system: ShellSystemState }) {
+  const t = useTranslations('admin.system');
   const online = system.online;
-  const rows = ['Sync engine', 'Check-in', 'POS terminal'] as const;
+  const rows = ['syncEngine', 'checkIn', 'posTerminal'] as const;
   return (
     <div className="mt-3 rounded-card border border-white/10 bg-white/[0.03] p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-          System
+          {t('title')}
         </span>
         <span
           className={[
@@ -153,17 +156,17 @@ function SystemWidget({ system }: { system: ShellSystemState }) {
             online ? 'bg-success-500/15 text-success-300' : 'bg-danger-500/15 text-danger-300',
           ].join(' ')}
         >
-          {online ? '99.9%' : 'offline'}
+          {online ? t('uptime') : t('offline')}
         </span>
       </div>
       <ul className="space-y-1.5">
-        {rows.map((label) => (
-          <li key={label} className="flex items-center justify-between text-xs">
-            <span className="text-ink-400">{label}</span>
+        {rows.map((key) => (
+          <li key={key} className="flex items-center justify-between text-xs">
+            <span className="text-ink-400">{t(key)}</span>
             <span className="flex items-center gap-1.5 font-medium">
               <Dot c={online ? 'bg-success-400' : 'bg-danger-400'} />
               <span className={online ? 'text-success-300' : 'text-danger-300'}>
-                {online ? 'online' : 'offline'}
+                {online ? t('online') : t('offline')}
               </span>
             </span>
           </li>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainer } from '@/lib/api';
@@ -22,6 +23,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function EditTrainerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const t = await getTranslations('admin.trainers');
 
   const session = await getServerSession();
   if (!session || !roleHasPermission(session.role, Permission.TrainerWrite)) {
@@ -37,8 +39,8 @@ export default async function EditTrainerPage({ params }: { params: Promise<{ id
     }
     const message =
       error instanceof ApiError
-        ? `Could not load this trainer (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadTrainer', { status: error.status, message: error.message })
+        : t('errors.unreachable');
     return (
       <div className="flex flex-col gap-4">
         <Link
@@ -46,7 +48,7 @@ export default async function EditTrainerPage({ params }: { params: Promise<{ id
           className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
         >
           <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-          Back to trainers
+          {t('form.backToTrainers')}
         </Link>
         <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
           <Icon
@@ -68,15 +70,15 @@ export default async function EditTrainerPage({ params }: { params: Promise<{ id
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
       >
         <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-        Back to trainer
+        {t('form.backToTrainer')}
       </Link>
 
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Edit trainer
+          {t('form.editTitle')}
         </h1>
         <p className="text-sm text-ink-500 dark:text-ink-400">
-          Update {trainer.name}’s profile and photo.
+          {t('form.editSubtitle', { name: trainer.name })}
         </p>
       </header>
 

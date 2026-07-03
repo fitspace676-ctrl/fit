@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCheckInStats, fetchTodayCheckIns } from '@/lib/api';
@@ -24,6 +25,7 @@ export const dynamic = 'force-dynamic';
  * inline alert (mirroring the dashboard) rather than crashing the page.
  */
 export default async function CheckInPage() {
+  const t = await getTranslations('admin.checkin');
   const session = await getServerSession();
   const canCheckIn = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
 
@@ -40,8 +42,8 @@ export default async function CheckInPage() {
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load reception data (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('error.withStatus', { status: error.status, message: error.message })
+        : t('error.unreachable');
     board = (
       <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
         <Icon
@@ -60,20 +62,17 @@ export default async function CheckInPage() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            Reception
+            {t('title')}
           </h1>
           <span className="inline-flex items-center gap-1.5 rounded-pill bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 ring-1 ring-inset ring-success-500/30 dark:bg-success-500/10 dark:text-success-200">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-500 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-success-500" />
             </span>
-            Live
+            {t('live')}
           </span>
         </div>
-        <p className="max-w-md text-sm text-ink-500 dark:text-ink-400">
-          Scan a member&apos;s QR or look them up to check them in. Arrivals appear in the live feed
-          as they happen.
-        </p>
+        <p className="max-w-md text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
       </header>
 
       {board}

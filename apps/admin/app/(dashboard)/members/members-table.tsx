@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import type {
   MemberBillingState,
   MemberPlan,
@@ -17,11 +18,14 @@ import { Badge, Btn, Card, Icon, type Tone } from '@/components/ui';
 import { MembersFilters } from './members-filters';
 import { bulkExportMembersAction } from './actions';
 
+/** Translator for the `admin.members` namespace (from `useTranslations`). */
+type T = ReturnType<typeof useTranslations>;
+
 /** Visual treatment per member status — green active, slate invited, amber suspended. */
-const STATUS_STYLES: Record<MemberStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INVITED: { label: 'Trial', tone: 'ink' },
-  SUSPENDED: { label: 'Expired', tone: 'warning' },
+const STATUS_TONES: Record<MemberStatus, Tone> = {
+  ACTIVE: 'success',
+  INVITED: 'ink',
+  SUSPENDED: 'warning',
 };
 
 /** The engine gradient shared by the active tab (Planflow "formacore"). */
@@ -34,28 +38,28 @@ const ENGINE_GRADIENT = 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)]';
  * with no `GymMemberStatus`, so it's shown as a read-only count (no filter param).
  */
 const TABS: ReadonlyArray<{
-  label: string;
+  labelKey: string;
   status: MemberStatus | '';
   countKey: keyof MemberTabCounts;
 }> = [
-  { label: 'All', status: '', countKey: 'all' },
-  { label: 'Active', status: 'ACTIVE', countKey: 'active' },
-  { label: 'Frozen', status: '', countKey: 'frozen' },
-  { label: 'Trial', status: 'INVITED', countKey: 'trial' },
-  { label: 'Expired', status: 'SUSPENDED', countKey: 'expired' },
+  { labelKey: 'all', status: '', countKey: 'all' },
+  { labelKey: 'active', status: 'ACTIVE', countKey: 'active' },
+  { labelKey: 'frozen', status: '', countKey: 'frozen' },
+  { labelKey: 'trial', status: 'INVITED', countKey: 'trial' },
+  { labelKey: 'expired', status: 'SUSPENDED', countKey: 'expired' },
 ];
 
-/** Sortable columns and their header labels, in render order. */
-const SORTABLE: ReadonlyArray<{ key: MemberSort; label: string }> = [
-  { key: 'name', label: 'Member' },
-  { key: 'status', label: 'Status' },
-  { key: 'lastVisitAt', label: 'Last visit' },
+/** Sortable columns, in render order; header labels come from `columns.<key>`. */
+const SORTABLE: ReadonlyArray<{ key: MemberSort }> = [
+  { key: 'name' },
+  { key: 'status' },
+  { key: 'lastVisitAt' },
 ];
 
 /** A status pill mirroring the roster styling. */
 function StatusPill({ status }: { status: MemberStatus }) {
-  const { label, tone } = STATUS_STYLES[status];
-  return <Badge tone={tone}>{label}</Badge>;
+  const t = useTranslations('admin.members');
+  return <Badge tone={STATUS_TONES[status]}>{t(`status.${status}`)}</Badge>;
 }
 
 /** Render a member's initials for the avatar placeholder. */
@@ -66,46 +70,50 @@ function initialsOf(name: string): string {
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null): string {
+function formatDate(iso: string | null, locale: string): string {
   if (!iso) return '—';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /**
  * A friendly relative "last visit" — "2h ago" / "Today" / "6 days" / a date —
  * from an ISO instant, local to the staff member. `null` renders "Never".
  */
-function formatLastVisit(iso: string | null): string {
-  if (!iso) return 'Never';
+function formatLastVisit(iso: string | null, t: T, locale: string): string {
+  if (!iso) return t('lastVisit.never');
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
   const diffMs = Date.now() - date.getTime();
   const hours = Math.floor(diffMs / 3_600_000);
-  if (hours < 1) return 'Just now';
-  if (hours < 6) return `${hours}h ago`;
+  if (hours < 1) return t('lastVisit.justNow');
+  if (hours < 6) return t('lastVisit.hoursAgo', { hours });
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const dayDiff = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000);
-  if (dayDiff === 0) return 'Today';
-  if (dayDiff === 1) return 'Yesterday';
-  if (dayDiff < 14) return `${dayDiff} days`;
-  return formatDate(iso);
+  if (dayDiff === 0) return t('lastVisit.today');
+  if (dayDiff === 1) return t('lastVisit.yesterday');
+  if (dayDiff < 14) return t('lastVisit.days', { count: dayDiff });
+  return formatDate(iso, locale);
 }
 
 /** The NEXT-BILLING cell — a date, a paused/overdue chip, or an em dash. */
-function nextBillingLabel(row: {
-  nextBillingAt: string | null;
-  billingState: MemberBillingState;
-}): string {
+function nextBillingLabel(
+  row: {
+    nextBillingAt: string | null;
+    billingState: MemberBillingState;
+  },
+  t: T,
+  locale: string,
+): string {
   switch (row.billingState) {
     case 'paused':
-      return 'paused';
+      return t('billing.paused');
     case 'overdue':
-      return 'overdue';
+      return t('billing.overdue');
     case 'due':
-      return formatDate(row.nextBillingAt);
+      return formatDate(row.nextBillingAt, locale);
     case 'none':
     default:
       return '—';
@@ -114,8 +122,9 @@ function nextBillingLabel(row: {
 
 /** The PLAN cell — a colour dot + plan name + a small detail. */
 function PlanCell({ plan }: { plan: MemberPlan | null }) {
+  const t = useTranslations('admin.members');
   if (!plan) {
-    return <span className="text-ink-400 dark:text-ink-500">No plan</span>;
+    return <span className="text-ink-400 dark:text-ink-500">{t('list.noPlan')}</span>;
   }
   return (
     <div className="flex items-center gap-2">
@@ -132,21 +141,22 @@ function PlanCell({ plan }: { plan: MemberPlan | null }) {
 
 /** The gym-wide plan-mix bar card: a stacked bar + a legend with per-plan counts. */
 function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
+  const t = useTranslations('admin.members');
   const { total, plans } = planMix;
   return (
     <Card glow className="flex flex-col gap-4 p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          Plan mix
+          {t('list.planMix')}
         </h2>
         <span className="font-mono text-xs tabular-nums text-ink-400">
-          {total} {total === 1 ? 'paid' : 'paid'}
+          {total} {t('list.paid')}
         </span>
       </div>
 
       {total === 0 ? (
         <div className="grid min-h-16 place-items-center rounded-field border border-dashed border-ink-200 px-4 py-4 text-center text-sm text-ink-400 dark:border-white/10 dark:text-ink-500">
-          No paid subscriptions yet.
+          {t('list.planMixEmpty')}
         </div>
       ) : (
         <>
@@ -218,6 +228,8 @@ export function MembersTable({
   status: string;
   canWrite: boolean;
 }) {
+  const t = useTranslations('admin.members');
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -282,7 +294,9 @@ export function MembersTable({
       const result = await bulkExportMembersAction(ids.length > 0 ? { ids } : {});
       if (result.ok) {
         setExportNote(
-          `Export started${ids.length > 0 ? ` for ${ids.length} member${ids.length === 1 ? '' : 's'}` : ' for all members'} (job ${result.data.jobId}). You'll be able to download the CSV when it finishes.`,
+          ids.length > 0
+            ? t('list.exportStartedSelected', { count: ids.length, jobId: result.data.jobId })
+            : t('list.exportStartedAll', { jobId: result.data.jobId }),
         );
       } else {
         setExportError(result.error);
@@ -314,14 +328,14 @@ export function MembersTable({
       {/* Segmented tabs-with-counts. */}
       <div
         role="tablist"
-        aria-label="Filter by member state"
+        aria-label={t('list.tablistLabel')}
         className="inline-flex w-fit flex-wrap gap-1 rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
       >
         {TABS.map((tab) => {
-          const active = tab.status === status || (tab.label === 'All' && status === '');
+          const active = tab.status === status || (tab.labelKey === 'all' && status === '');
           return (
             <button
-              key={tab.label}
+              key={tab.labelKey}
               type="button"
               role="tab"
               aria-selected={active}
@@ -332,7 +346,7 @@ export function MembersTable({
                   : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
               }`}
             >
-              {tab.label}
+              {t(`tabs.${tab.labelKey}`)}
               <span
                 className={`font-mono text-xs tabular-nums ${active ? 'text-white/80' : 'text-ink-400'}`}
               >
@@ -350,10 +364,10 @@ export function MembersTable({
       <div className="flex flex-wrap items-center gap-3">
         <Btn v="outline" size="sm" icon="download" onClick={exportSelected} disabled={exporting}>
           {exporting
-            ? 'Starting export…'
+            ? t('list.exportStarting')
             : selected.size > 0
-              ? `Export ${selected.size} selected`
-              : 'Export all'}
+              ? t('list.exportSelected', { count: selected.size })
+              : t('list.exportAll')}
         </Btn>
         {selected.size > 0 ? (
           <button
@@ -361,7 +375,7 @@ export function MembersTable({
             onClick={() => setSelected(new Set())}
             className="text-xs font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
           >
-            Clear selection
+            {t('list.clearSelection')}
           </button>
         ) : null}
       </div>
@@ -386,11 +400,11 @@ export function MembersTable({
           <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
             <Icon name="users" className="h-6 w-6" />
           </span>
-          <p className="text-sm font-medium text-ink-700 dark:text-ink-200">No members yet</p>
+          <p className="text-sm font-medium text-ink-700 dark:text-ink-200">
+            {t('list.emptyTitle')}
+          </p>
           <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
-            {canWrite
-              ? 'Add your first member, or adjust the filters above.'
-              : 'No members match your filters yet.'}
+            {canWrite ? t('list.emptyHintWrite') : t('list.emptyHintRead')}
           </p>
         </Card>
       ) : (
@@ -402,7 +416,7 @@ export function MembersTable({
                   <th className="w-10 py-3 pl-5 pr-4">
                     <input
                       type="checkbox"
-                      aria-label="Select all members on this page"
+                      aria-label={t('list.selectAll')}
                       checked={allSelected}
                       onChange={toggleAll}
                       className="h-4 w-4 rounded border-ink-300 dark:border-white/20"
@@ -418,18 +432,18 @@ export function MembersTable({
                         scroll={false}
                         className="inline-flex items-center hover:text-ink-600 dark:hover:text-ink-200"
                       >
-                        {column.label}
+                        {t(`columns.${column.key}`)}
                         <span aria-hidden>{sortIndicator(column.key)}</span>
                       </Link>
                     </th>
                   ))}
                   <th className="py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    Plan
+                    {t('list.columnPlan')}
                   </th>
                   <th className="py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    Next billing
+                    {t('list.columnNextBilling')}
                   </th>
-                  <th className="w-10 py-3 pr-5" aria-label="Actions" />
+                  <th className="w-10 py-3 pr-5" aria-label={t('list.rowActions')} />
                 </tr>
               </thead>
               <tbody>
@@ -441,7 +455,7 @@ export function MembersTable({
                     <td className="py-3 pl-5 pr-4">
                       <input
                         type="checkbox"
-                        aria-label={`Select ${member.name}`}
+                        aria-label={t('list.selectMember', { name: member.name })}
                         checked={selected.has(member.id)}
                         onChange={() => toggleRow(member.id)}
                         className="h-4 w-4 rounded border-ink-300 dark:border-white/20"
@@ -469,18 +483,18 @@ export function MembersTable({
                       <StatusPill status={member.status} />
                     </td>
                     <td className="py-3 pr-4 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                      {formatLastVisit(member.lastVisitAt)}
+                      {formatLastVisit(member.lastVisitAt, t, locale)}
                     </td>
                     <td className="py-3 pr-4">
                       <PlanCell plan={member.plan} />
                     </td>
                     <td className="py-3 pr-4 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                      {nextBillingLabel(member)}
+                      {nextBillingLabel(member, t, locale)}
                     </td>
                     <td className="py-3 pr-5">
                       <Link
                         href={`/members/${member.id}`}
-                        aria-label={`Open ${member.name}`}
+                        aria-label={t('list.openMember', { name: member.name })}
                         className="grid h-8 w-8 place-items-center rounded-btn text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 dark:hover:bg-white/5 dark:hover:text-white"
                       >
                         <span aria-hidden className="text-lg leading-none">
@@ -498,9 +512,7 @@ export function MembersTable({
 
       {/* Footer + pager. */}
       <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="font-mono tabular-nums">
-          Showing {from}–{to} of {total} members
-        </span>
+        <span className="font-mono tabular-nums">{t('list.showing', { from, to, total })}</span>
         <div className="flex gap-2">
           <Btn
             v="outline"
@@ -511,7 +523,7 @@ export function MembersTable({
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
           >
-            Previous
+            {t('list.previous')}
           </Btn>
           <Btn
             v="outline"
@@ -522,7 +534,7 @@ export function MembersTable({
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
           >
-            Next
+            {t('list.next')}
           </Btn>
         </div>
       </div>

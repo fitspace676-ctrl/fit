@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   createMemberSchema,
@@ -24,6 +25,9 @@ import {
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
+/** Translator for the `admin.members` namespace (from `getTranslations`). */
+type Translator = Awaited<ReturnType<typeof getTranslations>>;
+
 /**
  * Re-assert a capability inside the action itself. The middleware already gates
  * the `/members` route, but a Server Action is a POST endpoint in its own right,
@@ -40,19 +44,19 @@ const requireMemberRead = () => sessionHas(Permission.MemberRead);
 const requireMemberWrite = () => sessionHas(Permission.MemberWrite);
 
 /** Map a thrown API error to a short, staff-facing message. */
-function toMessage(error: unknown): string {
+function toMessage(error: unknown, t: Translator): string {
   if (error instanceof ApiError) {
     // The API returns a stable error code (e.g. MEMBER_EXISTS) — translate the
     // ones staff act on to plain language; otherwise show the code + status.
     if (error.message === 'MEMBER_EXISTS') {
-      return 'A member with that email already exists in your gym.';
+      return t('errors.memberExists');
     }
     if (error.message === 'MEMBER_NOT_FOUND') {
-      return 'That member no longer exists.';
+      return t('errors.memberNotFound');
     }
-    return `Request failed (${error.status}): ${error.message}`;
+    return t('errors.requestFailed', { status: error.status, message: error.message });
   }
-  return error instanceof Error ? error.message : 'Unexpected error';
+  return error instanceof Error ? error.message : t('errors.unexpected');
 }
 
 /**
@@ -64,14 +68,15 @@ function toMessage(error: unknown): string {
 export async function bulkExportMembersAction(
   input: BulkExportMembersInput,
 ): Promise<ActionResult<{ jobId: string }>> {
+  const t = await getTranslations('admin.members');
   if (!(await requireMemberRead())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   try {
     const { jobId } = await bulkExportMembers(input);
     return { ok: true, data: { jobId } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -84,19 +89,20 @@ export async function bulkExportMembersAction(
 export async function createMemberAction(
   input: CreateMemberInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.members');
   if (!(await requireMemberWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = createMemberSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid member details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
   }
   try {
     const member = await createMember(parsed.data);
     revalidatePath('/members');
     return { ok: true, data: { id: member.id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -108,12 +114,13 @@ export async function updateMemberAction(
   id: string,
   input: UpdateMemberInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.members');
   if (!(await requireMemberWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = updateMemberSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid member details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
   }
   try {
     await updateMember(id, parsed.data);
@@ -121,7 +128,7 @@ export async function updateMemberAction(
     revalidatePath(`/members/${id}`);
     return { ok: true, data: { id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -134,8 +141,9 @@ export async function setMemberActiveAction(
   id: string,
   active: boolean,
 ): Promise<ActionResult<{ status: MemberDetail['status'] }>> {
+  const t = await getTranslations('admin.members');
   if (!(await requireMemberWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   try {
     const member = active ? await reactivateMember(id) : await deactivateMember(id);
@@ -143,6 +151,6 @@ export async function setMemberActiveAction(
     revalidatePath(`/members/${id}`);
     return { ok: true, data: { status: member.status } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
