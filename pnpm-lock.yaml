@@ -520,6 +520,13 @@ importers:
         version: link:../config
 
   packages/ui-web:
+    dependencies:
+      '@hookform/resolvers':
+        specifier: ^3.10.0
+        version: 3.10.0(react-hook-form@7.80.0(react@19.2.6))
+      react-hook-form:
+        specifier: ^7.54.2
+        version: 7.80.0(react@19.2.6)
     devDependencies:
       '@fit/config':
         specifier: workspace:*
@@ -542,6 +549,9 @@ importers:
       vitest:
         specifier: ^3.0.0
         version: 3.2.6(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
 
   packages/utils:
     dependencies:
@@ -1678,6 +1688,11 @@ packages:
 
   '@formatjs/intl-localematcher@0.6.2':
     resolution: {integrity: sha512-XOMO2Hupl0wdd172Y06h6kLpBz6Dv+J4okPLl4LPtzbr8f66WbIoy4ev98EBuZ6ZK4h5ydTN6XneT4QVpD7cdA==}
+
+  '@hookform/resolvers@3.10.0':
+    resolution: {integrity: sha512-79Dv+3mDF7i+2ajj7SkypSKHhl1cbln1OGavqrsF7p6mbUv11xpqpacPsGDCTRvCSjEEIez2ef1NveSVL3b0Ag==}
+    peerDependencies:
+      react-hook-form: ^7.0.0
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -5919,6 +5934,12 @@ packages:
     peerDependencies:
       react: '>=17.0.0'
 
+  react-hook-form@7.80.0:
+    resolution: {integrity: sha512-4P+fk6oXsxY+6xSj7Euhc2sumQD8zQqCuVHoJwoyp9EchP+IUW9OESB7uHFJOKsIBQ4MQqYE84INJFqUCYNoOg==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      react: ^16.8.0 || ^17 || ^18 || ^19
+
   react-is@16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
 
@@ -8387,6 +8408,10 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@hookform/resolvers@3.10.0(react-hook-form@7.80.0(react@19.2.6))':
+    dependencies:
+      react-hook-form: 7.80.0(react@19.2.6)
+
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -9350,9 +9375,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 
@@ -12859,6 +12882,10 @@ snapshots:
   react-freeze@1.0.4(react@19.2.3):
     dependencies:
       react: 19.2.3
+
+  react-hook-form@7.80.0(react@19.2.6):
+    dependencies:
+      react: 19.2.6
 
   react-is@16.13.1: {}
 
