@@ -1,18 +1,53 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import type { AdminScheduleResponse } from '@fit/types';
+import type { AdminClassInstanceDetail, AdminScheduleResponse } from '@fit/types';
 import { AdminScheduleController } from './admin-schedule.controller';
 import type { AdminScheduleService } from './admin-schedule.service';
 
 const FROM = '2026-06-01T00:00:00.000Z';
 const TO = '2026-06-08T00:00:00.000Z';
 
+const detail = (over?: Partial<AdminClassInstanceDetail>): AdminClassInstanceDetail => ({
+  id: 'ci-1',
+  templateId: 'ct-1',
+  title: 'Morning Flow',
+  category: 'Yoga',
+  color: '#2563eb',
+  startsAt: FROM,
+  endsAt: TO,
+  durationMinutes: 60,
+  trainerName: 'Nino Beridze',
+  locationName: 'Vake Branch',
+  room: 'Studio A',
+  capacity: 12,
+  bookedCount: 0,
+  status: 'SCHEDULED',
+  waitlistCount: 0,
+  roster: [],
+  ...over,
+});
+
 function setup() {
   const listSchedule = vi.fn<() => Promise<AdminScheduleResponse>>(() =>
     Promise.resolve({ instances: [] }),
   );
-  const schedule = { listSchedule } as unknown as AdminScheduleService;
-  return { controller: new AdminScheduleController(schedule), listSchedule };
+  const getInstanceDetail = vi.fn<(id: string) => Promise<AdminClassInstanceDetail>>(() =>
+    Promise.resolve(detail()),
+  );
+  const cancelInstance = vi.fn<(id: string) => Promise<AdminClassInstanceDetail>>(() =>
+    Promise.resolve(detail({ status: 'CANCELED' })),
+  );
+  const schedule = {
+    listSchedule,
+    getInstanceDetail,
+    cancelInstance,
+  } as unknown as AdminScheduleService;
+  return {
+    controller: new AdminScheduleController(schedule),
+    listSchedule,
+    getInstanceDetail,
+    cancelInstance,
+  };
 }
 
 describe('AdminScheduleController', () => {
@@ -82,6 +117,24 @@ describe('AdminScheduleController', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(ctx.listSchedule).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /admin/schedule/instances/:id', () => {
+    it('delegates the id to the service and returns the detail', async () => {
+      const result = await ctx.controller.getInstance('ci-1');
+
+      expect(ctx.getInstanceDetail).toHaveBeenCalledWith('ci-1');
+      expect(result).toMatchObject({ id: 'ci-1', roster: [], waitlistCount: 0 });
+    });
+  });
+
+  describe('POST /admin/schedule/instances/:id/cancel', () => {
+    it('delegates the id to the service and returns the canceled detail', async () => {
+      const result = await ctx.controller.cancelInstance('ci-1');
+
+      expect(ctx.cancelInstance).toHaveBeenCalledWith('ci-1');
+      expect(result.status).toBe('CANCELED');
     });
   });
 });

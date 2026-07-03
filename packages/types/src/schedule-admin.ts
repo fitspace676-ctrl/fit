@@ -97,3 +97,56 @@ export interface AdminScheduleInstance {
 export interface AdminScheduleResponse {
   instances: AdminScheduleInstance[];
 }
+
+/**
+ * A live booking's lifecycle status as the staff class-instance drawer lists it
+ * (T3.3). `BOOKED` holds a confirmed seat; `WAITLIST` is queued (ordered by
+ * `waitlistPosition`) for a freed one; `ATTENDED` / `NO_SHOW` are the post-class
+ * attendance outcomes a completed occurrence carries. A `CANCELED` booking
+ * released its hold and never appears on the roster, so it is intentionally
+ * absent — the drawer shows the people who are (or were) actually coming.
+ */
+export type AdminRosterBookingStatus = 'BOOKED' | 'WAITLIST' | 'ATTENDED' | 'NO_SHOW';
+
+/**
+ * One row of a class occurrence's booking roster in the staff drawer (T3.3) — a
+ * live booking and the member who holds it. `memberName` is their display name
+ * (`null` when they never set one); `memberEmail` is always present so the desk
+ * can still identify them. `waitlistPosition` is the queue slot for a `WAITLIST`
+ * entry and `null` for a held seat. `bookedAt` (ISO-8601) is when the booking was
+ * made, giving the held-seat list a stable order.
+ */
+export interface AdminClassInstanceRosterEntry {
+  bookingId: string;
+  memberId: string;
+  memberName: string | null;
+  memberEmail: string;
+  status: AdminRosterBookingStatus;
+  waitlistPosition: number | null;
+  bookedAt: string;
+}
+
+/**
+ * One class occurrence in full, as the staff schedule drawer renders it (T3.3):
+ * the same denormalised block the week grid shows ({@link AdminScheduleInstance})
+ * plus its `waitlistCount` and the `roster` of live bookings (held seats first in
+ * booking order, then the waitlist by position). Opening the drawer fetches this
+ * from `GET /admin/schedule/instances/:id`; a cancel returns the refreshed shape
+ * so the drawer re-renders from one round-trip.
+ */
+export interface AdminClassInstanceDetail extends AdminScheduleInstance {
+  /** Number of `WAITLIST` entries queued for a freed seat. */
+  waitlistCount: number;
+  roster: AdminClassInstanceRosterEntry[];
+}
+
+/** Successful `GET /admin/schedule/instances/:id` response — {@link AdminClassInstanceDetail}. */
+export type GetAdminClassInstanceResponse = AdminClassInstanceDetail;
+
+/**
+ * Successful `POST /admin/schedule/instances/:id/cancel` response — the occurrence
+ * detail after it was canceled (its `status` now `CANCELED`, every held-seat / queued
+ * booking released), so the drawer and the underlying week grid re-render from the
+ * one call.
+ */
+export type CancelClassInstanceResponse = AdminClassInstanceDetail;

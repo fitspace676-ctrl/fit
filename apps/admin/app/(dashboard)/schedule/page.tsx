@@ -76,6 +76,7 @@ export default async function SchedulePage({
         locations={filters.locations}
         trainerId={trainerId}
         locationId={locationId}
+        canWrite={canWrite}
       />
     );
   } catch (error) {

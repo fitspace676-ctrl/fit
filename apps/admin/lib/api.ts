@@ -103,6 +103,8 @@ import type {
   MemberEligibility,
   AdminScheduleQuery,
   AdminScheduleResponse,
+  GetAdminClassInstanceResponse,
+  CancelClassInstanceResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -1013,6 +1015,38 @@ export async function fetchSchedule(query: AdminScheduleQuery): Promise<AdminSch
     cache: 'no-store',
   });
   return unwrap<AdminScheduleResponse>(res);
+}
+
+/**
+ * `GET /admin/schedule/instances/:id` — one occurrence in full for the schedule
+ * drawer (T3.3): the calendar block plus its live booking roster and waitlist. A
+ * `404 CLASS_INSTANCE_NOT_FOUND` for an unknown / cross-tenant id.
+ */
+export async function fetchScheduleInstance(id: string): Promise<GetAdminClassInstanceResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/schedule/instances/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    // Occupancy and roster reflect live tenant state — never serve stale.
+    cache: 'no-store',
+  });
+  return unwrap<GetAdminClassInstanceResponse>(res);
+}
+
+/**
+ * `POST /admin/schedule/instances/:id/cancel` — cancel a scheduled occurrence
+ * (T3.3): releases every booking, refunds each held seat's class credit, and
+ * returns the refreshed detail. Gated `ClassWrite` API-side; a completed /
+ * already-canceled occurrence is a `409 CLASS_NOT_CANCELABLE`.
+ */
+export async function cancelScheduleInstance(id: string): Promise<CancelClassInstanceResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/schedule/instances/${encodeURIComponent(id)}/cancel`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<CancelClassInstanceResponse>(res);
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────

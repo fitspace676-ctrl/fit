@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
-import Link from 'next/link';
+import { useCallback, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import type { AdminScheduleInstance, ClassInstanceStatus } from '@fit/types';
 import { Badge, Btn, Card, Icon, type Tone } from '@/components/ui';
+import { ClassDrawer } from './class-drawer';
 import { addWeeks, mondayOf, toIsoDate, weekDays } from './week';
 
 type T = ReturnType<typeof useTranslations>;
@@ -41,6 +41,7 @@ export function ScheduleBoard({
   locations,
   trainerId,
   locationId,
+  canWrite,
 }: {
   /** The visible week's Monday, `YYYY-MM-DD` (UTC). */
   weekStart: string;
@@ -49,12 +50,23 @@ export function ScheduleBoard({
   locations: ScheduleOption[];
   trainerId: string;
   locationId: string;
+  /** Whether the staff session holds `ClassWrite` (gates the drawer's cancel). */
+  canWrite: boolean;
 }) {
   const t = useTranslations('admin.schedule');
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  // The occurrence whose detail drawer is open (null when closed). The clicked
+  // block renders the drawer header instantly while its roster is fetched.
+  const [selected, setSelected] = useState<AdminScheduleInstance | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const openInstance = useCallback((instance: AdminScheduleInstance) => {
+    setSelected(instance);
+    setDrawerOpen(true);
+  }, []);
 
   const monday = useMemo(() => new Date(`${weekStart}T00:00:00.000Z`), [weekStart]);
   const days = useMemo(() => weekDays(monday), [monday]);
@@ -188,12 +200,21 @@ export function ScheduleBoard({
                   instances={byDay.get(key) ?? []}
                   locale={locale}
                   t={t}
+                  onOpen={openInstance}
                 />
               );
             })}
           </div>
         </div>
       )}
+
+      <ClassDrawer
+        instance={selected}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        canWrite={canWrite}
+        locale={locale}
+      />
     </div>
   );
 }
@@ -205,12 +226,14 @@ function DayColumn({
   instances,
   locale,
   t,
+  onOpen,
 }: {
   day: Date;
   isToday: boolean;
   instances: AdminScheduleInstance[];
   locale: string;
   t: T;
+  onOpen: (instance: AdminScheduleInstance) => void;
 }) {
   return (
     <div role="gridcell" className="flex min-w-0 flex-col gap-2">
@@ -240,7 +263,13 @@ function DayColumn({
           </p>
         ) : (
           instances.map((instance) => (
-            <ClassCard key={instance.id} instance={instance} locale={locale} t={t} />
+            <ClassCard
+              key={instance.id}
+              instance={instance}
+              locale={locale}
+              t={t}
+              onOpen={onOpen}
+            />
           ))
         )}
       </div>
@@ -248,15 +277,18 @@ function DayColumn({
   );
 }
 
-/** One class occurrence block: time, title, trainer/branch, occupancy, status. */
+/** One class occurrence block: time, title, trainer/branch, occupancy, status.
+ * Clicking it opens the detail drawer (roster + quick actions, T3.3). */
 function ClassCard({
   instance,
   locale,
   t,
+  onOpen,
 }: {
   instance: AdminScheduleInstance;
   locale: string;
   t: T;
+  onOpen: (instance: AdminScheduleInstance) => void;
 }) {
   const remaining = Math.max(0, instance.capacity - instance.bookedCount);
   const pct = instance.capacity > 0 ? (instance.bookedCount / instance.capacity) * 100 : 0;
@@ -265,13 +297,14 @@ function ClassCard({
   const canceled = instance.status === 'CANCELED';
 
   return (
-    <Link
-      href={`/classes/${instance.templateId}`}
+    <button
+      type="button"
+      onClick={() => onOpen(instance)}
       aria-label={t('card.viewAria', {
         title: instance.title,
         time: formatTime(instance.startsAt, locale),
       })}
-      className={`group relative flex flex-col gap-2 overflow-hidden rounded-card border border-ink-100 bg-white p-2.5 pl-3 text-left shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:border-ink-200 hover:shadow-[0_12px_30px_-14px_rgba(0,0,0,0.28)] dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20 ${
+      className={`group relative flex w-full flex-col gap-2 overflow-hidden rounded-card border border-ink-100 bg-white p-2.5 pl-3 text-left shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:border-ink-200 hover:shadow-[0_12px_30px_-14px_rgba(0,0,0,0.28)] focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20 ${
         canceled ? 'opacity-70' : ''
       }`}
     >
@@ -337,7 +370,7 @@ function ClassCard({
           {t(`status.${instance.status}`)}
         </Badge>
       ) : null}
-    </Link>
+    </button>
   );
 }
 

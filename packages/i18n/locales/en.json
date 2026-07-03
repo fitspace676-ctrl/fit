@@ -1134,6 +1134,51 @@
         "day": "No classes",
         "week": "No classes scheduled this week.",
         "filtered": "No classes match these filters this week."
+      },
+      "drawer": {
+        "loading": "Loading class…",
+        "status": {
+          "SCHEDULED": "Scheduled",
+          "CANCELED": "Canceled",
+          "COMPLETED": "Completed"
+        },
+        "occupancy": {
+          "spots": "{booked} of {cap} booked",
+          "remaining": "{remaining} left",
+          "full": "Full",
+          "waitlist": "{count, plural, one {# on the waitlist} other {# on the waitlist}}"
+        },
+        "roster": {
+          "title": "Roster",
+          "empty": "No bookings yet.",
+          "waitlistPosition": "Waitlist #{position}",
+          "status": {
+            "BOOKED": "Booked",
+            "ATTENDED": "Attended",
+            "NO_SHOW": "No-show",
+            "WAITLIST": "Waitlist"
+          }
+        },
+        "actions": {
+          "edit": "Edit class",
+          "cancel": "Cancel class"
+        },
+        "confirm": {
+          "title": "Cancel this class?",
+          "message": "Canceling “{title}” releases every booking and refunds each held seat's credit. This can't be undone.",
+          "confirm": "Cancel class",
+          "cancel": "Keep class"
+        },
+        "toast": {
+          "canceled": "Class canceled and bookings released."
+        },
+        "errors": {
+          "notFound": "This class no longer exists.",
+          "notCancelable": "Only a scheduled class can be canceled.",
+          "forbidden": "You don't have permission to manage this class.",
+          "requestFailed": "Request failed ({status}): {message}",
+          "unexpected": "Something went wrong. Please try again."
+        }
       }
     },
     "members": {

@@ -1,6 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma } from '@fit/db';
-import type { AdminScheduleInstance, AdminScheduleQuery, AdminScheduleResponse } from '@fit/types';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
+import type {
+  AdminClassInstanceDetail,
+  AdminClassInstanceRosterEntry,
+  AdminRosterBookingStatus,
+  AdminScheduleInstance,
+  AdminScheduleQuery,
+  AdminScheduleResponse,
+} from '@fit/types';
+import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 
 /**
@@ -35,6 +43,33 @@ const SCHEDULE_SELECT = {
 type ScheduleRow = Prisma.ClassInstanceGetPayload<{ select: typeof SCHEDULE_SELECT }>;
 
 /**
+ * The live booking statuses that make up a class occurrence's drawer roster
+ * (T3.3): held seats (`BOOKED`, and the post-class `ATTENDED` / `NO_SHOW`
+ * outcomes) plus the `WAITLIST` queue. A `CANCELED` booking released its hold, so
+ * it is excluded — the roster is who is (or was) actually coming.
+ */
+const ROSTER_STATUSES = [
+  BookingStatus.BOOKED,
+  BookingStatus.WAITLIST,
+  BookingStatus.ATTENDED,
+  BookingStatus.NO_SHOW,
+] as const;
+
+/** A roster booking joined to the (cross-tenant) member identity. Kept narrow —
+ * only the `name` / `email` needed to identify the person, the queue position,
+ * and the booking time for a stable order. */
+const ROSTER_SELECT = {
+  id: true,
+  memberId: true,
+  status: true,
+  waitlistPosition: true,
+  createdAt: true,
+  member: { select: { user: { select: { name: true, email: true } } } },
+} satisfies Prisma.BookingSelect;
+
+type RosterRow = Prisma.BookingGetPayload<{ select: typeof ROSTER_SELECT }>;
+
+/**
  * Staff-console schedule week-view for a gym (read-only, T3.1).
  *
  * Runs on the **tenant-scoped** {@link TenantPrismaService}: `ClassInstance` is in
@@ -54,7 +89,10 @@ type ScheduleRow = Prisma.ClassInstanceGetPayload<{ select: typeof SCHEDULE_SELE
  */
 @Injectable()
 export class AdminScheduleService {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly creditPacks: CreditPacksService,
+  ) {}
 
   /**
    * List the gym's class occurrences in the requested window, ordered by
@@ -86,6 +124,154 @@ export class AdminScheduleService {
 
     return { instances: rows.map((row) => toScheduleInstance(row)) };
   }
+
+  /**
+   * One class occurrence in full for the staff schedule drawer (T3.3): the same
+   * denormalised block the week grid shows, plus its `waitlistCount` and the
+   * `roster` of live bookings (held seats first in booking order, then the
+   * waitlist by position). A `404 CLASS_INSTANCE_NOT_FOUND` for an unknown or
+   * cross-tenant occurrence.
+   */
+  async getInstanceDetail(classInstanceId: string): Promise<AdminClassInstanceDetail> {
+    const instance = await this.prisma.client.classInstance.findFirst({
+      where: { id: classInstanceId },
+      select: SCHEDULE_SELECT,
+    });
+    if (!instance) {
+      throw this.instanceNotFound();
+    }
+
+    const bookings = await this.prisma.client.booking.findMany({
+      where: { classInstanceId, status: { in: [...ROSTER_STATUSES] } },
+      select: ROSTER_SELECT,
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return toInstanceDetail(instance, bookings);
+  }
+
+  /**
+   * Cancel a scheduled class occurrence from the drawer's quick actions (T3.3),
+   * in one transaction so the seat accounting stays consistent:
+   *
+   * - Only a `SCHEDULED` occurrence can be canceled — a completed or
+   *   already-canceled one is a `409 CLASS_NOT_CANCELABLE`.
+   * - Every live booking is released: each held seat's class credit is refunded
+   *   to the exact pack it was drawn from (T8.5) — a no-op for a
+   *   subscription-covered or uncharged seat — then all non-canceled bookings
+   *   (held seats and the waitlist alike) are flipped to `CANCELED` with their
+   *   queue slot cleared.
+   * - The occurrence is marked `CANCELED` and its `bookedCount` zeroed, so the
+   *   calendar block and the refreshed drawer both show it emptied out.
+   *
+   * Returns the refreshed {@link AdminClassInstanceDetail} so the drawer and the
+   * underlying week grid re-render from the one call.
+   */
+  async cancelInstance(classInstanceId: string): Promise<AdminClassInstanceDetail> {
+    await this.prisma.client.$transaction(async (tx) => {
+      const instance = await tx.classInstance.findFirst({
+        where: { id: classInstanceId },
+        select: { id: true, status: true },
+      });
+      if (!instance) {
+        throw this.instanceNotFound();
+      }
+      if (instance.status !== InstanceStatus.SCHEDULED) {
+        throw new ConflictException({
+          message: 'Only a scheduled class can be canceled',
+          code: 'CLASS_NOT_CANCELABLE',
+        });
+      }
+
+      // Refund the class credit each *held* seat was paid for back to its pack
+      // before the bookings are released. A waitlist entry held no seat, so it
+      // carries no credit to refund.
+      const heldSeats = await tx.booking.findMany({
+        where: { classInstanceId, status: BookingStatus.BOOKED },
+        select: { creditPackId: true },
+      });
+      for (const seat of heldSeats) {
+        await this.creditPacks.refundCredit(tx, seat.creditPackId);
+      }
+
+      // Release every live booking — held seats and queued entries alike drop to
+      // CANCELED with their queue slot cleared, matching the occurrence's own
+      // cancellation.
+      await tx.booking.updateMany({
+        where: { classInstanceId, status: { not: BookingStatus.CANCELED } },
+        data: { status: BookingStatus.CANCELED, waitlistPosition: null },
+      });
+
+      // The occurrence is canceled and emptied — no seat is held any longer.
+      await tx.classInstance.update({
+        where: { id: classInstanceId },
+        data: { status: InstanceStatus.CANCELED, bookedCount: 0 },
+      });
+    });
+
+    return this.getInstanceDetail(classInstanceId);
+  }
+
+  /** `404` for an unknown / cross-tenant occurrence id. */
+  private instanceNotFound(): NotFoundException {
+    return new NotFoundException({
+      message: 'Class occurrence not found',
+      code: 'CLASS_INSTANCE_NOT_FOUND',
+    });
+  }
+}
+
+/** The held-seat statuses, ordered before the waitlist in the drawer roster. */
+const HELD_SEAT_STATUSES: readonly AdminRosterBookingStatus[] = [
+  BookingStatus.BOOKED,
+  BookingStatus.ATTENDED,
+  BookingStatus.NO_SHOW,
+];
+
+/**
+ * Project an occurrence + its live bookings to the {@link AdminClassInstanceDetail}
+ * the drawer renders. The roster is ordered held-seats-first (in booking order),
+ * then the waitlist by ascending position, so the desk reads the confirmed
+ * attendees above the queue.
+ */
+function toInstanceDetail(row: ScheduleRow, bookings: RosterRow[]): AdminClassInstanceDetail {
+  const roster: AdminClassInstanceRosterEntry[] = bookings
+    .map((booking) => ({
+      bookingId: booking.id,
+      memberId: booking.memberId,
+      memberName: booking.member.user.name,
+      memberEmail: booking.member.user.email,
+      status: booking.status as AdminRosterBookingStatus,
+      waitlistPosition: booking.waitlistPosition,
+      bookedAt: booking.createdAt.toISOString(),
+    }))
+    .sort(compareRosterEntries);
+
+  return {
+    ...toScheduleInstance(row),
+    waitlistCount: roster.filter((entry) => entry.status === BookingStatus.WAITLIST).length,
+    roster,
+  };
+}
+
+/**
+ * Order roster entries held-seats-first (by booking time), then waitlist entries
+ * by their queue position — so the confirmed attendees read above the queue and
+ * each group keeps a stable, meaningful order.
+ */
+function compareRosterEntries(
+  a: AdminClassInstanceRosterEntry,
+  b: AdminClassInstanceRosterEntry,
+): number {
+  const aHeld = HELD_SEAT_STATUSES.includes(a.status);
+  const bHeld = HELD_SEAT_STATUSES.includes(b.status);
+  if (aHeld !== bHeld) {
+    return aHeld ? -1 : 1;
+  }
+  if (aHeld) {
+    return a.bookedAt.localeCompare(b.bookedAt);
+  }
+  return (a.waitlistPosition ?? 0) - (b.waitlistPosition ?? 0);
 }
 
 /**
