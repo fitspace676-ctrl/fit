@@ -133,6 +133,7 @@ describe('AdminLocationsService', () => {
             phone: '+995 32 200 0000',
             photoUrl: null,
             amenities: ['Sauna', 'Parking'],
+            hours: HOURS,
             status: 'ACTIVE',
             createdAt: '2026-02-01T00:00:00.000Z',
           },

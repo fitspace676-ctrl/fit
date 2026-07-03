@@ -1543,6 +1543,67 @@
         "invalidRole": "Invalid role",
         "unexpected": "Unexpected error"
       }
+    },
+    "locations": {
+      "breadcrumb": {
+        "label": "Breadcrumb",
+        "locations": "Locations"
+      },
+      "title": "Locations",
+      "subtitle": "Every branch of your gym — hours, amenities and live open state.",
+      "add": "New location",
+      "kpi": {
+        "total": "Locations",
+        "totalContext": "{count} active",
+        "active": "Active",
+        "activeContext": "on the public listing",
+        "openNow": "Open now",
+        "openNowContext": "accepting members",
+        "amenities": "Amenities",
+        "amenitiesContext": "distinct across sites"
+      },
+      "filters": {
+        "searchLabel": "Search locations",
+        "searchPlaceholder": "Search name or address…",
+        "statusAria": "Filter by status",
+        "all": "All"
+      },
+      "status": {
+        "ACTIVE": "Active",
+        "INACTIVE": "Inactive"
+      },
+      "card": {
+        "open": "Open",
+        "closed": "Closed",
+        "inactive": "Inactive",
+        "todayOpen": "Today {hours}",
+        "todayClosed": "Closed today",
+        "noAmenities": "No amenities listed",
+        "noAddress": "No address set",
+        "viewCta": "View branch"
+      },
+      "rowMenu": {
+        "open": "Actions for {name}",
+        "view": "View details",
+        "edit": "Edit details",
+        "activate": "Set as active",
+        "deactivate": "Set as inactive"
+      },
+      "empty": {
+        "emptyTitle": "No locations yet",
+        "emptyHint": "Add your first branch so members can find where to train.",
+        "noMatchTitle": "No locations match",
+        "noMatchHint": "Try a different status or search term."
+      },
+      "toast": {
+        "activated": "{name} is now active.",
+        "deactivated": "{name} is now inactive.",
+        "actionFailed": "That didn’t work. Please try again."
+      },
+      "errors": {
+        "loadLocations": "Could not load locations ({status}): {message}",
+        "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      }
     }
   }
 }

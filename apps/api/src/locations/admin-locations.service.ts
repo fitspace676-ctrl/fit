@@ -237,7 +237,11 @@ export class AdminLocationsService {
     return parsed.success ? parsed.data : DEFAULT_HOURS;
   }
 
-  /** Project a queried row to the denormalised roster {@link AdminLocationRow}. */
+  /**
+   * Project a queried row to the roster {@link AdminLocationRow}. The stored
+   * `hours` JSON is normalised to a complete seven-day map so the location cards
+   * can render today's hours / live open state straight off the roster.
+   */
   private toRow(row: LocationRecord): AdminLocationRow {
     return {
       id: row.id,
@@ -246,6 +250,7 @@ export class AdminLocationsService {
       phone: row.phone,
       photoUrl: row.photoUrl,
       amenities: row.amenities,
+      hours: this.parseHours(row.hours),
       status: row.status,
       createdAt: row.createdAt.toISOString(),
     };
@@ -255,7 +260,6 @@ export class AdminLocationsService {
   private toDetail(row: LocationRecord): AdminLocationDetail {
     return {
       ...this.toRow(row),
-      hours: this.parseHours(row.hours),
       updatedAt: row.updatedAt.toISOString(),
     };
   }

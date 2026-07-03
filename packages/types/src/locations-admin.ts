@@ -117,11 +117,13 @@ export const listAdminLocationsQuerySchema = z.object({
 export type ListAdminLocationsQuery = z.infer<typeof listAdminLocationsQuerySchema>;
 
 /**
- * One location as the roster table renders it. `photoUrl` is `null` when the
- * branch has no photo (the table renders a placeholder). `amenities` is the
- * denormalised tag list shown as chips. `createdAt` is an ISO-8601 instant the
- * table formats in the staff member's local zone. The full weekly `hours` are on
- * the {@link AdminLocationDetail}, not the row, to keep the roster light.
+ * One location as the roster renders it. `photoUrl` is `null` when the branch has
+ * no photo (the card renders a placeholder). `amenities` is the denormalised tag
+ * list shown as chips. `hours` is the full weekly opening-hours map so the
+ * formacore location cards can surface today's hours and a live open/closed state
+ * without a per-card detail fetch — the stored `hours` JSON is already selected,
+ * so projecting it onto the row costs nothing. `createdAt` is an ISO-8601 instant
+ * the roster formats in the staff member's local zone.
  */
 export interface AdminLocationRow {
   id: string;
@@ -130,6 +132,7 @@ export interface AdminLocationRow {
   phone: string | null;
   photoUrl: string | null;
   amenities: string[];
+  hours: LocationHours;
   status: LocationStatus;
   createdAt: string;
 }
@@ -148,13 +151,12 @@ export interface ListAdminLocationsResponse {
 }
 
 /**
- * One location as the detail / edit page needs it — the roster row plus the full
- * weekly `hours` and the `updatedAt` instant. A missing / cross-tenant id is a
- * `404`, not an empty body, so the page distinguishes "no such location" from a
- * valid record.
+ * One location as the detail / edit page needs it — the roster row (which already
+ * carries the weekly `hours`) plus the `updatedAt` instant. A missing /
+ * cross-tenant id is a `404`, not an empty body, so the page distinguishes "no
+ * such location" from a valid record.
  */
 export interface AdminLocationDetail extends AdminLocationRow {
-  hours: LocationHours;
   updatedAt: string;
 }
 

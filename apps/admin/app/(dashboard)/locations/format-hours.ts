@@ -17,6 +17,36 @@ export function formatDayHours(day: DayHours): string {
   return day.closed ? 'Closed' : `${day.open}–${day.close}`;
 }
 
+/**
+ * The {@link Weekday} key for a given instant, Monday-first to match
+ * {@link WEEKDAYS}. JavaScript's `getDay()` is Sunday-first (0 = Sun), so shift by
+ * six and wrap to land Monday at index 0.
+ */
+export function weekdayOf(date: Date): Weekday {
+  // `getDay()` returns 0–6, so the shifted index is always in range; the `?? 'mon'`
+  // is unreachable and only satisfies the noUncheckedIndexedAccess bound.
+  return WEEKDAYS[(date.getDay() + 6) % 7] ?? 'mon';
+}
+
+/** The {@link DayHours} in effect on the given instant's weekday. */
+export function hoursForDate(hours: LocationHours, date: Date): DayHours {
+  return hours[weekdayOf(date)];
+}
+
+/**
+ * Whether the branch is open at the given instant, per its weekly hours. Closed
+ * on a `closed` day; otherwise the local `HH:MM` clock must fall in `[open,
+ * close)`. Times are zero-padded 24-hour strings, so a lexical compare is a
+ * correct time compare (no same-day range crosses midnight — the schema requires
+ * `close > open`).
+ */
+export function isOpenAt(hours: LocationHours, date: Date): boolean {
+  const day = hoursForDate(hours, date);
+  if (day.closed) return false;
+  const now = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return now >= day.open && now < day.close;
+}
+
 /** A weekday's label, e.g. `Monday`. */
 export function weekdayLabel(day: Weekday): string {
   return WEEKDAY_LABELS[day];
