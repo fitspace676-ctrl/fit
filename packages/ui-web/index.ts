@@ -48,3 +48,26 @@ export {
   type DrawerSide,
 } from './src/overlay';
 export { ToastProvider, useToast, type ToastContextValue } from './src/toast';
+export {
+  DataTable,
+  EmptyState,
+  FilterChips,
+  FilterBar,
+  TableSearch,
+  TablePager,
+  nextSortDir,
+  sortIndicator,
+  pageBounds,
+  alignClass,
+  type Column,
+  type SortDir,
+  type CellAlign,
+  type PageBounds,
+  type TableSelection,
+  type DataTableProps,
+  type EmptyStateProps,
+  type FilterChip,
+  type FilterChipsProps,
+  type TableSearchProps,
+  type TablePagerProps,
+} from './src/data-table';
