@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { BillingModule } from '../billing/billing.module';
 import { AdminClassTemplatesController } from './admin-class-templates.controller';
 import { AdminClassTemplatesService } from './admin-class-templates.service';
+import { AdminScheduleController } from './admin-schedule.controller';
+import { AdminScheduleService } from './admin-schedule.service';
 import { AttendanceController } from './attendance.controller';
 import { AttendanceService } from './attendance.service';
 import { BookingsController } from './bookings.controller';
@@ -24,6 +26,12 @@ import { MemberBookingsService } from './member-bookings.service';
  * Prisma client, the guards, and the tenant context all come from the app-wide
  * `TenantModule` / `RbacModule`. The real `ClassInstance`-backed discovery query
  * is wired in Phase 5 (see {@link ClassesService}).
+ *
+ * The {@link AdminScheduleController} adds the staff console's schedule week-view
+ * (`GET /admin/schedule`, T3.1) — the gym's materialised occurrences in a date
+ * window, each with its occupancy / trainer / branch / status, shaped for the
+ * calendar grid (T3.2) — tenant-scoped and read-only (`ClassRead`), projected in
+ * {@link AdminScheduleService} off the `(gymId, startsAt)` index.
  *
  * The {@link BookingsController} adds the member-facing booking surface (`POST`
  * to book, `DELETE` to cancel `/class-instances/:id/bookings`, T5.4 / T5.5) on the
@@ -48,6 +56,7 @@ import { MemberBookingsService } from './member-bookings.service';
   controllers: [
     ClassesController,
     AdminClassTemplatesController,
+    AdminScheduleController,
     BookingsController,
     AttendanceController,
     MemberBookingsController,
@@ -55,6 +64,7 @@ import { MemberBookingsService } from './member-bookings.service';
   providers: [
     ClassesService,
     AdminClassTemplatesService,
+    AdminScheduleService,
     BookingsService,
     AttendanceService,
     MemberBookingsService,
