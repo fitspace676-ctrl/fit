@@ -4,14 +4,28 @@
   "private": true,
   "main": "./index.ts",
   "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
   "scripts": {
-    "build": "echo '[@fit/ui-web] build: nothing to do yet'",
+    "build": "echo '[@fit/ui-web] build: source package, transpiled by each Next app — nothing to compile'",
     "lint": "eslint . --max-warnings 0",
-    "test": "echo '[@fit/ui-web] test: nothing to do yet'",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
   },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
   }
 }

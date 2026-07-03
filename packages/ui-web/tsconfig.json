@@ -1,5 +1,13 @@
 {
+  // Extends the shared strict base, then adds the browser bits these React
+  // components need: the automatic JSX runtime and the DOM lib. Mirrors how the
+  // web/admin apps type-check their own components, so the package sees the same
+  // rules its consumers do.
   "extends": "@fit/config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "build", ".next", ".expo", ".turbo", "coverage"]
+  "exclude": ["node_modules", "dist", "build", ".next", ".turbo", "coverage"]
 }
