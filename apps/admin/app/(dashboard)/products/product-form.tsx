@@ -504,7 +504,7 @@ export function ProductForm(props: Props) {
 
       <div className="flex items-center gap-3">
         <Btn type="submit" v="primary" size="md" disabled={pending || uploading}>
-          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
+          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Add product'}
         </Btn>
         <Link
           href={cancelHref}

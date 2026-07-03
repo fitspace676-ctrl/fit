@@ -59,7 +59,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
         >
           <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-          Back to products
+          Back to shop
         </Link>
         <Card
           role="alert"
@@ -88,7 +88,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
       >
         <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
-        Back to products
+        Back to shop
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
