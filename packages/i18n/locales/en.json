@@ -1390,6 +1390,159 @@
         "requestFailed": "Request failed ({status}): {message}",
         "unexpected": "Unexpected error"
       }
+    },
+    "staff": {
+      "breadcrumb": {
+        "label": "Breadcrumb",
+        "staff": "Staff"
+      },
+      "title": "Staff",
+      "subtitle": "Manage the people who run your gym — roles, access and invitations.",
+      "invite": "Invite staff",
+      "you": "You",
+      "tabs": {
+        "people": "People",
+        "invitations": "Invitations"
+      },
+      "kpi": {
+        "total": "Total staff",
+        "totalContext": "{count} active",
+        "active": "Active",
+        "activeContext": "on the team now",
+        "pending": "Pending invites",
+        "pendingContext": "awaiting acceptance",
+        "roles": "Distinct roles",
+        "rolesContext": "in use"
+      },
+      "filters": {
+        "searchLabel": "Search staff",
+        "searchPlaceholder": "Search name or email…",
+        "roleAria": "Filter by role",
+        "all": "All"
+      },
+      "columns": {
+        "member": "Member",
+        "role": "Role",
+        "status": "Status",
+        "joined": "Joined",
+        "actions": "Actions"
+      },
+      "roles": {
+        "OWNER": "Owner",
+        "MANAGER": "Manager",
+        "RECEPTIONIST": "Receptionist",
+        "TRAINER": "Trainer"
+      },
+      "status": {
+        "ACTIVE": "Active",
+        "INVITED": "Invited",
+        "SUSPENDED": "Suspended"
+      },
+      "table": {
+        "caption": "Gym staff",
+        "emptyTitle": "No staff yet",
+        "emptyHint": "Invite someone to start building your team.",
+        "noMatchTitle": "No staff match",
+        "noMatchHint": "Try a different role or search term."
+      },
+      "rowMenu": {
+        "open": "Open actions for {name}",
+        "changeRole": "Change role",
+        "setRole": "Make {role}",
+        "remove": "Remove",
+        "cannotRemoveSelf": "You can’t remove yourself"
+      },
+      "inviteModal": {
+        "title": "Invite staff",
+        "subtitle": "They’ll get an email to set up access.",
+        "emailLabel": "Email address",
+        "emailPlaceholder": "name@example.com",
+        "roleLabel": "Role",
+        "send": "Send invite",
+        "sending": "Sending…",
+        "cancel": "Cancel",
+        "success": "Invitation sent to {email}."
+      },
+      "roleCaps": {
+        "OWNER": "full access to every part of the gym",
+        "MANAGER": "manage members, schedule, staff and billing",
+        "RECEPTIONIST": "check members in and run the POS",
+        "TRAINER": "manage their classes and member notes"
+      },
+      "invites": {
+        "caption": "Pending invitations",
+        "emptyTitle": "No pending invitations",
+        "emptyHint": "Invites you send will appear here until they’re accepted.",
+        "columns": {
+          "email": "Email",
+          "role": "Role",
+          "sent": "Sent",
+          "expires": "Expires",
+          "actions": "Actions"
+        },
+        "expired": "Expired",
+        "expiresLabel": "Expires {date}",
+        "expiredLabel": "Expired {date}",
+        "resend": "Resend",
+        "revoke": "Revoke",
+        "resendSuccess": "Invitation re-sent to {email}."
+      },
+      "confirm": {
+        "downgradeTitle": "Change {name} to {role}?",
+        "downgradeIntro": "This lowers their access. As a {role} they will lose:",
+        "downgradeNoChange": "No capabilities change.",
+        "downgradeConfirm": "Change role",
+        "removeTitle": "Remove {name}?",
+        "removeBody": "They’ll lose access immediately — their sessions are revoked and they’re removed from your staff. You’d need to re-invite them.",
+        "removeConfirm": "Remove",
+        "revokeTitle": "Revoke invitation?",
+        "revokeBody": "The invite to {email} will stop working. You can always send a new one.",
+        "revokeConfirm": "Revoke",
+        "cancel": "Cancel",
+        "working": "Working…"
+      },
+      "permissions": {
+        "gymManage": "Manage gym settings",
+        "staffManage": "Invite & manage staff",
+        "memberRead": "View members",
+        "memberWrite": "Add & edit members",
+        "trainerRead": "View trainers",
+        "trainerWrite": "Add & edit trainers",
+        "locationRead": "View locations",
+        "locationWrite": "Add & edit locations",
+        "productRead": "View products",
+        "productWrite": "Add & edit products",
+        "packageRead": "View package plans",
+        "packageWrite": "Add & edit package plans",
+        "classRead": "View classes",
+        "classWrite": "Add & edit classes",
+        "classBook": "Book classes",
+        "reviewWrite": "Write reviews",
+        "reviewModerate": "Moderate reviews",
+        "notificationManage": "Manage push notifications",
+        "billingRead": "View billing",
+        "billingManage": "Manage billing & plans",
+        "subscriptionManage": "Freeze & resume own membership",
+        "creditPackManage": "Buy & view own class credits",
+        "workoutRead": "View workout plans",
+        "workoutWrite": "Create & assign workouts",
+        "reportView": "View reports",
+        "auditRead": "View audit log",
+        "profileManage": "Edit own profile"
+      },
+      "errors": {
+        "loadStaff": "Could not load staff ({status}): {message}",
+        "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "notAuthorized": "Not authorized",
+        "alreadyStaff": "That person is already a staff member of your gym.",
+        "lastOwner": "You can’t change or remove the gym’s only owner — add another owner first.",
+        "staffNotFound": "That staff member no longer exists.",
+        "inviteNotFound": "That invitation no longer exists.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "invalidDetails": "Invalid invitation details",
+        "invalidRole": "Invalid role",
+        "unexpected": "Unexpected error"
+      }
     }
   }
 }
