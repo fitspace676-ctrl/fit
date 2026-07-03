@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   inviteStaffSchema,
@@ -16,6 +17,9 @@ import { ApiError, inviteStaff, removeStaff, revokeStaffInvite, updateStaffRole 
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
+/** Translator for the `admin.staff` namespace (from `getTranslations`). */
+type Translator = Awaited<ReturnType<typeof getTranslations>>;
+
 /**
  * Re-assert the `StaffManage` capability inside the action itself. The middleware
  * already gates the `/staff` route (OWNER+), but a Server Action is a POST
@@ -27,24 +31,24 @@ async function requireStaffManage(): Promise<boolean> {
   return session !== null && roleHasPermission(session.role, Permission.StaffManage);
 }
 
-/** Map a thrown API error to a short, staff-facing message. */
-function toMessage(error: unknown): string {
+/** Map a thrown API error to a short, translated, staff-facing message. */
+function toMessage(error: unknown, t: Translator): string {
   if (error instanceof ApiError) {
     if (error.message === 'ALREADY_STAFF') {
-      return 'That person is already a staff member of your gym.';
+      return t('errors.alreadyStaff');
     }
     if (error.message === 'LAST_OWNER') {
-      return 'You can’t change or remove the gym’s only owner — add another owner first.';
+      return t('errors.lastOwner');
     }
     if (error.message === 'STAFF_NOT_FOUND') {
-      return 'That staff member no longer exists.';
+      return t('errors.staffNotFound');
     }
     if (error.message === 'INVITE_NOT_FOUND') {
-      return 'That invitation no longer exists.';
+      return t('errors.inviteNotFound');
     }
-    return `Request failed (${error.status}): ${error.message}`;
+    return t('errors.requestFailed', { status: error.status, message: error.message });
   }
-  return error instanceof Error ? error.message : 'Unexpected error';
+  return error instanceof Error ? error.message : t('errors.unexpected');
 }
 
 /**
@@ -55,19 +59,20 @@ function toMessage(error: unknown): string {
 export async function inviteStaffAction(
   input: InviteStaffInput,
 ): Promise<ActionResult<{ inviteId: string }>> {
+  const t = await getTranslations('admin.staff');
   if (!(await requireStaffManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = inviteStaffSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid invitation details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
   }
   try {
     const { inviteId } = await inviteStaff(parsed.data);
     revalidatePath('/staff');
     return { ok: true, data: { inviteId } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -76,15 +81,16 @@ export async function inviteStaffAction(
  * page so the invite drops off the list.
  */
 export async function revokeInviteAction(inviteId: string): Promise<ActionResult> {
+  const t = await getTranslations('admin.staff');
   if (!(await requireStaffManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   try {
     await revokeStaffInvite(inviteId);
     revalidatePath('/staff');
     return { ok: true, data: undefined };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -97,19 +103,20 @@ export async function updateStaffRoleAction(
   memberId: string,
   role: StaffRole,
 ): Promise<ActionResult<{ member: StaffMember }>> {
+  const t = await getTranslations('admin.staff');
   if (!(await requireStaffManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = updateStaffRoleSchema.safeParse({ role });
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid role' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidRole') };
   }
   try {
     const member = await updateStaffRole(memberId, parsed.data);
     revalidatePath('/staff');
     return { ok: true, data: { member } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -118,14 +125,15 @@ export async function updateStaffRoleAction(
  * refreshes the staff page. A `403 LAST_OWNER` surfaces as a clear message.
  */
 export async function removeStaffAction(memberId: string): Promise<ActionResult> {
+  const t = await getTranslations('admin.staff');
   if (!(await requireStaffManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('errors.notAuthorized') };
   }
   try {
     await removeStaff(memberId);
     revalidatePath('/staff');
     return { ok: true, data: undefined };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
