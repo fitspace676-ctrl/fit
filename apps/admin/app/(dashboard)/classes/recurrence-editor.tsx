@@ -10,23 +10,23 @@ import {
   type RecurrenceFreq,
   type RecurrenceWeekday,
 } from '@fit/types';
+import { Field, Input, Select } from '@/components/ui';
 import { FREQ_OPTIONS, WEEKDAY_OPTIONS, freqNoun } from './format';
 
-/** Shared field styling so the editor matches the rest of the form. */
-const FIELD_CLASS =
-  'h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
-
 /**
- * The visual RRULE editor (T5.2). Instead of typing an RFC-5545 string by hand,
- * staff pick a frequency, an every-N interval, the weekdays (for a weekly class),
- * and an end condition (never / after N occurrences / until a date). The component
- * is fully controlled: it owns no state, lifting the structured {@link Recurrence}
+ * The visual RRULE editor. Instead of typing an RFC-5545 string by hand, staff
+ * pick a frequency, an every-N interval, the weekdays (for a weekly class), and
+ * an end condition (never / after N occurrences / until a date). The component is
+ * fully controlled: it owns no state, lifting the structured {@link Recurrence}
  * up to the form, which derives the canonical rrule string via {@link buildRRule}
  * on submit. A live human summary ({@link describeRecurrence}) and the generated
  * rule are shown so the staffer can see exactly what they're scheduling.
  *
- * Weekly with no weekday selected is flagged inline (the schema rejects it), so
- * the form can block submit before the API ever sees an ambiguous rule.
+ * Rebuilt on the shared formacore form kit (`Field` / `Input` / `Select` from
+ * `@fit/ui-web`), so its controls read identically to the rest of the admin
+ * forms. Weekly with no weekday selected is flagged inline via the field's error
+ * slot (the schema rejects it), so the form can block submit before the API ever
+ * sees an ambiguous rule.
  */
 export function RecurrenceEditor({
   value,
@@ -71,56 +71,49 @@ export function RecurrenceEditor({
       <legend className="px-1 text-sm font-medium text-ink-700 dark:text-ink-200">Repeats</legend>
 
       {/* Frequency + interval. */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="rec-freq" className="text-xs font-medium text-ink-600 dark:text-ink-300">
-            Frequency
-          </label>
-          <select
+      <div className="flex flex-wrap items-start gap-4">
+        <Field label="Frequency" htmlFor="rec-freq" className="w-40">
+          <Select
             id="rec-freq"
             value={value.freq}
             onChange={(event) => setFreq(event.target.value as RecurrenceFreq)}
-            className={FIELD_CLASS}
           >
             {FREQ_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
 
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="rec-interval"
-            className="text-xs font-medium text-ink-600 dark:text-ink-300"
-          >
-            Every
-          </label>
+        <Field label="Every" htmlFor="rec-interval">
           <div className="flex items-center gap-2">
-            <input
-              id="rec-interval"
-              type="number"
-              min="1"
-              max="52"
-              step="1"
-              inputMode="numeric"
-              value={value.interval}
-              onChange={(event) => setInterval(event.target.value)}
-              className={`${FIELD_CLASS} w-20`}
-            />
+            <div className="w-20">
+              <Input
+                id="rec-interval"
+                type="number"
+                min="1"
+                max="52"
+                step="1"
+                inputMode="numeric"
+                value={value.interval}
+                onChange={(event) => setInterval(event.target.value)}
+              />
+            </div>
             <span className="text-sm text-ink-500 dark:text-ink-400">
               {freqNoun(value.freq)}
               {value.interval === 1 ? '' : 's'}
             </span>
           </div>
-        </div>
+        </Field>
       </div>
 
       {/* Weekday toggles, only for a weekly recurrence. */}
       {value.freq === 'WEEKLY' ? (
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-ink-600 dark:text-ink-300">On these days</span>
+        <Field
+          label="On these days"
+          error={weeklyNeedsDay ? 'Pick at least one weekday.' : undefined}
+        >
           <div className="flex flex-wrap gap-2">
             {WEEKDAY_OPTIONS.map((day) => {
               const active = value.weekdays.includes(day.value);
@@ -142,17 +135,12 @@ export function RecurrenceEditor({
               );
             })}
           </div>
-          {weeklyNeedsDay ? (
-            <p className="text-xs text-warning-700 dark:text-warning-300">
-              Pick at least one weekday.
-            </p>
-          ) : null}
-        </div>
+        </Field>
       ) : null}
 
       {/* End condition. */}
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-medium text-ink-600 dark:text-ink-300">Ends</span>
+        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">Ends</span>
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
             <input
@@ -174,19 +162,21 @@ export function RecurrenceEditor({
               className="h-4 w-4 text-brand-600 focus:ring-brand-400"
             />
             After
-            <input
-              type="number"
-              min="1"
-              max="730"
-              step="1"
-              inputMode="numeric"
-              disabled={value.end.type !== 'count'}
-              value={value.end.type === 'count' ? value.end.count : ''}
-              onChange={(event) =>
-                setEnd({ type: 'count', count: Math.max(1, Number(event.target.value) || 1) })
-              }
-              className={`${FIELD_CLASS} w-20 disabled:bg-ink-50 disabled:text-ink-400 dark:disabled:bg-white/5`}
-            />
+            <div className="w-20">
+              <Input
+                type="number"
+                min="1"
+                max="730"
+                step="1"
+                inputMode="numeric"
+                aria-label="Number of occurrences"
+                disabled={value.end.type !== 'count'}
+                value={value.end.type === 'count' ? value.end.count : ''}
+                onChange={(event) =>
+                  setEnd({ type: 'count', count: Math.max(1, Number(event.target.value) || 1) })
+                }
+              />
+            </div>
             occurrences
           </label>
 
@@ -201,13 +191,15 @@ export function RecurrenceEditor({
               className="h-4 w-4 text-brand-600 focus:ring-brand-400"
             />
             On date
-            <input
-              type="date"
-              disabled={value.end.type !== 'until'}
-              value={value.end.type === 'until' ? value.end.until : ''}
-              onChange={(event) => setEnd({ type: 'until', until: event.target.value })}
-              className={`${FIELD_CLASS} disabled:bg-ink-50 disabled:text-ink-400 dark:disabled:bg-white/5`}
-            />
+            <div className="w-44">
+              <Input
+                type="date"
+                aria-label="End date"
+                disabled={value.end.type !== 'until'}
+                value={value.end.type === 'until' ? value.end.until : ''}
+                onChange={(event) => setEnd({ type: 'until', until: event.target.value })}
+              />
+            </div>
           </label>
         </div>
       </div>
