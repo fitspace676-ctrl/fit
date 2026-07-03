@@ -25,6 +25,7 @@ export * from './src/permissions';
 export * from './src/products';
 export * from './src/products-admin';
 export * from './src/reviews';
+export * from './src/schedule-admin';
 export * from './src/staff';
 export * from './src/subscriptions';
 export * from './src/subscriptions-admin';
