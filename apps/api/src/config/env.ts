@@ -127,10 +127,39 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
-  // Grace window (whole days) a failed renewal may sit PAST_DUE — retried each
-  // daily pass — before the job expires the subscription. The member keeps access
-  // through the window (PAST_DUE is entitled). Default 7 days.
-  SUBSCRIPTION_BILLING_GRACE_DAYS: z.coerce.number().int().nonnegative().default(7),
+  // Dunning retry ladder (T5.5): comma-separated, ascending whole-day offsets from
+  // a subscription's elapsed period end at which a failed renewal charge is retried.
+  // The member keeps access across the whole ladder (PAST_DUE is entitled); once the
+  // last retry fails the subscription is expired, so the final offset is the grace
+  // window. Default "2,5,7" → retry on day +2, +5, +7 then expire. An empty value
+  // disables retries (expire on first failure).
+  SUBSCRIPTION_BILLING_RETRY_OFFSET_DAYS: z
+    .string()
+    .default('2,5,7')
+    .transform((value, ctx) => {
+      const offsets = value
+        .split(',')
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0)
+        .map((part) => Number(part));
+      if (offsets.some((n) => !Number.isInteger(n) || n < 0)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'must be a comma-separated list of non-negative integers (e.g. "2,5,7")',
+        });
+        return z.NEVER;
+      }
+      // The ladder must be strictly ascending so each rung falls after the previous
+      // one; a misordered list is a config error, not something to silently sort.
+      if (offsets.some((n, i) => i > 0 && n <= offsets[i - 1]!)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'offsets must be strictly ascending (e.g. "2,5,7")',
+        });
+        return z.NEVER;
+      }
+      return offsets;
+    }),
 
   // ── Object storage (Cloudflare R2 — S3-compatible) ──
   // All optional: unset disables the signed-upload service (the endpoint then

@@ -17,6 +17,7 @@ const BILLABLE_SUBSCRIPTION_SELECT = {
   interval: true,
   currentPeriodEnd: true,
   cancelAtPeriodEnd: true,
+  paymentRetries: true,
   providerRef: true,
 } satisfies Prisma.SubscriptionSelect;
 
@@ -36,9 +37,9 @@ export interface BillingCycleSummary {
   subscriptionsDue: number;
   /** Renewals charged and advanced to the next period. */
   renewed: number;
-  /** Renewals whose charge failed — freshly flagged, or still in grace after a failed retry. */
+  /** Renewals whose charge failed — freshly flagged, or a failed retry that advanced the ladder. */
   pastDue: number;
-  /** Past-due subscriptions whose grace window elapsed and were expired. */
+  /** Past-due subscriptions whose retry ladder was exhausted and were expired. */
   expired: number;
   /** Subscriptions whose scheduled `cancelAtPeriodEnd` cancellation took effect. */
   canceled: number;
@@ -54,17 +55,21 @@ const RENEWAL_CRON = '0 2 * * *';
 const LOCK_TTL_SECONDS = 3_600;
 
 /**
- * Recurring subscription billing (T5.4).
+ * Recurring subscription billing + dunning (T5.4 / T5.5).
  *
  * The scheduled job that renews every gym's live memberships: it sweeps
  * subscriptions whose paid period has elapsed, charges the renewal through the
  * {@link PaymentProvider} abstraction, and moves each subscription to its next state
  * — advancing the period on a successful charge (`RENEW`), flagging `PAST_DUE` on a
- * failed one (`PAYMENT_FAILED`), expiring a lapsed grace window (`EXPIRE`), or
- * honouring a scheduled cancellation (`CANCEL`). The *what-happens-to-each*
- * decision is the pure {@link classifyDueSubscription} rule and every status change
- * goes through the shared state machine's {@link applyEvent}, so this service is a
- * thin orchestrator with no billing policy of its own.
+ * failed one (`PAYMENT_FAILED`), and honouring a scheduled cancellation (`CANCEL`).
+ * A past-due subscription is then worked through the **dunning retry ladder** (T5.5):
+ * the renewal charge is re-attempted on the ladder's rungs (+2/+5/+7 days after the
+ * elapsed period end by default), `paymentRetries` advancing one rung per failed
+ * retry, until either a retry succeeds (back to `ACTIVE`) or the ladder is exhausted
+ * and the subscription expires (`EXPIRE`). The *what-happens-to-each* decision is the
+ * pure {@link classifyDueSubscription} rule and every status change goes through the
+ * shared state machine's {@link applyEvent}, so this service is a thin orchestrator
+ * with no billing policy of its own.
  *
  * Like the report digests (T4.10) it is **cross-tenant** — it reads and writes every
  * gym's subscriptions through the unscoped {@link PrismaService} (the sweep has no
@@ -77,9 +82,10 @@ const LOCK_TTL_SECONDS = 3_600;
  *
  * **Idempotency** is guaranteed independently of the lock, at the database: every
  * transition is a conditional `updateMany` matched on the subscription's *observed*
- * `(currentPeriodEnd, status)`, so once a period is advanced (or a status flipped)
- * the same row can never be advanced twice — a re-run, an overlapping replica, or a
- * retry all no-op. The charge itself carries a per-period idempotency key
+ * `(currentPeriodEnd, status)` — and, for a dunning-ladder step, the observed
+ * `paymentRetries` too — so once a period is advanced (or a status/rung moved) the
+ * same row can never be advanced twice: a re-run, an overlapping replica, or a retry
+ * all no-op. The charge itself carries a per-period idempotency key
  * (`<subscriptionId>:<periodEndISO>`) so a real gateway dedupes upstream too.
  */
 @Injectable()
@@ -131,7 +137,7 @@ export class SubscriptionBillingService {
    */
   async runBillingCycle(options?: { now?: Date }): Promise<BillingCycleSummary> {
     const now = options?.now ?? new Date();
-    const graceDays = env.SUBSCRIPTION_BILLING_GRACE_DAYS;
+    const retryOffsetDays = env.SUBSCRIPTION_BILLING_RETRY_OFFSET_DAYS;
 
     const due = await this.prisma.client.subscription.findMany({
       where: {
@@ -154,7 +160,7 @@ export class SubscriptionBillingService {
 
     for (const sub of due) {
       try {
-        await this.processOne(sub, now, graceDays, summary);
+        await this.processOne(sub, now, retryOffsetDays, summary);
       } catch (error) {
         summary.errors += 1;
         this.logger.warn(
@@ -171,10 +177,10 @@ export class SubscriptionBillingService {
   private async processOne(
     sub: BillableRow,
     now: Date,
-    graceDays: number,
+    retryOffsetDays: readonly number[],
     summary: BillingCycleSummary,
   ): Promise<void> {
-    const decision = classifyDueSubscription(sub, { now, graceDays });
+    const decision = classifyDueSubscription(sub, { now, retryOffsetDays });
     switch (decision.action) {
       case 'skip':
         return;
@@ -196,6 +202,11 @@ export class SubscriptionBillingService {
    * (provider unreachable) that we let propagate to the sweep's per-subscription
    * catch, leaving the row untouched to retry next pass rather than penalising the
    * member for our outage.
+   *
+   * The idempotency key is scoped to *this rung* — period end plus `paymentRetries`
+   * — so a re-run of the same retry dedupes upstream, but each new ladder rung is a
+   * genuinely fresh charge attempt (a single per-period key would make a real gateway
+   * replay the first failure and never actually retry).
    */
   private async charge(
     sub: BillableRow,
@@ -203,7 +214,7 @@ export class SubscriptionBillingService {
     nextPeriodEnd: Date,
     summary: BillingCycleSummary,
   ): Promise<void> {
-    const idempotencyKey = `${sub.id}:${sub.currentPeriodEnd.toISOString()}`;
+    const idempotencyKey = `${sub.id}:${sub.currentPeriodEnd.toISOString()}:r${sub.paymentRetries}`;
     const result = await this.provider.chargeRenewal({
       subscriptionId: sub.id,
       gymId: sub.gymId,
@@ -222,13 +233,14 @@ export class SubscriptionBillingService {
     }
 
     this.logger.warn(`Renewal charge failed for subscription ${sub.id}: ${result.reason}`);
-    if (await this.markPastDue(sub)) summary.pastDue += 1;
+    if (await this.recordFailedCharge(sub)) summary.pastDue += 1;
   }
 
   /**
    * Persist a successful renewal: `RENEW` the status (`PAST_DUE → ACTIVE`, or an
    * `ACTIVE` self-loop), roll the period forward contiguously, reset the per-period
-   * freeze allowance, and record which provider settled it. The conditional
+   * freeze allowance, clear the dunning retry ladder (a paid renewal ends the
+   * past-due episode), and record which provider settled it. The conditional
    * `updateMany` on the observed `(currentPeriodEnd, status)` is the idempotency
    * backstop — a second runner that already advanced this period matches nothing.
    * Returns whether this call was the one that advanced it.
@@ -245,6 +257,7 @@ export class SubscriptionBillingService {
       currentPeriodStart: nextPeriodStart,
       currentPeriodEnd: nextPeriodEnd,
       freezeDaysUsed: 0,
+      paymentRetries: 0,
       provider: this.provider.key,
     };
     // Only overwrite the external ref when the provider returned one, so the stub
@@ -261,15 +274,33 @@ export class SubscriptionBillingService {
   }
 
   /**
-   * Flag a failed renewal `PAST_DUE`. A charge that fails while already `PAST_DUE`
-   * (a failed retry inside the grace window) is a state-machine self-loop — nothing
-   * to write, the row stays where it is — so this only issues the conditional
-   * `ACTIVE → PAST_DUE` transition. Returns whether the subscription is past-due
-   * after this pass (true for both the fresh flag and the continuing case).
+   * Persist a failed renewal charge, advancing the dunning ladder:
+   *
+   *   • A fresh failure on an `ACTIVE` subscription flips it `ACTIVE → PAST_DUE`
+   *     (retry ladder starting at 0) via the state machine's `PAYMENT_FAILED`.
+   *   • A failed *retry* on an already-`PAST_DUE` subscription is a status self-loop,
+   *     but it must still advance `paymentRetries` so the next retry moves to the
+   *     next rung and the ladder eventually expires. Both the condition and the new
+   *     value are pinned to the observed `paymentRetries`, so a re-run or overlapping
+   *     replica can never double-count a rung (the idempotency backstop, matching how
+   *     {@link advancePeriod} guards the period).
+   *
+   * Returns whether this subscription is (still) past-due after the write — true for
+   * the fresh flag and for a retry that advanced the ladder, false when the
+   * conditional update matched nothing (another runner got there first).
    */
-  private async markPastDue(sub: BillableRow): Promise<boolean> {
+  private async recordFailedCharge(sub: BillableRow): Promise<boolean> {
     if (sub.status === SubscriptionStatus.PAST_DUE) {
-      return true;
+      const { count } = await this.prisma.client.subscription.updateMany({
+        where: {
+          id: sub.id,
+          currentPeriodEnd: sub.currentPeriodEnd,
+          status: SubscriptionStatus.PAST_DUE,
+          paymentRetries: sub.paymentRetries,
+        },
+        data: { paymentRetries: sub.paymentRetries + 1 },
+      });
+      return count > 0;
     }
     const nextStatus = applyEvent(sub.status, 'PAYMENT_FAILED');
     const { count } = await this.prisma.client.subscription.updateMany({

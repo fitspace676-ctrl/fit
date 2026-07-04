@@ -21,12 +21,16 @@ import { SubscriptionStatus } from '../generated/client';
 import type { SubscriptionInterval } from '../generated/client';
 
 /**
- * How long a subscription may sit `PAST_DUE` (a failed renewal charge) before the
- * job gives up retrying and expires it. Measured in whole days from the elapsed
- * `currentPeriodEnd`. A member keeps access through the grace window (`PAST_DUE` is
- * an entitled status), so this is the retry runway before a lapse becomes final.
+ * The dunning retry ladder (T5.5): the offsets, in whole days from the elapsed
+ * `currentPeriodEnd`, at which the job re-attempts a failed renewal charge. A member
+ * keeps access through the whole ladder (`PAST_DUE` is an entitled status). After
+ * the initial period-end charge fails (`ACTIVE → PAST_DUE`, retry 0), the job retries
+ * on day +2, +5 and +7; if the day-+7 retry also fails the ladder is exhausted and
+ * the subscription expires. The last offset is therefore the effective grace window.
+ *
+ * `readonly` so callers can't mutate the shared default in place.
  */
-export const DEFAULT_RENEWAL_GRACE_DAYS = 7;
+export const DEFAULT_RENEWAL_RETRY_OFFSET_DAYS: readonly number[] = [2, 5, 7];
 
 /**
  * The subset of a {@link Subscription} the decision rule reads. A structural shape
@@ -41,14 +45,26 @@ export interface BillableSubscription {
   interval: SubscriptionInterval;
   /** A member-requested cancellation that should take effect at period end. */
   cancelAtPeriodEnd: boolean;
+  /**
+   * How many scheduled retries have already failed in the current past-due episode
+   * (0 for an `ACTIVE` subscription, or one that just entered `PAST_DUE`). Indexes
+   * the retry ladder to place the next attempt; once it reaches the ladder length,
+   * the retries are exhausted and the subscription expires.
+   */
+  paymentRetries: number;
 }
 
 /** Knobs for {@link classifyDueSubscription}. */
 export interface ClassifyDueOptions {
   /** The instant to evaluate against — a subscription is due when `currentPeriodEnd <= now`. */
   now: Date;
-  /** Grace-window length in whole days; defaults to {@link DEFAULT_RENEWAL_GRACE_DAYS}. */
-  graceDays?: number;
+  /**
+   * The retry ladder — days after the elapsed `currentPeriodEnd` at which to
+   * re-attempt a failed charge, ascending. Defaults to
+   * {@link DEFAULT_RENEWAL_RETRY_OFFSET_DAYS}. An empty ladder expires a past-due
+   * subscription immediately (no retries).
+   */
+  retryOffsetDays?: readonly number[];
 }
 
 /**
@@ -62,10 +78,11 @@ export interface ClassifyDueOptions {
  *                 always renews on the 15th, even if the job runs late).
  *   • `cancel`  — the period elapsed on a subscription flagged `cancelAtPeriodEnd`;
  *                 honour the member's scheduled cancellation instead of charging.
- *   • `expire`  — a `PAST_DUE` subscription whose grace window has now elapsed; the
+ *   • `expire`  — a `PAST_DUE` subscription whose retry ladder is exhausted; the
  *                 lapse is final.
- *   • `skip`    — nothing to do: not yet due, terminal, or frozen (a paused
- *                 membership is not billed until it resumes).
+ *   • `skip`    — nothing to do: not yet due, terminal, frozen (a paused membership
+ *                 is not billed until it resumes), or past-due but waiting between
+ *                 scheduled retries.
  */
 export type RenewalAction =
   | { action: 'charge'; nextPeriodStart: Date; nextPeriodEnd: Date }
@@ -80,9 +97,10 @@ export type RenewalAction =
  * Precedence once a subscription is due (`currentPeriodEnd <= now`):
  *   1. `cancelAtPeriodEnd` wins — the member asked to stop, so we never charge them
  *      for the next period even if the charge would have succeeded.
- *   2. A `PAST_DUE` subscription past its grace window `expire`s — retries are over.
- *   3. Otherwise `charge`: a due `ACTIVE` subscription's first renewal, or a
- *      `PAST_DUE` one still inside its grace window (a retry).
+ *   2. A `PAST_DUE` subscription drives the retry ladder: its retries exhausted, it
+ *      `expire`s; before its next scheduled retry window, it `skip`s; on or after a
+ *      retry window, it `charge`s (a retry).
+ *   3. Otherwise `charge`: a due `ACTIVE` subscription's first renewal.
  *
  * `FROZEN` (paused) and the terminal `CANCELED` / `EXPIRED` states are always
  * `skip` — a frozen membership resumes before it bills again, and terminal ones
@@ -94,7 +112,7 @@ export function classifyDueSubscription(
   sub: BillableSubscription,
   options: ClassifyDueOptions,
 ): RenewalAction {
-  const graceDays = options.graceDays ?? DEFAULT_RENEWAL_GRACE_DAYS;
+  const retryOffsets = options.retryOffsetDays ?? DEFAULT_RENEWAL_RETRY_OFFSET_DAYS;
   const nowMs = options.now.getTime();
 
   // Only ACTIVE / PAST_DUE subscriptions ever bill. Frozen holds the slot but is
@@ -113,16 +131,26 @@ export function classifyDueSubscription(
     return { action: 'cancel' };
   }
 
-  // A past-due subscription whose grace runway has elapsed lapses for good.
+  // A past-due subscription walks the retry ladder rather than being charged every
+  // pass: expire once the rungs are used up, wait between them, else retry now.
   if (sub.status === SubscriptionStatus.PAST_DUE) {
-    const graceEndsMs = sub.currentPeriodEnd.getTime() + graceDays * MS_PER_DAY;
-    if (nowMs > graceEndsMs) {
+    const retries = Math.max(0, sub.paymentRetries);
+    // Ladder exhausted — every scheduled retry has failed, so the lapse is final.
+    if (retries >= retryOffsets.length) {
       return { action: 'expire' };
     }
+    // The next retry lands `retryOffsets[retries]` days after the elapsed period end
+    // (the anchor stays fixed while past-due, so the schedule never drifts). Before
+    // that instant there is nothing to do this pass.
+    const nextRetryMs = sub.currentPeriodEnd.getTime() + retryOffsets[retries]! * MS_PER_DAY;
+    if (nowMs < nextRetryMs) {
+      return { action: 'skip' };
+    }
+    // Otherwise the retry window has opened — fall through to charge it.
   }
 
-  // Otherwise a renewal charge is owed. The next period is contiguous with the
-  // elapsed one so the cadence never drifts, regardless of when the job runs.
+  // A renewal charge is owed. The next period is contiguous with the elapsed one so
+  // the cadence never drifts, regardless of when the job runs.
   const nextPeriodStart = sub.currentPeriodEnd;
   const nextPeriodEnd = addInterval(sub.currentPeriodEnd, sub.interval);
   return { action: 'charge', nextPeriodStart, nextPeriodEnd };

@@ -23,6 +23,7 @@ interface BillableRow {
   interval: SubscriptionInterval;
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
+  paymentRetries: number;
   providerRef: string | null;
 }
 
@@ -36,6 +37,7 @@ const row = (over?: Partial<BillableRow>): BillableRow => ({
   interval: SubscriptionInterval.MONTH,
   currentPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
   cancelAtPeriodEnd: false,
+  paymentRetries: 0,
   providerRef: null,
   ...over,
 });
@@ -64,7 +66,7 @@ function setup(
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
   Object.assign(mockEnv, {
     SUBSCRIPTION_BILLING_ENABLED: enabled,
-    SUBSCRIPTION_BILLING_GRACE_DAYS: 7,
+    SUBSCRIPTION_BILLING_RETRY_OFFSET_DAYS: [2, 5, 7],
   });
 
   const findMany = vi.fn<(args: unknown) => Promise<BillableRow[]>>().mockResolvedValue(due);
@@ -108,12 +110,13 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
       canceled: 0,
       errors: 0,
     });
-    // Idempotent per period: charge keyed by subscription + elapsed period end.
+    // Idempotent per period+rung: charge keyed by subscription, elapsed period end,
+    // and retry rung (r0 for the first charge of a period).
     expect(chargeRenewal).toHaveBeenCalledWith(
       expect.objectContaining({
         subscriptionId: 'sub-1',
         amount: 5000,
-        idempotencyKey: 'sub-1:2026-06-01T00:00:00.000Z',
+        idempotencyKey: 'sub-1:2026-06-01T00:00:00.000Z:r0',
       }),
     );
     expect(updateMany).toHaveBeenCalledTimes(1);
@@ -129,6 +132,7 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
       currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
       currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
       freezeDaysUsed: 0,
+      paymentRetries: 0,
       provider: 'stub',
     });
   });
@@ -164,12 +168,13 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
     expect(args.data).not.toHaveProperty('currentPeriodEnd');
   });
 
-  it('does not re-write an already PAST_DUE subscription whose retry fails again', async () => {
+  it('advances the retry ladder when an already-PAST_DUE retry fails again', async () => {
     const { service, updateMany } = setup({
       due: [
         row({
           status: SubscriptionStatus.PAST_DUE,
           currentPeriodEnd: new Date('2026-06-05T00:00:00.000Z'),
+          paymentRetries: 1,
         }),
       ],
       charge: () => ({ outcome: 'failed', reason: 'card_declined' }),
@@ -177,15 +182,40 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
 
     const summary = await service.runBillingCycle({ now: NOW });
 
-    expect(summary).toMatchObject({ pastDue: 1 });
-    // Self-loop: no transition to persist.
+    expect(summary).toMatchObject({ pastDue: 1, renewed: 0 });
+    // Failed retry: no status change, but the ladder rung advances (pinned to the
+    // observed count so a re-run can't double-count).
+    const args = updateMany.mock.calls[0]![0];
+    expect(args.where).toMatchObject({
+      status: SubscriptionStatus.PAST_DUE,
+      paymentRetries: 1,
+    });
+    expect(args.data).toEqual({ paymentRetries: 2 });
+  });
+
+  it('does not advance a past-due subscription still waiting between retry rungs', async () => {
+    const { service, updateMany, chargeRenewal } = setup({
+      // 1 retry done → next rung is +5 days (2026-06-10); at 2026-06-08 still waiting.
+      due: [
+        row({
+          status: SubscriptionStatus.PAST_DUE,
+          currentPeriodEnd: new Date('2026-06-05T00:00:00.000Z'),
+          paymentRetries: 1,
+        }),
+      ],
+    });
+
+    const summary = await service.runBillingCycle({ now: new Date('2026-06-08T00:00:00.000Z') });
+
+    expect(summary).toMatchObject({ subscriptionsDue: 1, renewed: 0, pastDue: 0, expired: 0 });
+    expect(chargeRenewal).not.toHaveBeenCalled();
     expect(updateMany).not.toHaveBeenCalled();
   });
 
-  it('expires a past-due subscription whose grace window has elapsed', async () => {
+  it('expires a past-due subscription once its retry ladder is exhausted', async () => {
     const { service, updateMany, chargeRenewal } = setup({
-      // Ended 2026-06-01, grace 7 days ends 2026-06-08; now is 2026-06-10 → expired.
-      due: [row({ status: SubscriptionStatus.PAST_DUE })],
+      // 3 failed retries == the default 3-rung ladder → exhausted, expire.
+      due: [row({ status: SubscriptionStatus.PAST_DUE, paymentRetries: 3 })],
     });
 
     const summary = await service.runBillingCycle({ now: NOW });
@@ -193,6 +223,45 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
     expect(summary).toMatchObject({ expired: 1, renewed: 0 });
     expect(chargeRenewal).not.toHaveBeenCalled();
     expect(updateMany.mock.calls[0]![0].data).toEqual({ status: SubscriptionStatus.EXPIRED });
+  });
+
+  it('recovers a mid-ladder past-due subscription and clears the retry counter on success', async () => {
+    const { service, updateMany } = setup({
+      // 1 retry done → next rung +5 days (2026-06-10); NOW is 2026-06-10 → retry due.
+      due: [
+        row({
+          status: SubscriptionStatus.PAST_DUE,
+          currentPeriodEnd: new Date('2026-06-05T00:00:00.000Z'),
+          paymentRetries: 1,
+        }),
+      ],
+    });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(summary).toMatchObject({ renewed: 1, pastDue: 0 });
+    expect(updateMany.mock.calls[0]![0].data).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      paymentRetries: 0,
+    });
+  });
+
+  it('scopes the idempotency key to the retry rung so each rung is a fresh attempt', async () => {
+    const { service, chargeRenewal } = setup({
+      due: [
+        row({
+          status: SubscriptionStatus.PAST_DUE,
+          currentPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
+          paymentRetries: 2,
+        }),
+      ],
+    });
+
+    await service.runBillingCycle({ now: NOW });
+
+    expect(chargeRenewal).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'sub-1:2026-06-01T00:00:00.000Z:r2' }),
+    );
   });
 
   it('honours a scheduled cancellation at period end instead of charging', async () => {
