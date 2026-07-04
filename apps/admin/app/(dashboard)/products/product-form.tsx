@@ -9,7 +9,7 @@ import {
   type ProductStatus,
   type ProductVariant,
 } from '@fit/types';
-import { Btn, Card, Icon } from '@/components/ui';
+import { Btn } from '@/components/ui';
 import { inputToMinor, minorToInput } from './format-price';
 import {
   createProductAction,
@@ -239,7 +239,10 @@ export function ProductForm(props: Props) {
   const atVariantLimit = variants.length >= MAX_PRODUCT_VARIANTS;
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-4">
+    <form
+      onSubmit={onSubmit}
+      className="flex max-w-2xl flex-col gap-4 rounded-card border border-ink-200 bg-white p-5 shadow-[0_14px_40px_-18px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-white/[0.035] dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl"
+    >
       {/* Image gallery. */}
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-ink-700 dark:text-ink-200">
@@ -301,13 +304,12 @@ export function ProductForm(props: Props) {
           </span>
         </div>
         {uploadError ? (
-          <Card
+          <p
             role="alert"
-            className="flex items-center gap-2 p-3 text-sm text-warning-800 dark:text-warning-200"
+            className="rounded-card bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-300"
           >
-            <Icon name="info" className="h-4 w-4 shrink-0" />
-            <span>{uploadError}</span>
-          </Card>
+            {uploadError}
+          </p>
         ) : null}
       </div>
 
@@ -493,13 +495,12 @@ export function ProductForm(props: Props) {
       ) : null}
 
       {error ? (
-        <Card
+        <p
           role="alert"
-          className="flex items-center gap-2 p-3 text-sm text-danger-700 dark:text-danger-300"
+          className="rounded-card bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:bg-danger-500/10 dark:text-danger-300"
         >
-          <Icon name="info" className="h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </Card>
+          {error}
+        </p>
       ) : null}
 
       <div className="flex items-center gap-3">
