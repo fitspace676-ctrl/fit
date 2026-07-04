@@ -98,25 +98,37 @@ function formatLastVisit(iso: string | null, t: T, locale: string): string {
   return formatDate(iso, locale);
 }
 
-/** The NEXT-BILLING cell — a date, a paused/overdue chip, or an em dash. */
-function nextBillingLabel(
-  row: {
-    nextBillingAt: string | null;
-    billingState: MemberBillingState;
-  },
-  t: T,
-  locale: string,
-): string {
+/**
+ * The NEXT-BILLING cell — a due date, an em dash, or a status chip for a paused /
+ * overdue subscription. `overdue` (a past-due dunning subscription) gets an amber
+ * chip so a failed renewal stands out in the roster at a glance (T5.5).
+ */
+function NextBillingCell({
+  row,
+  t,
+  locale,
+}: {
+  row: { nextBillingAt: string | null; billingState: MemberBillingState };
+  t: T;
+  locale: string;
+}) {
   switch (row.billingState) {
-    case 'paused':
-      return t('billing.paused');
     case 'overdue':
-      return t('billing.overdue');
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          {t('billing.overdue')}
+        </span>
+      );
+    case 'paused':
+      return <span className="text-ink-400 dark:text-ink-500">{t('billing.paused')}</span>;
     case 'due':
-      return formatDate(row.nextBillingAt, locale);
+      return (
+        <span className="font-mono tabular-nums">{formatDate(row.nextBillingAt, locale)}</span>
+      );
     case 'none':
     default:
-      return '—';
+      return <span className="font-mono tabular-nums">—</span>;
   }
 }
 
@@ -488,8 +500,8 @@ export function MembersTable({
                     <td className="py-3 pr-4">
                       <PlanCell plan={member.plan} />
                     </td>
-                    <td className="py-3 pr-4 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                      {nextBillingLabel(member, t, locale)}
+                    <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">
+                      <NextBillingCell row={member} t={t} locale={locale} />
                     </td>
                     <td className="py-3 pr-5">
                       <Link

@@ -67,6 +67,23 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         </Link>
       </div>
 
+      {status === 'PAST_DUE' ? (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-card border border-amber-300/70 bg-amber-50 p-4 text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-btn bg-amber-400/25">
+            <Icon name="card" className="h-4 w-4" sw={2.3} />
+          </span>
+          <div>
+            <p className="font-display text-sm font-bold">{t('pastDue.title')}</p>
+            <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-200/80">
+              {t('pastDue.body')}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
         {/* Current plan */}
         <div className="relative overflow-hidden rounded-card bg-[linear-gradient(135deg,#7C3AED,#EC4899)] p-6 text-white shadow-[0_24px_60px_-24px_rgba(80,68,210,0.8)] sm:p-7">

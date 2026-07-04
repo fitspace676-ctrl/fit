@@ -1207,6 +1207,14 @@ model Subscription {
   frozenAt           DateTime?
   frozenUntil        DateTime?
   freezeDaysUsed     Int                  @default(0)
+  /// Dunning retry ladder (T5.5). The number of *scheduled retry charges* that
+  /// have failed in the current past-due episode, driving the +2/+5/+7-day retry
+  /// cadence: while `PAST_DUE`, the next retry lands `retryOffsetDays[paymentRetries]`
+  /// days after the elapsed `currentPeriodEnd`, and once the ladder is exhausted the
+  /// subscription expires. The initial (period-end) charge failure that flips a
+  /// subscription `ACTIVE → PAST_DUE` is retry 0; it increments on each further
+  /// failed retry and resets to 0 whenever a charge succeeds and the period renews.
+  paymentRetries     Int                  @default(0)
   /// Payment provider key — `"stub"` for the MVP, a concrete provider once T8.8
   /// lands the real recurring-billing integration.
   provider           String               @default("stub")

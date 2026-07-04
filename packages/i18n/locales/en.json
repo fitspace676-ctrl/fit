@@ -758,7 +758,11 @@
         "FAILED": "Failed",
         "REFUNDED": "Refunded"
       },
-      "noInvoices": "No invoices yet"
+      "noInvoices": "No invoices yet",
+      "pastDue": {
+        "title": "Payment didn't go through",
+        "body": "We couldn't process your last renewal. We'll retry automatically over the next few days — please settle up at the desk to keep your membership active."
+      }
     },
     "profile": {
       "title": "Profile",

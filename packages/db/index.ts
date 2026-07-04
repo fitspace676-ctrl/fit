@@ -68,12 +68,12 @@ export {
 // the first period and the recurring-billing job (T5.4) advances it identically.
 export { addInterval, initialBillingPeriod } from './prisma/subscription-period';
 
-// Recurring-billing decision rule (T5.4). The pure classification of a due
-// subscription into charge / cancel / expire / skip, re-exported so the renewal
-// job's service branches on one policy instead of re-deriving the grace/cadence
-// rules inline.
+// Recurring-billing decision rule (T5.4 / T5.5). The pure classification of a due
+// subscription into charge / cancel / expire / skip — including the dunning retry
+// ladder — re-exported so the renewal job's service branches on one policy instead
+// of re-deriving the retry/cadence rules inline.
 export {
-  DEFAULT_RENEWAL_GRACE_DAYS,
+  DEFAULT_RENEWAL_RETRY_OFFSET_DAYS,
   classifyDueSubscription,
   type BillableSubscription,
   type ClassifyDueOptions,

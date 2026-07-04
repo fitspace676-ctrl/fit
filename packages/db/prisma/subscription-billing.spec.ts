@@ -1,13 +1,14 @@
-// T5.4 — recurring-billing decision-rule unit tests.
+// T5.4 / T5.5 — recurring-billing decision-rule unit tests.
 //
 // Exercises `classifyDueSubscription` — the pure branch chooser the renewal job
-// runs on every due subscription. No Prisma / clock doubles: the rule reads only
-// the passed state and `now`. Dates are UTC to match the period arithmetic.
+// runs on every due subscription, including the dunning retry ladder (T5.5). No
+// Prisma / clock doubles: the rule reads only the passed state and `now`. Dates are
+// UTC to match the period arithmetic.
 
 import { describe, expect, it } from 'vitest';
 import { SubscriptionInterval, SubscriptionStatus } from '../generated/client';
 import {
-  DEFAULT_RENEWAL_GRACE_DAYS,
+  DEFAULT_RENEWAL_RETRY_OFFSET_DAYS,
   classifyDueSubscription,
   type BillableSubscription,
 } from './subscription-billing';
@@ -20,7 +21,15 @@ const base: BillableSubscription = {
   currentPeriodEnd: at('2026-06-01T00:00:00.000Z'),
   interval: SubscriptionInterval.MONTH,
   cancelAtPeriodEnd: false,
+  paymentRetries: 0,
 };
+
+/** `base`, but past-due with `paymentRetries` failed retries so far. */
+const pastDue = (paymentRetries: number): BillableSubscription => ({
+  ...base,
+  status: SubscriptionStatus.PAST_DUE,
+  paymentRetries,
+});
 
 describe('classifyDueSubscription', () => {
   it('skips a subscription whose period has not yet ended', () => {
@@ -63,55 +72,84 @@ describe('classifyDueSubscription', () => {
     expect(result).toEqual({ action: 'cancel' });
   });
 
-  it('prefers cancel over charge even for a past-due subscription', () => {
-    const canceling: BillableSubscription = {
-      ...base,
-      status: SubscriptionStatus.PAST_DUE,
-      cancelAtPeriodEnd: true,
-    };
-    // Well past the grace window, but the member asked to cancel.
+  it('prefers cancel over charge even for a past-due subscription with the ladder exhausted', () => {
+    const canceling: BillableSubscription = { ...pastDue(3), cancelAtPeriodEnd: true };
+    // Well past the ladder, but the member asked to cancel.
     const result = classifyDueSubscription(canceling, { now: at('2026-07-01T00:00:00.000Z') });
     expect(result).toEqual({ action: 'cancel' });
   });
 
-  it('retries (charges) a past-due subscription still inside its grace window', () => {
-    const pastDue: BillableSubscription = { ...base, status: SubscriptionStatus.PAST_DUE };
-    // 3 days after the elapsed end — inside the 7-day default grace.
-    const result = classifyDueSubscription(pastDue, { now: at('2026-06-04T00:00:00.000Z') });
-    expect(result.action).toBe('charge');
-  });
-
-  it('expires a past-due subscription once its grace window elapses', () => {
-    const pastDue: BillableSubscription = { ...base, status: SubscriptionStatus.PAST_DUE };
-    // 8 days after the elapsed end — past the 7-day default grace.
-    const result = classifyDueSubscription(pastDue, { now: at('2026-06-09T00:00:00.000Z') });
-    expect(result).toEqual({ action: 'expire' });
-  });
-
-  it('treats the exact grace boundary as still-in-grace (retry, not expire)', () => {
-    const pastDue: BillableSubscription = { ...base, status: SubscriptionStatus.PAST_DUE };
-    const boundary = at('2026-06-01T00:00:00.000Z');
-    boundary.setUTCDate(boundary.getUTCDate() + DEFAULT_RENEWAL_GRACE_DAYS); // exactly grace end
-    const result = classifyDueSubscription(pastDue, { now: boundary });
-    expect(result.action).toBe('charge');
-  });
-
-  it('honours a custom grace window', () => {
-    const pastDue: BillableSubscription = { ...base, status: SubscriptionStatus.PAST_DUE };
-    const result = classifyDueSubscription(pastDue, {
-      now: at('2026-06-02T00:00:01.000Z'),
-      graceDays: 1,
+  describe('dunning retry ladder', () => {
+    it('waits before the first retry rung (skip on day +1 with the default 2,5,7 ladder)', () => {
+      const result = classifyDueSubscription(pastDue(0), { now: at('2026-06-02T00:00:00.000Z') });
+      expect(result).toEqual({ action: 'skip' });
     });
-    expect(result).toEqual({ action: 'expire' });
-  });
 
-  it('never charges a due subscription with a zero-day grace once past-due', () => {
-    const pastDue: BillableSubscription = { ...base, status: SubscriptionStatus.PAST_DUE };
-    const result = classifyDueSubscription(pastDue, {
-      now: at('2026-06-01T00:00:01.000Z'),
-      graceDays: 0,
+    it('retries once the first rung (+2 days) is reached', () => {
+      const result = classifyDueSubscription(pastDue(0), { now: at('2026-06-03T00:00:00.000Z') });
+      expect(result.action).toBe('charge');
     });
-    expect(result).toEqual({ action: 'expire' });
+
+    it('treats the exact rung boundary as due (retry, not skip)', () => {
+      // day +2 exactly — the +2 rung.
+      const result = classifyDueSubscription(pastDue(0), { now: at('2026-06-03T00:00:00.000Z') });
+      expect(result.action).toBe('charge');
+    });
+
+    it('waits between rungs (retried once, before the +5 rung → skip)', () => {
+      // 1 retry done → next rung is +5 days (2026-06-06). Day +3 is still waiting.
+      const result = classifyDueSubscription(pastDue(1), { now: at('2026-06-04T00:00:00.000Z') });
+      expect(result).toEqual({ action: 'skip' });
+    });
+
+    it('retries on the second rung (+5 days) after one failed retry', () => {
+      const result = classifyDueSubscription(pastDue(1), { now: at('2026-06-06T00:00:00.000Z') });
+      expect(result.action).toBe('charge');
+    });
+
+    it('retries on the third rung (+7 days) after two failed retries', () => {
+      const result = classifyDueSubscription(pastDue(2), { now: at('2026-06-08T00:00:00.000Z') });
+      expect(result.action).toBe('charge');
+    });
+
+    it('expires once every rung has failed (retries == ladder length)', () => {
+      const result = classifyDueSubscription(pastDue(3), { now: at('2026-06-09T00:00:00.000Z') });
+      expect(result).toEqual({ action: 'expire' });
+    });
+
+    it('expires a past-due subscription whose retries exceed the ladder length', () => {
+      const result = classifyDueSubscription(pastDue(9), { now: at('2026-06-30T00:00:00.000Z') });
+      expect(result).toEqual({ action: 'expire' });
+    });
+
+    it('honours a custom retry ladder', () => {
+      // A single-rung [1] ladder: retry on day +1, then expire on the next failure.
+      const retryOffsetDays = [1];
+      expect(
+        classifyDueSubscription(pastDue(0), {
+          now: at('2026-06-02T00:00:00.000Z'),
+          retryOffsetDays,
+        }).action,
+      ).toBe('charge');
+      expect(
+        classifyDueSubscription(pastDue(1), {
+          now: at('2026-06-02T00:00:00.000Z'),
+          retryOffsetDays,
+        }),
+      ).toEqual({ action: 'expire' });
+    });
+
+    it('expires immediately on an empty ladder (no retries configured)', () => {
+      const result = classifyDueSubscription(pastDue(0), {
+        now: at('2026-06-01T00:00:01.000Z'),
+        retryOffsetDays: [],
+      });
+      expect(result).toEqual({ action: 'expire' });
+    });
+
+    it('exposes a sane default ladder (+2/+5/+7)', () => {
+      expect(DEFAULT_RENEWAL_RETRY_OFFSET_DAYS).toEqual([2, 5, 7]);
+    });
   });
 
   it.each([SubscriptionStatus.FROZEN, SubscriptionStatus.CANCELED, SubscriptionStatus.EXPIRED])(
