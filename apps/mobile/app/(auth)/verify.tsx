@@ -38,22 +38,22 @@ export default function VerifyScreen() {
   }, [token]);
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-950">
+    <SafeAreaView className="flex-1 bg-ink-950">
       <View className="flex-1 items-center justify-center gap-4 p-gutter">
         {status === 'verifying' ? (
           <>
             <ActivityIndicator color="#ffffff" size="large" />
-            <Text className="text-base text-brand-200">{t('auth.verify.verifying')}</Text>
+            <Text className="text-base text-ink-300">{t('auth.verify.verifying')}</Text>
           </>
         ) : null}
         {status === 'success' ? (
-          <Text className="text-center text-lg font-medium text-green-400">
+          <Text className="text-center text-lg font-medium text-success-300">
             {t('auth.verify.success')}
           </Text>
         ) : null}
         {status === 'error' ? (
           <>
-            <Text className="text-center text-base text-red-400">{error}</Text>
+            <Text className="text-center text-base text-danger-300">{error}</Text>
             <Link href="/login" asChild>
               <Text className="text-base font-medium text-brand-300">
                 {t('auth.forgot.backToLogin')}

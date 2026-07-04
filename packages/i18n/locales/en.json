@@ -165,6 +165,18 @@
     "orContinueWith": "or continue with",
     "continueWithGoogle": "Continue with Google",
     "continueWithApple": "Continue with Apple",
+    "tabs": {
+      "signIn": "Sign in",
+      "createAccount": "Create account"
+    },
+    "social": {
+      "apple": "Apple",
+      "google": "Google"
+    },
+    "showPassword": "Show",
+    "hidePassword": "Hide",
+    "togglePassword": "Toggle password visibility",
+    "terms": "By continuing you agree to our Terms and Privacy Policy.",
     "signingIn": "Signing you in…",
     "signedIn": "Signed in successfully.",
     "googleNotConfigured": "Google sign-in is not configured.",
@@ -175,6 +187,8 @@
     "login": {
       "title": "Sign in to Fit",
       "subtitle": "Welcome back — enter your details to continue.",
+      "heroTitle": "Welcome back.",
+      "heroSubtitle": "Book classes, check in with a tap, and track every session.",
       "submit": "Sign in",
       "submitting": "Signing in…",
       "forgotPassword": "Forgot password?",

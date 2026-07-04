@@ -48,7 +48,7 @@ function RootNavigator() {
 // Full-screen splash shown while the keychain / onboarding state hydrates.
 function SplashScreen() {
   return (
-    <View className="absolute inset-0 items-center justify-center bg-brand-950">
+    <View className="absolute inset-0 items-center justify-center bg-ink-950">
       <ActivityIndicator color="#ffffff" size="large" />
     </View>
   );

@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthButton, AuthError, AuthField } from '../../components/auth/form-controls';
+// Canvas + accents follow the formacore ink-950 sign-in palette; the glass
+// fields come from the shared AuthField.
 import { register } from '../../lib/auth';
 import { useTranslation } from '../../providers';
 
@@ -45,12 +47,12 @@ export default function RegisterScreen() {
 
   if (submitted) {
     return (
-      <SafeAreaView className="flex-1 bg-brand-950">
+      <SafeAreaView className="flex-1 bg-ink-950">
         <View className="flex-1 justify-center gap-4 p-gutter">
           <Text className="text-3xl font-bold tracking-tight text-white">
             {t('auth.register.title')}
           </Text>
-          <Text className="text-base text-brand-200">{t('auth.register.success')}</Text>
+          <Text className="text-base text-ink-300">{t('auth.register.success')}</Text>
           <Link href="/login" asChild>
             <Text className="text-base font-medium text-brand-300">
               {t('auth.forgot.backToLogin')}
@@ -62,7 +64,7 @@ export default function RegisterScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-950">
+    <SafeAreaView className="flex-1 bg-ink-950">
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -75,7 +77,7 @@ export default function RegisterScreen() {
             <Text className="text-3xl font-bold tracking-tight text-white">
               {t('auth.register.title')}
             </Text>
-            <Text className="text-base text-brand-200">{t('auth.register.subtitle')}</Text>
+            <Text className="text-base text-ink-300">{t('auth.register.subtitle')}</Text>
           </View>
 
           <View className="gap-4">
@@ -111,7 +113,7 @@ export default function RegisterScreen() {
               secureTextEntry
               editable={!pending}
             />
-            <Text className="text-sm text-brand-300">{t('auth.fields.passwordHint')}</Text>
+            <Text className="text-sm text-ink-400">{t('auth.fields.passwordHint')}</Text>
             <AuthButton
               label={t('auth.register.submit')}
               busyLabel={t('auth.register.submitting')}
@@ -122,9 +124,9 @@ export default function RegisterScreen() {
           </View>
 
           <View className="flex-row justify-center gap-1">
-            <Text className="text-sm text-brand-300">{t('auth.register.haveAccount')}</Text>
+            <Text className="text-sm text-ink-400">{t('auth.register.haveAccount')}</Text>
             <Link href="/login" asChild>
-              <Text className="text-sm font-medium text-brand-200">
+              <Text className="text-sm font-medium text-brand-300">
                 {t('auth.register.loginLink')}
               </Text>
             </Link>

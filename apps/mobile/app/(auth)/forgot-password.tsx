@@ -35,7 +35,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-950">
+    <SafeAreaView className="flex-1 bg-ink-950">
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -48,7 +48,7 @@ export default function ForgotPasswordScreen() {
             <Text className="text-3xl font-bold tracking-tight text-white">
               {t('auth.forgot.title')}
             </Text>
-            <Text className="text-base text-brand-200">{t('auth.forgot.subtitle')}</Text>
+            <Text className="text-base text-ink-300">{t('auth.forgot.subtitle')}</Text>
           </View>
 
           <View className="gap-4">
