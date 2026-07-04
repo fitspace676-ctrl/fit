@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { SubscriptionPlanStatus, Prisma } from '@fit/db';
+import { LIVE_SUBSCRIPTION_STATUSES, SubscriptionPlanStatus, Prisma } from '@fit/db';
 import {
   type AdminSubscriptionPlanDetail,
   type AdminSubscriptionPlanRow,
@@ -28,6 +28,7 @@ const SUBSCRIPTION_PLAN_SELECT = {
   currency: true,
   interval: true,
   features: true,
+  freezeDaysPerPeriod: true,
   popular: true,
   status: true,
   createdAt: true,
@@ -83,12 +84,38 @@ export class AdminSubscriptionPlansService {
       this.prisma.client.subscriptionPlan.count({ where }),
     ]);
 
+    const subscriberCounts = await this.liveSubscriberCounts(rows.map((row) => row.id));
+
     return {
-      data: rows.map((row) => this.toRow(row)),
+      data: rows.map((row) => this.toRow(row, subscriberCounts.get(row.id) ?? 0)),
       total,
       page: query.page,
       limit: query.limit,
     };
+  }
+
+  /**
+   * The count of *live* subscriptions (`ACTIVE` / `PAST_DUE` / `FROZEN` — the paid
+   * states that occupy a member's slot) per plan, for the `planIds` on the current
+   * page. One grouped query keyed by `planId`, mirroring the dashboard / member
+   * plan-mix aggregation, so the billing-plans cards can show subscriber counts and
+   * MRR without an N+1. Returns an empty map for an empty page. Runs on the
+   * tenant-scoped client, so it only ever counts the caller's gym's subscriptions.
+   */
+  private async liveSubscriberCounts(planIds: string[]): Promise<Map<string, number>> {
+    if (planIds.length === 0) {
+      return new Map();
+    }
+    const grouped = await this.prisma.client.subscription.groupBy({
+      by: ['planId'],
+      where: { planId: { in: planIds }, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+      _count: { _all: true },
+    });
+    return new Map(
+      grouped
+        .filter((group): group is typeof group & { planId: string } => group.planId !== null)
+        .map((group) => [group.planId, group._count._all]),
+    );
   }
 
   /**
@@ -107,7 +134,10 @@ export class AdminSubscriptionPlansService {
         code: 'SUBSCRIPTION_PLAN_NOT_FOUND',
       });
     }
-    return this.toDetail(row);
+    const subscriberCount = await this.prisma.client.subscription.count({
+      where: { planId: id, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+    });
+    return this.toDetail(row, subscriberCount);
   }
 
   /**
@@ -133,7 +163,8 @@ export class AdminSubscriptionPlansService {
       },
       select: SUBSCRIPTION_PLAN_SELECT,
     });
-    return this.toDetail(row);
+    // A just-created plan has no subscribers yet.
+    return this.toDetail(row, 0);
   }
 
   /**
@@ -250,8 +281,12 @@ export class AdminSubscriptionPlansService {
     }
   }
 
-  /** Project a queried row to the denormalised roster {@link AdminSubscriptionPlanRow}. */
-  private toRow(row: SubscriptionPlanRecord): AdminSubscriptionPlanRow {
+  /**
+   * Project a queried row to the denormalised roster {@link AdminSubscriptionPlanRow}.
+   * `subscriberCount` is the plan's live-subscription tally (0 for a plan with none,
+   * e.g. a freshly created one), resolved by the caller.
+   */
+  private toRow(row: SubscriptionPlanRecord, subscriberCount: number): AdminSubscriptionPlanRow {
     return {
       id: row.id,
       name: row.name,
@@ -259,6 +294,9 @@ export class AdminSubscriptionPlansService {
       currency: row.currency,
       interval: row.interval,
       featureCount: row.features.length,
+      features: row.features,
+      freezeDaysPerPeriod: row.freezeDaysPerPeriod,
+      subscriberCount,
       popular: row.popular,
       status: row.status,
       createdAt: row.createdAt.toISOString(),
@@ -266,11 +304,13 @@ export class AdminSubscriptionPlansService {
   }
 
   /** Project a queried row to the full {@link AdminSubscriptionPlanDetail}. */
-  private toDetail(row: SubscriptionPlanRecord): AdminSubscriptionPlanDetail {
+  private toDetail(
+    row: SubscriptionPlanRecord,
+    subscriberCount: number,
+  ): AdminSubscriptionPlanDetail {
     return {
-      ...this.toRow(row),
+      ...this.toRow(row, subscriberCount),
       description: row.description,
-      features: row.features,
       updatedAt: row.updatedAt.toISOString(),
     };
   }

@@ -71,12 +71,17 @@ export const listAdminSubscriptionPlansQuerySchema = z.object({
 export type ListAdminSubscriptionPlansQuery = z.infer<typeof listAdminSubscriptionPlansQuerySchema>;
 
 /**
- * One subscription plan as the roster table renders it. `priceAmount` is the
- * per-interval price in `currency`'s minor units the table formats.
- * `interval` drives the price suffix. `featureCount` is the size of the features
- * list so the roster can show "3 features" without shipping the whole list.
- * `popular` flags the emphasised plan. `createdAt` is an ISO-8601 instant the
- * table formats locally.
+ * One subscription plan as the roster / billing-plans cards render it.
+ * `priceAmount` is the per-interval price in `currency`'s minor units the UI
+ * formats. `interval` drives the price suffix. `featureCount` is the size of the
+ * features list so the roster can show "3 features" without shipping the whole
+ * list, and `features` is the ordered perk list itself (the billing-plans cards
+ * show the first few as a checklist). `freezeDaysPerPeriod` is the plan's freeze
+ * allowance (surfaced as a badge on the billing-plans card; `0` = freezing
+ * disabled). `subscriberCount` is the number of *live* subscriptions (`ACTIVE` /
+ * `PAST_DUE` / `FROZEN`) currently on this plan — what the billing-plans screen
+ * totals into subscriber counts and monthly-recurring-revenue. `popular` flags the
+ * emphasised plan. `createdAt` is an ISO-8601 instant the UI formats locally.
  */
 export interface AdminSubscriptionPlanRow {
   id: string;
@@ -85,6 +90,9 @@ export interface AdminSubscriptionPlanRow {
   currency: string;
   interval: SubscriptionInterval;
   featureCount: number;
+  features: string[];
+  freezeDaysPerPeriod: number;
+  subscriberCount: number;
   popular: boolean;
   status: SubscriptionPlanStatus;
   createdAt: string;
@@ -104,14 +112,13 @@ export interface ListAdminSubscriptionPlansResponse {
 }
 
 /**
- * One subscription plan as the detail / edit page needs it — the roster row plus
- * the `description`, the full ordered `features` list, and the `updatedAt`
- * instant. A missing / cross-tenant id is a `404`, not an empty body, so the page
- * distinguishes "no such plan" from a valid record.
+ * One subscription plan as the detail / edit page needs it — the roster row (which
+ * already carries the ordered `features` list) plus the `description` and the
+ * `updatedAt` instant. A missing / cross-tenant id is a `404`, not an empty body,
+ * so the page distinguishes "no such plan" from a valid record.
  */
 export interface AdminSubscriptionPlanDetail extends AdminSubscriptionPlanRow {
   description: string;
-  features: string[];
   updatedAt: string;
 }
 

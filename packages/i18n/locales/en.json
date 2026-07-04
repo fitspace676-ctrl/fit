@@ -1051,6 +1051,44 @@
       "downloadXlsx": "XLSX",
       "emptyRows": "No data in this period yet."
     },
+    "billingPlans": {
+      "title": "Billing",
+      "subtitle": "Your gym’s recurring membership plans — pricing, perks, and who’s subscribed. Create a plan, edit it, or archive one when it’s retired.",
+      "tabs": {
+        "plans": "Plans",
+        "promos": "Promos",
+        "ptPackages": "PT packages"
+      },
+      "kpi": {
+        "activePlans": "Active plans",
+        "subscribers": "Subscribers",
+        "mrr": "MRR",
+        "avgPerMember": "Avg / member"
+      },
+      "segment": {
+        "active": "Active",
+        "archived": "Archived"
+      },
+      "newPlan": "New plan",
+      "planCount": "{count, plural, one {# plan} other {# plans}}",
+      "subscribersLabel": "subscribers",
+      "monthlyLabel": "monthly",
+      "live": "Live",
+      "off": "Off",
+      "freeze": "{days}d freeze",
+      "edit": "Edit",
+      "popular": "Popular",
+      "perksNone": "No perks listed",
+      "emptyActiveTitle": "No active plans",
+      "emptyActiveBody": "Create your first plan to start selling memberships.",
+      "emptyArchivedTitle": "No archived plans",
+      "emptyArchivedBody": "Archived plans will appear here.",
+      "toastArchived": "{name} archived",
+      "toastRestored": "{name} is live",
+      "toastError": "Couldn’t update the plan. Please try again.",
+      "loadError": "Could not load billing plans ({status}): {message}",
+      "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+    },
     "checkin": {
       "title": "Reception",
       "live": "Live",
