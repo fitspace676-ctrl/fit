@@ -1,14 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import type {
-  MemberActivity,
-  MemberActivityKind,
-  MemberCurrentPlan,
-  MemberDetail,
+import {
+  MAX_FREEZE_DURATION_DAYS,
+  type MemberActivity,
+  type MemberActivityKind,
+  type MemberCurrentPlan,
+  type MemberDetail,
 } from '@fit/types';
-import { Btn, Card, Icon, Progress, type IconName } from '@/components/ui';
+import {
+  Btn,
+  Card,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  Progress,
+  useToast,
+  type IconName,
+} from '@/components/ui';
+import { freezeMemberSubscriptionAction, unfreezeMemberSubscriptionAction } from '../actions';
 
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -76,7 +89,13 @@ function EmptyState({ children }: { children: string }) {
  * tenant-scoped fact; empty collections render honest empty states. Tags + notes
  * have no backing model, so they show a disabled affordance / "No notes yet".
  */
-export function MemberTabs({ member, canWrite }: { member: MemberDetail; canWrite: boolean }) {
+export function MemberTabs({
+  member,
+  canManageBilling,
+}: {
+  member: MemberDetail;
+  canManageBilling: boolean;
+}) {
   const t = useTranslations('admin.members');
   const locale = useLocale();
   const [active, setActive] = useState<Tab>('overview');
@@ -110,7 +129,12 @@ export function MemberTabs({ member, canWrite }: { member: MemberDetail; canWrit
 
       <div role="tabpanel">
         {active === 'overview' && (
-          <OverviewPanel member={member} canWrite={canWrite} t={t} locale={locale} />
+          <OverviewPanel
+            member={member}
+            canManageBilling={canManageBilling}
+            t={t}
+            locale={locale}
+          />
         )}
 
         {active === 'subscriptions' &&
@@ -195,12 +219,12 @@ export function MemberTabs({ member, canWrite }: { member: MemberDetail; canWrit
  */
 function OverviewPanel({
   member,
-  canWrite,
+  canManageBilling,
   t,
   locale,
 }: {
   member: MemberDetail;
-  canWrite: boolean;
+  canManageBilling: boolean;
   t: T;
   locale: string;
 }) {
@@ -214,8 +238,9 @@ function OverviewPanel({
       <div className="flex flex-col gap-4">
         <CurrentPlanCard
           plan={member.currentPlan}
+          memberId={member.id}
           currency={member.currency}
-          canWrite={canWrite}
+          canManageBilling={canManageBilling}
           t={t}
           locale={locale}
         />
@@ -309,17 +334,19 @@ function AttendanceCard({ member, t, locale }: { member: MemberDetail; t: T; loc
   );
 }
 
-/** The "Current plan" panel — name / interval / price / renews + days-remaining. */
+/** The "Current plan" panel — name / interval / price / renews + days-remaining + freeze. */
 function CurrentPlanCard({
   plan,
+  memberId,
   currency,
-  canWrite,
+  canManageBilling,
   t,
   locale,
 }: {
   plan: MemberCurrentPlan | null;
+  memberId: string;
   currency: string;
-  canWrite: boolean;
+  canManageBilling: boolean;
   t: T;
   locale: string;
 }) {
@@ -386,15 +413,153 @@ function CurrentPlanCard({
         <Progress value={pct} />
       </div>
 
+      <PlanFreezeControls
+        plan={plan}
+        memberId={memberId}
+        canManageBilling={canManageBilling}
+        t={t}
+        locale={locale}
+      />
+    </Card>
+  );
+}
+
+/**
+ * The "Current plan" freeze / resume controls (T5.7): surfaces the plan's freeze
+ * allowance and lets `BillingManage` staff pause or resume the member's membership,
+ * wired to the `POST /admin/subscriptions/:id/(un)freeze` endpoints via the member
+ * server actions. A frozen plan shows its auto-resume date and a "Resume" action; a
+ * live plan shows a "Freeze" button that opens a duration modal. Non-billing staff
+ * (or a plan with no allowance) see the affordances disabled — the API re-checks.
+ */
+function PlanFreezeControls({
+  plan,
+  memberId,
+  canManageBilling,
+  t,
+  locale,
+}: {
+  plan: MemberCurrentPlan;
+  memberId: string;
+  canManageBilling: boolean;
+  t: T;
+  locale: string;
+}) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [days, setDays] = useState('7');
+
+  const isFrozen = plan.status === 'FROZEN';
+  const remaining = Math.max(0, plan.freezeDaysPerPeriod - plan.freezeDaysUsed);
+  const canFreeze = canManageBilling && plan.status !== 'PAST_DUE' && remaining > 0;
+
+  function submitFreeze(): void {
+    const durationDays = Number(days);
+    if (!Number.isInteger(durationDays) || durationDays < 1) {
+      toast(t('detail.freezeInvalidDuration'), { tone: 'danger', icon: 'info' });
+      return;
+    }
+    startTransition(async () => {
+      const result = await freezeMemberSubscriptionAction(memberId, plan.subscriptionId, {
+        startDate: new Date().toISOString(),
+        durationDays,
+      });
+      if (result.ok) {
+        setOpen(false);
+        toast(t('detail.freezeDone'), { tone: 'success', icon: 'check' });
+        router.refresh();
+      } else {
+        toast(result.error, { tone: 'danger', icon: 'info' });
+      }
+    });
+  }
+
+  function resume(): void {
+    startTransition(async () => {
+      const result = await unfreezeMemberSubscriptionAction(memberId, plan.subscriptionId);
+      if (result.ok) {
+        toast(t('detail.resumeDone'), { tone: 'success', icon: 'check' });
+        router.refresh();
+      } else {
+        toast(result.error, { tone: 'danger', icon: 'info' });
+      }
+    });
+  }
+
+  return (
+    <>
+      {isFrozen ? (
+        <p className="rounded-btn bg-iris-50 px-3 py-2 text-xs font-medium text-iris-700 dark:bg-iris-500/10 dark:text-iris-200">
+          {t('detail.frozenUntil', { date: formatDate(plan.frozenUntil ?? '', locale) })}
+        </p>
+      ) : (
+        <p className="text-xs text-ink-500 dark:text-ink-400">
+          {t('detail.freezeAllowance', {
+            used: plan.freezeDaysUsed,
+            total: plan.freezeDaysPerPeriod,
+          })}
+        </p>
+      )}
+
       <div className="flex gap-2">
-        <Btn v="outline" size="sm" icon="clock" disabled={!canWrite}>
-          {t('detail.freeze')}
-        </Btn>
-        <Btn v="outline" size="sm" icon="plus" disabled={!canWrite}>
+        {isFrozen ? (
+          <Btn
+            v="outline"
+            size="sm"
+            icon="spark"
+            onClick={resume}
+            disabled={!canManageBilling || pending}
+          >
+            {pending ? t('form.saving') : t('detail.resume')}
+          </Btn>
+        ) : (
+          <Btn
+            v="outline"
+            size="sm"
+            icon="clock"
+            onClick={() => setOpen(true)}
+            disabled={!canFreeze || pending}
+            title={canFreeze ? undefined : t('detail.freezeUnavailable')}
+          >
+            {t('detail.freeze')}
+          </Btn>
+        )}
+        <Btn v="outline" size="sm" icon="plus" disabled title={t('detail.addCreditSoon')}>
           {t('detail.addCredit')}
         </Btn>
       </div>
-    </Card>
+
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t('detail.freezeModalTitle')}
+        description={t('detail.freezeModalBody', { days: remaining })}
+        size="sm"
+        footer={
+          <>
+            <Btn v="outline" onClick={() => setOpen(false)} disabled={pending}>
+              {t('actions.cancel')}
+            </Btn>
+            <Btn v="primary" onClick={submitFreeze} disabled={pending}>
+              {pending ? t('form.saving') : t('detail.freezeConfirm')}
+            </Btn>
+          </>
+        }
+      >
+        <Field label={t('detail.freezeDurationLabel')} hint={t('detail.freezeDurationHint')}>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={Math.min(remaining || MAX_FREEZE_DURATION_DAYS, MAX_FREEZE_DURATION_DAYS)}
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+          />
+        </Field>
+      </Modal>
+    </>
   );
 }
 

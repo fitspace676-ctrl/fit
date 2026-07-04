@@ -33,7 +33,14 @@ export interface MemberSubscription {
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  frozenAt: string | null;
   frozenUntil: string | null;
+  /** The plan's freeze allowance — whole days of freeze granted per billing period. */
+  freezeDaysPerPeriod: number;
+  /** Days of freeze already committed against this period's allowance. */
+  freezeDaysUsed: number;
+  /** Days of the allowance still available this period. */
+  freezeDaysRemaining: number;
   memberSince: string | null;
 }
 
@@ -85,7 +92,11 @@ function parseSubscription(raw: unknown): MemberSubscription | null {
     currentPeriodStart: str(r.currentPeriodStart),
     currentPeriodEnd: str(r.currentPeriodEnd),
     cancelAtPeriodEnd: r.cancelAtPeriodEnd === true,
+    frozenAt: str(r.frozenAt),
     frozenUntil: str(r.frozenUntil),
+    freezeDaysPerPeriod: num(r.freezeDaysPerPeriod),
+    freezeDaysUsed: num(r.freezeDaysUsed),
+    freezeDaysRemaining: num(r.freezeDaysRemaining),
     memberSince: str(r.memberSince),
   };
 }

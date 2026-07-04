@@ -33,8 +33,16 @@ export const meSubscriptionSchema = z.object({
   currentPeriodStart: z.string(),
   currentPeriodEnd: z.string(),
   cancelAtPeriodEnd: z.boolean(),
+  /** ISO instant the freeze began, or `null` when not frozen. */
+  frozenAt: z.string().nullable(),
   /** ISO instant the freeze auto-resumes, or `null` when not frozen. */
   frozenUntil: z.string().nullable(),
+  /** The plan's freeze allowance — whole days of freeze granted per billing period. */
+  freezeDaysPerPeriod: z.number().int().nonnegative(),
+  /** Days of freeze already committed against this period's allowance. */
+  freezeDaysUsed: z.number().int().nonnegative(),
+  /** Days of the allowance still available this period (`max(0, perPeriod − used)`). */
+  freezeDaysRemaining: z.number().int().nonnegative(),
   /** When the caller joined the gym (their `GymMember.joinedAt`). */
   memberSince: z.string(),
 });

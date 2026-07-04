@@ -256,6 +256,12 @@ export interface MemberCurrentPlan {
   /** Whole days from now until `currentPeriodEnd` (clamped at 0), for the bar. */
   daysRemaining: number;
   color: string | null;
+  /** ISO instant the freeze auto-resumes, or `null` when the plan is not frozen. */
+  frozenUntil: string | null;
+  /** The plan's freeze allowance — whole days of freeze granted per billing period. */
+  freezeDaysPerPeriod: number;
+  /** Days of freeze already committed against this period's allowance. */
+  freezeDaysUsed: number;
 }
 
 /**

@@ -158,6 +158,10 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   // to staff who hold it, and re-checked by the actions and the API behind them.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
+  // Freezing / resuming a membership is a billing capability (the freeze endpoints
+  // sit behind `BillingManage`), distinct from the `MemberWrite` roster edit above.
+  const canManageBilling =
+    session !== null && roleHasPermission(session.role, Permission.BillingManage);
 
   return (
     <div className="flex flex-col gap-6">
@@ -248,7 +252,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
         />
       </section>
 
-      <MemberTabs member={member} canWrite={canWrite} />
+      <MemberTabs member={member} canManageBilling={canManageBilling} />
     </div>
   );
 }

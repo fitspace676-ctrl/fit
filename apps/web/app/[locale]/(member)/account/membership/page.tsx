@@ -7,6 +7,7 @@ import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
 import { Badge, buttonClasses, Card, Icon, Progress } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
+import { FreezeCard } from './freeze-card';
 
 export const metadata: Metadata = { title: 'Membership — Fit' };
 export const dynamic = 'force-dynamic';
@@ -139,6 +140,20 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           </Link>
         </Card>
       </section>
+
+      {/* Freeze / pause membership (T5.7) — only for a real, live subscription. */}
+      {subscription ? (
+        <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+          <FreezeCard
+            id={subscription.id}
+            status={subscription.status}
+            frozenUntil={subscription.frozenUntil}
+            freezeDaysPerPeriod={subscription.freezeDaysPerPeriod}
+            freezeDaysUsed={subscription.freezeDaysUsed}
+            freezeDaysRemaining={subscription.freezeDaysRemaining}
+          />
+        </section>
+      ) : null}
 
       {/* Metrics */}
       <section className="grid gap-4 sm:grid-cols-3">

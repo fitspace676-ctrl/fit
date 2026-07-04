@@ -5,10 +5,12 @@ import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   createMemberSchema,
+  freezeSubscriptionSchema,
   roleHasPermission,
   updateMemberSchema,
   type BulkExportMembersInput,
   type CreateMemberInput,
+  type FreezeSubscriptionInput,
   type MemberDetail,
   type UpdateMemberInput,
 } from '@fit/types';
@@ -18,7 +20,9 @@ import {
   bulkExportMembers,
   createMember,
   deactivateMember,
+  freezeMemberSubscription,
   reactivateMember,
+  unfreezeMemberSubscription,
   updateMember,
 } from '@/lib/api';
 
@@ -42,6 +46,7 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 
 const requireMemberRead = () => sessionHas(Permission.MemberRead);
 const requireMemberWrite = () => sessionHas(Permission.MemberWrite);
+const requireBillingManage = () => sessionHas(Permission.BillingManage);
 
 /** Map a thrown API error to a short, staff-facing message. */
 function toMessage(error: unknown, t: Translator): string {
@@ -53,6 +58,22 @@ function toMessage(error: unknown, t: Translator): string {
     }
     if (error.message === 'MEMBER_NOT_FOUND') {
       return t('errors.memberNotFound');
+    }
+    // Freeze/unfreeze (T5.7) — map the stable API codes to staff-facing lines.
+    if (error.message === 'EXCEEDS_FREEZE_ALLOWANCE') {
+      return t('errors.freezeAllowance');
+    }
+    if (error.message === 'ALREADY_FROZEN') {
+      return t('errors.alreadyFrozen');
+    }
+    if (error.message === 'NOT_FROZEN') {
+      return t('errors.notFrozen');
+    }
+    if (error.message === 'SUBSCRIPTION_NOT_FREEZABLE') {
+      return t('errors.notFreezable');
+    }
+    if (error.message === 'SUBSCRIPTION_NOT_FOUND') {
+      return t('errors.subscriptionNotFound');
     }
     return t('errors.requestFailed', { status: error.status, message: error.message });
   }
@@ -150,6 +171,55 @@ export async function setMemberActiveAction(
     revalidatePath('/members');
     revalidatePath(`/members/${id}`);
     return { ok: true, data: { status: member.status } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Freeze (pause) a member's subscription from the console (T5.7). `subscriptionId`
+ * is the member's live subscription; `memberId` is the detail page to refresh.
+ * Gated by `BillingManage` (the API re-checks) and re-validates the body with the
+ * same Zod schema the API uses. On success the member's detail page is refreshed so
+ * the "Current plan" panel reflects the frozen state.
+ */
+export async function freezeMemberSubscriptionAction(
+  memberId: string,
+  subscriptionId: string,
+  input: FreezeSubscriptionInput,
+): Promise<ActionResult<{ frozenUntil: string }>> {
+  const t = await getTranslations('admin.members');
+  if (!(await requireBillingManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = freezeSubscriptionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const { frozenUntil } = await freezeMemberSubscription(subscriptionId, parsed.data);
+    revalidatePath('/members');
+    revalidatePath(`/members/${memberId}`);
+    return { ok: true, data: { frozenUntil } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Resume a member's frozen subscription from the console (T5.7). See {@link freezeMemberSubscriptionAction}. */
+export async function unfreezeMemberSubscriptionAction(
+  memberId: string,
+  subscriptionId: string,
+): Promise<ActionResult<{ newPeriodEnd: string }>> {
+  const t = await getTranslations('admin.members');
+  if (!(await requireBillingManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  try {
+    const { newPeriodEnd } = await unfreezeMemberSubscription(subscriptionId);
+    revalidatePath('/members');
+    revalidatePath(`/members/${memberId}`);
+    return { ok: true, data: { newPeriodEnd } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }

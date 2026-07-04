@@ -20,6 +20,7 @@ import {
   type FreezeSubscriptionResponse,
   type UnfreezeSubscriptionResponse,
 } from '@fit/types';
+import { Prisma } from '@fit/db';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -66,10 +67,46 @@ export class SubscriptionFreezeService {
    */
   async freeze(id: string, input: FreezeSubscriptionData): Promise<FreezeSubscriptionResponse> {
     const memberId = await this.requireCallerMembership();
+    return this.freezeWhere({ id, memberId }, input);
+  }
 
+  /**
+   * Freeze a **specific member's** subscription from the staff console
+   * (`POST /admin/subscriptions/:id/freeze`). Unlike {@link freeze} it does not pin
+   * the subscription to the caller's own membership — a staff operator acts on the
+   * member — but the tenant-scoped Prisma client still constrains `id` to the
+   * caller's gym, so a cross-tenant id is a `404`. Shares the freeze legality /
+   * allowance failure modes of {@link freeze}.
+   */
+  async freezeForStaff(
+    id: string,
+    input: FreezeSubscriptionData,
+  ): Promise<FreezeSubscriptionResponse> {
+    return this.freezeWhere({ id }, input);
+  }
+
+  /**
+   * Resume a **specific member's** frozen subscription from the staff console
+   * (`POST /admin/subscriptions/:id/unfreeze`). The staff counterpart to
+   * {@link unfreeze}; scoping is by the tenant-constrained `id` alone (see
+   * {@link freezeForStaff}).
+   */
+  async unfreezeForStaff(id: string): Promise<UnfreezeSubscriptionResponse> {
+    return this.unfreezeWhere({ id });
+  }
+
+  /**
+   * Core freeze transaction, parameterised by the `where` that identifies the
+   * subscription: `{ id, memberId }` for a member acting on their own membership,
+   * `{ id }` for a staff operator (both tenant-scoped by the Prisma extension).
+   */
+  private async freezeWhere(
+    where: Prisma.SubscriptionWhereInput,
+    input: FreezeSubscriptionData,
+  ): Promise<FreezeSubscriptionResponse> {
     return this.prisma.client.$transaction(async (tx) => {
       const subscription = await tx.subscription.findFirst({
-        where: { id, memberId },
+        where,
         select: {
           id: true,
           status: true,
@@ -133,10 +170,19 @@ export class SubscriptionFreezeService {
    */
   async unfreeze(id: string): Promise<UnfreezeSubscriptionResponse> {
     const memberId = await this.requireCallerMembership();
+    return this.unfreezeWhere({ id, memberId });
+  }
 
+  /**
+   * Core unfreeze transaction, parameterised by the `where` that identifies the
+   * subscription (see {@link freezeWhere}).
+   */
+  private async unfreezeWhere(
+    where: Prisma.SubscriptionWhereInput,
+  ): Promise<UnfreezeSubscriptionResponse> {
     return this.prisma.client.$transaction(async (tx) => {
       const subscription = await tx.subscription.findFirst({
-        where: { id, memberId },
+        where,
         select: {
           id: true,
           status: true,

@@ -763,6 +763,30 @@
       "pastDue": {
         "title": "Payment didn't go through",
         "body": "We couldn't process your last renewal. We'll retry automatically over the next few days — please settle up at the desk to keep your membership active."
+      },
+      "freeze": {
+        "title": "Pause membership",
+        "subtitle": "Freeze your plan while you're away",
+        "used": "{used} of {total} days used",
+        "remaining": "{days} days left",
+        "freeze": "Pause membership",
+        "resume": "Resume now",
+        "working": "Working…",
+        "notAvailable": "Your plan doesn't include freezes.",
+        "exhausted": "You've used all your freeze days this period.",
+        "frozenUntil": "Paused until {date}",
+        "frozenHint": "Your membership resumes automatically — or resume it any time.",
+        "modalTitle": "Pause membership",
+        "modalBody": "You have {days} freeze days left this period.",
+        "durationLabel": "How many days?",
+        "durationHint": "Your renewal date moves out by the days you're paused.",
+        "cancel": "Cancel",
+        "confirmFreeze": "Pause",
+        "frozenToast": "Membership paused until {date}",
+        "resumedToast": "Membership resumed",
+        "errInvalidDuration": "Enter a whole number of days.",
+        "errAllowance": "That's more than the {days} freeze days you have left.",
+        "errGeneric": "Something went wrong. Please try again."
       }
     },
     "profile": {
@@ -1511,7 +1535,8 @@
       "actions": {
         "edit": "Edit",
         "reactivate": "Reactivate",
-        "deactivate": "Deactivate"
+        "deactivate": "Deactivate",
+        "cancel": "Cancel"
       },
       "nav": {
         "backToMembers": "Back to members",
@@ -1562,7 +1587,20 @@
         "tags": "Tags",
         "noTags": "No tags yet.",
         "add": "Add",
-        "tagsDisabledTitle": "Member tags aren’t modelled yet"
+        "tagsDisabledTitle": "Member tags aren’t modelled yet",
+        "freezeAllowance": "Freeze: {used}/{total} days used this period",
+        "frozenUntil": "Frozen until {date}",
+        "resume": "Resume",
+        "freezeUnavailable": "No freeze days left this period",
+        "addCreditSoon": "Coming soon",
+        "freezeModalTitle": "Freeze membership",
+        "freezeModalBody": "{days} freeze days remain this period.",
+        "freezeDurationLabel": "Duration (days)",
+        "freezeDurationHint": "The renewal date moves out by the days frozen.",
+        "freezeConfirm": "Freeze",
+        "freezeInvalidDuration": "Enter a whole number of days.",
+        "freezeDone": "Membership frozen",
+        "resumeDone": "Membership resumed"
       },
       "memberTabs": {
         "overview": "Overview",
@@ -1580,7 +1618,12 @@
         "memberNotFound": "That member no longer exists.",
         "requestFailed": "Request failed ({status}): {message}",
         "unexpected": "Unexpected error",
-        "invalidDetails": "Invalid member details"
+        "invalidDetails": "Invalid member details",
+        "freezeAllowance": "This freeze exceeds the plan's allowance.",
+        "alreadyFrozen": "This membership is already frozen.",
+        "notFrozen": "This membership isn't frozen.",
+        "notFreezable": "This membership can't be frozen in its current state.",
+        "subscriptionNotFound": "Subscription not found."
       }
     },
     "trainers": {
