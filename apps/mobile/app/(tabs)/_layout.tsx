@@ -10,11 +10,17 @@ import {
 import { useTranslation } from '../../providers/I18nProvider';
 import { useTheme } from '../../providers/ThemeProvider';
 
-// Bottom-tab navigator: Classes · Bookings · [QR] · Shop · Profile. The QR
+// Bottom-tab navigator: Home · Classes · [QR] · Shop · Profile. The QR
 // check-in screen sits in the centre slot, rendered as a raised floating action
 // button instead of a flat tab item. Tab colors and the active/inactive tints
 // come from `useTheme()`, so the whole bar repaints when the system switches
 // between light and dark. Labels come from the shared `@fit/i18n` catalogue.
+//
+// Home is the landing tab (the formacore member-home artboard, T7.2); the
+// route guard (`useProtectedRoute`) drops an onboarded member here. Bookings is
+// still a reachable route (Home's "upcoming bookings" section links to it), so
+// it moves off the flat bar to keep the tab count to the five the QR FAB layout
+// is designed around.
 
 /** Emoji glyph used as a flat tab icon, tinted to the active/inactive color. */
 function TabIcon({ glyph, color }: { glyph: string; color: ColorValue }) {
@@ -64,19 +70,22 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
+        name="home"
+        options={{
+          title: t('common.nav.home'),
+          tabBarIcon: ({ color }) => <TabIcon glyph="🏠" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="classes"
         options={{
           title: t('common.nav.classes'),
           tabBarIcon: ({ color }) => <TabIcon glyph="🗓" color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="bookings"
-        options={{
-          title: t('common.nav.bookings'),
-          tabBarIcon: ({ color }) => <TabIcon glyph="📋" color={color} />,
-        }}
-      />
+      {/* Bookings stays a reachable route (linked from Home) but is lifted off
+          the flat bar so the QR FAB keeps the centre of a five-slot layout. */}
+      <Tabs.Screen name="bookings" options={{ href: null }} />
       <Tabs.Screen
         name="qr"
         options={{
