@@ -2,12 +2,17 @@ import type { Metadata } from 'next';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
 import type { MemberBookingHistoryEntry } from '@fit/types';
 import { fetchMembership } from '@/lib/membership';
-import { fetchMyCreditPacks, totalRemainingCredits } from '@/lib/credit-packs';
+import {
+  fetchCreditPackCatalogue,
+  fetchMyCreditPacks,
+  totalRemainingCredits,
+} from '@/lib/credit-packs';
 import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
 import { Badge, buttonClasses, Card, Icon, Progress } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { FreezeCard } from './freeze-card';
+import { BuyCreditsCard } from './buy-credits-card';
 
 export const metadata: Metadata = { title: 'Membership — Fit' };
 export const dynamic = 'force-dynamic';
@@ -33,13 +38,15 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, activeLocale, { subscription, invoices }, creditPacks, bookings] = await Promise.all([
-    getTranslations('member.membership'),
-    getLocale(),
-    safe(fetchMembership(), { subscription: null, invoices: [] }),
-    safe(fetchMyCreditPacks(), []),
-    safe(fetchMemberBookings({ scope: 'all' }), [] as MemberBookingHistoryEntry[]),
-  ]);
+  const [t, activeLocale, { subscription, invoices }, creditPacks, catalogue, bookings] =
+    await Promise.all([
+      getTranslations('member.membership'),
+      getLocale(),
+      safe(fetchMembership(), { subscription: null, invoices: [] }),
+      safe(fetchMyCreditPacks(), []),
+      safe(fetchCreditPackCatalogue(), []),
+      safe(fetchMemberBookings({ scope: 'all' }), [] as MemberBookingHistoryEntry[]),
+    ]);
 
   const credits = totalRemainingCredits(creditPacks);
   const attended = bookings.filter((b) => b.status === 'ATTENDED').length;
@@ -176,21 +183,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           </p>
           <Progress value={Math.min(100, attended * 8)} className="mt-3" tone="bg-brand-500" />
         </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 text-ink-500 dark:text-ink-400">
-            <Icon name="dumbbell" className="h-5 w-5" />
-            <p className="text-xs font-semibold uppercase tracking-wide">{t('ptCredits')}</p>
-          </div>
-          <p className="mt-3 font-display text-2xl font-extrabold tabular-nums text-ink-900 dark:text-white">
-            {credits}
-          </p>
-          <Link
-            href="/trainers"
-            className="mt-2 inline-block text-xs font-semibold text-brand-600 hover:underline dark:text-brand-300"
-          >
-            {t('buyMore')}
-          </Link>
-        </Card>
+        <BuyCreditsCard credits={credits} catalogue={catalogue} />
       </section>
 
       {/* Invoices */}

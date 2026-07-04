@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   CreditPackStatus,
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -10,6 +15,8 @@ import {
 import {
   INSUFFICIENT_CREDITS_CODE,
   PACK_UNAVAILABLE_CODE,
+  type CreditPackSummary,
+  type ListCreditPackCatalogueResponse,
   type ListCreditPacksResponse,
   type PurchaseCreditPackData,
   type PurchaseCreditPackResponse,
@@ -60,6 +67,81 @@ export class CreditPacksService {
    */
   async purchasePack(data: PurchaseCreditPackData): Promise<PurchaseCreditPackResponse> {
     const memberId = await this.requireCallerMembership();
+    return this.mintPackForMember(memberId, data);
+  }
+
+  /**
+   * Sell / grant a credit pack to a *specific* member from the staff console
+   * (T5.8) — the desk-side mirror of {@link purchasePack}. The member is named by
+   * `memberId` (from the admin member-detail screen), validated to belong to the
+   * caller's gym (`404 MEMBER_NOT_FOUND` otherwise) before the same catalogue
+   * validation + minting runs. Behind `BillingManage`, not the member's own
+   * `CreditPackManage`, so staff can top up a member who paid at the desk.
+   */
+  async grantPackForMember(
+    memberId: string,
+    data: PurchaseCreditPackData,
+  ): Promise<PurchaseCreditPackResponse> {
+    await this.requireMemberInGym(memberId);
+    return this.mintPackForMember(memberId, data);
+  }
+
+  /**
+   * The gym's purchasable credit packs (T5.8) — every `ACTIVE`
+   * {@link PackagePlan} that grants a finite, positive credit count, cheapest
+   * first. Feeds the member portal's "Buy credits" picker and the admin
+   * "Add credit" modal. An empty list is a normal result (a gym that sells no
+   * finite-session packs — only unlimited memberships). Tenant-scoped, so it needs
+   * no `gymId` argument.
+   */
+  async listCatalogue(): Promise<ListCreditPackCatalogueResponse> {
+    const plans = await this.prisma.client.packagePlan.findMany({
+      where: { status: PackagePlanStatus.ACTIVE, sessionCount: { gt: 0 } },
+      orderBy: [{ priceAmount: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        priceAmount: true,
+        currency: true,
+        sessionCount: true,
+        creditValidityDays: true,
+      },
+    });
+
+    return {
+      packs: plans.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        priceAmount: plan.priceAmount,
+        currency: plan.currency,
+        // The `sessionCount > 0` filter guarantees a non-null, positive count.
+        sessionCount: plan.sessionCount ?? 0,
+        validityDays: plan.creditValidityDays,
+      })),
+    };
+  }
+
+  /**
+   * A named member's usable credit packs for the staff console (T5.8) — the same
+   * `ACTIVE`, credits-remaining projection {@link listMyCreditPacks} returns, but
+   * for the member identified by `memberId` (validated to belong to the caller's
+   * gym) rather than the caller. Powers the admin member-detail credit balance.
+   */
+  async listMemberCreditPacks(memberId: string): Promise<ListCreditPacksResponse> {
+    await this.requireMemberInGym(memberId);
+    return { packs: await this.readUsablePacks(memberId) };
+  }
+
+  /**
+   * Validate the catalogue plan then mint the pack for `memberId` in one
+   * transaction — the shared core of {@link purchasePack} (the member buying for
+   * themselves) and {@link grantPackForMember} (staff selling to a member). See the
+   * class docstring for the purchase lifecycle.
+   */
+  private async mintPackForMember(
+    memberId: string,
+    data: PurchaseCreditPackData,
+  ): Promise<PurchaseCreditPackResponse> {
     const gymId = this.tenant.gymId;
 
     const plan = await this.prisma.client.packagePlan.findFirst({
@@ -156,7 +238,17 @@ export class CreditPacksService {
    */
   async listMyCreditPacks(): Promise<ListCreditPacksResponse> {
     const memberId = await this.requireCallerMembership();
+    return { packs: await this.readUsablePacks(memberId) };
+  }
 
+  /**
+   * The shared read behind {@link listMyCreditPacks} (the caller's own) and
+   * {@link listMemberCreditPacks} (a named member, for staff): a member's `ACTIVE`
+   * packs that still have credits, ordered by the one expiring soonest first (the
+   * FIFO draw order), never-expiring packs last. Maps each to the wire
+   * {@link CreditPackSummary}.
+   */
+  private async readUsablePacks(memberId: string): Promise<CreditPackSummary[]> {
     const packs = await this.prisma.client.creditPack.findMany({
       where: { memberId, status: CreditPackStatus.ACTIVE, remainingCredits: { gt: 0 } },
       orderBy: [{ expiresAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
@@ -169,15 +261,13 @@ export class CreditPacksService {
       },
     });
 
-    return {
-      packs: packs.map((pack) => ({
-        id: pack.id,
-        totalCredits: pack.totalCredits,
-        remainingCredits: pack.remainingCredits,
-        expiresAt: pack.expiresAt ? pack.expiresAt.toISOString() : null,
-        planTitle: pack.name,
-      })),
-    };
+    return packs.map((pack) => ({
+      id: pack.id,
+      totalCredits: pack.totalCredits,
+      remainingCredits: pack.remainingCredits,
+      expiresAt: pack.expiresAt ? pack.expiresAt.toISOString() : null,
+      planTitle: pack.name,
+    }));
   }
 
   /**
@@ -292,6 +382,23 @@ export class CreditPacksService {
       });
     }
     return member.id;
+  }
+
+  /**
+   * Assert `memberId` names a member of the caller's gym — the guard for the staff
+   * grant / balance endpoints, which take the member id off the wire (unlike the
+   * self-service flows, where it comes from the session). The tenant-scoped client
+   * already constrains the lookup to this gym, so an unknown or cross-tenant id
+   * simply isn't found and is a `404 MEMBER_NOT_FOUND` (mirroring `MembersService`).
+   */
+  private async requireMemberInGym(memberId: string): Promise<void> {
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id: memberId },
+      select: { id: true },
+    });
+    if (!member) {
+      throw new NotFoundException({ message: 'Member not found', code: 'MEMBER_NOT_FOUND' });
+    }
   }
 }
 

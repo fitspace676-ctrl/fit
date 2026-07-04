@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   MAX_FREEZE_DURATION_DAYS,
+  type CreditPackCatalogueEntry,
+  type CreditPackSummary,
   type MemberActivity,
   type MemberActivityKind,
   type MemberCurrentPlan,
@@ -21,7 +23,11 @@ import {
   useToast,
   type IconName,
 } from '@/components/ui';
-import { freezeMemberSubscriptionAction, unfreezeMemberSubscriptionAction } from '../actions';
+import {
+  freezeMemberSubscriptionAction,
+  grantMemberCreditPackAction,
+  unfreezeMemberSubscriptionAction,
+} from '../actions';
 
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -92,9 +98,13 @@ function EmptyState({ children }: { children: string }) {
 export function MemberTabs({
   member,
   canManageBilling,
+  creditPacks,
+  creditCatalogue,
 }: {
   member: MemberDetail;
   canManageBilling: boolean;
+  creditPacks: CreditPackSummary[];
+  creditCatalogue: CreditPackCatalogueEntry[];
 }) {
   const t = useTranslations('admin.members');
   const locale = useLocale();
@@ -132,6 +142,8 @@ export function MemberTabs({
           <OverviewPanel
             member={member}
             canManageBilling={canManageBilling}
+            creditPacks={creditPacks}
+            creditCatalogue={creditCatalogue}
             t={t}
             locale={locale}
           />
@@ -220,11 +232,15 @@ export function MemberTabs({
 function OverviewPanel({
   member,
   canManageBilling,
+  creditPacks,
+  creditCatalogue,
   t,
   locale,
 }: {
   member: MemberDetail;
   canManageBilling: boolean;
+  creditPacks: CreditPackSummary[];
+  creditCatalogue: CreditPackCatalogueEntry[];
   t: T;
   locale: string;
 }) {
@@ -240,6 +256,14 @@ function OverviewPanel({
           plan={member.currentPlan}
           memberId={member.id}
           currency={member.currency}
+          canManageBilling={canManageBilling}
+          t={t}
+          locale={locale}
+        />
+        <CreditsCard
+          memberId={member.id}
+          packs={creditPacks}
+          catalogue={creditCatalogue}
           canManageBilling={canManageBilling}
           t={t}
           locale={locale}
@@ -526,9 +550,6 @@ function PlanFreezeControls({
             {t('detail.freeze')}
           </Btn>
         )}
-        <Btn v="outline" size="sm" icon="plus" disabled title={t('detail.addCreditSoon')}>
-          {t('detail.addCredit')}
-        </Btn>
       </div>
 
       <Modal
@@ -560,6 +581,138 @@ function PlanFreezeControls({
         </Field>
       </Modal>
     </>
+  );
+}
+
+/**
+ * The "Credits" panel (T5.8) — the member's remaining class-credit balance and,
+ * for `BillingManage` staff, an "Add credit" modal that sells / grants a pack from
+ * the gym's catalogue. Balance is the sum of `remainingCredits` across the member's
+ * usable packs (each shown as a row with its remaining / total and expiry). Choosing
+ * a pack posts to `POST /admin/members/:id/credit-packs` via the grant action, then
+ * refreshes so the new balance shows. Non-billing staff see the balance read-only;
+ * a gym with no packs on sale shows no "Add credit" button.
+ */
+function CreditsCard({
+  memberId,
+  packs,
+  catalogue,
+  canManageBilling,
+  t,
+  locale,
+}: {
+  memberId: string;
+  packs: CreditPackSummary[];
+  catalogue: CreditPackCatalogueEntry[];
+  canManageBilling: boolean;
+  t: T;
+  locale: string;
+}) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [grantingId, setGrantingId] = useState<string | null>(null);
+
+  const totalRemaining = packs.reduce((sum, pack) => sum + pack.remainingCredits, 0);
+  const canBuy = canManageBilling && catalogue.length > 0;
+
+  function grant(pack: CreditPackCatalogueEntry): void {
+    setGrantingId(pack.id);
+    startTransition(async () => {
+      const result = await grantMemberCreditPackAction(memberId, pack.id);
+      setGrantingId(null);
+      if (result.ok) {
+        setOpen(false);
+        toast(t('detail.creditGranted', { count: pack.sessionCount }), {
+          tone: 'success',
+          icon: 'check',
+        });
+        router.refresh();
+      } else {
+        toast(result.error, { tone: 'danger', icon: 'info' });
+      }
+    });
+  }
+
+  return (
+    <Card glow className="flex flex-col gap-4 p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+          {t('detail.credits')}
+        </h3>
+        <span className="font-mono text-lg font-bold tabular-nums text-ink-900 dark:text-white">
+          {totalRemaining}
+        </span>
+      </div>
+
+      {packs.length === 0 ? (
+        <p className="text-sm text-ink-400">{t('detail.noCredits')}</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {packs.map((pack) => (
+            <li key={pack.id} className={ROW_CLASS}>
+              <div className="min-w-0">
+                <p className="truncate font-medium text-ink-900 dark:text-white">
+                  {pack.planTitle ?? t('detail.creditPack')}
+                </p>
+                <p className="text-xs text-ink-500 dark:text-ink-400">
+                  {pack.expiresAt
+                    ? t('detail.creditExpires', { date: formatDate(pack.expiresAt, locale) })
+                    : t('detail.creditNoExpiry')}
+                </p>
+              </div>
+              <span className="shrink-0 font-mono text-xs tabular-nums text-ink-600 dark:text-ink-300">
+                {t('detail.creditRemaining', {
+                  remaining: pack.remainingCredits,
+                  total: pack.totalCredits,
+                })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {canManageBilling ? (
+        <Btn
+          v="outline"
+          size="sm"
+          icon="plus"
+          onClick={() => setOpen(true)}
+          disabled={!canBuy || pending}
+          title={canBuy ? undefined : t('detail.noCreditPacksOnSale')}
+        >
+          {t('detail.addCredit')}
+        </Btn>
+      ) : null}
+
+      <Modal
+        open={open}
+        onClose={() => (pending ? undefined : setOpen(false))}
+        title={t('detail.addCreditModalTitle')}
+        description={t('detail.addCreditModalBody')}
+        size="sm"
+      >
+        <ul className="flex flex-col gap-2">
+          {catalogue.map((pack) => (
+            <li key={pack.id} className={ROW_CLASS}>
+              <div className="min-w-0">
+                <p className="truncate font-medium text-ink-900 dark:text-white">{pack.name}</p>
+                <p className="text-xs text-ink-500 dark:text-ink-400">
+                  {t('detail.creditPackMeta', {
+                    count: pack.sessionCount,
+                    price: formatAmount(pack.priceAmount, pack.currency),
+                  })}
+                </p>
+              </div>
+              <Btn v="primary" size="sm" onClick={() => grant(pack)} disabled={pending}>
+                {grantingId === pack.id ? t('form.saving') : t('detail.sell')}
+              </Btn>
+            </li>
+          ))}
+        </ul>
+      </Modal>
+    </Card>
   );
 }
 

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { CreditPackStatus, OrderStatus, PackagePlanStatus, PaymentStatus } from '@fit/db';
 import { CreditPacksService } from './credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -62,16 +66,21 @@ function applyBalance(
   if (delta?.decrement !== undefined) pack.remainingCredits -= delta.decrement;
 }
 
+/** A package-plan row as the catalogue mock holds it. */
+interface PlanRow {
+  id: string;
+  name: string;
+  priceAmount: number;
+  currency: string;
+  sessionCount: number | null;
+  creditValidityDays: number | null;
+  status: PackagePlanStatus;
+}
+
 interface Options {
-  plan?: {
-    id: string;
-    name: string;
-    priceAmount: number;
-    currency: string;
-    sessionCount: number | null;
-    creditValidityDays: number | null;
-    status: PackagePlanStatus;
-  } | null;
+  plan?: PlanRow | null;
+  /** Rows the `packagePlan.findMany` catalogue mock draws from (before the service's filter). */
+  catalogue?: PlanRow[];
   packs?: PackRow[];
   entitlingSubscription?: boolean;
   member?: boolean;
@@ -138,6 +147,22 @@ function setup(opts?: Options) {
     },
     packagePlan: {
       findFirst: vi.fn().mockResolvedValue(opts?.plan === undefined ? null : opts.plan),
+      // Mirror the catalogue query: ACTIVE, finite-positive sessionCount, cheapest
+      // first (name as the tiebreak), projecting the columns the service selects.
+      findMany: vi.fn((args: { where: Record<string, unknown> }) => {
+        const rows = (opts?.catalogue ?? [])
+          .filter((p) => p.status === args.where.status && (p.sessionCount ?? 0) > 0)
+          .sort((a, b) => a.priceAmount - b.priceAmount || a.name.localeCompare(b.name))
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            priceAmount: p.priceAmount,
+            currency: p.currency,
+            sessionCount: p.sessionCount,
+            creditValidityDays: p.creditValidityDays,
+          }));
+        return Promise.resolve(rows);
+      }),
     },
     subscription: {
       findFirst: vi.fn().mockResolvedValue(opts?.entitlingSubscription ? { id: 'sub-1' } : null),
@@ -310,6 +335,130 @@ describe('CreditPacksService', () => {
         planTitle: 'A',
       });
       expect(result.packs[0]?.expiresAt).toBe(utc(2026, 6, 15).toISOString());
+    });
+  });
+
+  describe('listCatalogue', () => {
+    it('returns ACTIVE finite-session packs cheapest first, projecting validityDays', async () => {
+      const ctx = setup({
+        catalogue: [
+          activePlan({ id: 'pricey', name: 'Z', priceAmount: 9000, sessionCount: 20 }),
+          activePlan({
+            id: 'cheap',
+            name: 'A',
+            priceAmount: 5000,
+            sessionCount: 10,
+            creditValidityDays: null,
+          }),
+          // Excluded: unlimited membership (no countable credits).
+          activePlan({ id: 'unlimited', name: 'M', sessionCount: null }),
+          // Excluded: not on sale.
+          activePlan({ id: 'inactive', name: 'X', status: PackagePlanStatus.INACTIVE }),
+        ],
+      });
+
+      const result = await ctx.service.listCatalogue();
+
+      expect(result.packs.map((p) => p.id)).toEqual(['cheap', 'pricey']);
+      expect(result.packs[0]).toEqual({
+        id: 'cheap',
+        name: 'A',
+        priceAmount: 5000,
+        currency: 'USD',
+        sessionCount: 10,
+        validityDays: null,
+      });
+      expect(result.packs[1]?.validityDays).toBe(30);
+    });
+
+    it('returns an empty list when the gym sells no finite-session packs', async () => {
+      const ctx = setup({ catalogue: [] });
+
+      const result = await ctx.service.listCatalogue();
+
+      expect(result.packs).toEqual([]);
+    });
+  });
+
+  describe('grantPackForMember', () => {
+    it('mints a pack for the named member after validating they belong to the gym', async () => {
+      const ctx = setup({ plan: activePlan() });
+
+      const result = await ctx.service.grantPackForMember(MEMBER_ID, { packId: 'plan-1' });
+
+      expect(result.creditPackId).toBe('pack-1');
+      expect(ctx.client.gymMember.findFirst).toHaveBeenCalled();
+      const packData = ctx.creditPackCreate.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+      expect(packData).toMatchObject({
+        memberId: MEMBER_ID,
+        totalCredits: 10,
+        remainingCredits: 10,
+      });
+    });
+
+    it('404 MEMBER_NOT_FOUND for an unknown / cross-tenant member, without minting', async () => {
+      const ctx = setup({ plan: activePlan(), member: false });
+
+      const error = await ctx.service
+        .grantPackForMember('ghost', { packId: 'plan-1' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as NotFoundException).getResponse()).toMatchObject({
+        code: 'MEMBER_NOT_FOUND',
+      });
+      expect(ctx.creditPackCreate).not.toHaveBeenCalled();
+    });
+
+    it('422 PACK_UNAVAILABLE for an unlimited plan even when the member exists', async () => {
+      const ctx = setup({ plan: activePlan({ sessionCount: null }) });
+
+      const error = await ctx.service
+        .grantPackForMember(MEMBER_ID, { packId: 'plan-1' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(UnprocessableEntityException);
+    });
+  });
+
+  describe('listMemberCreditPacks', () => {
+    it("returns the named member's usable packs, soonest-expiring first", async () => {
+      const ctx = setup({
+        packs: [
+          {
+            id: 'later',
+            memberId: MEMBER_ID,
+            status: CreditPackStatus.ACTIVE,
+            remainingCredits: 5,
+            totalCredits: 5,
+            expiresAt: utc(2026, 7, 1),
+            createdAt: utc(2026, 6, 1),
+            name: 'B',
+          },
+          {
+            id: 'sooner',
+            memberId: MEMBER_ID,
+            status: CreditPackStatus.ACTIVE,
+            remainingCredits: 2,
+            totalCredits: 10,
+            expiresAt: utc(2026, 6, 15),
+            createdAt: utc(2026, 6, 2),
+            name: 'A',
+          },
+        ],
+      });
+
+      const result = await ctx.service.listMemberCreditPacks(MEMBER_ID);
+
+      expect(result.packs.map((p) => p.id)).toEqual(['sooner', 'later']);
+    });
+
+    it('404 MEMBER_NOT_FOUND for an unknown member', async () => {
+      const ctx = setup({ member: false });
+
+      const error = await ctx.service.listMemberCreditPacks('ghost').catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
     });
   });
 

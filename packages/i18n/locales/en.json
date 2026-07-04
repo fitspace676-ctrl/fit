@@ -787,6 +787,19 @@
         "errInvalidDuration": "Enter a whole number of days.",
         "errAllowance": "That's more than the {days} freeze days you have left.",
         "errGeneric": "Something went wrong. Please try again."
+      },
+      "credits": {
+        "title": "PT credits",
+        "buyMore": "Buy more",
+        "noneOnSale": "No packs on sale",
+        "modalTitle": "Buy credits",
+        "modalBody": "Pick a credit pack to buy. Pay at the desk.",
+        "packMeta": "{count, plural, one {# credit} other {# credits}} · {price}",
+        "buy": "Buy",
+        "buying": "Buying…",
+        "boughtToast": "{count, plural, one {# credit} other {# credits}} added",
+        "errUnavailable": "That pack is no longer available.",
+        "errGeneric": "Something went wrong. Please try again."
       }
     },
     "profile": {
@@ -1600,7 +1613,19 @@
         "freezeConfirm": "Freeze",
         "freezeInvalidDuration": "Enter a whole number of days.",
         "freezeDone": "Membership frozen",
-        "resumeDone": "Membership resumed"
+        "resumeDone": "Membership resumed",
+        "credits": "Credits",
+        "noCredits": "No class credits.",
+        "creditPack": "Credit pack",
+        "creditExpires": "Expires {date}",
+        "creditNoExpiry": "Never expires",
+        "creditRemaining": "{remaining}/{total}",
+        "noCreditPacksOnSale": "No credit packs on sale",
+        "addCreditModalTitle": "Add credits",
+        "addCreditModalBody": "Sell a class-credit pack to this member.",
+        "creditPackMeta": "{count, plural, one {# credit} other {# credits}} · {price}",
+        "creditGranted": "{count, plural, one {# credit} other {# credits}} added",
+        "sell": "Sell"
       },
       "memberTabs": {
         "overview": "Overview",
@@ -1623,7 +1648,8 @@
         "alreadyFrozen": "This membership is already frozen.",
         "notFrozen": "This membership isn't frozen.",
         "notFreezable": "This membership can't be frozen in its current state.",
-        "subscriptionNotFound": "Subscription not found."
+        "subscriptionNotFound": "Subscription not found.",
+        "packUnavailable": "This pack is no longer available."
       }
     },
     "trainers": {

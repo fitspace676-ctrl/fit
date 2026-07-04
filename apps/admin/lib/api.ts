@@ -66,6 +66,10 @@ import type {
   FreezeSubscriptionData,
   FreezeSubscriptionResponse,
   UnfreezeSubscriptionResponse,
+  PurchaseCreditPackData,
+  PurchaseCreditPackResponse,
+  ListCreditPacksResponse,
+  ListCreditPackCatalogueResponse,
   ListAdminClassTemplatesQuery,
   ListAdminClassTemplatesResponse,
   CreateClassTemplateData,
@@ -740,6 +744,48 @@ export async function unfreezeMemberSubscription(
     },
   );
   return unwrap<UnfreezeSubscriptionResponse>(res);
+}
+
+// ── Credit packs (T5.8) ───────────────────────────────────────────────────────
+
+/**
+ * `GET /admin/members/:id/credit-packs` — a member's usable credit packs (the
+ * remaining-balance display on the member-detail screen). An unknown member is a
+ * `404 MEMBER_NOT_FOUND` surfaced as an {@link ApiError}.
+ */
+export async function fetchMemberCreditPacks(id: string): Promise<ListCreditPacksResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/members/${encodeURIComponent(id)}/credit-packs`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListCreditPacksResponse>(res);
+}
+
+/** `GET /admin/credit-packs/catalogue` — the gym's buyable credit packs, for the "Add credit" modal. */
+export async function fetchCreditPackCatalogue(): Promise<ListCreditPackCatalogueResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/credit-packs/catalogue`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListCreditPackCatalogueResponse>(res);
+}
+
+/**
+ * `POST /admin/members/:id/credit-packs` — sell / grant a credit pack (named by
+ * `{ packId }`) to a member from the console. A plan that isn't a purchasable pack
+ * is a `422 PACK_UNAVAILABLE`; an unknown member is a `404 MEMBER_NOT_FOUND`.
+ */
+export async function grantMemberCreditPack(
+  id: string,
+  input: PurchaseCreditPackData,
+): Promise<PurchaseCreditPackResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/members/${encodeURIComponent(id)}/credit-packs`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<PurchaseCreditPackResponse>(res);
 }
 
 // ── Class templates (T5.2) ────────────────────────────────────────────────────
