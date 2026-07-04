@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { InvoiceModule } from '../billing/invoice.module';
 import { AdminSubscriptionEnrollmentController } from './admin-subscription-enrollment.controller';
 import { AdminSubscriptionFreezeController } from './admin-subscription-freeze.controller';
 import { PAYMENT_PROVIDER } from './payment-provider';
@@ -30,6 +31,7 @@ import { SubscriptionsController } from './subscriptions.controller';
  * come from their global modules; the cron runs off the app-wide `ScheduleModule`.
  */
 @Module({
+  imports: [InvoiceModule],
   controllers: [
     SubscriptionsController,
     AdminSubscriptionEnrollmentController,

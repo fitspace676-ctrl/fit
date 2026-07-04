@@ -10,9 +10,11 @@ import {
   SubscriptionPlanStatus,
   SubscriptionStatus,
   initialBillingPeriod,
+  subscriptionInvoiceDescription,
   trialBillingPeriod,
 } from '@fit/db';
 import type { EnrolledSubscription, EnrollSubscriptionResponse } from '@fit/types';
+import { InvoiceService } from '../billing/invoice.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -65,18 +67,20 @@ type EnrolledSubscriptionRecord = Prisma.SubscriptionGetPayload<{
  * occupies the same single live slot as any other live subscription.
  *
  * The charge itself is a **stub** at this stage: the subscription is stamped
- * `provider = "stub"` (the model default) rather than settling a real payment. A
- * recurring-billing {@link Payment} is order-bound in the schema and belongs to the
- * payment-provider hardening + renewal-job work (T5.11 / T5.4) that depends on this
- * task; recording one here would mean minting a synthetic order, which is out of
- * scope and inconsistent with how `GET /me/subscription` already reports an empty
- * invoice history until real billing lands.
+ * `provider = "stub"` (the model default) rather than settling a real payment through a
+ * gateway (T5.11 / T8.8). A paid (non-trial) enrolment does, however, mint a numbered
+ * {@link Invoice} for the first period via {@link InvoiceService} inside the same
+ * transaction (T5.9), so the member's billing history — surfaced by
+ * `GET /me/subscription` — reflects the charge from day one. A `TRIAL` enrolment charges
+ * nothing yet, so it raises no invoice; the recurring-billing job mints the first one
+ * when the trial converts.
  */
 @Injectable()
 export class SubscriptionEnrollmentService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly invoices: InvoiceService,
   ) {}
 
   /**
@@ -140,6 +144,7 @@ export class SubscriptionEnrollmentService {
         where: { id: planId },
         select: {
           id: true,
+          name: true,
           status: true,
           priceAmount: true,
           currency: true,
@@ -180,7 +185,7 @@ export class SubscriptionEnrollmentService {
         : initialBillingPeriod(now, plan.interval);
 
       try {
-        return await tx.subscription.create({
+        const created = await tx.subscription.create({
           data: {
             gymId,
             planId: plan.id,
@@ -194,6 +199,25 @@ export class SubscriptionEnrollmentService {
           },
           select: ENROLLED_SUBSCRIPTION_SELECT,
         });
+
+        // A paid (non-trial) enrolment charges the first period now, so it mints a
+        // numbered invoice inside this same transaction — the subscription and its
+        // first billing record commit together. A trial charges nothing yet (the
+        // recurring-billing job raises the first invoice when it converts), so none is
+        // minted here.
+        if (!isTrial) {
+          await this.invoices.issue(tx, {
+            gymId,
+            memberId,
+            subscriptionId: created.id,
+            amount: plan.priceAmount,
+            currency: plan.currency,
+            description: subscriptionInvoiceDescription(plan.name, plan.interval, 'enrolment'),
+            issuedAt: currentPeriodStart,
+          });
+        }
+
+        return created;
       } catch (error) {
         // The partial unique index is the race-safe backstop for the pre-check
         // above: a concurrent enrolment that slipped between the read and this
