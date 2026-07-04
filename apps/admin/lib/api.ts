@@ -23,6 +23,8 @@ import type {
   CreateMemberResponse,
   CreateTrainerData,
   CreateTrainerResponse,
+  ListActivityQuery,
+  ListActivityResponse,
   ListAuditLogQuery,
   ListAuditLogResponse,
   GetGymSettingsResponse,
@@ -908,6 +910,41 @@ export async function fetchAuditLogs(
     cache: 'no-store',
   });
   return unwrap<ListAuditLogResponse>(res);
+}
+
+// ── Activity feed (T3.8 → T3.9) ────────────────────────────────────────────────
+
+/**
+ * Serialise an activity-feed query to a `?key=value` string, dropping `undefined`
+ * / empty values so a bare list (`GET /admin/activity`) carries no noise. The API
+ * re-coerces and re-validates with the same Zod schema.
+ */
+export function activityQueryString(query: Partial<ListActivityQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/**
+ * `GET /admin/activity` — one filtered, server-paginated page of the gym's unified
+ * activity stream (signups, bookings, check-ins, sales, subscription enrolments),
+ * newest first. Gated `ReportView` API-side; an empty page is a normal result.
+ */
+export async function fetchActivity(
+  query: Partial<ListActivityQuery> = {},
+): Promise<ListActivityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/activity${activityQueryString(query)}`, {
+    headers: await authHeaders(),
+    // The feed reflects live tenant state — never serve a stale stream.
+    cache: 'no-store',
+  });
+  return unwrap<ListActivityResponse>(res);
 }
 
 // ── Dashboard (T4.10) ─────────────────────────────────────────────────────────

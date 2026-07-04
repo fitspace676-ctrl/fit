@@ -911,6 +911,7 @@
       "reports": "რეპორტები",
       "locations": "ლოკაციები",
       "activity": "აქტივობა",
+      "auditLog": "აუდიტის ჟურნალი",
       "settings": "პარამეტრები"
     },
     "system": {
@@ -1092,6 +1093,39 @@
         "justNow": "ახლახან",
         "minutes": "{minutes} წთ წინ",
         "hours": "{hours} სთ წინ"
+      }
+    },
+    "activity": {
+      "title": "აქტივობა",
+      "subtitle": "ყველაფერი, რაც თქვენს დარბაზში ხდება — რეალურ დროში.",
+      "live": "ლაივი",
+      "filters": {
+        "all": "ყველა",
+        "from": "დან",
+        "to": "მდე",
+        "clear": "გასუფთავება"
+      },
+      "types": {
+        "signup": "ახალი წევრები",
+        "booking": "ჯავშნები",
+        "checkin": "შემოსვლები",
+        "sale": "გაყიდვები",
+        "subscription": "გამოწერები"
+      },
+      "empty": "თქვენს ფილტრებს არცერთი აქტივობა არ ემთხვევა.",
+      "error": "აქტივობის ლენტის ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+      "errorUnreachable": "Fit API-სთან დაკავშირება ვერ მოხერხდა. შეამოწმეთ NEXT_PUBLIC_API_URL და რომ API გაშვებულია.",
+      "guest": "სტუმარი",
+      "pager": {
+        "range": "{from}–{to} / {total}",
+        "previous": "წინა",
+        "next": "შემდეგი"
+      },
+      "relative": {
+        "justNow": "ახლახან",
+        "minutes": "{mins}წთ წინ",
+        "hours": "{hours}სთ წინ",
+        "days": "{days}დღ წინ"
       }
     },
     "schedule": {
