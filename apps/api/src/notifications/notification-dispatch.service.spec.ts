@@ -38,7 +38,33 @@ describe('NotificationDispatchService', () => {
       title: 'Booking confirmed',
       body: 'Morning HIIT · Mon 08:00',
       href: '/bookings',
+      dedupeKey: null,
     });
+  });
+
+  it('persists a supplied dedupeKey and normalises an omitted one to null', async () => {
+    const { service, notification } = setup();
+
+    await service.dispatch({
+      gymId: 'gym-1',
+      userId: 'user-1',
+      category: NotificationCategory.BOOKING,
+      title: 'Reminder',
+      body: 'Class in 2h',
+      dedupeKey: 'reminder:booking-9',
+    });
+    expect(notification.create.mock.calls[0]?.[0]?.data).toMatchObject({
+      dedupeKey: 'reminder:booking-9',
+    });
+
+    await service.dispatch({
+      gymId: 'gym-1',
+      userId: 'user-1',
+      category: NotificationCategory.SYSTEM,
+      title: 'Notice',
+      body: 'Hello',
+    });
+    expect(notification.create.mock.calls[1]?.[0]?.data).toMatchObject({ dedupeKey: null });
   });
 
   it('normalises an omitted href to null', async () => {
