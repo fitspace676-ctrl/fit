@@ -15,6 +15,7 @@ import {
   BookingStatus,
   CheckInMethod,
   LocationStatus,
+  NotificationCategory,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
@@ -119,6 +120,55 @@ async function main() {
       status: GymMemberStatus.INVITED,
     },
   });
+
+  // A few inbox notifications for the member-portal fixture (T6.10) so the bell
+  // renders with a live unread badge + list out of the box: two unread, one
+  // already read. Keyed on (gymId, userId, title) so re-running the seed is
+  // idempotent (notifications have no natural unique column). Producers that emit
+  // these in real flows are separate Phase-8 tasks (T8.6/T8.7/T8.8); this is
+  // demo/dev data only.
+  const SEED_NOTIFICATIONS = [
+    {
+      category: NotificationCategory.BOOKING,
+      title: 'Booking confirmed',
+      body: 'Morning HIIT · Mon 08:00 with Coach Nia',
+      href: '/bookings',
+      readAt: null as Date | null,
+    },
+    {
+      category: NotificationCategory.BILLING,
+      title: 'Membership renews soon',
+      body: 'Your Pro plan renews on the 1st — nothing to do.',
+      href: '/account/membership',
+      readAt: null as Date | null,
+    },
+    {
+      category: NotificationCategory.SYSTEM,
+      title: 'Welcome to FormaCore',
+      body: 'Browse classes, book a spot, and check in with your QR code.',
+      href: null as string | null,
+      readAt: new Date('2026-06-01T09:00:00.000Z') as Date | null,
+    },
+  ];
+  for (const n of SEED_NOTIFICATIONS) {
+    const exists = await prisma.notification.findFirst({
+      where: { gymId: downtown.id, userId: sam.id, title: n.title },
+      select: { id: true },
+    });
+    if (!exists) {
+      await prisma.notification.create({
+        data: {
+          gymId: downtown.id,
+          userId: sam.id,
+          category: n.category,
+          title: n.title,
+          body: n.body,
+          href: n.href,
+          readAt: n.readAt,
+        },
+      });
+    }
+  }
 
   // A platform SUPER_ADMIN fixture for local dev / E2E so the operator console
   // (T2.12) is reachable out of the box. Gated to non-production: never seed a

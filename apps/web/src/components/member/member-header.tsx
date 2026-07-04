@@ -7,6 +7,7 @@ import { Icon } from '@/src/components/ui';
 import { useSession } from '@/hooks/use-session';
 import { logout } from '@/lib/auth';
 import { ThemeToggle } from './theme-toggle';
+import { NotificationBell } from './notification-bell';
 import { NAV_ITEMS, isActive } from './nav-items';
 
 /** Brand mark — the gradient bolt badge + wordmark, linking home. */
@@ -20,48 +21,6 @@ function Logo({ label }: { label: string }) {
         {label}
       </span>
     </Link>
-  );
-}
-
-/** The notifications bell + dropdown. Empty until member notifications are wired. */
-function Notifications() {
-  const t = useTranslations('member.shell');
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label={t('notifications')}
-        aria-expanded={open}
-        className="relative grid h-10 w-10 place-items-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
-      >
-        <Icon name="bell" className="h-5 w-5" />
-        <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-brand-500 ring-2 ring-white dark:ring-ink-950" />
-      </button>
-
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-hidden
-            tabIndex={-1}
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 cursor-default"
-          />
-          <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-card border border-ink-200 bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-ink-900">
-            <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3 dark:border-white/10">
-              <p className="text-sm font-bold text-ink-900 dark:text-white">{t('notifications')}</p>
-            </div>
-            <div className="grid place-items-center gap-2 px-4 py-10 text-center">
-              <Icon name="check" className="h-6 w-6 text-ink-300 dark:text-ink-500" />
-              <p className="text-sm text-ink-500 dark:text-ink-400">{t('noNotifications')}</p>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
   );
 }
 
@@ -187,7 +146,7 @@ export function MemberHeader() {
           >
             <Icon name="bag" className="h-5 w-5" />
           </Link>
-          <Notifications />
+          <NotificationBell />
           <AccountMenu />
 
           {/* Mobile menu toggle */}
