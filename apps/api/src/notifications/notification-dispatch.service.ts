@@ -19,6 +19,10 @@ export interface DispatchNotificationInput {
   body: string;
   /** Optional in-app deep-link the portal routes to when tapped (e.g. `/bookings`). */
   href?: string | null;
+  /** Optional idempotency key. Persisted on the row so the `(userId, dedupeKey)`
+   * unique index rejects a duplicate delivery of the same logical notification
+   * (T8.1 dedupe). Null/omitted for one-off notices that need no dedupe. */
+  dedupeKey?: string | null;
 }
 
 /**
@@ -44,7 +48,10 @@ export class NotificationDispatchService {
   /**
    * Persist a single in-app notification for `(gymId, userId)` and return its id.
    * A plain create — inbox items are append-only until the member marks them
-   * read — with `href` normalised to `null` when omitted.
+   * read — with `href` and `dedupeKey` normalised to `null` when omitted. When a
+   * `dedupeKey` is supplied the `(userId, dedupeKey)` unique index makes a repeat
+   * create throw `P2002`; the caller ({@link NotificationService}) treats that as
+   * a dedupe hit rather than an error.
    */
   async dispatch(input: DispatchNotificationInput): Promise<{ id: string }> {
     const row = await this.prisma.client.notification.create({
@@ -55,6 +62,7 @@ export class NotificationDispatchService {
         title: input.title,
         body: input.body,
         href: input.href ?? null,
+        dedupeKey: input.dedupeKey ?? null,
       },
       select: { id: true },
     });

@@ -181,6 +181,18 @@ enum NotificationCategory {
   SYSTEM
 }
 
+/// A delivery channel the notification dispatch pipeline can fan a message out
+/// to (Phase 8, T8.1). `IN_APP` persists a {@link Notification} inbox row (the
+/// portal bell, live today); `EMAIL` and `PUSH` are the transactional-email
+/// (T8.2) and Expo-push (T8.3) channels that hang off the same dispatch seam.
+/// Also the axis a member's {@link NotificationPreference} opt-outs are keyed on,
+/// so a member can mute one channel of a category while keeping the others.
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  PUSH
+}
+
 /// Lifecycle of a storefront {@link Order} (T7.1). `PENDING` is the freshly
 /// created, not-yet-paid order the purchase wizard opens; `PAID` is the terminal
 /// "payment captured" state the success page confirms; `CANCELLED` is an
@@ -316,28 +328,29 @@ model Gym {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  members           GymMember[]
-  trainers          Trainer[]
-  locations         Location[]
-  products          Product[]
-  packagePlans      PackagePlan[]
-  staffInvites      StaffInvite[]
-  classTemplates    ClassTemplate[]
-  classInstances    ClassInstance[]
-  bookings          Booking[]
-  reviews           Review[]
-  orders            Order[]
-  payments          Payment[]
-  refunds           Refund[]
-  carts             Cart[]
-  subscriptionPlans SubscriptionPlan[]
-  subscriptions     Subscription[]
-  creditPacks       CreditPack[]
-  memberGoals       MemberGoal[]
-  checkIns          CheckIn[]
-  invoices          Invoice[]
-  invoiceSequences  InvoiceSequence[]
-  notifications     Notification[]
+  members                 GymMember[]
+  trainers                Trainer[]
+  locations               Location[]
+  products                Product[]
+  packagePlans            PackagePlan[]
+  staffInvites            StaffInvite[]
+  classTemplates          ClassTemplate[]
+  classInstances          ClassInstance[]
+  bookings                Booking[]
+  reviews                 Review[]
+  orders                  Order[]
+  payments                Payment[]
+  refunds                 Refund[]
+  carts                   Cart[]
+  subscriptionPlans       SubscriptionPlan[]
+  subscriptions           Subscription[]
+  creditPacks             CreditPack[]
+  memberGoals             MemberGoal[]
+  checkIns                CheckIn[]
+  invoices                Invoice[]
+  invoiceSequences        InvoiceSequence[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -371,11 +384,12 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  memberships   GymMember[]
-  refreshTokens RefreshToken[]
-  pushTokens    PushToken[]
-  carts         Cart[]
-  notifications Notification[]
+  memberships             GymMember[]
+  refreshTokens           RefreshToken[]
+  pushTokens              PushToken[]
+  carts                   Cart[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
 
   @@map("users")
 }
@@ -429,6 +443,15 @@ model Notification {
   /// Optional in-app deep-link the portal routes to when the item is tapped
   /// (e.g. `/bookings`). Null for a plain informational notice.
   href      String?
+  /// Optional idempotency key for dedupe (T8.1). When a producer supplies one,
+  /// `NotificationService.send` skips a second delivery with the same
+  /// `(userId, dedupeKey)` rather than notifying twice — e.g. a booking-reminder
+  /// job that reruns, or a retried billing webhook, must not double-notify. The
+  /// partial unique on `(userId, dedupeKey)` makes the guarantee race-safe (two
+  /// concurrent sends collide on the insert); null for one-off notices that need
+  /// no dedupe, and Postgres treats distinct nulls as non-conflicting so those
+  /// coexist freely.
+  dedupeKey String?
   /// When the member first opened the item; null while unread.
   readAt    DateTime?
   createdAt DateTime             @default(now())
@@ -436,11 +459,46 @@ model Notification {
   gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Idempotency guard for dedupe — non-null keys are unique per recipient; the
+  // many null keys of ordinary notices are exempt (Postgres nulls are distinct).
+  @@unique([userId, dedupeKey])
   // Backs the inbox list (newest-first) and the unread-count query, both keyed
   // by (gym, user).
   @@index([gymId, userId, createdAt])
   @@index([gymId, userId, readAt])
   @@map("notifications")
+}
+
+/// A member's per-category, per-channel notification opt-out (Phase 8, T8.1).
+/// The dispatch pipeline is **opt-out**: the absence of a row means the
+/// `(category, channel)` pair is enabled, so a member who never touches their
+/// settings receives everything. A row with `enabled = false` mutes exactly one
+/// `(category, channel)` for that member in that gym — muting BILLING email while
+/// keeping BILLING in-app, say. Preferences are per-gym (a member of two gyms can
+/// opt out in one only), so — like the {@link Notification} rows they gate — the
+/// row carries an explicit `gymId` and `NotificationService` resolves them by
+/// `(userId, gymId, category)`. Cascade-deleted with either the user or the gym.
+model NotificationPreference {
+  id        String               @id @default(cuid())
+  gymId     String
+  userId    String
+  category  NotificationCategory
+  channel   NotificationChannel
+  /// Whether the member receives this `(category, channel)`. A row exists only
+  /// once the member has expressed a choice; `false` is a mute. Defaults to
+  /// `true` so an explicitly-created "on" row reads naturally.
+  enabled   Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One preference row per (member, gym, category, channel); the resolver loads
+  // a member's rows for a gym+category to subtract muted channels from a send.
+  @@unique([gymId, userId, category, channel])
+  @@index([gymId, userId])
+  @@map("notification_preferences")
 }
 
 /// Join table between User and Gym carrying the user's role and status within
