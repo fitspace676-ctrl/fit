@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { PaymentMethod, PosReceipt } from '@fit/types';
 import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/products/format-price';
 import {
@@ -34,11 +35,15 @@ interface CompletedSale {
   receipt: PosReceipt;
 }
 
-/** The three settlement methods, with the copy the buttons render. */
-const METHODS: ReadonlyArray<{ method: PaymentMethod; label: string; hint: string }> = [
-  { method: 'cash', label: 'Cash', hint: 'Tendered at the desk' },
-  { method: 'card', label: 'Card', hint: 'Card terminal' },
-  { method: 'member_account', label: 'Member account', hint: 'Charge to house account' },
+/** The three settlement methods, keyed to the `admin.pos.payment.methods` copy. */
+const METHODS: ReadonlyArray<{ method: PaymentMethod; labelKey: string; hintKey: string }> = [
+  { method: 'cash', labelKey: 'methods.cash', hintKey: 'methods.cashHint' },
+  { method: 'card', labelKey: 'methods.card', hintKey: 'methods.cardHint' },
+  {
+    method: 'member_account',
+    labelKey: 'methods.memberAccount',
+    hintKey: 'methods.memberAccountHint',
+  },
 ];
 
 /** Round-up suggestions offered as quick-tender chips, in minor units (5 / 10 / 20 / 50). */
@@ -66,6 +71,7 @@ export function PosPayment({
   onClose: () => void;
   onCompleted: () => void;
 }) {
+  const t = useTranslations('admin.pos.payment');
   const items = usePosCart((state) => state.items);
   const total = usePosCart(selectTotal);
   const subtotal = usePosCart(selectSubtotal);
@@ -166,7 +172,7 @@ export function PosPayment({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Take payment"
+        aria-label={t('title')}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
         className="flex w-full max-w-md flex-col gap-4 rounded-card border border-ink-200 bg-white p-5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.5)] focus:outline-none dark:border-white/10 dark:bg-ink-900 dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl"
@@ -177,7 +183,7 @@ export function PosPayment({
           <>
             <div className="flex items-baseline justify-between">
               <h2 className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white">
-                Take payment
+                {t('title')}
               </h2>
               <span className="font-mono text-2xl font-bold tabular-nums text-ink-900 dark:text-white">
                 {formatPrice(total, currency)}
@@ -185,7 +191,7 @@ export function PosPayment({
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-              {METHODS.map(({ method: value, label, hint }) => {
+              {METHODS.map(({ method: value, labelKey, hintKey }) => {
                 const disabled = value === 'member_account' && member === null;
                 const selected = method === value;
                 return (
@@ -202,10 +208,10 @@ export function PosPayment({
                     } ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
                   >
                     <span className="text-sm font-semibold text-ink-900 dark:text-white">
-                      {label}
+                      {t(labelKey)}
                     </span>
                     <span className="text-[11px] leading-tight text-ink-500 dark:text-ink-400">
-                      {hint}
+                      {t(hintKey)}
                     </span>
                   </button>
                 );
@@ -214,14 +220,14 @@ export function PosPayment({
 
             {method === 'member_account' && member !== null ? (
               <p className="rounded-card bg-brand-50 px-3 py-2 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-                Charged to {member.name}&rsquo;s account.
+                {t('chargedTo', { name: member.name })}
               </p>
             ) : null}
 
             {method === 'cash' ? (
               <div className="flex flex-col gap-3 border-t border-ink-100 pt-3 dark:border-white/10">
                 <label className="flex items-center justify-between gap-2 text-sm font-medium text-ink-700 dark:text-ink-200">
-                  <span>Cash received</span>
+                  <span>{t('cashReceived')}</span>
                   <input
                     type="number"
                     min={0}
@@ -230,7 +236,7 @@ export function PosPayment({
                     value={cashTendered > 0 ? minorToInput(cashTendered) : ''}
                     onChange={(event) => setCashTendered(inputToMinor(event.target.value) ?? 0)}
                     placeholder="0.00"
-                    aria-label="Cash received"
+                    aria-label={t('cashReceived')}
                     className="w-32 rounded-field border border-ink-200 bg-white px-2 py-1 text-right text-base text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
                   />
                 </label>
@@ -243,14 +249,14 @@ export function PosPayment({
                       onClick={() => setCashTendered(amount)}
                       className="rounded-btn border border-ink-200 px-3 py-1 text-sm text-ink-700 hover:border-brand-400 hover:bg-brand-50 dark:border-white/10 dark:text-ink-200 dark:hover:border-brand-500/60 dark:hover:bg-brand-500/10"
                     >
-                      {amount === total ? 'Exact' : formatPrice(amount, currency)}
+                      {amount === total ? t('exact') : formatPrice(amount, currency)}
                     </button>
                   ))}
                 </div>
 
                 <div className="flex items-center justify-between text-base">
                   <span className="font-medium text-ink-600 dark:text-ink-300">
-                    {cashShort ? 'Still owed' : 'Change due'}
+                    {cashShort ? t('stillOwed') : t('changeDue')}
                   </span>
                   <span
                     className={`font-mono font-bold tabular-nums ${cashShort ? 'text-danger-600 dark:text-danger-400' : 'text-ink-900 dark:text-white'}`}
@@ -267,13 +273,13 @@ export function PosPayment({
                 className="flex items-center gap-2 p-3 text-sm text-danger-700 dark:text-danger-300"
               >
                 <Icon name="info" className="h-4 w-4 shrink-0" />
-                <span>Couldn’t record the sale: {saveError}</span>
+                <span>{t('recordError', { error: saveError })}</span>
               </Card>
             ) : null}
 
             <div className="flex gap-2 pt-1">
               <Btn v="outline" size="md" onClick={onClose} className="flex-1">
-                Cancel
+                {t('cancel')}
               </Btn>
               <Btn
                 v="primary"
@@ -282,7 +288,7 @@ export function PosPayment({
                 disabled={!canComplete}
                 className="flex-[2]"
               >
-                {saving ? 'Recording…' : 'Complete sale'}
+                {saving ? t('recording') : t('complete')}
               </Btn>
             </div>
           </>
@@ -294,7 +300,16 @@ export function PosPayment({
 
 /** The post-completion confirmation: what was settled, plus change owed for cash. */
 function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () => void }) {
-  const methodLabel = METHODS.find((entry) => entry.method === sale.method)?.label ?? sale.method;
+  const t = useTranslations('admin.pos.payment');
+  const labelKey = METHODS.find((entry) => entry.method === sale.method)?.labelKey;
+  const methodLabel = labelKey ? t(labelKey) : sale.method;
+  const summary = sale.memberName
+    ? t('success.summaryMember', {
+        count: sale.itemCount,
+        method: methodLabel,
+        member: sale.memberName,
+      })
+    : t('success.summary', { count: sale.itemCount, method: methodLabel });
 
   return (
     <div className="flex flex-col gap-4 text-center">
@@ -303,17 +318,14 @@ function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () 
           <Icon name="check" className="h-6 w-6" sw={2.5} />
         </div>
         <h2 className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white">
-          Sale complete
+          {t('success.title')}
         </h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          {sale.itemCount} item{sale.itemCount === 1 ? '' : 's'} · {methodLabel}
-          {sale.memberName ? ` · ${sale.memberName}` : ''}
-        </p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{summary}</p>
       </div>
 
       <dl className="flex flex-col gap-2 rounded-card border border-ink-200 p-3 text-sm dark:border-white/10">
         <div className="flex items-center justify-between">
-          <dt className="text-ink-500 dark:text-ink-400">Total paid</dt>
+          <dt className="text-ink-500 dark:text-ink-400">{t('success.totalPaid')}</dt>
           <dd className="font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
             {formatPrice(sale.total, sale.currency)}
           </dd>
@@ -321,13 +333,15 @@ function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () 
         {sale.method === 'cash' ? (
           <>
             <div className="flex items-center justify-between">
-              <dt className="text-ink-500 dark:text-ink-400">Cash received</dt>
+              <dt className="text-ink-500 dark:text-ink-400">{t('success.cashReceived')}</dt>
               <dd className="font-mono tabular-nums text-ink-900 dark:text-white">
                 {formatPrice(sale.tendered, sale.currency)}
               </dd>
             </div>
             <div className="flex items-center justify-between text-base">
-              <dt className="font-medium text-ink-600 dark:text-ink-300">Change due</dt>
+              <dt className="font-medium text-ink-600 dark:text-ink-300">
+                {t('success.changeDue')}
+              </dt>
               <dd className="font-mono font-bold tabular-nums text-ink-900 dark:text-white">
                 {formatPrice(sale.change, sale.currency)}
               </dd>
@@ -339,7 +353,7 @@ function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () 
       <ReceiptSender sale={sale} />
 
       <Btn v="primary" size="md" onClick={onFinish}>
-        New sale
+        {t('success.newSale')}
       </Btn>
     </div>
   );
@@ -360,6 +374,7 @@ type SendStatus =
  * is reported as a soft note rather than an error, since the sale still completed.
  */
 function ReceiptSender({ sale }: { sale: CompletedSale }) {
+  const t = useTranslations('admin.pos.payment.receipt');
   const [email, setEmail] = useState(sale.memberEmail ?? '');
   const [status, setStatus] = useState<SendStatus>({ kind: 'idle' });
 
@@ -381,7 +396,7 @@ function ReceiptSender({ sale }: { sale: CompletedSale }) {
 
   return (
     <div className="flex flex-col gap-2 border-t border-ink-100 pt-3 text-left dark:border-white/10">
-      <span className="text-sm font-medium text-ink-700 dark:text-ink-200">Email receipt</span>
+      <span className="text-sm font-medium text-ink-700 dark:text-ink-200">{t('heading')}</span>
       <div className="flex gap-2">
         <input
           type="email"
@@ -392,21 +407,21 @@ function ReceiptSender({ sale }: { sale: CompletedSale }) {
               setStatus({ kind: 'idle' });
             }
           }}
-          placeholder="customer@example.com"
-          aria-label="Receipt email address"
+          placeholder={t('placeholder')}
+          aria-label={t('label')}
           className="h-11 flex-1 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
         <Btn v="outline" size="md" onClick={() => void send()} disabled={!canSend}>
-          {status.kind === 'sending' ? 'Sending…' : 'Send'}
+          {status.kind === 'sending' ? t('sending') : t('send')}
         </Btn>
       </div>
       {status.kind === 'sent' ? (
-        <p className="text-xs text-success-700 dark:text-success-300">Receipt sent to {trimmed}.</p>
+        <p className="text-xs text-success-700 dark:text-success-300">
+          {t('sent', { email: trimmed })}
+        </p>
       ) : null}
       {status.kind === 'unconfigured' ? (
-        <p className="text-xs text-ink-500 dark:text-ink-400">
-          Email delivery isn&rsquo;t configured — receipt not sent.
-        </p>
+        <p className="text-xs text-ink-500 dark:text-ink-400">{t('unconfigured')}</p>
       ) : null}
       {status.kind === 'error' ? (
         <p className="text-xs text-danger-600 dark:text-danger-400">{status.message}</p>

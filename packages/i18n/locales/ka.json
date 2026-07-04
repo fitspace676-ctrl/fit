@@ -1095,6 +1095,86 @@
         "hours": "{hours} სთ წინ"
       }
     },
+    "pos": {
+      "title": "გაყიდვის წერტილი",
+      "forbidden": "თქვენ არ გაქვთ გაყიდვის წერტილის გამოყენების ნებართვა.",
+      "shortcuts": "F1 პროდუქტების ძებნა · F2 წევრის მოძებნა · Esc გაყიდვის გასუფთავება",
+      "endOfDay": "დღის დახურვის ანგარიში",
+      "products": {
+        "searchLabel": "პროდუქტების ძებნა (F1)",
+        "searchPlaceholder": "პროდუქტების ძებნა სახელით…  (F1)",
+        "empty": "ამ ძებნას აქტიური პროდუქტი არ ემთხვევა."
+      },
+      "member": {
+        "searchLabel": "წევრის მოძებნა სახელით ან ტელეფონით (F2)",
+        "searchPlaceholder": "წევრის სახელი ან ტელეფონი…  (F2)",
+        "scan": "QR სკანირება",
+        "stopScan": "გაჩერება",
+        "walkIn": "გაყიდვა წევრის გარეშე — წევრი აუცილებელი არ არის.",
+        "remove": "მოხსნა",
+        "noMatch": "დასკანერებული კოდი არცერთ წევრს არ დაემთხვა.",
+        "cameraError": "კამერასთან წვდომა ვერ მოხერხდა.",
+        "scanUnsupported": "QR სკანირება ამ მოწყობილობაზე/ბრაუზერში არ არის მხარდაჭერილი. მოძებნეთ სახელით ან ტელეფონით."
+      },
+      "cart": {
+        "heading": "კალათა",
+        "headingCount": "კალათა · {count, plural, one {# ერთეული} other {# ერთეული}}",
+        "clear": "გასუფთავება (Esc)",
+        "empty": "გაყიდვის დასაწყებად შეეხეთ პროდუქტს.",
+        "each": "{price} თითო",
+        "remove": "წაშლა",
+        "removeItem": "{name}-ის წაშლა",
+        "decrease": "{name}-ის რაოდენობის შემცირება",
+        "increase": "{name}-ის რაოდენობის გაზრდა",
+        "quantity": "{name}-ის რაოდენობა",
+        "discountShort": "ფასდ.",
+        "lineDiscountLabel": "{name}-ის ხაზის ფასდაკლება",
+        "cartDiscount": "კალათის ფასდაკლება",
+        "cartDiscountLabel": "კალათის დონის ფასდაკლება",
+        "subtotal": "ქვეჯამი",
+        "discounts": "ფასდაკლებები",
+        "total": "ჯამი",
+        "charge": "გადახდა {total}"
+      },
+      "payment": {
+        "title": "გადახდის მიღება",
+        "methods": {
+          "cash": "ნაღდი",
+          "cashHint": "მიღებული ადგილზე",
+          "card": "ბარათი",
+          "cardHint": "ბარათის ტერმინალი",
+          "memberAccount": "წევრის ანგარიში",
+          "memberAccountHint": "ჩარიცხვა შიდა ანგარიშზე"
+        },
+        "chargedTo": "ჩაირიცხა {name}-ის ანგარიშზე.",
+        "cashReceived": "მიღებული ნაღდი",
+        "exact": "ზუსტი",
+        "changeDue": "ხურდა",
+        "stillOwed": "დარჩენილი თანხა",
+        "recordError": "გაყიდვის აღრიცხვა ვერ მოხერხდა: {error}",
+        "cancel": "გაუქმება",
+        "complete": "გაყიდვის დასრულება",
+        "recording": "მიმდინარეობს…",
+        "success": {
+          "title": "გაყიდვა დასრულდა",
+          "summary": "{count, plural, one {# ერთეული} other {# ერთეული}} · {method}",
+          "summaryMember": "{count, plural, one {# ერთეული} other {# ერთეული}} · {method} · {member}",
+          "totalPaid": "სულ გადახდილი",
+          "cashReceived": "მიღებული ნაღდი",
+          "changeDue": "ხურდა",
+          "newSale": "ახალი გაყიდვა"
+        },
+        "receipt": {
+          "heading": "ქვითრის გაგზავნა ელფოსტით",
+          "label": "ქვითრის ელფოსტის მისამართი",
+          "placeholder": "customer@example.com",
+          "send": "გაგზავნა",
+          "sending": "იგზავნება…",
+          "sent": "ქვითარი გაიგზავნა {email}-ზე.",
+          "unconfigured": "ელფოსტის მიწოდება არ არის კონფიგურირებული — ქვითარი არ გაიგზავნა."
+        }
+      }
+    },
     "activity": {
       "title": "აქტივობა",
       "subtitle": "ყველაფერი, რაც თქვენს დარბაზში ხდება — რეალურ დროში.",

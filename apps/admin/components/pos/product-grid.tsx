@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
+import { useTranslations } from 'next-intl';
 import { formatPrice } from '@/app/(dashboard)/products/format-price';
 import { searchPosProductsAction, type PosProductRow } from '@/app/(dashboard)/pos/actions';
 import { Card, Icon } from '@/components/ui';
@@ -24,6 +25,7 @@ export function ProductGrid({
   searchRef: RefObject<HTMLInputElement | null>;
   onAdd: (product: PosProductRow) => void;
 }) {
+  const t = useTranslations('admin.pos.products');
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<PosProductRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -63,14 +65,14 @@ export function ProductGrid({
     <div className="flex h-full flex-col gap-4">
       <div className="relative">
         <label htmlFor="pos-product-search" className="sr-only">
-          Search products (F1)
+          {t('searchLabel')}
         </label>
         <input
           ref={searchRef}
           id="pos-product-search"
           type="search"
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search products by name…  (F1)"
+          placeholder={t('searchPlaceholder')}
           className="h-12 w-full rounded-field border border-ink-200 bg-white px-4 text-base text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
       </div>
@@ -88,7 +90,7 @@ export function ProductGrid({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {products.length === 0 && !isPending && !error ? (
           <p className="px-1 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
-            No active products match this search.
+            {t('empty')}
           </p>
         ) : (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

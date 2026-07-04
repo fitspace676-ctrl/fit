@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { Card, Icon } from '@/components/ui';
@@ -27,6 +28,7 @@ export const dynamic = 'force-dynamic';
  * server shell: it checks the capability, then hands off to the client board.
  */
 export default async function PosPage() {
+  const t = await getTranslations('admin.pos');
   const session = await getServerSession();
   const canSell = session !== null && roleHasPermission(session.role, Permission.ProductRead);
   const canReconcile = session !== null && roleHasPermission(session.role, Permission.BillingRead);
@@ -35,14 +37,14 @@ export default async function PosPage() {
     return (
       <div className="flex flex-col gap-3 p-6">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Point of sale
+          {t('title')}
         </h1>
         <Card
           role="alert"
           className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
         >
           <Icon name="info" className="h-5 w-5 shrink-0" />
-          <span>You don’t have permission to use the point of sale.</span>
+          <span>{t('forbidden')}</span>
         </Card>
       </div>
     );
@@ -52,18 +54,16 @@ export default async function PosPage() {
     <div className="flex h-screen flex-col gap-4 p-4">
       <header className="flex items-baseline justify-between gap-4">
         <h1 className="font-display text-xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-2xl">
-          Point of sale
+          {t('title')}
         </h1>
         <div className="flex items-baseline gap-4">
-          <p className="hidden text-xs text-ink-400 sm:block">
-            F1 search products · F2 find member · Esc clear sale
-          </p>
+          <p className="hidden text-xs text-ink-400 sm:block">{t('shortcuts')}</p>
           {canReconcile ? (
             <Link
               href="/pos/reconciliation"
               className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
             >
-              End-of-day report
+              {t('endOfDay')}
             </Link>
           ) : null}
         </div>
