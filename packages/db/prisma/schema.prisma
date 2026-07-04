@@ -270,6 +270,19 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+/// Settlement state of an {@link Invoice} (T5.9). An invoice is minted the moment a
+/// subscription charge is taken, so the common case is `PAID` (the enrolment /
+/// renewal / POS charge settled). `PENDING` is a charge awaiting confirmation, `FAILED`
+/// a charge that was declined, and `REFUNDED` an invoice whose payment was later
+/// returned. The values mirror the member-facing `MeInvoice` wire status in `@fit/types`
+/// so `GET /me/subscription` surfaces them without translation.
+enum InvoiceStatus {
+  PAID
+  PENDING
+  FAILED
+  REFUNDED
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -311,6 +324,8 @@ model Gym {
   creditPacks       CreditPack[]
   memberGoals       MemberGoal[]
   checkIns          CheckIn[]
+  invoices          Invoice[]
+  invoiceSequences  InvoiceSequence[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -399,6 +414,7 @@ model GymMember {
   creditPacks   CreditPack[]
   goals         MemberGoal[]
   checkIns      CheckIn[]
+  invoices      Invoice[]
 
   @@unique([userId, gymId])
   @@index([gymId])
@@ -858,30 +874,30 @@ model StaffInvite {
 /// the confirmation renders without re-aggregating. `status` tracks the lifecycle
 /// (see {@link OrderStatus}); payment is captured via the related {@link Payment}.
 model Order {
-  id            String      @id @default(cuid())
-  gymId         String
-  packageId     String?
-  locationId    String?
-  memberId      String?
+  id              String      @id @default(cuid())
+  gymId           String
+  packageId       String?
+  locationId      String?
+  memberId        String?
   /// Guest buyer's name (step 3 of the wizard); null for a signed-in member.
-  customerName  String?
+  customerName    String?
   /// Guest buyer's email, normalised lower-case so guest checkout and a later
   /// sign-in resolve to the same identity; null for a signed-in member.
-  customerEmail String?
-  total         Int         @default(0)
-  currency      String      @default("USD")
-  status        OrderStatus @default(PENDING)
+  customerEmail   String?
+  total           Int         @default(0)
+  currency        String      @default("USD")
+  status          OrderStatus @default(PENDING)
   /// How the order is fulfilled (T7.10): `PICKUP` from the `location` branch, or
   /// `DELIVERY` to `deliveryAddress` by the gym's in-house courier. Defaults to
   /// `PICKUP` so orders predating the choice (POS sales, the package wizard) read
   /// as collected-at-desk.
-  fulfillment   Fulfillment @default(PICKUP)
+  fulfillment     Fulfillment @default(PICKUP)
   /// The free-text destination for a `DELIVERY` order; null for a `PICKUP` (which
   /// names a `locationId` instead). Captured at checkout and shown to staff so the
   /// in-house courier knows where to take the order.
   deliveryAddress String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   gym          Gym                @relation(fields: [gymId], references: [id], onDelete: Cascade)
   package      PackagePlan?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
@@ -892,6 +908,7 @@ model Order {
   refunds      Refund[]
   statusEvents OrderStatusEvent[]
   creditPack   CreditPack?
+  invoices     Invoice[]
 
   @@index([gymId])
   @@index([memberId])
@@ -1129,37 +1146,37 @@ model AuditLog {
 /// {@link Subscription} snapshots this plan's price/interval at enrolment, so editing
 /// or deactivating the plan never retroactively re-prices an existing subscriber.
 model SubscriptionPlan {
-  id          String                 @id @default(cuid())
-  gymId       String
-  name        String
-  description String                 @default("")
-  priceAmount Int                    @default(0)
-  currency    String                 @default("USD")
-  interval    SubscriptionInterval   @default(MONTH)
-  features    String[]               @default([])
-  popular     Boolean                @default(false)
-  status      SubscriptionPlanStatus @default(ACTIVE)
+  id                  String                 @id @default(cuid())
+  gymId               String
+  name                String
+  description         String                 @default("")
+  priceAmount         Int                    @default(0)
+  currency            String                 @default("USD")
+  interval            SubscriptionInterval   @default(MONTH)
+  features            String[]               @default([])
+  popular             Boolean                @default(false)
+  status              SubscriptionPlanStatus @default(ACTIVE)
   /// Freeze policy (T8.4): the maximum number of days a member may freeze (pause)
   /// a subscription on this plan within a single billing period. The freeze flow
   /// rejects a request that would push the period's cumulative frozen days over
   /// this cap (`422 EXCEEDS_FREEZE_ALLOWANCE`). `0` disables freezing entirely.
-  freezeDaysPerPeriod Int                @default(30)
+  freezeDaysPerPeriod Int                    @default(30)
   /// Class-credit allowance the plan grants each billing period (T5.2). A finite
   /// value caps how many classes a subscriber may book per period (the plan's
   /// "N classes / period"); `0` means *unlimited* — the plan entitles the member
   /// to every class with no per-period cap, which is the recurring-membership
   /// default. A catalogue attribute surfaced on the billing-plans board and the
   /// member-facing plan card; enforcement of the cap is future billing work.
-  includedCredits Int                    @default(0)
+  includedCredits     Int                    @default(0)
   /// Free-trial length in whole days (T5.6). A value `> 0` means a member enrolling
   /// on this plan starts in `TRIAL` (see {@link SubscriptionStatus}) for that many
   /// days before the first charge; `0` (the default) disables the trial — enrolment
   /// charges/activates immediately as before. Snapshotted price/currency/interval on
   /// the {@link Subscription} apply once the trial converts, so a later plan edit
   /// never re-prices a mid-trial member.
-  trialDays   Int                    @default(0)
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  trialDays           Int                    @default(0)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
   gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
   subscriptions Subscription[]
@@ -1236,9 +1253,10 @@ model Subscription {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
-  gym    Gym               @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  plan   SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
-  member GymMember         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  gym      Gym               @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  plan     SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  member   GymMember         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
 
   @@index([gymId])
   @@index([memberId])
@@ -1248,4 +1266,91 @@ model Subscription {
   @@index([gymId, status])
   @@index([gymId, currentPeriodEnd])
   @@map("subscriptions")
+}
+
+/// A billing document minted when a subscription charge is taken (T5.9): on member
+/// enrolment's first paid period, on each successful recurring renewal, and — once
+/// that path lands — on a POS-linked subscription charge. It is the row
+/// `GET /me/subscription` reads to render the member's billing history (previously a
+/// hardcoded empty list).
+///
+/// `number` is the human-facing invoice reference, **sequential per gym per fiscal
+/// year** (`"2026-0001"`, `"2026-0002"`, …) and unique within the gym via
+/// `@@unique([gymId, number])`; `year` / `seq` are its structured parts (the
+/// zero-padded `seq` within `year`). The per-`(gymId, year)` counter lives in
+/// {@link InvoiceSequence} and is bumped atomically so two invoices minted for the
+/// same gym in the same year can never collide or skip.
+///
+/// `subscriptionId` / `orderId` are the sources this invoice was raised for — a
+/// recurring subscription and/or the POS order that charged it — both `SetNull` so the
+/// invoice (a financial record) survives its subscription or order being deleted, and
+/// both optional so a future non-subscription invoice fits the same table. `memberId`
+/// is the billed member, denormalised so the member's history query
+/// (`GET /me/subscription`) is a single indexed lookup without joining through the
+/// subscription. `amount` is in the currency's MINOR units (cents/tetri), snapshotted
+/// from the charge. `status` is the settlement state (see {@link InvoiceStatus}) —
+/// `PAID` for the stub-settled MVP charges. `pdfUrl` is null until the PDF-generation
+/// task (a later T8 task) renders and stores the document. `gymId` is the isolating
+/// tenant key the scoped Prisma client constrains every query to.
+model Invoice {
+  id             String        @id @default(cuid())
+  gymId          String
+  subscriptionId String?
+  orderId        String?
+  memberId       String?
+  number         String
+  year           Int
+  seq            Int
+  amount         Int           @default(0)
+  currency       String        @default("USD")
+  status         InvoiceStatus @default(PAID)
+  /// Human-readable line describing what was billed (e.g. "Premium — monthly renewal"),
+  /// snapshotted at issue time so a later plan rename never rewrites past invoices.
+  description    String        @default("")
+  /// Signed URL / key of the rendered PDF, populated by the later PDF-generation task;
+  /// null until then.
+  pdfUrl         String?
+  /// When the invoice was raised (the charge instant). Distinct from `createdAt` so a
+  /// backfilled / imported invoice can carry its true issue date.
+  issuedAt       DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  gym          Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  member       GymMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  /// The invoice reference is unique within its gym; the per-gym+year counter that
+  /// generates it guarantees sequentiality.
+  @@unique([gymId, number])
+  @@index([gymId])
+  @@index([subscriptionId])
+  @@index([orderId])
+  /// Backs the member billing-history read (`GET /me/subscription`): a member's
+  /// invoices scanned newest-first.
+  @@index([memberId])
+  @@index([gymId, createdAt])
+  @@map("invoices")
+}
+
+/// The per-gym, per-fiscal-year invoice-number counter backing {@link Invoice.number}
+/// (T5.9). One row per `(gymId, year)`; `lastNumber` is the highest `seq` handed out
+/// so far in that gym-year. A number is allocated by atomically inserting the row
+/// (`lastNumber = 1`) or incrementing it (`lastNumber = lastNumber + 1`) in a single
+/// `INSERT … ON CONFLICT DO UPDATE … RETURNING` statement, so concurrent charges for
+/// the same gym-year serialise on the row and always receive distinct, gap-free
+/// sequence numbers. Kept separate from {@link Invoice} so the hot counter update
+/// contends on one narrow row rather than the invoice table, and resets naturally each
+/// fiscal year (a new `year` starts a fresh row at `0001`).
+model InvoiceSequence {
+  gymId      String
+  year       Int
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@id([gymId, year])
+  @@map("invoice_sequences")
 }

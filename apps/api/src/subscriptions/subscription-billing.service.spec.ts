@@ -9,6 +9,7 @@ vi.mock('../config/env', () => ({ env: mockEnv }));
 import { SubscriptionInterval, SubscriptionStatus } from '@fit/db';
 import { SubscriptionBillingService } from './subscription-billing.service';
 import type { PaymentProvider, RenewalChargeResult } from './payment-provider';
+import type { InvoiceService } from '../billing/invoice.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
 
@@ -73,22 +74,36 @@ function setup(
   const updateMany = vi
     .fn<(args: UpdateManyArgs) => Promise<{ count: number }>>()
     .mockResolvedValue({ count: updateCount });
-  const prisma = {
-    client: { subscription: { findMany, updateMany } },
-  } as unknown as PrismaService;
+  // `$transaction` runs the callback against the same client, so `tx.subscription`
+  // resolves to the mocked delegate — the renewal path advances the period and mints
+  // its invoice inside this one transaction.
+  const client: Record<string, unknown> = { subscription: { findMany, updateMany } };
+  client.$transaction = (cb: (tx: unknown) => unknown) => cb(client);
+  const prisma = { client } as unknown as PrismaService;
 
   const set = vi.fn<(...args: unknown[]) => Promise<'OK' | null>>().mockResolvedValue(lock);
   const redis = { client: { set } } as unknown as RedisService;
+
+  // A stubbed invoice mint: the numbering is proven in the InvoiceService suite, so
+  // here we only assert the renewal *raises* one (and only when it won the advance).
+  const invoiceIssue = vi.fn<
+    (
+      tx: unknown,
+      input: unknown,
+    ) => Promise<{ id: string; number: string; seq: number; year: number }>
+  >(() => Promise.resolve({ id: 'inv-1', number: '2026-0001', seq: 1, year: 2026 }));
+  const invoices = { issue: invoiceIssue } as unknown as InvoiceService;
 
   const chargeRenewal = vi.fn(async (input: unknown) => charge(input));
   const provider = { key: providerKey, chargeRenewal } as unknown as PaymentProvider;
 
   return {
-    service: new SubscriptionBillingService(prisma, redis, provider),
+    service: new SubscriptionBillingService(prisma, redis, invoices, provider),
     findMany,
     updateMany,
     set,
     chargeRenewal,
+    invoiceIssue,
   };
 }
 
@@ -98,7 +113,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('SubscriptionBillingService.runBillingCycle', () => {
   it('renews a due ACTIVE subscription: charges, advances the period, resets freeze usage', async () => {
-    const { service, updateMany, chargeRenewal } = setup({ due: [row()] });
+    const { service, updateMany, chargeRenewal, invoiceIssue } = setup({ due: [row()] });
 
     const summary = await service.runBillingCycle({ now: NOW });
 
@@ -109,6 +124,17 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
       expired: 0,
       canceled: 0,
       errors: 0,
+    });
+    // The successful renewal mints an invoice for the new period, billed for the
+    // snapshotted price against the renewed subscription.
+    expect(invoiceIssue).toHaveBeenCalledTimes(1);
+    expect(invoiceIssue.mock.calls[0]?.[1]).toMatchObject({
+      gymId: 'gym-1',
+      memberId: 'member-1',
+      subscriptionId: 'sub-1',
+      amount: 5000,
+      currency: 'USD',
+      issuedAt: new Date('2026-06-01T00:00:00.000Z'),
     });
     // Idempotent per period+rung: charge keyed by subscription, elapsed period end,
     // and retry rung (r0 for the first charge of a period).
@@ -292,12 +318,14 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
   });
 
   it('does not count a renewal the conditional update did not apply (idempotency)', async () => {
-    const { service } = setup({ due: [row()], updateCount: 0 });
+    const { service, invoiceIssue } = setup({ due: [row()], updateCount: 0 });
 
     const summary = await service.runBillingCycle({ now: NOW });
 
-    // Another runner already advanced this period — charge attempted, but no renewal counted.
+    // Another runner already advanced this period — charge attempted, but no renewal
+    // counted and, crucially, no second invoice minted for the same period.
     expect(summary).toMatchObject({ renewed: 0 });
+    expect(invoiceIssue).not.toHaveBeenCalled();
   });
 
   it('processes each due subscription independently; one failure does not abort the rest', async () => {

@@ -31,6 +31,8 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'Payment',
   'SubscriptionPlan',
   'Subscription',
+  'Invoice',
+  'InvoiceSequence',
 ]);
 
 /** Read operations whose `where` is constrained to the current tenant. */

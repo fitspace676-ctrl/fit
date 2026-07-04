@@ -1,6 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { Prisma, SubscriptionStatus, applyEvent, classifyDueSubscription } from '@fit/db';
+import {
+  Prisma,
+  SubscriptionStatus,
+  applyEvent,
+  classifyDueSubscription,
+  subscriptionInvoiceDescription,
+} from '@fit/db';
+import { InvoiceService } from '../billing/invoice.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { env } from '../config/env';
@@ -19,6 +26,10 @@ const BILLABLE_SUBSCRIPTION_SELECT = {
   cancelAtPeriodEnd: true,
   paymentRetries: true,
   providerRef: true,
+  // The plan name (snapshot-free, read live) only feeds the renewal invoice's
+  // human-readable description; a plan-less / deleted-plan subscription renews fine
+  // with the generic fallback.
+  plan: { select: { name: true } },
 } satisfies Prisma.SubscriptionSelect;
 
 type BillableRow = Prisma.SubscriptionGetPayload<{ select: typeof BILLABLE_SUBSCRIPTION_SELECT }>;
@@ -99,6 +110,7 @@ export class SubscriptionBillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly invoices: InvoiceService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
   ) {}
 
@@ -246,10 +258,13 @@ export class SubscriptionBillingService {
    * Persist a successful renewal: `RENEW` the status (`PAST_DUE → ACTIVE`, or an
    * `ACTIVE` self-loop), roll the period forward contiguously, reset the per-period
    * freeze allowance, clear the dunning retry ladder (a paid renewal ends the
-   * past-due episode), and record which provider settled it. The conditional
-   * `updateMany` on the observed `(currentPeriodEnd, status)` is the idempotency
-   * backstop — a second runner that already advanced this period matches nothing.
-   * Returns whether this call was the one that advanced it.
+   * past-due episode), record which provider settled it, and mint the numbered
+   * {@link Invoice} for the renewed period. The conditional `updateMany` on the
+   * observed `(currentPeriodEnd, status)` is the idempotency backstop — a second
+   * runner that already advanced this period matches nothing — and the invoice is
+   * raised **inside the same transaction, only when that update won the race**, so a
+   * re-run or overlapping replica can neither double-advance the period nor
+   * double-invoice it. Returns whether this call was the one that advanced it.
    */
   private async advancePeriod(
     sub: BillableRow,
@@ -272,11 +287,31 @@ export class SubscriptionBillingService {
       data.providerRef = providerRef;
     }
 
-    const { count } = await this.prisma.client.subscription.updateMany({
-      where: { id: sub.id, currentPeriodEnd: sub.currentPeriodEnd, status: sub.status },
-      data,
+    return this.prisma.client.$transaction(async (tx) => {
+      const { count } = await tx.subscription.updateMany({
+        where: { id: sub.id, currentPeriodEnd: sub.currentPeriodEnd, status: sub.status },
+        data,
+      });
+      if (count === 0) {
+        // Another runner already advanced this period — leave its invoice alone.
+        return false;
+      }
+      await this.invoices.issue(tx, {
+        gymId: sub.gymId,
+        memberId: sub.memberId,
+        subscriptionId: sub.id,
+        amount: sub.priceAmount,
+        currency: sub.currency,
+        description: subscriptionInvoiceDescription(
+          sub.plan?.name ?? null,
+          sub.interval,
+          'renewal',
+        ),
+        // Bill for the period that just opened, so the invoice date tracks the renewal.
+        issuedAt: nextPeriodStart,
+      });
+      return true;
     });
-    return count > 0;
   }
 
   /**

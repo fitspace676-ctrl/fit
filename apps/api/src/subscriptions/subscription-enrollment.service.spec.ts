@@ -15,12 +15,14 @@ import {
 } from '@nestjs/common';
 import { Prisma, SubscriptionPlanStatus, SubscriptionStatus } from '@fit/db';
 import { SubscriptionEnrollmentService } from './subscription-enrollment.service';
+import type { InvoiceService } from '../billing/invoice.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
 /** A subscription plan row as the enrolment projection selects it. */
 interface PlanRecord {
   id: string;
+  name: string;
   status: SubscriptionPlanStatus;
   priceAmount: number;
   currency: string;
@@ -30,6 +32,7 @@ interface PlanRecord {
 
 const plan = (over?: Partial<PlanRecord>): PlanRecord => ({
   id: 'plan-1',
+  name: 'Premium',
   status: SubscriptionPlanStatus.ACTIVE,
   priceAmount: 12000,
   currency: 'GEL',
@@ -88,12 +91,24 @@ function setup(overrides?: {
     gymId: overrides?.gymId === undefined ? 'gym-1' : overrides.gymId,
   } as unknown as TenantContext;
 
+  // A stubbed invoice mint: the numbering itself is proven in the InvoiceService /
+  // billing suites, so here we only assert enrolment *invokes* it with the right
+  // charge (and skips it for a trial).
+  const invoiceIssue = vi.fn<
+    (
+      tx: unknown,
+      input: unknown,
+    ) => Promise<{ id: string; number: string; seq: number; year: number }>
+  >(() => Promise.resolve({ id: 'inv-1', number: '2026-0001', seq: 1, year: 2026 }));
+  const invoices = { issue: invoiceIssue } as unknown as InvoiceService;
+
   return {
-    service: new SubscriptionEnrollmentService(prisma, tenant),
+    service: new SubscriptionEnrollmentService(prisma, tenant, invoices),
     memberFindFirst,
     planFindFirst,
     subscriptionFindFirst,
     subscriptionCreate,
+    invoiceIssue,
   };
 }
 
@@ -120,7 +135,7 @@ describe('SubscriptionEnrollmentService.enrollSelf', () => {
   it('enrols the calling member, snapshotting the plan price and computing the period', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-01T00:00:00.000Z'));
-    const { service, subscriptionCreate } = setup();
+    const { service, subscriptionCreate, invoiceIssue } = setup();
 
     const result = await service.enrollSelf('plan-1');
 
@@ -135,6 +150,17 @@ describe('SubscriptionEnrollmentService.enrollSelf', () => {
       interval: 'MONTH',
       currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
       currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
+    });
+    // A paid enrolment mints the first-period invoice inside the transaction, billed
+    // for the snapshotted price against the created subscription.
+    expect(invoiceIssue).toHaveBeenCalledTimes(1);
+    expect(invoiceIssue.mock.calls[0]?.[1]).toMatchObject({
+      gymId: 'gym-1',
+      memberId: 'member-1',
+      subscriptionId: 'sub-new',
+      amount: 12000,
+      currency: 'GEL',
+      issuedAt: new Date('2026-06-01T00:00:00.000Z'),
     });
     expect(result.subscription).toMatchObject({
       id: 'sub-new',
@@ -153,6 +179,7 @@ describe('SubscriptionEnrollmentService.enrollSelf', () => {
     const tenantless = new SubscriptionEnrollmentService(
       { client: { gymMember: { findFirst: vi.fn() } } } as unknown as TenantPrismaService,
       { userId: null, gymId: 'gym-1' } as unknown as TenantContext,
+      { issue: vi.fn() } as unknown as InvoiceService,
     );
     const error = await rejection(tenantless.enrollSelf('plan-1'));
     expect(error).toBeInstanceOf(ForbiddenException);
@@ -215,7 +242,7 @@ describe('SubscriptionEnrollmentService.enrollSelf', () => {
   it('starts a TRIAL for a plan with trialDays, ending the period at the trial end (T5.6)', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-01T00:00:00.000Z'));
-    const { service, subscriptionCreate } = setup({ plan: plan({ trialDays: 14 }) });
+    const { service, subscriptionCreate, invoiceIssue } = setup({ plan: plan({ trialDays: 14 }) });
 
     const result = await service.enrollSelf('plan-1');
 
@@ -230,6 +257,9 @@ describe('SubscriptionEnrollmentService.enrollSelf', () => {
       currentPeriodEnd: new Date('2026-06-15T00:00:00.000Z'),
     });
     expect(result.subscription.status).toBe(SubscriptionStatus.TRIAL);
+    // A trial charges nothing yet, so no invoice is minted at enrolment — the
+    // recurring-billing job raises the first one when the trial converts.
+    expect(invoiceIssue).not.toHaveBeenCalled();
   });
 });
 

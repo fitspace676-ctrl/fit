@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { GymStatus, Role, SubscriptionPlanStatus, SubscriptionStatus } from '@fit/db';
 import { SubscriptionEnrollmentService } from './subscription-enrollment.service';
+import { InvoiceService } from '../billing/invoice.service';
 import { TenantContext, type TenantState } from '../common/tenant/tenant.context';
 import { asTenant, disconnect, prisma, resetDb, tenantPrisma } from '../test/integration-db';
 
@@ -17,7 +18,11 @@ import { asTenant, disconnect, prisma, resetDb, tenantPrisma } from '../test/int
 // `TenantPrismaService` exposes, so the shape satisfies the service's dependency
 // directly — the extension applies scoping from the ALS store exactly as in a
 // request.
-const service = new SubscriptionEnrollmentService({ client: tenantPrisma }, new TenantContext());
+const service = new SubscriptionEnrollmentService(
+  { client: tenantPrisma },
+  new TenantContext(),
+  new InvoiceService(),
+);
 
 function member(gymId: string, userId: string): TenantState {
   return { userId, gymId, role: Role.MEMBER, allowCrossTenant: false };
@@ -96,6 +101,21 @@ describe('SubscriptionEnrollmentService (integration)', () => {
       priceAmount: 12000,
       provider: 'stub',
     });
+
+    // A paid enrolment mints a numbered invoice for the first period (T5.9), scoped to
+    // the member's gym and linked to the new subscription, so the billing history is
+    // populated from day one.
+    const invoice = await prisma.invoice.findFirstOrThrow({
+      where: { subscriptionId: result.subscription.id },
+    });
+    expect(invoice).toMatchObject({
+      gymId: gymAId,
+      memberId,
+      amount: 12000,
+      currency: 'GEL',
+      status: 'PAID',
+    });
+    expect(invoice.number).toMatch(/^\d{4}-\d{4}$/);
   });
 
   it('rejects a second enrolment while a live subscription exists (DB uniqueness backstop)', async () => {
