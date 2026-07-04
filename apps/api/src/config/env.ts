@@ -104,6 +104,18 @@ export const envSchema = z.object({
   // `From` address for transactional mail. Must be a verified Resend sender.
   EMAIL_FROM: z.string().default('Fit <no-reply@fit.app>'),
 
+  // ── Scheduled report digests (T4.10) ──
+  // Master switch for the weekly/monthly report-digest cron. Off by default so
+  // the job never fires unexpectedly in dev / CI / a preview environment; a
+  // production deploy sets it true. A single Redis lock guards the send, so it
+  // is safe to enable on every replica of a multi-instance deployment (only one
+  // wins each cadence window). `"true"` enables; anything else (incl. unset)
+  // leaves it disabled.
+  REPORT_DIGEST_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
   // ── Object storage (Cloudflare R2 — S3-compatible) ──
   // All optional: unset disables the signed-upload service (the endpoint then
   // returns 503) so the API still boots in CI / local dev without R2 creds.

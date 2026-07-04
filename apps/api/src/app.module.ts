@@ -1,5 +1,6 @@
 import { Module, type MiddlewareConsumer, type NestModule, RequestMethod } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { ActivityModule } from './activity/activity.module';
@@ -74,7 +75,9 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link ReportsModule} serves the staff console's tenant-scoped operational
  *   reports (`/admin/reports` — revenue by channel, attendance by class, membership
  *   growth, no-show rate; previewable as JSON and downloadable as CSV/XLSX;
- *   `ReportView`).
+ *   `ReportView`) and runs the scheduled weekly/monthly report-digest cron that
+ *   emails those reports to each gym's owners/managers (T4.10). {@link ScheduleModule}
+ *   (`.forRoot()`) provides the cron runtime the digest job registers against.
  * - {@link ActivityModule} serves the staff console's tenant-scoped Activity feed
  *   (`/admin/activity` — a paginated, filterable newest-first merge of the gym's
  *   signups, bookings, check-ins, sales, and subscription enrolments derived from
@@ -113,6 +116,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
   imports: [
     SentryModule.forRoot(),
     LoggerModule.forRoot(loggerConfig()),
+    ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
     HealthModule,

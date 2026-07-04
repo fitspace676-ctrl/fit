@@ -190,6 +190,66 @@ export interface ReportResult {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Scheduled digest (T4.10)                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * How often a gym's owner/manager receive the operational report digest by email
+ * (T4.10): `weekly` (the trailing week) or `monthly` (the trailing 30 days). The
+ * cadence fixes the reporting window each section is computed over — see
+ * {@link REPORT_DIGEST_RANGE}.
+ */
+export const reportDigestCadenceSchema = z.enum(['weekly', 'monthly']);
+
+/** A report-digest cadence — {@link reportDigestCadenceSchema}. */
+export type ReportDigestCadence = z.infer<typeof reportDigestCadenceSchema>;
+
+/** Human label for a digest cadence, for the email subject/heading copy. */
+export const REPORT_DIGEST_CADENCE_LABEL: Record<ReportDigestCadence, string> = {
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+};
+
+/**
+ * The reporting window each cadence's sections cover — a `weekly` digest reports
+ * the trailing 7 days, a `monthly` one the trailing 30. Reuses the report range
+ * vocabulary so a digest section is exactly the report the console would show for
+ * that same range, with no separate windowing logic to drift.
+ */
+export const REPORT_DIGEST_RANGE: Record<ReportDigestCadence, ReportRange> = {
+  weekly: '7d',
+  monthly: '30d',
+};
+
+/**
+ * The reports, in order, that a digest includes — the full catalogue. Kept as its
+ * own list (rather than inlining {@link REPORT_KEYS}) so the digest's contents can
+ * be curated independently of the on-screen catalogue if they ever diverge.
+ */
+export const REPORT_DIGEST_KEYS: readonly ReportKey[] = REPORT_KEYS;
+
+/**
+ * One report inside a digest — the same shape a live `GET /admin/reports/:report`
+ * preview returns ({@link ReportResult}), so the email renderer reuses the report's
+ * own columns + rows and no digest-specific report shape can drift from the source.
+ */
+export type ReportDigestSection = ReportResult;
+
+/**
+ * A gym's computed report digest (T4.10): the gym it is for, the `cadence` and the
+ * `range` its sections cover, and one {@link ReportDigestSection} per included
+ * report. This is the payload {@link ReportResult}-based email rendering consumes;
+ * a section whose report produced no rows still appears (its table renders an
+ * honest "no activity" empty state) so the recipient sees the full picture.
+ */
+export interface ReportDigest {
+  gymName: string;
+  cadence: ReportDigestCadence;
+  range: ReportRange;
+  sections: ReportDigestSection[];
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Cell serialization (shared by the CSV + XLSX exporters)                     */
 /* -------------------------------------------------------------------------- */
 
