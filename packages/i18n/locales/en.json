@@ -1095,6 +1095,86 @@
         "hours": "{hours}h ago"
       }
     },
+    "pos": {
+      "title": "Point of sale",
+      "forbidden": "You don’t have permission to use the point of sale.",
+      "shortcuts": "F1 search products · F2 find member · Esc clear sale",
+      "endOfDay": "End-of-day report",
+      "products": {
+        "searchLabel": "Search products (F1)",
+        "searchPlaceholder": "Search products by name…  (F1)",
+        "empty": "No active products match this search."
+      },
+      "member": {
+        "searchLabel": "Look up a member by name or phone (F2)",
+        "searchPlaceholder": "Member name or phone…  (F2)",
+        "scan": "Scan QR",
+        "stopScan": "Stop",
+        "walkIn": "Walk-in sale — no member required.",
+        "remove": "Remove",
+        "noMatch": "Scanned code did not match any member.",
+        "cameraError": "Could not access the camera.",
+        "scanUnsupported": "QR scanning isn’t supported on this device/browser. Search by name or phone instead."
+      },
+      "cart": {
+        "heading": "Cart",
+        "headingCount": "Cart · {count, plural, one {# item} other {# items}}",
+        "clear": "Clear (Esc)",
+        "empty": "Tap a product to start a sale.",
+        "each": "{price} each",
+        "remove": "Remove",
+        "removeItem": "Remove {name}",
+        "decrease": "Decrease {name} quantity",
+        "increase": "Increase {name} quantity",
+        "quantity": "{name} quantity",
+        "discountShort": "Disc.",
+        "lineDiscountLabel": "{name} line discount",
+        "cartDiscount": "Cart discount",
+        "cartDiscountLabel": "Cart-level discount",
+        "subtotal": "Subtotal",
+        "discounts": "Discounts",
+        "total": "Total",
+        "charge": "Charge {total}"
+      },
+      "payment": {
+        "title": "Take payment",
+        "methods": {
+          "cash": "Cash",
+          "cashHint": "Tendered at the desk",
+          "card": "Card",
+          "cardHint": "Card terminal",
+          "memberAccount": "Member account",
+          "memberAccountHint": "Charge to house account"
+        },
+        "chargedTo": "Charged to {name}’s account.",
+        "cashReceived": "Cash received",
+        "exact": "Exact",
+        "changeDue": "Change due",
+        "stillOwed": "Still owed",
+        "recordError": "Couldn’t record the sale: {error}",
+        "cancel": "Cancel",
+        "complete": "Complete sale",
+        "recording": "Recording…",
+        "success": {
+          "title": "Sale complete",
+          "summary": "{count, plural, one {# item} other {# items}} · {method}",
+          "summaryMember": "{count, plural, one {# item} other {# items}} · {method} · {member}",
+          "totalPaid": "Total paid",
+          "cashReceived": "Cash received",
+          "changeDue": "Change due",
+          "newSale": "New sale"
+        },
+        "receipt": {
+          "heading": "Email receipt",
+          "label": "Receipt email address",
+          "placeholder": "customer@example.com",
+          "send": "Send",
+          "sending": "Sending…",
+          "sent": "Receipt sent to {email}.",
+          "unconfigured": "Email delivery isn’t configured — receipt not sent."
+        }
+      }
+    },
     "activity": {
       "title": "Activity",
       "subtitle": "Everything happening across your gym, as it happens.",

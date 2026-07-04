@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   lookupPosMembersAction,
   resolvePosMemberByQrAction,
@@ -40,6 +41,7 @@ export function MemberLookup({
   selectedMember: PosMemberRow | null;
   onSelect: (member: PosMemberRow | null) => void;
 }) {
+  const t = useTranslations('admin.pos.member');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PosMemberRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +137,7 @@ export function MemberLookup({
             if (result.ok && result.data) {
               onSelect(result.data);
             } else if (result.ok) {
-              setError('Scanned code did not match any member.');
+              setError(t('noMatch'));
             } else {
               setError(result.error);
             }
@@ -149,7 +151,7 @@ export function MemberLookup({
       requestAnimationFrame(() => void tick());
     } catch {
       stopScan();
-      setError('Could not access the camera.');
+      setError(t('cameraError'));
     }
   }
 
@@ -169,7 +171,7 @@ export function MemberLookup({
           onClick={() => onSelect(null)}
           className="shrink-0 rounded-btn px-2 py-1 text-xs font-medium text-ink-600 hover:bg-white dark:text-ink-300 dark:hover:bg-white/10"
         >
-          Remove
+          {t('remove')}
         </button>
       </div>
     );
@@ -180,14 +182,14 @@ export function MemberLookup({
       <div className="flex gap-2">
         <div className="relative flex-1">
           <label htmlFor="pos-member-search" className="sr-only">
-            Look up a member by name or phone (F2)
+            {t('searchLabel')}
           </label>
           <input
             ref={searchRef}
             id="pos-member-search"
             type="search"
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Member name or phone…  (F2)"
+            placeholder={t('searchPlaceholder')}
             className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
           />
         </div>
@@ -197,11 +199,11 @@ export function MemberLookup({
           className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-btn border border-ink-200 px-3.5 text-sm font-medium text-ink-700 hover:border-brand-400 hover:text-brand-700 dark:border-white/10 dark:text-ink-200 dark:hover:border-brand-500/60 dark:hover:text-brand-300"
         >
           <Icon name="qr" className="h-4 w-4" sw={2} />
-          {scanState === 'scanning' ? 'Stop' : 'Scan QR'}
+          {scanState === 'scanning' ? t('stopScan') : t('scan')}
         </button>
       </div>
 
-      <p className="text-xs text-ink-400">Walk-in sale — no member required.</p>
+      <p className="text-xs text-ink-400">{t('walkIn')}</p>
 
       {error ? (
         <Card
@@ -216,9 +218,7 @@ export function MemberLookup({
       {scanState === 'unsupported' ? (
         <Card className="flex items-center gap-2 p-3 text-xs text-warning-800 dark:text-warning-200">
           <Icon name="info" className="h-4 w-4 shrink-0" />
-          <span>
-            QR scanning isn’t supported on this device/browser. Search by name or phone instead.
-          </span>
+          <span>{t('scanUnsupported')}</span>
         </Card>
       ) : null}
 
