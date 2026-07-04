@@ -88,7 +88,9 @@ export type ListAdminSubscriptionPlansQuery = z.infer<typeof listAdminSubscripti
  * show the first few as a checklist). `freezeDaysPerPeriod` is the plan's freeze
  * allowance (surfaced as a badge on the billing-plans card; `0` = freezing
  * disabled). `includedCredits` is the plan's per-period class-credit allowance
- * (`0` = unlimited classes). `subscriberCount` is the number of *live* subscriptions (`ACTIVE` /
+ * (`0` = unlimited classes). `trialDays` is the free-trial length in days (`0` = no
+ * trial; a positive value enrols a member in a `TRIAL` before the first charge).
+ * `subscriberCount` is the number of *live* subscriptions (`TRIAL` / `ACTIVE` /
  * `PAST_DUE` / `FROZEN`) currently on this plan — what the billing-plans screen
  * totals into subscriber counts and monthly-recurring-revenue. `popular` flags the
  * emphasised plan. `createdAt` is an ISO-8601 instant the UI formats locally.
@@ -103,6 +105,7 @@ export interface AdminSubscriptionPlanRow {
   features: string[];
   freezeDaysPerPeriod: number;
   includedCredits: number;
+  trialDays: number;
   subscriberCount: number;
   popular: boolean;
   status: SubscriptionPlanStatus;
@@ -148,7 +151,8 @@ export type GetAdminSubscriptionPlanResponse = AdminSubscriptionPlanDetail;
  * membership per period; `0` disables freezing) and `includedCredits` the per-
  * period class-credit allowance (`0` = unlimited) — both non-negative integers
  * capped at {@link MAX_SUBSCRIPTION_ALLOWANCE}, defaulting to the recurring-
- * membership defaults (30 freeze days, unlimited classes). Numbers are coerced
+ * membership defaults (30 freeze days, unlimited classes). `trialDays` is the free-
+ * trial length (`0` = no trial), same bounds and default. Numbers are coerced
  * because the admin form submits them as strings.
  */
 const subscriptionPlanProfileFields = {
@@ -182,6 +186,12 @@ const subscriptionPlanProfileFields = {
     .int('Credits must be a whole number')
     .min(0, 'Credits cannot be negative')
     .max(MAX_SUBSCRIPTION_ALLOWANCE, `Credits cannot exceed ${MAX_SUBSCRIPTION_ALLOWANCE}`)
+    .default(0),
+  trialDays: z.coerce
+    .number()
+    .int('Trial days must be a whole number')
+    .min(0, 'Trial days cannot be negative')
+    .max(MAX_SUBSCRIPTION_ALLOWANCE, `Trial days cannot exceed ${MAX_SUBSCRIPTION_ALLOWANCE}`)
     .default(0),
 };
 

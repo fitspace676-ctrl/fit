@@ -10,6 +10,7 @@ import {
   SubscriptionPlanStatus,
   SubscriptionStatus,
   initialBillingPeriod,
+  trialBillingPeriod,
 } from '@fit/db';
 import type { EnrolledSubscription, EnrollSubscriptionResponse } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -56,6 +57,12 @@ type EnrolledSubscriptionRecord = Prisma.SubscriptionGetPayload<{
  * The plan's `priceAmount` / `currency` / `interval` are snapshotted onto the
  * subscription (the buyer's agreed terms), so a later plan edit never re-prices an
  * active subscriber.
+ *
+ * A plan with a free trial (`trialDays > 0`, T5.6) instead starts the member in a
+ * `TRIAL` whose period runs a fixed {@link trialBillingPeriod} of days; the member is
+ * entitled but uncharged until the recurring-billing job's first charge at trial end
+ * auto-converts it to `ACTIVE` (and starts the first paid period there). A trial thus
+ * occupies the same single live slot as any other live subscription.
  *
  * The charge itself is a **stub** at this stage: the subscription is stamped
  * `provider = "stub"` (the model default) rather than settling a real payment. A
@@ -137,6 +144,7 @@ export class SubscriptionEnrollmentService {
           priceAmount: true,
           currency: true,
           interval: true,
+          trialDays: true,
         },
       });
       if (!plan) {
@@ -160,10 +168,16 @@ export class SubscriptionEnrollmentService {
         throw this.alreadySubscribed();
       }
 
-      const { currentPeriodStart, currentPeriodEnd } = initialBillingPeriod(
-        new Date(),
-        plan.interval,
-      );
+      // A plan with `trialDays > 0` starts the member in a free TRIAL that runs a
+      // fixed number of days; the recurring-billing job's first charge at trial end
+      // auto-converts it to ACTIVE. Otherwise enrolment is a normal ACTIVE membership
+      // whose first paid period starts now. Either way the plan's price/currency/
+      // interval are snapshotted (the terms that apply once — or immediately — paid).
+      const now = new Date();
+      const isTrial = plan.trialDays > 0;
+      const { currentPeriodStart, currentPeriodEnd } = isTrial
+        ? trialBillingPeriod(now, plan.trialDays)
+        : initialBillingPeriod(now, plan.interval);
 
       try {
         return await tx.subscription.create({
@@ -171,7 +185,7 @@ export class SubscriptionEnrollmentService {
             gymId,
             planId: plan.id,
             memberId,
-            status: SubscriptionStatus.ACTIVE,
+            status: isTrial ? SubscriptionStatus.TRIAL : SubscriptionStatus.ACTIVE,
             priceAmount: plan.priceAmount,
             currency: plan.currency,
             interval: plan.interval,

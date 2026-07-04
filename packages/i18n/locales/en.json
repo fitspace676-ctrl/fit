@@ -728,6 +728,7 @@
       "changePlan": "Change plan",
       "choosePlan": "Choose a plan",
       "status": {
+        "TRIAL": "Trial",
         "ACTIVE": "Active",
         "FROZEN": "Frozen",
         "CANCELED": "Canceled",
@@ -1081,6 +1082,7 @@
       "off": "Off",
       "freeze": "{days}d freeze",
       "credits": "{count} credits / period",
+      "trial": "{days}-day free trial",
       "edit": "Edit",
       "popular": "Popular",
       "perksNone": "No perks listed",

@@ -12,7 +12,13 @@ import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
-export type SubscriptionStatus = 'ACTIVE' | 'FROZEN' | 'CANCELED' | 'PAST_DUE' | 'EXPIRED';
+export type SubscriptionStatus =
+  | 'TRIAL'
+  | 'ACTIVE'
+  | 'FROZEN'
+  | 'CANCELED'
+  | 'PAST_DUE'
+  | 'EXPIRED';
 export type SubscriptionInterval = 'MONTH' | 'YEAR' | 'WEEK' | 'DAY';
 export type InvoiceStatus = 'PAID' | 'PENDING' | 'FAILED' | 'REFUNDED';
 
@@ -44,7 +50,14 @@ export interface MembershipData {
   invoices: MemberInvoice[];
 }
 
-const STATUSES: SubscriptionStatus[] = ['ACTIVE', 'FROZEN', 'CANCELED', 'PAST_DUE', 'EXPIRED'];
+const STATUSES: SubscriptionStatus[] = [
+  'TRIAL',
+  'ACTIVE',
+  'FROZEN',
+  'CANCELED',
+  'PAST_DUE',
+  'EXPIRED',
+];
 const INTERVALS: SubscriptionInterval[] = ['MONTH', 'YEAR', 'WEEK', 'DAY'];
 const INVOICE_STATUSES: InvoiceStatus[] = ['PAID', 'PENDING', 'FAILED', 'REFUNDED'];
 

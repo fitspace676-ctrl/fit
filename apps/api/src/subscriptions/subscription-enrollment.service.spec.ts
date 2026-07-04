@@ -25,6 +25,7 @@ interface PlanRecord {
   priceAmount: number;
   currency: string;
   interval: 'MONTH' | 'YEAR';
+  trialDays: number;
 }
 
 const plan = (over?: Partial<PlanRecord>): PlanRecord => ({
@@ -33,6 +34,7 @@ const plan = (over?: Partial<PlanRecord>): PlanRecord => ({
   priceAmount: 12000,
   currency: 'GEL',
   interval: 'MONTH',
+  trialDays: 0,
   ...over,
 });
 
@@ -208,6 +210,26 @@ describe('SubscriptionEnrollmentService.enrollSelf', () => {
       interval: 'YEAR',
       currentPeriodEnd: new Date('2027-06-01T00:00:00.000Z'),
     });
+  });
+
+  it('starts a TRIAL for a plan with trialDays, ending the period at the trial end (T5.6)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T00:00:00.000Z'));
+    const { service, subscriptionCreate } = setup({ plan: plan({ trialDays: 14 }) });
+
+    const result = await service.enrollSelf('plan-1');
+
+    const data = subscriptionCreate.mock.calls[0]?.[0]?.data;
+    expect(data).toMatchObject({
+      status: SubscriptionStatus.TRIAL,
+      // The trial runs a fixed 14 days from enrolment; the paid terms are still
+      // snapshotted so the first charge at trial end uses them.
+      priceAmount: 12000,
+      interval: 'MONTH',
+      currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
+      currentPeriodEnd: new Date('2026-06-15T00:00:00.000Z'),
+    });
+    expect(result.subscription.status).toBe(SubscriptionStatus.TRIAL);
   });
 });
 

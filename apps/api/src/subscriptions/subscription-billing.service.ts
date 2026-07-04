@@ -62,6 +62,10 @@ const LOCK_TTL_SECONDS = 3_600;
  * {@link PaymentProvider} abstraction, and moves each subscription to its next state
  * — advancing the period on a successful charge (`RENEW`), flagging `PAST_DUE` on a
  * failed one (`PAYMENT_FAILED`), and honouring a scheduled cancellation (`CANCEL`).
+ * The same sweep converts a free trial (T5.6): a `TRIAL` subscription falls due at
+ * trial end, and its first charge auto-converts it to `ACTIVE` via `RENEW` (or
+ * `PAST_DUE` on failure) — a member who cancelled during the trial is `CANCEL`ed at
+ * trial end instead, charged nothing.
  * A past-due subscription is then worked through the **dunning retry ladder** (T5.5):
  * the renewal charge is re-attempted on the ladder's rungs (+2/+5/+7 days after the
  * elapsed period end by default), `paymentRetries` advancing one rung per failed
@@ -141,7 +145,9 @@ export class SubscriptionBillingService {
 
     const due = await this.prisma.client.subscription.findMany({
       where: {
-        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] },
+        status: {
+          in: [SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+        },
         currentPeriodEnd: { lte: now },
       },
       select: BILLABLE_SUBSCRIPTION_SELECT,

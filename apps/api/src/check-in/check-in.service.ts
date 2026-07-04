@@ -229,9 +229,10 @@ function startOfToday(): Date {
 
 /**
  * Map a subscription's status (+ period end) onto a member's access standing. A
- * live `ACTIVE`/`PAST_DUE` subscription still within its current period is
- * `ACTIVE`; a `FROZEN` one is `FROZEN`; anything canceled, expired, or lapsed past
- * its period end is `EXPIRED`.
+ * live `TRIAL`/`ACTIVE`/`PAST_DUE` subscription still within its current period is
+ * `ACTIVE` (a free trial grants full access during its introductory window); a
+ * `FROZEN` one is `FROZEN`; anything canceled, expired, or lapsed past its period
+ * end is `EXPIRED`.
  */
 function eligibilityFromSubscription(
   status: SubscriptionStatus,
@@ -240,7 +241,10 @@ function eligibilityFromSubscription(
   if (status === SubscriptionStatus.FROZEN) {
     return 'FROZEN';
   }
-  const live = status === SubscriptionStatus.ACTIVE || status === SubscriptionStatus.PAST_DUE;
+  const live =
+    status === SubscriptionStatus.TRIAL ||
+    status === SubscriptionStatus.ACTIVE ||
+    status === SubscriptionStatus.PAST_DUE;
   if (live && currentPeriodEnd.getTime() >= Date.now()) {
     return 'ACTIVE';
   }

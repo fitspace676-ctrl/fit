@@ -100,13 +100,16 @@ export type RenewalAction =
  *   2. A `PAST_DUE` subscription drives the retry ladder: its retries exhausted, it
  *      `expire`s; before its next scheduled retry window, it `skip`s; on or after a
  *      retry window, it `charge`s (a retry).
- *   3. Otherwise `charge`: a due `ACTIVE` subscription's first renewal.
+ *   3. Otherwise `charge`: a due `ACTIVE` subscription's renewal, or a due `TRIAL`
+ *      subscription's first charge (which the caller's `RENEW` converts to `ACTIVE`).
  *
- * `FROZEN` (paused) and the terminal `CANCELED` / `EXPIRED` states are always
- * `skip` — a frozen membership resumes before it bills again, and terminal ones
- * never bill. `EXPIRE` is only ever returned for `PAST_DUE`, matching the state
- * machine (there is no `ACTIVE → EXPIRED` transition — a fresh failure goes
- * `ACTIVE → PAST_DUE` first).
+ * A due `TRIAL` behaves like `ACTIVE` here — it has no retry ladder (`paymentRetries`
+ * is 0) — so it either `cancel`s (the member cancelled during the trial: nothing is
+ * charged) or `charge`s at trial end. `FROZEN` (paused) and the terminal `CANCELED` /
+ * `EXPIRED` states are always `skip` — a frozen membership resumes before it bills
+ * again, and terminal ones never bill. `EXPIRE` is only ever returned for `PAST_DUE`,
+ * matching the state machine (there is no `ACTIVE → EXPIRED` transition — a fresh
+ * failure goes `ACTIVE`/`TRIAL → PAST_DUE` first).
  */
 export function classifyDueSubscription(
   sub: BillableSubscription,
@@ -115,9 +118,14 @@ export function classifyDueSubscription(
   const retryOffsets = options.retryOffsetDays ?? DEFAULT_RENEWAL_RETRY_OFFSET_DAYS;
   const nowMs = options.now.getTime();
 
-  // Only ACTIVE / PAST_DUE subscriptions ever bill. Frozen holds the slot but is
-  // not charged; terminal states are done.
-  if (sub.status !== SubscriptionStatus.ACTIVE && sub.status !== SubscriptionStatus.PAST_DUE) {
+  // Only TRIAL / ACTIVE / PAST_DUE subscriptions ever bill: a TRIAL's first charge
+  // falls due at trial end (converting it to ACTIVE), an ACTIVE renews, a PAST_DUE
+  // retries. Frozen holds the slot but is not charged; terminal states are done.
+  if (
+    sub.status !== SubscriptionStatus.ACTIVE &&
+    sub.status !== SubscriptionStatus.PAST_DUE &&
+    sub.status !== SubscriptionStatus.TRIAL
+  ) {
     return { action: 'skip' };
   }
 

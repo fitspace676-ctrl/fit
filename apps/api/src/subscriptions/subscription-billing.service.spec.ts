@@ -316,6 +316,65 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
     expect(summary).toMatchObject({ subscriptionsDue: 3, renewed: 2, errors: 1 });
   });
 
+  describe('trial conversion (T5.6)', () => {
+    /** A due TRIAL row whose trial ended 2026-06-01. */
+    const trialRow = (over?: Partial<BillableRow>): BillableRow =>
+      row({ status: SubscriptionStatus.TRIAL, ...over });
+
+    it('sweeps TRIAL subscriptions too (status filter includes TRIAL)', async () => {
+      const { service, findMany } = setup({ due: [] });
+      await service.runBillingCycle({ now: NOW });
+      const where = (findMany.mock.calls[0]![0] as { where: { status: { in: unknown[] } } }).where;
+      expect(where.status.in).toContain(SubscriptionStatus.TRIAL);
+    });
+
+    it('converts a TRIAL to ACTIVE on the first successful charge, starting the paid period', async () => {
+      const { service, updateMany, chargeRenewal } = setup({ due: [trialRow()] });
+
+      const summary = await service.runBillingCycle({ now: NOW });
+
+      expect(summary).toMatchObject({ renewed: 1, pastDue: 0, canceled: 0, errors: 0 });
+      expect(chargeRenewal).toHaveBeenCalledWith(expect.objectContaining({ amount: 5000 }));
+      const args = updateMany.mock.calls[0]![0];
+      // Conditional on the observed TRIAL status; converts to ACTIVE and rolls the
+      // first paid period forward from the trial end.
+      expect(args.where).toMatchObject({ status: SubscriptionStatus.TRIAL });
+      expect(args.data).toMatchObject({
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
+        currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
+        paymentRetries: 0,
+      });
+    });
+
+    it('flags a TRIAL PAST_DUE when its first charge fails', async () => {
+      const { service, updateMany } = setup({
+        due: [trialRow()],
+        charge: () => ({ outcome: 'failed', reason: 'card_declined' }),
+      });
+
+      const summary = await service.runBillingCycle({ now: NOW });
+
+      expect(summary).toMatchObject({ pastDue: 1, renewed: 0 });
+      expect(updateMany.mock.calls[0]![0].data).toEqual({ status: SubscriptionStatus.PAST_DUE });
+    });
+
+    it('charges nothing when a member cancelled during the trial', async () => {
+      const { service, updateMany, chargeRenewal } = setup({
+        due: [trialRow({ cancelAtPeriodEnd: true })],
+      });
+
+      const summary = await service.runBillingCycle({ now: NOW });
+
+      expect(summary).toMatchObject({ canceled: 1, renewed: 0 });
+      expect(chargeRenewal).not.toHaveBeenCalled();
+      expect(updateMany.mock.calls[0]![0].data).toMatchObject({
+        status: SubscriptionStatus.CANCELED,
+        canceledAt: NOW,
+      });
+    });
+  });
+
   it('persists a providerRef the provider returns, but not when it returns none', async () => {
     const withRef = setup({
       due: [row()],

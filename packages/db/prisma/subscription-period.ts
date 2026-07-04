@@ -16,6 +16,7 @@
 // for the pause/compensation math where a fixed duration — not a calendar cadence —
 // is what is owed.
 
+import { addDays } from './subscription-freeze-policy';
 import { SubscriptionInterval } from '../generated/client';
 
 /**
@@ -59,5 +60,25 @@ export function initialBillingPeriod(
   return {
     currentPeriodStart: start,
     currentPeriodEnd: addInterval(start, interval),
+  };
+}
+
+/**
+ * The `{ currentPeriodStart, currentPeriodEnd }` of a subscription's **free-trial**
+ * period (T5.6): it starts at `start` (enrolment) and ends `trialDays` whole days
+ * later — a fixed duration, so this uses {@link addDays} rather than the calendar
+ * {@link addInterval} the paid periods advance by. The trial-end `currentPeriodEnd`
+ * is when the subscription is *due*: the billing job's first charge there converts
+ * `TRIAL → ACTIVE` and the next (paid) period runs one `interval` from that instant,
+ * contiguous with the trial, so the renewal cadence anchors on the conversion date.
+ * `trialDays` must be `> 0` — a plan with no trial uses {@link initialBillingPeriod}.
+ */
+export function trialBillingPeriod(
+  start: Date,
+  trialDays: number,
+): { currentPeriodStart: Date; currentPeriodEnd: Date } {
+  return {
+    currentPeriodStart: start,
+    currentPeriodEnd: addDays(start, trialDays),
   };
 }

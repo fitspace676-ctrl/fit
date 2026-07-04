@@ -162,4 +162,31 @@ describe('classifyDueSubscription', () => {
       expect(result).toEqual({ action: 'skip' });
     },
   );
+
+  describe('trial conversion (T5.6)', () => {
+    /** A TRIAL subscription whose trial ends 2026-06-01 (its `currentPeriodEnd`). */
+    const trial: BillableSubscription = { ...base, status: SubscriptionStatus.TRIAL };
+
+    it('skips a TRIAL still inside its trial window', () => {
+      const result = classifyDueSubscription(trial, { now: at('2026-05-31T23:59:59.000Z') });
+      expect(result).toEqual({ action: 'skip' });
+    });
+
+    it('charges a TRIAL at trial end, the first paid period running one interval from there', () => {
+      // The caller converts TRIAL → ACTIVE on a successful charge; the period the
+      // rule hands back starts at the trial end and runs a full month, contiguous.
+      const result = classifyDueSubscription(trial, { now: at('2026-06-01T00:00:00.000Z') });
+      expect(result).toEqual({
+        action: 'charge',
+        nextPeriodStart: at('2026-06-01T00:00:00.000Z'),
+        nextPeriodEnd: at('2026-07-01T00:00:00.000Z'),
+      });
+    });
+
+    it('charges nothing when the member cancelled during the trial (cancel wins)', () => {
+      const canceling: BillableSubscription = { ...trial, cancelAtPeriodEnd: true };
+      const result = classifyDueSubscription(canceling, { now: at('2026-06-01T02:00:00.000Z') });
+      expect(result).toEqual({ action: 'cancel' });
+    });
+  });
 });

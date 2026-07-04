@@ -47,6 +47,7 @@ type Initial = {
   popular: boolean;
   freezeDaysPerPeriod: number;
   includedCredits: number;
+  trialDays: number;
 };
 
 type Props =
@@ -107,6 +108,7 @@ export function SubscriptionPlanForm(props: Props) {
         popular: false,
         freezeDaysPerPeriod: 30,
         includedCredits: 0,
+        trialDays: 0,
       };
 
   const [name, setName] = useState(initial.name);
@@ -118,6 +120,7 @@ export function SubscriptionPlanForm(props: Props) {
   const [popular, setPopular] = useState(initial.popular);
   const [freezeDays, setFreezeDays] = useState(String(initial.freezeDaysPerPeriod));
   const [credits, setCredits] = useState(String(initial.includedCredits));
+  const [trialDays, setTrialDays] = useState(String(initial.trialDays));
   const [status, setStatus] = useState<SubscriptionPlanStatus>('ACTIVE');
 
   function setFeature(index: number, value: string): void {
@@ -149,6 +152,7 @@ export function SubscriptionPlanForm(props: Props) {
       popular,
       freezeDaysPerPeriod: parseAllowance(freezeDays),
       includedCredits: parseAllowance(credits),
+      trialDays: parseAllowance(trialDays),
     };
 
     startTransition(async () => {
@@ -170,6 +174,7 @@ export function SubscriptionPlanForm(props: Props) {
   // Live-preview values, derived from the current form state.
   const previewCredits = parseAllowance(credits);
   const previewFreeze = parseAllowance(freezeDays);
+  const previewTrial = parseAllowance(trialDays);
   const previewPerks = features.map((f) => f.trim()).filter((f) => f.length > 0);
 
   return (
@@ -312,6 +317,27 @@ export function SubscriptionPlanForm(props: Props) {
                 className={`${FIELD_CLASS} font-mono tabular-nums`}
               />
               <p className="text-xs text-ink-400">Max days a member can pause. 0 = no freezing.</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="plan-trial" className={LABEL_CLASS}>
+                Free trial days
+              </label>
+              <input
+                id="plan-trial"
+                name="trialDays"
+                type="number"
+                min="0"
+                max={MAX_SUBSCRIPTION_ALLOWANCE}
+                step="1"
+                inputMode="numeric"
+                value={trialDays}
+                onChange={(event) => setTrialDays(event.target.value)}
+                placeholder="0"
+                className={`${FIELD_CLASS} font-mono tabular-nums`}
+              />
+              <p className="text-xs text-ink-400">
+                Free days before the first charge. 0 = no trial.
+              </p>
             </div>
           </div>
         </Card>
@@ -467,12 +493,20 @@ export function SubscriptionPlanForm(props: Props) {
             {creditsLabel(previewCredits)}
           </div>
 
-          {previewFreeze > 0 ? (
+          {previewTrial > 0 || previewFreeze > 0 ? (
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
-                <Icon name="clock" className="h-3 w-3" sw={2} />
-                {previewFreeze}d freeze
-              </span>
+              {previewTrial > 0 ? (
+                <span className="inline-flex h-6 items-center gap-1 rounded-pill bg-brand-500/10 px-2 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand-500/20 dark:text-brand-300">
+                  <Icon name="spark" className="h-3 w-3" sw={2} />
+                  {previewTrial}-day free trial
+                </span>
+              ) : null}
+              {previewFreeze > 0 ? (
+                <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
+                  <Icon name="clock" className="h-3 w-3" sw={2} />
+                  {previewFreeze}d freeze
+                </span>
+              ) : null}
             </div>
           ) : null}
 

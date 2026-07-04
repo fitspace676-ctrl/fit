@@ -30,6 +30,7 @@ const SUBSCRIPTION_PLAN_SELECT = {
   features: true,
   freezeDaysPerPeriod: true,
   includedCredits: true,
+  trialDays: true,
   popular: true,
   status: true,
   createdAt: true,
@@ -96,8 +97,8 @@ export class AdminSubscriptionPlansService {
   }
 
   /**
-   * The count of *live* subscriptions (`ACTIVE` / `PAST_DUE` / `FROZEN` — the paid
-   * states that occupy a member's slot) per plan, for the `planIds` on the current
+   * The count of *live* subscriptions (`TRIAL` / `ACTIVE` / `PAST_DUE` / `FROZEN` —
+   * the states that occupy a member's slot) per plan, for the `planIds` on the current
    * page. One grouped query keyed by `planId`, mirroring the dashboard / member
    * plan-mix aggregation, so the billing-plans cards can show subscriber counts and
    * MRR without an N+1. Returns an empty map for an empty page. Runs on the
@@ -162,6 +163,7 @@ export class AdminSubscriptionPlansService {
         popular: input.popular,
         freezeDaysPerPeriod: input.freezeDaysPerPeriod,
         includedCredits: input.includedCredits,
+        trialDays: input.trialDays,
         status: input.status,
       },
       select: SUBSCRIPTION_PLAN_SELECT,
@@ -194,6 +196,7 @@ export class AdminSubscriptionPlansService {
         popular: input.popular,
         freezeDaysPerPeriod: input.freezeDaysPerPeriod,
         includedCredits: input.includedCredits,
+        trialDays: input.trialDays,
       },
     });
     return this.getSubscriptionPlan(id);
@@ -302,6 +305,7 @@ export class AdminSubscriptionPlansService {
       features: row.features,
       freezeDaysPerPeriod: row.freezeDaysPerPeriod,
       includedCredits: row.includedCredits,
+      trialDays: row.trialDays,
       subscriberCount,
       popular: row.popular,
       status: row.status,
