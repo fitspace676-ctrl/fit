@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import type { BookingOutcome, ClassInstanceDetail, MemberBookingHistoryEntry } from '@fit/types';
-import { useI18n, useTheme, useToast } from '../../providers';
+import { useI18n, useToast } from '../../providers';
 import { useBookingActions } from '../../hooks/useBookingActions';
 
 export interface ClassBookingActionsProps {
@@ -18,7 +18,12 @@ export interface ClassBookingActionsProps {
 }
 
 /**
- * The class-detail screen's Book / Waitlist / Cancel action area (T6.4).
+ * The class-detail screen's Book / Waitlist / Cancel action area — restyled to
+ * the formacore "Aurora Glass" dark identity (T7.4, member-classdetail-mobile
+ * artboard). Frosted `white/5` status cards on the `ink-950` canvas, a solid
+ * `brand-600` primary CTA, and a translucent danger outline for the destructive
+ * cancel / leave-waitlist action. Dark-only, matching the redesigned schedule
+ * (T7.3) and home (T7.2) tabs.
  *
  * Reads the caller's live booking to pick the action:
  *   • no booking, seats free   → "Book this class"
@@ -38,7 +43,6 @@ export function ClassBookingActions({
   liveBooking,
   bookingsLoading,
 }: ClassBookingActionsProps) {
-  const { colors } = useTheme();
   const { t } = useI18n();
   const toast = useToast();
   const { book, cancel } = useBookingActions(gymId, instance.id);
@@ -75,8 +79,8 @@ export function ClassBookingActions({
   // quiet rather than flashing the wrong action.
   if (bookingsLoading) {
     return (
-      <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-        <ActivityIndicator color={colors.primary} />
+      <View className="items-center py-4">
+        <ActivityIndicator color="#9184F1" />
       </View>
     );
   }
@@ -84,25 +88,22 @@ export function ClassBookingActions({
   if (liveBooking) {
     const isWaitlist = liveBooking.status === 'WAITLIST';
     return (
-      <View style={{ gap: 12 }}>
-        <View
-          style={{
-            gap: 4,
-            padding: 14,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.surface,
-          }}
-        >
-          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
-            {t(
-              isWaitlist
-                ? 'classes.detail.booking.waitlistedTitle'
-                : 'classes.detail.booking.bookedTitle',
-            )}
-          </Text>
-          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+      <View className="gap-3">
+        <View className="overflow-hidden rounded-card border border-white/10 bg-white/5 p-4">
+          <View className="absolute inset-x-0 top-0 h-px bg-white/10" />
+          <View className="flex-row items-center gap-2">
+            <View
+              className={`h-1.5 w-1.5 rounded-full ${isWaitlist ? 'bg-warning-400' : 'bg-success-400'}`}
+            />
+            <Text className="text-[15px] font-bold text-white">
+              {t(
+                isWaitlist
+                  ? 'classes.detail.booking.waitlistedTitle'
+                  : 'classes.detail.booking.bookedTitle',
+              )}
+            </Text>
+          </View>
+          <Text className="mt-1.5 text-[13px] text-ink-400">
             {t(
               isWaitlist
                 ? 'classes.detail.booking.waitlistedSubtitle'
@@ -110,7 +111,7 @@ export function ClassBookingActions({
             )}
           </Text>
           {isWaitlist && liveBooking.waitlistPosition != null ? (
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>
+            <Text className="mt-2 font-mono text-[13px] font-semibold text-brand-300">
               {t('classes.detail.booking.waitlistPosition', {
                 position: liveBooking.waitlistPosition,
               })}
@@ -126,7 +127,6 @@ export function ClassBookingActions({
           pending={cancel.isPending}
           disabled={busy}
           variant="danger"
-          colors={colors}
           onPress={() => void onCancel()}
         />
       </View>
@@ -134,11 +134,9 @@ export function ClassBookingActions({
   }
 
   return (
-    <View style={{ gap: 12 }}>
+    <View className="gap-3">
       {isFull ? (
-        <Text style={{ fontSize: 13, color: colors.textMuted }}>
-          {t('classes.detail.booking.fullNote')}
-        </Text>
+        <Text className="text-[13px] text-ink-400">{t('classes.detail.booking.fullNote')}</Text>
       ) : null}
       <ActionButton
         label={t(isFull ? 'classes.detail.booking.joinWaitlist' : 'classes.detail.booking.book')}
@@ -146,7 +144,6 @@ export function ClassBookingActions({
         pending={book.isPending}
         disabled={busy}
         variant="primary"
-        colors={colors}
         onPress={() => void onBook()}
       />
     </View>
@@ -168,21 +165,15 @@ function errorMessage(error: unknown, t: (key: string) => string): string {
   return t('classes.detail.booking.toast.error');
 }
 
-interface ActionButtonColors {
-  primary: string;
-  onPrimary: string;
-  border: string;
-  text: string;
-}
-
-/** A full-width primary / danger action button with an inline pending spinner. */
+/** A full-width primary / danger action button with an inline pending spinner,
+ * in the Aurora Glass palette (solid `brand-600` primary, translucent danger
+ * outline). */
 function ActionButton({
   label,
   pendingLabel,
   pending,
   disabled,
   variant,
-  colors,
   onPress,
 }: {
   label: string;
@@ -190,32 +181,23 @@ function ActionButton({
   pending: boolean;
   disabled: boolean;
   variant: 'primary' | 'danger';
-  colors: ActionButtonColors;
   onPress: () => void;
 }) {
   const isDanger = variant === 'danger';
-  const textColor = isDanger ? '#dc2626' : colors.onPrimary;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled, busy: pending }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 14,
-        borderRadius: 12,
-        borderWidth: isDanger ? 1 : 0,
-        borderColor: isDanger ? '#dc2626' : 'transparent',
-        backgroundColor: isDanger ? 'transparent' : colors.primary,
-        opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
-      })}
+      className={`h-14 flex-row items-center justify-center gap-2 rounded-btn ${
+        isDanger
+          ? 'border border-danger-500/40 bg-danger-500/10 active:bg-danger-500/20'
+          : 'bg-brand-600 active:bg-brand-700'
+      } ${disabled ? 'opacity-50' : ''}`}
     >
-      {pending ? <ActivityIndicator size="small" color={textColor} /> : null}
-      <Text style={{ fontSize: 15, fontWeight: '700', color: textColor }}>
+      {pending ? <ActivityIndicator size="small" color={isDanger ? '#FDA29B' : '#FFFFFF'} /> : null}
+      <Text className={`text-[15px] font-bold ${isDanger ? 'text-danger-300' : 'text-white'}`}>
         {pending ? pendingLabel : label}
       </Text>
     </Pressable>
