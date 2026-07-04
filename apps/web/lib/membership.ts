@@ -1,11 +1,12 @@
 // @fit/web — member subscription (membership) API helper.
 //
-// Server-only read of the signed-in member's current membership. It targets
-// `GET /me/subscription` (see the backend TODO in the redesign notes — this is
-// the one remaining gap) and is deliberately tolerant: any absent session, 404,
-// or non-OK resolves to `null`, so the Membership screen renders its "no active
-// plan" state today and lights up automatically once the endpoint ships. Parsing
-// is done with plain guards (web has no `zod` dependency).
+// Server-only read of the signed-in member's current membership + billing
+// history from `GET /me/subscription` (the live subscription, its plan/status,
+// billing dates, freeze allowance, and recent invoices). It is deliberately
+// tolerant: any absent session, 404, or non-OK resolves to the empty
+// `{ subscription: null, invoices: [] }`, so the Membership screen falls back to
+// its "no active plan" state instead of erroring. Parsing is done with plain
+// guards (web has no `zod` dependency).
 
 import { cookies } from 'next/headers';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
