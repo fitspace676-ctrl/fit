@@ -860,6 +860,73 @@
       }
     },
     "profile": {
+      "mobile": {
+        "title": "პროფილი",
+        "notificationsA11y": "შეტყობინებები",
+        "memberSince": "{tier} · {year} წლიდან",
+        "member": "წევრი",
+        "membership": "წევრობა",
+        "renews": "განახლდება {date}",
+        "daysLeft": "დარჩა {used}/{total} დღე",
+        "noPlanTitle": "აქტიური წევრობა არ არის",
+        "noPlanHint": "აირჩიე გეგმა გაკვეთილებისა და წევრის ფასების გასახსნელად.",
+        "browsePlans": "გეგმების ნახვა",
+        "showQr": "გამოცხადების QR",
+        "freeze": "გაყინვა",
+        "resumeNow": "განახლება",
+        "frozenUntil": "გაყინულია {date}-მდე",
+        "pt": {
+          "sessionsLeftOne": "{count} PT სესია დარჩა",
+          "sessionsLeftOther": "{count} PT სესია დარჩა",
+          "none": "PT სესია არ დარჩა",
+          "refreshesActive": "განახლდება წევრობასთან ერთად",
+          "refreshesEmpty": "იყიდე პაკეტი პერსონალური ვარჯიშისთვის",
+          "buy": "ყიდვა"
+        },
+        "stats": {
+          "dayStreak": "დღიური სერია",
+          "totalVisits": "სულ ვიზიტი",
+          "classes": "გაკვეთილი"
+        },
+        "achievements": {
+          "title": "მიღწევები",
+          "all": "ყველა",
+          "firstClass": "პირველი გაკვეთილი",
+          "tenVisits": "10 ვიზიტი",
+          "fiftyVisits": "50 ვიზიტი",
+          "hundredVisits": "100 ვიზიტი",
+          "streak": "7-დღიანი სერია"
+        },
+        "toggles": {
+          "push": "Push შეტყობინებები",
+          "pushHint": "შეხსენებები და შეთავაზებები",
+          "reminders": "გაკვეთილის შეხსენება",
+          "remindersHint": "დაჯავშნილ გაკვეთილებამდე"
+        },
+        "menu": {
+          "heading": "პარამეტრები",
+          "notifications": "შეტყობინებები",
+          "notificationsHint": "შეხსენებები და განახლებები",
+          "training": "პერსონალური ვარჯიში",
+          "trainingHint": "პაკეტები და PT სესიები",
+          "trainers": "მწვრთნელები",
+          "trainersHint": "დათვალიერება და დაჯავშნა",
+          "language": "ენა",
+          "appearance": "იერსახე",
+          "appearanceHint": "სისტემის მიხედვით"
+        },
+        "freezeSheet": {
+          "title": "წევრობის გაყინვა",
+          "subtitle": "შეაჩერე გადახდები, სანამ არ ხარ.",
+          "carryover": "დარჩენილი დღეები შენარჩუნდება — არაფერი იკარგება. ამ პერიოდში კიდევ {days} დღის გაყინვა შეგიძლია.",
+          "confirm": "გაყინვა {label}",
+          "opt2w": "2 კვირა",
+          "opt1m": "1 თვე",
+          "opt2m": "2 თვე",
+          "optDays": "{days} დღე"
+        },
+        "version": "FormaCore · v{version}"
+      },
       "title": "პროფილი",
       "eyebrow": "ანგარიში",
       "save": "შენახვა",

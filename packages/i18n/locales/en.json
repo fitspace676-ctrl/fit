@@ -860,6 +860,73 @@
       }
     },
     "profile": {
+      "mobile": {
+        "title": "Profile",
+        "notificationsA11y": "Notifications",
+        "memberSince": "{tier} · since {year}",
+        "member": "Member",
+        "membership": "Membership",
+        "renews": "Renews {date}",
+        "daysLeft": "{used} of {total} days left",
+        "noPlanTitle": "No active membership",
+        "noPlanHint": "Pick a plan to unlock classes and member pricing.",
+        "browsePlans": "Browse plans",
+        "showQr": "Show check-in QR",
+        "freeze": "Freeze",
+        "resumeNow": "Resume now",
+        "frozenUntil": "Frozen until {date}",
+        "pt": {
+          "sessionsLeftOne": "{count} PT session left",
+          "sessionsLeftOther": "{count} PT sessions left",
+          "none": "No PT sessions left",
+          "refreshesActive": "Refreshes with your renewal",
+          "refreshesEmpty": "Buy a pack to book personal training",
+          "buy": "Buy"
+        },
+        "stats": {
+          "dayStreak": "Day streak",
+          "totalVisits": "Total visits",
+          "classes": "Classes"
+        },
+        "achievements": {
+          "title": "Achievements",
+          "all": "All",
+          "firstClass": "First class",
+          "tenVisits": "10 visits",
+          "fiftyVisits": "50 visits",
+          "hundredVisits": "100 visits",
+          "streak": "7-day streak"
+        },
+        "toggles": {
+          "push": "Push notifications",
+          "pushHint": "Class reminders & offers",
+          "reminders": "Class reminders",
+          "remindersHint": "Before your booked classes"
+        },
+        "menu": {
+          "heading": "Settings",
+          "notifications": "Notifications",
+          "notificationsHint": "Reminders & updates",
+          "training": "Personal training",
+          "trainingHint": "Packages & PT sessions",
+          "trainers": "Trainers",
+          "trainersHint": "Browse and book",
+          "language": "Language",
+          "appearance": "Appearance",
+          "appearanceHint": "Follows system"
+        },
+        "freezeSheet": {
+          "title": "Freeze membership",
+          "subtitle": "Pause billing while you're away.",
+          "carryover": "Your remaining days carry over — nothing is lost. You can freeze up to {days} more days this period.",
+          "confirm": "Freeze for {label}",
+          "opt2w": "2 weeks",
+          "opt1m": "1 month",
+          "opt2m": "2 months",
+          "optDays": "{days} days"
+        },
+        "version": "FormaCore · v{version}"
+      },
       "title": "Profile",
       "eyebrow": "Account",
       "save": "Save changes",
