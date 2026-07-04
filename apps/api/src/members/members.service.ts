@@ -544,6 +544,7 @@ export class MembersService {
       subscriptions,
       bookings,
       payments,
+      invoices,
       recentCheckIns,
       attendanceCheckIns,
     ] = await Promise.all([
@@ -586,6 +587,21 @@ export class MembersService {
         take: 20,
         select: { id: true, amount: true, status: true, currency: true, createdAt: true },
       }),
+      // Invoices tab — the member's numbered billing documents, newest first (T5.10).
+      // Distinct from payments: an invoice is the document (with a PDF), not the charge.
+      db.invoice.findMany({
+        where: { memberId },
+        orderBy: { issuedAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          number: true,
+          amount: true,
+          currency: true,
+          status: true,
+          issuedAt: true,
+        },
+      }),
       // Recent check-ins feeding the activity timeline.
       db.checkIn.findMany({
         where: { gymMemberId: memberId },
@@ -621,6 +637,14 @@ export class MembersService {
       status: p.status,
       paidAt: p.createdAt.toISOString(),
     }));
+    const wireInvoices = invoices.map((i) => ({
+      id: i.id,
+      number: i.number,
+      amount: i.amount,
+      currency: i.currency,
+      status: i.status,
+      issuedAt: i.issuedAt.toISOString(),
+    }));
 
     return {
       ...this.toRow(row),
@@ -634,6 +658,7 @@ export class MembersService {
       subscriptions: wireSubscriptions,
       bookings: wireBookings,
       payments: wirePayments,
+      invoices: wireInvoices,
       // No member-tags / member-notes model exists in the Prisma schema — return
       // honest empty states rather than fabricate. See the class docstring.
       tags: [],

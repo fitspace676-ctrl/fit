@@ -1487,3 +1487,16 @@ export async function fetchOrdersExport(
     cache: 'no-store',
   });
 }
+
+/**
+ * `GET /invoices/:id/pdf` — a member invoice's PDF (T5.10), with the staff token
+ * forwarded. Returned as the live `Response` (not parsed) so the admin route handler
+ * pipes its body straight to the browser as a download. The API renders (and caches to
+ * R2) on first access and 404s a cross-tenant / unknown id.
+ */
+export async function fetchInvoicePdf(id: string): Promise<Response> {
+  return fetch(`${apiBaseUrl()}/invoices/${encodeURIComponent(id)}/pdf`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+}

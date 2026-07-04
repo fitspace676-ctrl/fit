@@ -760,6 +760,9 @@
         "REFUNDED": "Refunded"
       },
       "noInvoices": "No invoices yet",
+      "downloadCol": "Invoice PDF",
+      "download": "Download",
+      "downloadPdf": "Download invoice PDF",
       "pastDue": {
         "title": "Payment didn't go through",
         "body": "We couldn't process your last renewal. We'll retry automatically over the next few days — please settle up at the desk to keep your membership active."
@@ -1579,6 +1582,9 @@
         "noSubscriptions": "No subscriptions yet.",
         "noBookings": "No bookings yet.",
         "noPayments": "No payments yet.",
+        "noInvoices": "No invoices yet.",
+        "download": "Download",
+        "downloadInvoice": "Download invoice PDF",
         "noNotes": "No notes yet.",
         "subStarted": "Started {date}",
         "subRenews": " · renews {date}",
@@ -1632,6 +1638,7 @@
         "subscriptions": "Subscriptions",
         "bookings": "Bookings",
         "payments": "Payments",
+        "invoices": "Invoices",
         "notes": "Notes"
       },
       "errors": {

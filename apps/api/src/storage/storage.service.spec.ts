@@ -8,7 +8,7 @@ import { BadRequestException, ServiceUnavailableException } from '@nestjs/common
 //   flip R2 config on/off (the real `env` is parsed once at module load).
 // - getSignedUrl: stubs the presigner so no network/credentials are needed; we
 //   inspect the command it was handed to assert bucket/key/content-type.
-const { mockEnv, getSignedUrl } = vi.hoisted(() => {
+const { mockEnv, getSignedUrl, send } = vi.hoisted(() => {
   const mockEnv: Record<string, unknown> = {};
   // Typed signature so `.mock.calls` is a tuple, not `any[]` (keeps the
   // strict no-unsafe-* lint rules happy when we assert on the command).
@@ -20,10 +20,27 @@ const { mockEnv, getSignedUrl } = vi.hoisted(() => {
         options: { expiresIn: number },
       ) => Promise<string>
     >();
-  return { mockEnv, getSignedUrl };
+  // The S3 client's `send` — the seam `putObject` / `getObject` go through.
+  const send = vi.fn<(command: { input: Record<string, unknown> }) => Promise<unknown>>();
+  return { mockEnv, getSignedUrl, send };
 });
 vi.mock('../config/env', () => ({ env: mockEnv }));
 vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl }));
+// Stub the S3 client so `putObject` / `getObject` hit `send` (no network), while
+// the command classes still carry their `input` for assertions.
+vi.mock('@aws-sdk/client-s3', () => {
+  class Command {
+    input: Record<string, unknown>;
+    constructor(input: Record<string, unknown>) {
+      this.input = input;
+    }
+  }
+  return {
+    S3Client: vi.fn(() => ({ send, destroy: vi.fn() })),
+    PutObjectCommand: Command,
+    GetObjectCommand: Command,
+  };
+});
 
 import { StorageService } from './storage.service';
 
@@ -56,6 +73,7 @@ describe('StorageService', () => {
   beforeEach(() => {
     configure();
     getSignedUrl.mockReset().mockResolvedValue('https://signed.example/put');
+    send.mockReset();
     service = new StorageService();
   });
 
@@ -174,6 +192,63 @@ describe('StorageService', () => {
       const [, command, opts] = getSignedUrl.mock.calls[0]!;
       expect(command.input).toMatchObject({ Bucket: 'fit-uploads', Key: 'gym-1/avatars/me.png' });
       expect(opts).toEqual({ expiresIn: 60 });
+    });
+  });
+
+  describe('putObject', () => {
+    it('sends a PutObjectCommand with the bucket, key, body, and content type', async () => {
+      send.mockResolvedValue({});
+      const body = Buffer.from('%PDF-1.4 hello');
+
+      await service.putObject('gym-1/invoices/2026/2026-0001.pdf', body, 'application/pdf');
+
+      const [command] = send.mock.calls[0]!;
+      expect(command.input).toMatchObject({
+        Bucket: 'fit-uploads',
+        Key: 'gym-1/invoices/2026/2026-0001.pdf',
+        Body: body,
+        ContentType: 'application/pdf',
+      });
+    });
+
+    it('throws ServiceUnavailableException when R2 is not configured', async () => {
+      configure({ R2_BUCKET: undefined });
+      await expect(
+        service.putObject('k', Buffer.from('x'), 'application/pdf'),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getObject', () => {
+    it('returns the object bytes as a Buffer', async () => {
+      const bytes = new Uint8Array([37, 80, 68, 70]); // "%PDF"
+      send.mockResolvedValue({ Body: { transformToByteArray: () => Promise.resolve(bytes) } });
+
+      const result = await service.getObject('gym-1/invoices/2026/2026-0001.pdf');
+
+      expect(result).toBeInstanceOf(Buffer);
+      expect(result?.equals(Buffer.from(bytes))).toBe(true);
+    });
+
+    it('returns null when the object does not exist (NoSuchKey)', async () => {
+      send.mockRejectedValue(Object.assign(new Error('missing'), { name: 'NoSuchKey' }));
+
+      await expect(service.getObject('gym-1/invoices/2026/nope.pdf')).resolves.toBeNull();
+    });
+
+    it('returns null on a 404 metadata status', async () => {
+      send.mockRejectedValue(
+        Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } }),
+      );
+
+      await expect(service.getObject('gym-1/invoices/2026/nope.pdf')).resolves.toBeNull();
+    });
+
+    it('propagates non-404 errors', async () => {
+      send.mockRejectedValue(Object.assign(new Error('boom'), { name: 'AccessDenied' }));
+
+      await expect(service.getObject('k')).rejects.toThrow('boom');
     });
   });
 });

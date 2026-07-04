@@ -1,0 +1,167 @@
+import { Injectable } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
+import { InvoiceStatus } from '@fit/db';
+
+/** Everything the invoice document renders — a flat snapshot, no DB access here. */
+export interface InvoicePdfData {
+  /** Per-gym, per-year sequential reference (e.g. `"2026-0001"`). */
+  number: string;
+  /** When the invoice was raised. */
+  issuedAt: Date;
+  /** Human-readable line describing what was billed. */
+  description: string;
+  /** Charged amount in the currency's MINOR units (cents/tetri). */
+  amount: number;
+  /** ISO-4217 currency, snapshotted from the charge. */
+  currency: string;
+  /** Settlement state. */
+  status: InvoiceStatus;
+  /** Issuing gym's display name (the document header). */
+  gymName: string;
+  /** Billed member's name, when known. */
+  memberName: string | null;
+  /** Billed member's email, when known. */
+  memberEmail: string | null;
+}
+
+/** Page geometry (A4, points). */
+const PAGE_MARGIN = 50;
+const BRAND = '#7C3AED';
+const INK = '#1A1A2E';
+const MUTED = '#6B7280';
+
+/**
+ * Renders an {@link Invoice} to a single-page A4 PDF (T5.10) with `pdfkit`, entirely
+ * in memory. Deliberately dependency-light — no headless browser — because an invoice
+ * is a fixed, text-only layout: a gym header, the invoice/bill-to block, one billed
+ * line, the total, and the settlement state. Stateless and pure: it takes a flat
+ * {@link InvoicePdfData} snapshot and returns the bytes, so the caller owns loading the
+ * invoice, storing the result in R2, and streaming it.
+ */
+@Injectable()
+export class InvoicePdfService {
+  /** Render `data` to PDF bytes. Resolves once the document is fully flushed. */
+  render(data: InvoicePdfData): Promise<Buffer> {
+    const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN });
+    const chunks: Buffer[] = [];
+
+    const done = new Promise<Buffer>((resolve, reject) => {
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+    });
+
+    this.compose(doc, data);
+    doc.end();
+    return done;
+  }
+
+  /** Lay out the document. Kept separate so {@link render} owns only the byte plumbing. */
+  private compose(doc: PDFKit.PDFDocument, data: InvoicePdfData): void {
+    const left = PAGE_MARGIN;
+    const right = doc.page.width - PAGE_MARGIN;
+    const money = formatMoney(data.amount, data.currency);
+
+    // Header — gym name (left) and the "INVOICE" wordmark + number (right).
+    doc.fillColor(INK).font('Helvetica-Bold').fontSize(20).text(data.gymName, left, PAGE_MARGIN);
+    doc
+      .fillColor(BRAND)
+      .font('Helvetica-Bold')
+      .fontSize(24)
+      .text('INVOICE', left, PAGE_MARGIN, { align: 'right' });
+    doc
+      .fillColor(MUTED)
+      .font('Helvetica')
+      .fontSize(10)
+      .text(`No. ${data.number}`, left, PAGE_MARGIN + 30, { align: 'right' })
+      .text(`Issued ${formatDate(data.issuedAt)}`, { align: 'right' });
+
+    // Divider under the header.
+    doc
+      .moveTo(left, PAGE_MARGIN + 64)
+      .lineTo(right, PAGE_MARGIN + 64)
+      .strokeColor('#E5E7EB')
+      .lineWidth(1)
+      .stroke();
+
+    // Bill-to block.
+    let y = PAGE_MARGIN + 84;
+    doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(9).text('BILLED TO', left, y);
+    y += 14;
+    doc
+      .fillColor(INK)
+      .font('Helvetica')
+      .fontSize(11)
+      .text(data.memberName ?? 'Member', left, y);
+    if (data.memberEmail) {
+      y += 15;
+      doc.fillColor(MUTED).fontSize(10).text(data.memberEmail, left, y);
+    }
+
+    // Line-item table.
+    y += 44;
+    const amountX = right - 120;
+    doc
+      .fillColor(MUTED)
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .text('DESCRIPTION', left, y)
+      .text('AMOUNT', amountX, y, { width: 120, align: 'right' });
+    y += 12;
+    doc.moveTo(left, y).lineTo(right, y).strokeColor('#E5E7EB').lineWidth(1).stroke();
+    y += 12;
+    doc
+      .fillColor(INK)
+      .font('Helvetica')
+      .fontSize(11)
+      .text(data.description || 'Membership charge', left, y, { width: amountX - left - 12 })
+      .text(money, amountX, y, { width: 120, align: 'right' });
+
+    // Total row.
+    y += 36;
+    doc.moveTo(left, y).lineTo(right, y).strokeColor('#E5E7EB').lineWidth(1).stroke();
+    y += 14;
+    doc
+      .fillColor(INK)
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .text('Total', left, y)
+      .text(money, amountX, y, { width: 120, align: 'right' });
+
+    // Settlement state.
+    y += 30;
+    doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(9).text('STATUS', left, y);
+    doc
+      .fillColor(statusColor(data.status))
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .text(data.status, left, y + 12);
+
+    // Footer.
+    doc
+      .fillColor(MUTED)
+      .font('Helvetica')
+      .fontSize(9)
+      .text(`${data.gymName} · Invoice ${data.number}`, left, doc.page.height - PAGE_MARGIN - 12, {
+        width: right - left,
+        align: 'center',
+      });
+  }
+}
+
+/** Minor units → `"12.00 GEL"`. Two decimals for the standard 100-minor currencies. */
+function formatMoney(minorUnits: number, currency: string): string {
+  return `${(minorUnits / 100).toFixed(2)} ${currency}`;
+}
+
+/** `"4 Jul 2026"` in a fixed, locale-independent form (the document is not localised). */
+function formatDate(date: Date): string {
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** The accent colour for a settlement state — green paid, red failed, amber otherwise. */
+function statusColor(status: InvoiceStatus): string {
+  if (status === InvoiceStatus.PAID) return '#16A34A';
+  if (status === InvoiceStatus.FAILED) return '#DC2626';
+  return '#D97706';
+}
