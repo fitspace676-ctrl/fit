@@ -85,7 +85,7 @@ export default function ShopScreen() {
               {t('member.shop.title')}
             </Text>
           </View>
-          <CartButton count={count} label={t('member.shop.cart')} />
+          <CartButton count={count} label={t('member.shop.cart.open')} />
         </View>
 
         {/* ---- search field ---- */}

@@ -1011,7 +1011,32 @@
       "search": "Search",
       "searchPlaceholder": "Search supplements, gear…",
       "clear": "Clear search",
-      "cart": "Open cart",
+      "cart": {
+        "title": "Your cart",
+        "back": "Back",
+        "remove": "Remove",
+        "decrease": "Decrease quantity",
+        "increase": "Increase quantity",
+        "each": "{price} ea",
+        "empty": {
+          "title": "Your cart is empty",
+          "subtitle": "Browse the shop and add supplements or gear to get started.",
+          "action": "Browse shop"
+        },
+        "pickup": {
+          "title": "Front-desk pickup",
+          "subtitle": "Collect your order at the gym’s front desk.",
+          "free": "Free",
+          "ready": "Ready in ~2 hours · collect anytime this week."
+        },
+        "summary": {
+          "subtotal": "Subtotal",
+          "pickup": "Pickup",
+          "total": "Total"
+        },
+        "secure": "Secure checkout · payment is simulated for now.",
+        "open": "Open cart"
+      },
       "perk": "Collect your order at the front desk — no shipping, no waiting.",
       "loading": "Loading products…",
       "error": "We couldn’t load the shop. Please try again.",
@@ -1043,6 +1068,32 @@
         "notFound": {
           "title": "Product not found",
           "subtitle": "This product may no longer be available."
+        }
+      },
+      "checkout": {
+        "place": "Place order",
+        "processing": "Placing order…",
+        "total": "Total",
+        "error": "We couldn’t place your order. Please try again."
+      },
+      "order": {
+        "loading": "Loading your order…",
+        "error": "We couldn’t load this order. Please try again.",
+        "retry": "Try again",
+        "title": "Order placed",
+        "subtitle": "We’ll let you know when it’s ready at the front desk — usually within 2 hours.",
+        "orderLabel": "Order",
+        "paidLabel": "Paid",
+        "total": "Total",
+        "continue": "Keep shopping",
+        "status": {
+          "pending": "Pending",
+          "paid": "Paid",
+          "cancelled": "Cancelled"
+        },
+        "notFound": {
+          "title": "Order not found",
+          "subtitle": "We couldn’t find that order. It may have been removed."
         }
       }
     }
