@@ -6,10 +6,11 @@ const { mockEnv } = vi.hoisted(() => {
 });
 vi.mock('../config/env', () => ({ env: mockEnv }));
 
-import type { PosReceipt } from '@fit/types';
+import type { PosReceipt, ReportDigest } from '@fit/types';
 import {
   EmailService,
   buildReceiptEmail,
+  buildReportDigestEmail,
   buildVerificationUrl,
   buildPasswordResetUrl,
 } from './email.service';
@@ -33,6 +34,53 @@ function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
   Object.assign(mockEnv, { EMAIL_FROM: 'Fit <no-reply@fit.app>' }, overrides);
 }
+
+/** A weekly digest fixture: one money report, one percent report, one empty. */
+const weeklyDigest: ReportDigest = {
+  gymName: 'Downtown',
+  cadence: 'weekly',
+  range: '7d',
+  sections: [
+    {
+      key: 'revenue-by-channel',
+      name: 'Revenue by channel',
+      range: '7d',
+      currency: 'USD',
+      columns: [
+        { key: 'channel', label: 'Channel', type: 'text' },
+        { key: 'orders', label: 'Orders', type: 'number' },
+        { key: 'net', label: 'Net', type: 'money' },
+      ],
+      rows: [
+        { channel: 'POS', orders: 3, net: 4500 },
+        { channel: 'ONLINE', orders: 1, net: 1999 },
+      ],
+    },
+    {
+      key: 'no-show-rate',
+      name: 'No-show rate',
+      range: '7d',
+      currency: 'USD',
+      columns: [
+        { key: 'trainer', label: 'Trainer', type: 'text' },
+        { key: 'completed', label: 'Completed bookings', type: 'number' },
+        { key: 'noShowRate', label: 'No-show rate', type: 'percent' },
+      ],
+      rows: [{ trainer: 'Alex', completed: 10, noShowRate: 12.5 }],
+    },
+    {
+      key: 'attendance-by-class',
+      name: 'Attendance by class',
+      range: '7d',
+      currency: 'USD',
+      columns: [
+        { key: 'class', label: 'Class', type: 'text' },
+        { key: 'attendanceRate', label: 'Attendance rate', type: 'percent' },
+      ],
+      rows: [],
+    },
+  ],
+};
 
 describe('EmailService', () => {
   let fetchMock: ReturnType<typeof vi.fn<(url: string, init: RequestInit) => Promise<Response>>>;
@@ -352,5 +400,102 @@ describe('buildReceiptEmail', () => {
     });
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
+  });
+});
+
+describe('buildReportDigestEmail', () => {
+  it('subjects the digest with the cadence label and gym name', () => {
+    const { subject } = buildReportDigestEmail(weeklyDigest);
+    expect(subject).toBe('Weekly report digest — Downtown');
+
+    const monthly = buildReportDigestEmail({ ...weeklyDigest, cadence: 'monthly', range: '30d' });
+    expect(monthly.subject).toBe('Monthly report digest — Downtown');
+  });
+
+  it('renders each section title, its money in the section currency, and percents', () => {
+    const { html, text } = buildReportDigestEmail(weeklyDigest);
+    expect(html).toContain('Revenue by channel');
+    expect(html).toContain('No-show rate');
+    // Money minor units formatted to the section currency.
+    expect(html).toContain('$45.00');
+    expect(text).toContain('$19.99');
+    // Percent gets a % suffix.
+    expect(html).toContain('12.5%');
+  });
+
+  it('shows an empty-state line for a report with no rows', () => {
+    const { html, text } = buildReportDigestEmail(weeklyDigest);
+    expect(html).toContain('Attendance by class');
+    expect(html).toContain('No activity in this period.');
+    expect(text).toContain('No activity in this period.');
+  });
+
+  it('renders the reports link only when a reportsUrl is supplied', () => {
+    const without = buildReportDigestEmail(weeklyDigest);
+    expect(without.html).not.toContain('View full reports');
+
+    const withLink = buildReportDigestEmail(weeklyDigest, {
+      reportsUrl: 'https://admin.fit/reports',
+    });
+    expect(withLink.html).toContain('https://admin.fit/reports');
+    expect(withLink.html).toContain('View full reports');
+    expect(withLink.text).toContain('View full reports: https://admin.fit/reports');
+  });
+
+  it('wraps the digest in the branded shell and escapes the gym name', () => {
+    const { html } = buildReportDigestEmail({ ...weeklyDigest, gymName: '<b>Gym</b>' });
+    expect(html).toContain('#6257E3');
+    expect(html).not.toContain('<b>Gym</b>');
+    expect(html).toContain('&lt;b&gt;Gym&lt;/b&gt;');
+  });
+});
+
+describe('EmailService.sendReportDigestEmail', () => {
+  let fetchMock: ReturnType<typeof vi.fn<(url: string, init: RequestInit) => Promise<Response>>>;
+
+  beforeEach(() => {
+    configure();
+    fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response('{}', { status: 200 })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('resolves false without sending when Resend is unconfigured', async () => {
+    const service = new EmailService();
+    const sent = await service.sendReportDigestEmail('owner@example.com', weeklyDigest);
+    expect(sent).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('POSTs the digest to Resend and resolves true when configured', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    const service = new EmailService();
+
+    const sent = await service.sendReportDigestEmail('owner@example.com', weeklyDigest, {
+      reportsUrl: 'https://admin.fit/reports',
+    });
+
+    expect(sent).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
+    expect(body.to).toEqual(['owner@example.com']);
+    expect(body.subject).toBe('Weekly report digest — Downtown');
+    expect(String(body.html)).toContain('https://admin.fit/reports');
+  });
+
+  it('throws when Resend returns a non-2xx response', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    fetchMock.mockResolvedValue(new Response('boom', { status: 500 }));
+    const service = new EmailService();
+
+    await expect(service.sendReportDigestEmail('owner@example.com', weeklyDigest)).rejects.toThrow(
+      /500/,
+    );
   });
 });

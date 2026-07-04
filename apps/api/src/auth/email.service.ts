@@ -1,5 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { PaymentMethod, PosReceipt } from '@fit/types';
+import {
+  REPORT_DEFINITIONS,
+  REPORT_DIGEST_CADENCE_LABEL,
+  type PaymentMethod,
+  type PosReceipt,
+  type ReportCellValue,
+  type ReportColumn,
+  type ReportDigest,
+  type ReportDigestSection,
+} from '@fit/types';
 import { env } from '../config/env';
 
 /** Resend's transactional-email endpoint. */
@@ -269,6 +278,53 @@ export class EmailService {
     this.logger.debug(`Receipt email dispatched to ${to}`);
     return true;
   }
+
+  /**
+   * Email a gym's owner/manager the scheduled operational report digest (T4.10).
+   * Builds the digest copy from the computed {@link ReportDigest} via
+   * {@link buildReportDigestEmail} and posts it to Resend. Resolves `true` once
+   * the mail is accepted; resolves `false` — without sending — when Resend is
+   * unconfigured (the digest is logged instead), so the scheduler can tally
+   * "delivered" vs "delivery not configured". Rejects only when Resend returns an
+   * error, which the scheduler treats as a failed send for that one recipient.
+   */
+  async sendReportDigestEmail(
+    to: string,
+    digest: ReportDigest,
+    options?: { reportsUrl?: string },
+  ): Promise<boolean> {
+    const { subject, html, text } = buildReportDigestEmail(digest, options);
+
+    if (!this.isConfigured) {
+      this.logger.warn(
+        `Resend not configured (RESEND_API_KEY unset) — ${digest.cadence} report digest for ${to} not sent: ${subject}`,
+      );
+      return false;
+    }
+
+    const response = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM,
+        to: [to],
+        subject,
+        html,
+        text,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+    }
+
+    this.logger.debug(`Report digest email dispatched to ${to}`);
+    return true;
+  }
 }
 
 /**
@@ -472,6 +528,134 @@ export function buildReceiptEmail(
     `Thanks for your purchase at ${seller}.\n` +
     (receipt.memberName ? `Charged to ${receipt.memberName}.\n` : '') +
     `\n${itemLines}\n\n${totalsLines}\n\nPaid by ${methodLabel}.`;
+
+  return { subject, html, text };
+}
+
+/**
+ * Render one report cell as the display string the digest shows, by its column
+ * type: `money` minor units become a localized currency string in the section's
+ * `currency` (e.g. `₾29.99`), `percent` a one-decimal figure with a `%` suffix,
+ * `date`/`number`/`text` their own string. A `null` cell (a slice with no value,
+ * e.g. attendance rate for a class with no completed bookings) renders as an em
+ * dash so the column still lines up.
+ */
+function formatDigestCell(column: ReportColumn, value: ReportCellValue, currency: string): string {
+  if (value === null || value === '') {
+    return '—';
+  }
+  switch (column.type) {
+    case 'money':
+      return formatReceiptMoney(Number(value), currency);
+    case 'percent':
+      return `${Math.round(Number(value) * 10) / 10}%`;
+    default:
+      return String(value);
+  }
+}
+
+/**
+ * Render one digest section as a branded HTML block: the report's name + one-line
+ * description, then either its rows as a bordered table (money right-aligned) or
+ * an honest "No activity in this period." empty state when the report produced no
+ * rows. Every interpolated value is escaped — report rows carry gym-supplied names
+ * (class titles, trainer names) that must not break out of the markup.
+ */
+function renderDigestSectionHtml(section: ReportDigestSection): string {
+  const heading =
+    `<h2 style="margin:24px 0 4px;font-size:15px;line-height:22px;font-weight:700;color:${EMAIL_BRAND.ink};">${escapeHtml(section.name)}</h2>` +
+    `<p style="margin:0 0 8px;font-size:12px;line-height:18px;color:${EMAIL_BRAND.muted};">${escapeHtml(REPORT_DEFINITIONS[section.key].description)}</p>`;
+
+  if (section.rows.length === 0) {
+    return (
+      heading +
+      `<p style="margin:0;font-size:13px;line-height:20px;color:${EMAIL_BRAND.muted};">No activity in this period.</p>`
+    );
+  }
+
+  const align = (column: ReportColumn): string =>
+    column.type === 'money' || column.type === 'percent' || column.type === 'number'
+      ? 'right'
+      : 'left';
+
+  const headerCells = section.columns
+    .map(
+      (column) =>
+        `<th style="padding:6px 8px;text-align:${align(column)};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:${EMAIL_BRAND.muted};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(column.label)}</th>`,
+    )
+    .join('');
+
+  const bodyRows = section.rows
+    .map((row) => {
+      const cells = section.columns
+        .map(
+          (column) =>
+            `<td style="padding:6px 8px;text-align:${align(column)};font-size:13px;color:${EMAIL_BRAND.ink};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(formatDigestCell(column, row[column.key] ?? null, section.currency))}</td>`,
+        )
+        .join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
+
+  return (
+    heading +
+    `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;">` +
+    `<thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`
+  );
+}
+
+/** Render one digest section as plain text: a title line then `label: value` rows. */
+function renderDigestSectionText(section: ReportDigestSection): string {
+  if (section.rows.length === 0) {
+    return `${section.name}\n  No activity in this period.`;
+  }
+  const lines = section.rows.map((row) => {
+    const cells = section.columns.map(
+      (column) =>
+        `${column.label}: ${formatDigestCell(column, row[column.key] ?? null, section.currency)}`,
+    );
+    return `  ${cells.join('  |  ')}`;
+  });
+  return `${section.name}\n${lines.join('\n')}`;
+}
+
+/**
+ * Render a computed {@link ReportDigest} into the digest email's subject, HTML, and
+ * plain-text bodies (T4.10). Pure — no I/O, no env beyond formatting — so the copy
+ * is unit-testable in isolation and {@link EmailService.sendReportDigestEmail} is
+ * just the delivery wrapper around it. Each section becomes a titled table (or an
+ * empty-state line); an optional `reportsUrl` renders a "View full reports" link so
+ * the owner can jump to the live console. Gym-supplied text (the gym name, report
+ * row labels) is escaped by the section renderers before it reaches the markup.
+ */
+export function buildReportDigestEmail(
+  digest: ReportDigest,
+  options?: { reportsUrl?: string },
+): { subject: string; html: string; text: string } {
+  const seller = digest.gymName.trim() || 'Fit';
+  const cadenceLabel = REPORT_DIGEST_CADENCE_LABEL[digest.cadence];
+  const subject = `${cadenceLabel} report digest — ${seller}`;
+  const windowLabel = digest.cadence === 'weekly' ? 'the past week' : 'the past 30 days';
+
+  const intro = `<p style="margin:0 0 4px;">Here's how <strong>${escapeHtml(seller)}</strong> performed over ${windowLabel}.</p>`;
+  const sectionsHtml = digest.sections.map(renderDigestSectionHtml).join('');
+  const linkHtml = options?.reportsUrl
+    ? `<p style="margin:24px 0 0;"><a href="${options.reportsUrl}" style="color:${EMAIL_BRAND.brand};font-weight:600;">View full reports &rarr;</a></p>`
+    : '';
+
+  const html = renderBrandedEmail({
+    senderName: escapeHtml(seller),
+    heading: `${cadenceLabel} report digest`,
+    contentHtml: intro + sectionsHtml + linkHtml,
+    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on Fit.`,
+  });
+
+  const sectionsText = digest.sections.map(renderDigestSectionText).join('\n\n');
+  const linkText = options?.reportsUrl ? `\n\nView full reports: ${options.reportsUrl}` : '';
+  const text =
+    `${cadenceLabel} report digest for ${seller}\n` +
+    `How ${seller} performed over ${windowLabel}.\n\n` +
+    `${sectionsText}${linkText}`;
 
   return { subject, html, text };
 }
