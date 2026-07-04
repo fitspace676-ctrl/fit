@@ -1004,6 +1004,47 @@
           "action": "Back to trainers"
         }
       }
+    },
+    "shop": {
+      "eyebrow": "Fuel & gear",
+      "title": "Shop",
+      "search": "Search",
+      "searchPlaceholder": "Search supplements, gear…",
+      "clear": "Clear search",
+      "cart": "Open cart",
+      "perk": "Collect your order at the front desk — no shipping, no waiting.",
+      "loading": "Loading products…",
+      "error": "We couldn’t load the shop. Please try again.",
+      "retry": "Try again",
+      "add": "Add to cart",
+      "soldOut": "Sold out",
+      "from": "from {price}",
+      "miniCart": {
+        "items": "{count} in cart",
+        "viewCart": "View cart"
+      },
+      "empty": {
+        "title": "Nothing for sale yet",
+        "subtitle": "This gym hasn’t added any products yet. Check back soon."
+      },
+      "noMatch": {
+        "title": "No products match",
+        "subtitle": "Try a different search.",
+        "action": "Clear search"
+      },
+      "detail": {
+        "back": "Shop",
+        "added": "Added to cart",
+        "options": "Options",
+        "outOfStock": "Out of stock",
+        "quantity": "Quantity",
+        "addToCart": "Add to cart",
+        "unavailable": "Unavailable",
+        "notFound": {
+          "title": "Product not found",
+          "subtitle": "This product may no longer be available."
+        }
+      }
     }
   },
   "admin": {

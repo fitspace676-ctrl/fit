@@ -1,38 +1,34 @@
 import { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import type { ProductSummary, ProductVariantSummary } from '@fit/types';
-import { useI18n, useTheme, useToast } from '../../../../providers';
+import { useI18n, useToast } from '../../../../providers';
 import { useCart } from '../../../../providers/CartProvider';
 import { useActiveGymId } from '../../../../hooks/useActiveGym';
 import { useProducts } from '../../../../hooks/useProducts';
 import { formatMoney } from '../../../../lib/shop';
 
 /**
- * Product detail (T6.7) — resolves the product from the (cached) catalogue by the
- * `:productId` route param rather than threading the object through navigation,
- * so a deep link / refresh re-fetches and matches by id. The buyer picks a
- * variant (when the product has them), sets a quantity, and adds the line to the
- * cart; an out-of-stock variant is shown but disabled. Adding toasts a
- * confirmation and routes to the cart so checkout is one tap away. Loading /
- * error / not-found states each render their own panel. Colours come from
- * `useTheme()`.
+ * Product detail — the formacore "Aurora Glass" product screen
+ * (member-shop-mobile artboard, the bottom-sheet content rebuilt as a full
+ * screen). A near-black `ink-950` canvas: a frosted glass back button, a large
+ * product image, the name / price / description, a variant option row, a
+ * quantity stepper, and an add-to-cart action pinned to the bottom.
+ *
+ * Resolves the product from the (cached) catalogue by the `:productId` route
+ * param rather than threading the object through navigation, so a deep link /
+ * refresh re-fetches and matches by id. The buyer picks a variant (when the
+ * product has them), sets a quantity, and adds the line to the cart; an
+ * out-of-stock variant is shown but disabled. Adding toasts a confirmation and
+ * routes to the cart so checkout is one tap away. Loading / error / not-found
+ * states each render their own panel. Dark-only, matching the redesigned shop
+ * tab and the rest of the member app.
  */
 export default function ProductDetailScreen() {
-  const { colors } = useTheme();
   const { t, locale } = useI18n();
   const toast = useToast();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
 
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const gymId = useActiveGymId();
@@ -63,260 +59,218 @@ export default function ProductDetailScreen() {
   const onAdd = (): void => {
     if (!product || !canAdd) return;
     add(product, selectedVariant ?? undefined, quantity);
-    toast.success(t('shop.detail.added'));
+    toast.success(t('member.shop.detail.added'));
     router.push('/shop/cart');
   };
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, gap: 16 }}
-    >
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.back()}
-        hitSlop={8}
-        style={{ alignSelf: 'flex-start' }}
-      >
-        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>
-          ‹ {t('shop.detail.back')}
-        </Text>
-      </Pressable>
+    <View className="flex-1 bg-ink-950">
+      {/* ---- top app bar ---- */}
+      <View style={{ paddingTop: insets.top + 12 }} className="px-5 pb-2">
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          hitSlop={8}
+          className="h-10 flex-row items-center gap-1.5 self-start rounded-btn border border-white/10 bg-white/5 pl-2.5 pr-4 active:bg-white/10"
+        >
+          <Text className="text-lg font-bold text-ink-300">‹</Text>
+          <Text className="text-[13px] font-semibold text-ink-200">
+            {t('member.shop.detail.back')}
+          </Text>
+        </Pressable>
+      </View>
 
       {products.isLoading ? (
-        <View style={{ paddingVertical: 64, alignItems: 'center', gap: 12 }}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={{ fontSize: 14, color: colors.textMuted }}>{t('shop.browse.loading')}</Text>
+        <View className="flex-1 items-center justify-center gap-3">
+          <ActivityIndicator color="#9184F1" />
+          <Text className="text-sm text-ink-400">{t('member.shop.loading')}</Text>
         </View>
       ) : products.isError ? (
-        <View style={{ paddingVertical: 56, alignItems: 'center', gap: 12 }}>
-          <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
-            {t('shop.browse.error')}
-          </Text>
+        <View className="flex-1 items-center justify-center gap-3 px-8">
+          <Text className="text-center text-sm text-ink-400">{t('member.shop.error')}</Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => void products.refetch()}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 10,
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-            }}
+            className="rounded-btn border border-white/15 bg-white/5 px-5 py-2.5 active:bg-white/10"
           >
-            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
-              {t('shop.retry')}
-            </Text>
+            <Text className="text-sm font-semibold text-white">{t('member.shop.retry')}</Text>
           </Pressable>
         </View>
       ) : !product ? (
-        <View style={{ paddingVertical: 56, alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>
-            {t('shop.detail.notFound.title')}
+        <View className="flex-1 items-center justify-center gap-2 px-8">
+          <Text className="text-4xl">🔍</Text>
+          <Text className="text-lg font-bold text-white">
+            {t('member.shop.detail.notFound.title')}
           </Text>
-          <Text
-            style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', maxWidth: 320 }}
-          >
-            {t('shop.detail.notFound.subtitle')}
+          <Text className="max-w-[320px] text-center text-sm text-ink-400">
+            {t('member.shop.detail.notFound.subtitle')}
           </Text>
         </View>
       ) : (
         <>
-          <Hero uri={product.imageUrl} width={width - 40} colors={colors} />
+          <ScrollView
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingTop: 8,
+              paddingBottom: 24,
+              gap: 18,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Hero uri={product.imageUrl} />
 
-          <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text }}>
-              {product.name}
-            </Text>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: colors.primary }}>
-              {formatMoney(unitAmount, product.currency, locale)}
-            </Text>
-            {product.description ? (
-              <Text style={{ fontSize: 14, lineHeight: 21, color: colors.text }}>
-                {product.description}
+            <View className="gap-2">
+              <Text className="text-[26px] font-black leading-tight tracking-tight text-white">
+                {product.name}
               </Text>
-            ) : null}
-          </View>
-
-          {hasVariants ? (
-            <View style={{ gap: 10 }}>
               <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: '700',
-                  letterSpacing: 0.5,
-                  textTransform: 'uppercase',
-                  color: colors.textMuted,
-                }}
+                className="font-mono text-2xl font-bold text-white"
+                style={{ fontVariant: ['tabular-nums'] }}
               >
-                {t('shop.detail.options')}
+                {formatMoney(unitAmount, product.currency, locale)}
               </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {product.variants.map((variant) => {
-                  const selected = selectedVariant?.id === variant.id;
-                  return (
-                    <Pressable
-                      key={variant.id}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected, disabled: !variant.available }}
-                      disabled={!variant.available}
-                      onPress={() => setVariantId(variant.id)}
-                      style={{
-                        borderRadius: 10,
-                        borderWidth: selected ? 2 : 1,
-                        borderColor: selected ? colors.primary : colors.border,
-                        paddingHorizontal: 14,
-                        paddingVertical: 10,
-                        opacity: variant.available ? 1 : 0.4,
-                      }}
-                    >
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
-                        {variant.name}
-                        {variant.available ? '' : ` · ${t('shop.detail.outOfStock')}`}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              {product.description ? (
+                <Text className="mt-1 text-sm leading-[21px] text-ink-300">
+                  {product.description}
+                </Text>
+              ) : null}
             </View>
-          ) : null}
 
-          <View style={{ gap: 10 }}>
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: '700',
-                letterSpacing: 0.5,
-                textTransform: 'uppercase',
-                color: colors.textMuted,
-              }}
-            >
-              {t('shop.detail.quantity')}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            {hasVariants ? (
+              <View className="gap-2.5">
+                <Text className="text-[11px] font-semibold uppercase tracking-[1.5px] text-ink-400">
+                  {t('member.shop.detail.options')}
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {product.variants.map((variant) => {
+                    const selected = selectedVariant?.id === variant.id;
+                    return (
+                      <Pressable
+                        key={variant.id}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected, disabled: !variant.available }}
+                        disabled={!variant.available}
+                        onPress={() => setVariantId(variant.id)}
+                        className={`h-11 justify-center rounded-btn px-4 ${
+                          selected
+                            ? 'bg-white'
+                            : 'border border-white/10 bg-white/5 active:bg-white/10'
+                        } ${variant.available ? '' : 'opacity-40'}`}
+                      >
+                        <Text
+                          className={`text-sm font-semibold ${
+                            selected ? 'text-ink-950' : 'text-white'
+                          }`}
+                        >
+                          {variant.name}
+                          {variant.available ? '' : ` · ${t('member.shop.detail.outOfStock')}`}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+          </ScrollView>
+
+          {/* ---- pinned add-to-cart action bar ---- */}
+          <View
+            style={{ paddingBottom: insets.bottom + 12 }}
+            className="flex-row items-center gap-3 border-t border-white/10 bg-ink-950/95 px-5 pt-3"
+          >
+            <View className="h-12 flex-row items-center overflow-hidden rounded-btn border border-white/10 bg-white/5">
               <QtyButton
                 label="−"
-                accessibilityLabel={t('shop.cart.decrease')}
+                accessibilityLabel={t('member.shop.detail.quantity')}
                 disabled={quantity <= 1}
-                colors={colors}
                 onPress={() => setQuantity((q) => Math.max(1, q - 1))}
               />
               <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: '700',
-                  minWidth: 28,
-                  textAlign: 'center',
-                  color: colors.text,
-                }}
+                className="w-9 text-center font-mono text-base font-bold text-white"
+                style={{ fontVariant: ['tabular-nums'] }}
               >
                 {quantity}
               </Text>
               <QtyButton
                 label="+"
-                accessibilityLabel={t('shop.cart.increase')}
+                accessibilityLabel={t('member.shop.detail.quantity')}
                 disabled={quantity >= 99}
-                colors={colors}
                 onPress={() => setQuantity((q) => Math.min(99, q + 1))}
               />
             </View>
-          </View>
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={!canAdd}
-            onPress={onAdd}
-            style={({ pressed }) => ({
-              marginTop: 8,
-              borderRadius: 12,
-              backgroundColor: canAdd ? colors.primary : colors.border,
-              paddingVertical: 15,
-              alignItems: 'center',
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.onPrimary }}>
-              {canAdd ? t('shop.detail.addToCart') : t('shop.detail.unavailable')}
-            </Text>
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canAdd }}
+              disabled={!canAdd}
+              onPress={onAdd}
+              className={`h-12 flex-1 flex-row items-center justify-center gap-2 rounded-btn ${
+                canAdd ? 'bg-brand-600 active:bg-brand-700' : 'bg-white/5'
+              }`}
+            >
+              <Text className={`text-[15px] font-bold ${canAdd ? 'text-white' : 'text-ink-600'}`}>
+                {canAdd ? t('member.shop.detail.addToCart') : t('member.shop.detail.unavailable')}
+              </Text>
+              {canAdd ? (
+                <Text
+                  className="font-mono text-[15px] font-bold text-white"
+                  style={{ fontVariant: ['tabular-nums'] }}
+                >
+                  · {formatMoney(unitAmount * quantity, product.currency, locale)}
+                </Text>
+              ) : null}
+            </Pressable>
+          </View>
         </>
       )}
-    </ScrollView>
-  );
-}
-
-interface Colors {
-  background: string;
-  border: string;
-  text: string;
-  textMuted: string;
-  primary: string;
-  onPrimary: string;
-}
-
-/** Large product image, or a neutral placeholder when none is set. */
-function Hero({ uri, width, colors }: { uri: string | null; width: number; colors: Colors }) {
-  const height = Math.round(width * 0.6);
-  if (uri) {
-    return (
-      <Image
-        source={{ uri }}
-        accessibilityIgnoresInvertColors
-        style={{ width, height, borderRadius: 14, backgroundColor: colors.background }}
-      />
-    );
-  }
-  return (
-    <View
-      style={{
-        width,
-        height,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.background,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text style={{ fontSize: 48, color: colors.textMuted }}>🛍️</Text>
     </View>
   );
 }
 
-/** A square − / + quantity button. */
+/** Large product image, or a neutral placeholder when none is set. */
+function Hero({ uri }: { uri: string | null }) {
+  return (
+    <View className="aspect-[16/11] w-full overflow-hidden rounded-card border border-white/10 bg-white/5">
+      {uri ? (
+        <Image
+          source={{ uri }}
+          accessibilityIgnoresInvertColors
+          resizeMode="cover"
+          className="h-full w-full"
+        />
+      ) : (
+        <View className="h-full w-full items-center justify-center">
+          <Text className="text-5xl text-ink-600">🛍️</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** A −/+ quantity button inside the stepper. */
 function QtyButton({
   label,
   accessibilityLabel,
   disabled,
-  colors,
   onPress,
 }: {
   label: string;
   accessibilityLabel: string;
   disabled: boolean;
-  colors: Colors;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      hitSlop={6}
-      style={({ pressed }) => ({
-        width: 40,
-        height: 40,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: disabled ? 0.4 : pressed ? 0.6 : 1,
-      })}
+      className={`h-full w-11 items-center justify-center active:bg-white/10 ${
+        disabled ? 'opacity-40' : ''
+      }`}
     >
-      <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{label}</Text>
+      <Text className="text-xl font-bold text-ink-200">{label}</Text>
     </Pressable>
   );
 }
