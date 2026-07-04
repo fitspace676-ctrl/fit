@@ -378,10 +378,10 @@ export class DashboardService {
   /* ---------------------------------------------------------------------- */
 
   /**
-   * The live plan mix — subscriptions in a live state (ACTIVE / PAST_DUE / FROZEN)
-   * grouped by their catalogue plan, labelled with each plan's name. A subscription
-   * whose plan was deleted rolls up under `"No plan"`. `total` is the paid-members
-   * count across all plans. Mirrors {@link AnalyticsService.planMix}.
+   * The live plan mix — subscriptions in a live state (TRIAL / ACTIVE / PAST_DUE /
+   * FROZEN) grouped by their catalogue plan, labelled with each plan's name. A
+   * subscription whose plan was deleted rolls up under `"No plan"`. `total` is the
+   * live-members count across all plans. Mirrors {@link AnalyticsService.planMix}.
    */
   private async planMix(): Promise<DashboardPlanMix> {
     const db = this.prisma.client;
@@ -389,7 +389,12 @@ export class DashboardService {
       by: ['planId'],
       where: {
         status: {
-          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE, SubscriptionStatus.FROZEN],
+          in: [
+            SubscriptionStatus.TRIAL,
+            SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.PAST_DUE,
+            SubscriptionStatus.FROZEN,
+          ],
         },
       },
       _count: { _all: true },
@@ -571,6 +576,7 @@ export class DashboardService {
               where: {
                 status: {
                   in: [
+                    SubscriptionStatus.TRIAL,
                     SubscriptionStatus.ACTIVE,
                     SubscriptionStatus.PAST_DUE,
                     SubscriptionStatus.FROZEN,

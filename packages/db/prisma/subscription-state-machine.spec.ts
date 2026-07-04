@@ -24,6 +24,9 @@ import {
 
 /** Every (from, event, to) the machine is meant to allow. */
 const LEGAL: ReadonlyArray<[SubscriptionStatus, SubscriptionEvent, SubscriptionStatus]> = [
+  [SubscriptionStatus.TRIAL, 'RENEW', SubscriptionStatus.ACTIVE],
+  [SubscriptionStatus.TRIAL, 'PAYMENT_FAILED', SubscriptionStatus.PAST_DUE],
+  [SubscriptionStatus.TRIAL, 'CANCEL', SubscriptionStatus.CANCELED],
   [SubscriptionStatus.ACTIVE, 'RENEW', SubscriptionStatus.ACTIVE],
   [SubscriptionStatus.ACTIVE, 'PAYMENT_FAILED', SubscriptionStatus.PAST_DUE],
   [SubscriptionStatus.ACTIVE, 'FREEZE', SubscriptionStatus.FROZEN],
@@ -124,16 +127,23 @@ describe('availableEvents', () => {
       'EXPIRE',
     ]);
     expect(availableEvents(SubscriptionStatus.FROZEN)).toEqual(['UNFREEZE', 'CANCEL']);
+    expect(availableEvents(SubscriptionStatus.TRIAL)).toEqual([
+      'RENEW',
+      'PAYMENT_FAILED',
+      'CANCEL',
+    ]);
   });
 });
 
 describe('status-set predicates', () => {
-  it('live = ACTIVE, PAST_DUE, FROZEN (matches the partial unique index)', () => {
+  it('live = TRIAL, ACTIVE, PAST_DUE, FROZEN (matches the partial unique index)', () => {
     expect(LIVE_SUBSCRIPTION_STATUSES).toEqual([
+      SubscriptionStatus.TRIAL,
       SubscriptionStatus.ACTIVE,
       SubscriptionStatus.PAST_DUE,
       SubscriptionStatus.FROZEN,
     ]);
+    expect(isLiveStatus(SubscriptionStatus.TRIAL)).toBe(true);
     expect(isLiveStatus(SubscriptionStatus.ACTIVE)).toBe(true);
     expect(isLiveStatus(SubscriptionStatus.PAST_DUE)).toBe(true);
     expect(isLiveStatus(SubscriptionStatus.FROZEN)).toBe(true);
@@ -151,11 +161,13 @@ describe('status-set predicates', () => {
     expect(isTerminalStatus(SubscriptionStatus.ACTIVE)).toBe(false);
   });
 
-  it('entitled = ACTIVE, PAST_DUE — FROZEN is live but grants no access', () => {
+  it('entitled = TRIAL, ACTIVE, PAST_DUE — FROZEN is live but grants no access', () => {
     expect(ENTITLED_SUBSCRIPTION_STATUSES).toEqual([
+      SubscriptionStatus.TRIAL,
       SubscriptionStatus.ACTIVE,
       SubscriptionStatus.PAST_DUE,
     ]);
+    expect(isEntitledStatus(SubscriptionStatus.TRIAL)).toBe(true);
     expect(isEntitledStatus(SubscriptionStatus.ACTIVE)).toBe(true);
     expect(isEntitledStatus(SubscriptionStatus.PAST_DUE)).toBe(true);
     expect(isEntitledStatus(SubscriptionStatus.FROZEN)).toBe(false);

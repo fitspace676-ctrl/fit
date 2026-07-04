@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { SubscriptionInterval } from '../generated/client';
-import { addInterval, initialBillingPeriod } from './subscription-period';
+import { addInterval, initialBillingPeriod, trialBillingPeriod } from './subscription-period';
 
 /** ISO helper — build a UTC instant from a `YYYY-MM-DDT...Z` literal. */
 const at = (iso: string): Date => new Date(iso);
@@ -69,5 +69,30 @@ describe('initialBillingPeriod', () => {
     expect(
       initialBillingPeriod(start, SubscriptionInterval.YEAR).currentPeriodEnd.toISOString(),
     ).toBe('2027-06-01T00:00:00.000Z');
+  });
+});
+
+describe('trialBillingPeriod', () => {
+  it('starts at the given instant and ends trialDays whole days later', () => {
+    const start = at('2026-06-01T12:00:00.000Z');
+    expect(trialBillingPeriod(start, 14)).toEqual({
+      currentPeriodStart: start,
+      currentPeriodEnd: at('2026-06-15T12:00:00.000Z'),
+    });
+  });
+
+  it('counts fixed days, not a calendar month, across a month boundary', () => {
+    const start = at('2026-01-20T00:00:00.000Z');
+    // 30 days from Jan 20 lands on Feb 19 — a fixed duration, unlike addInterval's
+    // calendar cadence (which would have gone to Feb 20).
+    expect(trialBillingPeriod(start, 30).currentPeriodEnd.toISOString()).toBe(
+      '2026-02-19T00:00:00.000Z',
+    );
+  });
+
+  it('does not mutate its input', () => {
+    const start = at('2026-06-01T00:00:00.000Z');
+    trialBillingPeriod(start, 7);
+    expect(start.toISOString()).toBe('2026-06-01T00:00:00.000Z');
   });
 });

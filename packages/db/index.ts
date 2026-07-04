@@ -63,10 +63,15 @@ export {
   type SubscriptionEvent,
 } from './prisma/subscription-state-machine';
 
-// Subscription billing-period arithmetic (T5.3). The pure calendar-correct rule
-// for advancing a paid period by one interval, re-exported so enrolment computes
-// the first period and the recurring-billing job (T5.4) advances it identically.
-export { addInterval, initialBillingPeriod } from './prisma/subscription-period';
+// Subscription billing-period arithmetic (T5.3 / T5.6). The pure calendar-correct
+// rule for advancing a paid period by one interval, plus the free-trial period, are
+// re-exported so enrolment computes the first (or trial) period and the
+// recurring-billing job (T5.4) advances it identically.
+export {
+  addInterval,
+  initialBillingPeriod,
+  trialBillingPeriod,
+} from './prisma/subscription-period';
 
 // Recurring-billing decision rule (T5.4 / T5.5). The pure classification of a due
 // subscription into charge / cancel / expire / skip — including the dunning retry

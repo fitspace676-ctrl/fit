@@ -137,6 +137,14 @@ export default async function SubscriptionPlanDetailPage({
               : 'No freezing'}
           </span>
         </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Free trial
+          </span>
+          <span className="text-ink-800 dark:text-ink-100">
+            {plan.trialDays > 0 ? `${plan.trialDays} days` : 'No trial'}
+          </span>
+        </div>
       </section>
 
       {plan.description ? (

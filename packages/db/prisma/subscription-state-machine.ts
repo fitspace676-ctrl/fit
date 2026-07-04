@@ -30,11 +30,13 @@ import { SubscriptionStatus } from '../generated/client';
  *
  *   • `RENEW`          — a renewal charge succeeded (the billing job advances the
  *                        period). From `PAST_DUE` this recovers to `ACTIVE`; from
- *                        `ACTIVE` it is a no-op self-loop (period advanced, state
- *                        unchanged).
- *   • `PAYMENT_FAILED` — a renewal charge failed. Moves `ACTIVE` into the
- *                        `PAST_DUE` grace window; a repeat failure while already
- *                        `PAST_DUE` is an idempotent self-loop.
+ *                        `TRIAL` the first charge at trial end auto-converts to
+ *                        `ACTIVE`; from `ACTIVE` it is a no-op self-loop (period
+ *                        advanced, state unchanged).
+ *   • `PAYMENT_FAILED` — a renewal charge failed. Moves `ACTIVE` (or a `TRIAL`
+ *                        whose first charge failed) into the `PAST_DUE` grace
+ *                        window; a repeat failure while already `PAST_DUE` is an
+ *                        idempotent self-loop.
  *   • `FREEZE`         — a member/staff request to pause an active membership.
  *   • `UNFREEZE`       — resume a paused membership back to `ACTIVE`.
  *   • `CANCEL`         — end the subscription now (member or staff). Terminal.
@@ -58,6 +60,11 @@ export type SubscriptionEvent =
  * {@link availableEvents} can read back the exact event keys per status.
  */
 export const SUBSCRIPTION_TRANSITIONS = {
+  [SubscriptionStatus.TRIAL]: {
+    RENEW: SubscriptionStatus.ACTIVE,
+    PAYMENT_FAILED: SubscriptionStatus.PAST_DUE,
+    CANCEL: SubscriptionStatus.CANCELED,
+  },
   [SubscriptionStatus.ACTIVE]: {
     RENEW: SubscriptionStatus.ACTIVE,
     PAYMENT_FAILED: SubscriptionStatus.PAST_DUE,
@@ -82,9 +89,11 @@ export const SUBSCRIPTION_TRANSITIONS = {
  * Statuses in which a subscription occupies the member's single live slot per gym.
  * Mirrors the partial unique index predicate in the migrations: a member can hold
  * at most one subscription in any of these states at a time. FROZEN is live — a
- * paused membership still holds the slot.
+ * paused membership still holds the slot — and TRIAL is live too: a member on a free
+ * trial must let it convert (or cancel) before enrolling again.
  */
 export const LIVE_SUBSCRIPTION_STATUSES = [
+  SubscriptionStatus.TRIAL,
   SubscriptionStatus.ACTIVE,
   SubscriptionStatus.PAST_DUE,
   SubscriptionStatus.FROZEN,
@@ -100,12 +109,14 @@ export const TERMINAL_SUBSCRIPTION_STATUSES = [
 ] as const;
 
 /**
- * Statuses that grant the member access right now. `ACTIVE` is paid up and
+ * Statuses that grant the member access right now. `TRIAL` is entitled — a free
+ * trial grants full access during the introductory period; `ACTIVE` is paid up and
  * `PAST_DUE` is still entitled inside its grace window (pending a retry); `FROZEN`
  * is live but paused, so it grants no access. Distinct from
  * {@link LIVE_SUBSCRIPTION_STATUSES}, which is about the uniqueness slot, not access.
  */
 export const ENTITLED_SUBSCRIPTION_STATUSES = [
+  SubscriptionStatus.TRIAL,
   SubscriptionStatus.ACTIVE,
   SubscriptionStatus.PAST_DUE,
 ] as const;

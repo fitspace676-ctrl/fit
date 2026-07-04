@@ -294,9 +294,15 @@ function PlanCard({
         </span>
       </div>
 
-      {/* credits + freeze allowance */}
-      {plan.includedCredits > 0 || plan.freezeDaysPerPeriod > 0 ? (
+      {/* trial + credits + freeze allowance */}
+      {plan.trialDays > 0 || plan.includedCredits > 0 || plan.freezeDaysPerPeriod > 0 ? (
         <div className="mt-3.5 flex flex-wrap gap-1.5">
+          {plan.trialDays > 0 ? (
+            <span className="inline-flex h-6 items-center gap-1 rounded-pill bg-brand-500/10 px-2 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand-500/20 dark:text-brand-300">
+              <Icon name="spark" className="h-3 w-3" sw={2} />
+              {t('trial', { days: plan.trialDays })}
+            </span>
+          ) : null}
           {plan.includedCredits > 0 ? (
             <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
               <Icon name="ticket" className="h-3 w-3" sw={2} />

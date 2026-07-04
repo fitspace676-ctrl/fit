@@ -20,6 +20,7 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
 }
 
 const STATUS_TONE = {
+  TRIAL: 'iris',
   ACTIVE: 'success',
   FROZEN: 'iris',
   CANCELED: 'ink',

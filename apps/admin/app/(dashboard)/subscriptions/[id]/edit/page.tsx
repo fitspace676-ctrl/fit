@@ -92,6 +92,7 @@ export default async function EditSubscriptionPlanPage({
           popular: plan.popular,
           freezeDaysPerPeriod: plan.freezeDaysPerPeriod,
           includedCredits: plan.includedCredits,
+          trialDays: plan.trialDays,
         }}
       />
     </div>

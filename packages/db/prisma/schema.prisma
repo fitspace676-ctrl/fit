@@ -246,7 +246,11 @@ enum SubscriptionInterval {
 }
 
 /// Lifecycle of a member's {@link Subscription} to a recurring plan (T8.1, state
-/// machine T8.3). `ACTIVE` is a current, paid-up subscription; `PAST_DUE` is one
+/// machine T8.3). `TRIAL` is a free introductory period on a plan with `trialDays > 0`
+/// (T5.6): the member is entitled and holds the live slot but has not been charged
+/// yet — the first renewal charge at trial end auto-converts it to `ACTIVE` (or
+/// `PAST_DUE` if that charge fails), and a cancellation during the trial charges
+/// nothing. `ACTIVE` is a current, paid-up subscription; `PAST_DUE` is one
 /// whose latest renewal charge failed and is in its grace window (still entitled,
 /// pending a retry); `FROZEN` is a deliberately paused membership (a member- or
 /// staff-requested hold — common for gyms) that still occupies the member's single
@@ -256,8 +260,9 @@ enum SubscriptionInterval {
 /// transitions between these states — and the guards that reject illegal ones — are
 /// the T8.3 state machine (`subscription-state-machine.ts`, re-exported from
 /// `@fit/db`); the recurring-billing job (a later T8 task) drives the
-/// PAST_DUE/EXPIRED transitions by applying those events.
+/// TRIAL/PAST_DUE/EXPIRED transitions by applying those events.
 enum SubscriptionStatus {
+  TRIAL
   ACTIVE
   PAST_DUE
   FROZEN
@@ -1146,6 +1151,13 @@ model SubscriptionPlan {
   /// default. A catalogue attribute surfaced on the billing-plans board and the
   /// member-facing plan card; enforcement of the cap is future billing work.
   includedCredits Int                    @default(0)
+  /// Free-trial length in whole days (T5.6). A value `> 0` means a member enrolling
+  /// on this plan starts in `TRIAL` (see {@link SubscriptionStatus}) for that many
+  /// days before the first charge; `0` (the default) disables the trial — enrolment
+  /// charges/activates immediately as before. Snapshotted price/currency/interval on
+  /// the {@link Subscription} apply once the trial converts, so a later plan edit
+  /// never re-prices a mid-trial member.
+  trialDays   Int                    @default(0)
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
 

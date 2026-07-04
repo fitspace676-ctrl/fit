@@ -12,6 +12,7 @@ import { z } from 'zod';
 
 /** A member subscription's lifecycle state — mirrors the Prisma enum. */
 export const meSubscriptionStatusSchema = z.enum([
+  'TRIAL',
   'ACTIVE',
   'PAST_DUE',
   'FROZEN',

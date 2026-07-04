@@ -25,8 +25,10 @@ import type {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
-/** A subscription is "live" (paid / occupies the member's slot) in these states. */
+/** A subscription is "live" (occupies the member's slot) in these states — including
+ *  TRIAL, a free trial that still holds the slot before it converts (T5.6). */
 const LIVE_SUBSCRIPTION_STATUSES = [
+  SubscriptionStatus.TRIAL,
   SubscriptionStatus.ACTIVE,
   SubscriptionStatus.PAST_DUE,
   SubscriptionStatus.FROZEN,

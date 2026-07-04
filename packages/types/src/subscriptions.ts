@@ -33,9 +33,11 @@ export type EnrollSubscriptionData = z.infer<typeof enrollSubscriptionSchema>;
 
 /**
  * A subscription's lifecycle state on the wire — mirrors the Prisma
- * `SubscriptionStatus` enum. A fresh enrolment is always `ACTIVE`.
+ * `SubscriptionStatus` enum. A fresh enrolment is `ACTIVE`, or `TRIAL` when the plan
+ * has a free trial (`trialDays > 0`) that has yet to convert on the first charge.
  */
 export const enrolledSubscriptionStatusSchema = z.enum([
+  'TRIAL',
   'ACTIVE',
   'PAST_DUE',
   'FROZEN',

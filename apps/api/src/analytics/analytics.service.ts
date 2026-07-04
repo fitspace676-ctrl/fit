@@ -270,8 +270,8 @@ export class AnalyticsService {
   /**
    * Live subscribers grouped by their catalogue plan (a snapshot, not windowed —
    * the plan mix is a "who is subscribed right now" breakdown). Counts subscriptions
-   * in a live state (ACTIVE / PAST_DUE / FROZEN), then labels each plan id with its
-   * name; a subscription whose plan was deleted rolls up under `"No plan"`.
+   * in a live state (TRIAL / ACTIVE / PAST_DUE / FROZEN), then labels each plan id
+   * with its name; a subscription whose plan was deleted rolls up under `"No plan"`.
    */
   private async planMix(): Promise<AnalyticsPlanSlice[]> {
     const db = this.prisma.client;
@@ -279,7 +279,12 @@ export class AnalyticsService {
       by: ['planId'],
       where: {
         status: {
-          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE, SubscriptionStatus.FROZEN],
+          in: [
+            SubscriptionStatus.TRIAL,
+            SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.PAST_DUE,
+            SubscriptionStatus.FROZEN,
+          ],
         },
       },
       _count: { _all: true },

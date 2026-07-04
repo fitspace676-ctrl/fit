@@ -186,7 +186,7 @@ export class CreditPacksService {
    *
    * Returns the id of the {@link CreditPack} the credit was drawn from, or `null`
    * when no credit was spent — the member holds an *entitling* subscription
-   * (`ACTIVE` / `PAST_DUE`), so the seat is membership-covered. Otherwise it draws
+   * (`TRIAL` / `ACTIVE` / `PAST_DUE`), so the seat is membership-covered. Otherwise it draws
    * a credit FIFO from the pack expiring soonest (that is still `ACTIVE`, unexpired,
    * and has credits left): a single guarded `updateMany` decrements the balance only
    * `WHERE remainingCredits > 0`, so two concurrent bookings can never drive a pack
