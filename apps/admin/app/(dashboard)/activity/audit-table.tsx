@@ -1,17 +1,30 @@
 'use client';
 
+// @fit/admin — the Activity area's audit tab table (T3.10, was T4.9).
+//
+// The gym's trail of privileged actions (owner impersonation, gym status
+// changes), rendered as the formacore Card table that matches the console's other
+// data tables. Server-rendered, read-only data with a client-side pager that
+// reads/writes the URL search params — so the server page stays the single source
+// of truth and the `?tab=audit` param round-trips untouched. Nothing here mutates:
+// the audit trail is append-only, viewed and never edited.
+
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import type { AuditLogRow } from '@fit/types';
 import { Badge, Btn, Card } from '@/components/ui';
-import { auditActionLabel } from './audit-actions';
+import { auditActionLabelKey } from './audit-actions';
+
+/** Translator for the `admin.activity.audit` namespace (from `useTranslations`). */
+type T = ReturnType<typeof useTranslations>;
 
 /** Render an ISO instant as a short local date + time, or an em dash when absent. */
-function formatTimestamp(iso: string): string {
+function formatTimestamp(iso: string, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleString(undefined, {
+    : date.toLocaleString(locale, {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -73,13 +86,13 @@ function MetadataCell({ metadata }: { metadata: Record<string, unknown> | null }
   );
 }
 
-/**
- * The audit-log viewer table (T4.9). Server-rendered, read-only data with a
- * client-side pager that reads/writes the URL search params so the server page
- * stays the single source of truth. Nothing here mutates — the audit trail is
- * append-only and viewed, never edited.
- */
-export function AuditLogTable({
+/** The action badge, resolving the known-action label via i18n (raw key otherwise). */
+function ActionBadge({ action, t }: { action: string; t: T }) {
+  const key = auditActionLabelKey(action);
+  return <Badge tone="brand">{key ? t(`actions.${key}`) : action}</Badge>;
+}
+
+export function AuditTable({
   entries,
   total,
   page,
@@ -94,8 +107,10 @@ export function AuditLogTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const t = useTranslations('admin.activity.audit');
+  const locale = useLocale();
 
-  /** Build a URL with the page param overridden. */
+  /** Build a URL with the page param overridden (every other param preserved). */
   function pageHref(nextPage: number): string {
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', String(nextPage));
@@ -103,18 +118,21 @@ export function AuditLogTable({
     return qs ? `${pathname}?${qs}` : pathname;
   }
 
+  if (entries.length === 0) {
+    return (
+      <Card className="px-4 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
+        {t('empty')}
+      </Card>
+    );
+  }
+
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to = Math.min(page * limit, total);
   const hasPrev = page > 1;
   const hasNext = page * limit < total;
 
-  if (entries.length === 0) {
-    return (
-      <Card className="px-4 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
-        No audit entries match your filters yet.
-      </Card>
-    );
-  }
+  const HEAD_CLASS =
+    'px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
 
   return (
     <div className="flex flex-col gap-4">
@@ -122,21 +140,11 @@ export function AuditLogTable({
         <table className="w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-ink-100 dark:border-white/10">
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                When
-              </th>
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Action
-              </th>
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Actor
-              </th>
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Target
-              </th>
-              <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                Details
-              </th>
+              <th className={HEAD_CLASS}>{t('columns.when')}</th>
+              <th className={HEAD_CLASS}>{t('columns.action')}</th>
+              <th className={HEAD_CLASS}>{t('columns.actor')}</th>
+              <th className={HEAD_CLASS}>{t('columns.target')}</th>
+              <th className={HEAD_CLASS}>{t('columns.details')}</th>
             </tr>
           </thead>
           <tbody>
@@ -146,10 +154,10 @@ export function AuditLogTable({
                 className="border-b border-ink-50 align-top last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
               >
                 <td className="whitespace-nowrap px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                  {formatTimestamp(entry.createdAt)}
+                  {formatTimestamp(entry.createdAt, locale)}
                 </td>
                 <td className="px-4 py-3">
-                  <Badge tone="brand">{auditActionLabel(entry.action)}</Badge>
+                  <ActionBadge action={entry.action} t={t} />
                 </td>
                 <td className="px-4 py-3">
                   <ActorCell name={entry.actorName} email={entry.actorEmail} />
@@ -168,9 +176,7 @@ export function AuditLogTable({
 
       {/* Pager. */}
       <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="tabular-nums">
-          {from}–{to} of {total}
-        </span>
+        <span className="tabular-nums">{t('pager.range', { from, to, total })}</span>
         <div className="flex gap-2">
           <Btn
             v="outline"
@@ -178,7 +184,7 @@ export function AuditLogTable({
             disabled={!hasPrev}
             onClick={() => startTransition(() => router.replace(pageHref(page - 1)))}
           >
-            Previous
+            {t('pager.previous')}
           </Btn>
           <Btn
             v="outline"
@@ -186,7 +192,7 @@ export function AuditLogTable({
             disabled={!hasNext}
             onClick={() => startTransition(() => router.replace(pageHref(page + 1)))}
           >
-            Next
+            {t('pager.next')}
           </Btn>
         </div>
       </div>
