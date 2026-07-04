@@ -7,9 +7,10 @@ const { mockEnv } = vi.hoisted(() => {
 vi.mock('../config/env', () => ({ env: mockEnv }));
 
 import { NotificationCategory, NotificationChannel } from '@fit/db';
-import { EmailNotificationChannel } from './notification-channels';
+import { EmailNotificationChannel, PushNotificationChannel } from './notification-channels';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { MailerService } from '../mail/mailer.service';
+import type { ExpoPushService, ExpoPushTicket } from './expo-push.service';
 
 function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
@@ -121,5 +122,134 @@ describe('EmailNotificationChannel', () => {
 
     const message = send.mock.calls[0]![0] as { html: string };
     expect(message.html).not.toContain('View booking');
+  });
+});
+
+function setupPush(options: {
+  configured?: boolean;
+  tokens?: { token: string }[];
+  tickets?: ExpoPushTicket[];
+}) {
+  const pushToken = {
+    findMany: vi.fn().mockResolvedValue(options.tokens ?? []),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  };
+  const prisma = { client: { pushToken } } as unknown as PrismaService;
+  const send = vi
+    .fn<(m: unknown[]) => Promise<{ sent: boolean; tickets: ExpoPushTicket[] }>>()
+    .mockResolvedValue({ sent: true, tickets: options.tickets ?? [] });
+  const push = {
+    isConfigured: options.configured ?? true,
+    send,
+  } as unknown as ExpoPushService;
+  const channel = new PushNotificationChannel(prisma, push);
+  return { channel, pushToken, send };
+}
+
+describe('PushNotificationChannel', () => {
+  beforeEach(() => configure());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is a pending no-op — no token lookup, no send — when push is disabled', async () => {
+    const { channel, pushToken, send } = setupPush({ configured: false });
+
+    const result = await channel.deliver(INPUT);
+
+    expect(result).toEqual({ channel: NotificationChannel.PUSH, ref: null, pending: true });
+    expect(pushToken.findMany).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('is a pending no-op when the recipient has no registered devices', async () => {
+    const { channel, send } = setupPush({ tokens: [] });
+
+    const result = await channel.deliver(INPUT);
+
+    expect(result).toEqual({ channel: NotificationChannel.PUSH, ref: null, pending: true });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sends one message per device carrying title/body and data.href, returning the first ok ticket id', async () => {
+    const { channel, pushToken, send } = setupPush({
+      tokens: [{ token: 'ExponentPushToken[a]' }, { token: 'ExponentPushToken[b]' }],
+      tickets: [
+        { status: 'ok', id: 'ticket-a' },
+        { status: 'ok', id: 'ticket-b' },
+      ],
+    });
+
+    const result = await channel.deliver(INPUT);
+
+    expect(result).toEqual({ channel: NotificationChannel.PUSH, ref: 'ticket-a' });
+    // Tokens resolved for the recipient user (person-scoped, no gym filter).
+    expect(pushToken.findMany.mock.calls[0]?.[0]).toMatchObject({ where: { userId: 'user-1' } });
+    const messages = send.mock.calls[0]![0] as {
+      to: string;
+      title: string;
+      body: string;
+      data?: { href?: string };
+    }[];
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({
+      to: 'ExponentPushToken[a]',
+      title: 'Booking confirmed',
+      body: 'Morning HIIT · Mon 08:00',
+      data: { href: '/bookings' }, // the in-app href the mobile app deep-links on tap
+    });
+    expect(messages[1]!.to).toBe('ExponentPushToken[b]');
+  });
+
+  it('omits data.href when the notification carries no deep-link', async () => {
+    const { channel, send } = setupPush({
+      tokens: [{ token: 'ExponentPushToken[a]' }],
+      tickets: [{ status: 'ok', id: 'ticket-a' }],
+    });
+
+    await channel.deliver({ ...INPUT, href: null });
+
+    const messages = send.mock.calls[0]![0] as { data?: unknown }[];
+    expect(messages[0]!.data).toBeUndefined();
+  });
+
+  it('prunes tokens Expo rejects as DeviceNotRegistered, keeping the live ones', async () => {
+    const { channel, pushToken } = setupPush({
+      tokens: [{ token: 'ExponentPushToken[live]' }, { token: 'ExponentPushToken[dead]' }],
+      tickets: [
+        { status: 'ok', id: 'ticket-live' },
+        { status: 'error', message: 'gone', details: { error: 'DeviceNotRegistered' } },
+      ],
+    });
+
+    const result = await channel.deliver(INPUT);
+
+    // Delivery still succeeds off the live device's ticket.
+    expect(result).toEqual({ channel: NotificationChannel.PUSH, ref: 'ticket-live' });
+    expect(pushToken.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', token: { in: ['ExponentPushToken[dead]'] } },
+    });
+  });
+
+  it('does not prune on a non-DeviceNotRegistered error and reports ref null when nothing was accepted', async () => {
+    const { channel, pushToken } = setupPush({
+      tokens: [{ token: 'ExponentPushToken[a]' }],
+      tickets: [{ status: 'error', message: 'boom', details: { error: 'MessageTooBig' } }],
+    });
+
+    const result = await channel.deliver(INPUT);
+
+    expect(result).toEqual({ channel: NotificationChannel.PUSH, ref: null });
+    expect(pushToken.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('still delivers when the best-effort prune fails (never throws)', async () => {
+    const { channel, pushToken } = setupPush({
+      tokens: [{ token: 'ExponentPushToken[dead]' }],
+      tickets: [{ status: 'error', details: { error: 'DeviceNotRegistered' } }],
+    });
+    pushToken.deleteMany.mockRejectedValue(new Error('db down'));
+
+    const result = await channel.deliver(INPUT);
+
+    expect(result).toEqual({ channel: NotificationChannel.PUSH, ref: null });
   });
 });

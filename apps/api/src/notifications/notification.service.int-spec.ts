@@ -9,6 +9,7 @@ import {
 import { NotificationDispatchService } from './notification-dispatch.service';
 import { NotificationService } from './notification.service';
 import { disconnect, prisma, resetDb } from '../test/integration-db';
+import type { ExpoPushService } from './expo-push.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { MailerService } from '../mail/mailer.service';
 
@@ -20,14 +21,15 @@ import type { MailerService } from '../mail/mailer.service';
  * unique index.
  */
 const prismaService = { client: prisma } as unknown as PrismaService;
-// An unconfigured mailer: the email channel routes as a `pending` placeholder, so
-// these in-app persistence tests don't attempt a live send (the email channel's
-// own transport is covered by notification-channels.spec.ts).
+// Unconfigured transports: the email + push channels route as a `pending`
+// placeholder, so these in-app persistence tests don't attempt a live send (each
+// channel's own transport is covered by notification-channels.spec.ts).
 const mailer = { isConfigured: false } as unknown as MailerService;
+const push = { isConfigured: false } as unknown as ExpoPushService;
 const registry = buildChannelRegistry([
   new InAppNotificationChannel(new NotificationDispatchService(prismaService)),
   new EmailNotificationChannel(prismaService, mailer),
-  new PushNotificationChannel(),
+  new PushNotificationChannel(prismaService, push),
 ]);
 const service = new NotificationService(prismaService, registry);
 

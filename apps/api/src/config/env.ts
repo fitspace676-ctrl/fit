@@ -108,6 +108,22 @@ export const envSchema = z.object({
   // leads are still persisted either way, so none are lost.
   PLATFORM_LEADS_EMAIL: z.string().email().optional(),
 
+  // ── Push delivery (Expo — optional) ──
+  // Master switch for outbound Expo push (T8.3). Off by default so no real device
+  // push ever fires in dev / CI / a preview environment; a production deploy sets
+  // it true. When off the push channel logs and reports `pending` instead of
+  // transmitting, so every notification flow still works end-to-end without an
+  // Expo project (mirrors the Resend + report-digest "optional integration"
+  // pattern). `"true"` enables; anything else (incl. unset) leaves it disabled.
+  EXPO_PUSH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // Optional Expo access token, sent as the `Authorization: Bearer` header on the
+  // push request. Only required for Expo accounts that have enabled enhanced
+  // security; unset works for projects that do not.
+  EXPO_ACCESS_TOKEN: z.string().optional(),
+
   // ── Scheduled report digests (T4.10) ──
   // Master switch for the weekly/monthly report-digest cron. Off by default so
   // the job never fires unexpectedly in dev / CI / a preview environment; a

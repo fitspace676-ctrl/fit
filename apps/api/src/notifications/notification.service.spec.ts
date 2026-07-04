@@ -8,6 +8,7 @@ import {
 } from './notification-channels';
 import { NotificationDispatchService } from './notification-dispatch.service';
 import { NotificationService } from './notification.service';
+import type { ExpoPushService } from './expo-push.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { MailerService } from '../mail/mailer.service';
 
@@ -32,15 +33,16 @@ function setup() {
     client: { notification, notificationPreference },
   } as unknown as PrismaService;
 
-  // An unconfigured mailer: the email channel short-circuits to a `pending`
+  // Unconfigured transports: the email + push channels short-circuit to a `pending`
   // placeholder before any recipient lookup, so these routing tests exercise the
-  // orchestrator without a live transport (the email channel's own send path is
-  // covered in notification-channels.spec.ts).
+  // orchestrator without a live transport (each channel's own send path is covered
+  // in notification-channels.spec.ts).
   const mailer = { isConfigured: false } as unknown as MailerService;
+  const push = { isConfigured: false } as unknown as ExpoPushService;
   const registry = buildChannelRegistry([
     new InAppNotificationChannel(new NotificationDispatchService(prisma)),
     new EmailNotificationChannel(prisma, mailer),
-    new PushNotificationChannel(),
+    new PushNotificationChannel(prisma, push),
   ]);
   const service = new NotificationService(prisma, registry);
   return { service, notification, notificationPreference };

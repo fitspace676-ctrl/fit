@@ -6,6 +6,7 @@ import {
   PushNotificationChannel,
   buildChannelRegistry,
 } from './notification-channels';
+import { ExpoPushService } from './expo-push.service';
 import { NotificationDispatchService } from './notification-dispatch.service';
 import { NotificationInboxController } from './notification-inbox.controller';
 import { NotificationInboxService } from './notification-inbox.service';
@@ -29,9 +30,10 @@ import { PushTokenService } from './push-token.service';
  *   can `imports: [NotificationsModule]` and inject it.
  * - {@link NotificationDispatchService} is the low-level in-app inbox writer the
  *   in-app channel composes over; still exported for the inbox/back-compat.
- * - The channel adapters ({@link InAppNotificationChannel} live; email T8.2 and
- *   push T8.3 as wired-in placeholders) are assembled into the
- *   {@link NOTIFICATION_CHANNEL_REGISTRY} the orchestrator fans out through.
+ * - The channel adapters (in-app T8.1, email T8.2, and Expo push T8.3 — all live)
+ *   are assembled into the {@link NOTIFICATION_CHANNEL_REGISTRY} the orchestrator
+ *   fans out through. {@link ExpoPushService} is the push channel's low-level
+ *   transport (the push analogue of `MailerService`).
  *
  * The unscoped Prisma client, the guards, and the tenant context all come from
  * the app-wide `PrismaModule` / `TenantModule` / `RbacModule`.
@@ -43,6 +45,7 @@ import { PushTokenService } from './push-token.service';
     NotificationInboxService,
     NotificationDispatchService,
     NotificationService,
+    ExpoPushService,
     InAppNotificationChannel,
     EmailNotificationChannel,
     PushNotificationChannel,
