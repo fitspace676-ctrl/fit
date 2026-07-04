@@ -94,8 +94,9 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
           <p className="font-display text-lg font-bold text-ink-900 dark:text-white">
             {t('empty')}
           </p>
+          <p className="max-w-xs text-sm text-ink-500 dark:text-ink-400">{t('emptyHint')}</p>
           <Link href="/shop" className={buttonClasses('primary', 'md')}>
-            {t('browseShop')}
+            <Icon name="bag" className="h-4 w-4" /> {t('browseShop')}
           </Link>
         </Card>
       </div>

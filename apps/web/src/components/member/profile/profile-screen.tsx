@@ -91,9 +91,14 @@ export function ProfileScreen({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('title')}
-        </h1>
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">
+            {t('eyebrow')}
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            {t('title')}
+          </h1>
+        </div>
         <Btn v="primary" icon="check" onClick={save} disabled={saving}>
           {saving ? t('saving') : t('save')}
         </Btn>
@@ -188,7 +193,7 @@ export function ProfileScreen({
                           : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
                       }`}
                     >
-                      {loc === 'ka' ? 'ქართ' : 'EN'}
+                      {loc === 'ka' ? 'ქართული' : 'English'}
                     </button>
                   ))}
                 </div>

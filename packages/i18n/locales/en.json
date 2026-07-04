@@ -253,7 +253,8 @@
       "spotsLeft": "{count, plural, one {# spot left} other {# spots left}}",
       "spotsLeftOne": "{count} spot left",
       "spotsLeftOther": "{count} spots left",
-      "full": "Full"
+      "full": "Full",
+      "joinWaitlist": "Join waitlist"
     },
     "drawer": {
       "close": "Close",
@@ -262,7 +263,7 @@
       "location": "Location",
       "capacity": "Capacity",
       "book": "Book",
-      "full": "Class full",
+      "full": "Join waitlist",
       "signInToBook": "Sign in to book"
     },
     "empty": {
@@ -682,9 +683,9 @@
       "active": "Active",
       "noPlan": "No active plan",
       "memberId": "ID",
-      "daysLeft": "{used} of {total} days",
+      "daysLeft": "{used} of {total} days left",
       "showQr": "Show check-in QR",
-      "ptCredits": "PT credits",
+      "ptCredits": "PT left",
       "qrTitle": "Check-in QR",
       "qrSub": "Show this at the front desk",
       "done": "Done",
@@ -725,7 +726,9 @@
     },
     "membership": {
       "title": "Membership",
+      "eyebrow": "Account",
       "changePlan": "Change plan",
+      "managePlan": "Manage plan",
       "choosePlan": "Choose a plan",
       "status": {
         "TRIAL": "Trial",
@@ -809,6 +812,7 @@
     },
     "profile": {
       "title": "Profile",
+      "eyebrow": "Account",
       "save": "Save changes",
       "saved": "Profile saved",
       "namePlaceholder": "Your name",
@@ -875,6 +879,7 @@
       "title": "Your cart",
       "summary": "Order summary",
       "empty": "Your cart is empty",
+      "emptyHint": "Stock up on fuel and gear for your next session.",
       "browseShop": "Browse shop",
       "outOfStock": "Out of stock",
       "remove": "Remove",

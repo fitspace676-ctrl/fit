@@ -74,9 +74,14 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('title')}
-        </h1>
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">
+            {t('eyebrow')}
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            {t('title')}
+          </h1>
+        </div>
         <Link href="/checkout" className={buttonClasses('primary', 'md')}>
           {hasMembership ? t('changePlan') : t('choosePlan')}
         </Link>
@@ -143,6 +148,9 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
 
         {/* Actions */}
         <Card glow className="flex flex-col gap-2 p-5 sm:p-6">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+            {t('managePlan')}
+          </p>
           <Link href="/checkout" className={buttonClasses('outline', 'md', 'w-full justify-start')}>
             <Icon name="ticket" className="h-4 w-4" />{' '}
             {hasMembership ? t('changePlan') : t('choosePlan')}

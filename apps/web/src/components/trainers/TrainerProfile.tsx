@@ -4,6 +4,9 @@ import { Avatar, Badge, buttonClasses, Card, Icon } from '@/src/components/ui';
 
 export interface TrainerProfileProps {
   trainer: TrainerDetail;
+  /** Aggregate review rating (0–5) and count, surfaced as a header badge. */
+  avgRating?: number;
+  reviewCount?: number;
 }
 
 /**
@@ -13,7 +16,7 @@ export interface TrainerProfileProps {
  * action linking to the trainer's upcoming sessions. Purely presentational — the
  * page owns the layout and the data fetch.
  */
-export function TrainerProfile({ trainer }: TrainerProfileProps) {
+export function TrainerProfile({ trainer, avgRating = 0, reviewCount = 0 }: TrainerProfileProps) {
   const t = useTranslations('trainers');
 
   return (
@@ -31,9 +34,16 @@ export function TrainerProfile({ trainer }: TrainerProfileProps) {
             size="h-20 w-20 sm:h-24 sm:w-24"
           />
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-              {trainer.name}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+                {trainer.name}
+              </h1>
+              {reviewCount > 0 && (
+                <Badge tone="warning" icon="star">
+                  {avgRating.toFixed(1)}
+                </Badge>
+              )}
+            </div>
             {trainer.headline && (
               <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{trainer.headline}</p>
             )}
