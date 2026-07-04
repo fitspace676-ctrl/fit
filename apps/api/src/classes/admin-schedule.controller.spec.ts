@@ -40,11 +40,15 @@ function setup() {
   const promoteWaitlistEntry = vi.fn<
     (id: string, bookingId: string) => Promise<AdminClassInstanceDetail>
   >(() => Promise.resolve(detail({ bookedCount: 1 })));
+  const bookMemberOntoClass = vi.fn<
+    (id: string, memberId: string) => Promise<AdminClassInstanceDetail>
+  >(() => Promise.resolve(detail({ bookedCount: 1 })));
   const schedule = {
     listSchedule,
     getInstanceDetail,
     cancelInstance,
     promoteWaitlistEntry,
+    bookMemberOntoClass,
   } as unknown as AdminScheduleService;
   return {
     controller: new AdminScheduleController(schedule),
@@ -52,6 +56,7 @@ function setup() {
     getInstanceDetail,
     cancelInstance,
     promoteWaitlistEntry,
+    bookMemberOntoClass,
   };
 }
 
@@ -149,6 +154,31 @@ describe('AdminScheduleController', () => {
 
       expect(ctx.promoteWaitlistEntry).toHaveBeenCalledWith('ci-1', 'wl-1');
       expect(result.bookedCount).toBe(1);
+    });
+  });
+
+  describe('POST /admin/schedule/instances/:id/bookings', () => {
+    it('parses the body and delegates the occurrence + member id to the service', async () => {
+      const result = await ctx.controller.bookMember('ci-1', { memberId: 'gm-7' });
+
+      expect(ctx.bookMemberOntoClass).toHaveBeenCalledWith('ci-1', 'gm-7');
+      expect(result.bookedCount).toBe(1);
+    });
+
+    it('rejects a missing memberId with 400 without hitting the service', async () => {
+      const error = await ctx.controller.bookMember('ci-1', {}).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(ctx.bookMemberOntoClass).not.toHaveBeenCalled();
+    });
+
+    it('rejects a blank memberId with 400', async () => {
+      const error = await ctx.controller
+        .bookMember('ci-1', { memberId: '' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(ctx.bookMemberOntoClass).not.toHaveBeenCalled();
     });
   });
 });

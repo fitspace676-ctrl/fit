@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -12,8 +13,10 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  adminBookMemberSchema,
   adminScheduleQuerySchema,
   type AdminScheduleResponse,
+  type BookMemberOntoClassResponse,
   type CancelClassInstanceResponse,
   type GetAdminClassInstanceResponse,
   type PromoteWaitlistResponse,
@@ -108,6 +111,34 @@ export class AdminScheduleController {
     @Param('bookingId') bookingId: string,
   ): Promise<PromoteWaitlistResponse> {
     return this.schedule.promoteWaitlistEntry(id, bookingId);
+  }
+
+  /**
+   * `POST /admin/schedule/instances/:id/bookings` — the front-desk "book a member
+   * onto this class" action from the drawer (T3.7): the desk searches for a member
+   * (via `GET /members`) and books them on their behalf, `{ memberId }` in the
+   * body. Honours the same capacity/credit rules as a member self-book — a seat is
+   * claimed with the atomic capacity gate (or the member is queued onto the
+   * waitlist when full), and a confirmed seat draws a required class credit unless
+   * an entitling subscription covers it. Requires {@link Permission.ClassWrite}
+   * (the same write capability as the cancel and promote actions). Returns `201`
+   * with the refreshed occurrence detail so the drawer and week grid re-render.
+   * Failure modes: `400` (blank `memberId`), `404 CLASS_INSTANCE_NOT_FOUND`
+   * (unknown / cross-tenant occurrence), `404 MEMBER_NOT_FOUND` (member not in this
+   * gym), `409 CLASS_NOT_BOOKABLE` (occurrence no longer scheduled), `409
+   * ALREADY_BOOKED` (member already holds a live booking), `409 SUBSCRIPTION_FROZEN`
+   * (frozen membership), and `422 INSUFFICIENT_CREDITS` (a held seat the member
+   * can't pay for).
+   */
+  @Post('instances/:id/bookings')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.ClassWrite)
+  async bookMember(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<BookMemberOntoClassResponse> {
+    const { memberId } = parse(adminBookMemberSchema, body);
+    return this.schedule.bookMemberOntoClass(id, memberId);
   }
 }
 

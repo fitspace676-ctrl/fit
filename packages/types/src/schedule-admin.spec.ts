@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_SCHEDULE_WINDOW_DAYS, adminScheduleQuerySchema } from './schedule-admin';
+import {
+  MAX_SCHEDULE_WINDOW_DAYS,
+  adminBookMemberSchema,
+  adminScheduleQuerySchema,
+} from './schedule-admin';
 
 const FROM = '2026-06-01T00:00:00.000Z';
 const TO = '2026-06-08T00:00:00.000Z';
@@ -59,6 +63,23 @@ describe('adminScheduleQuerySchema', () => {
 
   it('rejects an empty trainerId', () => {
     const result = adminScheduleQuerySchema.safeParse({ from: FROM, to: TO, trainerId: '' });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('adminBookMemberSchema', () => {
+  it('accepts a body with a member id', () => {
+    const result = adminBookMemberSchema.safeParse({ memberId: 'gm-1' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a blank member id', () => {
+    const result = adminBookMemberSchema.safeParse({ memberId: '' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a missing member id', () => {
+    const result = adminBookMemberSchema.safeParse({});
     expect(result.success).toBe(false);
   });
 });

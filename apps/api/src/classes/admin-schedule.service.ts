@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
+import { randomUUID } from 'node:crypto';
+import { BookingStatus, InstanceStatus, Prisma, SubscriptionStatus } from '@fit/db';
 import type {
   AdminClassInstanceDetail,
   AdminClassInstanceRosterEntry,
@@ -10,6 +11,7 @@ import type {
 } from '@fit/types';
 import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { TenantContext } from '../common/tenant/tenant.context';
 
 /**
  * The occurrence + template columns the week calendar projects. The instance
@@ -92,6 +94,7 @@ export class AdminScheduleService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly creditPacks: CreditPacksService,
+    private readonly tenant: TenantContext,
   ) {}
 
   /**
@@ -314,6 +317,177 @@ export class AdminScheduleService {
     });
 
     return this.getInstanceDetail(classInstanceId);
+  }
+
+  /**
+   * Book a member onto a scheduled class occurrence on their behalf from the
+   * drawer (T3.7) — the front-desk flow. Mirrors the member self-book's
+   * capacity/credit rules ({@link BookingsService.book}), but the member is
+   * chosen by the desk (validated to belong to this gym) rather than resolved
+   * from the caller's own session:
+   *
+   * - The member must be a member of this gym — an unknown / cross-tenant id is a
+   *   `404 MEMBER_NOT_FOUND` — and their membership must not be frozen (`409
+   *   SUBSCRIPTION_FROZEN`), the same access gate a self-book honours.
+   * - Only a `SCHEDULED` occurrence takes a booking (`409 CLASS_NOT_BOOKABLE`); a
+   *   member who already holds a live booking for it is a `409 ALREADY_BOOKED`
+   *   (re-checked on the partial unique in case a duplicate races the pre-check).
+   * - A seat is claimed with the same atomic capacity gate — the increment runs
+   *   only while there is room, evaluated against the live row, so the last seat
+   *   is taken by exactly one of N concurrent writers; when the occurrence is full
+   *   the member is queued onto the tail of the waitlist instead. A confirmed seat
+   *   draws a class credit (required, so a `422 INSUFFICIENT_CREDITS` rolls the
+   *   booking back) unless an entitling subscription already covers them; a
+   *   waitlist entry holds no seat and draws nothing.
+   *
+   * Returns the refreshed {@link AdminClassInstanceDetail} so the drawer and the
+   * underlying week grid re-render from the one call, exactly like cancel and
+   * promote.
+   */
+  async bookMemberOntoClass(
+    classInstanceId: string,
+    memberId: string,
+  ): Promise<AdminClassInstanceDetail> {
+    await this.requireGymMember(memberId);
+    await this.assertSubscriptionNotFrozen(memberId);
+
+    try {
+      await this.prisma.client.$transaction(async (tx) => {
+        const instance = await tx.classInstance.findFirst({
+          where: { id: classInstanceId },
+          select: {
+            id: true,
+            status: true,
+            bookedCount: true,
+            capacityOverride: true,
+            template: { select: { capacity: true } },
+          },
+        });
+        if (!instance) {
+          throw this.instanceNotFound();
+        }
+        if (instance.status !== InstanceStatus.SCHEDULED) {
+          throw new ConflictException({
+            message: 'This class is no longer open for booking',
+            code: 'CLASS_NOT_BOOKABLE',
+          });
+        }
+
+        const live = await tx.booking.findFirst({
+          where: { classInstanceId, memberId, status: { not: BookingStatus.CANCELED } },
+          select: { id: true },
+        });
+        if (live) {
+          throw this.alreadyBooked();
+        }
+
+        const capacity = instance.capacityOverride ?? instance.template.capacity;
+
+        // Same atomic seat claim as the member self-book: the increment runs only
+        // while there is room and the DB evaluates `bookedCount < capacity`
+        // against the live row, so the last seat is taken by exactly one of N
+        // concurrent writers — the loser is queued onto the waitlist.
+        const seated = await tx.classInstance.updateMany({
+          where: {
+            id: classInstanceId,
+            status: InstanceStatus.SCHEDULED,
+            bookedCount: { lt: capacity },
+          },
+          data: { bookedCount: { increment: 1 } },
+        });
+        const booked = seated.count === 1;
+
+        let waitlistPosition: number | null = null;
+        if (!booked) {
+          const tail = await tx.booking.aggregate({
+            where: { classInstanceId, status: BookingStatus.WAITLIST },
+            _max: { waitlistPosition: true },
+          });
+          waitlistPosition = (tail._max.waitlistPosition ?? 0) + 1;
+        }
+
+        // A confirmed seat draws a class credit (required) unless an entitling
+        // subscription already covers the member — the same rule the self-book
+        // honours, drawn inside the transaction so an `INSUFFICIENT_CREDITS`
+        // refusal rolls back the seat claim too. A waitlist entry holds no seat,
+        // so it draws nothing. The pack charged (or `null`) is recorded for a
+        // later in-policy cancellation refund.
+        const creditPackId = booked ? await this.creditPacks.chargeSeatCredit(tx, memberId) : null;
+
+        await tx.booking.create({
+          data: {
+            gymId: this.tenant.gymId,
+            classInstanceId,
+            memberId,
+            status: booked ? BookingStatus.BOOKED : BookingStatus.WAITLIST,
+            waitlistPosition,
+            creditPackId,
+            // A desk booking carries no client idempotency key; a fresh one keeps
+            // the required unique column satisfied.
+            idempotencyKey: randomUUID(),
+          },
+          select: { id: true },
+        });
+      });
+    } catch (error) {
+      // A concurrent duplicate slipped past the pre-check — the partial unique on
+      // (classInstanceId, memberId) WHERE status != CANCELED fired: the member
+      // already holds a live booking (the seat this attempt claimed was rolled
+      // back with the failed insert).
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw this.alreadyBooked();
+      }
+      throw error;
+    }
+
+    return this.getInstanceDetail(classInstanceId);
+  }
+
+  /**
+   * Resolve the gym member the desk is booking — the booking's `memberId`. Runs
+   * on the tenant-scoped client, so it only ever finds a member of the caller's
+   * own gym; an unknown or cross-tenant id is a `404 MEMBER_NOT_FOUND`.
+   */
+  private async requireGymMember(memberId: string): Promise<void> {
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id: memberId },
+      select: { id: true },
+    });
+    if (!member) {
+      throw new NotFoundException({
+        message: 'Member not found',
+        code: 'MEMBER_NOT_FOUND',
+      });
+    }
+  }
+
+  /**
+   * Block booking a member whose membership is frozen (mirrors the self-book gate
+   * in {@link BookingsService}): a `FROZEN` subscription is a deliberately paused
+   * membership granting no access, so booking the member into a class is a `409
+   * SUBSCRIPTION_FROZEN`. A member with no frozen subscription (the common case)
+   * is unaffected — the check only fires on an explicit freeze. Tenant-scoped, so
+   * it only ever sees the caller's own gym.
+   */
+  private async assertSubscriptionNotFrozen(memberId: string): Promise<void> {
+    const frozen = await this.prisma.client.subscription.findFirst({
+      where: { memberId, status: SubscriptionStatus.FROZEN },
+      select: { id: true },
+    });
+    if (frozen) {
+      throw new ConflictException({
+        message: 'This membership is frozen; resume it to book classes',
+        code: 'SUBSCRIPTION_FROZEN',
+      });
+    }
+  }
+
+  /** `409` when the member already holds a live (non-canceled) booking for the occurrence. */
+  private alreadyBooked(): ConflictException {
+    return new ConflictException({
+      message: 'This member already has a booking for this class',
+      code: 'ALREADY_BOOKED',
+    });
   }
 
   /** `404` for an unknown / cross-tenant occurrence id. */

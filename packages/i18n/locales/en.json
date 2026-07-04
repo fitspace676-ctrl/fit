@@ -1162,6 +1162,16 @@
           "promote": "Promote",
           "promoteMember": "Promote {member} into a seat"
         },
+        "book": {
+          "title": "Book a member",
+          "hint": "Search for a member to book them onto this class.",
+          "searchLabel": "Search members to book",
+          "searchPlaceholder": "Search by name or email",
+          "searching": "Searching…",
+          "noResults": "No members match “{query}”.",
+          "action": "Book",
+          "bookMember": "Book {member} onto this class"
+        },
         "actions": {
           "edit": "Edit class",
           "cancel": "Cancel class"
@@ -1174,7 +1184,9 @@
         },
         "toast": {
           "canceled": "Class canceled and bookings released.",
-          "promoted": "Member promoted from the waitlist."
+          "promoted": "Member promoted from the waitlist.",
+          "booked": "Member booked onto the class.",
+          "waitlisted": "Class was full — member added to the waitlist."
         },
         "errors": {
           "notFound": "This class no longer exists.",
@@ -1187,7 +1199,12 @@
           "unexpected": "Something went wrong. Please try again.",
           "notModifiable": "Only a scheduled class can be changed.",
           "notPromotable": "That booking can no longer be promoted.",
-          "bookingNotFound": "That booking no longer exists."
+          "bookingNotFound": "That booking no longer exists.",
+          "memberNotFound": "That member is no longer part of this gym.",
+          "notBookable": "This class is no longer open for booking.",
+          "alreadyBooked": "That member already has a booking for this class.",
+          "subscriptionFrozen": "That member's membership is frozen. Resume it before booking.",
+          "insufficientCredits": "That member has no class credits left. Sell them a pack or subscription first."
         }
       }
     },
