@@ -3,7 +3,9 @@ import {
   adminOrderDetailSchema,
   deriveOrderChannel,
   listOrdersQuerySchema,
+  listOrdersResponseSchema,
   orderExportCells,
+  orderRosterSummarySchema,
   ORDER_EXPORT_COLUMNS,
   refundOrderSchema,
   type AdminOrderRow,
@@ -105,6 +107,36 @@ describe('adminOrderDetailSchema (fulfilment, T7.10)', () => {
       adminOrderDetailSchema.safeParse({ ...base, fulfillment: 'MAIL', deliveryAddress: null })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('orderRosterSummarySchema', () => {
+  const summary = {
+    orderCount: 42,
+    grossTotal: 128_000,
+    refundedTotal: 5_500,
+    netTotal: 122_500,
+    currency: 'GEL',
+  };
+
+  it('accepts a well-formed summary', () => {
+    expect(orderRosterSummarySchema.parse(summary)).toEqual(summary);
+  });
+
+  it('rejects a non-integer or negative money field and a bad currency code', () => {
+    expect(orderRosterSummarySchema.safeParse({ ...summary, grossTotal: 1.5 }).success).toBe(false);
+    expect(orderRosterSummarySchema.safeParse({ ...summary, refundedTotal: -1 }).success).toBe(
+      false,
+    );
+    expect(orderRosterSummarySchema.safeParse({ ...summary, currency: 'GELx' }).success).toBe(
+      false,
+    );
+  });
+
+  it('is required on the list response', () => {
+    const page = { data: [], total: 0, page: 1, limit: 20 };
+    expect(listOrdersResponseSchema.safeParse(page).success).toBe(false);
+    expect(listOrdersResponseSchema.safeParse({ ...page, summary }).success).toBe(true);
   });
 });
 

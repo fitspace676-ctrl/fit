@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { listOrdersQuerySchema, type ListOrdersQueryInput } from '@fit/types';
 import { ApiError, fetchOrders, ordersQueryString } from '@/lib/api';
 import { OrdersFilters } from './orders-filters';
+import { OrdersStatusTabs } from './orders-status-tabs';
+import { OrdersSummary } from './orders-summary';
 import { OrdersTable } from './orders-table';
 
 export const metadata: Metadata = {
@@ -50,10 +52,15 @@ export default async function OrdersPage({
   };
 
   let content;
+  // The summary tiles ("totals") reflect the whole filtered set, so they only
+  // render on a successful fetch; the tabs + filter bar are static (URL-derived)
+  // and stay visible even when the API call fails.
+  let summary = null;
   try {
     // Send the raw string filters (not the coerced query, whose dates are `Date`
     // objects) plus the validated page/limit; the API re-coerces and re-validates.
     const result = await fetchOrders({ ...filters, page: query.page, limit: query.limit });
+    summary = <OrdersSummary summary={result.summary} />;
     content = (
       <OrdersTable
         orders={result.data}
@@ -87,9 +94,12 @@ export default async function OrdersPage({
         </p>
       </header>
 
+      {summary}
+
+      <OrdersStatusTabs status={filters.status ?? ''} />
+
       <OrdersFilters
         channel={filters.channel ?? ''}
-        status={filters.status ?? ''}
         memberId={filters.memberId ?? ''}
         from={filters.from ?? ''}
         to={filters.to ?? ''}

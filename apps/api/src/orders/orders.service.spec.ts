@@ -235,11 +235,19 @@ function adminSetup(over?: {
   orderFindMany?: unknown[];
   orderCount?: number;
   orderFindFirst?: unknown;
+  orderAggregate?: { _sum: { total: number | null } };
+  paymentAggregate?: { _sum: { refundedAmount: number | null } };
   productFindMany?: unknown[];
 }) {
   const orderFindMany = vi.fn((_args: unknown) => Promise.resolve(over?.orderFindMany ?? []));
   const orderCount = vi.fn((_args: unknown) => Promise.resolve(over?.orderCount ?? 0));
   const orderFindFirst = vi.fn((_args: unknown) => Promise.resolve(over?.orderFindFirst ?? null));
+  const orderAggregate = vi.fn((_args: unknown) =>
+    Promise.resolve(over?.orderAggregate ?? { _sum: { total: null } }),
+  );
+  const paymentAggregate = vi.fn((_args: unknown) =>
+    Promise.resolve(over?.paymentAggregate ?? { _sum: { refundedAmount: null } }),
+  );
   const orderUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'order-1' }));
   const refundCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'refund-1' }));
   const paymentUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'pay-1' }));
@@ -260,7 +268,13 @@ function adminSetup(over?: {
   const tenant = { gymId: 'gym-1', userId: 'user-1' } as unknown as TenantContext;
   const prisma = {
     client: {
-      order: { findMany: orderFindMany, count: orderCount, findFirst: orderFindFirst },
+      order: {
+        findMany: orderFindMany,
+        count: orderCount,
+        findFirst: orderFindFirst,
+        aggregate: orderAggregate,
+      },
+      payment: { aggregate: paymentAggregate },
       $transaction,
     },
   } as unknown as TenantPrismaService;
@@ -270,6 +284,8 @@ function adminSetup(over?: {
     orderFindMany,
     orderCount,
     orderFindFirst,
+    orderAggregate,
+    paymentAggregate,
     orderUpdate,
     refundCreate,
     paymentUpdate,
@@ -356,6 +372,49 @@ describe('OrdersService.listOrders', () => {
 
     const args = orderFindMany.mock.calls[0]![0] as { where: { NOT?: unknown } };
     expect(args.where.NOT).toEqual({ payment: { is: { provider: 'pos' } } });
+  });
+
+  it('summarises the whole filtered set — gross, refunded, net and currency', async () => {
+    const { service, orderAggregate, paymentAggregate } = adminSetup({
+      orderCount: 42,
+      orderAggregate: { _sum: { total: 128_000 } },
+      paymentAggregate: { _sum: { refundedAmount: 5_500 } },
+      orderFindFirst: { currency: 'GEL' },
+    });
+
+    const result = await service.listOrders({ page: 1, limit: 20, status: 'PAID' });
+
+    expect(result.summary).toEqual({
+      orderCount: 42,
+      grossTotal: 128_000,
+      refundedTotal: 5_500,
+      netTotal: 122_500,
+      currency: 'GEL',
+    });
+    // The summary spans the filter, not the page: no skip/take on the aggregates,
+    // and the refund sum reaches through the matching orders' payments.
+    expect(orderAggregate).toHaveBeenCalledWith({
+      where: { status: 'PAID' },
+      _sum: { total: true },
+    });
+    expect(paymentAggregate).toHaveBeenCalledWith({
+      where: { order: { status: 'PAID' } },
+      _sum: { refundedAmount: true },
+    });
+  });
+
+  it('zeroes the summary and falls back to GEL when no order matches', async () => {
+    const { service } = adminSetup({ orderCount: 0 });
+
+    const result = await service.listOrders({ page: 1, limit: 20 });
+
+    expect(result.summary).toEqual({
+      orderCount: 0,
+      grossTotal: 0,
+      refundedTotal: 0,
+      netTotal: 0,
+      currency: 'GEL',
+    });
   });
 });
 

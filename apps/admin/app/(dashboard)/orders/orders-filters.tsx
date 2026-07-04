@@ -2,20 +2,12 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { AdminOrderStatus, OrderChannel } from '@fit/types';
+import type { OrderChannel } from '@fit/types';
 
 /** Channel options offered by the filter. */
 const CHANNEL_OPTIONS: ReadonlyArray<{ value: OrderChannel; label: string }> = [
   { value: 'POS', label: 'POS' },
   { value: 'ONLINE', label: 'Online' },
-];
-
-/** Status options offered by the filter, in lifecycle order. */
-const STATUS_OPTIONS: ReadonlyArray<{ value: AdminOrderStatus; label: string }> = [
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'PAID', label: 'Paid' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-  { value: 'REFUNDED', label: 'Refunded' },
 ];
 
 /** Debounce (ms) before a keystroke in the member box updates the URL. */
@@ -29,21 +21,20 @@ const FIELD_CLASS =
 const LABEL_CLASS = 'mb-1 block text-xs font-medium text-ink-500 dark:text-ink-400';
 
 /**
- * The orders roster filter bar (T7.9): channel + status selects, a debounced
- * member-id box, and a `from`/`to` date range. Each writes its state to the URL
- * search params (the single source of truth the server page reads), resetting to
- * page 1 on any change. Navigation runs in a transition so the inputs stay
- * responsive.
+ * The orders roster filter bar (T7.9, restyled T4.3): a channel select, a
+ * debounced member-id box, and a `from`/`to` date range. Status is filtered by
+ * the segmented pill tabs above (see {@link OrdersStatusTabs}), not here. Each
+ * control writes its state to the URL search params (the single source of truth
+ * the server page reads), resetting to page 1 on any change. Navigation runs in a
+ * transition so the inputs stay responsive.
  */
 export function OrdersFilters({
   channel,
-  status,
   memberId,
   from,
   to,
 }: {
   channel: string;
-  status: string;
   memberId: string;
   from: string;
   to: string;
@@ -91,25 +82,6 @@ export function OrdersFilters({
         >
           <option value="">All channels</option>
           {CHANNEL_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="lg:w-40">
-        <label htmlFor="order-status" className={LABEL_CLASS}>
-          Status
-        </label>
-        <select
-          id="order-status"
-          value={status}
-          onChange={(event) => commit('status', event.target.value)}
-          className={FIELD_CLASS}
-        >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

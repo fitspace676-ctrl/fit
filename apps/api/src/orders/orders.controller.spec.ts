@@ -49,7 +49,19 @@ function setup() {
     }),
   );
   const listOrders = vi.fn<() => Promise<ListOrdersResponse>>(() =>
-    Promise.resolve({ data: [], total: 0, page: 1, limit: 20 }),
+    Promise.resolve({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      summary: {
+        orderCount: 0,
+        grossTotal: 0,
+        refundedTotal: 0,
+        netTotal: 0,
+        currency: 'GEL',
+      },
+    }),
   );
   const getOrder = vi.fn<() => Promise<AdminOrderDetail>>(() =>
     Promise.resolve({ id: 'order-1' } as unknown as AdminOrderDetail),

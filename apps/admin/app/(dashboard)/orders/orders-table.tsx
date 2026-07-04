@@ -4,7 +4,7 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminOrderRow, AdminOrderStatus } from '@fit/types';
-import { Badge, Btn, Card, buttonClasses } from '@/components/ui';
+import { Badge, Btn, Card, Dot, buttonClasses, type Tone } from '@/components/ui';
 import {
   CHANNEL_LABELS,
   ORDER_STATUS_STYLES,
@@ -13,10 +13,29 @@ import {
   formatMoney,
 } from './format';
 
-/** A status pill mirroring the products roster styling. */
+/** The leading status-dot colour per tone, matching the formacore status pills. */
+const STATUS_DOT: Record<Tone, string> = {
+  ink: 'bg-ink-400',
+  brand: 'bg-brand-500',
+  success: 'bg-success-500',
+  warning: 'bg-warning-500',
+  danger: 'bg-danger-500',
+  accent: 'bg-accent-500',
+  iris: 'bg-iris-500',
+  flame: 'bg-flame-500',
+};
+
+/** A status pill with a leading tone dot, matching the formacore orders artboard. */
 function StatusPill({ status }: { status: AdminOrderStatus }) {
   const { label, tone } = ORDER_STATUS_STYLES[status];
-  return <Badge tone={tone}>{label}</Badge>;
+  return (
+    <Badge tone={tone}>
+      <span className="inline-flex items-center gap-1.5">
+        <Dot c={STATUS_DOT[tone]} />
+        {label}
+      </span>
+    </Badge>
+  );
 }
 
 /**

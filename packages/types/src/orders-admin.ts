@@ -135,12 +135,34 @@ export const adminOrderRowSchema = z.object({
 /** A single admin order roster row — {@link adminOrderRowSchema}. */
 export type AdminOrderRow = z.infer<typeof adminOrderRowSchema>;
 
+/**
+ * The at-a-glance totals for a filtered order roster (T4.3) — computed across the
+ * **whole** filtered set, not just the visible page, so the summary tiles reflect
+ * the current channel / status / member / date filters rather than one page of
+ * rows. All money fields are integers in the currency's MINOR units, matching the
+ * rest of the order contracts; `netTotal` is `grossTotal - refundedTotal` (the
+ * takings kept after refunds). `currency` is the roster's display currency (the
+ * gym trades in a single currency this milestone), used to format the tiles.
+ */
+export const orderRosterSummarySchema = z.object({
+  orderCount: z.number().int().nonnegative(),
+  grossTotal: z.number().int().nonnegative(),
+  refundedTotal: z.number().int().nonnegative(),
+  netTotal: z.number().int(),
+  currency: z.string().length(3),
+});
+
+/** The filtered order roster's totals — {@link orderRosterSummarySchema}. */
+export type OrderRosterSummary = z.infer<typeof orderRosterSummarySchema>;
+
 /** Successful `GET /orders` response — one filtered, server-paginated page. */
 export const listOrdersResponseSchema = z.object({
   data: z.array(adminOrderRowSchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().min(1),
   limit: z.number().int().min(1),
+  /** Totals across the whole filtered set — {@link orderRosterSummarySchema}. */
+  summary: orderRosterSummarySchema,
 });
 
 /** Validated `GET /orders` response — {@link listOrdersResponseSchema}. */
