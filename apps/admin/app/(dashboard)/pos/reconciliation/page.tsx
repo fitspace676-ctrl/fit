@@ -6,10 +6,11 @@ import {
   type CashReconciliationReport,
   type PaymentMethod,
 } from '@fit/types';
+import Link from 'next/link';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCashReconciliation } from '@/lib/api';
 import { formatPrice } from '@/app/(dashboard)/products/format-price';
-import { Card, Icon } from '@/components/ui';
+import { Card, Icon, buttonClasses } from '@/components/ui';
 import { ReconciliationDateForm } from './reconciliation-date-form';
 import { CashCountForm } from './cash-count-form';
 
@@ -59,7 +60,7 @@ export default async function ReconciliationPage({
 
   if (!canView) {
     return (
-      <div className="flex flex-col gap-3 p-6">
+      <div className="flex flex-col gap-3">
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
           Cash reconciliation
         </h1>
@@ -92,15 +93,21 @@ export default async function ReconciliationPage({
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Cash reconciliation
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-          The day’s takings grouped by how they were settled. Count the cash drawer and balance it
-          against the expected cash below.
-        </p>
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+            Cash reconciliation
+          </h1>
+          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
+            The day’s takings grouped by how they were settled. Count the cash drawer and balance it
+            against the expected cash below.
+          </p>
+        </div>
+        <Link href="/pos" className={buttonClasses('outline', 'md')}>
+          <Icon name="arrowLeft" className="h-4 w-4" />
+          Back to POS
+        </Link>
       </header>
 
       <ReconciliationDateForm date={date} />
@@ -134,7 +141,7 @@ export default async function ReconciliationPage({
                 {report.methods.map((row) => (
                   <tr
                     key={row.method}
-                    className={`border-b border-ink-50 dark:border-white/5 ${row.method === 'cash' ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''}`}
+                    className={`border-b border-ink-50 last:border-b-0 dark:border-white/5 ${row.method === 'cash' ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''}`}
                   >
                     <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
                       {METHOD_LABELS[row.method]}
