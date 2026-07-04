@@ -105,7 +105,11 @@ export default async function TrainerDetailPage({
 
       {trainer ? (
         <div className="flex flex-col gap-8">
-          <TrainerProfile trainer={trainer} />
+          <TrainerProfile
+            trainer={trainer}
+            avgRating={reviews.avgRating}
+            reviewCount={reviews.total}
+          />
           <TrainerSchedule schedule={trainer.schedule} />
           <TrainerReviews
             reviews={reviews.reviews}

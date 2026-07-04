@@ -188,7 +188,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               {
                 label: t('checkInsMonth'),
                 value: attended,
-                icon: 'spark' as const,
+                icon: 'qr' as const,
                 tone: 'text-accent-500',
               },
               {

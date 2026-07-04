@@ -253,7 +253,8 @@
       "spotsLeft": "{count, plural, one {# ადგილი დარჩა} other {# ადგილი დარჩა}}",
       "spotsLeftOne": "{count} ადგილი დარჩა",
       "spotsLeftOther": "{count} ადგილი დარჩა",
-      "full": "შევსებულია"
+      "full": "შევსებულია",
+      "joinWaitlist": "მოლოდინის სიაში ჩაწერა"
     },
     "drawer": {
       "close": "დახურვა",
@@ -262,7 +263,7 @@
       "location": "ლოკაცია",
       "capacity": "ადგილები",
       "book": "დაჯავშნა",
-      "full": "ადგილები ამოიწურა",
+      "full": "მოლოდინის სიაში ჩაწერა",
       "signInToBook": "დასაჯავშნად შედი"
     },
     "empty": {
@@ -682,9 +683,9 @@
       "active": "აქტიური",
       "noPlan": "გეგმა არ არის",
       "memberId": "ID",
-      "daysLeft": "{used} / {total} დღე",
+      "daysLeft": "{used} / {total} დღე დარჩა",
       "showQr": "გამოცხადების QR",
-      "ptCredits": "PT კრედიტი",
+      "ptCredits": "PT დარჩა",
       "qrTitle": "გამოცხადების QR",
       "qrSub": "აჩვენე ეს მიმღებთან",
       "done": "მზადაა",
@@ -725,7 +726,9 @@
     },
     "membership": {
       "title": "აბონემენტი",
+      "eyebrow": "ანგარიში",
       "changePlan": "გეგმის შეცვლა",
+      "managePlan": "გეგმის მართვა",
       "choosePlan": "აირჩიე გეგმა",
       "status": {
         "TRIAL": "საცდელი",
@@ -809,6 +812,7 @@
     },
     "profile": {
       "title": "პროფილი",
+      "eyebrow": "ანგარიში",
       "save": "შენახვა",
       "saved": "პროფილი შენახულია",
       "namePlaceholder": "შენი სახელი",
@@ -875,6 +879,7 @@
       "title": "შენი კალათა",
       "summary": "შეკვეთის შეჯამება",
       "empty": "კალათა ცარიელია",
+      "emptyHint": "შეავსე მარაგი — კვება და აღჭურვილობა შენი შემდეგი ვარჯიშისთვის.",
       "browseShop": "მაღაზიაში",
       "outOfStock": "არ არის მარაგში",
       "remove": "წაშლა",

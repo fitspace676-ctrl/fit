@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import type { MemberBookingHistoryEntry, MemberBookingStatus } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
-import { Badge, buttonClasses, Card, type Tone } from '@/src/components/ui';
+import { Avatar, Badge, buttonClasses, Card, Icon, type Tone } from '@/src/components/ui';
 import { BookingActionButton } from '@/src/components/member/booking-action-button';
 import { formatTime } from '@/src/components/classes/date-utils';
 import { formatDuration, formatShortDate, relativeDayLabel } from './booking-format';
@@ -14,6 +14,11 @@ export interface BookingHistoryCardProps {
   now: number;
   /** Whether this card sits in the "Past" tab — switches the action to re-book. */
   past?: boolean;
+}
+
+/** A Dicebear initials avatar seeded by the trainer's name (no photo on the card model). */
+function avatarSrc(name: string): string {
+  return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`;
 }
 
 /** The badge tone for each booking status. */
@@ -38,6 +43,8 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
   const { classInstance: instance, status } = entry;
   const muted = past && (status === 'NO_SHOW' || status === 'CANCELED');
   const cancelable = !past && (status === 'BOOKED' || status === 'WAITLIST');
+  const dayLabel = relativeDayLabel(instance.startsAt, now, locale, t);
+  const isToday = dayLabel === t('relative.today');
 
   return (
     <li>
@@ -45,8 +52,12 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
         <div className="flex flex-wrap items-center gap-4">
           {/* Time block */}
           <div className="w-16 shrink-0 rounded-card bg-ink-50 py-2 text-center ring-1 ring-inset ring-ink-100 dark:bg-white/5 dark:ring-white/10">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">
-              {relativeDayLabel(instance.startsAt, now, locale, t)}
+            <p
+              className={`text-[10px] font-bold uppercase tracking-wide ${
+                isToday ? 'text-brand-600 dark:text-brand-300' : 'text-ink-500 dark:text-ink-400'
+              }`}
+            >
+              {dayLabel}
             </p>
             <p className="text-lg font-extrabold leading-tight tabular-nums text-ink-900 dark:text-white">
               {formatTime(instance.startsAt, locale)}
@@ -86,9 +97,22 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
               )}
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-500 dark:text-ink-400">
-              {instance.trainerName ? <span>{instance.trainerName}</span> : null}
-              {instance.locationName ? <span>{instance.locationName}</span> : null}
-              <span>{formatShortDate(instance.startsAt, locale)}</span>
+              {instance.trainerName ? (
+                <span className="flex items-center gap-1.5">
+                  <Avatar src={avatarSrc(instance.trainerName)} size="h-5 w-5" />
+                  {instance.trainerName}
+                </span>
+              ) : null}
+              {instance.locationName ? (
+                <span className="flex items-center gap-1.5">
+                  <Icon name="pin" className="h-3.5 w-3.5 shrink-0 text-ink-400" sw={2} />
+                  {instance.locationName}
+                </span>
+              ) : null}
+              <span className="flex items-center gap-1.5">
+                <Icon name="calendar" className="h-3.5 w-3.5 shrink-0 text-ink-400" sw={2} />
+                {formatShortDate(instance.startsAt, locale)}
+              </span>
             </div>
           </div>
 

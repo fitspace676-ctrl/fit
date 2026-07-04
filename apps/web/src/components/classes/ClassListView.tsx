@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ClassInstanceCard } from '@fit/types';
-import { Badge, Card, Occupancy } from '@/src/components/ui';
+import { Card, Icon, Occupancy } from '@/src/components/ui';
 import { formatTime, groupByDay } from './date-utils';
 
 export interface ClassListViewProps {
@@ -89,7 +89,23 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                           <span className="truncate font-display text-sm font-bold text-ink-900 dark:text-white">
                             {instance.title}
                           </span>
-                          {instance.category && <Badge tone="brand">{instance.category}</Badge>}
+                          {instance.category && (
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset"
+                              style={{
+                                color: instance.color,
+                                backgroundColor: `${instance.color}1f`,
+                                borderColor: `${instance.color}40`,
+                              }}
+                            >
+                              <span
+                                aria-hidden
+                                className="h-1.5 w-1.5 rounded-full"
+                                style={{ backgroundColor: instance.color }}
+                              />
+                              {instance.category}
+                            </span>
+                          )}
                         </div>
 
                         {(instance.trainerName || instance.locationName) && (
@@ -110,7 +126,12 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                                 ·
                               </span>
                             )}
-                            {instance.locationName && <span>{instance.locationName}</span>}
+                            {instance.locationName && (
+                              <span className="flex items-center gap-1.5">
+                                <Icon name="pin" className="h-3.5 w-3.5 text-ink-400" sw={2} />
+                                {instance.locationName}
+                              </span>
+                            )}
                           </div>
                         )}
 
@@ -129,7 +150,7 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                               : 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_24px_-6px_rgba(98,87,227,0.7)]'
                           }`}
                         >
-                          {isFull ? t('card.full') : t('drawer.book')}
+                          {isFull ? t('card.joinWaitlist') : t('drawer.book')}
                         </span>
                       </div>
                     </button>
