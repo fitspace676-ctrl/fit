@@ -107,12 +107,16 @@ export const listAdminProductsQuerySchema = z.object({
 export type ListAdminProductsQuery = z.infer<typeof listAdminProductsQuerySchema>;
 
 /**
- * One product as the roster table renders it. `imageUrl` is the primary (first)
- * gallery image, or `null` when the product has no images (the table renders a
+ * One product as the roster grid renders it. `imageUrl` is the primary (first)
+ * gallery image, or `null` when the product has no images (the card renders a
  * placeholder). `priceAmount` is the base price in `currency`'s minor units the
- * table formats. `variantCount` is the size of the variant list so the roster can
- * show "3 variants" without shipping the whole list. `createdAt` is an ISO-8601
- * instant the table formats in the staff member's local zone.
+ * card formats. `variantCount` is the size of the variant list so the roster can
+ * show "3 variants" without shipping the whole list. `totalStock` is the summed
+ * on-hand count across the product's variants (0 when it has none) and `lowestStock`
+ * is the smallest single-variant on-hand count — or `null` when the product has no
+ * variants (stock is untracked) — so the card can render the right stock badge
+ * without shipping the whole variant list. `createdAt` is an ISO-8601 instant the
+ * card formats in the staff member's local zone.
  */
 export interface AdminProductRow {
   id: string;
@@ -121,21 +125,45 @@ export interface AdminProductRow {
   currency: string;
   imageUrl: string | null;
   variantCount: number;
+  totalStock: number;
+  lowestStock: number | null;
   status: ProductStatus;
   createdAt: string;
 }
 
 /**
- * Successful `GET /admin/products` response — one page of the roster plus the
- * totals the pager needs. `total` is the count *after* filters, `page` / `limit`
- * echo the request. An empty `data` is a normal result the table renders as its
- * empty state.
+ * At-a-glance totals across the whole filtered product roster (T4.5) — not just the
+ * visible page — powering the catalog's KPI tiles and its low-stock surfacing.
+ * `productCount` is the filtered count; `activeCount` is how many of those are
+ * `ACTIVE`. `lowStockCount` and `outOfStockCount` count **active** products by their
+ * most-urgent variant: out-of-stock when a variant has hit `0`, low when the lowest
+ * variant sits between `1` and `lowStockThreshold` inclusive. `lowStockThreshold`
+ * echoes {@link DEFAULT_LOW_STOCK_THRESHOLD} so the tiles can label the cushion.
+ */
+export const productRosterSummarySchema = z.object({
+  productCount: z.number().int().nonnegative(),
+  activeCount: z.number().int().nonnegative(),
+  lowStockCount: z.number().int().nonnegative(),
+  outOfStockCount: z.number().int().nonnegative(),
+  lowStockThreshold: z.number().int().nonnegative(),
+});
+
+/** The filtered product roster's totals — {@link productRosterSummarySchema}. */
+export type ProductRosterSummary = z.infer<typeof productRosterSummarySchema>;
+
+/**
+ * Successful `GET /admin/products` response — one page of the roster, the totals the
+ * pager needs, and the {@link ProductRosterSummary} across the whole filtered set the
+ * catalog's KPI tiles render. `total` is the count *after* filters, `page` / `limit`
+ * echo the request. An empty `data` is a normal result the grid renders as its empty
+ * state.
  */
 export interface ListAdminProductsResponse {
   data: AdminProductRow[];
   total: number;
   page: number;
   limit: number;
+  summary: ProductRosterSummary;
 }
 
 /**

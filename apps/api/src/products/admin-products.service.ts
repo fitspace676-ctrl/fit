@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ProductStatus, Prisma } from '@fit/db';
 import {
+  DEFAULT_LOW_STOCK_THRESHOLD,
   productVariantsSchema,
   type AdminProductDetail,
   type AdminProductRow,
@@ -13,6 +14,7 @@ import {
   type LowStockProductRow,
   type LowStockQuery,
   type LowStockVariant,
+  type ProductRosterSummary,
   type ProductVariants,
   type SetProductStatusResponse,
   type UpdateProductData,
@@ -70,7 +72,12 @@ export class AdminProductsService {
     const where = this.buildWhere(query);
     const skip = (query.page - 1) * query.limit;
 
-    const [rows, total] = await Promise.all([
+    // The page (a `skip`/`take` window) drives the grid; the count feeds the pager;
+    // the lean status+variants scan over the *whole* filtered set powers the summary
+    // KPI tiles (which must reflect every match, not just the visible page). Stock
+    // lives inside each variant's JSON, so the low/out counts can't be a SQL
+    // aggregate — the same in-memory pass the low-stock report uses.
+    const [rows, total, scan] = await Promise.all([
       this.prisma.client.product.findMany({
         where,
         select: PRODUCT_SELECT,
@@ -79,6 +86,10 @@ export class AdminProductsService {
         take: query.limit,
       }),
       this.prisma.client.product.count({ where }),
+      this.prisma.client.product.findMany({
+        where,
+        select: { status: true, variants: true },
+      }),
     ]);
 
     return {
@@ -86,6 +97,49 @@ export class AdminProductsService {
       total,
       page: query.page,
       limit: query.limit,
+      summary: this.summarize(scan, total),
+    };
+  }
+
+  /**
+   * Fold the filtered roster's status + stock into the {@link ProductRosterSummary}
+   * KPI tiles. `productCount` echoes the filtered `total`; `activeCount` counts the
+   * `ACTIVE` matches; the low/out buckets classify each **active** product by its
+   * most-urgent variant (lowest on-hand) against {@link DEFAULT_LOW_STOCK_THRESHOLD},
+   * so a deactivated product — off the storefront, stock moot — never trips an alert.
+   * A product with no variants is untracked and counts toward neither bucket.
+   */
+  private summarize(
+    scan: Array<{ status: ProductStatus; variants: Prisma.JsonValue }>,
+    total: number,
+  ): ProductRosterSummary {
+    let activeCount = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    for (const product of scan) {
+      if (product.status !== ProductStatus.ACTIVE) {
+        continue;
+      }
+      activeCount += 1;
+      const variants = this.parseVariants(product.variants);
+      if (variants.length === 0) {
+        continue;
+      }
+      const lowest = Math.min(...variants.map((variant) => variant.stock));
+      if (lowest === 0) {
+        outOfStockCount += 1;
+      } else if (lowest <= DEFAULT_LOW_STOCK_THRESHOLD) {
+        lowStockCount += 1;
+      }
+    }
+
+    return {
+      productCount: total,
+      activeCount,
+      lowStockCount,
+      outOfStockCount,
+      lowStockThreshold: DEFAULT_LOW_STOCK_THRESHOLD,
     };
   }
 
@@ -289,13 +343,16 @@ export class AdminProductsService {
 
   /** Project a queried row to the denormalised roster {@link AdminProductRow}. */
   private toRow(row: ProductRecord): AdminProductRow {
+    const variants = this.parseVariants(row.variants);
     return {
       id: row.id,
       name: row.name,
       priceAmount: row.priceAmount,
       currency: row.currency,
       imageUrl: row.images[0] ?? null,
-      variantCount: this.parseVariants(row.variants).length,
+      variantCount: variants.length,
+      totalStock: variants.reduce((sum, variant) => sum + variant.stock, 0),
+      lowestStock: variants.length === 0 ? null : Math.min(...variants.map((v) => v.stock)),
       status: row.status,
       createdAt: row.createdAt.toISOString(),
     };

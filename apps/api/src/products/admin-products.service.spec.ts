@@ -133,6 +133,8 @@ describe('AdminProductsService', () => {
             currency: 'USD',
             imageUrl: 'https://cdn.example.com/a.jpg',
             variantCount: 2,
+            totalStock: 14,
+            lowestStock: 4,
             status: 'ACTIVE',
             createdAt: '2026-02-01T00:00:00.000Z',
           },
@@ -140,15 +142,50 @@ describe('AdminProductsService', () => {
         total: 1,
         page: 1,
         limit: 20,
+        summary: {
+          productCount: 1,
+          activeCount: 1,
+          lowStockCount: 1,
+          outOfStockCount: 0,
+          lowStockThreshold: 5,
+        },
       });
     });
 
-    it('reports a null imageUrl and zero variantCount for an empty product', async () => {
+    it('reports a null imageUrl, zero variantCount and untracked stock for an empty product', async () => {
       const { service } = setup({ findMany: [row({ images: [], variants: [] })], count: 1 });
 
       const result = await service.listProducts(query());
 
-      expect(result.data[0]).toMatchObject({ imageUrl: null, variantCount: 0 });
+      expect(result.data[0]).toMatchObject({
+        imageUrl: null,
+        variantCount: 0,
+        totalStock: 0,
+        lowestStock: null,
+      });
+    });
+
+    it('summarizes status + stock across the whole filtered set, most-urgent variant per product', async () => {
+      // p-1: Small (10), Large (4) → lowest 4 (low). p-2: Big (0) → out. p-3: healthy.
+      // p-4: INACTIVE → excluded from every bucket. p-5: no variants → untracked.
+      const scan = [
+        row(),
+        row({ id: 'p-2', variants: productVariantsSchema.parse([{ name: 'Big', stock: 0 }]) }),
+        row({ id: 'p-3', variants: productVariantsSchema.parse([{ name: 'Ok', stock: 50 }]) }),
+        row({ id: 'p-4', status: ProductStatus.INACTIVE }),
+        row({ id: 'p-5', variants: [] }),
+      ];
+      const { service } = setup({ findMany: scan, count: 5 });
+
+      const result = await service.listProducts(query());
+
+      expect(result.summary).toEqual({
+        productCount: 5,
+        activeCount: 4,
+        lowStockCount: 1,
+        outOfStockCount: 1,
+        lowStockThreshold: 5,
+      });
     });
 
     it('paginates server-side with skip/take derived from page + limit', async () => {
@@ -181,17 +218,19 @@ describe('AdminProductsService', () => {
     it('maps the sort column + direction to a Prisma orderBy', async () => {
       const { service, findMany } = setup();
 
+      // Each listProducts fires two findMany calls (the page query, then the
+      // whole-set summary scan), so the page query lands on the even indices.
       await service.listProducts(query({ sort: 'name', dir: 'desc' }));
       expect(findMany.mock.calls[0]?.[0]?.orderBy).toEqual({ name: 'desc' });
 
       await service.listProducts(query({ sort: 'price', dir: 'asc' }));
-      expect(findMany.mock.calls[1]?.[0]?.orderBy).toEqual({ priceAmount: 'asc' });
+      expect(findMany.mock.calls[2]?.[0]?.orderBy).toEqual({ priceAmount: 'asc' });
 
       await service.listProducts(query({ sort: 'status', dir: 'asc' }));
-      expect(findMany.mock.calls[2]?.[0]?.orderBy).toEqual({ status: 'asc' });
+      expect(findMany.mock.calls[4]?.[0]?.orderBy).toEqual({ status: 'asc' });
 
       await service.listProducts(query({ sort: 'createdAt', dir: 'desc' }));
-      expect(findMany.mock.calls[3]?.[0]?.orderBy).toEqual({ createdAt: 'desc' });
+      expect(findMany.mock.calls[6]?.[0]?.orderBy).toEqual({ createdAt: 'desc' });
     });
   });
 
@@ -259,6 +298,8 @@ describe('AdminProductsService', () => {
         currency: 'USD',
         imageUrl: 'https://cdn.example.com/a.jpg',
         variantCount: 2,
+        totalStock: 14,
+        lowestStock: 4,
         status: 'ACTIVE',
         createdAt: '2026-02-01T00:00:00.000Z',
         description: 'A soft cotton training tee.',

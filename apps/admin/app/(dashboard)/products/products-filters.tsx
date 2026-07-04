@@ -2,24 +2,41 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { ProductStatus } from '@fit/types';
-
-/** The status options offered by the filter, in roster-priority order. */
-const STATUS_OPTIONS: ReadonlyArray<{ value: ProductStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
-];
+import type { ProductSort, SortDir } from '@fit/types';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
 
 /**
- * The product roster filter bar: a debounced search box (name / description) and a
- * status select. Both write their state to the URL search params (the single
- * source of truth the server page reads), resetting to page 1 on any change.
- * Navigation runs in a transition so the input stays responsive.
+ * The sort presets, each pinning a `sort` column + `dir` the roster reads. The
+ * `value` is the `sort:dir` pair the `<select>` round-trips; the grid no longer has
+ * sortable column headers, so this is the catalog's one sort control.
  */
-export function ProductsFilters({ search, status }: { search: string; status: string }) {
+const SORT_OPTIONS: ReadonlyArray<{ sort: ProductSort; dir: SortDir; label: string }> = [
+  { sort: 'name', dir: 'asc', label: 'Name (A–Z)' },
+  { sort: 'name', dir: 'desc', label: 'Name (Z–A)' },
+  { sort: 'price', dir: 'asc', label: 'Price (low → high)' },
+  { sort: 'price', dir: 'desc', label: 'Price (high → low)' },
+  { sort: 'createdAt', dir: 'desc', label: 'Newest first' },
+  { sort: 'createdAt', dir: 'asc', label: 'Oldest first' },
+];
+
+/**
+ * The product catalog filter bar: a debounced search box (name / description) and a
+ * sort select. Both write their state to the URL search params (the single source of
+ * truth the server page reads), resetting to page 1 on any change. Navigation runs
+ * in a transition so the input stays responsive. Status filtering lives in the
+ * sibling `ProductsStatusTabs`.
+ */
+export function ProductsFilters({
+  search,
+  sort,
+  dir,
+}: {
+  search: string;
+  sort: ProductSort;
+  dir: SortDir;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -28,12 +45,14 @@ export function ProductsFilters({ search, status }: { search: string; status: st
 
   useEffect(() => setSearchValue(search), [search]);
 
-  function commit(key: string, value: string): void {
+  function commit(entries: Record<string, string>): void {
     const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set(key, value);
-    } else {
-      params.delete(key);
+    for (const [key, value] of Object.entries(entries)) {
+      if (value) {
+        params.set(key, value);
+      } else {
+        params.delete(key);
+      }
     }
     params.delete('page');
     const qs = params.toString();
@@ -46,7 +65,7 @@ export function ProductsFilters({ search, status }: { search: string; status: st
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-    debounceRef.current = setTimeout(() => commit('search', value.trim()), SEARCH_DEBOUNCE_MS);
+    debounceRef.current = setTimeout(() => commit({ search: value.trim() }), SEARCH_DEBOUNCE_MS);
   }
 
   return (
@@ -65,19 +84,21 @@ export function ProductsFilters({ search, status }: { search: string; status: st
         />
       </div>
 
-      <div className="sm:w-48">
-        <label htmlFor="product-status" className="sr-only">
-          Filter by status
+      <div className="sm:w-56">
+        <label htmlFor="product-sort" className="sr-only">
+          Sort products
         </label>
         <select
-          id="product-status"
-          value={status}
-          onChange={(event) => commit('status', event.target.value)}
+          id="product-sort"
+          value={`${sort}:${dir}`}
+          onChange={(event) => {
+            const [nextSort = 'name', nextDir = 'asc'] = event.target.value.split(':');
+            commit({ sort: nextSort, dir: nextDir });
+          }}
           className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
+          {SORT_OPTIONS.map((option) => (
+            <option key={`${option.sort}:${option.dir}`} value={`${option.sort}:${option.dir}`}>
               {option.label}
             </option>
           ))}

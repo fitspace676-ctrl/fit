@@ -16,6 +16,8 @@ const detail = (over?: Partial<GetAdminProductResponse>): GetAdminProductRespons
   currency: 'USD',
   imageUrl: null,
   variantCount: 0,
+  totalStock: 0,
+  lowestStock: null,
   status: 'ACTIVE',
   createdAt: '2026-02-01T00:00:00.000Z',
   description: '',
@@ -27,7 +29,19 @@ const detail = (over?: Partial<GetAdminProductResponse>): GetAdminProductRespons
 
 function setup() {
   const listProducts = vi.fn<() => Promise<ListAdminProductsResponse>>(() =>
-    Promise.resolve({ data: [], total: 0, page: 1, limit: 20 }),
+    Promise.resolve({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      summary: {
+        productCount: 0,
+        activeCount: 0,
+        lowStockCount: 0,
+        outOfStockCount: 0,
+        lowStockThreshold: 5,
+      },
+    }),
   );
   const getProduct = vi.fn<() => Promise<GetAdminProductResponse>>(() => Promise.resolve(detail()));
   const listLowStock = vi.fn<() => Promise<ListLowStockResponse>>(() =>
