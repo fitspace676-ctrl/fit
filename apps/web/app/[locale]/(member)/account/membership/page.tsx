@@ -198,7 +198,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-ink-100 text-left dark:border-white/10">
-                  {['invoice', 'date', 'amount', 'statusCol'].map((h) => (
+                  {['invoice', 'date', 'amount', 'statusCol', 'downloadCol'].map((h) => (
                     <th
                       key={h}
                       className="px-5 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
@@ -237,6 +237,17 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
                       >
                         {t(`invoiceStatus.${inv.status}`)}
                       </Badge>
+                    </td>
+                    <td className="px-5 py-3">
+                      {/* Not a localized <Link>: the download proxy lives at the
+                          locale-less `/api/invoices/:id` route handler. */}
+                      <a
+                        href={`/api/invoices/${inv.id}`}
+                        className={buttonClasses('ghost', 'sm')}
+                        aria-label={t('downloadPdf')}
+                      >
+                        <Icon name="download" className="h-4 w-4" /> {t('download')}
+                      </a>
                     </td>
                   </tr>
                 ))}

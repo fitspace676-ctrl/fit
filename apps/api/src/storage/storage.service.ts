@@ -132,6 +132,46 @@ export class StorageService implements OnModuleDestroy {
     });
   }
 
+  /**
+   * Upload `body` to `key` from the API process itself (not a presigned client PUT).
+   * Used for server-rendered documents — the invoice PDF (T5.10) — where the bytes
+   * are produced on the server and must land in R2 before we hand back a download.
+   * Callers pass an already-namespaced key (`{gymId}/…`); no size signing applies.
+   */
+  async putObject(key: string, body: Buffer | Uint8Array, contentType: string): Promise<void> {
+    const bucket = this.requireBucket();
+    await this.client().send(
+      new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }),
+    );
+    this.logger.debug(`Stored ${key} (${body.byteLength}B, ${contentType})`);
+  }
+
+  /**
+   * Read a private object's bytes into a Buffer, or `null` when it does not exist
+   * (a `NoSuchKey` / 404). Buffers the whole object — sized for small documents like
+   * the invoice PDF, not large media. Every other S3 error propagates.
+   */
+  async getObject(key: string): Promise<Buffer | null> {
+    const bucket = this.requireBucket();
+    try {
+      const result = await this.client().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      if (!result.Body) return null;
+      const bytes = await result.Body.transformToByteArray();
+      return Buffer.from(bytes);
+    } catch (error) {
+      if (this.isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  /** True when an S3 error means the object simply is not there (vs. a real fault). */
+  private isNotFound(error: unknown): boolean {
+    const name = (error as { name?: string } | null)?.name;
+    const status = (error as { $metadata?: { httpStatusCode?: number } } | null)?.$metadata
+      ?.httpStatusCode;
+    return name === 'NoSuchKey' || name === 'NotFound' || status === 404;
+  }
+
   /** Public URL for an object, or `null` when no public base URL is configured. */
   publicUrl(key: string): string | null {
     if (!env.R2_PUBLIC_URL) return null;

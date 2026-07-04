@@ -14,6 +14,7 @@ import {
 } from '@fit/types';
 import {
   Btn,
+  buttonClasses,
   Card,
   Field,
   Icon,
@@ -33,7 +34,7 @@ import {
 type T = ReturnType<typeof useTranslations>;
 
 /** The detail page's tab keys, matching the Planflow "formacore" reference order; labels come from `memberTabs.<key>`. */
-const TABS = ['overview', 'subscriptions', 'bookings', 'payments', 'notes'] as const;
+const TABS = ['overview', 'subscriptions', 'bookings', 'payments', 'invoices', 'notes'] as const;
 type Tab = (typeof TABS)[number];
 
 /** Shared list-row surface, matching the formacore card treatment. */
@@ -212,6 +213,35 @@ export function MemberTabs({
                   <span className="text-xs font-medium text-ink-600 dark:text-ink-300">
                     {payment.status}
                   </span>
+                </li>
+              ))}
+            </ul>
+          ))}
+
+        {active === 'invoices' &&
+          (member.invoices.length === 0 ? (
+            <EmptyState>{t('detail.noInvoices')}</EmptyState>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {member.invoices.map((invoice) => (
+                <li key={invoice.id} className={ROW_CLASS}>
+                  <div>
+                    <p className="font-mono font-medium tabular-nums text-ink-900 dark:text-white">
+                      {invoice.number} · {formatAmount(invoice.amount, invoice.currency)}
+                    </p>
+                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                      {formatDate(invoice.issuedAt, locale)} · {invoice.status}
+                    </p>
+                  </div>
+                  {/* Download proxy is a root-relative admin route handler, not a data
+                      action — a plain <a> so the browser handles the file download. */}
+                  <a
+                    href={`/invoices/${invoice.id}/pdf`}
+                    className={buttonClasses('outline', 'sm')}
+                    aria-label={t('detail.downloadInvoice')}
+                  >
+                    <Icon name="download" className="h-4 w-4" /> {t('detail.download')}
+                  </a>
                 </li>
               ))}
             </ul>

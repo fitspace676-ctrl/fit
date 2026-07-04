@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { AdminCreditPacksController } from './admin-credit-packs.controller';
 import { CreditPacksController } from './credit-packs.controller';
 import { CreditPacksService } from './credit-packs.service';
+import { InvoiceDocumentService } from './invoice-document.service';
+import { InvoicePdfService } from './invoice-pdf.service';
+import { InvoicesController } from './invoices.controller';
 import { MemberCreditPacksController } from './member-credit-packs.controller';
 
 /**
@@ -19,10 +22,20 @@ import { MemberCreditPacksController } from './member-credit-packs.controller';
  * class credit inside the booking transaction. The tenant-scoped Prisma client,
  * the guards, and the tenant context all come from the app-wide `TenantModule` /
  * `RbacModule`.
+ *
+ * Invoice documents (T5.10): {@link InvoicesController} (`GET /invoices/:id/pdf`) is
+ * the desk-side download, and {@link InvoiceDocumentService} — the shared load →
+ * render ({@link InvoicePdfService}) → cache-in-R2 seam — is **exported** so the member
+ * self-service route (`MeInvoicesController` in {@link MeModule}) reuses it.
  */
 @Module({
-  controllers: [CreditPacksController, MemberCreditPacksController, AdminCreditPacksController],
-  providers: [CreditPacksService],
-  exports: [CreditPacksService],
+  controllers: [
+    CreditPacksController,
+    MemberCreditPacksController,
+    AdminCreditPacksController,
+    InvoicesController,
+  ],
+  providers: [CreditPacksService, InvoicePdfService, InvoiceDocumentService],
+  exports: [CreditPacksService, InvoiceDocumentService],
 })
 export class BillingModule {}

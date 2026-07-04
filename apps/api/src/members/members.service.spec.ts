@@ -96,6 +96,7 @@ function setup(overrides?: {
   const checkInCount = vi.fn<(args: unknown) => Promise<number>>(() => Promise.resolve(0));
   const checkInFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
   const bookingFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
+  const invoiceFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
 
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
@@ -112,6 +113,7 @@ function setup(overrides?: {
     payment: { aggregate: paymentAggregate, findMany: paymentFindMany },
     checkIn: { count: checkInCount, findMany: checkInFindMany },
     booking: { findMany: bookingFindMany },
+    invoice: { findMany: invoiceFindMany },
   };
   // Interactive transaction: run the callback against the same scoped client.
   client.$transaction = vi.fn((cb: (tx: typeof client) => unknown) => cb(client));

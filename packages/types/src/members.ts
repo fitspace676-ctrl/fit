@@ -207,6 +207,26 @@ export interface MemberPayment {
   paidAt: string;
 }
 
+/**
+ * One invoice on a member's detail page — a numbered {@link Invoice} raised for the
+ * member (T5.9/T5.10), newest first. Distinct from {@link MemberPayment}: an invoice
+ * is the billing *document* (with a per-gym `number` and a downloadable PDF), whereas a
+ * payment is a captured charge on a shop order. The PDF is rendered on demand and
+ * streamed from `GET /invoices/:id/pdf`, so there is no URL on the wire.
+ */
+export interface MemberInvoice {
+  id: string;
+  /** Per-gym, per-year sequential reference (e.g. `"2026-0001"`). */
+  number: string;
+  /** Amount in minor currency units (tetri). */
+  amount: number;
+  currency: string;
+  /** Settlement state — `PAID` / `PENDING` / `FAILED` / `REFUNDED`. */
+  status: string;
+  /** ISO instant the invoice was raised. */
+  issuedAt: string;
+}
+
 /** The kind of a member-detail activity-timeline entry, driving its icon/tone. */
 export type MemberActivityKind = 'checkin' | 'booking' | 'payment' | 'milestone';
 
@@ -291,6 +311,8 @@ export interface MemberDetail extends MemberRow {
   subscriptions: MemberSubscription[];
   bookings: MemberBooking[];
   payments: MemberPayment[];
+  /** The member's numbered invoices (billing documents), newest first (T5.10). */
+  invoices: MemberInvoice[];
   /**
    * Member tags. ALWAYS empty: the Prisma schema has no member-tag / label model,
    * so there is nothing to read. The detail page renders a disabled "Add" chip
