@@ -15,6 +15,7 @@ import { ClassesModule } from './classes/classes.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { GymsModule } from './gyms/gyms.module';
 import { HealthModule } from './health/health.module';
+import { LiveModule } from './live/live.module';
 import { LocationsModule } from './locations/locations.module';
 import { MembersModule } from './members/members.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -82,6 +83,10 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   (`/admin/activity` — a paginated, filterable newest-first merge of the gym's
  *   signups, bookings, check-ins, sales, and subscription enrolments derived from
  *   existing tables; `ReportView`).
+ * - {@link LiveModule} provides the app-wide `ActivityStreamService` — the
+ *   Redis-backed pub/sub seam behind the live activity stream
+ *   (`GET /admin/activity/stream`, SSE): reception check-ins publish to it and the
+ *   activity SSE endpoint subscribes, fanning events out across API replicas (T8.9).
  * - {@link LocationsModule} serves the staff console's tenant-scoped location
  *   management (`/admin/locations` — CRUD with hours + amenities; `LocationRead`
  *   / `LocationWrite`).
@@ -119,6 +124,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
+    LiveModule,
     HealthModule,
     StorageModule,
     AuthModule,
