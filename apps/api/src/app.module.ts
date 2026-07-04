@@ -2,6 +2,7 @@ import { Module, type MiddlewareConsumer, type NestModule, RequestMethod } from 
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
+import { ActivityModule } from './activity/activity.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -69,6 +70,10 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link AnalyticsModule} serves the staff console's tenant-scoped analytics
  *   (`/admin/analytics?range=` — range-windowed revenue/attendance/churn KPIs,
  *   revenue series, channel/plan mix, top classes; `ReportView`).
+ * - {@link ActivityModule} serves the staff console's tenant-scoped Activity feed
+ *   (`/admin/activity` — a paginated, filterable newest-first merge of the gym's
+ *   signups, bookings, check-ins, sales, and subscription enrolments derived from
+ *   existing tables; `ReportView`).
  * - {@link LocationsModule} serves the staff console's tenant-scoped location
  *   management (`/admin/locations` — CRUD with hours + amenities; `LocationRead`
  *   / `LocationWrite`).
@@ -127,6 +132,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     DashboardModule,
     CheckInModule,
     AnalyticsModule,
+    ActivityModule,
     GymsModule,
     SuperAdminModule,
     TenantModule,
