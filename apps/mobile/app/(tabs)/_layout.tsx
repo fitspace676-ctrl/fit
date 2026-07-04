@@ -86,6 +86,10 @@ export default function TabsLayout() {
       {/* Bookings stays a reachable route (linked from Home) but is lifted off
           the flat bar so the QR FAB keeps the centre of a five-slot layout. */}
       <Tabs.Screen name="bookings" options={{ href: null }} />
+      {/* Trainers is a reachable stack (linked from Profile) kept off the flat
+          bar for the same reason — the five-slot layout is built around the QR
+          FAB, so extra destinations live behind in-screen links. */}
+      <Tabs.Screen name="trainers" options={{ href: null }} />
       <Tabs.Screen
         name="qr"
         options={{
