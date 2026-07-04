@@ -24,6 +24,7 @@ export * from './src/orders-admin';
 export * from './src/packages';
 export * from './src/packages-admin';
 export * from './src/permissions';
+export * from './src/platform';
 export * from './src/products';
 export * from './src/products-admin';
 export * from './src/reports';

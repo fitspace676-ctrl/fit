@@ -10,6 +10,7 @@ import { NotificationDispatchService } from './notification-dispatch.service';
 import { NotificationService } from './notification.service';
 import { disconnect, prisma, resetDb } from '../test/integration-db';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { MailerService } from '../mail/mailer.service';
 
 /**
  * The dispatch orchestrator (T8.1) proven against a real Postgres: an in-app
@@ -19,9 +20,13 @@ import type { PrismaService } from '../prisma/prisma.service';
  * unique index.
  */
 const prismaService = { client: prisma } as unknown as PrismaService;
+// An unconfigured mailer: the email channel routes as a `pending` placeholder, so
+// these in-app persistence tests don't attempt a live send (the email channel's
+// own transport is covered by notification-channels.spec.ts).
+const mailer = { isConfigured: false } as unknown as MailerService;
 const registry = buildChannelRegistry([
   new InAppNotificationChannel(new NotificationDispatchService(prismaService)),
-  new EmailNotificationChannel(),
+  new EmailNotificationChannel(prismaService, mailer),
   new PushNotificationChannel(),
 ]);
 const service = new NotificationService(prismaService, registry);

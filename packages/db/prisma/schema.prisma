@@ -1461,3 +1461,36 @@ model InvoiceSequence {
   @@id([gymId, year])
   @@map("invoice_sequences")
 }
+
+/// Which platform marketing form a {@link PlatformLead} came from — the free-trial
+/// signup or the book-a-demo request. Drives the copy of the team notification and
+/// lets the pipeline of the two be reported on separately.
+enum PlatformLeadType {
+  TRIAL
+  DEMO
+}
+
+/// An inbound sales lead captured from the platform marketing site's trial/demo
+/// forms (T8.2). Deliberately **platform-level** — it belongs to no gym (a lead is
+/// a prospect who does not yet have a tenant), so it carries no `gymId` and lives
+/// outside the tenant-scoped model set. Persisted first so a lead is never lost
+/// even when transactional email is unconfigured; the team notification email is a
+/// best-effort side effect on top of the stored row.
+model PlatformLead {
+  id        String           @id @default(cuid())
+  type      PlatformLeadType
+  name      String
+  email     String
+  /// Gym / studio name (trial form) — absent on a demo request.
+  business  String?
+  /// Contact phone (demo form) — optional.
+  phone     String?
+  /// Free-text "what would you like to see?" (demo form) — optional.
+  message   String?
+  createdAt DateTime         @default(now())
+
+  /// Newest-first lead review, optionally filtered by which form it came from.
+  @@index([createdAt])
+  @@index([type, createdAt])
+  @@map("platform_leads")
+}

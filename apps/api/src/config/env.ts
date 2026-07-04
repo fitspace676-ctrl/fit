@@ -103,6 +103,10 @@ export const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   // `From` address for transactional mail. Must be a verified Resend sender.
   EMAIL_FROM: z.string().default('Fit <no-reply@fit.app>'),
+  // Destination inbox for platform sales-lead notifications (the marketing site's
+  // trial/demo forms, T8.2). Unset → the best-effort team notification is skipped;
+  // leads are still persisted either way, so none are lost.
+  PLATFORM_LEADS_EMAIL: z.string().email().optional(),
 
   // ── Scheduled report digests (T4.10) ──
   // Master switch for the weekly/monthly report-digest cron. Off by default so

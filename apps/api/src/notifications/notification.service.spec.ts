@@ -9,6 +9,7 @@ import {
 import { NotificationDispatchService } from './notification-dispatch.service';
 import { NotificationService } from './notification.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { MailerService } from '../mail/mailer.service';
 
 /** A P2002 unique-violation as Prisma raises it, targeting a given index. */
 function uniqueViolation(target: string[] | string) {
@@ -31,9 +32,14 @@ function setup() {
     client: { notification, notificationPreference },
   } as unknown as PrismaService;
 
+  // An unconfigured mailer: the email channel short-circuits to a `pending`
+  // placeholder before any recipient lookup, so these routing tests exercise the
+  // orchestrator without a live transport (the email channel's own send path is
+  // covered in notification-channels.spec.ts).
+  const mailer = { isConfigured: false } as unknown as MailerService;
   const registry = buildChannelRegistry([
     new InAppNotificationChannel(new NotificationDispatchService(prisma)),
-    new EmailNotificationChannel(),
+    new EmailNotificationChannel(prisma, mailer),
     new PushNotificationChannel(),
   ]);
   const service = new NotificationService(prisma, registry);
