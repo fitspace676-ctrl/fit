@@ -308,6 +308,7 @@
     "retry": "Try again",
     "detail": {
       "back": "All classes",
+      "about": "What to expect",
       "time": "Time",
       "duration": "Duration",
       "minutes": "{count, plural, one {# minute} other {# minutes}}",

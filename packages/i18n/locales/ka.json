@@ -308,6 +308,7 @@
     "retry": "ხელახლა ცდა",
     "detail": {
       "back": "ყველა გაკვეთილი",
+      "about": "რას უნდა ელოდოთ",
       "time": "დრო",
       "duration": "ხანგრძლივობა",
       "minutes": "{count, plural, one {# წუთი} other {# წუთი}}",
