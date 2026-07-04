@@ -202,10 +202,14 @@ function setupDetail() {
     update: vi.fn<(args: unknown) => Promise<unknown>>(),
   };
   const booking = {
+    findFirst: vi.fn<(args: unknown) => Promise<unknown>>(),
     findMany: vi.fn<(args: { where?: Record<string, unknown> }) => Promise<unknown>>(() =>
       Promise.resolve([]),
     ),
-    updateMany: vi.fn<(args: unknown) => Promise<unknown>>(),
+    update: vi.fn<(args: unknown) => Promise<unknown>>(),
+    updateMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(() =>
+      Promise.resolve({ count: 1 }),
+    ),
   };
   const $transaction = vi.fn<(cb: (tx: unknown) => unknown) => unknown>();
   const client = { classInstance, booking, $transaction };
@@ -214,12 +218,16 @@ function setupDetail() {
   const refundCredit = vi.fn<(tx: unknown, id: string | null) => Promise<void>>(() =>
     Promise.resolve(),
   );
-  const creditPacks = { refundCredit } as unknown as CreditPacksService;
+  const chargeSeatCredit = vi.fn<
+    (tx: unknown, memberId: string, opts?: unknown) => Promise<string | null>
+  >(() => Promise.resolve(null));
+  const creditPacks = { refundCredit, chargeSeatCredit } as unknown as CreditPacksService;
   return {
     service: new AdminScheduleService(prisma, creditPacks),
     classInstance,
     booking,
     refundCredit,
+    chargeSeatCredit,
   };
 }
 
@@ -314,5 +322,162 @@ describe('AdminScheduleService.cancelInstance', () => {
     expect(detail.status).toBe('CANCELED');
     expect(detail.bookedCount).toBe(0);
     expect(detail.roster).toEqual([]);
+  });
+});
+
+describe('AdminScheduleService.promoteWaitlistEntry', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('404s an unknown / cross-tenant occurrence', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce(null);
+
+    await expect(ctx.service.promoteWaitlistEntry('nope', 'bk-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(ctx.booking.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('409s a non-scheduled occurrence (canceled / completed)', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce({
+      id: 'ci-1',
+      status: InstanceStatus.CANCELED,
+    });
+
+    await expect(ctx.service.promoteWaitlistEntry('ci-1', 'bk-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(ctx.booking.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('404s a booking that is not on the occurrence', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce({
+      id: 'ci-1',
+      status: InstanceStatus.SCHEDULED,
+    });
+    ctx.booking.findFirst.mockResolvedValueOnce(null);
+
+    await expect(ctx.service.promoteWaitlistEntry('ci-1', 'bk-x')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(ctx.booking.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('409s a booking that is not a live waitlist entry (a held seat)', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce({
+      id: 'ci-1',
+      status: InstanceStatus.SCHEDULED,
+    });
+    ctx.booking.findFirst.mockResolvedValueOnce({
+      id: 'bk-1',
+      status: BookingStatus.BOOKED,
+      waitlistPosition: null,
+      memberId: 'gm-1',
+    });
+
+    await expect(ctx.service.promoteWaitlistEntry('ci-1', 'bk-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    // Never attempts the claim for a non-waitlisted booking.
+    expect(ctx.booking.updateMany).not.toHaveBeenCalled();
+    expect(ctx.classInstance.update).not.toHaveBeenCalled();
+  });
+
+  it('409s when the entry was auto-promoted concurrently (the claim loses the race)', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce({
+      id: 'ci-1',
+      status: InstanceStatus.SCHEDULED,
+    });
+    ctx.booking.findFirst.mockResolvedValueOnce({
+      id: 'wl-1',
+      status: BookingStatus.WAITLIST,
+      waitlistPosition: 1,
+      memberId: 'gm-1',
+    });
+    // The guarded claim flips no row — another cancellation already took it.
+    ctx.booking.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(ctx.service.promoteWaitlistEntry('ci-1', 'wl-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    // The seat is never added when the claim fails.
+    expect(ctx.classInstance.update).not.toHaveBeenCalled();
+    expect(ctx.chargeSeatCredit).not.toHaveBeenCalled();
+  });
+
+  it('promotes the entry into an added seat, charges a credit, and closes the queue gap', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst
+      // tx: load the occurrence (SCHEDULED)
+      .mockResolvedValueOnce({ id: 'ci-1', status: InstanceStatus.SCHEDULED })
+      // getInstanceDetail re-read after the promote
+      .mockResolvedValueOnce(row({ bookedCount: 6 }));
+    ctx.booking.findFirst.mockResolvedValueOnce({
+      id: 'wl-1',
+      status: BookingStatus.WAITLIST,
+      waitlistPosition: 1,
+      memberId: 'gm-1',
+    });
+    // The claim succeeds (default count 1); the promoted member draws a pack.
+    ctx.chargeSeatCredit.mockResolvedValueOnce('cp-9');
+
+    const detail = await ctx.service.promoteWaitlistEntry('ci-1', 'wl-1');
+
+    // The queued entry is claimed guarded on WAITLIST → BOOKED, queue slot cleared.
+    expect(ctx.booking.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'wl-1', status: BookingStatus.WAITLIST },
+      data: { status: BookingStatus.BOOKED, waitlistPosition: null },
+    });
+    // The promoted member pays a class credit best-effort; the pack is recorded.
+    expect(ctx.chargeSeatCredit).toHaveBeenCalledWith(expect.anything(), 'gm-1', {
+      required: false,
+    });
+    expect(ctx.booking.update).toHaveBeenCalledWith({
+      where: { id: 'wl-1' },
+      data: { creditPackId: 'cp-9' },
+    });
+    // A manual promote *adds* a held seat — bookedCount grows by one.
+    expect(ctx.classInstance.update).toHaveBeenCalledWith({
+      where: { id: 'ci-1' },
+      data: { bookedCount: { increment: 1 } },
+    });
+    // The gap behind the promoted entry is closed so the queue stays 1..N.
+    expect(ctx.booking.updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        classInstanceId: 'ci-1',
+        status: BookingStatus.WAITLIST,
+        waitlistPosition: { gt: 1 },
+      },
+      data: { waitlistPosition: { decrement: 1 } },
+    });
+    expect(detail.bookedCount).toBe(6);
+  });
+
+  it('still promotes a member with no credits left (best-effort charge is a no-op)', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst
+      .mockResolvedValueOnce({ id: 'ci-1', status: InstanceStatus.SCHEDULED })
+      .mockResolvedValueOnce(row({ bookedCount: 6 }));
+    ctx.booking.findFirst.mockResolvedValueOnce({
+      id: 'wl-1',
+      status: BookingStatus.WAITLIST,
+      waitlistPosition: 1,
+      memberId: 'gm-1',
+    });
+    // Out of credits → null pack: the seat is still granted, uncharged.
+    ctx.chargeSeatCredit.mockResolvedValueOnce(null);
+
+    await ctx.service.promoteWaitlistEntry('ci-1', 'wl-1');
+
+    // No pack to record, but the seat is still added.
+    expect(ctx.booking.update).not.toHaveBeenCalled();
+    expect(ctx.classInstance.update).toHaveBeenCalledWith({
+      where: { id: 'ci-1' },
+      data: { bookedCount: { increment: 1 } },
+    });
   });
 });

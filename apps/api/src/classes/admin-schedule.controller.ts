@@ -16,6 +16,7 @@ import {
   type AdminScheduleResponse,
   type CancelClassInstanceResponse,
   type GetAdminClassInstanceResponse,
+  type PromoteWaitlistResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -84,6 +85,29 @@ export class AdminScheduleController {
   @RequirePermissions(Permission.ClassWrite)
   async cancelInstance(@Param('id') id: string): Promise<CancelClassInstanceResponse> {
     return this.schedule.cancelInstance(id);
+  }
+
+  /**
+   * `POST /admin/schedule/instances/:id/bookings/:bookingId/promote` — manually
+   * promote a waitlisted booking into a held seat from the drawer's waitlist
+   * controls (T3.6): the chosen entry flips `WAITLIST → BOOKED`, `bookedCount`
+   * grows by one (a desk override that may take the occurrence over its listed
+   * capacity), the promoted member is charged a class credit best-effort, and the
+   * queue behind them is closed up. Requires {@link Permission.ClassWrite} (the
+   * same write capability as the cancel and attendance actions). Failure modes:
+   * `404 CLASS_INSTANCE_NOT_FOUND` (unknown / cross-tenant occurrence), `404
+   * BOOKING_NOT_FOUND` (booking not on this occurrence), `409 CLASS_NOT_MODIFIABLE`
+   * (occurrence no longer scheduled) and `409 BOOKING_NOT_PROMOTABLE` (booking
+   * isn't a live waitlist entry — already promoted, canceled, or a held seat).
+   */
+  @Post('instances/:id/bookings/:bookingId/promote')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ClassWrite)
+  async promoteWaitlist(
+    @Param('id') id: string,
+    @Param('bookingId') bookingId: string,
+  ): Promise<PromoteWaitlistResponse> {
+    return this.schedule.promoteWaitlistEntry(id, bookingId);
   }
 }
 
