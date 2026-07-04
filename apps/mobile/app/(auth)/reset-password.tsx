@@ -24,12 +24,12 @@ export default function ResetPasswordScreen() {
   // No token means the screen was opened without (or with a malformed) link.
   if (!token) {
     return (
-      <SafeAreaView className="flex-1 bg-brand-950">
+      <SafeAreaView className="flex-1 bg-ink-950">
         <View className="flex-1 justify-center gap-4 p-gutter">
           <Text className="text-3xl font-bold tracking-tight text-white">
             {t('auth.reset.title')}
           </Text>
-          <Text className="text-base text-red-400">{t('auth.reset.missingToken')}</Text>
+          <Text className="text-base text-danger-300">{t('auth.reset.missingToken')}</Text>
           <Link href="/forgot-password" asChild>
             <Text className="text-base font-medium text-brand-300">{t('auth.forgot.title')}</Text>
           </Link>
@@ -51,7 +51,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-950">
+    <SafeAreaView className="flex-1 bg-ink-950">
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -64,7 +64,7 @@ export default function ResetPasswordScreen() {
             <Text className="text-3xl font-bold tracking-tight text-white">
               {t('auth.reset.title')}
             </Text>
-            <Text className="text-base text-brand-200">{t('auth.reset.subtitle')}</Text>
+            <Text className="text-base text-ink-300">{t('auth.reset.subtitle')}</Text>
           </View>
 
           <View className="gap-4">
@@ -80,7 +80,7 @@ export default function ResetPasswordScreen() {
               secureTextEntry
               editable={!pending}
             />
-            <Text className="text-sm text-brand-300">{t('auth.fields.passwordHint')}</Text>
+            <Text className="text-sm text-ink-400">{t('auth.fields.passwordHint')}</Text>
             <AuthButton
               label={t('auth.reset.submit')}
               busyLabel={t('auth.reset.submitting')}

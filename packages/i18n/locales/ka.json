@@ -165,6 +165,18 @@
     "orContinueWith": "ან გააგრძელე",
     "continueWithGoogle": "გააგრძელე Google-ით",
     "continueWithApple": "გააგრძელე Apple-ით",
+    "tabs": {
+      "signIn": "შესვლა",
+      "createAccount": "ანგარიშის შექმნა"
+    },
+    "social": {
+      "apple": "Apple",
+      "google": "Google"
+    },
+    "showPassword": "ჩვენება",
+    "hidePassword": "დამალვა",
+    "togglePassword": "პაროლის ხილვადობის გადართვა",
+    "terms": "გაგრძელებით თქვენ ეთანხმებით ჩვენს წესებსა და კონფიდენციალურობის პოლიტიკას.",
     "signingIn": "მიმდინარეობს შესვლა…",
     "signedIn": "შესვლა წარმატებით დასრულდა.",
     "googleNotConfigured": "Google-ით შესვლა არ არის კონფიგურირებული.",
@@ -175,6 +187,8 @@
     "login": {
       "title": "შესვლა Fit-ში",
       "subtitle": "კეთილი იყოს დაბრუნება — გასაგრძელებლად შეიყვანე მონაცემები.",
+      "heroTitle": "კეთილი იყოს დაბრუნება.",
+      "heroSubtitle": "დაჯავშნე ვარჯიშები, შედი ერთი შეხებით და თვალი ადევნე ყოველ სესიას.",
       "submit": "შესვლა",
       "submitting": "მიმდინარეობს შესვლა…",
       "forgotPassword": "დაგავიწყდა პაროლი?",
