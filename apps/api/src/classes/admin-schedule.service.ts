@@ -212,11 +212,131 @@ export class AdminScheduleService {
     return this.getInstanceDetail(classInstanceId);
   }
 
+  /**
+   * Manually promote one waitlisted booking into a held seat from the drawer's
+   * waitlist controls (T3.6), in one transaction so the seat accounting stays
+   * consistent under concurrency:
+   *
+   * - Only a `SCHEDULED` occurrence can be altered — a canceled / completed one is
+   *   a `409 CLASS_NOT_MODIFIABLE`.
+   * - The target must be a live `WAITLIST` booking on this occurrence: an unknown
+   *   / cross-tenant one is a `404 BOOKING_NOT_FOUND`, and a held-seat / canceled
+   *   one a `409 BOOKING_NOT_PROMOTABLE`. The flip is a conditional claim guarded
+   *   on `status = WAITLIST`, so an entry a concurrent member cancellation already
+   *   auto-promoted (T5.5) yields count 0 and is reported `BOOKING_NOT_PROMOTABLE`
+   *   rather than promoted — and counted — twice.
+   * - Unlike that member-cancel auto-promotion (a *transfer* into a just-freed
+   *   seat, which leaves `bookedCount` put), a manual promote *adds* a held seat,
+   *   so `bookedCount` is incremented. This is a deliberate desk override and may
+   *   take the occurrence over its listed capacity — the staff decided this member
+   *   gets in. The promoted member pays a class credit best-effort (never blocked
+   *   when out of credits, mirroring the auto-promotion), and the gap they leave in
+   *   the queue is closed so the remaining waitlist stays a contiguous `1..N`.
+   *
+   * Returns the refreshed {@link AdminClassInstanceDetail} so the drawer and the
+   * underlying week grid re-render from the one call.
+   */
+  async promoteWaitlistEntry(
+    classInstanceId: string,
+    bookingId: string,
+  ): Promise<AdminClassInstanceDetail> {
+    await this.prisma.client.$transaction(async (tx) => {
+      const instance = await tx.classInstance.findFirst({
+        where: { id: classInstanceId },
+        select: { id: true, status: true },
+      });
+      if (!instance) {
+        throw this.instanceNotFound();
+      }
+      if (instance.status !== InstanceStatus.SCHEDULED) {
+        throw new ConflictException({
+          message: 'Only a scheduled class can be modified',
+          code: 'CLASS_NOT_MODIFIABLE',
+        });
+      }
+
+      const booking = await tx.booking.findFirst({
+        where: { id: bookingId, classInstanceId },
+        select: { id: true, status: true, waitlistPosition: true, memberId: true },
+      });
+      if (!booking) {
+        throw this.bookingNotFound();
+      }
+      if (booking.status !== BookingStatus.WAITLIST) {
+        throw this.bookingNotPromotable();
+      }
+
+      // Conditional claim guarded on `status = WAITLIST`: a concurrent member
+      // cancellation that already auto-promoted this entry (T5.5) yields count 0,
+      // so the manual promote is rejected rather than double-counting the seat.
+      const claimed = await tx.booking.updateMany({
+        where: { id: booking.id, status: BookingStatus.WAITLIST },
+        data: { status: BookingStatus.BOOKED, waitlistPosition: null },
+      });
+      if (claimed.count !== 1) {
+        throw this.bookingNotPromotable();
+      }
+
+      // The promoted member now holds a seat, so they pay a class credit too
+      // (T8.5) — best-effort (`required: false`): a member out of credits is never
+      // blocked from a seat the desk chose to grant them. The pack charged (if
+      // any) is recorded for their own later cancellation refund.
+      const promotedPackId = await this.creditPacks.chargeSeatCredit(tx, booking.memberId, {
+        required: false,
+      });
+      if (promotedPackId) {
+        await tx.booking.update({
+          where: { id: booking.id },
+          data: { creditPackId: promotedPackId },
+        });
+      }
+
+      // A manual promote *adds* a held seat (a desk override), so the occupancy
+      // counter grows by one — distinct from the cancel auto-promotion, which
+      // transfers a just-freed seat and leaves `bookedCount` put.
+      await tx.classInstance.update({
+        where: { id: classInstanceId },
+        data: { bookedCount: { increment: 1 } },
+      });
+
+      // Close the gap the promoted member leaves so the remaining waitlist keeps
+      // contiguous 1..N positions (a live WAITLIST entry always carries a slot).
+      if (booking.waitlistPosition !== null) {
+        await tx.booking.updateMany({
+          where: {
+            classInstanceId,
+            status: BookingStatus.WAITLIST,
+            waitlistPosition: { gt: booking.waitlistPosition },
+          },
+          data: { waitlistPosition: { decrement: 1 } },
+        });
+      }
+    });
+
+    return this.getInstanceDetail(classInstanceId);
+  }
+
   /** `404` for an unknown / cross-tenant occurrence id. */
   private instanceNotFound(): NotFoundException {
     return new NotFoundException({
       message: 'Class occurrence not found',
       code: 'CLASS_INSTANCE_NOT_FOUND',
+    });
+  }
+
+  /** `404` for a booking that isn't on this occurrence (unknown / cross-tenant). */
+  private bookingNotFound(): NotFoundException {
+    return new NotFoundException({
+      message: 'Booking not found',
+      code: 'BOOKING_NOT_FOUND',
+    });
+  }
+
+  /** `409` for a booking that can't be promoted (not a live waitlist entry). */
+  private bookingNotPromotable(): ConflictException {
+    return new ConflictException({
+      message: 'Only a waitlisted booking can be promoted',
+      code: 'BOOKING_NOT_PROMOTABLE',
     });
   }
 }

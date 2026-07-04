@@ -150,3 +150,13 @@ export type GetAdminClassInstanceResponse = AdminClassInstanceDetail;
  * one call.
  */
 export type CancelClassInstanceResponse = AdminClassInstanceDetail;
+
+/**
+ * Successful `POST /admin/schedule/instances/:id/bookings/:bookingId/promote`
+ * response — the occurrence detail after the chosen waitlisted booking was
+ * promoted into a held seat from the drawer's waitlist controls (T3.6): that
+ * entry's `status` is now `BOOKED`, `bookedCount` has grown by one, and the queue
+ * behind it has closed up to a contiguous `1..N`. Returned so the drawer and the
+ * underlying week grid re-render from the one call, exactly like the cancel.
+ */
+export type PromoteWaitlistResponse = AdminClassInstanceDetail;

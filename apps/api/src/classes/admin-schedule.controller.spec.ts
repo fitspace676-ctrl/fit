@@ -37,16 +37,21 @@ function setup() {
   const cancelInstance = vi.fn<(id: string) => Promise<AdminClassInstanceDetail>>(() =>
     Promise.resolve(detail({ status: 'CANCELED' })),
   );
+  const promoteWaitlistEntry = vi.fn<
+    (id: string, bookingId: string) => Promise<AdminClassInstanceDetail>
+  >(() => Promise.resolve(detail({ bookedCount: 1 })));
   const schedule = {
     listSchedule,
     getInstanceDetail,
     cancelInstance,
+    promoteWaitlistEntry,
   } as unknown as AdminScheduleService;
   return {
     controller: new AdminScheduleController(schedule),
     listSchedule,
     getInstanceDetail,
     cancelInstance,
+    promoteWaitlistEntry,
   };
 }
 
@@ -135,6 +140,15 @@ describe('AdminScheduleController', () => {
 
       expect(ctx.cancelInstance).toHaveBeenCalledWith('ci-1');
       expect(result.status).toBe('CANCELED');
+    });
+  });
+
+  describe('POST /admin/schedule/instances/:id/bookings/:bookingId/promote', () => {
+    it('delegates the occurrence and booking ids to the service and returns the detail', async () => {
+      const result = await ctx.controller.promoteWaitlist('ci-1', 'wl-1');
+
+      expect(ctx.promoteWaitlistEntry).toHaveBeenCalledWith('ci-1', 'wl-1');
+      expect(result.bookedCount).toBe(1);
     });
   });
 });

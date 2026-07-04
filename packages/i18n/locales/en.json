@@ -1158,7 +1158,9 @@
             "ATTENDED": "Attended",
             "NO_SHOW": "No-show",
             "WAITLIST": "Waitlist"
-          }
+          },
+          "promote": "Promote",
+          "promoteMember": "Promote {member} into a seat"
         },
         "actions": {
           "edit": "Edit class",
@@ -1171,7 +1173,8 @@
           "cancel": "Keep class"
         },
         "toast": {
-          "canceled": "Class canceled and bookings released."
+          "canceled": "Class canceled and bookings released.",
+          "promoted": "Member promoted from the waitlist."
         },
         "errors": {
           "notFound": "This class no longer exists.",
@@ -1181,7 +1184,10 @@
           "bookingNotAttendable": "That booking can no longer be marked.",
           "forbidden": "You don't have permission to manage this class.",
           "requestFailed": "Request failed ({status}): {message}",
-          "unexpected": "Something went wrong. Please try again."
+          "unexpected": "Something went wrong. Please try again.",
+          "notModifiable": "Only a scheduled class can be changed.",
+          "notPromotable": "That booking can no longer be promoted.",
+          "bookingNotFound": "That booking no longer exists."
         }
       }
     },

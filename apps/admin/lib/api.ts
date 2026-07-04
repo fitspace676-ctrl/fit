@@ -105,6 +105,7 @@ import type {
   AdminScheduleResponse,
   GetAdminClassInstanceResponse,
   CancelClassInstanceResponse,
+  PromoteWaitlistResponse,
   MarkAttendanceData,
   MarkAttendanceResponse,
 } from '@fit/types';
@@ -1049,6 +1050,31 @@ export async function cancelScheduleInstance(id: string): Promise<CancelClassIns
     },
   );
   return unwrap<CancelClassInstanceResponse>(res);
+}
+
+/**
+ * `POST /admin/schedule/instances/:id/bookings/:bookingId/promote` — manually
+ * promote a waitlisted booking into a held seat from the drawer (T3.6) and return
+ * the refreshed detail. Gated `ClassWrite` API-side; an occurrence no longer
+ * scheduled is a `409 CLASS_NOT_MODIFIABLE`, a booking not on the occurrence a
+ * `404 BOOKING_NOT_FOUND`, and one already promoted / not waitlisted a `409
+ * BOOKING_NOT_PROMOTABLE`.
+ */
+export async function promoteWaitlistEntry(
+  id: string,
+  bookingId: string,
+): Promise<PromoteWaitlistResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/schedule/instances/${encodeURIComponent(id)}/bookings/${encodeURIComponent(
+      bookingId,
+    )}/promote`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<PromoteWaitlistResponse>(res);
 }
 
 /**

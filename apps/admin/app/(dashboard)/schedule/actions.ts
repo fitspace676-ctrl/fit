@@ -10,7 +10,13 @@ import {
   type GetAdminClassInstanceResponse,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, cancelScheduleInstance, fetchScheduleInstance, markAttendance } from '@/lib/api';
+import {
+  ApiError,
+  cancelScheduleInstance,
+  fetchScheduleInstance,
+  markAttendance,
+  promoteWaitlistEntry,
+} from '@/lib/api';
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -42,7 +48,16 @@ function toMessage(error: unknown, t: T): string {
     if (error.message === 'ATTENDANCE_NOT_AVAILABLE') {
       return t('errors.attendanceUnavailable');
     }
-    if (error.message === 'BOOKING_NOT_FOUND' || error.message === 'BOOKING_NOT_ATTENDABLE') {
+    if (error.message === 'CLASS_NOT_MODIFIABLE') {
+      return t('errors.notModifiable');
+    }
+    if (error.message === 'BOOKING_NOT_PROMOTABLE') {
+      return t('errors.notPromotable');
+    }
+    if (error.message === 'BOOKING_NOT_FOUND') {
+      return t('errors.bookingNotFound');
+    }
+    if (error.message === 'BOOKING_NOT_ATTENDABLE') {
       return t('errors.bookingNotAttendable');
     }
     return t('errors.requestFailed', { status: error.status, message: error.message });
@@ -113,6 +128,34 @@ export async function markAttendanceAction(
   try {
     await markAttendance(id, { entries: [{ bookingId, status }] });
     const data = await fetchScheduleInstance(id);
+    revalidatePath('/schedule');
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Manually promote one waitlisted booking into a held seat from the drawer's
+ * waitlist controls (T3.6). Enforces `ClassWrite`, then promotes the chosen entry
+ * via the schedule API (which flips it `WAITLIST → BOOKED`, grows `bookedCount`,
+ * charges the member a class credit best-effort, and closes the queue behind
+ * them), returning the refreshed `AdminClassInstanceDetail` so the drawer
+ * re-renders from the one call — the same shape it already renders. Also
+ * refreshes the `/schedule` cache so the week grid's occupancy follows. Returns a
+ * discriminated result so the drawer can surface an inline error instead of
+ * throwing across the boundary.
+ */
+export async function promoteWaitlistAction(
+  id: string,
+  bookingId: string,
+): Promise<ActionResult<GetAdminClassInstanceResponse>> {
+  const t = await getTranslations('admin.schedule.drawer');
+  if (!(await sessionHas(Permission.ClassWrite))) {
+    return { ok: false, error: t('errors.forbidden') };
+  }
+  try {
+    const data = await promoteWaitlistEntry(id, bookingId);
     revalidatePath('/schedule');
     return { ok: true, data };
   } catch (error) {

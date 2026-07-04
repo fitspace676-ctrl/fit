@@ -22,7 +22,12 @@ import {
   type IconName,
   type Tone,
 } from '@/components/ui';
-import { cancelInstanceAction, loadInstanceDetailAction, markAttendanceAction } from './actions';
+import {
+  cancelInstanceAction,
+  loadInstanceDetailAction,
+  markAttendanceAction,
+  promoteWaitlistAction,
+} from './actions';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -78,6 +83,10 @@ export function ClassDrawer({
   // busy state and disables the other rows' controls while one is recording).
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [, startMark] = useTransition();
+  // The waitlist entry whose promotion is currently in flight (same freeze-all
+  // discipline as a mark — one write to the roster at a time).
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [, startPromote] = useTransition();
 
   const id = instance?.id ?? null;
 
@@ -146,6 +155,29 @@ export function ClassDrawer({
     [id, router, toast],
   );
 
+  const runPromote = useCallback(
+    (bookingId: string) => {
+      if (id === null) {
+        return;
+      }
+      setPromotingId(bookingId);
+      startPromote(async () => {
+        const result = await promoteWaitlistAction(id, bookingId);
+        if (result.ok) {
+          setDetail(result.data);
+          toast(t('toast.promoted'), { tone: 'success', icon: 'check' });
+          // The occupancy grew by a seat — refresh the week grid so the block's
+          // count follows.
+          router.refresh();
+        } else {
+          toast(result.error, { tone: 'danger', icon: 'info' });
+        }
+        setPromotingId(null);
+      });
+    },
+    [id, router, t, toast],
+  );
+
   // The header reads from the loaded detail once present, else the clicked
   // summary; the two agree on every shared field.
   const head = detail ?? instance;
@@ -155,6 +187,13 @@ export function ClassDrawer({
   // canceled; the API re-checks and a mark flips the occurrence to COMPLETED.
   const canMark =
     canWrite && status !== 'CANCELED' && head !== null && Date.parse(head.startsAt) <= Date.now();
+  // A waitlisted member can be promoted into a seat only while the occurrence is
+  // still SCHEDULED (a canceled / completed class is settled) and the staff holds
+  // ClassWrite — the API re-checks both.
+  const canPromote = canWrite && status === 'SCHEDULED';
+  // While any roster write (a mark or a promote) is recording, every row's
+  // controls freeze so the desk only ever has one change in flight.
+  const rosterBusy = markingId !== null || promotingId !== null;
 
   return (
     <>
@@ -217,8 +256,12 @@ export function ClassDrawer({
               error={error}
               detail={detail}
               canMark={canMark}
+              canPromote={canPromote}
               markingId={markingId}
+              promotingId={promotingId}
+              rosterBusy={rosterBusy}
               onMark={runMark}
+              onPromote={runPromote}
             />
           </div>
         ) : error ? (
@@ -297,8 +340,12 @@ function Roster({
   error,
   detail,
   canMark,
+  canPromote,
   markingId,
+  promotingId,
+  rosterBusy,
   onMark,
+  onPromote,
 }: {
   t: T;
   loading: boolean;
@@ -306,9 +353,16 @@ function Roster({
   detail: AdminClassInstanceDetail | null;
   /** Whether attendance can be marked (occurrence started, not canceled, ClassWrite). */
   canMark: boolean;
-  /** The booking currently recording, if any — its controls show a busy state. */
+  /** Whether a waitlist entry can be promoted (occurrence scheduled, ClassWrite). */
+  canPromote: boolean;
+  /** The booking whose attendance is recording, if any — its controls show busy. */
   markingId: string | null;
+  /** The waitlist entry being promoted, if any — its control shows busy. */
+  promotingId: string | null;
+  /** Whether any roster write is in flight — freezes every row's controls. */
+  rosterBusy: boolean;
   onMark: (bookingId: string, status: AttendanceStatus) => void;
+  onPromote: (bookingId: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -334,10 +388,14 @@ function Roster({
               t={t}
               // Only held seats are markable; a waitlisted entry never got one.
               canMark={canMark && entry.status !== 'WAITLIST'}
-              // While one mark is in flight, freeze every row's controls.
-              busy={markingId !== null}
+              // Only a queued entry is promotable into a seat.
+              canPromote={canPromote && entry.status === 'WAITLIST'}
+              // While any roster write is in flight, freeze every row's controls.
+              busy={rosterBusy}
               marking={markingId === entry.bookingId}
+              promoting={promotingId === entry.bookingId}
               onMark={onMark}
+              onPromote={onPromote}
             />
           ))}
         </ul>
@@ -350,22 +408,30 @@ function Roster({
  * One roster row: avatar initials, name/email, and the booking status. For a
  * held-seat booking on a started occurrence (`canMark`), the status badge is
  * replaced by an attended / no-show toggle so staff record attendance inline;
- * the current outcome stays highlighted and is re-markable for corrections.
+ * the current outcome stays highlighted and is re-markable for corrections. For a
+ * queued booking on a scheduled occurrence (`canPromote`), the position badge is
+ * joined by a promote control that lifts the member into a held seat (T3.6).
  */
 function RosterRow({
   entry,
   t,
   canMark,
+  canPromote,
   busy,
   marking,
+  promoting,
   onMark,
+  onPromote,
 }: {
   entry: AdminClassInstanceRosterEntry;
   t: T;
   canMark: boolean;
+  canPromote: boolean;
   busy: boolean;
   marking: boolean;
+  promoting: boolean;
   onMark: (bookingId: string, status: AttendanceStatus) => void;
+  onPromote: (bookingId: string) => void;
 }) {
   const label = entry.memberName?.trim() || entry.memberEmail;
   return (
@@ -402,6 +468,23 @@ function RosterRow({
             busy={marking}
             disabled={busy}
             onClick={() => onMark(entry.bookingId, 'NO_SHOW')}
+          />
+        </div>
+      ) : canPromote ? (
+        // A queued entry the desk can lift into a seat: its position stays visible
+        // beside a promote control (which the API turns into a held seat).
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge tone={ROSTER_TONES.WAITLIST}>
+            {entry.waitlistPosition
+              ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
+              : t('roster.status.WAITLIST')}
+          </Badge>
+          <PromoteButton
+            text={t('roster.promote')}
+            label={t('roster.promoteMember', { member: label })}
+            busy={promoting}
+            disabled={busy}
+            onClick={() => onPromote(entry.bookingId)}
           />
         </div>
       ) : (
@@ -462,6 +545,49 @@ function MarkButton({
         <Icon name={icon} className="h-3.5 w-3.5" sw={2.5} />
       )}
       <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
+
+/**
+ * The promote control on a waitlisted roster row: lifts the queued member into a
+ * held seat. A compact brand-outline button scaled to the row (matching the
+ * attendance toggles); while any roster write is in flight it is `disabled`, and
+ * the one clicked shows a spinner in place of its arrow.
+ */
+function PromoteButton({
+  text,
+  label,
+  busy,
+  disabled,
+  onClick,
+}: {
+  /** The short visible verb ("Promote"), hidden on the narrowest rows. */
+  text: string;
+  /** The full accessible label ("Promote {member} into a seat"). */
+  label: string;
+  busy: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-8 items-center gap-1 rounded-btn border border-brand-500 px-2.5 text-xs font-semibold text-brand-600 outline-none transition-colors hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-500/30 disabled:pointer-events-none disabled:opacity-40 dark:border-brand-400/60 dark:text-brand-300 dark:hover:bg-brand-500/10"
+    >
+      {busy ? (
+        <span
+          className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
+          aria-hidden
+        />
+      ) : (
+        <Icon name="arrow" className="h-3.5 w-3.5" sw={2.5} />
+      )}
+      <span className="hidden sm:inline">{text}</span>
     </button>
   );
 }
