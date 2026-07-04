@@ -1051,6 +1051,44 @@
       "downloadXlsx": "XLSX",
       "emptyRows": "ამ პერიოდში მონაცემები ჯერ არ არის."
     },
+    "billingPlans": {
+      "title": "ბილინგი",
+      "subtitle": "შენი დარბაზის განმეორებადი წევრობის გეგმები — ფასები, პრივილეგიები და გამომწერები. შექმენი გეგმა, დაარედაქტირე ან დაარქივე, როცა აღარ იყიდება.",
+      "tabs": {
+        "plans": "გეგმები",
+        "promos": "აქციები",
+        "ptPackages": "PT პაკეტები"
+      },
+      "kpi": {
+        "activePlans": "აქტიური გეგმები",
+        "subscribers": "გამომწერები",
+        "mrr": "MRR",
+        "avgPerMember": "საშ. წევრზე"
+      },
+      "segment": {
+        "active": "აქტიური",
+        "archived": "დაარქივებული"
+      },
+      "newPlan": "ახალი გეგმა",
+      "planCount": "{count, plural, one {# გეგმა} other {# გეგმა}}",
+      "subscribersLabel": "გამომწერი",
+      "monthlyLabel": "თვიური",
+      "live": "აქტიური",
+      "off": "გამორთ.",
+      "freeze": "{days} დღე გაყინვა",
+      "edit": "რედაქტირება",
+      "popular": "პოპულარული",
+      "perksNone": "პრივილეგიები არ არის",
+      "emptyActiveTitle": "აქტიური გეგმები არ არის",
+      "emptyActiveBody": "შექმენი პირველი გეგმა წევრობის გასაყიდად.",
+      "emptyArchivedTitle": "დაარქივებული გეგმები არ არის",
+      "emptyArchivedBody": "დაარქივებული გეგმები აქ გამოჩნდება.",
+      "toastArchived": "{name} დაარქივდა",
+      "toastRestored": "{name} გააქტიურდა",
+      "toastError": "გეგმის განახლება ვერ მოხერხდა. სცადე თავიდან.",
+      "loadError": "ბილინგის გეგმების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
+      "apiUnreachable": "Fit API-სთან დაკავშირება ვერ მოხერხდა. შეამოწმე NEXT_PUBLIC_API_URL და რომ API გაშვებულია."
+    },
     "checkin": {
       "title": "მიმღები",
       "live": "პირდაპირი",

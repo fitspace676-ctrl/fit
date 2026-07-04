@@ -19,10 +19,17 @@ interface SubscriptionPlanRecord {
   currency: string;
   interval: SubscriptionInterval;
   features: string[];
+  freezeDaysPerPeriod: number;
   popular: boolean;
   status: SubscriptionPlanStatus;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** A `subscription.groupBy` row as the live-subscriber-count aggregation returns it. */
+interface SubscriberCountGroup {
+  planId: string | null;
+  _count: { _all: number };
 }
 
 interface FindManyArgs {
@@ -35,6 +42,10 @@ interface WhereArgs {
   where?: { id?: unknown };
   data?: Record<string, unknown>;
 }
+interface GroupByArgs {
+  by?: unknown;
+  where?: { planId?: { in?: unknown }; status?: unknown };
+}
 
 const row = (over?: Partial<SubscriptionPlanRecord>): SubscriptionPlanRecord => ({
   id: 'sp-1',
@@ -44,6 +55,7 @@ const row = (over?: Partial<SubscriptionPlanRecord>): SubscriptionPlanRecord => 
   currency: 'USD',
   interval: SubscriptionInterval.MONTH,
   features: ['Unlimited access', 'Free guest passes'],
+  freezeDaysPerPeriod: 30,
   popular: true,
   status: SubscriptionPlanStatus.ACTIVE,
   createdAt: new Date('2026-03-01T00:00:00.000Z'),
@@ -55,6 +67,10 @@ function setup(overrides?: {
   findMany?: SubscriptionPlanRecord[];
   count?: number;
   findFirst?: SubscriptionPlanRecord | null;
+  /** `subscription.groupBy` result feeding the roster's live-subscriber counts. */
+  subscriberGroups?: SubscriberCountGroup[];
+  /** `subscription.count` result feeding a single plan's detail subscriber count. */
+  subscriberCount?: number;
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<SubscriptionPlanRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -71,9 +87,16 @@ function setup(overrides?: {
   const update = vi.fn<(args: WhereArgs) => Promise<SubscriptionPlanRecord>>(() =>
     Promise.resolve(row()),
   );
+  const subscriptionGroupBy = vi.fn<(args: GroupByArgs) => Promise<SubscriberCountGroup[]>>(() =>
+    Promise.resolve(overrides?.subscriberGroups ?? []),
+  );
+  const subscriptionCount = vi.fn<(args: WhereArgs) => Promise<number>>(() =>
+    Promise.resolve(overrides?.subscriberCount ?? 0),
+  );
 
   const client: Record<string, unknown> = {
     subscriptionPlan: { findMany, count, findFirst, create, update },
+    subscription: { groupBy: subscriptionGroupBy, count: subscriptionCount },
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -86,6 +109,8 @@ function setup(overrides?: {
     findFirst,
     create,
     update,
+    subscriptionGroupBy,
+    subscriptionCount,
   };
 }
 
@@ -123,7 +148,11 @@ describe('AdminSubscriptionPlansService', () => {
 
   describe('listSubscriptionPlans', () => {
     it('projects rows to denormalised AdminSubscriptionPlanRows and echoes pagination totals', async () => {
-      const { service } = setup({ findMany: [row()], count: 1 });
+      const { service } = setup({
+        findMany: [row()],
+        count: 1,
+        subscriberGroups: [{ planId: 'sp-1', _count: { _all: 12 } }],
+      });
 
       const result = await service.listSubscriptionPlans(query());
 
@@ -136,6 +165,9 @@ describe('AdminSubscriptionPlansService', () => {
             currency: 'USD',
             interval: 'MONTH',
             featureCount: 2,
+            features: ['Unlimited access', 'Free guest passes'],
+            freezeDaysPerPeriod: 30,
+            subscriberCount: 12,
             popular: true,
             status: 'ACTIVE',
             createdAt: '2026-03-01T00:00:00.000Z',
@@ -153,6 +185,33 @@ describe('AdminSubscriptionPlansService', () => {
       const result = await service.listSubscriptionPlans(query());
 
       expect(result.data[0]).toMatchObject({ featureCount: 0 });
+    });
+
+    it('counts only live subscriptions per plan and defaults a plan with none to zero', async () => {
+      const { service, subscriptionGroupBy } = setup({
+        findMany: [row({ id: 'sp-1' }), row({ id: 'sp-2' })],
+        count: 2,
+        // Only sp-1 has live subscribers; sp-2 is absent from the aggregation.
+        subscriberGroups: [{ planId: 'sp-1', _count: { _all: 5 } }],
+      });
+
+      const result = await service.listSubscriptionPlans(query());
+
+      expect(result.data.map((plan) => plan.subscriberCount)).toEqual([5, 0]);
+      // The aggregation is scoped to the page's plan ids and the live statuses.
+      expect(subscriptionGroupBy.mock.calls[0]?.[0]?.where?.planId?.in).toEqual(['sp-1', 'sp-2']);
+      const statusWhere = subscriptionGroupBy.mock.calls[0]?.[0]?.where?.status as
+        | { in?: unknown }
+        | undefined;
+      expect(statusWhere?.in).toEqual(expect.arrayContaining(['ACTIVE', 'PAST_DUE', 'FROZEN']));
+    });
+
+    it('skips the subscriber aggregation entirely for an empty page', async () => {
+      const { service, subscriptionGroupBy } = setup({ findMany: [], count: 0 });
+
+      await service.listSubscriptionPlans(query());
+
+      expect(subscriptionGroupBy).not.toHaveBeenCalled();
     });
 
     it('paginates server-side with skip/take derived from page + limit', async () => {
@@ -200,8 +259,8 @@ describe('AdminSubscriptionPlansService', () => {
   });
 
   describe('getSubscriptionPlan', () => {
-    it('returns the full detail projection with the features list', async () => {
-      const { service } = setup({ findFirst: row() });
+    it('returns the full detail projection with the features list and live subscriber count', async () => {
+      const { service, subscriptionCount } = setup({ findFirst: row(), subscriberCount: 7 });
 
       const result = await service.getSubscriptionPlan('sp-1');
 
@@ -212,6 +271,8 @@ describe('AdminSubscriptionPlansService', () => {
         currency: 'USD',
         interval: 'MONTH',
         featureCount: 2,
+        freezeDaysPerPeriod: 30,
+        subscriberCount: 7,
         popular: true,
         status: 'ACTIVE',
         createdAt: '2026-03-01T00:00:00.000Z',
@@ -219,6 +280,8 @@ describe('AdminSubscriptionPlansService', () => {
         features: ['Unlimited access', 'Free guest passes'],
         updatedAt: '2026-03-02T00:00:00.000Z',
       });
+      // The count is scoped to this plan and the live statuses.
+      expect(subscriptionCount.mock.calls[0]?.[0]?.where).toMatchObject({ planId: 'sp-1' });
     });
 
     it('throws 404 SUBSCRIPTION_PLAN_NOT_FOUND for an unknown / cross-tenant id', async () => {
