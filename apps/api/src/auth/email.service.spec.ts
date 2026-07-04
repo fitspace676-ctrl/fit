@@ -337,6 +337,14 @@ describe('buildReceiptEmail', () => {
     expect(html).toContain('Charged to Sam Rivera');
   });
 
+  it('wraps the receipt in the branded shell — brand wordmark + heading', () => {
+    const { html } = buildReceiptEmail(cashReceipt, 'Downtown');
+    // Formacore brand violet + the seller wordmark and the receipt heading.
+    expect(html).toContain('#6257E3');
+    expect(html).toContain('Downtown');
+    expect(html).toContain('Your receipt');
+  });
+
   it('escapes HTML in a product name', () => {
     const { html } = buildReceiptEmail({
       ...cashReceipt,

@@ -161,6 +161,20 @@ describe('orderExportCells', () => {
     expect(cells[0]).toBe('order-1');
     expect(cells[ORDER_EXPORT_COLUMNS.indexOf('memberId')]).toBe('');
     expect(cells[ORDER_EXPORT_COLUMNS.indexOf('customerName')]).toBe('Ann');
-    expect(cells[ORDER_EXPORT_COLUMNS.indexOf('total')]).toBe('1000');
+    expect(cells[ORDER_EXPORT_COLUMNS.indexOf('itemCount')]).toBe('2');
+  });
+
+  it('formats money columns as major-unit decimals against the currency column', () => {
+    const cells = orderExportCells(row);
+    expect(cells[ORDER_EXPORT_COLUMNS.indexOf('currency')]).toBe('USD');
+    expect(cells[ORDER_EXPORT_COLUMNS.indexOf('total')]).toBe('10.00');
+    expect(cells[ORDER_EXPORT_COLUMNS.indexOf('refundedAmount')]).toBe('0.00');
+  });
+
+  it('derives netTotal as gross total minus refunds so the row self-reconciles', () => {
+    const cells = orderExportCells({ ...row, total: 5000, refundedAmount: 1500 });
+    expect(cells[ORDER_EXPORT_COLUMNS.indexOf('total')]).toBe('50.00');
+    expect(cells[ORDER_EXPORT_COLUMNS.indexOf('refundedAmount')]).toBe('15.00');
+    expect(cells[ORDER_EXPORT_COLUMNS.indexOf('netTotal')]).toBe('35.00');
   });
 });

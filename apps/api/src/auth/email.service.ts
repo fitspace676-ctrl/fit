@@ -348,6 +348,54 @@ function escapeHtml(value: string): string {
 }
 
 /**
+ * The formacore brand tokens the transactional emails render with (mirroring the
+ * admin/member Tailwind theme): the brand violet, the ink text ramp, the hairline
+ * border, the tinted canvas, and the sans stack. Kept inline (email clients strip
+ * `<style>` blocks and don't load web fonts) so the shell renders consistently.
+ */
+const EMAIL_BRAND = {
+  brand: '#6257E3',
+  ink: '#151926',
+  muted: '#646D82',
+  border: '#D8DCE4',
+  canvas: '#F6F7F9',
+  card: '#FFFFFF',
+  font: "'Manrope', 'Segoe UI', Helvetica, Arial, sans-serif",
+} as const;
+
+/**
+ * Wrap an email body in the shared branded shell (the formacore look, T4.11): a
+ * centered white card on the tinted canvas, a brand-violet `senderName` wordmark
+ * above a heading, the caller's `contentHtml`, and an optional muted footer note.
+ * Table-based with fully inline styles so it survives the CSS stripping and lack
+ * of fl/grid layout in email clients. The caller is responsible for escaping any
+ * user-supplied text it interpolates into `contentHtml`, `senderName`, `heading`.
+ */
+function renderBrandedEmail(options: {
+  senderName: string;
+  heading: string;
+  contentHtml: string;
+  footerNote?: string;
+}): string {
+  const { senderName, heading, contentHtml, footerNote } = options;
+  const footerHtml = footerNote
+    ? `<p style="margin:24px 0 0;font-size:12px;line-height:18px;color:${EMAIL_BRAND.muted};">${footerNote}</p>`
+    : '';
+  return (
+    `<div style="margin:0;padding:24px;background:${EMAIL_BRAND.canvas};font-family:${EMAIL_BRAND.font};">` +
+    `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:480px;margin:0 auto;background:${EMAIL_BRAND.card};border:1px solid ${EMAIL_BRAND.border};border-radius:16px;">` +
+    `<tr><td style="padding:28px 28px 20px;">` +
+    `<div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;color:${EMAIL_BRAND.brand};">${senderName}</div>` +
+    `<h1 style="margin:6px 0 0;font-size:20px;line-height:28px;font-weight:700;color:${EMAIL_BRAND.ink};">${heading}</h1>` +
+    `<div style="margin-top:16px;font-size:14px;line-height:22px;color:${EMAIL_BRAND.ink};">${contentHtml}</div>` +
+    footerHtml +
+    `</td></tr>` +
+    `</table>` +
+    `</div>`
+  );
+}
+
+/**
  * Render a completed POS sale snapshot into the receipt email's subject, HTML, and
  * plain-text bodies (T7.4). Pure — no I/O, no env beyond formatting — so the copy
  * is unit-testable in isolation and {@link EmailService.sendReceiptEmail} is just
@@ -385,15 +433,24 @@ export function buildReceiptEmail(
         `<tr><td style="padding:2px 0;">Change</td><td style="padding:2px 0;text-align:right;">${money(receipt.changeDue)}</td></tr>`
       : '');
 
-  const html =
-    `<p>Thanks for your purchase at <strong>${escapeHtml(seller)}</strong>.</p>` +
-    (receipt.memberName ? `<p>Charged to ${escapeHtml(receipt.memberName)}.</p>` : '') +
-    `<table style="border-collapse:collapse;width:100%;max-width:420px;font-size:14px;">` +
+  const contentHtml =
+    `<p style="margin:0 0 12px;">Thanks for your purchase at <strong>${escapeHtml(seller)}</strong>.</p>` +
+    (receipt.memberName
+      ? `<p style="margin:0 0 12px;">Charged to ${escapeHtml(receipt.memberName)}.</p>`
+      : '') +
+    `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:14px;">` +
     itemRowsHtml +
-    `<tr><td style="padding:6px 0;border-top:1px solid #e2e8f0;">Subtotal</td><td style="padding:6px 0;border-top:1px solid #e2e8f0;text-align:right;">${money(receipt.subtotal)}</td></tr>` +
+    `<tr><td style="padding:6px 0;border-top:1px solid ${EMAIL_BRAND.border};">Subtotal</td><td style="padding:6px 0;border-top:1px solid ${EMAIL_BRAND.border};text-align:right;">${money(receipt.subtotal)}</td></tr>` +
     totalsHtml +
     `</table>` +
-    `<p style="font-size:13px;color:#64748b;">Paid by ${methodLabel}.</p>`;
+    `<p style="margin:16px 0 0;font-size:13px;color:${EMAIL_BRAND.muted};">Paid by ${methodLabel}.</p>`;
+
+  const html = renderBrandedEmail({
+    senderName: escapeHtml(seller),
+    heading: 'Your receipt',
+    contentHtml,
+    footerNote: 'This is a receipt for your records. No payment is due.',
+  });
 
   const itemLines = receipt.items
     .map(
