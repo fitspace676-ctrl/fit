@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CheckInMethod, Prisma, Role, SubscriptionStatus } from '@fit/db';
 import type {
+  ActivityEvent,
   CheckInRow,
   CheckInStatsResponse,
   EligibilityStatus,
@@ -11,6 +12,7 @@ import type {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { ActivityStreamService } from '../live/activity-stream.service';
 
 /**
  * The identity fields the arrivals feed / eligibility card select off a
@@ -61,6 +63,7 @@ export class CheckInService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly activityStream: ActivityStreamService,
   ) {}
 
   /**
@@ -87,6 +90,15 @@ export class CheckInService {
         member: { select: MEMBER_IDENTITY_SELECT },
       },
     });
+
+    // Push the arrival onto the live activity stream (T8.9) so the reception board
+    // and activity feed update without polling. Best-effort and fire-and-forget:
+    // `publish` swallows a Redis outage internally, and the trailing `.catch` is a
+    // belt-and-braces guard, so a live-stream hiccup can never fail the check-in
+    // the receptionist just recorded — the client's poll catches the row up.
+    void this.activityStream
+      .publish(this.tenant.gymId, this.toActivityEvent(created))
+      .catch(() => undefined);
 
     return {
       checkIn: this.toRow(created),
@@ -204,6 +216,27 @@ export class CheckInService {
       ...base,
       status: eligibilityFromSubscription(subscription.status, subscription.currentPeriodEnd),
       planName: subscription.plan?.name ?? null,
+    };
+  }
+
+  /**
+   * Project a just-recorded check-in onto the unified {@link ActivityEvent} the
+   * live stream (T8.9) broadcasts. Kept byte-identical to the `checkin` projection
+   * the paginated `GET /admin/activity` feed emits — same composite `checkin:<id>`
+   * id, title, and `QR scan` / `Front desk` detail — so a live row and a later
+   * polled row of the same arrival are indistinguishable to the client.
+   */
+  private toActivityEvent(row: CheckInRecord): ActivityEvent {
+    return {
+      id: `checkin:${row.id}`,
+      type: 'checkin',
+      title: 'Checked in',
+      detail: row.method === CheckInMethod.QR ? 'QR scan' : 'Front desk',
+      memberId: row.gymMemberId,
+      memberName: row.member.user.name ?? row.member.user.email,
+      amount: null,
+      currency: null,
+      at: row.checkedInAt.toISOString(),
     };
   }
 
