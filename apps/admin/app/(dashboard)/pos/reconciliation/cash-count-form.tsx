@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { computeCashVariance } from '@fit/types';
 import { formatPrice, inputToMinor } from '@/app/(dashboard)/products/format-price';
-import { Card } from '@/components/ui';
+import { Badge, Card, Field, Input, type Tone } from '@/components/ui';
 
 /**
  * The cash-drawer balance control on the reconciliation report. The operator counts
@@ -27,18 +27,15 @@ export function CashCountForm({
     [countedMinor, expectedCash],
   );
 
-  const tone =
-    variance === null
-      ? ''
-      : variance.status === 'balanced'
-        ? 'text-success-700 dark:text-success-300'
-        : variance.status === 'over'
-          ? 'text-warning-700 dark:text-warning-300'
-          : 'text-danger-600 dark:text-danger-400';
+  const status = variance?.status ?? null;
+  const tone: Tone = status === 'balanced' ? 'success' : status === 'over' ? 'warning' : 'danger';
+  const label = status === 'balanced' ? 'Balanced' : status === 'over' ? 'Over' : 'Short';
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
-      <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Balance the drawer</h2>
+    <Card className="flex flex-col gap-4 p-5">
+      <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
+        Balance the drawer
+      </h2>
 
       <dl className="flex items-center justify-between text-sm">
         <dt className="text-ink-500 dark:text-ink-400">Expected cash</dt>
@@ -47,34 +44,30 @@ export function CashCountForm({
         </dd>
       </dl>
 
-      <label className="flex items-center justify-between gap-2 text-sm font-medium text-ink-700 dark:text-ink-200">
-        <span>Counted cash</span>
-        <input
+      <Field label="Counted cash" htmlFor="counted-cash">
+        <Input
+          id="counted-cash"
           type="number"
           min={0}
           step="0.01"
+          inputMode="decimal"
           value={counted}
           onChange={(event) => setCounted(event.target.value)}
           placeholder="0.00"
-          aria-label="Counted cash"
-          className="w-36 rounded-field border border-ink-200 bg-white px-2 py-1 text-right text-base text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          className="text-right font-mono tabular-nums"
         />
-      </label>
+      </Field>
 
       {variance !== null ? (
-        <dl className="flex items-center justify-between border-t border-ink-100 pt-3 text-base dark:border-white/10">
-          <dt className="font-medium text-ink-600 dark:text-ink-300">
-            {variance.status === 'balanced'
-              ? 'Balanced'
-              : variance.status === 'over'
-                ? 'Over'
-                : 'Short'}
-          </dt>
-          <dd className={`font-mono font-bold tabular-nums ${tone}`}>
+        <div className="flex items-center justify-between border-t border-ink-100 pt-4 dark:border-white/10">
+          <Badge tone={tone} icon={status === 'balanced' ? 'check' : undefined}>
+            {label}
+          </Badge>
+          <span className="font-mono text-lg font-bold tabular-nums text-ink-900 dark:text-white">
             {variance.variance > 0 ? '+' : ''}
             {formatPrice(variance.variance, currency)}
-          </dd>
-        </dl>
+          </span>
+        </div>
       ) : null}
     </Card>
   );
