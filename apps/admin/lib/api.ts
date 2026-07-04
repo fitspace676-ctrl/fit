@@ -111,6 +111,11 @@ import type {
   BookMemberOntoClassResponse,
   MarkAttendanceData,
   MarkAttendanceResponse,
+  ReportCatalogResponse,
+  ReportResult,
+  ReportKey,
+  ReportRange,
+  ReportFormat,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -1182,6 +1187,64 @@ export async function fetchAnalytics(range?: AnalyticsRange): Promise<AdminAnaly
     cache: 'no-store',
   });
   return unwrap<AdminAnalyticsResponse>(res);
+}
+
+// ── Reports (T4.8 → T4.9) ─────────────────────────────────────────────────────
+
+/**
+ * `GET /admin/reports` — the report catalogue: each report's key, display copy,
+ * and column shape, so the Reports hub renders its cards from the API rather than
+ * hardcoding them. Gated `ReportView` API-side, the same capability analytics uses.
+ */
+export async function fetchReportCatalog(): Promise<ReportCatalogResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/reports`, {
+    headers: await authHeaders(),
+    // The catalogue is static, but the session/tenant scoping is not — never cache.
+    cache: 'no-store',
+  });
+  return unwrap<ReportCatalogResponse>(res);
+}
+
+/**
+ * `GET /admin/reports/:report?range=` — run one report for on-screen preview,
+ * returning its columns and computed rows over `range` (defaults to the API's
+ * `30d` when omitted). Money cells are MINOR-unit integers; the view formats them.
+ */
+export async function fetchReport(key: ReportKey, range?: ReportRange): Promise<ReportResult> {
+  const qs = range ? `?range=${encodeURIComponent(range)}` : '';
+  const res = await fetch(`${apiBaseUrl()}/admin/reports/${encodeURIComponent(key)}${qs}`, {
+    headers: await authHeaders(),
+    // The report reflects live tenant state — never serve a stale preview.
+    cache: 'no-store',
+  });
+  return unwrap<ReportResult>(res);
+}
+
+/**
+ * `GET /admin/reports/:report/export?range=&format=` — the raw streaming file
+ * response (CSV or XLSX), with the staff bearer token forwarded. Returned as the
+ * live `Response` (not parsed) so the admin route handler can pipe its body
+ * straight to the browser as a download, mirroring {@link fetchOrdersExport}.
+ */
+export async function fetchReportExport(
+  key: ReportKey,
+  query: { range?: ReportRange; format?: ReportFormat } = {},
+): Promise<Response> {
+  const params = new URLSearchParams();
+  if (query.range) {
+    params.set('range', query.range);
+  }
+  if (query.format) {
+    params.set('format', query.format);
+  }
+  const qs = params.toString();
+  return fetch(
+    `${apiBaseUrl()}/admin/reports/${encodeURIComponent(key)}/export${qs ? `?${qs}` : ''}`,
+    {
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
 }
 
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────
