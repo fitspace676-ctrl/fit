@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AdminSubscriptionEnrollmentController } from './admin-subscription-enrollment.controller';
+import { PAYMENT_PROVIDER } from './payment-provider';
+import { StubPaymentProvider } from './stub-payment-provider';
+import { SubscriptionBillingService } from './subscription-billing.service';
 import { SubscriptionEnrollmentService } from './subscription-enrollment.service';
 import { SubscriptionFreezeService } from './subscription-freeze.service';
 import { SubscriptionsController } from './subscriptions.controller';
 
 /**
  * Subscriptions — the member-facing subscription lifecycle surface plus member
- * enrolment (T5.3, freeze / pause flow T8.4).
+ * enrolment (T5.3, freeze / pause flow T8.4) and the recurring-billing job (T5.4).
  *
  * {@link SubscriptionsController} (`/subscriptions`) sits behind the `TenantGuard` +
  * global `PermissionsGuard` and serves a member acting on their *own* membership:
@@ -18,9 +21,20 @@ import { SubscriptionsController } from './subscriptions.controller';
  * which owns the staff console's subscription-*plan* CRUD (`/admin/subscriptions`,
  * T8.2). The tenant-scoped Prisma client, the guards, and the tenant context all
  * come from the app-wide `TenantModule` / `RbacModule`.
+ *
+ * {@link SubscriptionBillingService} is the scheduled cross-tenant job that renews
+ * live memberships each period, charging through the {@link PaymentProvider} seam —
+ * bound here to the MVP {@link StubPaymentProvider} under the {@link PAYMENT_PROVIDER}
+ * token so the real gateway (T8.8) drops in without touching the job. Prisma + Redis
+ * come from their global modules; the cron runs off the app-wide `ScheduleModule`.
  */
 @Module({
   controllers: [SubscriptionsController, AdminSubscriptionEnrollmentController],
-  providers: [SubscriptionFreezeService, SubscriptionEnrollmentService],
+  providers: [
+    SubscriptionFreezeService,
+    SubscriptionEnrollmentService,
+    SubscriptionBillingService,
+    { provide: PAYMENT_PROVIDER, useClass: StubPaymentProvider },
+  ],
 })
 export class SubscriptionsModule {}
