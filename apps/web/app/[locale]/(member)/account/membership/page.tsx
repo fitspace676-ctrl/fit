@@ -50,11 +50,17 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
 
   const credits = totalRemainingCredits(creditPacks);
   const attended = bookings.filter((b) => b.status === 'ATTENDED').length;
-  // Best available plan signal until GET /me/subscription ships: the most recent
-  // credit-pack's plan title.
-  const planName = subscription?.planName ?? creditPacks[0]?.planTitle ?? null;
-  const hasMembership = subscription !== null || planName !== null;
-  const status = subscription?.status ?? (planName ? 'ACTIVE' : 'EXPIRED');
+  // Live membership (GET /me/subscription) is the single source of truth: plan,
+  // status, billing dates and freeze allowance all come straight off the wire.
+  const hasMembership = subscription !== null;
+  const planName = subscription?.planName ?? null;
+  const status = subscription?.status ?? 'EXPIRED';
+  // Only a live subscription that isn't flagged to cancel actually bills again; a
+  // pending-cancel or terminal (canceled/expired) one rides out — or is past — its
+  // paid period, so we show an "access until" date, never a future charge.
+  const terminal = status === 'CANCELED' || status === 'EXPIRED';
+  const pendingCancel = subscription?.cancelAtPeriodEnd ?? false;
+  const renewing = hasMembership && !pendingCancel && !terminal;
 
   const fmtDate = (iso: string | null) =>
     iso
@@ -101,27 +107,32 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             <span className="grid h-9 w-9 place-items-center rounded-btn bg-white/15">
               <Icon name="ticket" className="h-5 w-5" sw={2.3} />
             </span>
-            <Badge tone={STATUS_TONE[status]}>{t(`status.${status}`)}</Badge>
+            {hasMembership ? (
+              <Badge tone={STATUS_TONE[status]}>{t(`status.${status}`)}</Badge>
+            ) : null}
           </div>
           <p className="relative mt-5 font-display text-3xl font-extrabold tracking-tight">
             {planName ?? t('noPlan')}
           </p>
-          {hasMembership ? (
+          {subscription ? (
             <>
               <p className="relative mt-1 text-sm text-white/80">{t('perks')}</p>
               <div className="relative mt-6 flex flex-wrap gap-x-8 gap-y-3 text-sm">
                 <div>
-                  <p className="text-white/60">{t('nextBilling')}</p>
+                  <p className="text-white/60">{renewing ? t('nextBilling') : t('endsOn')}</p>
                   <p className="font-semibold">
-                    {fmtDate(subscription?.currentPeriodEnd ?? null)}
-                    {subscription
+                    {fmtDate(subscription.currentPeriodEnd)}
+                    {renewing
                       ? ` · ${formatMoney(subscription.priceAmount, subscription.currency, activeLocale)}`
                       : ''}
                   </p>
+                  {pendingCancel ? (
+                    <p className="mt-0.5 text-xs text-white/60">{t('cancelNotice')}</p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-white/60">{t('memberSince')}</p>
-                  <p className="font-semibold">{fmtDate(subscription?.memberSince ?? null)}</p>
+                  <p className="font-semibold">{fmtDate(subscription.memberSince)}</p>
                 </div>
               </div>
             </>

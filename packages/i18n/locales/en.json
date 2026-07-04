@@ -739,6 +739,8 @@
       "noPlanHint": "Pick a plan to unlock classes, trainers and member pricing.",
       "perks": "Unlimited classes · 1 guest pass / mo · −10% shop",
       "nextBilling": "Next billing",
+      "endsOn": "Access until",
+      "cancelNotice": "Set to cancel — won't renew.",
       "memberSince": "Member since",
       "viewBookings": "My bookings",
       "shopMember": "Member shop",
