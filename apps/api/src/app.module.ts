@@ -17,10 +17,12 @@ import { GymsModule } from './gyms/gyms.module';
 import { HealthModule } from './health/health.module';
 import { LiveModule } from './live/live.module';
 import { LocationsModule } from './locations/locations.module';
+import { MailModule } from './mail/mail.module';
 import { MembersModule } from './members/members.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OrdersModule } from './orders/orders.module';
 import { PackagePlansModule } from './packages/package-plans.module';
+import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { RedisModule } from './redis/redis.module';
@@ -124,6 +126,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
+    MailModule,
     LiveModule,
     HealthModule,
     StorageModule,
@@ -151,6 +154,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     ActivityModule,
     GymsModule,
     SuperAdminModule,
+    PlatformModule,
     TenantModule,
     RbacModule,
   ],
@@ -188,7 +192,9 @@ export class AppModule implements NestModule {
    *    query param rather than a session — the public tenant lookup
    *    (`GET /gyms/by-subdomain/:slug`) the member site resolves before any
    *    session exists, and the payment-gateway webhooks (`/webhooks/*`) a
-   *    provider posts tokenless, naming their own gym inside a signed payload.
+   *    provider posts tokenless, naming their own gym inside a signed payload,
+   *    and the public platform lead capture (`/platform/*`, T8.2) the marketing
+   *    site posts to before any account or tenant exists.
    *    A session always
    *    wins over the subdomain, and an
    *    unauthenticated request to a protected route is still rejected here.
@@ -215,6 +221,7 @@ export class AppModule implements NestModule {
         { path: 'cart/(.*)', method: RequestMethod.ALL },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
         { path: 'webhooks/(.*)', method: RequestMethod.ALL },
+        { path: 'platform/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');
     // The cart is reachable signed-in or anonymously, so it is excluded from the
