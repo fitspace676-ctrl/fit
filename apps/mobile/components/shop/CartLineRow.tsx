@@ -1,6 +1,5 @@
 import { Image, Pressable, Text, View } from 'react-native';
 import { useI18n } from '../../providers/I18nProvider';
-import { useTheme } from '../../providers/ThemeProvider';
 import { formatMoney } from '../../lib/shop';
 import type { CartLine } from '../../providers/CartProvider';
 
@@ -13,117 +12,108 @@ export interface CartLineRowProps {
 }
 
 /**
- * One line in the cart review (T6.7): a thumbnail, the product (and chosen
- * variant) name, a − / quantity / + stepper, the line subtotal, and a remove
- * action. Decrementing past 1 removes the line (handled by the cart store), so
- * the stepper doubles as the remove for the last unit. Colours come from
- * `useTheme()`, so the row tracks system dark mode.
+ * One line in the cart review — the formacore "Aurora Glass" cart card
+ * (member-cart-mobile artboard). A glass tile on the near-black canvas: a square
+ * product thumbnail, the product name + chosen variant pill, a − / quantity / +
+ * stepper, the line subtotal (with a per-unit "ea" line once quantity > 1), and
+ * a remove control. Decrementing past 1 removes the line (handled by the cart
+ * store), so the stepper doubles as the remove for the last unit. Prices come
+ * through `formatMoney`, honouring the line's real currency. Dark-only, matching
+ * the redesigned shop tab (T7.6) and the rest of the member app.
  */
 export function CartLineRow({ line, onSetQuantity, onRemove }: CartLineRowProps) {
-  const { colors } = useTheme();
   const { t, locale } = useI18n();
 
   const lineTotal = formatMoney(line.unitAmount * line.quantity, line.currency, locale);
   const unit = formatMoney(line.unitAmount, line.currency, locale);
 
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        padding: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.surface,
-      }}
-    >
+    <View className="flex-row gap-3 rounded-card border border-white/10 bg-white/5 p-3">
       {line.imageUrl ? (
         <Image
           source={{ uri: line.imageUrl }}
           accessibilityIgnoresInvertColors
-          style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: colors.background }}
+          resizeMode="cover"
+          className="h-20 w-20 rounded-card border border-white/10"
         />
       ) : (
-        <View
-          style={{
-            width: 52,
-            height: 52,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={{ fontSize: 18, color: colors.textMuted }}>🛍️</Text>
+        <View className="h-20 w-20 items-center justify-center rounded-card border border-white/10 bg-white/5">
+          <Text className="text-2xl text-ink-600">🛍️</Text>
         </View>
       )}
 
-      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-        <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
-          {line.productName}
-        </Text>
-        {line.variantName ? (
-          <Text numberOfLines={1} style={{ fontSize: 13, color: colors.textMuted }}>
-            {line.variantName}
-          </Text>
-        ) : null}
-        <Text style={{ fontSize: 13, color: colors.textMuted }}>
-          {t('shop.cart.eachPrice', { price: unit })}
-        </Text>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
-          <Stepper
-            label="−"
-            accessibilityLabel={t('shop.cart.decrease')}
-            colors={colors}
-            onPress={() => onSetQuantity(line.key, line.quantity - 1)}
-          />
+      <View className="min-w-0 flex-1">
+        <View className="flex-row items-start justify-between gap-2">
           <Text
-            style={{
-              fontSize: 15,
-              fontWeight: '700',
-              minWidth: 20,
-              textAlign: 'center',
-              color: colors.text,
-            }}
+            numberOfLines={2}
+            className="min-w-0 flex-1 text-sm font-semibold leading-snug text-white"
           >
-            {line.quantity}
+            {line.productName}
           </Text>
-          <Stepper
-            label="+"
-            accessibilityLabel={t('shop.cart.increase')}
-            colors={colors}
-            onPress={() => onSetQuantity(line.key, line.quantity + 1)}
-          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('member.shop.cart.remove')}
+            onPress={() => onRemove(line.key)}
+            hitSlop={8}
+            className="h-8 w-8 items-center justify-center rounded-btn active:bg-danger-500/10"
+          >
+            <Text className="text-base font-semibold text-ink-500">✕</Text>
+          </Pressable>
         </View>
-      </View>
 
-      <View style={{ alignItems: 'flex-end', gap: 8 }}>
-        <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>{lineTotal}</Text>
-        <Pressable accessibilityRole="button" onPress={() => onRemove(line.key)} hitSlop={8}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textMuted }}>
-            {t('shop.cart.remove')}
-          </Text>
-        </Pressable>
+        {line.variantName ? (
+          <View className="mt-1.5 self-start rounded-pill border border-white/10 bg-white/5 px-2.5 py-1">
+            <Text className="text-[11px] font-semibold text-ink-200">{line.variantName}</Text>
+          </View>
+        ) : null}
+
+        <View className="mt-2.5 flex-row items-center justify-between">
+          <View className="h-9 flex-row items-center overflow-hidden rounded-btn border border-white/15 bg-white/5">
+            <Stepper
+              label="−"
+              accessibilityLabel={t('member.shop.cart.decrease')}
+              onPress={() => onSetQuantity(line.key, line.quantity - 1)}
+            />
+            <Text
+              className="w-7 text-center font-mono text-sm font-bold text-white"
+              style={{ fontVariant: ['tabular-nums'] }}
+            >
+              {line.quantity}
+            </Text>
+            <Stepper
+              label="+"
+              accessibilityLabel={t('member.shop.cart.increase')}
+              onPress={() => onSetQuantity(line.key, line.quantity + 1)}
+            />
+          </View>
+
+          <View className="items-end">
+            <Text
+              className="font-mono text-sm font-bold text-white"
+              style={{ fontVariant: ['tabular-nums'] }}
+            >
+              {lineTotal}
+            </Text>
+            {line.quantity > 1 ? (
+              <Text className="font-mono text-[10px] text-ink-500">
+                {t('member.shop.cart.each', { price: unit })}
+              </Text>
+            ) : null}
+          </View>
+        </View>
       </View>
     </View>
   );
 }
 
-/** A square − / + quantity button. */
+/** A − / + quantity button inside the stepper. */
 function Stepper({
   label,
   accessibilityLabel,
-  colors,
   onPress,
 }: {
   label: string;
   accessibilityLabel: string;
-  colors: { border: string; text: string };
   onPress: () => void;
 }) {
   return (
@@ -131,19 +121,9 @@ function Stepper({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
-      hitSlop={6}
-      style={({ pressed }) => ({
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: pressed ? 0.6 : 1,
-      })}
+      className="h-full w-8 items-center justify-center active:bg-white/10"
     >
-      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>{label}</Text>
+      <Text className="text-base font-bold text-ink-300">{label}</Text>
     </Pressable>
   );
 }

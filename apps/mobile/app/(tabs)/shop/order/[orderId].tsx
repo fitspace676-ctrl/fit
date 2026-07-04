@@ -2,21 +2,24 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import type { OrderStatus } from '@fit/types';
-import { useI18n, useTheme } from '../../../../providers';
+import { useI18n } from '../../../../providers';
 import { useOrder } from '../../../../hooks/useOrder';
 import { formatMoney } from '../../../../lib/shop';
 
 /**
- * Order confirmation / detail (T6.7) — reached after checkout (`router.replace`)
- * and as the target of the `fit://orders/:orderId` deep link (remapped here by
- * `app/+native-intent.ts`). Reads the order back via `GET /orders/:orderId` and
- * confirms it with a status badge, an itemised breakdown, and the total. A
- * missing / unknown id renders a graceful "order not found" state rather than
- * erroring — a stale deep link still shows a sensible page. Colours come from
- * `useTheme()`.
+ * Order confirmation / detail — the formacore "Aurora Glass" order-placed screen
+ * (member-cart-mobile artboard's success sheet, rebuilt as a full screen).
+ * Reached after checkout (`router.replace`) and as the target of the
+ * `fit://orders/:orderId` deep link (remapped here by `app/+native-intent.ts`).
+ *
+ * A near-black `ink-950` canvas: a success check badge, an order card (number +
+ * amount paid), the itemised breakdown, the total, and a "keep shopping" action.
+ * Reads the order back via `GET /orders/:orderId`; a missing / unknown id renders
+ * a graceful "order not found" state rather than erroring, so a stale deep link
+ * still shows a sensible page. Dark-only, matching the redesigned shop tab (T7.6)
+ * and the rest of the member app.
  */
 export default function OrderDetailScreen() {
-  const { colors } = useTheme();
   const { t, locale } = useI18n();
   const insets = useSafeAreaInsets();
 
@@ -26,175 +29,154 @@ export default function OrderDetailScreen() {
   const summary = order.data ?? null;
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, gap: 16 }}
-    >
-      {order.isLoading ? (
-        <View style={{ paddingVertical: 80, alignItems: 'center', gap: 12 }}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={{ fontSize: 14, color: colors.textMuted }}>{t('shop.order.loading')}</Text>
-        </View>
-      ) : order.isError ? (
-        <View style={{ paddingVertical: 64, alignItems: 'center', gap: 12 }}>
-          <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
-            {t('shop.order.error')}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void order.refetch()}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 10,
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-            }}
-          >
-            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
-              {t('shop.retry')}
-            </Text>
-          </Pressable>
-        </View>
-      ) : !summary ? (
-        <View style={{ paddingVertical: 64, alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>
-            {t('shop.order.notFound.title')}
-          </Text>
-          <Text
-            style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', maxWidth: 320 }}
-          >
-            {t('shop.order.notFound.subtitle')}
-          </Text>
-          <HomeButton label={t('shop.order.continue')} colors={colors} />
-        </View>
-      ) : (
-        <View style={{ gap: 20, alignItems: 'stretch' }}>
-          <View style={{ alignItems: 'center', gap: 10, paddingTop: 16 }}>
-            <View
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 999,
-                backgroundColor: colors.primary,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ fontSize: 26, color: colors.onPrimary }}>✓</Text>
-            </View>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: colors.text }}>
-              {t('shop.order.title')}
-            </Text>
-            <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
-              {t('shop.order.subtitle')}
-            </Text>
-            <Text style={{ fontSize: 12, color: colors.textMuted }}>
-              {t('shop.order.idLabel', { id: summary.id })}
-            </Text>
-            <StatusBadge
-              status={summary.status}
-              colors={colors}
-              label={t(`shop.order.status.${summary.status}`)}
-            />
+    <View className="flex-1 bg-ink-950">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: insets.top + 24,
+          paddingBottom: insets.bottom + 24,
+          gap: 20,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        {order.isLoading ? (
+          <View className="items-center gap-3 py-24">
+            <ActivityIndicator color="#9184F1" />
+            <Text className="text-sm text-ink-400">{t('member.shop.order.loading')}</Text>
           </View>
+        ) : order.isError ? (
+          <View className="items-center gap-3 py-20 px-6">
+            <Text className="text-center text-sm text-ink-400">{t('member.shop.order.error')}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void order.refetch()}
+              className="rounded-btn border border-white/15 bg-white/5 px-5 py-2.5 active:bg-white/10"
+            >
+              <Text className="text-sm font-semibold text-white">
+                {t('member.shop.order.retry')}
+              </Text>
+            </Pressable>
+          </View>
+        ) : !summary ? (
+          <View className="items-center gap-2 py-20 px-6">
+            <Text className="text-4xl">🔍</Text>
+            <Text className="text-lg font-bold text-white">
+              {t('member.shop.order.notFound.title')}
+            </Text>
+            <Text className="max-w-[300px] text-center text-sm text-ink-400">
+              {t('member.shop.order.notFound.subtitle')}
+            </Text>
+            <ContinueButton label={t('member.shop.order.continue')} />
+          </View>
+        ) : (
+          <>
+            {/* ---- success header ---- */}
+            <View className="items-center gap-3 pt-6">
+              <View className="h-16 w-16 items-center justify-center rounded-full bg-success-500">
+                <Text className="text-3xl font-black text-white">✓</Text>
+              </View>
+              <Text className="text-2xl font-black tracking-tight text-white">
+                {t('member.shop.order.title')}
+              </Text>
+              <Text className="max-w-[300px] text-center text-sm text-ink-400">
+                {t('member.shop.order.subtitle')}
+              </Text>
+              <StatusBadge
+                status={summary.status}
+                label={t(`member.shop.order.status.${summary.status}`)}
+              />
+            </View>
 
-          <View
-            style={{
-              gap: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 12,
-              padding: 16,
-              backgroundColor: colors.surface,
-            }}
-          >
-            {summary.items.map((item, index) => (
-              <View
-                key={`${item.label}-${index}`}
-                style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}
-              >
-                <Text style={{ flex: 1, fontSize: 14, color: colors.textMuted }}>{item.label}</Text>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
-                  {formatMoney(item.amount, summary.currency, locale)}
+            {/* ---- order id + amount paid ---- */}
+            <View className="flex-row items-center justify-between rounded-card border border-white/10 bg-white/5 p-4">
+              <View>
+                <Text className="font-mono text-[11px] uppercase tracking-wide text-ink-500">
+                  {t('member.shop.order.orderLabel')}
+                </Text>
+                <Text className="mt-0.5 font-mono text-base font-bold text-white">
+                  #{summary.id.slice(0, 8).toUpperCase()}
                 </Text>
               </View>
-            ))}
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                borderTopWidth: 1,
-                borderTopColor: colors.border,
-                paddingTop: 12,
-              }}
-            >
-              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
-                {t('shop.order.total')}
-              </Text>
-              <Text style={{ fontSize: 17, fontWeight: '800', color: colors.text }}>
-                {formatMoney(summary.total, summary.currency, locale)}
-              </Text>
+              <View className="items-end">
+                <Text className="font-mono text-[11px] uppercase tracking-wide text-ink-500">
+                  {t('member.shop.order.paidLabel')}
+                </Text>
+                <Text
+                  className="mt-0.5 text-lg font-extrabold text-white"
+                  style={{ fontVariant: ['tabular-nums'] }}
+                >
+                  {formatMoney(summary.total, summary.currency, locale)}
+                </Text>
+              </View>
             </View>
-          </View>
 
-          <HomeButton label={t('shop.order.continue')} colors={colors} />
-        </View>
-      )}
-    </ScrollView>
-  );
-}
+            {/* ---- itemised breakdown ---- */}
+            <View className="gap-3 rounded-card border border-white/10 bg-white/5 p-4">
+              {summary.items.map((item, index) => (
+                <View
+                  key={`${item.label}-${index}`}
+                  className="flex-row items-center justify-between gap-3"
+                >
+                  <Text className="min-w-0 flex-1 text-sm text-ink-300">{item.label}</Text>
+                  <Text
+                    className="font-mono text-sm font-semibold text-white"
+                    style={{ fontVariant: ['tabular-nums'] }}
+                  >
+                    {formatMoney(item.amount, summary.currency, locale)}
+                  </Text>
+                </View>
+              ))}
+              <View className="my-1 h-px bg-white/10" />
+              <View className="flex-row items-end justify-between">
+                <Text className="text-base font-semibold text-white">
+                  {t('member.shop.order.total')}
+                </Text>
+                <Text
+                  className="text-xl font-black text-white"
+                  style={{ fontVariant: ['tabular-nums'] }}
+                >
+                  {formatMoney(summary.total, summary.currency, locale)}
+                </Text>
+              </View>
+            </View>
 
-interface Colors {
-  surface: string;
-  border: string;
-  text: string;
-  textMuted: string;
-  primary: string;
-  onPrimary: string;
-}
-
-/** A small status pill for the order's lifecycle state. */
-function StatusBadge({
-  status,
-  colors,
-  label,
-}: {
-  status: OrderStatus;
-  colors: Colors;
-  label: string;
-}) {
-  const tone = status === 'cancelled' ? colors.border : colors.primary;
-  const fg = status === 'cancelled' ? colors.text : colors.onPrimary;
-  return (
-    <View
-      style={{
-        borderRadius: 999,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        backgroundColor: tone,
-      }}
-    >
-      <Text style={{ fontSize: 12, fontWeight: '700', color: fg }}>{label}</Text>
+            <ContinueButton label={t('member.shop.order.continue')} />
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
-/** "Continue shopping" CTA back to the shop browse. */
-function HomeButton({ label, colors }: { label: string; colors: Colors }) {
+/** A small status pill for the order's lifecycle state. */
+function StatusBadge({ status, label }: { status: OrderStatus; label: string }) {
+  const cancelled = status === 'cancelled';
+  return (
+    <View
+      className={`rounded-pill border px-2.5 py-1 ${
+        cancelled ? 'border-white/10 bg-white/5' : 'border-success-400/30 bg-success-500/15'
+      }`}
+    >
+      <Text
+        className={`text-[11px] font-semibold ${cancelled ? 'text-ink-300' : 'text-success-200'}`}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+/** "Keep shopping" CTA back to the shop browse. */
+function ContinueButton({ label }: { label: string }) {
   return (
     <Pressable
       accessibilityRole="button"
       onPress={() => router.replace('/shop')}
-      style={({ pressed }) => ({
-        borderRadius: 12,
-        backgroundColor: colors.primary,
-        paddingVertical: 14,
-        alignItems: 'center',
-        opacity: pressed ? 0.85 : 1,
-      })}
+      className="h-12 flex-row items-center justify-center gap-2 rounded-btn bg-brand-600 active:bg-brand-700"
     >
-      <Text style={{ fontSize: 16, fontWeight: '700', color: colors.onPrimary }}>{label}</Text>
+      <Text className="text-[15px] font-bold text-white">{label}</Text>
+      <Text className="text-[15px] font-bold text-white">›</Text>
     </Pressable>
   );
 }
