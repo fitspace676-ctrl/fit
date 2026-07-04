@@ -727,6 +727,34 @@
       "confirmed": "Confirmed",
       "waitlist": "Waitlist · #{position}"
     },
+    "classes": {
+      "title": "Classes",
+      "today": "Today",
+      "myBookings": "My bookings",
+      "prevWeek": "Previous week",
+      "nextWeek": "Next week",
+      "all": "All",
+      "spotsLeft": "{count} left",
+      "full": "Full",
+      "book": "Book",
+      "booked": "Booked",
+      "waitlisted": "Waitlisted",
+      "waitlist": "Waitlist",
+      "minutes": "{count} min",
+      "loading": "Loading classes…",
+      "error": "We couldn’t load the classes. Please try again.",
+      "retry": "Try again",
+      "periods": {
+        "morning": "Morning",
+        "afternoon": "Afternoon",
+        "evening": "Evening"
+      },
+      "empty": {
+        "title": "No classes today",
+        "titleFiltered": "No {type} classes",
+        "subtitle": "Try another day or filter."
+      }
+    },
     "actions": {
       "booked": "Booked! See you there",
       "waitlisted": "Added to the waitlist",
