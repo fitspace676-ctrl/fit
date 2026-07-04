@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import type {
   CheckInMethod,
@@ -10,6 +10,7 @@ import type {
   MemberEligibility,
 } from '@fit/types';
 import { Badge, Btn, Card, CountUp, Icon, useToast, type Tone } from '@/components/ui';
+import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 import {
   fetchEligibilityAction,
   recordCheckInAction,
@@ -55,6 +56,29 @@ export function ReceptionBoard({
   const t = useTranslations('admin.checkin');
   const [arrivals, setArrivals] = useState<CheckInRow[]>(initialArrivals);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Keep the reception board live: re-run the server component on a short
+  // interval so a check-in recorded at another desk (or a QR arrival) shows up
+  // here without a manual reload.
+  useLiveRefresh(LIVE_REFRESH_MS.reception);
+
+  // Reconcile each refreshed server snapshot into the arrivals list. `arrivals`
+  // is client state (it's mutated optimistically on a local check-in), so a fresh
+  // `initialArrivals` prop from a poll would otherwise be ignored. Merge by id —
+  // the server set is authoritative, and any local-only optimistic row not yet
+  // reflected server-side is retained — then keep the feed newest-first.
+  useEffect(() => {
+    setArrivals((prev) => {
+      const serverIds = new Set(initialArrivals.map((row) => row.id));
+      const localOnly = prev.filter((row) => !serverIds.has(row.id));
+      if (localOnly.length === 0) {
+        return initialArrivals;
+      }
+      return [...localOnly, ...initialArrivals].sort(
+        (a, b) => new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime(),
+      );
+    });
+  }, [initialArrivals]);
 
   // The four KPI figures start from the server snapshot and are re-derived from the
   // live arrivals set as new check-ins land, so the cards stay honest without a
