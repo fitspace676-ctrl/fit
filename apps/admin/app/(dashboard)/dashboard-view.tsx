@@ -30,6 +30,7 @@ import {
   type AreaPoint,
   type IconName,
 } from '@/components/ui';
+import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 
 /** Translator for the `admin.dashboard` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -47,6 +48,11 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
   const [isPending, startTransition] = useTransition();
   const t = useTranslations('admin.dashboard');
   const locale = useLocale();
+
+  // Keep the control-room overview live: re-run the server component on an
+  // interval so KPIs, occupancy, today's schedule and the check-ins feed refresh
+  // without a navigation. The `?range=` param is preserved across refreshes.
+  useLiveRefresh(LIVE_REFRESH_MS.dashboard);
 
   const money = useMemo(
     () =>

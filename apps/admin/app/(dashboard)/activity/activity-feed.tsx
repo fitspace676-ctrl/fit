@@ -14,6 +14,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ActivityEvent, ActivityEventType } from '@fit/types';
 import { Btn, Card, Icon, type IconName, type Tone } from '@/components/ui';
+import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 
 /** Translator for the `admin.activity` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -142,6 +143,11 @@ export function ActivityFeed({
   const [, startTransition] = useTransition();
   const t = useTranslations('admin.activity');
   const locale = useLocale();
+
+  // Keep the live feed live: poll the server page only while viewing the first
+  // (latest) page, so a refresh never yanks the list out from under someone
+  // paging back through history.
+  useLiveRefresh(LIVE_REFRESH_MS.activity, page <= 1);
 
   /** Build a URL with the page param overridden. */
   function pageHref(nextPage: number): string {
