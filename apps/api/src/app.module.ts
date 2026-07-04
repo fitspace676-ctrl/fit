@@ -22,6 +22,7 @@ import { PackagePlansModule } from './packages/package-plans.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { RedisModule } from './redis/redis.module';
+import { ReportsModule } from './reports/reports.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { StaffModule } from './staff/staff.module';
 import { MeModule } from './me/me.module';
@@ -70,6 +71,10 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link AnalyticsModule} serves the staff console's tenant-scoped analytics
  *   (`/admin/analytics?range=` — range-windowed revenue/attendance/churn KPIs,
  *   revenue series, channel/plan mix, top classes; `ReportView`).
+ * - {@link ReportsModule} serves the staff console's tenant-scoped operational
+ *   reports (`/admin/reports` — revenue by channel, attendance by class, membership
+ *   growth, no-show rate; previewable as JSON and downloadable as CSV/XLSX;
+ *   `ReportView`).
  * - {@link ActivityModule} serves the staff console's tenant-scoped Activity feed
  *   (`/admin/activity` — a paginated, filterable newest-first merge of the gym's
  *   signups, bookings, check-ins, sales, and subscription enrolments derived from
@@ -132,6 +137,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     DashboardModule,
     CheckInModule,
     AnalyticsModule,
+    ReportsModule,
     ActivityModule,
     GymsModule,
     SuperAdminModule,
