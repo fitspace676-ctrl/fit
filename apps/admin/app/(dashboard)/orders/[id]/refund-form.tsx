@@ -77,7 +77,7 @@ export function RefundForm({
       <div className="flex flex-col gap-1">
         <label
           htmlFor="refund-amount"
-          className="text-xs font-medium text-ink-500 dark:text-ink-400"
+          className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
         >
           Amount ({currency})
         </label>
@@ -91,15 +91,12 @@ export function RefundForm({
           onChange={(event) => setAmount(event.target.value)}
           className={`w-40 font-mono tabular-nums ${FIELD_CLASS}`}
         />
-        <span className="text-xs text-ink-400">
-          Up to {formatMoney(refundableMinor, currency)} remaining
-        </span>
       </div>
 
       <div className="flex flex-col gap-1">
         <label
           htmlFor="refund-reason"
-          className="text-xs font-medium text-ink-500 dark:text-ink-400"
+          className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
         >
           Reason
         </label>
