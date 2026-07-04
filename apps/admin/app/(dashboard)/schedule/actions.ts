@@ -12,7 +12,9 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  bookMemberOntoClass,
   cancelScheduleInstance,
+  fetchMembers,
   fetchScheduleInstance,
   markAttendance,
   promoteWaitlistEntry,
@@ -20,6 +22,16 @@ import {
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
+
+/** How many member matches the drawer's booking search returns per query. */
+const MEMBER_SEARCH_LIMIT = 8;
+
+/** A member match the drawer's booking search surfaces (trimmed from the roster row). */
+export interface MemberSearchResult {
+  id: string;
+  name: string;
+  email: string;
+}
 
 /**
  * Re-assert a capability inside the action itself. The middleware gates the
@@ -59,6 +71,21 @@ function toMessage(error: unknown, t: T): string {
     }
     if (error.message === 'BOOKING_NOT_ATTENDABLE') {
       return t('errors.bookingNotAttendable');
+    }
+    if (error.message === 'MEMBER_NOT_FOUND') {
+      return t('errors.memberNotFound');
+    }
+    if (error.message === 'CLASS_NOT_BOOKABLE') {
+      return t('errors.notBookable');
+    }
+    if (error.message === 'ALREADY_BOOKED') {
+      return t('errors.alreadyBooked');
+    }
+    if (error.message === 'SUBSCRIPTION_FROZEN') {
+      return t('errors.subscriptionFrozen');
+    }
+    if (error.message === 'INSUFFICIENT_CREDITS') {
+      return t('errors.insufficientCredits');
     }
     return t('errors.requestFailed', { status: error.status, message: error.message });
   }
@@ -156,6 +183,69 @@ export async function promoteWaitlistAction(
   }
   try {
     const data = await promoteWaitlistEntry(id, bookingId);
+    revalidatePath('/schedule');
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Search the gym's members for the drawer's "book a member" flow (T3.7). Gated on
+ * `ClassWrite` — the same capability the booking itself needs — so the search only
+ * runs for staff who can act on the result; the underlying `GET /members` read is
+ * `MemberRead`, which every `ClassWrite` role (owner / manager) also holds. A
+ * blank query returns no matches without a round-trip. Returns a trimmed match
+ * list (id + name + email) so the drawer can render a picker without pulling the
+ * full roster shape across the boundary.
+ */
+export async function searchMembersForBookingAction(
+  query: string,
+): Promise<ActionResult<MemberSearchResult[]>> {
+  const t = await getTranslations('admin.schedule.drawer');
+  if (!(await sessionHas(Permission.ClassWrite))) {
+    return { ok: false, error: t('errors.forbidden') };
+  }
+  const search = query.trim();
+  if (!search) {
+    return { ok: true, data: [] };
+  }
+  try {
+    const { data } = await fetchMembers({ search, limit: MEMBER_SEARCH_LIMIT });
+    return {
+      ok: true,
+      data: data.map((member) => ({
+        id: member.id,
+        name: member.name,
+        email: member.email,
+      })),
+    };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Book a member onto a scheduled occurrence on their behalf from the drawer
+ * (T3.7). Enforces `ClassWrite`, then books the chosen member via the schedule API
+ * (which honours the same capacity/credit rules as a member self-book — an atomic
+ * seat claim or a waitlist tail when full, a required class credit for a held seat
+ * unless a subscription covers it), returning the refreshed
+ * `AdminClassInstanceDetail` so the drawer re-renders from the one call — the same
+ * shape it already renders. Also refreshes the `/schedule` cache so the week
+ * grid's occupancy follows. Returns a discriminated result so the drawer can
+ * surface an inline error instead of throwing across the boundary.
+ */
+export async function bookMemberAction(
+  id: string,
+  memberId: string,
+): Promise<ActionResult<GetAdminClassInstanceResponse>> {
+  const t = await getTranslations('admin.schedule.drawer');
+  if (!(await sessionHas(Permission.ClassWrite))) {
+    return { ok: false, error: t('errors.forbidden') };
+  }
+  try {
+    const data = await bookMemberOntoClass(id, memberId);
     revalidatePath('/schedule');
     return { ok: true, data };
   } catch (error) {

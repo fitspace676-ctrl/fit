@@ -106,6 +106,7 @@ import type {
   GetAdminClassInstanceResponse,
   CancelClassInstanceResponse,
   PromoteWaitlistResponse,
+  BookMemberOntoClassResponse,
   MarkAttendanceData,
   MarkAttendanceResponse,
 } from '@fit/types';
@@ -1075,6 +1076,32 @@ export async function promoteWaitlistEntry(
     },
   );
   return unwrap<PromoteWaitlistResponse>(res);
+}
+
+/**
+ * `POST /admin/schedule/instances/:id/bookings` — book a member onto the
+ * occurrence on their behalf from the drawer (T3.7) and return the refreshed
+ * detail. Gated `ClassWrite` API-side; honours the same capacity/credit rules as a
+ * member self-book (a seat is claimed atomically or the member is waitlisted when
+ * full; a held seat draws a required class credit unless a subscription covers it).
+ * Failure modes surface as an {@link ApiError}: `404 CLASS_INSTANCE_NOT_FOUND`,
+ * `404 MEMBER_NOT_FOUND`, `409 CLASS_NOT_BOOKABLE`, `409 ALREADY_BOOKED`, `409
+ * SUBSCRIPTION_FROZEN`, and `422 INSUFFICIENT_CREDITS`.
+ */
+export async function bookMemberOntoClass(
+  id: string,
+  memberId: string,
+): Promise<BookMemberOntoClassResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/schedule/instances/${encodeURIComponent(id)}/bookings`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify({ memberId }),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<BookMemberOntoClassResponse>(res);
 }
 
 /**

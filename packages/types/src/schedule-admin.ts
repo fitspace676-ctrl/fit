@@ -160,3 +160,27 @@ export type CancelClassInstanceResponse = AdminClassInstanceDetail;
  * underlying week grid re-render from the one call, exactly like the cancel.
  */
 export type PromoteWaitlistResponse = AdminClassInstanceDetail;
+
+/**
+ * Body for `POST /admin/schedule/instances/:id/bookings` (T3.7) — the front-desk
+ * "book a member onto this class" action from the schedule drawer. The only input
+ * is the `memberId` of the gym member the desk is booking on their behalf (chosen
+ * from the drawer's member search); the occurrence is the route param and the gym
+ * is the tenant session, so neither is on the wire. A blank id is a `400`.
+ */
+export const adminBookMemberSchema = z.object({
+  memberId: z.string().min(1),
+});
+
+/** Validated `POST /admin/schedule/instances/:id/bookings` body — {@link adminBookMemberSchema}. */
+export type AdminBookMemberData = z.infer<typeof adminBookMemberSchema>;
+
+/**
+ * Successful `POST /admin/schedule/instances/:id/bookings` response — the
+ * occurrence detail after the chosen member was booked onto it from the drawer
+ * (T3.7): the member now holds a seat (`bookedCount` grew by one) or, when the
+ * occurrence was already full, a `WAITLIST` entry at the tail of the queue.
+ * Returned so the drawer and the underlying week grid re-render from the one call,
+ * exactly like the cancel and promote actions.
+ */
+export type BookMemberOntoClassResponse = AdminClassInstanceDetail;

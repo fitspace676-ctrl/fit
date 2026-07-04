@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { BookingStatus, InstanceStatus } from '@fit/db';
+import { BookingStatus, InstanceStatus, Prisma, SubscriptionStatus } from '@fit/db';
 import type { AdminScheduleQuery } from '@fit/types';
 import { AdminScheduleService } from './admin-schedule.service';
 import type { CreditPacksService } from '../billing/credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { TenantContext } from '../common/tenant/tenant.context';
+
+/** A fixed tenant context — the service stamps `gymId` on a booking it creates. */
+const tenantCtx = { gymId: 'gym-1' } as unknown as TenantContext;
 
 /** A joined occurrence row as the schedule projection selects it. */
 interface ScheduleRow {
@@ -64,7 +68,7 @@ function setup(findManyResult: ScheduleRow[] = []) {
   const client = { classInstance: { findMany } } as unknown;
   const prisma = { client } as unknown as TenantPrismaService;
   const creditPacks = { refundCredit: vi.fn() } as unknown as CreditPacksService;
-  return { service: new AdminScheduleService(prisma, creditPacks), findMany };
+  return { service: new AdminScheduleService(prisma, creditPacks, tenantCtx), findMany };
 }
 
 const query = (over?: Partial<AdminScheduleQuery>): AdminScheduleQuery => ({
@@ -200,19 +204,34 @@ function setupDetail() {
   const classInstance = {
     findFirst: vi.fn<(args: unknown) => Promise<unknown>>(),
     update: vi.fn<(args: unknown) => Promise<unknown>>(),
+    updateMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(() =>
+      Promise.resolve({ count: 1 }),
+    ),
   };
   const booking = {
     findFirst: vi.fn<(args: unknown) => Promise<unknown>>(),
     findMany: vi.fn<(args: { where?: Record<string, unknown> }) => Promise<unknown>>(() =>
       Promise.resolve([]),
     ),
+    aggregate: vi.fn<(args: unknown) => Promise<{ _max: { waitlistPosition: number | null } }>>(
+      () => Promise.resolve({ _max: { waitlistPosition: null } }),
+    ),
+    create: vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+      Promise.resolve({ id: 'bk-new' }),
+    ),
     update: vi.fn<(args: unknown) => Promise<unknown>>(),
     updateMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(() =>
       Promise.resolve({ count: 1 }),
     ),
   };
+  const gymMember = {
+    findFirst: vi.fn<(args: unknown) => Promise<unknown>>(() => Promise.resolve({ id: 'gm-1' })),
+  };
+  const subscription = {
+    findFirst: vi.fn<(args: unknown) => Promise<unknown>>(() => Promise.resolve(null)),
+  };
   const $transaction = vi.fn<(cb: (tx: unknown) => unknown) => unknown>();
-  const client = { classInstance, booking, $transaction };
+  const client = { classInstance, booking, gymMember, subscription, $transaction };
   $transaction.mockImplementation((cb) => cb(client));
   const prisma = { client } as unknown as TenantPrismaService;
   const refundCredit = vi.fn<(tx: unknown, id: string | null) => Promise<void>>(() =>
@@ -223,9 +242,11 @@ function setupDetail() {
   >(() => Promise.resolve(null));
   const creditPacks = { refundCredit, chargeSeatCredit } as unknown as CreditPacksService;
   return {
-    service: new AdminScheduleService(prisma, creditPacks),
+    service: new AdminScheduleService(prisma, creditPacks, tenantCtx),
     classInstance,
     booking,
+    gymMember,
+    subscription,
     refundCredit,
     chargeSeatCredit,
   };
@@ -479,5 +500,167 @@ describe('AdminScheduleService.promoteWaitlistEntry', () => {
       where: { id: 'ci-1' },
       data: { bookedCount: { increment: 1 } },
     });
+  });
+});
+
+describe('AdminScheduleService.bookMemberOntoClass', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  /** The occurrence-load projection the book transaction reads first. */
+  const scheduledInstance = (over?: {
+    bookedCount?: number;
+    capacityOverride?: number | null;
+  }) => ({
+    id: 'ci-1',
+    status: InstanceStatus.SCHEDULED,
+    bookedCount: over?.bookedCount ?? 4,
+    capacityOverride: over?.capacityOverride ?? null,
+    template: { capacity: 12 },
+  });
+
+  it('404s an unknown / cross-tenant member', async () => {
+    const ctx = setupDetail();
+    ctx.gymMember.findFirst.mockResolvedValueOnce(null);
+
+    await expect(ctx.service.bookMemberOntoClass('ci-1', 'gm-x')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    // Never opens the booking transaction for an unknown member.
+    expect(ctx.booking.create).not.toHaveBeenCalled();
+  });
+
+  it('409s a member whose membership is frozen', async () => {
+    const ctx = setupDetail();
+    ctx.subscription.findFirst.mockResolvedValueOnce({ id: 'sub-1' });
+
+    await expect(ctx.service.bookMemberOntoClass('ci-1', 'gm-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(ctx.subscription.findFirst.mock.calls[0]![0]).toMatchObject({
+      where: { memberId: 'gm-1', status: SubscriptionStatus.FROZEN },
+    });
+    expect(ctx.booking.create).not.toHaveBeenCalled();
+  });
+
+  it('404s an unknown occurrence', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce(null);
+
+    await expect(ctx.service.bookMemberOntoClass('nope', 'gm-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(ctx.booking.create).not.toHaveBeenCalled();
+  });
+
+  it('409s a non-scheduled occurrence (canceled / completed)', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce({
+      id: 'ci-1',
+      status: InstanceStatus.CANCELED,
+      bookedCount: 0,
+      capacityOverride: null,
+      template: { capacity: 12 },
+    });
+
+    await expect(ctx.service.bookMemberOntoClass('ci-1', 'gm-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(ctx.classInstance.updateMany).not.toHaveBeenCalled();
+    expect(ctx.booking.create).not.toHaveBeenCalled();
+  });
+
+  it('409s a member who already holds a live booking', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce(scheduledInstance());
+    ctx.booking.findFirst.mockResolvedValueOnce({ id: 'bk-existing' });
+
+    await expect(ctx.service.bookMemberOntoClass('ci-1', 'gm-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(ctx.classInstance.updateMany).not.toHaveBeenCalled();
+    expect(ctx.booking.create).not.toHaveBeenCalled();
+  });
+
+  it('books the member into a held seat and draws a required class credit', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst
+      // tx: load the occurrence (SCHEDULED, room to spare)
+      .mockResolvedValueOnce(scheduledInstance({ bookedCount: 4 }))
+      // getInstanceDetail re-read after the booking
+      .mockResolvedValueOnce(row({ bookedCount: 5 }));
+    ctx.booking.findFirst.mockResolvedValueOnce(null); // no live booking yet
+    ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 1 }); // seat claimed
+    ctx.chargeSeatCredit.mockResolvedValueOnce('cp-1');
+
+    const detail = await ctx.service.bookMemberOntoClass('ci-1', 'gm-1');
+
+    // The atomic seat claim runs only while there is room.
+    expect(ctx.classInstance.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'ci-1',
+        status: InstanceStatus.SCHEDULED,
+        bookedCount: { lt: 12 },
+      },
+      data: { bookedCount: { increment: 1 } },
+    });
+    // A held seat draws a required credit (default, so no `required: false`).
+    expect(ctx.chargeSeatCredit).toHaveBeenCalledWith(expect.anything(), 'gm-1');
+    // The booking is created BOOKED, stamped with the tenant gym + the drawn pack.
+    expect(ctx.booking.create).toHaveBeenCalledTimes(1);
+    const created = ctx.booking.create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(created.data).toMatchObject({
+      gymId: 'gym-1',
+      classInstanceId: 'ci-1',
+      memberId: 'gm-1',
+      status: BookingStatus.BOOKED,
+      waitlistPosition: null,
+      creditPackId: 'cp-1',
+    });
+    expect(created.data.idempotencyKey).toEqual(expect.any(String));
+    // The waitlist tail is never read for a seated booking.
+    expect(ctx.booking.aggregate).not.toHaveBeenCalled();
+    expect(detail.bookedCount).toBe(5);
+  });
+
+  it('waitlists the member at the tail when the occurrence is full', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst
+      .mockResolvedValueOnce(scheduledInstance({ bookedCount: 12 }))
+      .mockResolvedValueOnce(row({ bookedCount: 12 }));
+    ctx.booking.findFirst.mockResolvedValueOnce(null);
+    // No room — the guarded seat claim flips no row.
+    ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 0 });
+    // Two already queued → the new entry lands at position 3.
+    ctx.booking.aggregate.mockResolvedValueOnce({ _max: { waitlistPosition: 2 } });
+
+    await ctx.service.bookMemberOntoClass('ci-1', 'gm-1');
+
+    // A waitlist entry holds no seat, so no credit is drawn.
+    expect(ctx.chargeSeatCredit).not.toHaveBeenCalled();
+    const created = ctx.booking.create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(created.data).toMatchObject({
+      status: BookingStatus.WAITLIST,
+      waitlistPosition: 3,
+      creditPackId: null,
+    });
+  });
+
+  it('maps a partial-unique race on insert to a 409 ALREADY_BOOKED', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst.mockResolvedValueOnce(scheduledInstance());
+    ctx.booking.findFirst.mockResolvedValueOnce(null);
+    ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 1 });
+    ctx.chargeSeatCredit.mockResolvedValueOnce('cp-1');
+    // A concurrent duplicate booking won the partial unique first.
+    ctx.booking.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(ctx.service.bookMemberOntoClass('ci-1', 'gm-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 });

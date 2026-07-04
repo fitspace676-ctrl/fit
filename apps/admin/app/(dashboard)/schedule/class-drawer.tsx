@@ -17,16 +17,20 @@ import {
   ConfirmDialog,
   Drawer,
   Icon,
+  Input,
   Progress,
   useToast,
   type IconName,
   type Tone,
 } from '@/components/ui';
 import {
+  bookMemberAction,
   cancelInstanceAction,
   loadInstanceDetailAction,
   markAttendanceAction,
   promoteWaitlistAction,
+  searchMembersForBookingAction,
+  type MemberSearchResult,
 } from './actions';
 
 type T = ReturnType<typeof useTranslations>;
@@ -87,6 +91,10 @@ export function ClassDrawer({
   // discipline as a mark — one write to the roster at a time).
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [, startPromote] = useTransition();
+  // The member the desk is booking onto this class, if any — drives that result
+  // row's busy state and, like a mark / promote, freezes the rest of the roster.
+  const [bookingMemberId, setBookingMemberId] = useState<string | null>(null);
+  const [, startBook] = useTransition();
 
   const id = instance?.id ?? null;
 
@@ -178,6 +186,36 @@ export function ClassDrawer({
     [id, router, t, toast],
   );
 
+  const runBook = useCallback(
+    (memberId: string) => {
+      if (id === null) {
+        return;
+      }
+      setBookingMemberId(memberId);
+      startBook(async () => {
+        const result = await bookMemberAction(id, memberId);
+        if (result.ok) {
+          setDetail(result.data);
+          // Full occurrences waitlist the member rather than refuse the booking —
+          // read the member's landing status off the refreshed roster so the toast
+          // says which it was.
+          const waitlisted =
+            result.data.roster.find((entry) => entry.memberId === memberId)?.status === 'WAITLIST';
+          toast(t(waitlisted ? 'toast.waitlisted' : 'toast.booked'), {
+            tone: 'success',
+            icon: 'check',
+          });
+          // The occupancy / queue changed — refresh the week grid so the block follows.
+          router.refresh();
+        } else {
+          toast(result.error, { tone: 'danger', icon: 'info' });
+        }
+        setBookingMemberId(null);
+      });
+    },
+    [id, router, t, toast],
+  );
+
   // The header reads from the loaded detail once present, else the clicked
   // summary; the two agree on every shared field.
   const head = detail ?? instance;
@@ -191,9 +229,13 @@ export function ClassDrawer({
   // still SCHEDULED (a canceled / completed class is settled) and the staff holds
   // ClassWrite — the API re-checks both.
   const canPromote = canWrite && status === 'SCHEDULED';
-  // While any roster write (a mark or a promote) is recording, every row's
-  // controls freeze so the desk only ever has one change in flight.
-  const rosterBusy = markingId !== null || promotingId !== null;
+  // The desk can book a member onto the class on their behalf while it is still
+  // SCHEDULED and the staff holds ClassWrite (the same gate as promote); the API
+  // re-checks and honours the capacity/credit rules.
+  const canBook = canWrite && status === 'SCHEDULED';
+  // While any roster write (a mark, a promote, or a desk booking) is recording,
+  // every row's controls freeze so the desk only ever has one change in flight.
+  const rosterBusy = markingId !== null || promotingId !== null || bookingMemberId !== null;
 
   return (
     <>
@@ -263,6 +305,16 @@ export function ClassDrawer({
               onMark={runMark}
               onPromote={runPromote}
             />
+
+            {/* Book a member onto this class from the front desk (T3.7). */}
+            {canBook ? (
+              <BookMember
+                t={t}
+                onBook={runBook}
+                bookingMemberId={bookingMemberId}
+                busy={rosterBusy}
+              />
+            ) : null}
           </div>
         ) : error ? (
           <p role="alert" className="text-sm text-danger-600 dark:text-danger-300">
@@ -589,6 +641,163 @@ function PromoteButton({
       )}
       <span className="hidden sm:inline">{text}</span>
     </button>
+  );
+}
+
+/**
+ * The front-desk "book a member" panel (T3.7). A debounced search over the gym's
+ * members feeds a result list; each result carries a Book control that books that
+ * member onto the occurrence on their behalf (the API honours the same
+ * capacity/credit rules as a member self-book — a held seat or, when the class is
+ * full, a waitlist entry). While any roster write is in flight the whole panel is
+ * frozen, matching the mark / promote discipline (one change at a time).
+ */
+function BookMember({
+  t,
+  onBook,
+  bookingMemberId,
+  busy,
+}: {
+  t: T;
+  onBook: (memberId: string) => void;
+  /** The member whose booking is in flight, if any — its row shows busy. */
+  bookingMemberId: string | null;
+  /** Whether any drawer write is recording — freezes the search + controls. */
+  busy: boolean;
+}) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<MemberSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Debounced member search: a blank query clears the list without a round-trip;
+  // otherwise the search fires 250ms after the last keystroke, and a stale
+  // in-flight response is dropped (`active`) so results can't land out of order.
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setResults([]);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+    setSearching(true);
+    let active = true;
+    const handle = setTimeout(() => {
+      void searchMembersForBookingAction(trimmed).then((result) => {
+        if (!active) {
+          return;
+        }
+        if (result.ok) {
+          setResults(result.data);
+          setSearchError(null);
+        } else {
+          setResults([]);
+          setSearchError(result.error);
+        }
+        setSearching(false);
+      });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [query]);
+
+  const trimmed = query.trim();
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-ink-100 pt-5 dark:border-white/10">
+      <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-400">
+        {t('book.title')}
+      </h3>
+      <Input
+        type="search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={t('book.searchPlaceholder')}
+        aria-label={t('book.searchLabel')}
+        disabled={busy}
+        autoComplete="off"
+      />
+      {!trimmed ? (
+        <p className="text-sm text-ink-400 dark:text-ink-500">{t('book.hint')}</p>
+      ) : searching ? (
+        <p className="text-sm text-ink-400 dark:text-ink-500">{t('book.searching')}</p>
+      ) : searchError ? (
+        <p role="alert" className="text-sm text-danger-600 dark:text-danger-300">
+          {searchError}
+        </p>
+      ) : results.length === 0 ? (
+        <p className="text-sm text-ink-400 dark:text-ink-500">
+          {t('book.noResults', { query: trimmed })}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {results.map((member) => (
+            <BookResultRow
+              key={member.id}
+              member={member}
+              t={t}
+              busy={busy}
+              booking={bookingMemberId === member.id}
+              onBook={onBook}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One member match in the booking search: avatar initials, name/email, and a Book
+ * control that books them onto the occurrence. While any drawer write is in flight
+ * the control is `disabled`, and the one clicked shows a spinner in place of its
+ * icon (mirroring the promote control).
+ */
+function BookResultRow({
+  member,
+  t,
+  busy,
+  booking,
+  onBook,
+}: {
+  member: MemberSearchResult;
+  t: T;
+  busy: boolean;
+  booking: boolean;
+  onBook: (memberId: string) => void;
+}) {
+  const label = member.name?.trim() || member.email;
+  return (
+    <li className="flex items-center gap-3 rounded-card border border-ink-100 bg-white p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-100 text-xs font-bold uppercase text-ink-500 dark:bg-white/10 dark:text-ink-300">
+        {initials(label)}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">{label}</span>
+        {member.name ? <span className="truncate text-xs text-ink-400">{member.email}</span> : null}
+      </div>
+      <button
+        type="button"
+        aria-label={t('book.bookMember', { member: label })}
+        title={t('book.bookMember', { member: label })}
+        onClick={() => onBook(member.id)}
+        disabled={busy}
+        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-btn border border-brand-500 px-2.5 text-xs font-semibold text-brand-600 outline-none transition-colors hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-500/30 disabled:pointer-events-none disabled:opacity-40 dark:border-brand-400/60 dark:text-brand-300 dark:hover:bg-brand-500/10"
+      >
+        {booking ? (
+          <span
+            className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
+            aria-hidden
+          />
+        ) : (
+          <Icon name="plus" className="h-3.5 w-3.5" sw={2.5} />
+        )}
+        <span className="hidden sm:inline">{t('book.action')}</span>
+      </button>
+    </li>
   );
 }
 
