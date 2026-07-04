@@ -3,6 +3,7 @@ import { InvoiceModule } from '../billing/invoice.module';
 import { AdminSubscriptionEnrollmentController } from './admin-subscription-enrollment.controller';
 import { AdminSubscriptionFreezeController } from './admin-subscription-freeze.controller';
 import { PAYMENT_PROVIDER } from './payment-provider';
+import { PaymentWebhookController } from './payment-webhook.controller';
 import { StubPaymentProvider } from './stub-payment-provider';
 import { SubscriptionBillingService } from './subscription-billing.service';
 import { SubscriptionEnrollmentService } from './subscription-enrollment.service';
@@ -29,6 +30,13 @@ import { SubscriptionsController } from './subscriptions.controller';
  * bound here to the MVP {@link StubPaymentProvider} under the {@link PAYMENT_PROVIDER}
  * token so the real gateway (T8.8) drops in without touching the job. Prisma + Redis
  * come from their global modules; the cron runs off the app-wide `ScheduleModule`.
+ *
+ * {@link PaymentWebhookController} (`POST /webhooks/payments/:provider`) is the
+ * inbound counterpart of that seam — the public entry point a real gateway posts
+ * events back to. It dispatches to whichever provider is bound under
+ * {@link PAYMENT_PROVIDER}, so it too lights up when the real integration lands
+ * without a controller change (the stub declares no webhook handler, so its route
+ * answers `501` today).
  */
 @Module({
   imports: [InvoiceModule],
@@ -36,6 +44,7 @@ import { SubscriptionsController } from './subscriptions.controller';
     SubscriptionsController,
     AdminSubscriptionEnrollmentController,
     AdminSubscriptionFreezeController,
+    PaymentWebhookController,
   ],
   providers: [
     SubscriptionFreezeService,

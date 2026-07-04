@@ -46,6 +46,31 @@ export type RenewalChargeResult =
   | { outcome: 'failed'; reason: string };
 
 /**
+ * One inbound gateway webhook, as received by `PaymentWebhookController`
+ * (`POST /webhooks/payments/:provider`) before it reaches a provider. `providerKey`
+ * is the matched `:provider` path segment; `headers` carry the gateway's signature
+ * (e.g. `stripe-signature`, TBC / BOG callback auth); `payload` is the parsed JSON
+ * body. A signature-verifying provider needs the *raw* request bytes rather than the
+ * re-serialised `payload` — enabling `rawBody` on the Nest app and threading it here
+ * is the one wiring change the real integration adds (see the ADR).
+ */
+export interface PaymentWebhookInput {
+  providerKey: string;
+  headers: Record<string, string | string[] | undefined>;
+  payload: unknown;
+}
+
+/**
+ * The outcome of handling a webhook. `handled` reports whether the event moved any
+ * state — an unrecognised or duplicate event is a legitimate `handled: false`, still
+ * a `200` so the gateway stops retrying — and `note` is a short line for the
+ * log / audit trail. A provider throws only on a *rejected* event (bad signature),
+ * which the controller maps to `400`; a genuinely transient failure is left to the
+ * gateway to redeliver.
+ */
+export type PaymentWebhookResult = { handled: boolean; note?: string };
+
+/**
  * The provider seam. Named `PaymentProvider` and bound under {@link PAYMENT_PROVIDER}.
  * `key` is the value persisted to `Subscription.provider` so a subscription records
  * which provider last settled it.
@@ -56,4 +81,14 @@ export interface PaymentProvider {
 
   /** Attempt to charge one subscription's renewal. Must be idempotent on `idempotencyKey`. */
   chargeRenewal(input: RenewalChargeInput): Promise<RenewalChargeResult>;
+
+  /**
+   * Handle one inbound gateway webhook. Optional: a provider with no upstream
+   * gateway (the stub) omits it, and `PaymentWebhookController` then answers `501`
+   * for its route so a stray webhook is refused rather than silently swallowed. A
+   * real gateway implements it to verify the signature and reconcile the event
+   * (charge settled, dispute opened, subscription cancelled upstream). Must be
+   * idempotent on the gateway's event id — gateways redeliver.
+   */
+  handleWebhook?(input: PaymentWebhookInput): Promise<PaymentWebhookResult>;
 }

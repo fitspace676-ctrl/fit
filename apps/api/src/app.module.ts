@@ -179,9 +179,11 @@ export class AppModule implements NestModule {
    *    (`GET /class-instances`, `GET /class-instances/:id`, `GET /trainers`,
    *    `GET /trainers/:id/reviews`, `GET /packages`, `GET /products`) — which an unauthenticated
    *    visitor browses on a gym subdomain and which carry their `gymId` as a
-   *    query param rather than a session — and the public tenant lookup
-   *    (`GET /gyms/by-subdomain/:slug`)
-   *    the member site resolves before any session exists. A session always
+   *    query param rather than a session — the public tenant lookup
+   *    (`GET /gyms/by-subdomain/:slug`) the member site resolves before any
+   *    session exists, and the payment-gateway webhooks (`/webhooks/*`) a
+   *    provider posts tokenless, naming their own gym inside a signed payload.
+   *    A session always
    *    wins over the subdomain, and an
    *    unauthenticated request to a protected route is still rejected here.
    *    (`/uploads` is no longer excluded — it now runs behind the session and
@@ -206,6 +208,7 @@ export class AppModule implements NestModule {
         { path: 'cart', method: RequestMethod.ALL },
         { path: 'cart/(.*)', method: RequestMethod.ALL },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
+        { path: 'webhooks/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');
     // The cart is reachable signed-in or anonymously, so it is excluded from the
