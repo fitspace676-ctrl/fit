@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import {
   Permission,
   createProductSchema,
+  productVariantSchema,
   roleHasPermission,
   updateProductSchema,
   type CreateProductInput,
@@ -16,6 +17,7 @@ import {
   createProduct,
   createUpload,
   deactivateProduct,
+  fetchProduct,
   reactivateProduct,
   updateProduct,
   type SignedUploadResponse,
@@ -139,6 +141,81 @@ export async function requestProductImageUploadAction(input: {
   try {
     const signed = await createUpload({ ...input, entity: 'products' });
     return { ok: true, data: signed };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/** The on-hand count rules a stock adjustment must satisfy — the canonical variant `stock` shape. */
+const adjustStockValueSchema = productVariantSchema.shape.stock;
+
+/**
+ * Adjust a single variant's on-hand stock from the inventory / low-stock view (T4.7).
+ *
+ * A product's variants are edited as a whole (there is no dedicated stock column —
+ * they live in the product's `variants` JSON), so rather than add a new endpoint
+ * this reuses the existing `PATCH /admin/products/:id`: it reads the product's
+ * current detail, replaces just the target variant's `stock` with the new absolute
+ * count, and writes the otherwise-unchanged profile back. Reading immediately
+ * before the write keeps the rest of the product current, so the adjustment only
+ * ever moves the one number the staffer touched.
+ *
+ * Enforces `ProductWrite` (defence in depth behind the route middleware and the API
+ * guard), validates the new count against the shared variant `stock` rules, and — on
+ * success — refreshes the catalog, the low-stock report and the product's detail so
+ * every surface reflects the new number. A `variantIndex` that no longer resolves
+ * (the product was edited from under the staffer) is a friendly reload prompt, not a
+ * crash.
+ */
+export async function adjustVariantStockAction(
+  productId: string,
+  variantIndex: number,
+  stock: number,
+): Promise<ActionResult<{ stock: number }>> {
+  if (!(await requireProductWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const parsedStock = adjustStockValueSchema.safeParse(stock);
+  if (!parsedStock.success) {
+    return { ok: false, error: parsedStock.error.issues[0]?.message ?? 'Invalid stock count' };
+  }
+  try {
+    const product = await fetchProduct(productId);
+    if (
+      !Number.isInteger(variantIndex) ||
+      variantIndex < 0 ||
+      variantIndex >= product.variants.length
+    ) {
+      return {
+        ok: false,
+        error: 'That variant no longer exists — reload the page and try again.',
+      };
+    }
+    const variants = product.variants.map((variant, index) =>
+      index === variantIndex ? { ...variant, stock: parsedStock.data } : variant,
+    );
+    // `safeParse` takes `unknown`, so build the update body inline (no typed
+    // intermediate) — the schema normalises the read-back detail into the exact
+    // wire shape `PATCH /admin/products/:id` expects, changing only the one stock.
+    const parsed = updateProductSchema.safeParse({
+      name: product.name,
+      description: product.description,
+      priceAmount: product.priceAmount,
+      currency: product.currency,
+      images: product.images,
+      variants,
+    });
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid product details' };
+    }
+    await updateProduct(productId, parsed.data);
+    revalidatePath('/products');
+    revalidatePath('/products/low-stock');
+    revalidatePath(`/products/${productId}`);
+    return {
+      ok: true,
+      data: { stock: parsed.data.variants[variantIndex]?.stock ?? parsedStock.data },
+    };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }
