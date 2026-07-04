@@ -1,6 +1,13 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { GymMemberStatus, PaymentStatus, Prisma, Role, SubscriptionStatus } from '@fit/db';
+import {
+  DEFAULT_FREEZE_DAYS_PER_PERIOD,
+  GymMemberStatus,
+  PaymentStatus,
+  Prisma,
+  Role,
+  SubscriptionStatus,
+} from '@fit/db';
 import type {
   BulkExportMembersInput,
   BulkExportMembersResponse,
@@ -59,7 +66,9 @@ const LIVE_SUBSCRIPTION_SELECT = {
   interval: true,
   currentPeriodStart: true,
   currentPeriodEnd: true,
-  plan: { select: { name: true } },
+  frozenUntil: true,
+  freezeDaysUsed: true,
+  plan: { select: { name: true, freezeDaysPerPeriod: true } },
 } satisfies Prisma.SubscriptionSelect;
 
 /**
@@ -651,6 +660,9 @@ export class MembersService {
       currentPeriodEnd: sub.currentPeriodEnd.toISOString(),
       daysRemaining,
       color: sub.planId ? this.planColor(sub.planId) : (PLAN_COLORS[0] ?? null),
+      frozenUntil: sub.frozenUntil ? sub.frozenUntil.toISOString() : null,
+      freezeDaysPerPeriod: sub.plan?.freezeDaysPerPeriod ?? DEFAULT_FREEZE_DAYS_PER_PERIOD,
+      freezeDaysUsed: sub.freezeDaysUsed,
     };
   }
 

@@ -63,6 +63,9 @@ import type {
   SetSubscriptionPlanStatusResponse,
   UpdateSubscriptionPlanData,
   UpdateSubscriptionPlanResponse,
+  FreezeSubscriptionData,
+  FreezeSubscriptionResponse,
+  UnfreezeSubscriptionResponse,
   ListAdminClassTemplatesQuery,
   ListAdminClassTemplatesResponse,
   CreateClassTemplateData,
@@ -703,6 +706,40 @@ export async function reactivateSubscriptionPlan(
     },
   );
   return unwrap<SetSubscriptionPlanStatusResponse>(res);
+}
+
+/**
+ * `POST /admin/subscriptions/:id/freeze` — pause a *member's* subscription from the
+ * console. `id` is the subscription id (not a plan id); the body carries the
+ * `startDate` + `durationDays`. Surfaces the API's `EXCEEDS_FREEZE_ALLOWANCE` etc.
+ * as an {@link ApiError}.
+ */
+export async function freezeMemberSubscription(
+  id: string,
+  input: FreezeSubscriptionData,
+): Promise<FreezeSubscriptionResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/subscriptions/${encodeURIComponent(id)}/freeze`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<FreezeSubscriptionResponse>(res);
+}
+
+/** `POST /admin/subscriptions/:id/unfreeze` — resume a member's frozen subscription. */
+export async function unfreezeMemberSubscription(
+  id: string,
+): Promise<UnfreezeSubscriptionResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/subscriptions/${encodeURIComponent(id)}/unfreeze`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<UnfreezeSubscriptionResponse>(res);
 }
 
 // ── Class templates (T5.2) ────────────────────────────────────────────────────

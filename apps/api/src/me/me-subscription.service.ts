@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { DEFAULT_FREEZE_DAYS_PER_PERIOD } from '@fit/db';
 import type { GetMeSubscriptionResponse } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -40,11 +41,20 @@ export class MeSubscriptionService {
     const subscription = await this.prisma.client.subscription.findFirst({
       where: { memberId: member.id },
       orderBy: { createdAt: 'desc' },
-      include: { plan: { select: { name: true } } },
+      include: { plan: { select: { name: true, freezeDaysPerPeriod: true } } },
     });
     if (!subscription) {
       return { subscription: null, invoices: [] };
     }
+
+    // The plan's freeze allowance and this period's committed usage, so the
+    // Membership screen can show "N days remaining" and pre-empt the server's
+    // 422 EXCEEDS_FREEZE_ALLOWANCE. A plan-less subscription falls back to the
+    // schema default the freeze service also assumes.
+    const freezeDaysPerPeriod =
+      subscription.plan?.freezeDaysPerPeriod ?? DEFAULT_FREEZE_DAYS_PER_PERIOD;
+    const freezeDaysUsed = subscription.freezeDaysUsed;
+    const freezeDaysRemaining = Math.max(0, freezeDaysPerPeriod - freezeDaysUsed);
 
     return {
       subscription: {
@@ -57,7 +67,11 @@ export class MeSubscriptionService {
         currentPeriodStart: subscription.currentPeriodStart.toISOString(),
         currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        frozenAt: subscription.frozenAt ? subscription.frozenAt.toISOString() : null,
         frozenUntil: subscription.frozenUntil ? subscription.frozenUntil.toISOString() : null,
+        freezeDaysPerPeriod,
+        freezeDaysUsed,
+        freezeDaysRemaining,
         memberSince: member.joinedAt.toISOString(),
       },
       // Recurring-billing payments aren't recorded yet (provider="stub", T8.8), so

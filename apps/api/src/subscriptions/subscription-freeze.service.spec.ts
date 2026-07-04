@@ -218,3 +218,76 @@ describe('SubscriptionFreezeService.unfreeze', () => {
     await expect(service.unfreeze('missing')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+describe('SubscriptionFreezeService staff variants', () => {
+  it('freezeForStaff freezes without resolving a caller membership', async () => {
+    const { service, memberFindFirst, subscriptionUpdate } = setup();
+
+    const result = await service.freezeForStaff('sub-1', freezeInput({ durationDays: 10 }));
+
+    expect(result).toEqual({ frozenUntil: '2026-06-20T00:00:00.000Z' });
+    // Staff act on the member — no self-membership lookup — but the subscription is
+    // still tenant-scoped by the id alone (no `memberId` requirement).
+    expect(memberFindFirst).not.toHaveBeenCalled();
+    expect(subscriptionUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: SubscriptionStatus.FROZEN,
+      freezeDaysUsed: 10,
+    });
+  });
+
+  it('freezeForStaff still enforces the plan allowance (422)', async () => {
+    const { service } = setup({
+      subscription: subscription({ freezeDaysUsed: 12, plan: { freezeDaysPerPeriod: 14 } }),
+    });
+
+    const error = await rejection(
+      service.freezeForStaff('sub-1', freezeInput({ durationDays: 5 })),
+    );
+
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect(error.getResponse()).toMatchObject({
+      code: 'EXCEEDS_FREEZE_ALLOWANCE',
+      remainingDays: 2,
+    });
+  });
+
+  it('freezeForStaff 404s an unknown / cross-tenant subscription', async () => {
+    const { service } = setup({ subscription: null });
+
+    await expect(service.freezeForStaff('missing', freezeInput())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('unfreezeForStaff resumes a frozen subscription without a membership lookup', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T00:00:00.000Z'));
+    const { service, memberFindFirst, subscriptionUpdate } = setup({
+      subscription: subscription({
+        status: SubscriptionStatus.FROZEN,
+        frozenAt: new Date('2026-06-10T00:00:00.000Z'),
+        frozenUntil: new Date('2026-06-20T00:00:00.000Z'),
+        currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
+      }),
+    });
+
+    const result = await service.unfreezeForStaff('sub-1');
+
+    expect(result).toEqual({ newPeriodEnd: '2026-07-04T00:00:00.000Z' });
+    expect(memberFindFirst).not.toHaveBeenCalled();
+    expect(subscriptionUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+    });
+  });
+
+  it('unfreezeForStaff rejects a subscription that is not frozen (409 NOT_FROZEN)', async () => {
+    const { service } = setup({
+      subscription: subscription({ status: SubscriptionStatus.ACTIVE }),
+    });
+
+    const error = await rejection(service.unfreezeForStaff('sub-1'));
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect(error.getResponse()).toMatchObject({ code: 'NOT_FROZEN' });
+  });
+});
