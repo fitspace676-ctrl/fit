@@ -5,7 +5,7 @@ import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
 import { Badge, Icon, type Tone } from '@/components/ui';
-import { formatPrice, intervalLabel, intervalSuffix } from '../format';
+import { creditsLabel, formatPrice, intervalLabel, intervalSuffix } from '../format';
 import { PlanActions } from './plan-actions';
 
 export const metadata: Metadata = {
@@ -118,6 +118,24 @@ export default async function SubscriptionPlanDetailPage({
             Billing
           </span>
           <span className="text-ink-800 dark:text-ink-100">{intervalLabel(plan.interval)}</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Credits
+          </span>
+          <span className="text-ink-800 dark:text-ink-100">
+            {creditsLabel(plan.includedCredits)}
+          </span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Freeze allowance
+          </span>
+          <span className="text-ink-800 dark:text-ink-100">
+            {plan.freezeDaysPerPeriod > 0
+              ? `${plan.freezeDaysPerPeriod} days / period`
+              : 'No freezing'}
+          </span>
         </div>
       </section>
 

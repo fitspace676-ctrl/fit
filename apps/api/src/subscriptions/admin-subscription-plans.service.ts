@@ -29,6 +29,7 @@ const SUBSCRIPTION_PLAN_SELECT = {
   interval: true,
   features: true,
   freezeDaysPerPeriod: true,
+  includedCredits: true,
   popular: true,
   status: true,
   createdAt: true,
@@ -159,6 +160,8 @@ export class AdminSubscriptionPlansService {
         interval: input.interval,
         features: input.features,
         popular: input.popular,
+        freezeDaysPerPeriod: input.freezeDaysPerPeriod,
+        includedCredits: input.includedCredits,
         status: input.status,
       },
       select: SUBSCRIPTION_PLAN_SELECT,
@@ -189,6 +192,8 @@ export class AdminSubscriptionPlansService {
         interval: input.interval,
         features: input.features,
         popular: input.popular,
+        freezeDaysPerPeriod: input.freezeDaysPerPeriod,
+        includedCredits: input.includedCredits,
       },
     });
     return this.getSubscriptionPlan(id);
@@ -296,6 +301,7 @@ export class AdminSubscriptionPlansService {
       featureCount: row.features.length,
       features: row.features,
       freezeDaysPerPeriod: row.freezeDaysPerPeriod,
+      includedCredits: row.includedCredits,
       subscriberCount,
       popular: row.popular,
       status: row.status,

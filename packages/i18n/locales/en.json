@@ -1076,6 +1076,7 @@
       "live": "Live",
       "off": "Off",
       "freeze": "{days}d freeze",
+      "credits": "{count} credits / period",
       "edit": "Edit",
       "popular": "Popular",
       "perksNone": "No perks listed",

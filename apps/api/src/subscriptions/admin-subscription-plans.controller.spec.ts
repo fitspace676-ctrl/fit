@@ -18,6 +18,7 @@ const detail = (
   interval: 'MONTH',
   featureCount: 0,
   freezeDaysPerPeriod: 30,
+  includedCredits: 0,
   subscriberCount: 0,
   popular: false,
   status: 'ACTIVE',
@@ -98,6 +99,8 @@ describe('AdminSubscriptionPlansController', () => {
           popular: false,
           status: 'ACTIVE',
           features: [],
+          freezeDaysPerPeriod: 30,
+          includedCredits: 0,
         }),
       );
     });

@@ -294,13 +294,21 @@ function PlanCard({
         </span>
       </div>
 
-      {/* freeze allowance */}
-      {plan.freezeDaysPerPeriod > 0 ? (
+      {/* credits + freeze allowance */}
+      {plan.includedCredits > 0 || plan.freezeDaysPerPeriod > 0 ? (
         <div className="mt-3.5 flex flex-wrap gap-1.5">
-          <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
-            <Icon name="clock" className="h-3 w-3" sw={2} />
-            {t('freeze', { days: plan.freezeDaysPerPeriod })}
-          </span>
+          {plan.includedCredits > 0 ? (
+            <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
+              <Icon name="ticket" className="h-3 w-3" sw={2} />
+              {t('credits', { count: plan.includedCredits })}
+            </span>
+          ) : null}
+          {plan.freezeDaysPerPeriod > 0 ? (
+            <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
+              <Icon name="clock" className="h-3 w-3" sw={2} />
+              {t('freeze', { days: plan.freezeDaysPerPeriod })}
+            </span>
+          ) : null}
         </div>
       ) : null}
 

@@ -20,6 +20,7 @@ interface SubscriptionPlanRecord {
   interval: SubscriptionInterval;
   features: string[];
   freezeDaysPerPeriod: number;
+  includedCredits: number;
   popular: boolean;
   status: SubscriptionPlanStatus;
   createdAt: Date;
@@ -56,6 +57,7 @@ const row = (over?: Partial<SubscriptionPlanRecord>): SubscriptionPlanRecord => 
   interval: SubscriptionInterval.MONTH,
   features: ['Unlimited access', 'Free guest passes'],
   freezeDaysPerPeriod: 30,
+  includedCredits: 10,
   popular: true,
   status: SubscriptionPlanStatus.ACTIVE,
   createdAt: new Date('2026-03-01T00:00:00.000Z'),
@@ -128,6 +130,8 @@ const createInput = (over?: Partial<CreateSubscriptionPlanData>): CreateSubscrip
   interval: 'MONTH',
   features: ['Unlimited access', 'Free guest passes'],
   popular: true,
+  freezeDaysPerPeriod: 30,
+  includedCredits: 10,
   status: 'ACTIVE',
   ...over,
 });
@@ -140,6 +144,8 @@ const updateInput = (over?: Partial<UpdateSubscriptionPlanData>): UpdateSubscrip
   interval: 'YEAR',
   features: ['Unlimited access'],
   popular: false,
+  freezeDaysPerPeriod: 15,
+  includedCredits: 5,
   ...over,
 });
 
@@ -167,6 +173,7 @@ describe('AdminSubscriptionPlansService', () => {
             featureCount: 2,
             features: ['Unlimited access', 'Free guest passes'],
             freezeDaysPerPeriod: 30,
+            includedCredits: 10,
             subscriberCount: 12,
             popular: true,
             status: 'ACTIVE',
@@ -272,6 +279,7 @@ describe('AdminSubscriptionPlansService', () => {
         interval: 'MONTH',
         featureCount: 2,
         freezeDaysPerPeriod: 30,
+        includedCredits: 10,
         subscriberCount: 7,
         popular: true,
         status: 'ACTIVE',
@@ -309,6 +317,8 @@ describe('AdminSubscriptionPlansService', () => {
         interval: 'YEAR',
         features: ['Unlimited access', 'Free guest passes'],
         popular: true,
+        freezeDaysPerPeriod: 30,
+        includedCredits: 10,
         status: 'INACTIVE',
       });
     });
@@ -330,6 +340,8 @@ describe('AdminSubscriptionPlansService', () => {
         interval: 'YEAR',
         features: ['Unlimited access'],
         popular: false,
+        freezeDaysPerPeriod: 15,
+        includedCredits: 5,
       });
       expect(data).not.toHaveProperty('status');
     });
