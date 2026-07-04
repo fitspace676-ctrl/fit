@@ -209,7 +209,12 @@ export class OrdersService {
     const where = buildOrderWhere(query);
     const skip = (query.page - 1) * query.limit;
 
-    const [rows, total] = await Promise.all([
+    // The roster page, the filtered count, and the summary totals in one round
+    // trip. `grossTotal` sums the orders' `total`; `refundedTotal` sums the
+    // running `refundedAmount` off the matching orders' payments (an unpaid order
+    // has no payment and so contributes nothing); `currency` is read off the
+    // newest matching order so the tiles format in the roster's own currency.
+    const [rows, total, grossAgg, refundAgg, currencyRow] = await Promise.all([
       this.prisma.client.order.findMany({
         where,
         select: ORDER_ROW_SELECT,
@@ -218,13 +223,33 @@ export class OrdersService {
         take: query.limit,
       }),
       this.prisma.client.order.count({ where }),
+      this.prisma.client.order.aggregate({ where, _sum: { total: true } }),
+      this.prisma.client.payment.aggregate({
+        where: { order: where },
+        _sum: { refundedAmount: true },
+      }),
+      this.prisma.client.order.findFirst({
+        where,
+        select: { currency: true },
+        orderBy: { createdAt: 'desc' },
+      }),
     ]);
+
+    const grossTotal = grossAgg._sum.total ?? 0;
+    const refundedTotal = refundAgg._sum.refundedAmount ?? 0;
 
     return {
       data: rows.map((row) => toOrderRow(row)),
       total,
       page: query.page,
       limit: query.limit,
+      summary: {
+        orderCount: total,
+        grossTotal,
+        refundedTotal,
+        netTotal: grossTotal - refundedTotal,
+        currency: currencyRow?.currency ?? DEFAULT_ROSTER_CURRENCY,
+      },
     };
   }
 
@@ -497,6 +522,13 @@ type TenantTransactionClient = Omit<
   TenantPrismaService['client'],
   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
 >;
+
+/**
+ * The currency the roster summary falls back to when the filtered set is empty
+ * (no order to read a currency off). The gym trades in a single currency this
+ * milestone — Georgian lari — so an empty roster still formats its zeroed tiles.
+ */
+const DEFAULT_ROSTER_CURRENCY = 'GEL';
 
 /** The columns the admin roster / export queries select off an order. */
 const ORDER_ROW_SELECT = {
