@@ -636,7 +636,16 @@
     "bookingUpdatesHint": "Waitlist promotions, cancellations, and changes.",
     "promotions": "Promotions",
     "promotionsHint": "Offers and news from your gym.",
-    "disabledHint": "Enable push notifications to manage categories."
+    "disabledHint": "Enable push notifications to manage categories.",
+    "inboxTitle": "Notifications",
+    "back": "Back",
+    "settings": "Notification settings",
+    "markAllRead": "Mark all read",
+    "empty": "You're all caught up",
+    "emptyHint": "New reminders and updates will show up here.",
+    "error": "We couldn't load your notifications.",
+    "retry": "Try again",
+    "timeNow": "now"
   },
   "qr": {
     "title": "Check in",
