@@ -911,6 +911,7 @@
       "reports": "Reports",
       "locations": "Locations",
       "activity": "Activity",
+      "auditLog": "Audit log",
       "settings": "Settings"
     },
     "system": {
@@ -1092,6 +1093,39 @@
         "justNow": "just now",
         "minutes": "{minutes}m ago",
         "hours": "{hours}h ago"
+      }
+    },
+    "activity": {
+      "title": "Activity",
+      "subtitle": "Everything happening across your gym, as it happens.",
+      "live": "Live",
+      "filters": {
+        "all": "All",
+        "from": "From",
+        "to": "To",
+        "clear": "Clear"
+      },
+      "types": {
+        "signup": "New members",
+        "booking": "Bookings",
+        "checkin": "Check-ins",
+        "sale": "Sales",
+        "subscription": "Subscriptions"
+      },
+      "empty": "No activity matches your filters yet.",
+      "error": "Could not load the activity feed ({status}): {message}",
+      "errorUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+      "guest": "Guest",
+      "pager": {
+        "range": "{from}–{to} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "relative": {
+        "justNow": "just now",
+        "minutes": "{mins}m ago",
+        "hours": "{hours}h ago",
+        "days": "{days}d ago"
       }
     },
     "schedule": {
