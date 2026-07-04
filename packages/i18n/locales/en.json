@@ -638,12 +638,18 @@
     "disabledHint": "Enable push notifications to manage categories."
   },
   "qr": {
-    "title": "Check-in",
-    "subtitle": "Show this code at the front desk to check in.",
+    "title": "Check in",
+    "subtitle": "Hold this up to the scanner at the front desk.",
     "instruction": "Hold your phone up to the scanner at reception.",
     "memberId": "Member ID",
     "brightnessHint": "Turn your screen brightness up for a faster scan.",
-    "signedOut": "Sign in to get your check-in code."
+    "signedOut": "Sign in to get your check-in code.",
+    "boost": "Boost brightness",
+    "refreshesIn": "Refreshes in {time}",
+    "daysLeft": "days left",
+    "recentTitle": "Recent check-ins",
+    "recentEmpty": "No check-ins yet",
+    "yesterday": "Yesterday"
   },
   "errors": {
     "forbidden": {

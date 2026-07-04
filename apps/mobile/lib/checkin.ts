@@ -17,15 +17,26 @@ export interface CheckInIdentity {
   userId: string;
   /** The active gym scope, or `null` for a scopeless session. */
   gymId?: string | null;
+  /**
+   * An optional freshness token appended as `&t=<nonce>`. The identity the
+   * scanner resolves (member + gym) is unchanged by it, so a scanner ignores it;
+   * rotating it on a timer just makes the on-screen "refreshes in…" countdown
+   * honest — the painted code genuinely changes each window, so a stale
+   * screenshot of the pass no longer matches the live one. Omit it for a stable,
+   * fully deterministic code.
+   */
+  nonce?: string | number | null;
 }
 
 /**
  * Build the URI encoded into the member's check-in QR, e.g.
  * `fitspace://checkin?member=<userId>&gym=<gymId>`. The `gym` parameter is
- * omitted for a scopeless session. Deterministic for a given identity.
+ * omitted for a scopeless session, and a `t=<nonce>` freshness token is appended
+ * only when one is supplied. Deterministic for a given identity + nonce.
  */
-export function buildCheckInPayload({ userId, gymId }: CheckInIdentity): string {
+export function buildCheckInPayload({ userId, gymId, nonce }: CheckInIdentity): string {
   const params = [`member=${encodeURIComponent(userId)}`];
   if (gymId) params.push(`gym=${encodeURIComponent(gymId)}`);
+  if (nonce != null && nonce !== '') params.push(`t=${encodeURIComponent(String(nonce))}`);
   return `${CHECK_IN_SCHEME}?${params.join('&')}`;
 }
