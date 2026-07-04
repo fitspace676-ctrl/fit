@@ -28,7 +28,7 @@ export function WizardShell({ step, children }: WizardShellProps) {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
-        <p className="text-sm font-medium text-slate-500">
+        <p className="text-sm font-medium text-ink-500 dark:text-ink-400">
           {t('progress', { current: step, total: WIZARD_STEP_COUNT })}
         </p>
 
@@ -41,13 +41,17 @@ export function WizardShell({ step, children }: WizardShellProps) {
               <li key={key} className="flex flex-1 flex-col gap-1.5">
                 <span
                   className={`h-1.5 rounded-full transition-colors ${
-                    active || complete ? 'bg-brand-600' : 'bg-slate-200'
+                    active || complete ? 'bg-brand-600' : 'bg-ink-200 dark:bg-white/10'
                   }`}
                   aria-current={active ? 'step' : undefined}
                 />
                 <span
                   className={`text-xs font-medium ${
-                    active ? 'text-brand-700' : complete ? 'text-slate-600' : 'text-slate-400'
+                    active
+                      ? 'text-brand-700 dark:text-brand-300'
+                      : complete
+                        ? 'text-ink-600 dark:text-ink-300'
+                        : 'text-ink-400 dark:text-ink-500'
                   }`}
                 >
                   {t(`steps.${key}`)}

@@ -138,17 +138,21 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
   }, [selectedId, effectiveLocationId, pathname, router]);
 
   if (load.status === 'loading') {
-    return <p className="py-16 text-center text-sm text-slate-400">{t('packages.loading')}</p>;
+    return (
+      <p className="py-16 text-center text-sm text-ink-400 dark:text-ink-500">
+        {t('packages.loading')}
+      </p>
+    );
   }
 
   if (load.status === 'error') {
     return (
       <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <p className="text-sm text-slate-500">{t('packages.error')}</p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('packages.error')}</p>
         <button
           type="button"
           onClick={() => setLoad((prev) => ({ ...prev, status: 'loading' }))}
-          className="rounded-card border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+          className="rounded-card border border-ink-200 dark:border-white/10 px-4 py-2 text-sm font-medium text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
         >
           {t('packages.retry')}
         </button>
@@ -160,14 +164,16 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
     return (
       <div className="flex flex-col gap-6">
         <div className="flex flex-col items-center gap-2 py-16 text-center">
-          <p className="text-sm font-medium text-slate-900">{t('packages.empty.title')}</p>
-          <p className="text-sm text-slate-500">{t('packages.empty.subtitle')}</p>
+          <p className="text-sm font-medium text-ink-900 dark:text-white">
+            {t('packages.empty.title')}
+          </p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{t('packages.empty.subtitle')}</p>
         </div>
         <div className="flex justify-start">
           <button
             type="button"
             onClick={onBack}
-            className="rounded-card border border-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
           >
             {t('back')}
           </button>
@@ -179,8 +185,10 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-slate-900">{t('packages.title')}</h2>
-        <p className="text-sm text-slate-500">{t('packages.subtitle')}</p>
+        <h2 className="text-lg font-semibold text-ink-900 dark:text-white">
+          {t('packages.title')}
+        </h2>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('packages.subtitle')}</p>
       </div>
 
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -208,7 +216,7 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
         <button
           type="button"
           onClick={onBack}
-          className="rounded-card border border-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+          className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
         >
           {t('back')}
         </button>
@@ -216,7 +224,7 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
           type="button"
           disabled={!selectedId}
           onClick={onContinue}
-          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
         >
           {t('continue')}
         </button>
@@ -269,7 +277,7 @@ function PackageCard({
             ? 'border-brand-600 ring-1 ring-brand-600'
             : pkg.popular
               ? 'border-brand-300 hover:border-brand-400'
-              : 'border-slate-200 hover:border-slate-300'
+              : 'border-ink-200 dark:border-white/10 hover:border-ink-300 dark:hover:border-white/20'
         }`}
       >
         {pkg.popular ? (
@@ -280,12 +288,16 @@ function PackageCard({
 
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-slate-900">{pkg.name}</span>
-            <span className="text-xs font-medium text-slate-500">{sessionsLabel}</span>
+            <span className="font-semibold text-ink-900 dark:text-white">{pkg.name}</span>
+            <span className="text-xs font-medium text-ink-500 dark:text-ink-400">
+              {sessionsLabel}
+            </span>
           </div>
           <span
             className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-              selected ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'
+              selected
+                ? 'bg-brand-600 text-white'
+                : 'bg-ink-100 dark:bg-white/10 text-ink-500 dark:text-ink-400'
             }`}
           >
             {selected ? selectedLabel : selectLabel}
@@ -293,14 +305,20 @@ function PackageCard({
         </div>
 
         <p className="flex items-baseline gap-1">
-          <span className="text-2xl font-bold tracking-tight text-slate-900">{price}</span>
-          {priceSuffix ? <span className="text-sm text-slate-500">{priceSuffix}</span> : null}
+          <span className="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
+            {price}
+          </span>
+          {priceSuffix ? (
+            <span className="text-sm text-ink-500 dark:text-ink-400">{priceSuffix}</span>
+          ) : null}
         </p>
 
-        {pkg.description ? <p className="text-sm text-slate-500">{pkg.description}</p> : null}
+        {pkg.description ? (
+          <p className="text-sm text-ink-500 dark:text-ink-400">{pkg.description}</p>
+        ) : null}
 
         {pkg.features.length > 0 ? (
-          <ul className="flex flex-col gap-2 text-sm text-slate-600">
+          <ul className="flex flex-col gap-2 text-sm text-ink-600 dark:text-ink-300">
             {pkg.features.map((feature) => (
               <li key={feature} className="flex items-start gap-2">
                 <svg

@@ -144,18 +144,24 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
   );
 
   if (isLoading) {
-    return <p className="py-16 text-center text-sm text-slate-400">{t('details.loading')}</p>;
+    return (
+      <p className="py-16 text-center text-sm text-ink-400 dark:text-ink-500">
+        {t('details.loading')}
+      </p>
+    );
   }
 
   if (user) {
     return (
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold text-slate-900">{t('details.title')}</h2>
-          <p className="text-sm text-slate-500">{t('details.subtitle')}</p>
+          <h2 className="text-lg font-semibold text-ink-900 dark:text-white">
+            {t('details.title')}
+          </h2>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{t('details.subtitle')}</p>
         </div>
 
-        <div className="flex items-start gap-3 rounded-card border border-brand-200 bg-brand-50 p-4">
+        <div className="flex items-start gap-3 rounded-card border border-brand-200 bg-brand-50 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
           <svg
             viewBox="0 0 20 20"
             fill="currentColor"
@@ -168,14 +174,14 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
               clipRule="evenodd"
             />
           </svg>
-          <p className="text-sm text-slate-700">{t('details.signedIn')}</p>
+          <p className="text-sm text-ink-700 dark:text-ink-200">{t('details.signedIn')}</p>
         </div>
 
         <div className="flex justify-between gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="rounded-card border border-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
           >
             {t('back')}
           </button>
@@ -183,7 +189,7 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
             type="button"
             disabled={!gymId || !effectivePackageId}
             onClick={onContinueSignedIn}
-            className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+            className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
           >
             {t('continue')}
           </button>
@@ -195,12 +201,15 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
   return (
     <form onSubmit={onSubmitGuest} className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-slate-900">{t('details.title')}</h2>
-        <p className="text-sm text-slate-500">{t('details.guestSubtitle')}</p>
+        <h2 className="text-lg font-semibold text-ink-900 dark:text-white">{t('details.title')}</h2>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('details.guestSubtitle')}</p>
       </div>
 
       {error ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-600">
+        <p
+          role="alert"
+          className="rounded-card bg-danger-50 dark:bg-danger-500/10 px-3 py-2 text-sm text-danger-600 dark:text-danger-400"
+        >
           {error}
         </p>
       ) : null}
@@ -245,14 +254,14 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
           type="button"
           onClick={onBack}
           disabled={pending}
-          className="rounded-card border border-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+          className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5 disabled:opacity-60"
         >
           {t('back')}
         </button>
         <button
           type="submit"
           disabled={pending || !gymId || !effectivePackageId}
-          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
         >
           {pending ? t('details.submitting') : t('continue')}
         </button>
@@ -282,14 +291,14 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5 text-left">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-ink-700 dark:text-ink-200">{label}</span>
       <input
         {...props}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-card border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:opacity-60"
+        className="rounded-card border border-ink-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-ink-900 dark:text-white outline-none transition-colors placeholder:text-ink-400 dark:placeholder:text-ink-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:opacity-60"
       />
-      {hint ? <span className="text-xs text-slate-400">{hint}</span> : null}
+      {hint ? <span className="text-xs text-ink-400 dark:text-ink-500">{hint}</span> : null}
     </label>
   );
 }

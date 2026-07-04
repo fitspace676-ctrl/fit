@@ -43,17 +43,19 @@ export default async function CheckoutSuccessPage({
   const order = sp.orderId ? await fetchOrder({ orderId: sp.orderId }).catch(() => null) : null;
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-gutter py-16">
+    <div className="mx-auto w-full max-w-2xl px-gutter py-16">
       {order ? (
         <OrderConfirmation order={order} locale={locale} t={t} />
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
-          <h1 className="text-2xl font-semibold text-slate-900">{t('success.missing.title')}</h1>
-          <p className="text-sm text-slate-500">{t('success.missing.subtitle')}</p>
+          <h1 className="text-2xl font-semibold text-ink-900 dark:text-white">
+            {t('success.missing.title')}
+          </h1>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{t('success.missing.subtitle')}</p>
           <HomeCta label={t('success.returnHome')} />
         </div>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -70,7 +72,7 @@ function OrderConfirmation({
   return (
     <div className="flex flex-col items-center gap-8">
       <div className="flex flex-col items-center gap-4 text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
           <svg viewBox="0 0 24 24" fill="currentColor" className="h-8 w-8" aria-hidden="true">
             <path
               fillRule="evenodd"
@@ -79,12 +81,16 @@ function OrderConfirmation({
             />
           </svg>
         </span>
-        <h1 className="text-2xl font-semibold text-slate-900">{t('success.title')}</h1>
-        <p className="text-sm text-slate-500">{t('success.subtitle')}</p>
-        <p className="text-xs text-slate-400">{t('success.orderId', { id: order.id })}</p>
+        <h1 className="text-2xl font-semibold text-ink-900 dark:text-white">
+          {t('success.title')}
+        </h1>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('success.subtitle')}</p>
+        <p className="text-xs text-ink-400 dark:text-ink-500">
+          {t('success.orderId', { id: order.id })}
+        </p>
       </div>
 
-      <dl className="flex w-full flex-col gap-3 rounded-card border border-slate-200 p-5">
+      <dl className="flex w-full flex-col gap-3 rounded-card border border-ink-200 dark:border-white/10 p-5">
         {order.items.map((item, index) => (
           <OrderItemRow
             key={`${item.label}-${index}`}
@@ -93,9 +99,11 @@ function OrderConfirmation({
             currency={order.currency}
           />
         ))}
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-          <dt className="text-sm font-semibold text-slate-900">{t('success.total')}</dt>
-          <dd className="text-sm font-bold text-slate-900">
+        <div className="flex items-center justify-between gap-3 border-t border-ink-100 dark:border-white/10 pt-3">
+          <dt className="text-sm font-semibold text-ink-900 dark:text-white">
+            {t('success.total')}
+          </dt>
+          <dd className="text-sm font-bold text-ink-900 dark:text-white">
             {formatMoney(locale, order.total, order.currency)}
           </dd>
         </div>
@@ -118,8 +126,8 @@ function OrderItemRow({
 }) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <dt className="text-sm text-slate-500">{item.label}</dt>
-      <dd className="text-right text-sm font-medium text-slate-900">
+      <dt className="text-sm text-ink-500 dark:text-ink-400">{item.label}</dt>
+      <dd className="text-right text-sm font-medium text-ink-900 dark:text-white">
         {formatMoney(locale, item.amount, currency)}
       </dd>
     </div>

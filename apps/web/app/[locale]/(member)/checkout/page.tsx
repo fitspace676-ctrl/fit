@@ -58,10 +58,10 @@ export default async function CheckoutPage({
   const step = parseStep(sp.step);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-gutter py-10">
+    <div className="mx-auto w-full max-w-3xl px-gutter py-10">
       <header className="mb-8 flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
-        <p className="text-sm text-slate-500">{t('subtitle')}</p>
+        <h1 className="text-2xl font-semibold text-ink-900 dark:text-white">{t('title')}</h1>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
       </header>
 
       <WizardShell step={step}>
@@ -75,6 +75,6 @@ export default async function CheckoutPage({
           <StepPayment gymId={gymId} locationId={sp.locationId} packageId={sp.packageId} />
         )}
       </WizardShell>
-    </main>
+    </div>
   );
 }
