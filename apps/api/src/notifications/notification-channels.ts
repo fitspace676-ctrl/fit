@@ -7,6 +7,8 @@ import { MailerService } from '../mail/mailer.service';
 import { NotificationDispatchService } from './notification-dispatch.service';
 import type { DispatchNotificationInput } from './notification-dispatch.service';
 import { buildNotificationEmail, resolveEmailLocale } from './notification-email';
+import { ExpoPushService } from './expo-push.service';
+import type { ExpoPushTicket } from './expo-push.service';
 
 /**
  * One resolved notification, addressed to a single recipient, ready for a channel
@@ -24,10 +26,11 @@ export interface ChannelDeliveryResult {
    * provider message id, …), or `null` when the channel has no artefact to
    * reference (e.g. a pending stub). */
   ref: string | null;
-  /** True when the channel is a not-yet-wired stub (EMAIL until T8.2, PUSH until
-   * T8.3): the send was accepted by the pipeline but nothing was actually
-   * transmitted. Lets callers and tests tell a real delivery from a placeholder
-   * without the stub having to pretend it delivered. */
+  /** True when the send was accepted by the pipeline but nothing was actually
+   * transmitted — a channel with no way to deliver in this environment (email
+   * unconfigured / push disabled) or no reachable recipient (no address / no
+   * registered device). Lets callers and tests tell a real delivery from a
+   * no-op without the channel having to pretend it delivered. */
   pending?: boolean;
 }
 
@@ -163,23 +166,104 @@ function toAbsoluteWebUrl(href: string | null | undefined): string | null {
 }
 
 /**
- * Push channel — a wired-in placeholder for T8.3. As with {@link
- * EmailNotificationChannel}, the seam is present so the fan-out can route to
- * `PUSH`; Expo push transport (fanning out to the member's registered
- * {@link PushToken}s) lands in T8.3.
+ * Push channel (T8.3) — fans a resolved notification out to every device the
+ * recipient has registered, over Expo push ({@link ExpoPushService}).
+ *
+ * The delivery payload names only `(userId, …)` and the message, so the channel
+ * resolves the recipient's registered {@link PushToken}s itself off the unscoped
+ * Prisma client (a token belongs to the person, not a gym) and sends one message
+ * per device. The notification's in-app `href` rides along as `data.href`, the
+ * exact key the mobile app reads to deep-link a tapped notification to the right
+ * screen (T6.10) — so a tapped push lands where its in-app twin would.
+ *
+ * Delivery degrades exactly like the email channel: when push is disabled
+ * (`EXPO_PUSH_ENABLED` not `true`, i.e. dev / CI / preview) the send is a logged
+ * no-op reported as `pending`, and a recipient with no registered device is
+ * likewise a `pending` no-op rather than a throw — so a member who never enabled
+ * push can never blow up the producer's operation. A real Expo transport error
+ * still propagates, consistent with the channel contract.
+ *
+ * Tokens Expo rejects as `DeviceNotRegistered` (the app was uninstalled or the
+ * token rotated) are pruned best-effort after the send so the table does not
+ * accumulate dead registrations; a prune failure never fails the delivery.
  */
 @Injectable()
 export class PushNotificationChannel implements NotificationChannelAdapter {
   readonly channel = NotificationChannel.PUSH;
   private readonly logger = new Logger(PushNotificationChannel.name);
 
-  // Not `async`: see EmailNotificationChannel — resolved promise until T8.3.
-  deliver(input: ChannelDeliveryInput): Promise<ChannelDeliveryResult> {
-    // TODO(T8.3): fan out to the recipient's Expo push tokens.
-    this.logger.debug(
-      `push channel pending (T8.3): would send "${input.title}" to user ${input.userId}`,
-    );
-    return Promise.resolve({ channel: this.channel, ref: null, pending: true });
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: ExpoPushService,
+  ) {}
+
+  async deliver(input: ChannelDeliveryInput): Promise<ChannelDeliveryResult> {
+    // Skip the token lookup entirely when push can't go out anyway.
+    if (!this.push.isConfigured) {
+      this.logger.debug(
+        `push channel pending (Expo push disabled): would send "${input.title}" to user ${input.userId}`,
+      );
+      return { channel: this.channel, ref: null, pending: true };
+    }
+
+    const tokens = await this.prisma.client.pushToken.findMany({
+      where: { userId: input.userId },
+      select: { token: true },
+    });
+
+    if (tokens.length === 0) {
+      this.logger.debug(`push channel: user ${input.userId} has no registered devices — skipping`);
+      return { channel: this.channel, ref: null, pending: true };
+    }
+
+    // One message per device; the in-app href is carried as `data.href`, which the
+    // mobile app reads to route a tapped notification (see @fit/mobile lib/push).
+    const data = input.href ? { href: input.href } : undefined;
+    const messages = tokens.map((t) => ({
+      to: t.token,
+      title: input.title,
+      body: input.body,
+      data,
+    }));
+
+    const { tickets } = await this.push.send(messages);
+
+    // Expo returns tickets 1:1 (and in order) with the messages posted, so a
+    // ticket's index maps back to the token it was sent to. Prune the ones Expo
+    // says are dead so we stop targeting them; best-effort — never fail the send.
+    await this.pruneDeadTokens(input.userId, tokens, tickets);
+
+    // A batch delivery has no single id; reference the first accepted ticket.
+    const firstOk = tickets.find((t) => t.status === 'ok' && t.id);
+    return { channel: this.channel, ref: firstOk?.id ?? null };
+  }
+
+  /** Delete registrations Expo rejected as `DeviceNotRegistered`. Best-effort:
+   * a failure here is logged, not thrown — the notification was still delivered to
+   * the live devices. */
+  private async pruneDeadTokens(
+    userId: string,
+    tokens: readonly { token: string }[],
+    tickets: readonly ExpoPushTicket[],
+  ): Promise<void> {
+    const dead = tokens
+      .filter(
+        (_, i) =>
+          tickets[i]?.status === 'error' && tickets[i]?.details?.error === 'DeviceNotRegistered',
+      )
+      .map((t) => t.token);
+    if (dead.length === 0) return;
+
+    try {
+      await this.prisma.client.pushToken.deleteMany({
+        where: { userId, token: { in: dead } },
+      });
+      this.logger.debug(`pruned ${dead.length} unregistered push token(s) for user ${userId}`);
+    } catch (err) {
+      this.logger.warn(
+        `failed to prune ${dead.length} dead push token(s) for user ${userId}: ${String(err)}`,
+      );
+    }
   }
 }
 
