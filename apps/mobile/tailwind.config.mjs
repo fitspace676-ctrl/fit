@@ -16,8 +16,12 @@ export default {
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
     // Generate the utility classes used by the shared mobile design-system
-    // package so its components render fully styled here (T1.10).
-    '../../packages/ui-mobile/**/*.{ts,tsx}',
+    // package so its components render fully styled here (T1.10). Scoped to the
+    // package's actual sources (`index.ts` + `src/`) rather than a bare `**` so
+    // Tailwind doesn't scan its `node_modules` — the broad glob triggered a
+    // content-configuration perf warning on every Metro build/export.
+    '../../packages/ui-mobile/index.ts',
+    '../../packages/ui-mobile/src/**/*.{ts,tsx}',
   ],
   presets: [nativewind, base, mobile],
 };

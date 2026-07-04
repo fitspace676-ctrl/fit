@@ -211,9 +211,14 @@ function ClassDetailBody({
         </View>
       ) : null}
 
-      {/* ---- description ---- */}
+      {/* ---- what to expect (description) ---- */}
       {instance.description ? (
-        <Text className="text-sm leading-[21px] text-ink-300">{instance.description}</Text>
+        <View className="gap-2">
+          <Text className="text-[11px] font-semibold uppercase tracking-[1.5px] text-ink-400">
+            {t('classes.detail.about')}
+          </Text>
+          <Text className="text-sm leading-[21px] text-ink-300">{instance.description}</Text>
+        </View>
       ) : null}
 
       {/* ---- occupancy meter ---- */}
