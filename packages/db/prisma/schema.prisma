@@ -170,6 +170,17 @@ enum DevicePlatform {
   ANDROID
 }
 
+/// Category of an in-app inbox notification (T6.10 / Phase 8). Drives the icon
+/// and grouping the member portal renders for each {@link Notification}.
+/// Uppercase both sides — the wire `notificationCategorySchema` in `@fit/types`
+/// mirrors these values exactly, so no boundary mapping is needed (unlike the
+/// lowercase `DevicePlatform`).
+enum NotificationCategory {
+  BOOKING
+  BILLING
+  SYSTEM
+}
+
 /// Lifecycle of a storefront {@link Order} (T7.1). `PENDING` is the freshly
 /// created, not-yet-paid order the purchase wizard opens; `PAID` is the terminal
 /// "payment captured" state the success page confirms; `CANCELLED` is an
@@ -326,6 +337,7 @@ model Gym {
   checkIns          CheckIn[]
   invoices          Invoice[]
   invoiceSequences  InvoiceSequence[]
+  notifications     Notification[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -363,6 +375,7 @@ model User {
   refreshTokens RefreshToken[]
   pushTokens    PushToken[]
   carts         Cart[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -392,6 +405,42 @@ model PushToken {
   @@unique([userId, deviceId])
   @@index([userId])
   @@map("push_tokens")
+}
+
+/// A member's in-app inbox notification (T6.10 / Phase 8). One row per delivered
+/// in-app message — a booking confirmation, a billing event, or a system notice.
+/// Gym-scoped (`gymId`) and owned by the recipient `User`, so a member sees only
+/// their own gym's notifications; cascade-deleted with either. Like `CheckIn` it
+/// carries an explicit `gymId` rather than joining `GymMember`, and (like
+/// `PushToken`) keys the recipient by `userId` — so `NotificationDispatchService`
+/// can address any (gym, user) recipient without a membership lookup. Deliberately
+/// NOT in the tenant extension's auto-scope set: the service passes `gymId`
+/// explicitly (reads filter on it, the dispatcher stamps it), which also lets it
+/// run outside a request's tenant scope for future reminder/billing jobs
+/// (T8.6/T8.7). `readAt` is null until the member opens the item; append-only
+/// otherwise.
+model Notification {
+  id        String               @id @default(cuid())
+  gymId     String
+  userId    String
+  category  NotificationCategory
+  title     String
+  body      String
+  /// Optional in-app deep-link the portal routes to when the item is tapped
+  /// (e.g. `/bookings`). Null for a plain informational notice.
+  href      String?
+  /// When the member first opened the item; null while unread.
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Backs the inbox list (newest-first) and the unread-count query, both keyed
+  // by (gym, user).
+  @@index([gymId, userId, createdAt])
+  @@index([gymId, userId, readAt])
+  @@map("notifications")
 }
 
 /// Join table between User and Gym carrying the user's role and status within
