@@ -159,21 +159,29 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
   }, [gymId, effectivePackageId, effectiveLocationId, termsAccepted, submitting, router, t]);
 
   if (load.status === 'loading') {
-    return <p className="py-16 text-center text-sm text-slate-400">{t('payment.loading')}</p>;
+    return (
+      <p className="py-16 text-center text-sm text-ink-400 dark:text-ink-500">
+        {t('payment.loading')}
+      </p>
+    );
   }
 
   if (load.status === 'error' || !load.pkg) {
     return (
       <div className="flex flex-col gap-6">
         <div className="flex flex-col items-center gap-2 py-16 text-center">
-          <p className="text-sm font-medium text-slate-900">{t('payment.unavailable.title')}</p>
-          <p className="text-sm text-slate-500">{t('payment.unavailable.subtitle')}</p>
+          <p className="text-sm font-medium text-ink-900 dark:text-white">
+            {t('payment.unavailable.title')}
+          </p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">
+            {t('payment.unavailable.subtitle')}
+          </p>
         </div>
         <div className="flex justify-start">
           <button
             type="button"
             onClick={onBack}
-            className="rounded-card border border-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
           >
             {t('back')}
           </button>
@@ -187,39 +195,48 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-slate-900">{t('payment.title')}</h2>
-        <p className="text-sm text-slate-500">{t('payment.subtitle')}</p>
+        <h2 className="text-lg font-semibold text-ink-900 dark:text-white">{t('payment.title')}</h2>
+        <p className="text-sm text-ink-500 dark:text-ink-400">{t('payment.subtitle')}</p>
       </div>
 
-      <dl className="flex flex-col gap-3 rounded-card border border-slate-200 p-5">
+      <dl className="flex flex-col gap-3 rounded-card border border-ink-200 dark:border-white/10 p-5">
         <div className="flex items-start justify-between gap-3">
-          <dt className="text-sm text-slate-500">{t('payment.summary.package')}</dt>
-          <dd className="text-right text-sm font-medium text-slate-900">{pkg.name}</dd>
+          <dt className="text-sm text-ink-500 dark:text-ink-400">{t('payment.summary.package')}</dt>
+          <dd className="text-right text-sm font-medium text-ink-900 dark:text-white">
+            {pkg.name}
+          </dd>
         </div>
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-          <dt className="text-sm font-semibold text-slate-900">{t('payment.summary.total')}</dt>
+        <div className="flex items-center justify-between gap-3 border-t border-ink-100 dark:border-white/10 pt-3">
+          <dt className="text-sm font-semibold text-ink-900 dark:text-white">
+            {t('payment.summary.total')}
+          </dt>
           <dd className="flex items-baseline gap-1">
             <Money locale={locale} amount={pkg.priceAmount} currency={pkg.currency} />
             {intervalSuffix(pkg.interval) ? (
-              <span className="text-sm text-slate-500">{intervalSuffix(pkg.interval)}</span>
+              <span className="text-sm text-ink-500 dark:text-ink-400">
+                {intervalSuffix(pkg.interval)}
+              </span>
             ) : null}
           </dd>
         </div>
       </dl>
 
-      <label className="flex items-start gap-3 text-sm text-slate-600">
+      <label className="flex items-start gap-3 text-sm text-ink-600 dark:text-ink-300">
         <input
           type="checkbox"
           checked={termsAccepted}
           onChange={(e) => setTermsAccepted(e.target.checked)}
           disabled={submitting}
-          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+          className="mt-0.5 h-4 w-4 rounded border-ink-300 dark:border-white/20 text-brand-600 focus:ring-brand-500"
         />
         <span>{t('payment.terms')}</span>
       </label>
 
       {submitError ? (
-        <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-600">
+        <p
+          role="alert"
+          className="rounded-card bg-danger-50 dark:bg-danger-500/10 px-3 py-2 text-sm text-danger-600 dark:text-danger-400"
+        >
           {submitError}
         </p>
       ) : null}
@@ -229,7 +246,7 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
           type="button"
           onClick={onBack}
           disabled={submitting}
-          className="rounded-card border border-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+          className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5 disabled:opacity-60"
         >
           {t('back')}
         </button>
@@ -237,7 +254,7 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
           type="button"
           onClick={onPay}
           disabled={!termsAccepted || submitting}
-          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
         >
           {submitting ? t('payment.processing') : t('payment.pay')}
         </button>
@@ -257,5 +274,9 @@ function Money({ locale, amount, currency }: { locale: string; amount: number; c
       }).format(amount / 100),
     [locale, amount, currency],
   );
-  return <span className="text-2xl font-bold tracking-tight text-slate-900">{formatted}</span>;
+  return (
+    <span className="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
+      {formatted}
+    </span>
+  );
 }
