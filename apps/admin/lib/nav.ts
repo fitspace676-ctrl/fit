@@ -113,17 +113,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: Permission.LocationRead,
   },
   {
+    // The audit-log viewer now lives as a tab of this screen (T3.10), so the
+    // Activity area is the single sidebar entry for both feeds.
     labelKey: 'nav.activity',
     href: '/activity',
     icon: 'activity',
     permission: Permission.ReportView,
-    minRole: 'MANAGER',
-  },
-  {
-    labelKey: 'nav.auditLog',
-    href: '/audit-log',
-    icon: 'audit',
-    permission: Permission.AuditRead,
     minRole: 'MANAGER',
   },
   {

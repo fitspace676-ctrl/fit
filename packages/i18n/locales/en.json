@@ -1126,6 +1126,40 @@
         "minutes": "{mins}m ago",
         "hours": "{hours}h ago",
         "days": "{days}d ago"
+      },
+      "tabs": {
+        "label": "Activity views",
+        "feed": "Feed",
+        "audit": "Audit log"
+      },
+      "audit": {
+        "subtitle": "A record of privileged actions taken on your gym — owner impersonation and status changes. Filter by action or narrow to a date range.",
+        "filters": {
+          "action": "Action",
+          "all": "All actions",
+          "from": "From",
+          "to": "To",
+          "clear": "Clear"
+        },
+        "columns": {
+          "when": "When",
+          "action": "Action",
+          "actor": "Actor",
+          "target": "Target",
+          "details": "Details"
+        },
+        "actions": {
+          "impersonate": "Owner impersonation",
+          "statusUpdate": "Gym status change"
+        },
+        "empty": "No audit entries match your filters yet.",
+        "error": "Could not load the audit log ({status}): {message}",
+        "errorUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "pager": {
+          "range": "{from}–{to} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
       }
     },
     "schedule": {
