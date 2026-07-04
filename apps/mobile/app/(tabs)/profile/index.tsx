@@ -104,6 +104,11 @@ export default function SettingsScreen() {
           onPress={() => router.push('/profile/notifications')}
         />
         <NavRow label={t('training.title')} onPress={() => router.push('/profile/training')} />
+        <NavRow
+          label={t('member.trainers.title')}
+          hint={t('member.trainers.eyebrow')}
+          onPress={() => router.push('/trainers')}
+        />
         <ValueRow
           label={t('settings.preferences.appearance')}
           value={t('settings.preferences.appearanceSystem')}

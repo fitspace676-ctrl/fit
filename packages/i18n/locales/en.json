@@ -970,6 +970,40 @@
       "unitPh": "unit",
       "current": "Current",
       "target": "Target"
+    },
+    "trainers": {
+      "eyebrow": "Meet the team",
+      "title": "Trainers",
+      "all": "All",
+      "search": "Search",
+      "searchPlaceholder": "Search by name",
+      "clear": "Clear search",
+      "loading": "Loading trainers…",
+      "error": "We couldn’t load the trainers. Please try again.",
+      "retry": "Try again",
+      "empty": {
+        "title": "No trainers yet",
+        "subtitle": "This gym hasn’t added any trainers yet. Check back soon."
+      },
+      "noMatch": {
+        "title": "No trainers match",
+        "subtitle": "Try a different name or specialty.",
+        "action": "Clear filters"
+      },
+      "detail": {
+        "back": "All trainers",
+        "specialties": "Specialties",
+        "locations": "Locations",
+        "schedule": {
+          "title": "Upcoming sessions",
+          "empty": "No upcoming sessions scheduled yet. Check back soon."
+        },
+        "notFound": {
+          "title": "Trainer not found",
+          "subtitle": "We couldn’t find this trainer. They may no longer be with this gym.",
+          "action": "Back to trainers"
+        }
+      }
     }
   },
   "admin": {
