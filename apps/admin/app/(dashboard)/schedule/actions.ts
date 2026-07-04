@@ -5,11 +5,12 @@ import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   roleHasPermission,
+  type AttendanceStatus,
   type CancelClassInstanceResponse,
   type GetAdminClassInstanceResponse,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, cancelScheduleInstance, fetchScheduleInstance } from '@/lib/api';
+import { ApiError, cancelScheduleInstance, fetchScheduleInstance, markAttendance } from '@/lib/api';
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -34,6 +35,15 @@ function toMessage(error: unknown, t: T): string {
     }
     if (error.message === 'CLASS_NOT_CANCELABLE') {
       return t('errors.notCancelable');
+    }
+    if (error.message === 'CLASS_NOT_STARTED') {
+      return t('errors.notStarted');
+    }
+    if (error.message === 'ATTENDANCE_NOT_AVAILABLE') {
+      return t('errors.attendanceUnavailable');
+    }
+    if (error.message === 'BOOKING_NOT_FOUND' || error.message === 'BOOKING_NOT_ATTENDABLE') {
+      return t('errors.bookingNotAttendable');
     }
     return t('errors.requestFailed', { status: error.status, message: error.message });
   }
@@ -74,6 +84,35 @@ export async function cancelInstanceAction(
   }
   try {
     const data = await cancelScheduleInstance(id);
+    revalidatePath('/schedule');
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Record one held seat's attendance outcome inline from the drawer roster (T3.5).
+ * Enforces `ClassWrite`, marks the single booking `ATTENDED` / `NO_SHOW` via the
+ * attendance endpoint (which transitions the occurrence to `COMPLETED`), then
+ * re-reads the occurrence detail so the drawer re-renders from the refreshed
+ * roster — the same `AdminClassInstanceDetail` shape it already renders, keeping
+ * one source of truth. Also refreshes the `/schedule` cache so the week grid
+ * reflects the now-completed occurrence. Returns a discriminated result so the
+ * drawer can surface an inline error instead of throwing across the boundary.
+ */
+export async function markAttendanceAction(
+  id: string,
+  bookingId: string,
+  status: AttendanceStatus,
+): Promise<ActionResult<GetAdminClassInstanceResponse>> {
+  const t = await getTranslations('admin.schedule.drawer');
+  if (!(await sessionHas(Permission.ClassWrite))) {
+    return { ok: false, error: t('errors.forbidden') };
+  }
+  try {
+    await markAttendance(id, { entries: [{ bookingId, status }] });
+    const data = await fetchScheduleInstance(id);
     revalidatePath('/schedule');
     return { ok: true, data };
   } catch (error) {
