@@ -667,6 +667,17 @@
     }
   },
   "member": {
+    "profileHub": {
+      "membership": "Membership",
+      "renews": "Renews {date}",
+      "freeze": "Freeze",
+      "achievements": "Achievements",
+      "badgeFirstClass": "First class",
+      "badgeRegular": "Regular",
+      "badgeVisits50": "50 visits",
+      "badgeVisits100": "100 visits",
+      "days": "days"
+    },
     "nav": {
       "home": "Home",
       "classes": "Classes",

@@ -667,6 +667,17 @@
     }
   },
   "member": {
+    "profileHub": {
+      "membership": "წევრობა",
+      "renews": "განახლდება {date}",
+      "freeze": "გაყინვა",
+      "achievements": "მიღწევები",
+      "badgeFirstClass": "პირველი ვარჯიში",
+      "badgeRegular": "მუდმივი წევრი",
+      "badgeVisits50": "50 ვიზიტი",
+      "badgeVisits100": "100 ვიზიტი",
+      "days": "დღე"
+    },
     "nav": {
       "home": "მთავარი",
       "classes": "გაკვეთილები",
