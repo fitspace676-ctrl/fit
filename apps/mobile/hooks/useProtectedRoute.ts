@@ -52,8 +52,9 @@ export function useProtectedRoute(): boolean {
       if (!inOnboarding) router.replace('/onboarding');
     } else if (!inTabs) {
       // Fully onboarded: the app shell is the only valid zone, so bounce in from
-      // the entry route or out of the auth / onboarding screens.
-      router.replace('/classes');
+      // the entry route or out of the auth / onboarding screens. Home is the
+      // landing tab (the formacore member-home, T7.2).
+      router.replace('/home');
     }
   }, [hydrating, session, isComplete, segments, router]);
 
