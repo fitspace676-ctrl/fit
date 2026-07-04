@@ -116,6 +116,22 @@ export const envSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
 
+  // ── Recurring subscription billing (T5.4) ──
+  // Master switch for the daily renewal-billing cron that charges due
+  // subscriptions and advances their period. Off by default so it never charges
+  // in dev / CI / a preview environment; a production deploy sets it true. A
+  // single Redis lock guards each daily window, so it is safe to enable on every
+  // replica of a multi-instance deployment (only one wins). `"true"` enables;
+  // anything else (incl. unset) leaves it disabled.
+  SUBSCRIPTION_BILLING_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // Grace window (whole days) a failed renewal may sit PAST_DUE — retried each
+  // daily pass — before the job expires the subscription. The member keeps access
+  // through the window (PAST_DUE is entitled). Default 7 days.
+  SUBSCRIPTION_BILLING_GRACE_DAYS: z.coerce.number().int().nonnegative().default(7),
+
   // ── Object storage (Cloudflare R2 — S3-compatible) ──
   // All optional: unset disables the signed-upload service (the endpoint then
   // returns 503) so the API still boots in CI / local dev without R2 creds.

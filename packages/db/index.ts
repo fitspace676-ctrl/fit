@@ -68,6 +68,18 @@ export {
 // the first period and the recurring-billing job (T5.4) advances it identically.
 export { addInterval, initialBillingPeriod } from './prisma/subscription-period';
 
+// Recurring-billing decision rule (T5.4). The pure classification of a due
+// subscription into charge / cancel / expire / skip, re-exported so the renewal
+// job's service branches on one policy instead of re-deriving the grace/cadence
+// rules inline.
+export {
+  DEFAULT_RENEWAL_GRACE_DAYS,
+  classifyDueSubscription,
+  type BillableSubscription,
+  type ClassifyDueOptions,
+  type RenewalAction,
+} from './prisma/subscription-billing';
+
 // Credit-pack expiry job (T8.5). The pure set-based UPDATE that flips lapsed credit
 // packs to `EXPIRED`, re-exported so the API / a scheduled runner share one pass.
 export {
