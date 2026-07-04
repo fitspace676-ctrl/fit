@@ -2,9 +2,15 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLocale, getTranslations } from 'next-intl/server';
-import { Permission, roleHasPermission, type MemberDetail } from '@fit/types';
+import {
+  Permission,
+  roleHasPermission,
+  type CreditPackCatalogueEntry,
+  type CreditPackSummary,
+  type MemberDetail,
+} from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchMember } from '@/lib/api';
+import { ApiError, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
 import { Badge, Btn, Card, Icon, type IconName, type Tone } from '@/components/ui';
 import { MemberActions } from './member-actions';
 import { MemberTabs } from './member-tabs';
@@ -162,6 +168,24 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   // sit behind `BillingManage`), distinct from the `MemberWrite` roster edit above.
   const canManageBilling =
     session !== null && roleHasPermission(session.role, Permission.BillingManage);
+  // Billing-read staff also see the member's credit balance and (when they can
+  // manage billing) the "Add credit" purchase modal. These are secondary to the
+  // member detail, so a failure degrades to an empty balance / no catalogue rather
+  // than failing the whole page.
+  const canReadBilling =
+    session !== null && roleHasPermission(session.role, Permission.BillingRead);
+  let creditPacks: CreditPackSummary[] = [];
+  let creditCatalogue: CreditPackCatalogueEntry[] = [];
+  if (canReadBilling) {
+    [creditPacks, creditCatalogue] = await Promise.all([
+      fetchMemberCreditPacks(member.id)
+        .then((r) => r.packs)
+        .catch(() => [] as CreditPackSummary[]),
+      fetchCreditPackCatalogue()
+        .then((r) => r.packs)
+        .catch(() => [] as CreditPackCatalogueEntry[]),
+    ]);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -252,7 +276,12 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
         />
       </section>
 
-      <MemberTabs member={member} canManageBilling={canManageBilling} />
+      <MemberTabs
+        member={member}
+        canManageBilling={canManageBilling}
+        creditPacks={creditPacks}
+        creditCatalogue={creditCatalogue}
+      />
     </div>
   );
 }

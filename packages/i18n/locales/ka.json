@@ -787,6 +787,19 @@
         "errInvalidDuration": "შეიყვანეთ დღეების მთელი რიცხვი.",
         "errAllowance": "ეს აღემატება დარჩენილ {days} გაყინვის დღეს.",
         "errGeneric": "რაღაც ვერ მოხერხდა. სცადეთ თავიდან."
+      },
+      "credits": {
+        "title": "PT კრედიტები",
+        "buyMore": "კიდევ ყიდვა",
+        "noneOnSale": "გასაყიდი პაკეტები არ არის",
+        "modalTitle": "კრედიტების ყიდვა",
+        "modalBody": "აირჩიე კრედიტ-პაკეტი. გადაიხადე მიმღებთან.",
+        "packMeta": "{count, plural, one {# კრედიტი} other {# კრედიტი}} · {price}",
+        "buy": "ყიდვა",
+        "buying": "მიმდინარეობს…",
+        "boughtToast": "{count, plural, one {# კრედიტი} other {# კრედიტი}} დაემატა",
+        "errUnavailable": "ეს პაკეტი აღარ არის ხელმისაწვდომი.",
+        "errGeneric": "რაღაც ვერ მოხერხდა. სცადეთ თავიდან."
       }
     },
     "profile": {
@@ -1600,7 +1613,19 @@
         "freezeConfirm": "გაყინვა",
         "freezeInvalidDuration": "შეიყვანეთ დღეების მთელი რიცხვი.",
         "freezeDone": "გაწევრიანება გაიყინა",
-        "resumeDone": "გაწევრიანება განახლდა"
+        "resumeDone": "გაწევრიანება განახლდა",
+        "credits": "კრედიტები",
+        "noCredits": "კრედიტები არ არის.",
+        "creditPack": "კრედიტ-პაკეტი",
+        "creditExpires": "ვადა: {date}",
+        "creditNoExpiry": "ვადა არ აქვს",
+        "creditRemaining": "{remaining}/{total}",
+        "noCreditPacksOnSale": "გასაყიდი პაკეტები არ არის",
+        "addCreditModalTitle": "კრედიტების დამატება",
+        "addCreditModalBody": "მიჰყიდე ამ წევრს კრედიტ-პაკეტი.",
+        "creditPackMeta": "{count, plural, one {# კრედიტი} other {# კრედიტი}} · {price}",
+        "creditGranted": "{count, plural, one {# კრედიტი} other {# კრედიტი}} დაემატა",
+        "sell": "გაყიდვა"
       },
       "memberTabs": {
         "overview": "მიმოხილვა",
@@ -1623,7 +1648,8 @@
         "alreadyFrozen": "ეს გაწევრიანება უკვე გაყინულია.",
         "notFrozen": "ეს გაწევრიანება არ არის გაყინული.",
         "notFreezable": "ამ გაწევრიანების გაყინვა მიმდინარე მდგომარეობაში შეუძლებელია.",
-        "subscriptionNotFound": "გამოწერა ვერ მოიძებნა."
+        "subscriptionNotFound": "გამოწერა ვერ მოიძებნა.",
+        "packUnavailable": "ეს პაკეტი აღარ არის ხელმისაწვდომი."
       }
     },
     "trainers": {

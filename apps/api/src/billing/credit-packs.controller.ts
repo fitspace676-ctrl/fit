@@ -2,13 +2,19 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { Permission, purchaseCreditPackSchema, type PurchaseCreditPackResponse } from '@fit/types';
+import {
+  Permission,
+  purchaseCreditPackSchema,
+  type ListCreditPackCatalogueResponse,
+  type PurchaseCreditPackResponse,
+} from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -42,6 +48,18 @@ export class CreditPacksController {
   @RequirePermissions(Permission.CreditPackManage)
   async purchase(@Body() body: unknown): Promise<PurchaseCreditPackResponse> {
     return this.creditPacks.purchasePack(parse(purchaseCreditPackSchema, body));
+  }
+
+  /**
+   * `GET /credit-packs/catalogue` — the gym's purchasable credit packs (finite,
+   * `ACTIVE` session plans), cheapest first, for the member portal's "Buy credits"
+   * picker. An empty list is a normal `200` (a gym selling no packs).
+   */
+  @Get('catalogue')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.CreditPackManage)
+  async catalogue(): Promise<ListCreditPackCatalogueResponse> {
+    return this.creditPacks.listCatalogue();
   }
 }
 

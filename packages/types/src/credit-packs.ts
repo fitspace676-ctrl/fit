@@ -84,3 +84,34 @@ export type CreditPackSummary = z.infer<typeof creditPackSummarySchema>;
 export interface ListCreditPacksResponse {
   packs: CreditPackSummary[];
 }
+
+/**
+ * One buyable credit pack from the gym's catalogue (T5.8) — a finite-`sessionCount`,
+ * `ACTIVE` {@link PackagePlan} projected to exactly what the purchase pickers need:
+ * the member portal's "Buy credits" modal and the admin member-detail "Add credit"
+ * modal both render these to let a pack be chosen, then post its `id` to the
+ * purchase / grant endpoint. `priceAmount` is in the currency's MINOR units (no
+ * float crosses the wire); `sessionCount` is the credits the pack grants; and
+ * `validityDays` is how long the minted pack stays usable (`null` = never expires).
+ */
+export const creditPackCatalogueEntrySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  priceAmount: z.number().int().nonnegative(),
+  currency: z.string().length(3),
+  sessionCount: z.number().int().positive(),
+  validityDays: z.number().int().positive().nullable(),
+});
+
+/** A single catalogue entry the purchase pickers render — {@link creditPackCatalogueEntrySchema}. */
+export type CreditPackCatalogueEntry = z.infer<typeof creditPackCatalogueEntrySchema>;
+
+/**
+ * Successful `GET /credit-packs/catalogue` (member) / `GET /admin/credit-packs/
+ * catalogue` (staff) response — the gym's purchasable credit packs, cheapest
+ * first. An empty array is a normal `200` (a gym that sells no finite-session
+ * packs), which the pickers render as their "no packs on sale" state.
+ */
+export interface ListCreditPackCatalogueResponse {
+  packs: CreditPackCatalogueEntry[];
+}

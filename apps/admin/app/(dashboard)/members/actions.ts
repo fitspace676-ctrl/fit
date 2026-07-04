@@ -6,6 +6,7 @@ import {
   Permission,
   createMemberSchema,
   freezeSubscriptionSchema,
+  purchaseCreditPackSchema,
   roleHasPermission,
   updateMemberSchema,
   type BulkExportMembersInput,
@@ -21,6 +22,7 @@ import {
   createMember,
   deactivateMember,
   freezeMemberSubscription,
+  grantMemberCreditPack,
   reactivateMember,
   unfreezeMemberSubscription,
   updateMember,
@@ -74,6 +76,10 @@ function toMessage(error: unknown, t: Translator): string {
     }
     if (error.message === 'SUBSCRIPTION_NOT_FOUND') {
       return t('errors.subscriptionNotFound');
+    }
+    // Credit-pack grant (T5.8).
+    if (error.message === 'PACK_UNAVAILABLE') {
+      return t('errors.packUnavailable');
     }
     return t('errors.requestFailed', { status: error.status, message: error.message });
   }
@@ -201,6 +207,34 @@ export async function freezeMemberSubscriptionAction(
     revalidatePath('/members');
     revalidatePath(`/members/${memberId}`);
     return { ok: true, data: { frozenUntil } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Sell / grant a credit pack to a member from the console (T5.8). `memberId` is the
+ * detail page to refresh; `packId` names the catalogue pack. Gated by `BillingManage`
+ * (the API re-checks) and re-validated with the same Zod schema the API uses. On
+ * success the member's detail page is refreshed so the credit balance updates.
+ */
+export async function grantMemberCreditPackAction(
+  memberId: string,
+  packId: string,
+): Promise<ActionResult<{ creditPackId: string }>> {
+  const t = await getTranslations('admin.members');
+  if (!(await requireBillingManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = purchaseCreditPackSchema.safeParse({ packId });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const { creditPackId } = await grantMemberCreditPack(memberId, parsed.data);
+    revalidatePath('/members');
+    revalidatePath(`/members/${memberId}`);
+    return { ok: true, data: { creditPackId } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }
