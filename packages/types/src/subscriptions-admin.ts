@@ -52,6 +52,15 @@ export type SubscriptionPlanSort = z.infer<typeof subscriptionPlanSortSchema>;
 export const MAX_SUBSCRIPTION_FEATURES = 20;
 
 /**
+ * Upper bound on a plan's editable freeze allowance (`freezeDaysPerPeriod`) and
+ * class-credit allowance (`includedCredits`). A generous cap that keeps a fat-
+ * fingered entry (or a hostile body) from storing an absurd value while staying
+ * well above any realistic plan — no gym freezes a membership for years or grants
+ * thousands of classes a period. Mirrored by the admin form's `max` attribute.
+ */
+export const MAX_SUBSCRIPTION_ALLOWANCE = 3650;
+
+/**
  * Query for `GET /admin/subscriptions`. Pagination is mandatory server-side (`page`
  * is 1-based, `limit` capped at 100); `search` matches the plan name/description,
  * `status` narrows the list, and `sort` + `dir` drive ordering. Every field is
@@ -78,7 +87,8 @@ export type ListAdminSubscriptionPlansQuery = z.infer<typeof listAdminSubscripti
  * list, and `features` is the ordered perk list itself (the billing-plans cards
  * show the first few as a checklist). `freezeDaysPerPeriod` is the plan's freeze
  * allowance (surfaced as a badge on the billing-plans card; `0` = freezing
- * disabled). `subscriberCount` is the number of *live* subscriptions (`ACTIVE` /
+ * disabled). `includedCredits` is the plan's per-period class-credit allowance
+ * (`0` = unlimited classes). `subscriberCount` is the number of *live* subscriptions (`ACTIVE` /
  * `PAST_DUE` / `FROZEN`) currently on this plan — what the billing-plans screen
  * totals into subscriber counts and monthly-recurring-revenue. `popular` flags the
  * emphasised plan. `createdAt` is an ISO-8601 instant the UI formats locally.
@@ -92,6 +102,7 @@ export interface AdminSubscriptionPlanRow {
   featureCount: number;
   features: string[];
   freezeDaysPerPeriod: number;
+  includedCredits: number;
   subscriberCount: number;
   popular: boolean;
   status: SubscriptionPlanStatus;
@@ -132,8 +143,13 @@ export type GetAdminSubscriptionPlanResponse = AdminSubscriptionPlanDetail;
  * non-negative integer, defaulting to `0`. `currency` is a 3-letter ISO-4217 code,
  * upper-cased and defaulting to `USD`. `interval` defaults to `MONTH`. `features`
  * is the ordered perk list, each a short non-empty label, capped at
- * {@link MAX_SUBSCRIPTION_FEATURES}. `popular` defaults to `false`. Numbers are
- * coerced because the admin form submits them as strings.
+ * {@link MAX_SUBSCRIPTION_FEATURES}. `popular` defaults to `false`.
+ * `freezeDaysPerPeriod` is the freeze allowance (max days a member may pause the
+ * membership per period; `0` disables freezing) and `includedCredits` the per-
+ * period class-credit allowance (`0` = unlimited) — both non-negative integers
+ * capped at {@link MAX_SUBSCRIPTION_ALLOWANCE}, defaulting to the recurring-
+ * membership defaults (30 freeze days, unlimited classes). Numbers are coerced
+ * because the admin form submits them as strings.
  */
 const subscriptionPlanProfileFields = {
   name: z.string().trim().min(1, 'Name is required').max(160),
@@ -155,6 +171,18 @@ const subscriptionPlanProfileFields = {
     .max(MAX_SUBSCRIPTION_FEATURES, `A plan can have at most ${MAX_SUBSCRIPTION_FEATURES} features`)
     .default([]),
   popular: z.coerce.boolean().default(false),
+  freezeDaysPerPeriod: z.coerce
+    .number()
+    .int('Freeze days must be a whole number')
+    .min(0, 'Freeze days cannot be negative')
+    .max(MAX_SUBSCRIPTION_ALLOWANCE, `Freeze days cannot exceed ${MAX_SUBSCRIPTION_ALLOWANCE}`)
+    .default(30),
+  includedCredits: z.coerce
+    .number()
+    .int('Credits must be a whole number')
+    .min(0, 'Credits cannot be negative')
+    .max(MAX_SUBSCRIPTION_ALLOWANCE, `Credits cannot exceed ${MAX_SUBSCRIPTION_ALLOWANCE}`)
+    .default(0),
 };
 
 /**

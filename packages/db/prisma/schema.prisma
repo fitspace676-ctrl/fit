@@ -1139,6 +1139,13 @@ model SubscriptionPlan {
   /// rejects a request that would push the period's cumulative frozen days over
   /// this cap (`422 EXCEEDS_FREEZE_ALLOWANCE`). `0` disables freezing entirely.
   freezeDaysPerPeriod Int                @default(30)
+  /// Class-credit allowance the plan grants each billing period (T5.2). A finite
+  /// value caps how many classes a subscriber may book per period (the plan's
+  /// "N classes / period"); `0` means *unlimited* — the plan entitles the member
+  /// to every class with no per-period cap, which is the recurring-membership
+  /// default. A catalogue attribute surfaced on the billing-plans board and the
+  /// member-facing plan card; enforcement of the cap is future billing work.
+  includedCredits Int                    @default(0)
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
 

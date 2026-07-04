@@ -76,3 +76,13 @@ export function intervalSuffix(interval: SubscriptionInterval): string {
 export function intervalLabel(interval: SubscriptionInterval): string {
   return SUBSCRIPTION_INTERVALS.find((entry) => entry.value === interval)?.label ?? interval;
 }
+
+/**
+ * Describe a plan's class-credit allowance the way the plan card / preview reads
+ * it: `0` credits is an *unlimited* recurring membership, a finite value is that
+ * many classes per period. Mirrors the formacore `billing-plan-edit` preview
+ * (`0 = unlimited classes`).
+ */
+export function creditsLabel(includedCredits: number): string {
+  return includedCredits <= 0 ? 'Unlimited classes' : `${includedCredits} classes / period`;
+}
