@@ -624,10 +624,13 @@ describe('OrdersService.streamOrdersCsv', () => {
     const csv = chunks.join('');
     const lines = csv.trimEnd().split('\r\n');
     expect(lines[0]).toBe(
-      'id,createdAt,channel,status,currency,total,refundedAmount,paymentMethod,memberId,customerName,itemCount',
+      'id,createdAt,channel,status,currency,total,refundedAmount,netTotal,paymentMethod,memberId,customerName,itemCount',
     );
     expect(lines).toHaveLength(2);
     // A value containing a comma is quoted per RFC 4180.
     expect(lines[1]).toContain('"Ann, Lee"');
+    // Money is exported as major-unit decimals (1000 minor → 10.00) and the
+    // per-row net (total − refunded) reconciles against the gross figures.
+    expect(lines[1]).toContain(',USD,10.00,0.00,10.00,');
   });
 });

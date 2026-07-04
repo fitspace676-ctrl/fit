@@ -277,6 +277,11 @@ export type RefundOrderResponse = z.infer<typeof refundOrderResponseSchema>;
  * The header row for the orders CSV export (T7.9), in column order. Kept here as
  * the single source of truth so the streaming service and any test agree on the
  * shape, mirroring how {@link RECONCILIATION_METHODS} pins the report's columns.
+ *
+ * Every column but `netTotal` maps to a field on {@link AdminOrderRow};
+ * `netTotal` is the derived `total - refundedAmount` — the takings kept after
+ * refunds — placed beside the gross figures so each exported row self-reconciles
+ * against the Payment/Order tables the roster is built from (T4.11).
  */
 export const ORDER_EXPORT_COLUMNS = [
   'id',
@@ -286,20 +291,51 @@ export const ORDER_EXPORT_COLUMNS = [
   'currency',
   'total',
   'refundedAmount',
+  'netTotal',
   'paymentMethod',
   'memberId',
   'customerName',
   'itemCount',
-] as const satisfies readonly (keyof AdminOrderRow)[];
+] as const;
+
+/**
+ * Assumed minor units per major unit for the export's money columns (USD/EUR/GEL
+ * — all two-decimal this milestone), mirroring the receipt email's formatting.
+ */
+const EXPORT_MINOR_PER_MAJOR = 100;
+
+/**
+ * Render a minor-unit money amount as a plain major-unit decimal (e.g. `1000` →
+ * `"10.00"`) for the CSV. The export presents money the way the receipts and the
+ * admin UI do — actual currency amounts against the row's `currency` column —
+ * rather than raw minor units, so a bookkeeper's spreadsheet reconciles at a
+ * glance (T4.11). Unquoted and separator-free, so it never needs CSV escaping.
+ */
+function formatExportAmount(minor: number): string {
+  return (minor / EXPORT_MINOR_PER_MAJOR).toFixed(2);
+}
 
 /**
  * Render one order roster row as the ordered cell values for a CSV line, matching
- * {@link ORDER_EXPORT_COLUMNS}. Pure — the service wraps each cell with CSV
- * escaping and joins with the line terminator. A null cell renders empty.
+ * {@link ORDER_EXPORT_COLUMNS}. Money columns (`total`, `refundedAmount`,
+ * `netTotal`) are formatted as major-unit decimals via {@link formatExportAmount};
+ * `netTotal` is `total - refundedAmount`. Pure — the service wraps each cell with
+ * CSV escaping and joins with the line terminator. A null cell renders empty.
  */
 export function orderExportCells(row: AdminOrderRow): string[] {
-  return ORDER_EXPORT_COLUMNS.map((column) => {
-    const value = row[column];
-    return value === null ? '' : String(value);
-  });
+  const netTotal = row.total - row.refundedAmount;
+  return [
+    row.id,
+    row.createdAt,
+    row.channel,
+    row.status,
+    row.currency,
+    formatExportAmount(row.total),
+    formatExportAmount(row.refundedAmount),
+    formatExportAmount(netTotal),
+    row.paymentMethod ?? '',
+    row.memberId ?? '',
+    row.customerName ?? '',
+    String(row.itemCount),
+  ];
 }
