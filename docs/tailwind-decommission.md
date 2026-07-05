@@ -58,8 +58,10 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/web/src/components/theme/astryx-provider.tsx` | T11.1 | ✅     |
 | `apps/admin/components/theme/astryx-provider.tsx`   | T11.1 | ✅     |
 | `apps/web/app/[locale]/login`                       | T11.7 | ✅     |
-| `apps/web/.../auth/auth-shell.tsx`                  | T11.7 | ✅     |
+| `apps/web/app/[locale]/_components/auth`            | T11.7 | ✅     |
 | `apps/web/app/[locale]/register`                    | T11.8 | ✅     |
+| `apps/web/app/[locale]/forgot-password`             | T11.9 | ✅     |
+| `apps/web/app/[locale]/reset-password`              | T11.9 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
@@ -67,7 +69,6 @@ are files currently using `className=` under each app, as a rough burn-down:
 
 | Area                                        | Tasks                  |
 | ------------------------------------------- | ---------------------- |
-| Web — auth (login/register/verify/reset)    | T11.7, T11.8, T11.9    |
 | Web — member shell + home                   | T11.10, T11.11         |
 | Web — classes / trainers / bookings         | T11.12, T11.13, T11.14 |
 | Web — shop / cart / checkout                | T11.15                 |
@@ -117,5 +118,5 @@ Once **both** apps are done:
 
 - ✅ Guardrail rule active in CI (`check:tailwind-guardrail` step in `ci.yml`).
 - ✅ Documented removal checklist exists (this file).
-- ✅ No Astryx screen depends on a Tailwind class (the four migrated surfaces
-  pass the guardrail; verified `pnpm check:tailwind-guardrail`).
+- ✅ No Astryx screen depends on a Tailwind class (every migrated surface in the
+  manifest passes the guardrail; verified `pnpm check:tailwind-guardrail`).

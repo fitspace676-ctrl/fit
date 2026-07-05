@@ -47,15 +47,19 @@ const MIGRATED_PATHS: readonly string[] = [
   // T11.1 — brand Theme providers wiring Astryx into each app shell.
   'apps/web/src/components/theme/astryx-provider.tsx',
   'apps/admin/components/theme/astryx-provider.tsx',
-  // T11.7 — auth shell + login screen (credentials + Google + Apple). The shared
-  // auth-shell is guarded by file, not its whole `_components/auth` dir, because
-  // `form-controls.tsx` still serves the not-yet-migrated forgot screens (T11.9)
-  // on Tailwind — it enters the manifest with them.
+  // T11.7 — auth shell + login screen (credentials + Google + Apple). With the
+  // forgot/reset screens migrated (T11.9) the whole `_components/auth` dir is now
+  // Astryx-only — the legacy `form-controls.tsx` is gone — so it is guarded as a
+  // directory rather than file-by-file.
   'apps/web/app/[locale]/login',
-  'apps/web/app/[locale]/_components/auth/auth-shell.tsx',
+  'apps/web/app/[locale]/_components/auth',
   // T11.8 — register + post-signup email-verification screen. Rebuilt inline on
   // Astryx form primitives (no longer routed through `form-controls.tsx`).
   'apps/web/app/[locale]/register',
+  // T11.9 — forgot-password (request link) + reset-password (set new password).
+  // Rebuilt on the shared Astryx auth shell + Astryx form primitives (StyleX).
+  'apps/web/app/[locale]/forgot-password',
+  'apps/web/app/[locale]/reset-password',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

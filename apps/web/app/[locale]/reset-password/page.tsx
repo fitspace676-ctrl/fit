@@ -1,19 +1,21 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
 import { AuthShell } from '../_components/auth/auth-shell';
-import { ForgotPasswordForm } from './forgot-password-form';
+import { ResetPasswordForm } from './reset-password-form';
 
 export const metadata: Metadata = {
-  title: 'Forgot password — Fit',
-  description: 'Request a password reset link for your Fit account.',
+  title: 'Reset password — Fit',
+  description: 'Choose a new password for your Fit account.',
 };
 
-// Astryx migration (T11.9): the footer cross-link back to sign-in is authored in
-// compiled StyleX on the Fit theme tokens, mirroring the login and register
-// pages. The locale-aware next-intl `Link` keeps the routing contract; only its
-// styling moved off Tailwind.
+// Astryx migration (T11.9): the reset screen reuses the shared Astryx auth shell
+// and its footer cross-link back to sign-in is authored in compiled StyleX on
+// the Fit theme tokens, mirroring the login, register and forgot-password pages.
+// The form reads the single-use token from the query string, so it is wrapped in
+// Suspense (it calls `useSearchParams`).
 const styles = stylex.create({
   link: {
     fontSize: '0.875rem',
@@ -26,7 +28,7 @@ const styles = stylex.create({
   },
 });
 
-export default async function ForgotPasswordPage({
+export default async function ResetPasswordPage({
   params,
 }: {
   params: Promise<{ locale: string }>;
@@ -38,15 +40,17 @@ export default async function ForgotPasswordPage({
 
   return (
     <AuthShell
-      title={t('forgot.title')}
-      subtitle={t('forgot.subtitle')}
+      title={t('reset.title')}
+      subtitle={t('reset.subtitle')}
       footer={
         <Link href="/login" {...stylex.props(styles.link)}>
-          {t('forgot.backToLogin')}
+          {t('reset.backToLogin')}
         </Link>
       }
     >
-      <ForgotPasswordForm />
+      <Suspense fallback={null}>
+        <ResetPasswordForm />
+      </Suspense>
     </AuthShell>
   );
 }
