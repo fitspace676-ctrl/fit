@@ -190,7 +190,8 @@ export class AppModule implements NestModule {
    * 2. {@link TenantMiddleware} establishes the tenant from the JWT on every
    *    route except the public ones: auth (must work before any session exists),
    *    the health probe, the public discovery listings
-   *    (`GET /class-instances`, `GET /class-instances/:id`, `GET /trainers`,
+   *    (`GET /class-instances`, `GET /class-instances/:id`, the public live
+   *    occupancy stream `GET /class-instances/occupancy/stream`, `GET /trainers`,
    *    `GET /trainers/:id/reviews`, `GET /packages`, `GET /products`) — which an unauthenticated
    *    visitor browses on a gym subdomain and which carry their `gymId` as a
    *    query param rather than a session — the public tenant lookup
@@ -216,6 +217,7 @@ export class AppModule implements NestModule {
         { path: 'auth/(.*)', method: RequestMethod.ALL },
         { path: 'health', method: RequestMethod.ALL },
         { path: 'class-instances', method: RequestMethod.ALL },
+        { path: 'class-instances/occupancy/stream', method: RequestMethod.GET },
         { path: 'class-instances/:id', method: RequestMethod.GET },
         { path: 'trainers', method: RequestMethod.ALL },
         { path: 'trainers/:id/reviews', method: RequestMethod.GET },

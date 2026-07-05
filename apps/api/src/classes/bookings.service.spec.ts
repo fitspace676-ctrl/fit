@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
 import { BookingsService } from './bookings.service';
+import type { ClassOccupancyPublisher } from './class-occupancy.publisher';
 import type { CreditPacksService } from '../billing/credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -93,14 +94,27 @@ function setup(opts?: {
     refundCredit: vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined),
   };
 
+  // The live occupancy broadcast (T8.10) is exercised in
+  // `class-occupancy.publisher.spec.ts` + `occupancy-stream.service.spec.ts`; here
+  // it is a stub so a test can assert the booking flow fires it after a commit.
+  const occupancy = {
+    publish: vi.fn<(classInstanceId: string) => Promise<void>>().mockResolvedValue(undefined),
+  };
+
   return {
-    service: new BookingsService(prisma, tenant, creditPacks as unknown as CreditPacksService),
+    service: new BookingsService(
+      prisma,
+      tenant,
+      creditPacks as unknown as CreditPacksService,
+      occupancy as unknown as ClassOccupancyPublisher,
+    ),
     gymMember,
     booking,
     classInstance,
     gym,
     subscription,
     creditPacks,
+    occupancy,
     transaction: $transaction,
   };
 }
@@ -150,6 +164,8 @@ describe('BookingsService', () => {
         status: BookingStatus.BOOKED,
         waitlistPosition: null,
       });
+      // The committed seat change is pushed to the live occupancy stream (T8.10).
+      expect(ctx.occupancy.publish).toHaveBeenCalledWith(INSTANCE_ID);
     });
 
     it('honours a per-occurrence capacityOverride over the template capacity', async () => {
@@ -405,6 +421,8 @@ describe('BookingsService', () => {
       // No write path was entered on a replay.
       expect(ctx.transaction).not.toHaveBeenCalled();
       expect(ctx.classInstance.updateMany).not.toHaveBeenCalled();
+      // A replay changed nothing, so no occupancy snapshot is broadcast (T8.10).
+      expect(ctx.occupancy.publish).not.toHaveBeenCalled();
     });
 
     it('409s a key reused for a different occurrence (IDEMPOTENCY_KEY_REUSED)', async () => {
@@ -512,6 +530,8 @@ describe('BookingsService', () => {
         },
         data: { waitlistPosition: { decrement: 1 } },
       });
+      // The cancel + auto-promotion is pushed to the live occupancy stream (T8.10).
+      expect(ctx.occupancy.publish).toHaveBeenCalledWith(INSTANCE_ID);
     });
 
     it('releases the seat back to the pool when the queue is empty (bookedCount decremented)', async () => {

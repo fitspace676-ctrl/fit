@@ -1,8 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import type { AdminClassInstanceDetail, AdminScheduleResponse } from '@fit/types';
+import { firstValueFrom, of } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
+import {
+  CLASS_OCCUPANCY_EVENT,
+  type AdminClassInstanceDetail,
+  type AdminScheduleResponse,
+  type ClassOccupancy,
+} from '@fit/types';
 import { AdminScheduleController } from './admin-schedule.controller';
 import type { AdminScheduleService } from './admin-schedule.service';
+import type { TenantContext } from '../common/tenant/tenant.context';
+import type { OccupancyStreamService } from '../live/occupancy-stream.service';
 
 const FROM = '2026-06-01T00:00:00.000Z';
 const TO = '2026-06-08T00:00:00.000Z';
@@ -50,15 +59,32 @@ function setup() {
     promoteWaitlistEntry,
     bookMemberOntoClass,
   } as unknown as AdminScheduleService;
+  const stream = vi.fn<(gymId: string) => ReturnType<OccupancyStreamService['stream']>>(() =>
+    of(OCCUPANCY),
+  );
+  const occupancy = { stream } as unknown as OccupancyStreamService;
+  const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
   return {
-    controller: new AdminScheduleController(schedule),
+    controller: new AdminScheduleController(schedule, occupancy, tenant),
     listSchedule,
     getInstanceDetail,
     cancelInstance,
     promoteWaitlistEntry,
     bookMemberOntoClass,
+    stream,
   };
 }
+
+/** A live occupancy snapshot as the stream delivers it. */
+const OCCUPANCY: ClassOccupancy = {
+  classInstanceId: 'ci-1',
+  capacity: 12,
+  bookedCount: 5,
+  available: 7,
+  waitlistCount: 2,
+  status: 'SCHEDULED',
+  at: '2026-07-04T10:00:00.000Z',
+};
 
 describe('AdminScheduleController', () => {
   let ctx: ReturnType<typeof setup>;
@@ -179,6 +205,21 @@ describe('AdminScheduleController', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(ctx.bookMemberOntoClass).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /admin/schedule/stream', () => {
+    it('subscribes to the caller gym stream and emits class.occupancy frames', async () => {
+      const frame = await firstValueFrom(
+        ctx.controller.streamOccupancy().pipe(
+          filter((event) => event.type === CLASS_OCCUPANCY_EVENT),
+          take(1),
+        ),
+      );
+
+      // Scoped to the tenant context's gym, never a client-supplied id.
+      expect(ctx.stream).toHaveBeenCalledWith('gym-1');
+      expect(frame).toEqual({ type: CLASS_OCCUPANCY_EVENT, data: OCCUPANCY });
     });
   });
 });

@@ -2,10 +2,16 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { ClassInstanceDetail } from '@fit/types';
 import { Badge, Card, Occupancy } from '@/src/components/ui';
 import { ClassBookingCta } from './ClassBookingCta';
+import { ClassOccupancyLive } from './ClassOccupancyLive';
 import { formatDate, formatTime } from './date-utils';
 
 export interface ClassDetailProps {
   instance: ClassInstanceDetail;
+  /**
+   * The gym in scope, used to open the live occupancy stream (T8.10). `null` on
+   * the apex / preview URL, where the page renders without a live subscription.
+   */
+  gymId: string | null;
 }
 
 /**
@@ -20,7 +26,7 @@ export interface ClassDetailProps {
  * `SCHEDULED` (a shared link to a since-canceled / completed class) a banner
  * explains it and the booking CTA is withheld.
  */
-export function ClassDetail({ instance }: ClassDetailProps) {
+export function ClassDetail({ instance, gymId }: ClassDetailProps) {
   const t = useTranslations('classes');
   const locale = useLocale();
 
@@ -94,6 +100,15 @@ export function ClassDetail({ instance }: ClassDetailProps) {
         >
           {isFull ? t('card.full') : t('card.spotsLeft', { count: spotsLeft })}
         </p>
+        {/* Headless island: refreshes this page when another member books / cancels
+            / is promoted, pushed over SSE (T8.10). */}
+        <ClassOccupancyLive
+          gymId={gymId}
+          instanceId={instance.id}
+          bookedCount={instance.bookedCount}
+          capacity={instance.capacity}
+          status={instance.status}
+        />
       </div>
 
       {isScheduled && (

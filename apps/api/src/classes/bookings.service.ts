@@ -14,6 +14,7 @@ import {
 import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { ClassOccupancyPublisher } from './class-occupancy.publisher';
 
 /** The booking columns a result is projected from (the parent occurrence's seat
  * figures are read separately so a replay reflects the live counts). */
@@ -70,6 +71,7 @@ export class BookingsService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly creditPacks: CreditPacksService,
+    private readonly occupancy: ClassOccupancyPublisher,
   ) {}
 
   /**
@@ -101,7 +103,7 @@ export class BookingsService {
     const key = idempotencyKey ?? randomUUID();
 
     try {
-      return await this.prisma.client.$transaction(async (tx) => {
+      const result = await this.prisma.client.$transaction(async (tx) => {
         const instance = await tx.classInstance.findFirst({
           where: { id: classInstanceId },
           select: INSTANCE_SELECT,
@@ -187,6 +189,15 @@ export class BookingsService {
           idempotentReplay: false,
         };
       });
+
+      // A real seat/waitlist change committed — push the occurrence's settled
+      // occupancy to the live schedule + member views (T8.10). Fire-and-forget and
+      // best-effort (the publisher swallows a Redis outage; the trailing `.catch`
+      // is belt-and-braces), so a live-push hiccup can never fail the booking that
+      // just succeeded — the client's next fetch catches the counts up.
+      void this.occupancy.publish(classInstanceId).catch(() => undefined);
+
+      return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const target = violatedTarget(error);
@@ -241,7 +252,7 @@ export class BookingsService {
   async cancel(classInstanceId: string): Promise<CancelBookingResult> {
     const memberId = await this.requireCallerMembership();
 
-    return this.prisma.client.$transaction(async (tx) => {
+    const result = await this.prisma.client.$transaction(async (tx) => {
       const instance = await tx.classInstance.findFirst({
         where: { id: classInstanceId },
         select: INSTANCE_SELECT,
@@ -382,6 +393,14 @@ export class BookingsService {
         bookedCount: after?.bookedCount ?? instance.bookedCount,
       };
     });
+
+    // The cancel (and any waitlist auto-promotion it triggered) changed the seat
+    // counts — push the occurrence's settled occupancy to the live schedule +
+    // member views (T8.10). Fire-and-forget and best-effort, so it can never fail
+    // the cancellation that just committed.
+    void this.occupancy.publish(classInstanceId).catch(() => undefined);
+
+    return result;
   }
 
   /**

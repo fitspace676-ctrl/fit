@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import type { AdminScheduleInstance, ClassInstanceStatus } from '@fit/types';
 import { Badge, Btn, Card, Icon, type Tone } from '@/components/ui';
+import { useOccupancyStream } from '@/hooks/use-occupancy-stream';
 import { ClassDrawer } from './class-drawer';
 import { addWeeks, mondayOf, toIsoDate, weekDays } from './week';
 
@@ -58,6 +59,10 @@ export function ScheduleBoard({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  // Live occupancy (T8.10): refresh the week grid as members book / cancel and the
+  // desk promotes, pushed over SSE — replacing the schedule's need to poll.
+  useOccupancyStream();
 
   // The occurrence whose detail drawer is open (null when closed). The clicked
   // block renders the drawer header instantly while its roster is fetched.

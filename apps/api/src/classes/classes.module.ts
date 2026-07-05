@@ -10,6 +10,7 @@ import { AttendanceService } from './attendance.service';
 import { BookingReminderService } from './booking-reminder.service';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
+import { ClassOccupancyPublisher } from './class-occupancy.publisher';
 import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
 import { MemberBookingsController } from './member-bookings.controller';
@@ -78,6 +79,7 @@ import { MemberBookingsService } from './member-bookings.service';
     BookingReminderService,
     AttendanceService,
     MemberBookingsService,
+    ClassOccupancyPublisher,
   ],
 })
 export class ClassesModule {}

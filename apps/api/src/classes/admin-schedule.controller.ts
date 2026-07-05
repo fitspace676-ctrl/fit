@@ -5,26 +5,41 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  type MessageEvent,
   Param,
   Post,
   Query,
+  Sse,
   UseGuards,
 } from '@nestjs/common';
+import { interval, map, merge, type Observable } from 'rxjs';
 import { z } from 'zod';
 import {
+  CLASS_OCCUPANCY_EVENT,
   Permission,
   adminBookMemberSchema,
   adminScheduleQuerySchema,
   type AdminScheduleResponse,
   type BookMemberOntoClassResponse,
   type CancelClassInstanceResponse,
+  type ClassOccupancy,
   type GetAdminClassInstanceResponse,
   type PromoteWaitlistResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
+import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantGuard } from '../common/tenant/tenant.guard';
+import { OccupancyStreamService } from '../live/occupancy-stream.service';
 import { AdminScheduleService } from './admin-schedule.service';
+
+/**
+ * How often the live stream emits a keep-alive `ping`. Idle proxies drop a
+ * connection that has been silent too long; a lightweight ping well under the
+ * usual 60s idle timeout keeps the pipe open between real events — the same
+ * cadence the activity stream uses.
+ */
+const SSE_HEARTBEAT_MS = 25_000;
 
 /**
  * Staff-console schedule week-view API (`/admin/schedule`, T3.1).
@@ -43,7 +58,43 @@ import { AdminScheduleService } from './admin-schedule.service';
 @Controller('admin/schedule')
 @UseGuards(TenantGuard, PermissionsGuard)
 export class AdminScheduleController {
-  constructor(private readonly schedule: AdminScheduleService) {}
+  constructor(
+    private readonly schedule: AdminScheduleService,
+    private readonly occupancy: OccupancyStreamService,
+    private readonly tenant: TenantContext,
+  ) {}
+
+  /**
+   * `GET /admin/schedule/stream` — the gym's live class-occupancy stream over
+   * Server-Sent Events (T8.10). Each book / cancel / promote pushes a
+   * {@link ClassOccupancy} snapshot the moment the seat counts settle, so the
+   * schedule board's capacity bars update without polling. Every occupancy frame's
+   * event name is {@link CLASS_OCCUPANCY_EVENT} (`class.occupancy`) so a client
+   * routes on it; a `ping` every {@link SSE_HEARTBEAT_MS} keeps idle connections
+   * alive through proxies.
+   *
+   * Guarded exactly like the read endpoints — {@link TenantGuard} +
+   * {@link Permission.ClassRead} — and filtered to the caller's own gym from the
+   * tenant context, never a client-supplied id, so the stream honours the same
+   * tenant isolation the schedule reads do.
+   */
+  @Sse('stream')
+  @RequirePermissions(Permission.ClassRead)
+  streamOccupancy(): Observable<MessageEvent> {
+    const gymId = this.tenant.gymId;
+    const occupancy$ = this.occupancy.stream(gymId).pipe(
+      map(
+        (snapshot: ClassOccupancy): MessageEvent => ({
+          type: CLASS_OCCUPANCY_EVENT,
+          data: snapshot,
+        }),
+      ),
+    );
+    const heartbeat$ = interval(SSE_HEARTBEAT_MS).pipe(
+      map((): MessageEvent => ({ type: 'ping', data: {} })),
+    );
+    return merge(occupancy$, heartbeat$);
+  }
 
   /**
    * `GET /admin/schedule?from=<ISO>&to=<ISO>&trainerId=&locationId=` — the gym's
