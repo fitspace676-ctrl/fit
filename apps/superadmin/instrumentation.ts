@@ -1,8 +1,24 @@
 // Validate the environment once, before anything else runs on the server. The
 // import's side effect throws on a malformed var (fail-fast); see `lib/env.ts`.
-// Next.js calls `register()` once per runtime before any request is handled.
 import './lib/env';
+import * as Sentry from '@sentry/nextjs';
 
+/**
+ * Server/edge Sentry bootstrap. Next.js calls `register()` once per runtime
+ * before any request is handled. No-op when `SENTRY_DSN` is unset, so local dev
+ * and preview builds run without an account.
+ */
 export function register(): void {
-  // Env validation runs on import above; nothing else to bootstrap here yet.
+  const dsn = process.env.SENTRY_DSN;
+  if (!dsn) return;
+  if (process.env.NEXT_RUNTIME === 'nodejs' || process.env.NEXT_RUNTIME === 'edge') {
+    Sentry.init({
+      dsn,
+      environment: process.env.SENTRY_ENVIRONMENT,
+      tracesSampleRate: 0.1,
+    });
+  }
 }
+
+/** Forwards errors thrown in Server Components / route handlers to Sentry. */
+export const onRequestError = Sentry.captureRequestError;

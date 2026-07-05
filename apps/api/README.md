@@ -65,7 +65,10 @@ layer populates `req.user`).
 
 `instrument.ts` calls `Sentry.init()` from `@sentry/nestjs` before the app
 boots; `SentryGlobalFilter` forwards unhandled exceptions. Both are no-ops
-unless `SENTRY_DSN` is set, so nothing ships to Sentry in local dev / CI.
+unless `SENTRY_DSN` is set, so nothing ships to Sentry in local dev / CI. The
+subscription-renewal cron additionally reports job failures explicitly. See
+[docs/monitoring.md](../../docs/monitoring.md) for the full monitoring, alerting
+and release-tagging setup.
 
 ## Configuration
 
