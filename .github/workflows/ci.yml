@@ -67,6 +67,12 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Enforce the ≥70% coverage floor on the API's business logic (T9.10) —
+      # fails the job if billing/notification (or any) service logic lands
+      # without specs and drags a metric under the threshold.
+      - name: Coverage gate (API ≥70%)
+        run: pnpm --filter @fit/api test:cov
+
       - name: Build
         run: pnpm build
 
