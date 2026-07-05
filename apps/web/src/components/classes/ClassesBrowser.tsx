@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import { DEFAULT_CLASS_VIEW, type ClassCalendarView, type ClassInstanceCard } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchClassInstances } from '@/lib/classes';
-import { Btn, Card } from '@/src/components/ui';
 import { ClassDetailDrawer } from './ClassDetailDrawer';
 import { ClassFilters } from './ClassFilters';
 import { ClassListView } from './ClassListView';
@@ -19,6 +21,78 @@ import {
   type ClassFilterState,
 } from './class-filters';
 import { dayKey, parseWeekParam, weekWindow } from './date-utils';
+
+// Astryx migration (T11.12): the browser shell — the week/list segmented
+// toggle, the loading / error / no-match states — is rebuilt on the Astryx
+// `Card` / `Button` over the Fit brand theme, authored in compiled StyleX
+// (`var(--color-*)`) with no Tailwind utilities. The fetch/URL/filter logic is
+// unchanged; only the presentation moved off Tailwind.
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  toggle: {
+    display: 'inline-flex',
+    alignSelf: 'flex-start',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    padding: '0.125rem',
+  },
+  toggleBtn: {
+    borderRadius: 'var(--radius-full)',
+    borderWidth: 0,
+    paddingInline: '1rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  toggleBtnIdle: {
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+    },
+    color: 'var(--color-text-secondary)',
+  },
+  toggleBtnActive: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  loading: {
+    paddingBlock: '4rem',
+    margin: 0,
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  stateCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingBlock: '4rem',
+    textAlign: 'center',
+  },
+  stateText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  stateTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+});
 
 export interface ClassesBrowserProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
@@ -131,7 +205,7 @@ export function ClassesBrowser({
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div {...stylex.props(styles.root)}>
       <ViewToggle
         view={view}
         onChange={setView}
@@ -145,25 +219,29 @@ export function ClassesBrowser({
       )}
 
       {load.status === 'loading' ? (
-        <p className="py-16 text-center text-sm text-ink-400">{t('loading')}</p>
+        <p {...stylex.props(styles.loading)}>{t('loading')}</p>
       ) : load.status === 'error' ? (
-        <Card glow className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="text-sm text-ink-500 dark:text-ink-400">{t('error')}</p>
-          <Btn v="outline" size="sm" onClick={() => setWeek(new Date(week))}>
-            {t('retry')}
-          </Btn>
+        <Card variant="default" padding={0} xstyle={styles.stateCard}>
+          <p {...stylex.props(styles.stateText)}>{t('error')}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            label={t('retry')}
+            onClick={() => setWeek(new Date(week))}
+          />
         </Card>
       ) : load.instances.length > 0 && filtered.length === 0 ? (
         // Classes exist this week but the active filters exclude them all — a
         // distinct state from "no classes this week", with a one-tap reset.
-        <Card glow className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="font-display text-base font-bold text-ink-900 dark:text-white">
-            {t('filters.noMatch.title')}
-          </p>
-          <p className="text-sm text-ink-500 dark:text-ink-400">{t('filters.noMatch.subtitle')}</p>
-          <Btn v="outline" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
-            {t('filters.noMatch.action')}
-          </Btn>
+        <Card variant="default" padding={0} xstyle={styles.stateCard}>
+          <p {...stylex.props(styles.stateTitle)}>{t('filters.noMatch.title')}</p>
+          <p {...stylex.props(styles.stateText)}>{t('filters.noMatch.subtitle')}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            label={t('filters.noMatch.action')}
+            onClick={() => setFilters(EMPTY_FILTERS)}
+          />
         </Card>
       ) : view === 'week' ? (
         <WeekCalendar
@@ -198,11 +276,7 @@ function ViewToggle({
   groupLabel: string;
 }) {
   return (
-    <div
-      role="group"
-      aria-label={groupLabel}
-      className="inline-flex self-start rounded-pill border border-ink-200 p-0.5 dark:border-white/10"
-    >
+    <div role="group" aria-label={groupLabel} {...stylex.props(styles.toggle)}>
       {(['week', 'list'] as const).map((value) => {
         const active = view === value;
         return (
@@ -211,11 +285,10 @@ function ViewToggle({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(value)}
-            className={`rounded-pill px-4 py-1.5 text-sm font-semibold transition-colors ${
-              active
-                ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_24px_-8px_rgba(98,87,227,0.7)]'
-                : 'text-ink-600 hover:bg-ink-50 dark:text-ink-300 dark:hover:bg-white/5'
-            }`}
+            {...stylex.props(
+              styles.toggleBtn,
+              active ? styles.toggleBtnActive : styles.toggleBtnIdle,
+            )}
           >
             {value === 'week' ? weekLabel : listLabel}
           </button>

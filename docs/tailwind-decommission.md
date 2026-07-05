@@ -64,6 +64,8 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/web/app/[locale]/reset-password`                    | T11.9  | ✅     |
 | `apps/web/app/[locale]/(member)/home/page.tsx`            | T11.11 | ✅     |
 | `apps/web/src/components/member/home/membership-hero.tsx` | T11.11 | ✅     |
+| `apps/web/app/[locale]/(member)/classes`                  | T11.12 | ✅     |
+| `apps/web/src/components/classes`                         | T11.12 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:

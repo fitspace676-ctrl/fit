@@ -1,5 +1,50 @@
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Card, Icon } from '@/src/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/src/components/ui';
+
+// Astryx migration (T11.12): rebuilt on the Astryx `Card` over the Fit brand
+// theme, with the layout authored in compiled StyleX (`var(--color-*)`) — no
+// Tailwind utilities, no formacore Aurora-glass primitives.
+
+const styles = stylex.create({
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.75rem',
+    paddingBlock: '4rem',
+    paddingInline: '1.5rem',
+    textAlign: 'center',
+  },
+  badge: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '3rem',
+    width: '3rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  badgeIcon: {
+    height: '1.5rem',
+    width: '1.5rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '24rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /**
  * Empty state shown when the selected week (or the active gym) has no classes to
@@ -10,17 +55,12 @@ export function EmptyClasses() {
   const t = useTranslations('classes');
 
   return (
-    <Card glow className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <span
-        aria-hidden
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-white/10 dark:text-brand-300"
-      >
-        <Icon name="calendar" className="h-6 w-6" sw={2} />
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <span aria-hidden {...stylex.props(styles.badge)}>
+        <Icon name="calendar" {...stylex.props(styles.badgeIcon)} sw={2} />
       </span>
-      <p className="font-display text-base font-bold text-ink-900 dark:text-white">
-        {t('empty.title')}
-      </p>
-      <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">{t('empty.subtitle')}</p>
+      <p {...stylex.props(styles.title)}>{t('empty.title')}</p>
+      <p {...stylex.props(styles.subtitle)}>{t('empty.subtitle')}</p>
     </Card>
   );
 }

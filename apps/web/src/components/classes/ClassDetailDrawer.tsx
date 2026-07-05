@@ -1,13 +1,104 @@
 'use client';
 
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard } from '@fit/types';
 import { Link, usePathname } from '@/src/i18n/navigation';
 import { useSession } from '@/hooks/use-session';
-import { Badge, buttonClasses, Btn, Card, Drawer, Occupancy } from '@/src/components/ui';
+import { Drawer } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { BookingActionButton } from '@/src/components/member/booking-action-button';
+import { ClassOccupancy } from './ClassOccupancy';
 import { formatTime } from './date-utils';
+
+// Astryx migration (T11.12): the drawer body is rebuilt on the Astryx `Badge` /
+// `Button` / `Card` over the Fit brand theme, with the header, detail list, and
+// capacity panel authored in compiled StyleX (`var(--color-*)`). The side-sheet
+// shell (`Drawer`) still comes from @fit/ui-web — it is the shared overlay
+// primitive, out of this screen's migration scope. No Tailwind utilities are
+// authored here; the booking server action ({@link BookingActionButton}) is
+// unchanged.
+
+const styles = stylex.create({
+  headerRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.25rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  dl: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    margin: 0,
+    fontSize: '0.875rem',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  dt: {
+    margin: 0,
+    color: 'var(--color-text-secondary)',
+  },
+  dd: {
+    margin: 0,
+    textAlign: 'right',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  mono: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  capCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    padding: '1rem',
+  },
+  capLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  spots: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  spotsFull: {
+    color: 'var(--color-error)',
+  },
+  footer: {
+    marginTop: 'auto',
+    paddingTop: '0.5rem',
+  },
+  fullBtnWrap: {
+    display: 'grid',
+  },
+  fullBtn: {
+    width: '100%',
+  },
+  closeIcon: {
+    height: '1.125rem',
+    width: '1.125rem',
+  },
+});
 
 export interface ClassDetailDrawerProps {
   /** The class to show, or `null` when the drawer is closed. */
@@ -19,11 +110,12 @@ export interface ClassDetailDrawerProps {
 /**
  * Right-side sheet showing one class's details and the booking CTA.
  *
- * Built as a plain overlay + panel (the app has no shadcn `<Sheet>` yet). The
- * CTA is auth-gated: a signed-out visitor gets a link to `/login?from=<this
- * page, with the class preselected>` so they return here after signing in; a
- * signed-in member gets the real {@link BookingActionButton}, which runs the
- * booking server action and refreshes the seat counts.
+ * Built on the shared @fit/ui-web `Drawer` overlay; the body is rebuilt on
+ * Astryx primitives under the Fit brand theme. The CTA is auth-gated: a
+ * signed-out visitor gets a link to `/login?from=<this page, with the class
+ * preselected>` so they return here after signing in; a signed-in member gets
+ * the real {@link BookingActionButton}, which runs the booking server action and
+ * refreshes the seat counts.
  */
 export function ClassDetailDrawer({ instance, onClose }: ClassDetailDrawerProps) {
   const t = useTranslations('classes');
@@ -55,18 +147,23 @@ export function ClassDetailDrawer({ instance, onClose }: ClassDetailDrawerProps)
       accent={instance.color}
       hideHeader
     >
-      <div className="flex items-start justify-between gap-4">
-        <Badge tone="brand">{instance.category}</Badge>
-        <Btn v="ghost" size="icon" icon="x" aria-label={t('drawer.close')} onClick={onClose} />
+      <div {...stylex.props(styles.headerRow)}>
+        {instance.category && <Badge variant="purple" label={instance.category} />}
+        <Button
+          variant="ghost"
+          size="sm"
+          isIconOnly
+          label={t('drawer.close')}
+          icon={<Icon name="x" {...stylex.props(styles.closeIcon)} sw={2} />}
+          onClick={onClose}
+        />
       </div>
 
-      <h2 className="font-display text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">
-        {instance.title}
-      </h2>
+      <h2 {...stylex.props(styles.title)}>{instance.title}</h2>
 
-      <dl className="flex flex-col gap-3 text-sm">
+      <dl {...stylex.props(styles.dl)}>
         <DetailRow label={t('drawer.time')}>
-          <span className="font-mono tabular-nums">
+          <span {...stylex.props(styles.mono)}>
             {formatTime(instance.startsAt, locale)} – {formatTime(instance.endsAt, locale)}
           </span>
         </DetailRow>
@@ -78,34 +175,34 @@ export function ClassDetailDrawer({ instance, onClose }: ClassDetailDrawerProps)
         ) : null}
       </dl>
 
-      <Card className="flex flex-col gap-1.5 p-4">
-        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">
-          {t('drawer.capacity')}
-        </span>
-        <Occupancy value={instance.bookedCount} cap={instance.capacity} />
-        <p
-          className={`text-xs ${
-            isFull ? 'text-danger-600 dark:text-danger-300' : 'text-ink-500 dark:text-ink-400'
-          }`}
-        >
+      <Card variant="muted" padding={0} xstyle={styles.capCard}>
+        <span {...stylex.props(styles.capLabel)}>{t('drawer.capacity')}</span>
+        <ClassOccupancy value={instance.bookedCount} cap={instance.capacity} />
+        <p {...stylex.props(styles.spots, isFull && styles.spotsFull)}>
           {isFull ? t('card.full') : t('card.spotsLeft', { count: spotsLeft })}
         </p>
       </Card>
 
-      <div className="mt-auto pt-2">
+      <div {...stylex.props(styles.footer)}>
         {user ? (
-          <BookingActionButton
-            classId={instance.id}
-            action="book"
-            label={isFull ? t('drawer.full') : t('drawer.book')}
-            v="primary"
-            size="lg"
-            className="w-full"
-          />
+          <div {...stylex.props(styles.fullBtnWrap)}>
+            <BookingActionButton
+              classId={instance.id}
+              action="book"
+              label={isFull ? t('drawer.full') : t('drawer.book')}
+              v="primary"
+              size="lg"
+            />
+          </div>
         ) : (
-          <Link href={loginHref} className={buttonClasses('primary', 'lg', 'w-full')}>
-            {t('drawer.signInToBook')}
-          </Link>
+          <Button
+            as={Link}
+            href={loginHref}
+            variant="primary"
+            size="lg"
+            label={t('drawer.signInToBook')}
+            xstyle={styles.fullBtn}
+          />
         )}
       </div>
     </Drawer>
@@ -115,9 +212,9 @@ export function ClassDetailDrawer({ instance, onClose }: ClassDetailDrawerProps)
 /** A labelled detail line in the drawer's definition list. */
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <dt className="text-ink-500 dark:text-ink-400">{label}</dt>
-      <dd className="text-right font-medium text-ink-900 dark:text-white">{children}</dd>
+    <div {...stylex.props(styles.row)}>
+      <dt {...stylex.props(styles.dt)}>{label}</dt>
+      <dd {...stylex.props(styles.dd)}>{children}</dd>
     </div>
   );
 }

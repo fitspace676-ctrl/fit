@@ -1,9 +1,130 @@
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceDetail } from '@fit/types';
-import { Badge, Card, Occupancy } from '@/src/components/ui';
 import { ClassBookingCta } from './ClassBookingCta';
+import { ClassOccupancy } from './ClassOccupancy';
 import { ClassOccupancyLive } from './ClassOccupancyLive';
 import { formatDate, formatTime } from './date-utils';
+
+// Astryx migration (T11.12): the class-detail body is rebuilt on the Astryx
+// `Card` / `Badge` over the Fit brand theme, with the layout, status banner, and
+// definition list authored in compiled StyleX (`var(--color-*)`). The occupancy
+// meter reuses the shared brand `ClassOccupancy`. No Tailwind utilities and no
+// formacore Aurora-glass primitives; the booking/live islands are unchanged.
+
+const styles = stylex.create({
+  card: {
+    position: 'relative',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+    padding: '1.5rem',
+  },
+  accent: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '0.25rem',
+  },
+  head: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  date: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  banner: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-warning-muted)',
+    backgroundColor: 'var(--color-background-yellow)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  description: {
+    margin: 0,
+    whiteSpace: 'pre-line',
+    fontSize: '0.875rem',
+    lineHeight: 1.7,
+    color: 'var(--color-text-secondary)',
+  },
+  dl: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    paddingBlock: '1.25rem',
+    margin: 0,
+    fontSize: '0.875rem',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  dt: {
+    margin: 0,
+    color: 'var(--color-text-secondary)',
+  },
+  dd: {
+    margin: 0,
+    textAlign: 'right',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  mono: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  capacity: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  capLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  spots: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  spotsFull: {
+    color: 'var(--color-error)',
+  },
+  cta: {
+    paddingTop: '0.25rem',
+  },
+});
 
 export interface ClassDetailProps {
   instance: ClassInstanceDetail;
@@ -35,44 +156,33 @@ export function ClassDetail({ instance, gymId }: ClassDetailProps) {
   const isScheduled = instance.status === 'SCHEDULED';
 
   return (
-    <Card glow className="flex flex-col gap-6 p-6">
+    <Card variant="default" padding={0} xstyle={styles.card}>
       {/* Accent colour bar from the class instance. */}
       <span
         aria-hidden
-        className="absolute inset-x-0 top-0 h-1"
+        {...stylex.props(styles.accent)}
         style={{ backgroundColor: instance.color }}
       />
 
-      <div className="flex flex-col gap-3">
-        <Badge tone="brand">{instance.category}</Badge>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">
-          {instance.title}
-        </h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          {formatDate(instance.startsAt, locale)}
-        </p>
+      <div {...stylex.props(styles.head)}>
+        {instance.category && <Badge variant="purple" label={instance.category} />}
+        <h1 {...stylex.props(styles.title)}>{instance.title}</h1>
+        <p {...stylex.props(styles.date)}>{formatDate(instance.startsAt, locale)}</p>
       </div>
 
       {!isScheduled && (
-        <p
-          role="status"
-          className="rounded-btn border border-warning-300 bg-warning-50 px-4 py-3 text-sm font-medium text-warning-800 dark:border-warning-400/30 dark:bg-warning-400/10 dark:text-warning-100"
-        >
+        <p role="status" {...stylex.props(styles.banner)}>
           {instance.status === 'CANCELED'
             ? t('detail.status.canceled')
             : t('detail.status.completed')}
         </p>
       )}
 
-      {instance.description && (
-        <p className="whitespace-pre-line text-sm leading-relaxed text-ink-600 dark:text-ink-300">
-          {instance.description}
-        </p>
-      )}
+      {instance.description && <p {...stylex.props(styles.description)}>{instance.description}</p>}
 
-      <dl className="flex flex-col gap-3 border-y border-ink-200 py-5 text-sm dark:border-white/10">
+      <dl {...stylex.props(styles.dl)}>
         <DetailRow label={t('detail.time')}>
-          <span className="font-mono tabular-nums">
+          <span {...stylex.props(styles.mono)}>
             {formatTime(instance.startsAt, locale)} – {formatTime(instance.endsAt, locale)}
           </span>
         </DetailRow>
@@ -88,16 +198,10 @@ export function ClassDetail({ instance, gymId }: ClassDetailProps) {
         {instance.room ? <DetailRow label={t('detail.room')}>{instance.room}</DetailRow> : null}
       </dl>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">
-          {t('detail.capacity')}
-        </span>
-        <Occupancy value={instance.bookedCount} cap={instance.capacity} />
-        <p
-          className={`text-xs ${
-            isFull ? 'text-danger-600 dark:text-danger-300' : 'text-ink-500 dark:text-ink-400'
-          }`}
-        >
+      <div {...stylex.props(styles.capacity)}>
+        <span {...stylex.props(styles.capLabel)}>{t('detail.capacity')}</span>
+        <ClassOccupancy value={instance.bookedCount} cap={instance.capacity} />
+        <p {...stylex.props(styles.spots, isFull && styles.spotsFull)}>
           {isFull ? t('card.full') : t('card.spotsLeft', { count: spotsLeft })}
         </p>
         {/* Headless island: refreshes this page when another member books / cancels
@@ -112,7 +216,7 @@ export function ClassDetail({ instance, gymId }: ClassDetailProps) {
       </div>
 
       {isScheduled && (
-        <div className="pt-1">
+        <div {...stylex.props(styles.cta)}>
           <ClassBookingCta classId={instance.id} isFull={isFull} />
         </div>
       )}
@@ -123,9 +227,9 @@ export function ClassDetail({ instance, gymId }: ClassDetailProps) {
 /** A labelled detail line in the detail page's definition list. */
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <dt className="text-ink-500 dark:text-ink-400">{label}</dt>
-      <dd className="text-right font-medium text-ink-900 dark:text-white">{children}</dd>
+    <div {...stylex.props(styles.row)}>
+      <dt {...stylex.props(styles.dt)}>{label}</dt>
+      <dd {...stylex.props(styles.dd)}>{children}</dd>
     </div>
   );
 }

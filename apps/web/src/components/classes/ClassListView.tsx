@@ -1,10 +1,195 @@
 'use client';
 
 import { useMemo } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard } from '@fit/types';
-import { Card, Icon, Occupancy } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
+import { ClassOccupancy } from './ClassOccupancy';
 import { formatTime, groupByDay } from './date-utils';
+
+// Astryx migration (T11.12): the list view is rebuilt on the Astryx `Card` over
+// the Fit brand theme, with every row authored in compiled StyleX
+// (`var(--color-*)`) and the shared brand `ClassOccupancy` meter — no Tailwind
+// utilities and no formacore Aurora-glass primitives. Behaviour is unchanged:
+// grouping is derived from `instances`; clicking a row opens the parent's drawer.
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  groupHead: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '0.5rem',
+    paddingInline: '0.25rem',
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  groupCount: {
+    fontWeight: 400,
+    color: 'var(--color-text-secondary)',
+  },
+  list: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  rowCard: {
+    padding: 0,
+    overflow: 'hidden',
+  },
+  rowButton: {
+    display: 'flex',
+    alignItems: 'stretch',
+    gap: '1rem',
+    width: '100%',
+    padding: '1rem',
+    textAlign: 'left',
+    borderWidth: 0,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+      ':focus-visible': 'var(--color-tint-hover)',
+    },
+    cursor: 'pointer',
+    outline: 'none',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
+  },
+  accent: {
+    width: '0.25rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  timeBlock: {
+    display: 'flex',
+    width: '5rem',
+    flexShrink: 0,
+    flexDirection: 'column',
+  },
+  time: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  duration: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  body: {
+    display: 'flex',
+    minWidth: 0,
+    flex: 1,
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  titleRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  title: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  chip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+  },
+  chipDot: {
+    height: '0.375rem',
+    width: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+  },
+  meta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metaItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  },
+  metaAvatar: {
+    display: 'flex',
+    height: '1.25rem',
+    width: '1.25rem',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    fontSize: '0.625rem',
+    fontWeight: 700,
+    color: 'var(--color-text-accent)',
+  },
+  metaDot: {
+    color: 'var(--color-text-disabled)',
+  },
+  metaIcon: {
+    height: '0.875rem',
+    width: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  occupancy: {
+    maxWidth: '20rem',
+  },
+  actionCol: {
+    display: 'flex',
+    flexShrink: 0,
+    alignItems: 'center',
+  },
+  pill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+  },
+  pillBook: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  pillFull: {
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 export interface ClassListViewProps {
   instances: ClassInstanceCard[];
@@ -41,57 +226,55 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
   const groups = useMemo(() => groupByDay(instances), [instances]);
 
   return (
-    <section aria-label={t('listView.label')} className="flex flex-col gap-6">
+    <section aria-label={t('listView.label')} {...stylex.props(styles.root)}>
       {groups.map((group) => (
-        <div key={group.key} className="flex flex-col gap-3">
-          <h3 className="flex items-baseline gap-2 px-1 text-sm font-bold text-ink-900 dark:text-white">
+        <div key={group.key} {...stylex.props(styles.group)}>
+          <h3 {...stylex.props(styles.groupHead)}>
             {group.date.toLocaleDateString(locale, {
               weekday: 'long',
               month: 'short',
               day: 'numeric',
             })}
-            <span className="font-normal text-ink-400">
+            <span {...stylex.props(styles.groupCount)}>
               {t('listView.count', { count: group.items.length })}
             </span>
           </h3>
 
-          <ul className="flex flex-col gap-3">
+          <ul {...stylex.props(styles.list)}>
             {group.items.map((instance) => {
               const spotsLeft = Math.max(instance.capacity - instance.bookedCount, 0);
               const isFull = spotsLeft === 0;
               return (
                 <li key={instance.id}>
-                  <Card glow className="p-0">
+                  <Card variant="default" padding={0} xstyle={styles.rowCard}>
                     <button
                       type="button"
                       onClick={() => onClassClick(instance.id)}
-                      className="flex w-full items-stretch gap-4 p-4 text-left transition-colors hover:bg-ink-50 focus:bg-ink-50 focus:outline-none dark:hover:bg-white/5 dark:focus:bg-white/5"
+                      {...stylex.props(styles.rowButton)}
                     >
                       {/* Accent colour bar from the class instance. */}
                       <span
                         aria-hidden
-                        className="w-1 shrink-0 rounded-full"
+                        {...stylex.props(styles.accent)}
                         style={{ backgroundColor: instance.color }}
                       />
 
                       {/* Left time block: mono time + duration. */}
-                      <div className="flex w-20 shrink-0 flex-col">
-                        <span className="font-mono text-base font-bold tabular-nums text-ink-900 dark:text-white">
+                      <div {...stylex.props(styles.timeBlock)}>
+                        <span {...stylex.props(styles.time)}>
                           {formatTime(instance.startsAt, locale)}
                         </span>
-                        <span className="font-mono text-xs text-ink-400">
+                        <span {...stylex.props(styles.duration)}>
                           {durationMinutes(instance.startsAt, instance.endsAt)}m
                         </span>
                       </div>
 
-                      <div className="flex min-w-0 flex-1 flex-col gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate font-display text-sm font-bold text-ink-900 dark:text-white">
-                            {instance.title}
-                          </span>
+                      <div {...stylex.props(styles.body)}>
+                        <div {...stylex.props(styles.titleRow)}>
+                          <span {...stylex.props(styles.title)}>{instance.title}</span>
                           {instance.category && (
                             <span
-                              className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset"
+                              {...stylex.props(styles.chip)}
                               style={{
                                 color: instance.color,
                                 backgroundColor: `${instance.color}1f`,
@@ -100,7 +283,7 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                             >
                               <span
                                 aria-hidden
-                                className="h-1.5 w-1.5 rounded-full"
+                                {...stylex.props(styles.chipDot)}
                                 style={{ backgroundColor: instance.color }}
                               />
                               {instance.category}
@@ -109,46 +292,39 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                         </div>
 
                         {(instance.trainerName || instance.locationName) && (
-                          <div className="flex items-center gap-2 text-xs text-ink-500 dark:text-ink-400">
+                          <div {...stylex.props(styles.meta)}>
                             {instance.trainerName && (
-                              <span className="flex items-center gap-1.5">
-                                <span
-                                  aria-hidden
-                                  className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-50 text-[10px] font-bold text-brand-600 dark:bg-white/10 dark:text-brand-300"
-                                >
+                              <span {...stylex.props(styles.metaItem)}>
+                                <span aria-hidden {...stylex.props(styles.metaAvatar)}>
                                   {initials(instance.trainerName)}
                                 </span>
                                 {instance.trainerName}
                               </span>
                             )}
                             {instance.trainerName && instance.locationName && (
-                              <span aria-hidden className="text-ink-300">
+                              <span aria-hidden {...stylex.props(styles.metaDot)}>
                                 ·
                               </span>
                             )}
                             {instance.locationName && (
-                              <span className="flex items-center gap-1.5">
-                                <Icon name="pin" className="h-3.5 w-3.5 text-ink-400" sw={2} />
+                              <span {...stylex.props(styles.metaItem)}>
+                                <Icon name="pin" {...stylex.props(styles.metaIcon)} sw={2} />
                                 {instance.locationName}
                               </span>
                             )}
                           </div>
                         )}
 
-                        <Occupancy
+                        <ClassOccupancy
                           value={instance.bookedCount}
                           cap={instance.capacity}
-                          className="max-w-xs"
+                          xstyle={styles.occupancy}
                         />
                       </div>
 
-                      <div className="flex shrink-0 items-center">
+                      <div {...stylex.props(styles.actionCol)}>
                         <span
-                          className={`inline-flex items-center rounded-pill px-3 py-1.5 text-xs font-semibold ${
-                            isFull
-                              ? 'bg-ink-100 text-ink-500 dark:bg-white/10 dark:text-ink-300'
-                              : 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_24px_-6px_rgba(98,87,227,0.7)]'
-                          }`}
+                          {...stylex.props(styles.pill, isFull ? styles.pillFull : styles.pillBook)}
                         >
                           {isFull ? t('card.joinWaitlist') : t('drawer.book')}
                         </span>

@@ -1,9 +1,11 @@
 'use client';
 
 import { useMemo } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard } from '@fit/types';
-import { Btn, Card } from '@/src/components/ui';
+import { Btn } from '@/src/components/ui';
 import { EmptyClasses } from './EmptyClasses';
 import {
   addWeeks,
@@ -16,6 +18,13 @@ import {
   weekDays,
 } from './date-utils';
 
+// Astryx migration (T11.12): the week grid is rebuilt on the Astryx `Card` over
+// the Fit brand theme, with the 7-column time grid, hour gridlines, and
+// positioned class cards authored in compiled StyleX (`var(--color-*)`) — no
+// Tailwind utilities and no formacore Aurora-glass primitives. The per-card
+// absolute positioning (top/height/lane) stays as inline styles since it is
+// data-derived. Layout math is unchanged.
+
 /** Pixels per hour row — drives both the gutter scale and card positioning. */
 const HOUR_HEIGHT = 56;
 /** Default visible band (06:00–22:00) when the data doesn't push it wider. */
@@ -23,6 +32,158 @@ const DEFAULT_START_HOUR = 6;
 const DEFAULT_END_HOUR = 22;
 /** Floor on a card's rendered height so a short class stays readable/clickable. */
 const MIN_CARD_HEIGHT = 28;
+
+const styles = stylex.create({
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  nav: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  navLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  },
+  navLabel: {
+    marginLeft: '0.5rem',
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  card: {
+    overflowX: 'auto',
+  },
+  grid: {
+    display: 'grid',
+    minWidth: '720px',
+    gridTemplateColumns: '3.5rem repeat(7, 1fr)',
+  },
+  headGutter: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  headCell: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    borderLeftWidth: '1px',
+    borderLeftStyle: 'solid',
+    borderLeftColor: 'var(--color-border)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.5rem',
+    textAlign: 'center',
+  },
+  headCellToday: {
+    backgroundColor: 'var(--color-background-purple)',
+  },
+  headDow: {
+    margin: 0,
+    fontSize: '0.75rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--color-text-secondary)',
+  },
+  headDate: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  headDateToday: {
+    color: 'var(--color-text-accent)',
+  },
+  gutter: {
+    position: 'relative',
+  },
+  gutterLabel: {
+    position: 'absolute',
+    right: '0.25rem',
+    transform: 'translateY(-50%)',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  dayCol: {
+    position: 'relative',
+    borderLeftWidth: '1px',
+    borderLeftStyle: 'solid',
+    borderLeftColor: 'var(--color-border)',
+  },
+  gridline: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    opacity: 0.5,
+  },
+  classCard: {
+    position: 'absolute',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    borderLeftWidth: '3px',
+    backgroundColor: 'var(--color-background-card)',
+    paddingInline: '0.375rem',
+    paddingBlock: '0.25rem',
+    textAlign: 'left',
+    boxShadow: '0 1px 2px 0 var(--color-shadow)',
+    cursor: 'pointer',
+    outline: 'none',
+    transitionProperty: 'box-shadow',
+    transitionDuration: '150ms',
+    ':hover': {
+      zIndex: 10,
+      boxShadow: '0 4px 12px -2px var(--color-shadow)',
+    },
+    ':focus-visible': {
+      zIndex: 10,
+      boxShadow: '0 0 0 2px var(--color-accent-muted)',
+    },
+  },
+  classTitle: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  classTime: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    color: 'var(--color-text-secondary)',
+  },
+  classSpots: {
+    marginTop: '0.125rem',
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.625rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 export interface WeekCalendarProps {
   instances: ClassInstanceCard[];
@@ -71,7 +232,7 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
   const gridHeight = (endHour - startHour) * HOUR_HEIGHT;
 
   return (
-    <section aria-label={t('weekView.label')} className="flex flex-col gap-4">
+    <section aria-label={t('weekView.label')} {...stylex.props(styles.section)}>
       <WeekNav
         label={formatWeekRange(week, locale)}
         onPrev={() => onWeekChange(addWeeks(week, -1))}
@@ -85,29 +246,21 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
       {instances.length === 0 ? (
         <EmptyClasses />
       ) : (
-        <Card glow className="overflow-x-auto p-0">
-          <div className="grid min-w-[720px] grid-cols-[3.5rem_repeat(7,1fr)]">
+        <Card variant="default" padding={0} xstyle={styles.card}>
+          <div {...stylex.props(styles.grid)}>
             {/* Header row: empty gutter + weekday headings. */}
-            <div className="border-b border-ink-200 dark:border-white/10" />
+            <div {...stylex.props(styles.headGutter)} />
             {days.map((day) => {
               const isToday = isSameDay(day, today);
               return (
                 <div
                   key={day.toISOString()}
-                  className={`border-b border-l border-ink-200 px-2 py-2 text-center dark:border-white/10 ${
-                    isToday ? 'bg-brand-50 dark:bg-brand-400/10' : ''
-                  }`}
+                  {...stylex.props(styles.headCell, isToday && styles.headCellToday)}
                 >
-                  <p className="text-xs uppercase tracking-wide text-ink-400">
+                  <p {...stylex.props(styles.headDow)}>
                     {day.toLocaleDateString(locale, { weekday: 'short' })}
                   </p>
-                  <p
-                    className={`font-mono text-sm font-bold tabular-nums ${
-                      isToday
-                        ? 'text-brand-700 dark:text-brand-300'
-                        : 'text-ink-900 dark:text-white'
-                    }`}
-                  >
+                  <p {...stylex.props(styles.headDate, isToday && styles.headDateToday)}>
                     {day.getDate()}
                   </p>
                 </div>
@@ -115,11 +268,11 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
             })}
 
             {/* Body row: hour gutter + 7 day columns. */}
-            <div className="relative" style={{ height: gridHeight }}>
+            <div {...stylex.props(styles.gutter)} style={{ height: gridHeight }}>
               {hours.map((hour, i) => (
                 <div
                   key={hour}
-                  className="absolute right-1 -translate-y-1/2 font-mono text-[11px] tabular-nums text-ink-400"
+                  {...stylex.props(styles.gutterLabel)}
                   style={{ top: i * HOUR_HEIGHT }}
                 >
                   {`${hour}`.padStart(2, '0')}:00
@@ -130,14 +283,14 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
             {days.map((day, dayIndex) => (
               <div
                 key={day.toISOString()}
-                className="relative border-l border-ink-200 dark:border-white/10"
+                {...stylex.props(styles.dayCol)}
                 style={{ height: gridHeight }}
               >
                 {/* Hour gridlines. */}
                 {hours.map((hour, i) => (
                   <div
                     key={hour}
-                    className="absolute inset-x-0 border-t border-ink-100 dark:border-white/5"
+                    {...stylex.props(styles.gridline)}
                     style={{ top: i * HOUR_HEIGHT }}
                   />
                 ))}
@@ -183,6 +336,7 @@ function ClassCard({
     <button
       type="button"
       onClick={onClick}
+      {...stylex.props(styles.classCard)}
       style={{
         top,
         height,
@@ -190,16 +344,11 @@ function ClassCard({
         width: `calc(${widthPct}% - 4px)`,
         borderInlineStartColor: instance.color,
       }}
-      className="absolute overflow-hidden rounded-btn border border-ink-200 border-l-[3px] bg-white px-1.5 py-1 text-left shadow-sm transition-shadow hover:z-10 hover:shadow-md focus:z-10 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-white/10 dark:bg-white/[0.06]"
     >
-      <span className="block truncate text-[11px] font-bold text-ink-900 dark:text-white">
-        {instance.title}
-      </span>
-      <span className="block truncate font-mono text-[10px] text-ink-500 dark:text-ink-400">
-        {formatTime(instance.startsAt, locale)}
-      </span>
+      <span {...stylex.props(styles.classTitle)}>{instance.title}</span>
+      <span {...stylex.props(styles.classTime)}>{formatTime(instance.startsAt, locale)}</span>
       {height >= MIN_CARD_HEIGHT * 1.6 ? (
-        <span className="mt-0.5 block truncate text-[10px] text-ink-400">{spotsLeftLabel}</span>
+        <span {...stylex.props(styles.classSpots)}>{spotsLeftLabel}</span>
       ) : null}
     </button>
   );
@@ -224,11 +373,11 @@ function WeekNav({
   todayLabel: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-1.5">
+    <div {...stylex.props(styles.nav)}>
+      <div {...stylex.props(styles.navLeft)}>
         <Btn v="outline" size="icon" icon="chevronLeft" aria-label={prevLabel} onClick={onPrev} />
         <Btn v="outline" size="icon" icon="chevronRight" aria-label={nextLabel} onClick={onNext} />
-        <p className="ml-2 font-display text-sm font-bold text-ink-900 dark:text-white">{label}</p>
+        <p {...stylex.props(styles.navLabel)}>{label}</p>
       </div>
       <Btn v="outline" size="sm" onClick={onToday}>
         {todayLabel}

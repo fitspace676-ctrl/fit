@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Btn, Card, Icon } from '@/src/components/ui';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/src/components/ui';
 import {
   hasActiveFilters,
   TIME_BANDS,
@@ -10,6 +13,179 @@ import {
   type ClassFilterState,
   type TimeBand,
 } from './class-filters';
+
+// Astryx migration (T11.12): the filter strip is rebuilt on the Astryx `Card` /
+// `Button` over the Fit brand theme, with the category chips, the filter
+// popover, the select facets, and the time-band toggle authored in compiled
+// StyleX (`var(--color-*)`) — no Tailwind utilities and no formacore
+// Aurora-glass primitives. Behaviour is unchanged: every change is lifted to
+// `onChange`; the parent owns the state and mirrors it to the URL.
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  chip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color, color',
+    transitionDuration: '150ms',
+  },
+  chipIdle: {
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+    },
+    color: 'var(--color-text-secondary)',
+  },
+  chipActive: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  chipDot: {
+    height: '0.5rem',
+    width: '0.5rem',
+    borderRadius: 'var(--radius-full)',
+  },
+  popoverAnchor: {
+    position: 'relative',
+  },
+  filterBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color, color',
+    transitionDuration: '150ms',
+  },
+  filterBtnIdle: {
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+    },
+    color: 'var(--color-text-secondary)',
+  },
+  filterBtnActive: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  filterIcon: {
+    height: '1rem',
+    width: '1rem',
+  },
+  countBadge: {
+    marginLeft: '0.125rem',
+    display: 'inline-flex',
+    height: '1.25rem',
+    minWidth: '1.25rem',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    paddingInline: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    color: 'var(--color-on-accent)',
+  },
+  popover: {
+    position: 'absolute',
+    right: 0,
+    top: '100%',
+    zIndex: 30,
+    marginTop: '0.5rem',
+    display: 'flex',
+    width: '18rem',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1rem',
+    '@media (min-width: 640px)': {
+      left: 0,
+      right: 'auto',
+    },
+  },
+  facet: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  facetLabel: {
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--color-text-secondary)',
+  },
+  select: {
+    height: '2.75rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-card)',
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  timeGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.375rem',
+  },
+  timeBtn: {
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color, color',
+    transitionDuration: '150ms',
+  },
+  timeBtnIdle: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+    },
+    color: 'var(--color-text-secondary)',
+  },
+  timeBtnActive: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+});
 
 export interface ClassFiltersProps {
   /** Distinct option values present in the loaded week (drives the controls). */
@@ -85,7 +261,7 @@ export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
     (filters.trainer ? 1 : 0) + (filters.location ? 1 : 0) + (filters.time !== 'any' ? 1 : 0);
 
   return (
-    <div role="group" aria-label={t('groupLabel')} className="flex flex-wrap items-center gap-2">
+    <div role="group" aria-label={t('groupLabel')} {...stylex.props(styles.root)}>
       {typeOptions.length > 0 &&
         typeOptions.map((option) => (
           <Chip
@@ -96,7 +272,7 @@ export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
             {option.color && (
               <span
                 aria-hidden="true"
-                className="h-2 w-2 rounded-full"
+                {...stylex.props(styles.chipDot)}
                 style={{ backgroundColor: option.color }}
               />
             )}
@@ -105,31 +281,23 @@ export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
         ))}
 
       {(trainerOptions.length > 0 || locationOptions.length > 0) && (
-        <div className="relative" ref={popoverRef}>
+        <div {...stylex.props(styles.popoverAnchor)} ref={popoverRef}>
           <button
             type="button"
             aria-expanded={popoverOpen}
             onClick={() => setPopoverOpen((open) => !open)}
-            className={`inline-flex items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-              popoverActive > 0
-                ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400/40 dark:bg-brand-400/10 dark:text-brand-200'
-                : 'border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/5'
-            }`}
-          >
-            <Icon name="filter" className="h-4 w-4" sw={2} />
-            {t('groupLabel')}
-            {popoverActive > 0 && (
-              <span className="ml-0.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-bold text-white">
-                {popoverActive}
-              </span>
+            {...stylex.props(
+              styles.filterBtn,
+              popoverActive > 0 ? styles.filterBtnActive : styles.filterBtnIdle,
             )}
+          >
+            <Icon name="filter" {...stylex.props(styles.filterIcon)} sw={2} />
+            {t('groupLabel')}
+            {popoverActive > 0 && <span {...stylex.props(styles.countBadge)}>{popoverActive}</span>}
           </button>
 
           {popoverOpen && (
-            <Card
-              glow
-              className="absolute right-0 z-30 mt-2 flex w-72 flex-col gap-4 p-4 sm:left-0 sm:right-auto"
-            >
+            <Card variant="default" padding={0} xstyle={styles.popover}>
               {trainerOptions.length > 0 && (
                 <SelectFacet
                   id={trainerId}
@@ -152,11 +320,9 @@ export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
                 />
               )}
 
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium uppercase tracking-wide text-ink-400">
-                  {t('time')}
-                </span>
-                <div className="grid grid-cols-2 gap-1.5">
+              <div {...stylex.props(styles.facet)}>
+                <span {...stylex.props(styles.facetLabel)}>{t('time')}</span>
+                <div {...stylex.props(styles.timeGrid)}>
                   {(['any', ...TIME_BANDS] as const).map((band) => {
                     const active = filters.time === band;
                     return (
@@ -165,11 +331,10 @@ export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
                         type="button"
                         aria-pressed={active}
                         onClick={() => setTime(band)}
-                        className={`rounded-btn px-3 py-1.5 text-sm font-medium transition-colors ${
-                          active
-                            ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white'
-                            : 'border border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/5'
-                        }`}
+                        {...stylex.props(
+                          styles.timeBtn,
+                          active ? styles.timeBtnActive : styles.timeBtnIdle,
+                        )}
                       >
                         {band === 'any' ? t('anyTime') : t(band)}
                       </button>
@@ -183,13 +348,12 @@ export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
       )}
 
       {hasActiveFilters(filters) && (
-        <Btn
-          v="ghost"
+        <Button
+          variant="ghost"
           size="sm"
+          label={t('clear')}
           onClick={() => onChange({ types: [], trainer: null, location: null, time: 'any' })}
-        >
-          {t('clear')}
-        </Btn>
+        />
       )}
     </div>
   );
@@ -210,11 +374,7 @@ function Chip({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-        active
-          ? 'border-transparent bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_24px_-8px_rgba(98,87,227,0.7)]'
-          : 'border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/5'
-      }`}
+      {...stylex.props(styles.chip, active ? styles.chipActive : styles.chipIdle)}
     >
       {children}
     </button>
@@ -238,15 +398,15 @@ function SelectFacet({
   onChange: (value: string | null) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-medium uppercase tracking-wide text-ink-400">
+    <div {...stylex.props(styles.facet)}>
+      <label htmlFor={id} {...stylex.props(styles.facetLabel)}>
         {label}
       </label>
       <select
         id={id}
         value={value ?? ''}
         onChange={(event) => onChange(event.target.value || null)}
-        className="h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+        {...stylex.props(styles.select)}
       >
         <option value="">{allLabel}</option>
         {options.map((option) => (

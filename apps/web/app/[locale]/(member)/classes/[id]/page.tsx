@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getActiveGymId } from '@/lib/active-gym';
 import { fetchClassInstance } from '@/lib/classes';
@@ -6,6 +7,39 @@ import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
 import { ClassDetail } from '@/src/components/classes/ClassDetail';
 import { ClassNotFound } from '@/src/components/classes/ClassNotFound';
+
+// Astryx migration (T11.12): the detail route shell (back link + column) is
+// authored in compiled StyleX over the Fit brand tokens — no Tailwind utilities.
+
+const styles = stylex.create({
+  page: {
+    marginInline: 'auto',
+    width: '100%',
+    maxWidth: '42rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  back: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    alignSelf: 'flex-start',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    textDecoration: 'none',
+    transitionProperty: 'color',
+    transitionDuration: '150ms',
+  },
+  backIcon: {
+    height: '1rem',
+    width: '1rem',
+  },
+});
 
 /**
  * Render per request, never at build: the active gym is resolved from the
@@ -70,12 +104,9 @@ export default async function ClassDetailPage({ params }: { params: Promise<Clas
   const [t, loaded] = await Promise.all([getTranslations('classes'), loadInstance(id)]);
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
-      <Link
-        href="/classes"
-        className="inline-flex items-center gap-1 text-sm font-medium text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
-      >
-        <Icon name="chevronLeft" className="h-4 w-4" sw={2.2} />
+    <div {...stylex.props(styles.page)}>
+      <Link href="/classes" {...stylex.props(styles.back)}>
+        <Icon name="chevronLeft" {...stylex.props(styles.backIcon)} sw={2.2} />
         {t('detail.back')}
       </Link>
 
