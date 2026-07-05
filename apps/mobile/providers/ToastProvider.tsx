@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Animated, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { palette } from '@fit/ui-mobile';
 
 // In-app toast notifications. A small, dependency-free implementation: a single
 // toast renders at the top of the screen, auto-dismisses, and can be tapped to
@@ -36,11 +37,14 @@ export interface ToastApi {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
-/** Background per variant (success green, error red, brand-500 for info). */
+// Background per variant, drawn from the formacore status ramps (@fit/ui-mobile
+// `palette`) so toasts stay on-token with the rest of the design system rather
+// than the ad-hoc hexes — notably the legacy brand blue (#2f7bff) that predated
+// the formacore indigo — they used before the parity audit (T10.6).
 const VARIANT_BG: Record<ToastVariant, string> = {
-  success: '#16a34a',
-  error: '#dc2626',
-  info: '#2f7bff',
+  success: palette.success[600],
+  error: palette.danger[600],
+  info: palette.info[600],
 };
 
 const AUTO_HIDE_MS = 3000;

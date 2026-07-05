@@ -7,21 +7,31 @@
 //   import { fitTheme } from '@fit/config/tailwind';
 //   export default { presets: [], theme: { extend: fitTheme }, ... };
 
-/** Brand + design tokens shared across all Fit surfaces. */
+/**
+ * Brand + design tokens shared across all Fit surfaces.
+ *
+ * `brand` is the formacore "electric indigo" scale — the single source of truth
+ * for the brand color. The formacore apps (web, admin, platform, mobile) also
+ * declare the full palette (accent/ink/status ramps) on top of this preset and
+ * redeclare `brand` with these exact values; surfaces without a formacore
+ * artboard (superadmin) inherit the brand straight from here, so keeping this in
+ * sync with the design tokens is what stops the console drifting to a stale blue
+ * (the value this held before the T10.6 parity audit).
+ */
 export const fitTheme = {
   colors: {
     brand: {
-      50: '#eef6ff',
-      100: '#d9eaff',
-      200: '#bcd9ff',
-      300: '#8ec1ff',
-      400: '#599fff',
-      500: '#2f7bff',
-      600: '#175ff5',
-      700: '#114ae1',
-      800: '#153db6',
-      900: '#17388f',
-      950: '#122357',
+      50: '#F2F1FE',
+      100: '#E8E6FD',
+      200: '#D3CFFB',
+      300: '#B5AEF7',
+      400: '#9184F1',
+      500: '#6257E3',
+      600: '#5044D2',
+      700: '#4536B5',
+      800: '#392E92',
+      900: '#312A74',
+      950: '#1E1A45',
     },
   },
   fontFamily: {
