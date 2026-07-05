@@ -31,23 +31,24 @@ to stderr.
 
 ## Commands
 
-| Command                                                            | Description                                                                           |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `fit env get <KEY> [--env local\|preview\|prod]`                   | Print one schema-validated env value (non-zero if missing/invalid).                   |
-| `fit env check [--env …]`                                          | Validate the whole infra environment; lists set keys (never their values).            |
-| `fit db url`                                                       | Print the resolved `DATABASE_URL`.                                                    |
-| `fit db migrate\|studio\|seed\|reset`                              | Database lifecycle (wraps the root `db:*` scripts / Prisma).                          |
-| `fit db snapshot [--out <file>]`                                   | Pre-deploy `pg_dump` (custom format); copies to R2 when configured. Used by deploy.   |
-| `fit db restore <file\|s3://…>`                                    | Restore the DB from a dump (`pg_restore`); the rollback half of a bad migration.      |
-| `fit services status\|health`                                      | Probe Postgres, Redis, API `/health`, and R2. `health` exits non-zero if any is down. |
-| `fit token --role <ROLE> --gym <slug> [--sub <id>] [--ttl <secs>]` | Mint an HS256 JWT signed with the shared `JWT_SECRET`.                                |
-| `fit r2 config`                                                    | Report R2 configuration (credentials redacted).                                       |
-| `fit r2 sign <key> [--content-type <type>]`                        | Presigned upload URL (delegates to the API's `POST /uploads`).                        |
-| `fit queue status [<queue>]`                                       | BullMQ backend reachability + queue list.                                             |
-| `fit queue retry <jobId>`                                          | Re-enqueue a failed job (once workers are provisioned).                               |
-| `fit deploy <app> [--env preview\|prod]`                           | Deploy an app (wraps `vercel` / `railway` / `eas`).                                   |
-| `fit logs <app>`                                                   | Tail an app's logs.                                                                   |
-| `fit gym create --name <name> --slug <slug>` / `fit gym list`      | Tenant provisioning helpers (wrap the API).                                           |
+| Command                                                                         | Description                                                                                                                                                                      |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fit env get <KEY> [--env local\|preview\|prod]`                                | Print one schema-validated env value (non-zero if missing/invalid).                                                                                                              |
+| `fit env check [--env …]`                                                       | Validate the whole infra environment; lists set keys (never their values).                                                                                                       |
+| `fit db url`                                                                    | Print the resolved `DATABASE_URL`.                                                                                                                                               |
+| `fit db migrate\|studio\|seed\|reset`                                           | Database lifecycle (wraps the root `db:*` scripts / Prisma).                                                                                                                     |
+| `fit db snapshot [--out <file>]`                                                | Pre-deploy `pg_dump` (custom format); copies to R2 when configured. Used by deploy.                                                                                              |
+| `fit db restore <file\|s3://…>`                                                 | Restore the DB from a dump (`pg_restore`); the rollback half of a bad migration.                                                                                                 |
+| `fit services status\|health`                                                   | Probe Postgres, Redis, API `/health`, and R2. `health` exits non-zero if any is down.                                                                                            |
+| `fit token --role <ROLE> --gym <slug> [--sub <id>] [--ttl <secs>]`              | Mint an HS256 JWT signed with the shared `JWT_SECRET`.                                                                                                                           |
+| `fit r2 config`                                                                 | Report R2 configuration (credentials redacted).                                                                                                                                  |
+| `fit r2 sign <key> [--content-type <type>]`                                     | Presigned upload URL (delegates to the API's `POST /uploads`).                                                                                                                   |
+| `fit queue status [<queue>]`                                                    | BullMQ backend reachability + queue list.                                                                                                                                        |
+| `fit queue retry <jobId>`                                                       | Re-enqueue a failed job (once workers are provisioned).                                                                                                                          |
+| `fit deploy <app> [--env preview\|prod]`                                        | Deploy an app (wraps `vercel` / `railway` / `eas`).                                                                                                                              |
+| `fit logs <app>`                                                                | Tail an app's logs.                                                                                                                                                              |
+| `fit gym create --name <name> --slug <slug>` / `fit gym list`                   | Tenant provisioning helpers (wrap the API).                                                                                                                                      |
+| `fit gym onboard --name --slug --owner-email [--members\|--roster] [--dry-run]` | Stand up a whole pilot gym — owner, staff, plans, schedule, ≥10 members (T10.7). Idempotent; writes to the DB. See [`docs/pilot-onboarding.md`](../../docs/pilot-onboarding.md). |
 
 `<app>` is one of `web`, `admin`, `platform`, `superadmin` (→ Vercel), `api`
 (→ Railway), or `mobile` (→ EAS).

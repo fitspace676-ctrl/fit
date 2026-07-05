@@ -217,6 +217,10 @@ detect → mitigate → verify playbook for the five most likely incidents.
 The pipeline **skips** (rather than fails) until the deploy secrets are
 configured, so it is safe to land ahead of the infra wiring.
 
+To take a real gym live on the deployed stack, the
+[pilot onboarding runbook](docs/pilot-onboarding.md) covers the one-command
+provisioning (`fit gym onboard`) and the week-one support loop.
+
 ## `fit` CLI
 
 `fit` is the single, scriptable source of truth for infra/env introspection. Any

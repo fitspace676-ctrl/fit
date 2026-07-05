@@ -38,6 +38,8 @@ commands:
   deploy <app> [--env preview|prod]           deploy an app (wraps vercel/railway/eas)
   logs <app>                                  tail an app's logs
   gym create --name --slug | list             tenant provisioning helpers
+  gym onboard --name --slug --owner-email      stand up a whole pilot gym (T10.7):
+      [--members <n>|--roster <file>] [--dry-run]  owner+staff+plans+schedule+members
   admin grant|revoke --email <email> | list   manage platform SUPER_ADMINs
 
 global flags:

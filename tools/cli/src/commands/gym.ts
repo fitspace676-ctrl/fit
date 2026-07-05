@@ -2,17 +2,28 @@ import type { ParsedArgs } from '../args';
 import { stringFlag } from '../args';
 import { CommandError, type CommandResult } from '../output';
 import { loadInfraEnv } from '../env-source';
+import { runOnboard } from './onboard';
 
-const USAGE = 'usage: fit gym <create --name <name> --slug <slug> [--owner-email <email>] | list>';
+const USAGE =
+  'usage: fit gym <create --name <name> --slug <slug> [--owner-email <email>] | ' +
+  'onboard --name <name> --slug <slug> --owner-email <email> [--members <n>] [--roster <file>] [--dry-run] | ' +
+  'list>';
 
 /**
- * Tenant provisioning helpers. These wrap the API's gym endpoints so tasks can
- * spin up / enumerate test tenants without hand-crafting HTTP calls. The
- * endpoints land in Phase 2 (auth); until then the command surfaces a clear
- * `API_UNREACHABLE` error rather than guessing.
+ * Tenant provisioning helpers. `create` / `list` wrap the API's gym endpoints so
+ * tasks can spin up / enumerate test tenants without hand-crafting HTTP calls;
+ * `onboard` (T10.7) stands up a whole pilot gym directly against the database
+ * (owner, staff, plans, schedule, members) in one idempotent call.
  */
 export async function run(args: ParsedArgs): Promise<CommandResult> {
   const [sub] = args.positionals;
+
+  // `onboard` talks to the database, not the API — dispatch it before we resolve
+  // the API base so it never depends on a reachable API URL.
+  if (sub === 'onboard') {
+    return runOnboard(args);
+  }
+
   const env = loadInfraEnv('local');
   const base = env.API_URL.replace(/\/$/, '');
 
