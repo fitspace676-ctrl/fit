@@ -72,7 +72,7 @@ export default function OrderDetailScreen() {
         ) : (
           <>
             {/* ---- success header ---- */}
-            <View className="items-center gap-3 pt-6">
+            <View testID="order-confirmation" className="items-center gap-3 pt-6">
               <View className="h-16 w-16 items-center justify-center rounded-full bg-success-500">
                 <Text className="text-3xl font-black text-white">✓</Text>
               </View>

@@ -192,6 +192,7 @@ export default function CartScreen() {
               </Text>
             </View>
             <Pressable
+              testID="cart-checkout"
               accessibilityRole="button"
               accessibilityState={{ disabled: checkout.isPending }}
               disabled={checkout.isPending}

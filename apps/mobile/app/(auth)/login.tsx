@@ -125,6 +125,7 @@ export default function LoginScreen() {
             <View className="gap-3">
               <AuthError message={error} />
               <GlassField
+                testID="login-email"
                 value={email}
                 onChangeText={setEmail}
                 placeholder={t('auth.fields.emailPlaceholder')}
@@ -135,6 +136,7 @@ export default function LoginScreen() {
                 editable={!pending}
               />
               <GlassField
+                testID="login-password"
                 value={password}
                 onChangeText={setPassword}
                 placeholder={t('auth.fields.password')}
@@ -164,6 +166,7 @@ export default function LoginScreen() {
             </View>
 
             <AuthButton
+              testID="login-submit"
               label={t('auth.login.submit')}
               busyLabel={t('auth.login.submitting')}
               busy={pending}

@@ -68,7 +68,7 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView className="flex-1 bg-brand-950">
       <View className="flex-row justify-end p-gutter">
-        <Pressable accessibilityRole="button" onPress={finish} hitSlop={8}>
+        <Pressable testID="onboarding-skip" accessibilityRole="button" onPress={finish} hitSlop={8}>
           <Text className="text-base font-medium text-brand-300">{t('onboarding.skip')}</Text>
         </Pressable>
       </View>
@@ -97,6 +97,7 @@ export default function OnboardingScreen() {
         </View>
 
         <Pressable
+          testID="onboarding-next"
           accessibilityRole="button"
           onPress={onNext}
           className="w-full items-center rounded-card bg-brand-500 px-6 py-3"

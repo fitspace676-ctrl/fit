@@ -139,6 +139,7 @@ export function ClassBookingActions({
         <Text className="text-[13px] text-ink-400">{t('classes.detail.booking.fullNote')}</Text>
       ) : null}
       <ActionButton
+        testID="class-book-button"
         label={t(isFull ? 'classes.detail.booking.joinWaitlist' : 'classes.detail.booking.book')}
         pendingLabel={t('classes.detail.booking.booking')}
         pending={book.isPending}
@@ -175,6 +176,7 @@ function ActionButton({
   disabled,
   variant,
   onPress,
+  testID,
 }: {
   label: string;
   pendingLabel: string;
@@ -182,10 +184,13 @@ function ActionButton({
   disabled: boolean;
   variant: 'primary' | 'danger';
   onPress: () => void;
+  /** Stable identifier for end-to-end (Maestro) selectors. */
+  testID?: string;
 }) {
   const isDanger = variant === 'danger';
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled, busy: pending }}
       disabled={disabled}
