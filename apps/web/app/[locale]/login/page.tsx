@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
 import { AuthShell } from '../_components/auth/auth-shell';
@@ -11,6 +12,48 @@ export const metadata: Metadata = {
   title: 'Sign in — Fit',
   description: 'Sign in to your Fit account.',
 };
+
+// Astryx migration (T11.7): page chrome — the forgot-password row, the
+// "or continue with" divider, the social-button stack and the footer link — is
+// authored in compiled StyleX on the Fit theme tokens. The locale-aware
+// next-intl `Link` keeps the routing contract; only its styling moved off
+// Tailwind.
+const styles = stylex.create({
+  forgotRow: {
+    marginTop: '0.75rem',
+    textAlign: 'right',
+  },
+  link: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-accent)',
+    textDecoration: {
+      default: 'none',
+      ':hover': 'underline',
+    },
+  },
+  divider: {
+    marginBlock: '1.5rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-secondary)',
+  },
+  rule: {
+    height: '1px',
+    flex: 1,
+    backgroundColor: 'var(--color-border)',
+  },
+  social: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+});
 
 export default async function LoginPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -25,10 +68,7 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
       footer={
         <>
           {t('login.noAccount')}{' '}
-          <Link
-            href="/register"
-            className="font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-          >
+          <Link href="/register" {...stylex.props(styles.link)}>
             {t('login.registerLink')}
           </Link>
         </>
@@ -38,22 +78,19 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
         <CredentialsLoginForm />
       </Suspense>
 
-      <div className="mt-3 text-right">
-        <Link
-          href="/forgot-password"
-          className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-        >
+      <div {...stylex.props(styles.forgotRow)}>
+        <Link href="/forgot-password" {...stylex.props(styles.link)}>
           {t('login.forgotPassword')}
         </Link>
       </div>
 
-      <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-ink-400">
-        <span className="h-px flex-1 bg-ink-200 dark:bg-white/10" />
+      <div {...stylex.props(styles.divider)}>
+        <span {...stylex.props(styles.rule)} />
         {t('orContinueWith')}
-        <span className="h-px flex-1 bg-ink-200 dark:bg-white/10" />
+        <span {...stylex.props(styles.rule)} />
       </div>
 
-      <div className="flex flex-col items-center gap-3">
+      <div {...stylex.props(styles.social)}>
         <GoogleSignInButton />
         <AppleSignInButton />
       </div>

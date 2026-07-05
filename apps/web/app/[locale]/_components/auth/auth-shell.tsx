@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Card } from '@/src/components/ui';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 
 /**
  * Shared layout for the auth pages (login, register, forgot-password): a
@@ -8,9 +9,71 @@ import { Card } from '@/src/components/ui';
  * titles and copy are passed in already-translated so this stays presentational
  * and the interactive form lives in its own client component.
  *
- * Reskinned onto formacore: a formacore aurora backdrop and a `Card` panel with
- * `font-display` heading, consistent with the redesigned member portal.
+ * Astryx migration (T11.7): rebuilt on the Astryx `Card` surface with the Fit
+ * brand theme tokens, authored entirely in compiled StyleX (`xstyle` /
+ * `stylex.props`) — no Tailwind utilities. The soft accent aura behind the panel
+ * is a StyleX radial-gradient reading `--color-accent`, so it stays theme-aware
+ * in light and dark like the rest of the token layer.
  */
+
+const styles = stylex.create({
+  main: {
+    position: 'relative',
+    isolation: 'isolate',
+    display: 'flex',
+    minHeight: '100vh',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    paddingInline: '1.5rem',
+    paddingBlock: '4rem',
+    backgroundColor: 'var(--color-background-body)',
+  },
+  aura: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    inset: 0,
+    zIndex: -1,
+    backgroundImage:
+      'radial-gradient(60% 55% at 12% -5%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%), radial-gradient(55% 45% at 92% 105%, color-mix(in srgb, var(--color-accent) 13%, transparent), transparent 70%)',
+  },
+  card: {
+    width: '100%',
+    maxWidth: '28rem',
+    padding: '2rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    textAlign: 'center',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    color: 'var(--color-text-secondary)',
+  },
+  body: {
+    marginTop: '2rem',
+  },
+  footer: {
+    marginTop: '1.5rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
+
 export function AuthShell({
   title,
   subtitle,
@@ -23,24 +86,16 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden px-gutter py-16">
-      {/* Formacore aurora: soft brand/iris blobs behind the panel. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -left-24 -top-32 h-[520px] w-[520px] rounded-full bg-iris-500/10 blur-[140px] dark:bg-iris-600/25" />
-        <div className="absolute -bottom-32 -right-16 h-[520px] w-[520px] rounded-full bg-brand-500/[0.09] blur-[150px] dark:bg-brand-500/25" />
-      </div>
+    <main {...stylex.props(styles.main)}>
+      <div aria-hidden {...stylex.props(styles.aura)} />
 
-      <Card glow className="w-full max-w-md p-8">
-        <div className="flex flex-col gap-2 text-center">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">
-            {title}
-          </h1>
-          <p className="text-sm text-ink-500 dark:text-ink-400">{subtitle}</p>
+      <Card variant="default" padding={0} xstyle={styles.card}>
+        <div {...stylex.props(styles.header)}>
+          <h1 {...stylex.props(styles.title)}>{title}</h1>
+          <p {...stylex.props(styles.subtitle)}>{subtitle}</p>
         </div>
-        <div className="mt-8">{children}</div>
-        {footer ? (
-          <div className="mt-6 text-center text-sm text-ink-500 dark:text-ink-400">{footer}</div>
-        ) : null}
+        <div {...stylex.props(styles.body)}>{children}</div>
+        {footer ? <div {...stylex.props(styles.footer)}>{footer}</div> : null}
       </Card>
     </main>
   );

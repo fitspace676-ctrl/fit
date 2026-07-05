@@ -10,6 +10,11 @@ import { routing } from '@/src/i18n/routing';
 import { ThemeProvider, THEME_COOKIE, type Theme } from '@/src/components/theme/theme-provider';
 import { SentryInit } from '../sentry-init';
 import '../globals.css';
+// Astryx component styles (layer `astryx-base`) load AFTER globals.css so the
+// layer is declared last and outranks Tailwind's `tw-base` preflight — see the
+// cascade note in globals.css (T11.7). A CSS `@import` inside globals.css would
+// load before its own rules and invert this order, so it is imported here.
+import '@astryxdesign/core/astryx.css';
 
 /** UI body font — Manrope, exposed as a CSS variable Tailwind's `font-sans` reads. */
 const manrope = Manrope({

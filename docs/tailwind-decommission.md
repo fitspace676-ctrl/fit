@@ -57,6 +57,8 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/astryx-smoke`                       | T11.1 | ✅     |
 | `apps/web/src/components/theme/astryx-provider.tsx` | T11.1 | ✅     |
 | `apps/admin/components/theme/astryx-provider.tsx`   | T11.1 | ✅     |
+| `apps/web/app/[locale]/login`                       | T11.7 | ✅     |
+| `apps/web/.../auth/auth-shell.tsx`                  | T11.7 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:

@@ -180,6 +180,7 @@
     "signingIn": "Signing you in…",
     "signedIn": "Signed in successfully.",
     "googleNotConfigured": "Google sign-in is not configured.",
+    "appleNotConfigured": "Apple sign-in is not configured.",
     "genericError": "Something went wrong. Please try again.",
     "invite": {
       "invalid": "This invitation link is invalid or has expired. Ask your gym to send a new one."

@@ -1,21 +1,36 @@
 /*
- * Astryx design-system foundation (T11.1).
+ * Astryx design-system foundation (T11.1, cascade fixed in T11.7).
  *
- * Import order is load-bearing — it maps to the Astryx cascade layers:
- *   1. reset.css       → @layer reset       (element normalize)
- *   2. astryx.css      → @layer astryx-base (compiled component styles)
- *   3. our theme.css   → @layer astryx-theme (the Fit brand token overrides,
- *                        built by `astryx theme build` from @fit/astryx-theme)
+ * Cascade layers, low → high priority: reset < astryx-theme < tw-base < astryx-base.
  *
- * These sit BEFORE Tailwind so Tailwind's (unlayered) base + utilities cascade
- * on top — existing formacore screens keep rendering while Astryx components
- * read the Fit tokens. `@import` must precede all other rules; Next.js inlines
+ * Tailwind's `base` (preflight) is wrapped in the `tw-base` layer here, and the
+ * Astryx component styles (`@astryxdesign/core/astryx.css`, layer `astryx-base`)
+ * are imported in the locale layout AFTER this file — so `astryx-base` is the
+ * last layer declared and outranks `tw-base`. Without this, preflight — being
+ * UNLAYERED — beat Astryx's layered component styles and zeroed every Astryx
+ * button/input/card (`button{background:transparent}`, `*{border-width:0}`),
+ * which left the first migrated screen (login, T11.7) with a transparent submit
+ * button and borderless fields. Layering preflight under `astryx-base` lets
+ * Astryx components keep their backgrounds and borders, while not-yet-migrated
+ * formacore screens (which carry no `astryx-base` rules) still receive the full
+ * preflight normally.
+ *
+ * Tailwind `components` + `utilities` stay UNLAYERED on purpose: unlayered wins
+ * over every layer, so per-screen Tailwind overrides on both formacore markup
+ * and the @fit/ui-web primitives (padding, `bg-*`, `border-*`) keep winning
+ * during coexistence. `@import` must precede all other rules; Next.js inlines
  * these package specifiers at build time.
+ *
+ * NOTE: `astryx.css` is intentionally NOT imported here. A CSS `@import` always
+ * loads before the importing file's own rules, which would place `astryx-base`
+ * BEFORE `tw-base` and re-break the cascade. It is imported from the layout
+ * instead, right after this file, so its layer is declared last.
  */
 @import '@astryxdesign/core/reset.css';
-@import '@astryxdesign/core/astryx.css';
 @import '@fit/astryx-theme/theme.css';
 
-@tailwind base;
+@layer tw-base {
+  @tailwind base;
+}
 @tailwind components;
 @tailwind utilities;
