@@ -25,6 +25,9 @@ interface ClassDetailParams {
  * `getActiveGymId`, the detail page degrades to its "not found" state rather than
  * an error screen. Next memoises the underlying `fetch`, so calling this from
  * both `generateMetadata` and the page costs a single round-trip.
+ *
+ * Returns the resolved `gymId` alongside the instance so the page can hand it to
+ * the live-occupancy island (T8.10) without a second subdomain lookup.
  */
 async function loadInstance(id: string) {
   const gymId = await getActiveGymId();
@@ -32,7 +35,8 @@ async function loadInstance(id: string) {
     return null;
   }
   try {
-    return await fetchClassInstance({ gymId, id });
+    const instance = await fetchClassInstance({ gymId, id });
+    return instance ? { gymId, instance } : null;
   } catch {
     return null;
   }
@@ -44,7 +48,8 @@ export async function generateMetadata({
   params: Promise<ClassDetailParams>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const instance = await loadInstance(id);
+  const loaded = await loadInstance(id);
+  const instance = loaded?.instance ?? null;
   return {
     title: instance ? `${instance.title} — Fit` : 'Class — Fit',
     description: instance?.description || 'See the class details and book your spot.',
@@ -62,7 +67,7 @@ export default async function ClassDetailPage({ params }: { params: Promise<Clas
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  const [t, instance] = await Promise.all([getTranslations('classes'), loadInstance(id)]);
+  const [t, loaded] = await Promise.all([getTranslations('classes'), loadInstance(id)]);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6">
@@ -74,7 +79,7 @@ export default async function ClassDetailPage({ params }: { params: Promise<Clas
         {t('detail.back')}
       </Link>
 
-      {instance ? <ClassDetail instance={instance} /> : <ClassNotFound />}
+      {loaded ? <ClassDetail instance={loaded.instance} gymId={loaded.gymId} /> : <ClassNotFound />}
     </div>
   );
 }

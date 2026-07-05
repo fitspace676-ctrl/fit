@@ -1,8 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import type { GetClassInstanceResponse, ListClassInstancesResponse } from '@fit/types';
+import { firstValueFrom, of } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
+import {
+  CLASS_OCCUPANCY_EVENT,
+  type ClassOccupancy,
+  type GetClassInstanceResponse,
+  type ListClassInstancesResponse,
+} from '@fit/types';
 import { ClassesController } from './classes.controller';
 import type { ClassesService } from './classes.service';
+import type { OccupancyStreamService } from '../live/occupancy-stream.service';
 
 const FROM = '2026-06-01T00:00:00.000Z';
 const TO = '2026-06-08T00:00:00.000Z';
@@ -26,13 +34,33 @@ const DETAIL: GetClassInstanceResponse = {
   },
 };
 
+/** A live occupancy snapshot as the stream delivers it. */
+const OCCUPANCY: ClassOccupancy = {
+  classInstanceId: 'ci-1',
+  capacity: 12,
+  bookedCount: 5,
+  available: 7,
+  waitlistCount: 0,
+  status: 'SCHEDULED',
+  at: '2026-07-04T10:00:00.000Z',
+};
+
 function setup() {
   const listInstances = vi.fn<() => Promise<ListClassInstancesResponse>>(() =>
     Promise.resolve({ instances: [] }),
   );
   const getInstance = vi.fn<() => Promise<GetClassInstanceResponse>>(() => Promise.resolve(DETAIL));
   const classes = { listInstances, getInstance } as unknown as ClassesService;
-  return { controller: new ClassesController(classes), listInstances, getInstance };
+  const stream = vi.fn<(gymId: string) => ReturnType<OccupancyStreamService['stream']>>(() =>
+    of(OCCUPANCY),
+  );
+  const occupancy = { stream } as unknown as OccupancyStreamService;
+  return {
+    controller: new ClassesController(classes, occupancy),
+    listInstances,
+    getInstance,
+    stream,
+  };
 }
 
 describe('ClassesController', () => {
@@ -116,6 +144,25 @@ describe('ClassesController', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(ctx.getInstance).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /class-instances/occupancy/stream', () => {
+    it('subscribes to the gym stream and emits each snapshot as a class.occupancy frame', async () => {
+      const frame = await firstValueFrom(
+        ctx.controller.streamOccupancy({ gymId: 'gym-1' }).pipe(
+          filter((event) => event.type === CLASS_OCCUPANCY_EVENT),
+          take(1),
+        ),
+      );
+
+      expect(ctx.stream).toHaveBeenCalledWith('gym-1');
+      expect(frame).toEqual({ type: CLASS_OCCUPANCY_EVENT, data: OCCUPANCY });
+    });
+
+    it('rejects a missing gymId with 400 without opening a stream', () => {
+      expect(() => ctx.controller.streamOccupancy({})).toThrow(BadRequestException);
+      expect(ctx.stream).not.toHaveBeenCalled();
     });
   });
 });

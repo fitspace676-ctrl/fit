@@ -19,6 +19,7 @@ export * from './src/me';
 export * from './src/members';
 export * from './src/notifications';
 export * from './src/notifications-inbox';
+export * from './src/occupancy';
 export * from './src/orders';
 export * from './src/orders-admin';
 export * from './src/packages';

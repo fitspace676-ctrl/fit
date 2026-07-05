@@ -1330,6 +1330,22 @@ export async function fetchReportExport(
   );
 }
 
+/**
+ * Open the live class-occupancy stream (`GET /admin/schedule/stream`, T8.10) with
+ * the staff token attached, returning the raw upstream `Response` so a route
+ * handler can pipe its `text/event-stream` body straight to the browser. The
+ * browser's `EventSource` can't send the httpOnly-cookie token as a Bearer header,
+ * so the schedule board subscribes to a same-origin proxy route that calls this —
+ * the same token-forwarding shape as the file-export proxies, but long-lived.
+ */
+export async function fetchScheduleStream(signal?: AbortSignal): Promise<Response> {
+  return fetch(`${apiBaseUrl()}/admin/schedule/stream`, {
+    headers: { ...(await authHeaders()), accept: 'text/event-stream' },
+    cache: 'no-store',
+    signal,
+  });
+}
+
 // ── Uploads (R2 presigned) ──────────────────────────────────────────────────
 
 /** Body the admin sends to mint a presigned upload URL (gym comes from the session). */

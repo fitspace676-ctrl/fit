@@ -12,6 +12,7 @@ import type {
 import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { ClassOccupancyPublisher } from './class-occupancy.publisher';
 
 /**
  * The occurrence + template columns the week calendar projects. The instance
@@ -95,6 +96,7 @@ export class AdminScheduleService {
     private readonly prisma: TenantPrismaService,
     private readonly creditPacks: CreditPacksService,
     private readonly tenant: TenantContext,
+    private readonly occupancy: ClassOccupancyPublisher,
   ) {}
 
   /**
@@ -212,6 +214,11 @@ export class AdminScheduleService {
       });
     });
 
+    // The occurrence emptied out and flipped to CANCELED — push its settled
+    // occupancy to the live schedule + member views (T8.10). Fire-and-forget and
+    // best-effort, so it can never fail the cancellation that just committed.
+    void this.occupancy.publish(classInstanceId).catch(() => undefined);
+
     return this.getInstanceDetail(classInstanceId);
   }
 
@@ -315,6 +322,12 @@ export class AdminScheduleService {
         });
       }
     });
+
+    // A desk promote added a held seat and shortened the queue — push the
+    // occurrence's settled occupancy to the live schedule + member views (T8.10).
+    // Fire-and-forget and best-effort, so it can never fail the promote that just
+    // committed.
+    void this.occupancy.publish(classInstanceId).catch(() => undefined);
 
     return this.getInstanceDetail(classInstanceId);
   }
@@ -439,6 +452,12 @@ export class AdminScheduleService {
       }
       throw error;
     }
+
+    // A front-desk booking claimed a seat (or queued the member) — push the
+    // occurrence's settled occupancy to the live schedule + member views (T8.10).
+    // Fire-and-forget and best-effort, so it can never fail the booking that just
+    // committed.
+    void this.occupancy.publish(classInstanceId).catch(() => undefined);
 
     return this.getInstanceDetail(classInstanceId);
   }

@@ -6,6 +6,7 @@ import type { ClassInstanceDetail } from '@fit/types';
 import { useI18n } from '../../../providers';
 import { useActiveGymId } from '../../../hooks/useActiveGym';
 import { useClassInstance } from '../../../hooks/useClassInstance';
+import { useClassOccupancy } from '../../../hooks/useClassOccupancy';
 import { useMemberBookings } from '../../../hooks/useMemberBookings';
 import { ClassBookingActions } from '../../../components/classes/ClassBookingActions';
 import { ClassInstanceNotFound, formatTime } from '../../../lib/classes';
@@ -37,6 +38,10 @@ export default function ClassDetailScreen() {
   const gymId = useActiveGymId();
   const detail = useClassInstance(gymId, instanceId);
   const bookings = useMemberBookings(gymId);
+
+  // Keep the occupancy meter live: patch the cached detail as other members book /
+  // cancel / get promoted, pushed over SSE while this screen is open (T8.10).
+  useClassOccupancy(gymId, instanceId);
 
   const liveBooking = findLiveBooking(bookings.data ?? [], instanceId ?? '');
   const isNotFound = detail.error instanceof ClassInstanceNotFound;

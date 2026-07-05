@@ -3,9 +3,17 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { BookingStatus, InstanceStatus, Prisma, SubscriptionStatus } from '@fit/db';
 import type { AdminScheduleQuery } from '@fit/types';
 import { AdminScheduleService } from './admin-schedule.service';
+import type { ClassOccupancyPublisher } from './class-occupancy.publisher';
 import type { CreditPacksService } from '../billing/credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+
+/** A stub live-occupancy producer (T8.10) the mutation methods fire after commit. */
+function occupancyStub() {
+  return {
+    publish: vi.fn<(classInstanceId: string) => Promise<void>>().mockResolvedValue(undefined),
+  };
+}
 
 /** A fixed tenant context — the service stamps `gymId` on a booking it creates. */
 const tenantCtx = { gymId: 'gym-1' } as unknown as TenantContext;
@@ -68,7 +76,16 @@ function setup(findManyResult: ScheduleRow[] = []) {
   const client = { classInstance: { findMany } } as unknown;
   const prisma = { client } as unknown as TenantPrismaService;
   const creditPacks = { refundCredit: vi.fn() } as unknown as CreditPacksService;
-  return { service: new AdminScheduleService(prisma, creditPacks, tenantCtx), findMany };
+  const occupancy = occupancyStub();
+  return {
+    service: new AdminScheduleService(
+      prisma,
+      creditPacks,
+      tenantCtx,
+      occupancy as unknown as ClassOccupancyPublisher,
+    ),
+    findMany,
+  };
 }
 
 const query = (over?: Partial<AdminScheduleQuery>): AdminScheduleQuery => ({
@@ -241,14 +258,21 @@ function setupDetail() {
     (tx: unknown, memberId: string, opts?: unknown) => Promise<string | null>
   >(() => Promise.resolve(null));
   const creditPacks = { refundCredit, chargeSeatCredit } as unknown as CreditPacksService;
+  const occupancy = occupancyStub();
   return {
-    service: new AdminScheduleService(prisma, creditPacks, tenantCtx),
+    service: new AdminScheduleService(
+      prisma,
+      creditPacks,
+      tenantCtx,
+      occupancy as unknown as ClassOccupancyPublisher,
+    ),
     classInstance,
     booking,
     gymMember,
     subscription,
     refundCredit,
     chargeSeatCredit,
+    occupancy,
   };
 }
 
@@ -343,6 +367,8 @@ describe('AdminScheduleService.cancelInstance', () => {
     expect(detail.status).toBe('CANCELED');
     expect(detail.bookedCount).toBe(0);
     expect(detail.roster).toEqual([]);
+    // The emptied occurrence is pushed to the live occupancy stream (T8.10).
+    expect(ctx.occupancy.publish).toHaveBeenCalledWith('ci-1');
   });
 });
 
@@ -476,6 +502,8 @@ describe('AdminScheduleService.promoteWaitlistEntry', () => {
       data: { waitlistPosition: { decrement: 1 } },
     });
     expect(detail.bookedCount).toBe(6);
+    // The added seat is pushed to the live occupancy stream (T8.10).
+    expect(ctx.occupancy.publish).toHaveBeenCalledWith('ci-1');
   });
 
   it('still promotes a member with no credits left (best-effort charge is a no-op)', async () => {
@@ -620,6 +648,8 @@ describe('AdminScheduleService.bookMemberOntoClass', () => {
     // The waitlist tail is never read for a seated booking.
     expect(ctx.booking.aggregate).not.toHaveBeenCalled();
     expect(detail.bookedCount).toBe(5);
+    // The front-desk booking is pushed to the live occupancy stream (T8.10).
+    expect(ctx.occupancy.publish).toHaveBeenCalledWith('ci-1');
   });
 
   it('waitlists the member at the tail when the occurrence is full', async () => {
