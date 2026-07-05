@@ -71,9 +71,12 @@ test.describe.serial('Member booking + checkout', () => {
     await page.getByRole('button', { name: 'Create account' }).click();
 
     // Registration issues no session — it emails a verification link — so the
-    // form is replaced by a "check your inbox" status notice.
-    await expect(page.getByRole('status')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('Almost there!')).toBeVisible();
+    // form is replaced by a "check your inbox" status notice. Scope to the
+    // notice text: the Astryx submit/toggle buttons also expose (empty)
+    // role="status" loading live regions, so a bare getByRole('status') would
+    // strict-mode-match multiple elements.
+    const inboxNotice = page.getByRole('status').filter({ hasText: 'Almost there!' });
+    await expect(inboxNotice).toBeVisible({ timeout: 20_000 });
   });
 
   test('Verify email + enrol (out-of-band)', async () => {
