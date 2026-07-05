@@ -218,7 +218,8 @@
       "subtitle": "Choose a new password for your account.",
       "submit": "Update password",
       "submitting": "Updating…",
-      "missingToken": "This reset link is invalid or has expired. Request a new one."
+      "missingToken": "This reset link is invalid or has expired. Request a new one.",
+      "backToLogin": "Back to sign in"
     },
     "verify": {
       "verifying": "Verifying your email…",
