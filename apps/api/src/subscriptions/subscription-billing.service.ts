@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import * as Sentry from '@sentry/nestjs';
 import {
   Prisma,
   SubscriptionStatus,
@@ -146,7 +147,21 @@ export class SubscriptionBillingService {
           `${summary.expired} expired, ${summary.canceled} canceled, ${summary.errors} errors ` +
           `across ${summary.subscriptionsDue} due; ${summary.trialEndingWarned} trial-ending warned`,
       );
+      // Per-subscription infrastructure faults are tallied, not thrown, so the
+      // sweep completes — but a non-zero count still means charges didn't go
+      // through. Surface it to Sentry so the "job errors" alert can fire without
+      // the whole job having to crash.
+      if (summary.errors > 0) {
+        Sentry.captureMessage(
+          `Subscription billing completed with ${summary.errors}/${summary.subscriptionsDue} errored subscriptions`,
+          'warning',
+        );
+      }
     } catch (error) {
+      // A total job failure (lock/DB unreachable, unexpected throw) is invisible
+      // to the HTTP exception filter — this is the only place it can reach
+      // Sentry, and the signal the job-failure alert keys off.
+      Sentry.captureException(error, { tags: { job: 'subscription-renewal' } });
       this.logger.error(
         `Subscription billing failed: ${error instanceof Error ? error.message : String(error)}`,
       );

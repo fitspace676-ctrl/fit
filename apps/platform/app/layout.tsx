@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Archivo, JetBrains_Mono, Manrope } from 'next/font/google';
 import './globals.css';
+import { SentryInit } from './sentry-init';
 
 /**
  * Marketing type pairing from the design system: Manrope for body/UI, Archivo
@@ -54,7 +55,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-screen bg-surface font-sans text-fg antialiased">{children}</body>
+      <body className="min-h-screen bg-surface font-sans text-fg antialiased">
+        <SentryInit />
+        {children}
+      </body>
     </html>
   );
 }

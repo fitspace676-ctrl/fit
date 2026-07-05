@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -8,4 +10,16 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
 };
 
-export default nextConfig;
+// Upload source maps to Sentry at build time so production stack traces are
+// un-minified. The auth token comes from the `SENTRY_AUTH_TOKEN` build env var
+// (set in Vercel); without it the plugin no-ops the upload (non-fatal), so local
+// and unauthenticated builds still succeed.
+export default withSentryConfig(nextConfig, {
+  org: 'forma-0r',
+  project: 'fit-superadmin',
+  sentryUrl: 'https://de.sentry.io/',
+  silent: true,
+  widenClientFileUpload: true,
+  // Don't fail the build if Sentry source-map upload errors.
+  errorHandler: () => {},
+});

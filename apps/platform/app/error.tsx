@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
+import { useEffect, useState } from 'react';
 
 /**
  * Route-segment error boundary. Next.js renders this in place of the segment
@@ -15,10 +16,15 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [eventId, setEventId] = useState<string | null>(null);
+
   useEffect(() => {
-    // TODO(observability): forward to Sentry once the web SDK is wired up.
-    console.error(error);
+    // Report to Sentry and keep the event id so the user can quote it to
+    // support. Falls back to Next's `digest` when Sentry is not configured.
+    setEventId(Sentry.captureException(error));
   }, [error]);
+
+  const reference = eventId || error.digest;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-gutter text-center">
@@ -30,7 +36,7 @@ export default function Error({
         An unexpected error occurred. You can try again, and if the problem persists please contact
         support.
       </p>
-      {error.digest ? <p className="text-xs text-slate-400">Reference: {error.digest}</p> : null}
+      {reference ? <p className="text-xs text-slate-400">Reference: {reference}</p> : null}
       <button
         type="button"
         onClick={reset}

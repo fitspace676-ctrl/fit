@@ -190,6 +190,15 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
+      # Tag every event this release emits with the deployed commit so Sentry can
+      # attribute regressions to a release (see instrument.ts, which reads
+      # SENTRY_RELEASE). Non-fatal: a CLI-version mismatch must never fail deploy.
+      - name: Tag runtime Sentry release
+        run: |
+          railway variables --set "SENTRY_RELEASE=${{ github.sha }}" \
+            --service "${{ vars.RAILWAY_SERVICE || 'api' }}" \
+            || echo "::notice title=SENTRY_RELEASE not set::Could not set the Railway variable (non-fatal)."
+
       - name: Deploy API service
         run: railway up --service "${{ vars.RAILWAY_SERVICE || 'api' }}" --detach
 
@@ -262,7 +271,13 @@ jobs:
       - name: Pull Vercel project settings
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
+      # Build with the commit as the Sentry release so the @sentry/nextjs bundler
+      # plugin stamps client/server bundles with it and uploads source maps (when
+      # SENTRY_AUTH_TOKEN is set; the plugin no-ops the upload otherwise).
       - name: Build (production)
+        env:
+          SENTRY_RELEASE: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy prebuilt output (production)
@@ -302,3 +317,56 @@ jobs:
 
       - name: Probe production services
         run: pnpm fit services health
+
+  # ---------------------------------------------------------------------------
+  # 6. Tag the Sentry release. Create + finalize a release named after the
+  #    deployed commit for every project and associate its commits, so Sentry's
+  #    "regression introduced in release X" and suspect-commit features light up.
+  #    Runs per project; skips cleanly when SENTRY_AUTH_TOKEN is not configured
+  #    (same fail-soft contract as the rest of the pipeline).
+  # ---------------------------------------------------------------------------
+  sentry-release:
+    name: Tag Sentry release (${{ matrix.project }})
+    needs: [guard, deploy-api, deploy-web]
+    if: needs.guard.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [fit-api, fit-web, fit-admin, fit-platform, fit-superadmin]
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: forma-0r
+      SENTRY_URL: https://de.sentry.io/
+      SENTRY_PROJECT: ${{ matrix.project }}
+      SENTRY_RELEASE: ${{ github.sha }}
+    steps:
+      - name: Guard · Sentry auth token present
+        id: check
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Sentry release skipped::SENTRY_AUTH_TOKEN not set — configure it to tag releases."
+          fi
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          # Full history so `set-commits --auto` can compute the commit range.
+          fetch-depth: 0
+
+      - name: Install Sentry CLI
+        if: steps.check.outputs.skip != 'true'
+        run: npm install -g @sentry/cli
+
+      - name: Create, associate commits, and finalize release
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          sentry-cli releases new "$SENTRY_RELEASE"
+          # Commit association depends on the repo being linked in Sentry; keep it
+          # non-fatal so an unlinked project still gets a finalized release.
+          sentry-cli releases set-commits "$SENTRY_RELEASE" --auto \
+            || echo "::notice title=Commit association skipped::Link the repo in Sentry to enable suspect commits."
+          sentry-cli releases finalize "$SENTRY_RELEASE"
