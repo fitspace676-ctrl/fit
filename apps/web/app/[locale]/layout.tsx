@@ -8,6 +8,7 @@ import { getMessages, setRequestLocale } from 'next-intl/server';
 import { isLocale } from '@fit/i18n';
 import { routing } from '@/src/i18n/routing';
 import { ThemeProvider, THEME_COOKIE, type Theme } from '@/src/components/theme/theme-provider';
+import { AstryxProvider } from '@/src/components/theme/astryx-provider';
 import { SentryInit } from '../sentry-init';
 import '../globals.css';
 // Astryx component styles (layer `astryx-base`) load AFTER globals.css so the
@@ -78,7 +79,9 @@ export default async function LocaleLayout({
       <body className="min-h-screen bg-white font-sans text-ink-900 antialiased dark:bg-ink-950 dark:text-white">
         <SentryInit />
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <ThemeProvider initial={theme}>{children}</ThemeProvider>
+          <ThemeProvider initial={theme}>
+            <AstryxProvider>{children}</AstryxProvider>
+          </ThemeProvider>
         </NextIntlClientProvider>
       </body>
     </html>
