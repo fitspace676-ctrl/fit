@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import { Card as AstryxCard } from '@astryxdesign/core/Card';
 
 /* -------------------------------------------------------------------------- */
 /*  Card                                                                       */
@@ -11,14 +12,21 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * The portal's surface primitive: a white card with a soft shadow in the light
- * theme, a frosted glass panel in the dark theme. `glow` adds the dark panel's
- * hairline top highlight.
+ * The portal's surface primitive. Renders an Astryx `<Card>` (its background,
+ * border and radius come from the Fit theme, T11.1) while keeping the formacore
+ * prop shape. `padding={0}` hands spacing back to the caller's `className` (the
+ * screens set their own `p-*`), and `relative overflow-hidden` preserve the old
+ * root behaviour — the sheen anchors to it and rounded corners clip. Because
+ * Tailwind utilities cascade unlayered on top of Astryx's layered styles,
+ * per-screen `className` overrides (padding, `bg-*`, `border-*`) still win.
+ * `glow` adds the dark panel's hairline top highlight.
  */
 export function Card({ children, glow = false, className = '', ...rest }: CardProps) {
   return (
-    <div
-      className={`relative overflow-hidden rounded-card border border-ink-200 bg-white shadow-[0_14px_40px_-18px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-white/[0.035] dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl ${className}`}
+    <AstryxCard
+      variant="default"
+      padding={0}
+      className={`relative overflow-hidden ${className}`.trim()}
       {...rest}
     >
       {glow && (
@@ -28,7 +36,7 @@ export function Card({ children, glow = false, className = '', ...rest }: CardPr
         />
       )}
       {children}
-    </div>
+    </AstryxCard>
   );
 }
 
