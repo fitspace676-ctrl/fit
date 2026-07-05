@@ -8,6 +8,7 @@ vi.mock('../config/env', () => ({ env: mockEnv }));
 
 import { SubscriptionInterval, SubscriptionStatus } from '@fit/db';
 import { SubscriptionBillingService } from './subscription-billing.service';
+import type { BillingNotificationsService } from './billing-notifications.service';
 import type { PaymentProvider, RenewalChargeResult } from './payment-provider';
 import type { InvoiceService } from '../billing/invoice.service';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -26,6 +27,7 @@ interface BillableRow {
   cancelAtPeriodEnd: boolean;
   paymentRetries: number;
   providerRef: string | null;
+  member: { userId: string };
 }
 
 const row = (over?: Partial<BillableRow>): BillableRow => ({
@@ -40,6 +42,7 @@ const row = (over?: Partial<BillableRow>): BillableRow => ({
   cancelAtPeriodEnd: false,
   paymentRetries: 0,
   providerRef: null,
+  member: { userId: 'user-1' },
   ...over,
 });
 
@@ -68,6 +71,7 @@ function setup(
   Object.assign(mockEnv, {
     SUBSCRIPTION_BILLING_ENABLED: enabled,
     SUBSCRIPTION_BILLING_RETRY_OFFSET_DAYS: [2, 5, 7],
+    SUBSCRIPTION_TRIAL_ENDING_LEAD_DAYS: 3,
   });
 
   const findMany = vi.fn<(args: unknown) => Promise<BillableRow[]>>().mockResolvedValue(due);
@@ -97,13 +101,33 @@ function setup(
   const chargeRenewal = vi.fn(async (input: unknown) => charge(input));
   const provider = { key: providerKey, chargeRenewal } as unknown as PaymentProvider;
 
+  // The billing notifications seam (T8.7) is proven in its own suite; here we assert
+  // the sweep *calls* it at the right transition and never lets a send affect billing.
+  const renewalSucceeded = vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue();
+  const chargeFailed = vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue();
+  const notifyTrialsEndingSoon = vi
+    .fn<
+      (
+        ...args: unknown[]
+      ) => Promise<{ matched: number; notified: number; deduped: number; errors: number }>
+    >()
+    .mockResolvedValue({ matched: 0, notified: 0, deduped: 0, errors: 0 });
+  const notifications = {
+    renewalSucceeded,
+    chargeFailed,
+    notifyTrialsEndingSoon,
+  } as unknown as BillingNotificationsService;
+
   return {
-    service: new SubscriptionBillingService(prisma, redis, invoices, provider),
+    service: new SubscriptionBillingService(prisma, redis, invoices, notifications, provider),
     findMany,
     updateMany,
     set,
     chargeRenewal,
     invoiceIssue,
+    renewalSucceeded,
+    chargeFailed,
+    notifyTrialsEndingSoon,
   };
 }
 
@@ -414,6 +438,100 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
     const noRef = setup({ due: [row()], charge: () => ({ outcome: 'succeeded' }) });
     await noRef.service.runBillingCycle({ now: NOW });
     expect(noRef.updateMany.mock.calls[0]![0].data).not.toHaveProperty('providerRef');
+  });
+
+  describe('billing notifications (T8.7)', () => {
+    it('notifies the member on a settled renewal, keyed to the new period end', async () => {
+      const { service, renewalSucceeded, chargeFailed } = setup({ due: [row()] });
+
+      await service.runBillingCycle({ now: NOW });
+
+      expect(renewalSucceeded).toHaveBeenCalledTimes(1);
+      expect(renewalSucceeded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'sub-1',
+          gymId: 'gym-1',
+          userId: 'user-1',
+          priceAmount: 5000,
+          currency: 'USD',
+        }),
+        { nextPeriodEnd: new Date('2026-07-01T00:00:00.000Z'), wasTrial: false },
+      );
+      expect(chargeFailed).not.toHaveBeenCalled();
+    });
+
+    it('flags the renewal a trial conversion when the subscription was on TRIAL', async () => {
+      const { service, renewalSucceeded } = setup({
+        due: [row({ status: SubscriptionStatus.TRIAL })],
+      });
+
+      await service.runBillingCycle({ now: NOW });
+
+      expect(renewalSucceeded).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'sub-1' }),
+        expect.objectContaining({ wasTrial: true }),
+      );
+    });
+
+    it('does not notify a renewal the conditional update did not apply (idempotency)', async () => {
+      const { service, renewalSucceeded } = setup({ due: [row()], updateCount: 0 });
+
+      await service.runBillingCycle({ now: NOW });
+
+      expect(renewalSucceeded).not.toHaveBeenCalled();
+    });
+
+    it('warns the member on a fresh failed charge, keyed to rung 0', async () => {
+      const { service, chargeFailed, renewalSucceeded } = setup({
+        due: [row()],
+        charge: () => ({ outcome: 'failed', reason: 'card_declined' }),
+      });
+
+      await service.runBillingCycle({ now: NOW });
+
+      expect(chargeFailed).toHaveBeenCalledTimes(1);
+      expect(chargeFailed).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'sub-1', userId: 'user-1' }),
+        { rung: 0, periodEnd: new Date('2026-06-01T00:00:00.000Z') },
+      );
+      expect(renewalSucceeded).not.toHaveBeenCalled();
+    });
+
+    it('warns on each dunning rung, keyed to the observed retry count', async () => {
+      const { service, chargeFailed } = setup({
+        due: [
+          row({
+            status: SubscriptionStatus.PAST_DUE,
+            currentPeriodEnd: new Date('2026-06-05T00:00:00.000Z'),
+            paymentRetries: 1,
+          }),
+        ],
+        charge: () => ({ outcome: 'failed', reason: 'card_declined' }),
+      });
+
+      await service.runBillingCycle({ now: NOW });
+
+      expect(chargeFailed).toHaveBeenCalledWith(expect.objectContaining({ id: 'sub-1' }), {
+        rung: 1,
+        periodEnd: new Date('2026-06-05T00:00:00.000Z'),
+      });
+    });
+
+    it('runs the trial-ending sweep once per cycle and surfaces its count', async () => {
+      const { service, notifyTrialsEndingSoon } = setup({ due: [] });
+      notifyTrialsEndingSoon.mockResolvedValueOnce({
+        matched: 4,
+        notified: 3,
+        deduped: 1,
+        errors: 0,
+      });
+
+      const summary = await service.runBillingCycle({ now: NOW });
+
+      expect(notifyTrialsEndingSoon).toHaveBeenCalledTimes(1);
+      expect(notifyTrialsEndingSoon).toHaveBeenCalledWith(NOW, 3);
+      expect(summary.trialEndingWarned).toBe(3);
+    });
   });
 });
 

@@ -11,6 +11,10 @@ import { InvoiceService } from '../billing/invoice.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { env } from '../config/env';
+import {
+  BillingNotificationsService,
+  type BillingSubscriptionRef,
+} from './billing-notifications.service';
 import { PAYMENT_PROVIDER, type PaymentProvider } from './payment-provider';
 
 /** The subscription columns the billing sweep reads to charge and advance a period. */
@@ -30,6 +34,9 @@ const BILLABLE_SUBSCRIPTION_SELECT = {
   // human-readable description; a plan-less / deleted-plan subscription renews fine
   // with the generic fallback.
   plan: { select: { name: true } },
+  // The member's user id — the billing notifications (T8.7) are addressed to the
+  // person, not the gym-scoped membership, so the send has an explicit recipient.
+  member: { select: { userId: true } },
 } satisfies Prisma.SubscriptionSelect;
 
 type BillableRow = Prisma.SubscriptionGetPayload<{ select: typeof BILLABLE_SUBSCRIPTION_SELECT }>;
@@ -56,6 +63,8 @@ export interface BillingCycleSummary {
   canceled: number;
   /** Subscriptions left untouched by an infrastructure fault, to retry next pass. */
   errors: number;
+  /** Free trials converting within the lead window that were warned this pass (T8.7). */
+  trialEndingWarned: number;
 }
 
 /** Cron: daily at 02:00 (server time) — a quiet hour, well clear of the report digests. */
@@ -111,6 +120,7 @@ export class SubscriptionBillingService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly invoices: InvoiceService,
+    private readonly notifications: BillingNotificationsService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
   ) {}
 
@@ -134,7 +144,7 @@ export class SubscriptionBillingService {
       this.logger.log(
         `Subscription billing: ${summary.renewed} renewed, ${summary.pastDue} past-due, ` +
           `${summary.expired} expired, ${summary.canceled} canceled, ${summary.errors} errors ` +
-          `across ${summary.subscriptionsDue} due`,
+          `across ${summary.subscriptionsDue} due; ${summary.trialEndingWarned} trial-ending warned`,
       );
     } catch (error) {
       this.logger.error(
@@ -174,6 +184,7 @@ export class SubscriptionBillingService {
       expired: 0,
       canceled: 0,
       errors: 0,
+      trialEndingWarned: 0,
     };
 
     for (const sub of due) {
@@ -186,6 +197,25 @@ export class SubscriptionBillingService {
             `${error instanceof Error ? error.message : String(error)}`,
         );
       }
+    }
+
+    // Heads-up for trials converting soon (T8.7): a separate, non-charging sweep over
+    // trials ending within the lead window. Kept off the per-subscription billing path
+    // above — it is pure notification, warns *before* the trial falls due, and its own
+    // dedupe key makes it safe to re-run — so a failure here never affects a charge. Its
+    // own errors are swallowed too, so a trial-query fault can't discard the (already
+    // committed) billing summary this pass earned.
+    try {
+      const trial = await this.notifications.notifyTrialsEndingSoon(
+        now,
+        env.SUBSCRIPTION_TRIAL_ENDING_LEAD_DAYS,
+      );
+      summary.trialEndingWarned = trial.notified;
+    } catch (error) {
+      this.logger.warn(
+        `Trial-ending sweep failed (billing charges unaffected): ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return summary;
@@ -246,12 +276,26 @@ export class SubscriptionBillingService {
     if (result.outcome === 'succeeded') {
       if (await this.advancePeriod(sub, nextPeriodStart, nextPeriodEnd, result.providerRef)) {
         summary.renewed += 1;
+        // Announce the settled renewal (or, from a TRIAL, the conversion) only when
+        // this runner won the advance, so a re-run / racing replica does not re-notify.
+        await this.notifications.renewalSucceeded(toNotificationRef(sub), {
+          nextPeriodEnd,
+          wasTrial: sub.status === SubscriptionStatus.TRIAL,
+        });
       }
       return;
     }
 
     this.logger.warn(`Renewal charge failed for subscription ${sub.id}: ${result.reason}`);
-    if (await this.recordFailedCharge(sub)) summary.pastDue += 1;
+    if (await this.recordFailedCharge(sub)) {
+      summary.pastDue += 1;
+      // Warn the member their payment failed, keyed to the observed ladder rung so
+      // each distinct retry warns once. `paymentRetries` is the rung that just failed.
+      await this.notifications.chargeFailed(toNotificationRef(sub), {
+        rung: sub.paymentRetries,
+        periodEnd: sub.currentPeriodEnd,
+      });
+    }
   }
 
   /**
@@ -392,4 +436,19 @@ export class SubscriptionBillingService {
       return false;
     }
   }
+}
+
+/**
+ * Project a billable row to the reference the billing notifications need — the
+ * member's user id and the amount charged — decoupling {@link BillingNotificationsService}
+ * from the sweep's internal row shape.
+ */
+function toNotificationRef(sub: BillableRow): BillingSubscriptionRef {
+  return {
+    id: sub.id,
+    gymId: sub.gymId,
+    userId: sub.member.userId,
+    priceAmount: sub.priceAmount,
+    currency: sub.currency,
+  };
 }

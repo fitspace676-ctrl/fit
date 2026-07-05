@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { InvoiceModule } from '../billing/invoice.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminSubscriptionEnrollmentController } from './admin-subscription-enrollment.controller';
 import { AdminSubscriptionFreezeController } from './admin-subscription-freeze.controller';
+import { BillingNotificationsService } from './billing-notifications.service';
 import { PAYMENT_PROVIDER } from './payment-provider';
 import { PaymentWebhookController } from './payment-webhook.controller';
 import { StubPaymentProvider } from './stub-payment-provider';
@@ -30,6 +32,11 @@ import { SubscriptionsController } from './subscriptions.controller';
  * bound here to the MVP {@link StubPaymentProvider} under the {@link PAYMENT_PROVIDER}
  * token so the real gateway (T8.8) drops in without touching the job. Prisma + Redis
  * come from their global modules; the cron runs off the app-wide `ScheduleModule`.
+ * {@link BillingNotificationsService} (T8.7) is the seam that job calls to notify a
+ * member of their subscription's money events — renewal / trial conversion, a failed
+ * charge on the dunning ladder, and a heads-up before a trial converts — layered over
+ * the {@link NotificationService} dispatch pipeline from the imported
+ * {@link NotificationsModule}.
  *
  * {@link PaymentWebhookController} (`POST /webhooks/payments/:provider`) is the
  * inbound counterpart of that seam — the public entry point a real gateway posts
@@ -39,7 +46,7 @@ import { SubscriptionsController } from './subscriptions.controller';
  * answers `501` today).
  */
 @Module({
-  imports: [InvoiceModule],
+  imports: [InvoiceModule, NotificationsModule],
   controllers: [
     SubscriptionsController,
     AdminSubscriptionEnrollmentController,
@@ -50,6 +57,7 @@ import { SubscriptionsController } from './subscriptions.controller';
     SubscriptionFreezeService,
     SubscriptionEnrollmentService,
     SubscriptionBillingService,
+    BillingNotificationsService,
     { provide: PAYMENT_PROVIDER, useClass: StubPaymentProvider },
   ],
 })
