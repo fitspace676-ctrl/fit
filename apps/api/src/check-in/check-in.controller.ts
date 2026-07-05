@@ -19,6 +19,7 @@ import {
   type TodayCheckInsResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import { RateLimit, RATE_LIMITS } from '../common/rate-limit/rate-limit.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { CheckInService } from './check-in.service';
@@ -51,6 +52,7 @@ export class CheckInController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions(Permission.MemberWrite)
+  @RateLimit(RATE_LIMITS.checkIn)
   async record(@Body() body: unknown): Promise<RecordCheckInResponse> {
     return this.checkIns.recordCheckIn(parse(recordCheckInSchema, body));
   }

@@ -40,6 +40,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { loggerConfig } from './common/logging';
 import { SubdomainTenantMiddleware } from './common/middleware/subdomain-tenant.middleware';
 import { PermissionsGuard } from './common/rbac/permissions.guard';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { RbacModule } from './common/rbac/rbac.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { TenantMiddleware } from './common/tenant/tenant.middleware';
@@ -121,6 +122,11 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   `APP_GUARD`: it runs on every route and **denies by default**, so a handler
  *   is reachable only if it declares `@Public()`, `@RequirePermissions(...)`,
  *   `@Roles(...)`, or `@AllowCrossTenant()`.
+ * - {@link RateLimitModule} registers the global, opt-in {@link RateLimitGuard}
+ *   (T9.7): a per-IP, Redis-backed fixed-window limiter that throttles the
+ *   abuse-prone surfaces which declare a `@RateLimit(...)` policy — the auth
+ *   credential routes, subscription enrolment, and reception check-in — while
+ *   leaving every other route unlimited. Fails open when Redis is unreachable.
  */
 @Module({
   imports: [
@@ -161,6 +167,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     PlatformModule,
     TenantModule,
     RbacModule,
+    RateLimitModule,
   ],
   providers: [
     SubdomainTenantMiddleware,

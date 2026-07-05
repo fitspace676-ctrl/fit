@@ -70,6 +70,9 @@ export default defineConfig({
         JWT_SECRET,
         // Long-lived access token so a full suite run never outlives its session.
         JWT_ACCESS_TTL: '3600',
+        // The whole suite hits the API from one host, so per-IP rate limiting
+        // (T9.7) would throttle it spuriously — and it protects nothing here.
+        RATE_LIMIT_ENABLED: 'false',
         CORS_ORIGINS: `${ADMIN_URL},http://localhost:3001`,
       },
     },

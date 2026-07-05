@@ -45,6 +45,7 @@ const STATUS_TO_CODE: Readonly<Record<number, string>> = {
   [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
   [HttpStatus.CONFLICT]: 'CONFLICT',
   [HttpStatus.UNPROCESSABLE_ENTITY]: 'VALIDATION_ERROR',
+  [HttpStatus.TOO_MANY_REQUESTS]: 'RATE_LIMITED',
 };
 
 /**
