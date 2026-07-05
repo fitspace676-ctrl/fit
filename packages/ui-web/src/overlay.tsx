@@ -15,6 +15,15 @@
 // closes on Esc / backdrop click, and traps the mount so the dialog is the only
 // interactive surface. Pure class recipes live at the top so they can be unit
 // tested (see overlay.spec.ts) without a DOM render.
+//
+// Astryx migration (T11.4): the action buttons render Astryx `<Button>` (via
+// {@link Btn}). The scrim itself stays this bespoke primitive rather than moving
+// onto Astryx's `Dialog`/`Overlay`: Astryx `Dialog` renders a native `<dialog>`
+// (`showModal()`), which sheds the portalled `role="dialog"` surface, the custom
+// Tab focus-trap, and the aria-hidden backdrop that this kit's contract is built
+// on — so, per the Tailwind→Astryx coexistence, the panels stay Fit-theme
+// brand-token surfaces (the `*PanelClasses` recipes) while the brand tokens
+// (radii, ink/danger palette) already come from T11.1.
 
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';

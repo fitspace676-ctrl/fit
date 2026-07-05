@@ -21,6 +21,15 @@
 // without a DOM render (see data-table.spec.ts).
 
 import { useEffect, useRef, useState, type ReactNode, type ChangeEvent } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+} from '@astryxdesign/core/Table';
+import { EmptyState as AstryxEmptyState } from '@astryxdesign/core/EmptyState';
 import { Btn } from './button';
 import { Card } from './primitives';
 import { Icon, type IconName } from './icon';
@@ -83,11 +92,12 @@ export function alignClass(align: CellAlign = 'left'): string {
 /*  Shared class recipes                                                        */
 /* -------------------------------------------------------------------------- */
 
+// Only the brand *typography* / spacing rides in through these class recipes —
+// the row hover, row dividers and horizontal scroll now come from the Astryx
+// <Table> (hasHover + dividers) the DataTable renders underneath (T11.4).
 const HEAD_CELL =
   'py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
 const BODY_CELL = 'py-3 pr-4 align-middle';
-const ROW =
-  'border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]';
 
 /* -------------------------------------------------------------------------- */
 /*  Column model                                                                */
@@ -177,101 +187,104 @@ export function DataTable<T>({
 
   return (
     <Card className={`overflow-hidden ${className}`.trim()}>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-sm">
-          {caption && <caption className="sr-only">{caption}</caption>}
-          <thead>
-            <tr className="border-b border-ink-100 dark:border-white/10">
-              {selection && (
-                <th className="w-10 py-3 pl-5 pr-4">
-                  <input
-                    type="checkbox"
-                    aria-label={selection.selectAllLabel ?? 'Select all rows on this page'}
-                    checked={selection.allSelected}
-                    onChange={selection.onToggleAll}
-                    className={SELECT_CHECKBOX}
-                  />
-                </th>
-              )}
-              {columns.map((column, index) => {
-                const sortKey = column.sortKey;
-                const isActive = sortKey !== undefined && sort === sortKey;
-                const label = column.header ?? column.key;
-                const padStart = index === 0 && !selection ? 'pl-5' : '';
+      <Table<Record<string, unknown>>
+        hasHover
+        dividers="rows"
+        density="balanced"
+        tableProps={{ className: 'w-full text-left text-sm' }}
+      >
+        {caption && <caption className="sr-only">{caption}</caption>}
+        <TableHeader>
+          <TableRow isHeaderRow>
+            {selection && (
+              <TableHeaderCell scope="col" className="w-10 pl-5 pr-4">
+                <input
+                  type="checkbox"
+                  aria-label={selection.selectAllLabel ?? 'Select all rows on this page'}
+                  checked={selection.allSelected}
+                  onChange={selection.onToggleAll}
+                  className={SELECT_CHECKBOX}
+                />
+              </TableHeaderCell>
+            )}
+            {columns.map((column, index) => {
+              const sortKey = column.sortKey;
+              const isActive = sortKey !== undefined && sort === sortKey;
+              const label = column.header ?? column.key;
+              const padStart = index === 0 && !selection ? 'pl-5' : '';
+              return (
+                <TableHeaderCell
+                  key={column.key}
+                  scope="col"
+                  aria-sort={isActive ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}
+                  className={`${HEAD_CELL} ${alignClass(column.align)} ${padStart} ${column.headerClassName ?? ''}`.trim()}
+                >
+                  {sortKey !== undefined && onSort ? (
+                    <button
+                      type="button"
+                      onClick={() => onSort(sortKey)}
+                      className="inline-flex items-center gap-1 uppercase tracking-[0.15em] hover:text-ink-600 dark:hover:text-ink-200"
+                    >
+                      {label}
+                      <span aria-hidden className="text-[9px]">
+                        {sortIndicator(isActive, dir)}
+                      </span>
+                    </button>
+                  ) : (
+                    label
+                  )}
+                </TableHeaderCell>
+              );
+            })}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading
+            ? Array.from({ length: Math.max(1, skeletonRows) }).map((_, r) => (
+                <TableRow key={`skeleton-${r}`}>
+                  {selection && (
+                    <TableCell className="pl-5 pr-4">
+                      <span className="block h-4 w-4 rounded bg-ink-100 dark:bg-white/10" />
+                    </TableCell>
+                  )}
+                  {columns.map((column, index) => (
+                    <TableCell
+                      key={column.key}
+                      className={`${BODY_CELL} ${index === 0 && !selection ? 'pl-5' : ''}`.trim()}
+                    >
+                      <span className="block h-4 w-[60%] animate-pulse rounded bg-ink-100 dark:bg-white/10" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            : rows.map((row) => {
+                const id = rowKey(row);
                 return (
-                  <th
-                    key={column.key}
-                    scope="col"
-                    aria-sort={isActive ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                    className={`${HEAD_CELL} ${alignClass(column.align)} ${padStart} ${column.headerClassName ?? ''}`.trim()}
-                  >
-                    {sortKey !== undefined && onSort ? (
-                      <button
-                        type="button"
-                        onClick={() => onSort(sortKey)}
-                        className="inline-flex items-center gap-1 uppercase tracking-[0.15em] hover:text-ink-600 dark:hover:text-ink-200"
-                      >
-                        {label}
-                        <span aria-hidden className="text-[9px]">
-                          {sortIndicator(isActive, dir)}
-                        </span>
-                      </button>
-                    ) : (
-                      label
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {loading
-              ? Array.from({ length: Math.max(1, skeletonRows) }).map((_, r) => (
-                  <tr key={`skeleton-${r}`} className="border-b border-ink-50 dark:border-white/5">
+                  <TableRow key={id}>
                     {selection && (
-                      <td className="py-3 pl-5 pr-4">
-                        <span className="block h-4 w-4 rounded bg-ink-100 dark:bg-white/10" />
-                      </td>
+                      <TableCell className="pl-5 pr-4">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select row ${id}`}
+                          checked={selection.selectedIds.has(id)}
+                          onChange={() => selection.onToggle(id)}
+                          className={SELECT_CHECKBOX}
+                        />
+                      </TableCell>
                     )}
                     {columns.map((column, index) => (
-                      <td
+                      <TableCell
                         key={column.key}
-                        className={`${BODY_CELL} ${index === 0 && !selection ? 'pl-5' : ''}`.trim()}
+                        className={`${BODY_CELL} ${alignClass(column.align)} ${index === 0 && !selection ? 'pl-5' : ''} ${column.className ?? ''}`.trim()}
                       >
-                        <span className="block h-4 w-[60%] animate-pulse rounded bg-ink-100 dark:bg-white/10" />
-                      </td>
+                        {column.cell(row)}
+                      </TableCell>
                     ))}
-                  </tr>
-                ))
-              : rows.map((row) => {
-                  const id = rowKey(row);
-                  return (
-                    <tr key={id} className={ROW}>
-                      {selection && (
-                        <td className="py-3 pl-5 pr-4">
-                          <input
-                            type="checkbox"
-                            aria-label={`Select row ${id}`}
-                            checked={selection.selectedIds.has(id)}
-                            onChange={() => selection.onToggle(id)}
-                            className={SELECT_CHECKBOX}
-                          />
-                        </td>
-                      )}
-                      {columns.map((column, index) => (
-                        <td
-                          key={column.key}
-                          className={`${BODY_CELL} ${alignClass(column.align)} ${index === 0 && !selection ? 'pl-5' : ''} ${column.className ?? ''}`.trim()}
-                        >
-                          {column.cell(row)}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-          </tbody>
-        </table>
-      </div>
+                  </TableRow>
+                );
+              })}
+        </TableBody>
+      </Table>
     </Card>
   );
 }
@@ -288,7 +301,11 @@ export interface EmptyStateProps {
   action?: ReactNode;
 }
 
-/** The centred empty-state block used inside the table Card. */
+/**
+ * The centred empty-state block used inside the table Card. Renders the Astryx
+ * `<EmptyState>` (T11.4) with the brand icon chip preserved as its `icon` slot,
+ * keeping the formacore prop shape (`icon` / `title` / `message` / `action`).
+ */
 export function EmptyState({
   icon = 'search',
   title = 'Nothing here yet',
@@ -296,14 +313,16 @@ export function EmptyState({
   action,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center gap-3 text-center">
-      <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-6 w-6" />
-      </span>
-      <p className="text-sm font-medium text-ink-700 dark:text-ink-200">{title}</p>
-      <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">{message}</p>
-      {action}
-    </div>
+    <AstryxEmptyState
+      title={title}
+      description={message}
+      icon={
+        <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <Icon name={icon} className="h-6 w-6" />
+        </span>
+      }
+      actions={action}
+    />
   );
 }
 
