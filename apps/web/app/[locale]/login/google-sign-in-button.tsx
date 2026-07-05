@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
+import { useTranslations } from 'next-intl';
 import { loginWithGoogle } from '@/lib/auth';
 
 /** URL of the Google Identity Services client library. */
@@ -10,6 +12,39 @@ const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 type Status = 'idle' | 'authenticating' | 'success' | 'error';
+
+// Astryx migration (T11.7): the GIS library renders its own button into the
+// container, so this component only owns the wrapper + status copy — now
+// authored in compiled StyleX on the Fit theme tokens and wired to next-intl.
+const styles = stylex.create({
+  wrapper: {
+    display: 'flex',
+    width: '100%',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  status: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  success: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-success)',
+  },
+  error: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  notice: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /**
  * Renders Google's "Sign in with Google" button via the GIS client library and
@@ -21,6 +56,7 @@ type Status = 'idle' | 'authenticating' | 'success' | 'error';
  * degrades to a short notice instead of rendering a non-functional button.
  */
 export function GoogleSignInButton() {
+  const t = useTranslations('auth');
   const buttonRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +75,7 @@ export function GoogleSignInButton() {
         .catch((err: unknown) => {
           if (cancelled) return;
           setStatus('error');
-          setError(err instanceof Error ? err.message : 'Sign-in failed');
+          setError(err instanceof Error ? err.message : t('genericError'));
         });
     };
 
@@ -79,28 +115,18 @@ export function GoogleSignInButton() {
       cancelled = true;
       script?.removeEventListener('load', render);
     };
-  }, []);
+  }, [t]);
 
   if (!CLIENT_ID) {
-    return (
-      <p className="text-sm text-ink-500 dark:text-ink-400">
-        Google sign-in is not configured (set <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>).
-      </p>
-    );
+    return <p {...stylex.props(styles.notice)}>{t('googleNotConfigured')}</p>;
   }
 
   return (
-    <div className="flex w-full flex-col items-center gap-3">
-      <div ref={buttonRef} aria-label="Sign in with Google" />
-      {status === 'authenticating' && (
-        <p className="text-sm text-ink-500 dark:text-ink-400">Signing you in…</p>
-      )}
-      {status === 'success' && (
-        <p className="text-sm text-success-600 dark:text-success-300">Signed in successfully.</p>
-      )}
-      {status === 'error' && error && (
-        <p className="text-sm text-danger-600 dark:text-danger-300">{error}</p>
-      )}
+    <div {...stylex.props(styles.wrapper)}>
+      <div ref={buttonRef} aria-label={t('continueWithGoogle')} />
+      {status === 'authenticating' && <p {...stylex.props(styles.status)}>{t('signingIn')}</p>}
+      {status === 'success' && <p {...stylex.props(styles.success)}>{t('signedIn')}</p>}
+      {status === 'error' && error && <p {...stylex.props(styles.error)}>{error}</p>}
     </div>
   );
 }

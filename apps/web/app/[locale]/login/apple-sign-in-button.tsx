@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
+import { useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
 import { loginWithApple } from '@/lib/auth';
-import { Icon, buttonClasses } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 
 /** URL of the Sign in with Apple JS client library. */
 const APPLE_JS_SRC =
@@ -13,6 +16,39 @@ const CLIENT_ID = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID;
 const REDIRECT_URI = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI;
 
 type Status = 'idle' | 'authenticating' | 'success' | 'error';
+
+// Astryx migration (T11.7): the hand-rolled `buttonClasses` anchor is replaced
+// by an Astryx secondary `Button` with the Apple glyph as its leading icon;
+// wrapper + status copy are compiled StyleX on the Fit theme tokens and the
+// strings are wired to next-intl.
+const styles = stylex.create({
+  wrapper: {
+    display: 'flex',
+    width: '100%',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  button: {
+    width: '280px',
+    maxWidth: '100%',
+  },
+  success: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-success)',
+  },
+  error: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  notice: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /** Join Apple's split first/last name into a single display name, if present. */
 function fullName(user: AppleIdSignInUser | undefined): string | undefined {
@@ -34,6 +70,7 @@ function fullName(user: AppleIdSignInUser | undefined): string | undefined {
  * are unset (e.g. a CI build) the component degrades to a short notice.
  */
 export function AppleSignInButton() {
+  const t = useTranslations('auth');
   const initialized = useRef(false);
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
@@ -88,39 +125,31 @@ export function AppleSignInButton() {
       .then(() => setStatus('success'))
       .catch((err: unknown) => {
         setStatus('error');
-        setError(err instanceof Error ? err.message : 'Sign-in failed');
+        setError(err instanceof Error ? err.message : t('genericError'));
       });
   };
 
   if (!CLIENT_ID || !REDIRECT_URI) {
-    return (
-      <p className="text-sm text-ink-500 dark:text-ink-400">
-        Apple sign-in is not configured (set <code>NEXT_PUBLIC_APPLE_CLIENT_ID</code> and{' '}
-        <code>NEXT_PUBLIC_APPLE_REDIRECT_URI</code>).
-      </p>
-    );
+    return <p {...stylex.props(styles.notice)}>{t('appleNotConfigured')}</p>;
   }
 
   const busy = status === 'authenticating';
 
   return (
-    <div className="flex w-full flex-col items-center gap-3">
-      <button
+    <div {...stylex.props(styles.wrapper)}>
+      <Button
         type="button"
-        aria-label="Sign in with Apple"
-        disabled={!ready || busy}
+        variant="secondary"
+        size="lg"
+        label={busy ? t('signingIn') : t('continueWithApple')}
+        icon={<Icon name="apple" />}
+        isDisabled={!ready || busy}
+        isLoading={busy}
         onClick={signIn}
-        className={buttonClasses('outline', 'md', 'w-[280px] max-w-full')}
-      >
-        <Icon name="apple" className="h-4 w-4" sw={2} />
-        {busy ? 'Signing you in…' : 'Continue with Apple'}
-      </button>
-      {status === 'success' && (
-        <p className="text-sm text-success-600 dark:text-success-300">Signed in successfully.</p>
-      )}
-      {status === 'error' && error && (
-        <p className="text-sm text-danger-600 dark:text-danger-300">{error}</p>
-      )}
+        xstyle={styles.button}
+      />
+      {status === 'success' && <p {...stylex.props(styles.success)}>{t('signedIn')}</p>}
+      {status === 'error' && error && <p {...stylex.props(styles.error)}>{error}</p>}
     </div>
   );
 }

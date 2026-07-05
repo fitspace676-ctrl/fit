@@ -47,6 +47,12 @@ const MIGRATED_PATHS: readonly string[] = [
   // T11.1 — brand Theme providers wiring Astryx into each app shell.
   'apps/web/src/components/theme/astryx-provider.tsx',
   'apps/admin/components/theme/astryx-provider.tsx',
+  // T11.7 — auth shell + login screen (credentials + Google + Apple). The shared
+  // auth-shell is guarded by file, not its whole `_components/auth` dir, because
+  // `form-controls.tsx` still serves the not-yet-migrated register/forgot screens
+  // (T11.8, T11.9) on Tailwind — it enters the manifest with them.
+  'apps/web/app/[locale]/login',
+  'apps/web/app/[locale]/_components/auth/auth-shell.tsx',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
