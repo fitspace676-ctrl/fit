@@ -210,7 +210,9 @@ snapshot ─▶ migrate ─▶ deploy API (Railway) ─▶ deploy web ×4 (Verce
 A pre-deploy `pg_dump` (via `pnpm fit db snapshot`) is taken before any
 migration, so a bad release can be rolled back to a known-good database. The
 full deploy sequence, the required GitHub secrets/variables, and the **rehearsed
-rollback** procedure are documented in [`ROLLBACK.md`](ROLLBACK.md).
+rollback** procedure are documented in [`ROLLBACK.md`](ROLLBACK.md). When
+something breaks in production, the [on-call runbook](docs/runbook.md) has the
+detect → mitigate → verify playbook for the five most likely incidents.
 
 The pipeline **skips** (rather than fails) until the deploy secrets are
 configured, so it is safe to land ahead of the infra wiring.

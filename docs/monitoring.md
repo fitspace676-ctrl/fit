@@ -2,7 +2,8 @@
 
 How Fit is observed in production: error reporting (Sentry) across every
 service, a release tagged on each deploy, uptime probes, and the alert rules
-that page a human. This is the reference the on-call runbook (T10.5) links to.
+that page a human. This is the reference the [on-call runbook](./runbook.md)
+links to.
 
 Everything here is **fail-soft**: no DSN, no auth token, or no monitor
 configured degrades to "no reporting", never to a broken build or deploy. The
