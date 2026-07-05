@@ -8,7 +8,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { AuroraBackground, ToastProvider } from '@/components/ui';
+import { AuroraBackground, SkipLink, ToastProvider } from '@/components/ui';
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
 
@@ -38,6 +38,7 @@ export function AdminShell({
 
   return (
     <ToastProvider>
+      <SkipLink>{t('skipToContent')}</SkipLink>
       <AuroraBackground />
       <div className="relative flex min-h-screen">
         {/* Desktop sidebar — dark, always visible from md up. */}
@@ -64,7 +65,9 @@ export function AdminShell({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar gymSlug={gymSlug} onOpenNav={() => setNavOpen(true)} />
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+          <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8">
+            {children}
+          </main>
         </div>
       </div>
     </ToastProvider>

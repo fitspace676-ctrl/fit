@@ -112,6 +112,21 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   );
 });
 
+/**
+ * Wiring a {@link Field} hands its function child so the control can be linked
+ * to the field's label and message for assistive tech: `id` for the label,
+ * `describedById` for the error / hint (undefined when neither is shown), and
+ * `invalid` mirroring whether an error is present.
+ */
+export interface FieldControlMeta {
+  /** The control id — also the label's `htmlFor`. */
+  id: string;
+  /** id of the error / hint node, for the control's `aria-describedby`. */
+  describedById?: string;
+  /** Whether an error is currently shown. */
+  invalid: boolean;
+}
+
 export interface FieldProps {
   /** Field label; omit for an unlabelled control. */
   label?: ReactNode;
@@ -121,9 +136,11 @@ export interface FieldProps {
   error?: ReactNode;
   /**
    * The control — an {@link Input}, {@link Select}, {@link Textarea} or custom
-   * node. May also be a render function that receives the generated control id.
+   * node. May also be a render function that receives the generated control id
+   * (and, as a second argument, the full {@link FieldControlMeta} so the control
+   * can wire `aria-describedby` to the message).
    */
-  children: ReactNode | ((id: string) => ReactNode);
+  children: ReactNode | ((id: string, meta: FieldControlMeta) => ReactNode);
   /** Extra classes on the wrapping `<div>`. */
   className?: string;
   /**
@@ -138,20 +155,33 @@ export interface FieldProps {
  * edit screens compose forms declaratively instead of repeating the label /
  * hint / error scaffolding. Pass a render function as `children` to receive a
  * generated id when you don't want to manage one yourself.
+ *
+ * The error / hint text is linked to the control with `aria-describedby` so a
+ * screen reader announces the validation message alongside the field.
  */
 export function Field({ label, hint, error, children, className = '', htmlFor }: FieldProps) {
   const generatedId = useId();
   const controlId = htmlFor ?? generatedId;
-  const control = typeof children === 'function' ? children(controlId) : children;
+  const messageId = `${controlId}-message`;
+  const hasMessage = Boolean(error) || Boolean(hint);
+  const describedById = hasMessage ? messageId : undefined;
+  const control =
+    typeof children === 'function'
+      ? children(controlId, { id: controlId, describedById, invalid: Boolean(error) })
+      : children;
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       {label ? <Label htmlFor={controlId}>{label}</Label> : null}
       {control}
       {error ? (
-        <p className="text-xs font-medium text-danger-600 dark:text-danger-400">{error}</p>
+        <p id={messageId} className="text-xs font-medium text-danger-600 dark:text-danger-400">
+          {error}
+        </p>
       ) : hint ? (
-        <p className="text-xs text-ink-500 dark:text-ink-400">{hint}</p>
+        <p id={messageId} className="text-xs text-ink-500 dark:text-ink-400">
+          {hint}
+        </p>
       ) : null}
     </div>
   );

@@ -6,7 +6,7 @@
 export { Icon, I, type IconName } from './icon';
 export { Btn, buttonClasses, type BtnProps, type BtnVariant, type BtnSize } from './button';
 export { Badge, type Tone } from './badge';
-export { Card, Dot, Avatar, Progress } from './primitives';
+export { Card, Dot, Avatar, Progress, SkipLink } from './primitives';
 export {
   Field,
   Label,
