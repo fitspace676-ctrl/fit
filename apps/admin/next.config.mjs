@@ -44,6 +44,11 @@ const nextConfig = {
   ...(adminBasePath ? { basePath: adminBasePath } : {}),
   env: { NEXT_PUBLIC_ADMIN_BASE_PATH: adminBasePath },
   images: { remotePatterns: r2RemotePatterns() },
+  // `next-intl` is imported across the console's client/server components;
+  // `optimizePackageImports` rewrites its barrel imports to direct submodule
+  // imports so each admin screen ships only what it uses, trimming the client
+  // bundle and admin TTI (T9.9).
+  experimental: { optimizePackageImports: ['next-intl'] },
   // Lint and type-check run as dedicated turbo tasks (`pnpm lint`,
   // `pnpm type-check`) with the shared @fit/config presets, so skip Next's
   // bundled ESLint pass — it expects eslint-config-next, which this monorepo

@@ -42,6 +42,12 @@ const adminOrigin = (
 const nextConfig = {
   reactStrictMode: true,
   images: { remotePatterns: r2RemotePatterns() },
+  // Tree-shake the barrel imports the redesigned portal leans on most (T9.9):
+  // `next-intl` is imported across ~40 client/server components and `motion`
+  // pulls a large animation runtime. `optimizePackageImports` rewrites these to
+  // direct submodule imports so only what each screen uses ships to the browser,
+  // trimming the client bundle and improving TBT/LCP on the portal's Lighthouse.
+  experimental: { optimizePackageImports: ['next-intl', 'motion'] },
   async rewrites() {
     if (!adminOrigin) return [];
     return [

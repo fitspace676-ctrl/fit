@@ -524,7 +524,14 @@ model GymMember {
   invoices      Invoice[]
 
   @@unique([userId, gymId])
-  @@index([gymId])
+  // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
+  // sorted by `joinedAt`, and paginated, plus per-status tab counts (T9.9). At
+  // ~10k members these composites let Postgres serve the filter+sort+page and the
+  // status groupBy straight from an index instead of scanning every gym row and
+  // sorting in memory. Both are `gymId`-prefixed, so they also cover the plain
+  // tenant-scoped `gymId` lookups the old single-column index served.
+  @@index([gymId, role, status])
+  @@index([gymId, role, joinedAt])
   @@map("gym_members")
 }
 
