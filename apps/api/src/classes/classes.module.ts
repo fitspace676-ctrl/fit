@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { BillingModule } from '../billing/billing.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminClassTemplatesController } from './admin-class-templates.controller';
 import { AdminClassTemplatesService } from './admin-class-templates.service';
 import { AdminScheduleController } from './admin-schedule.controller';
 import { AdminScheduleService } from './admin-schedule.service';
 import { AttendanceController } from './attendance.controller';
 import { AttendanceService } from './attendance.service';
+import { BookingReminderService } from './booking-reminder.service';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { ClassesController } from './classes.controller';
@@ -50,9 +52,16 @@ import { MemberBookingsService } from './member-bookings.service';
  * status, scoped to upcoming / past / all — authenticated and tenant-scoped
  * (behind `TenantGuard` + `PermissionsGuard`, reusing `ClassBook`), projected in
  * {@link MemberBookingsService}.
+ *
+ * {@link BookingReminderService} is the scheduled cross-tenant job that reminds
+ * members ahead of a class they hold a confirmed seat for (T8.6) — it fans each
+ * reminder out over the member's preferred channels through the
+ * {@link NotificationService} dispatch seam (from the imported
+ * {@link NotificationsModule}). Prisma + Redis come from their global modules; the
+ * cron runs off the app-wide `ScheduleModule`.
  */
 @Module({
-  imports: [BillingModule],
+  imports: [BillingModule, NotificationsModule],
   controllers: [
     ClassesController,
     AdminClassTemplatesController,
@@ -66,6 +75,7 @@ import { MemberBookingsService } from './member-bookings.service';
     AdminClassTemplatesService,
     AdminScheduleService,
     BookingsService,
+    BookingReminderService,
     AttendanceService,
     MemberBookingsService,
   ],
