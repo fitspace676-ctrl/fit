@@ -1,10 +1,25 @@
 'use client';
 
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
 import { Link } from '@/src/i18n/navigation';
 import { useSession } from '@/hooks/use-session';
-import { buttonClasses } from '@/src/components/ui';
 import { BookingActionButton } from '@/src/components/member/booking-action-button';
+
+// Astryx migration (T11.12): the booking CTA renders the Astryx `<Button>` (via
+// the brand-themed `BookingActionButton` for the signed-in server action, or a
+// link Button for the signed-out redirect). A grid wrapper stretches the button
+// to full width without any Tailwind utility.
+
+const styles = stylex.create({
+  fullBtnWrap: {
+    display: 'grid',
+  },
+  fullBtn: {
+    width: '100%',
+  },
+});
 
 export interface ClassBookingCtaProps {
   /** The occurrence id — used to build the login return path. */
@@ -34,14 +49,15 @@ export function ClassBookingCta({ classId, isFull }: ClassBookingCtaProps) {
 
   if (user) {
     return (
-      <BookingActionButton
-        classId={classId}
-        action="book"
-        label={isFull ? t('drawer.full') : t('drawer.book')}
-        v="primary"
-        size="lg"
-        className="w-full"
-      />
+      <div {...stylex.props(styles.fullBtnWrap)}>
+        <BookingActionButton
+          classId={classId}
+          action="book"
+          label={isFull ? t('drawer.full') : t('drawer.book')}
+          v="primary"
+          size="lg"
+        />
+      </div>
     );
   }
 
@@ -52,8 +68,13 @@ export function ClassBookingCta({ classId, isFull }: ClassBookingCtaProps) {
   const loginHref = `/login?from=${encodeURIComponent(from)}`;
 
   return (
-    <Link href={loginHref} className={buttonClasses('primary', 'lg', 'w-full')}>
-      {t('drawer.signInToBook')}
-    </Link>
+    <Button
+      as={Link}
+      href={loginHref}
+      variant="primary"
+      size="lg"
+      label={t('drawer.signInToBook')}
+      xstyle={styles.fullBtn}
+    />
   );
 }

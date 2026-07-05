@@ -66,6 +66,13 @@ const MIGRATED_PATHS: readonly string[] = [
   // coexistence.
   'apps/web/app/[locale]/(member)/home/page.tsx',
   'apps/web/src/components/member/home/membership-hero.tsx',
+  // T11.12 — member classes list (week/list calendar + filter strip) + class
+  // detail + booking CTA. Both route files and the whole classes component dir
+  // are rebuilt on Astryx Card/Button/Badge + StyleX (the shared side-sheet
+  // shell stays in @fit/ui-web, out of scope). Guarded as directories since the
+  // classes route group and component dir are now Astryx-only.
+  'apps/web/app/[locale]/(member)/classes',
+  'apps/web/src/components/classes',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

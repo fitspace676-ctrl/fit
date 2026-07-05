@@ -1,9 +1,43 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { classCalendarViewSchema, DEFAULT_CLASS_VIEW } from '@fit/types';
 import { getActiveGymId } from '@/lib/active-gym';
 import { ClassesBrowser } from '@/src/components/classes/ClassesBrowser';
 import { parseFilters } from '@/src/components/classes/class-filters';
+
+// Astryx migration (T11.12): the page shell (heading + subtitle) is authored in
+// compiled StyleX over the Fit brand tokens — no Tailwind utilities. The
+// interactive schedule lives in the client `ClassesBrowser` below.
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: {
+      default: '1.5rem',
+      '@media (min-width: 640px)': '1.875rem',
+    },
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 export const metadata: Metadata = {
   title: 'Classes — Fit',
@@ -51,12 +85,10 @@ export default async function ClassesPage({
   const filters = parseFilters(sp);
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('title')}
-        </h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </header>
 
       <ClassesBrowser
