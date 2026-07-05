@@ -205,3 +205,78 @@ jobs:
 
       - name: Run E2E tests
         run: pnpm --filter @fit/e2e test:e2e
+
+  e2e-web:
+    name: E2E · member booking + checkout (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    # The whole stack for real: the API and the member web portal are booted by
+    # Playwright's `webServer` against a live Postgres + Redis, and a browser
+    # drives register → verify → sign in → book (capacity + waitlist) → shop
+    # checkout on the `downtown` tenant subdomain.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+      # Read by the Playwright config for the API webServer and by the migrate /
+      # seed steps below, and by the fixtures' direct Prisma writes. Redis backs
+      # the auth sessions the sign-in flow depends on.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fit_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      # Shared secret the API signs session tokens with and the web middleware
+      # verifies against — both are handed this value by the Playwright config.
+      JWT_SECRET: e2e-ci-secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Seed the database
+        run: pnpm --filter @fit/db db:seed
+
+      - name: Install Playwright browser
+        run: pnpm --filter @fit/e2e exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm --filter @fit/e2e test:e2e:web

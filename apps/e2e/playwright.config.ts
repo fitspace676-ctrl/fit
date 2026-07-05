@@ -29,6 +29,9 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: './tests',
+  // The member portal suite is a separate config (`playwright.web.config.ts`) with
+  // its own base URL + servers; keep it out of this admin run.
+  testIgnore: /member-.*\.spec\.ts/,
   globalSetup: './global-setup.ts',
   // Flows are interdependent (create member → check that member in; sale → refund
   // that order), so a file's tests run in order and stop on the first failure.
