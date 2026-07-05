@@ -1,24 +1,31 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { IconButton } from '@astryxdesign/core/IconButton';
 import { Icon } from '@/src/components/ui';
 import { useTheme } from '@/src/components/theme/theme-provider';
 
-/** The header sun/moon button that flips the portal between light and dark. */
+/**
+ * The header sun/moon button that flips the portal between light and dark.
+ *
+ * Astryx migration (T11.10): rebuilt on the Astryx `IconButton` (ghost variant)
+ * so it matches the rest of the member-shell action row. The sun/moon glyph is
+ * still the shared formacore `Icon`; only the button chrome moved off Tailwind
+ * onto the Astryx theme tokens.
+ */
 export function ThemeToggle() {
   const { theme, toggle } = useTheme();
   const t = useTranslations('member.shell');
   const isDark = theme === 'dark';
+  const label = isDark ? t('themeToLight') : t('themeToDark');
 
   return (
-    <button
-      type="button"
+    <IconButton
+      variant="ghost"
+      label={label}
+      tooltip={label}
+      icon={<Icon name={isDark ? 'sun' : 'moon'} />}
       onClick={toggle}
-      aria-label={isDark ? t('themeToLight') : t('themeToDark')}
-      title={isDark ? t('themeToLight') : t('themeToDark')}
-      className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
-    >
-      <Icon name={isDark ? 'sun' : 'moon'} className="h-5 w-5" />
-    </button>
+    />
   );
 }

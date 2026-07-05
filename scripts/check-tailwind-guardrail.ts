@@ -60,6 +60,16 @@ const MIGRATED_PATHS: readonly string[] = [
   // Rebuilt on the shared Astryx auth shell + Astryx form primitives (StyleX).
   'apps/web/app/[locale]/forgot-password',
   'apps/web/app/[locale]/reset-password',
+  // T11.10 — member portal shell + navigation. The layout container, the Astryx
+  // `TopNav` app bar, the mobile bottom tab bar, the theme toggle, and the shared
+  // nav manifest. Guarded file-by-file (NOT the whole `(member)` route group or
+  // the `components/member` dir) so the not-yet-migrated member screens they host
+  // (T11.11–T11.16) keep their Tailwind during coexistence.
+  'apps/web/app/[locale]/(member)/layout.tsx',
+  'apps/web/src/components/member/member-header.tsx',
+  'apps/web/src/components/member/mobile-tab-bar.tsx',
+  'apps/web/src/components/member/theme-toggle.tsx',
+  'apps/web/src/components/member/nav-items.ts',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
