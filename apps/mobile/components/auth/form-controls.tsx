@@ -87,6 +87,7 @@ export function AuthButton({
   disabled = false,
   trailing,
   onPress,
+  testID,
 }: {
   label: string;
   busyLabel?: string;
@@ -94,10 +95,13 @@ export function AuthButton({
   disabled?: boolean;
   trailing?: ReactNode;
   onPress: () => void;
+  /** Stable identifier for end-to-end (Maestro) selectors. */
+  testID?: string;
 }) {
   const inactive = busy || disabled;
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled: inactive, busy }}
       disabled={inactive}

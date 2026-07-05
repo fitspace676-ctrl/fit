@@ -1,0 +1,14 @@
+# Maestro workspace config for the @fit/mobile smoke suite.
+#
+# `maestro test apps/mobile/.maestro` discovers the flows below and runs them in
+# the given order. The reusable sign-in steps under `subflows/` are intentionally
+# excluded from discovery — they run only via `runFlow`, never standalone.
+flows:
+  - 'flows/*.yaml'
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - '01-login'
+    - '02-book-class'
+    - '03-show-qr'
+    - '04-shop-checkout'

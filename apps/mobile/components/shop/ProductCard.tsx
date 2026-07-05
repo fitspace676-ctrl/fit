@@ -56,6 +56,7 @@ export const ProductCard = memo(function ProductCard({
   return (
     <View className="flex-1 overflow-hidden rounded-card border border-white/10 bg-white/5">
       <Pressable
+        testID="product-card"
         accessibilityRole="button"
         accessibilityLabel={product.name}
         onPress={() => onPress(product.id)}

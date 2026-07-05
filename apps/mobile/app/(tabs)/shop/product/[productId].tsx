@@ -200,6 +200,7 @@ export default function ProductDetailScreen() {
             </View>
 
             <Pressable
+              testID="product-add-to-cart"
               accessibilityRole="button"
               accessibilityState={{ disabled: !canAdd }}
               disabled={!canAdd}

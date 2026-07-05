@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "db:status": "prisma migrate status",
     "db:seed": "prisma db seed",
+    "db:seed:mobile-smoke": "tsx prisma/seed-mobile-smoke.ts",
     "jobs:generate-instances": "tsx prisma/generate-instances.run.ts",
     "jobs:expire-credit-packs": "tsx prisma/expire-credit-packs.run.ts",
     "lint": "eslint . --max-warnings 0",

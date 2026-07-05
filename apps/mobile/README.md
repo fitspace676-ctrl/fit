@@ -46,6 +46,7 @@ eas.json               # EAS Build profiles (development / preview / production)
 | `pnpm build:preview`        | `eas build --profile preview --platform all` |
 | `pnpm lint`                 | ESLint (shared `@fit/config` flat config)    |
 | `pnpm type-check`           | `tsc --noEmit`                               |
+| `pnpm test:smoke`           | Maestro smoke suite (`.maestro`)             |
 
 From the repo root via Turborepo / workspace filters:
 
@@ -121,6 +122,16 @@ eas build --profile preview --platform ios
 
 `eas build:configure` populates `extra.eas.projectId` in `app.json`; commit that
 value so CI builds resolve the project.
+
+## Smoke tests (Maestro)
+
+`.maestro/` holds the end-to-end smoke suite — four [Maestro](https://maestro.mobile.dev/)
+flows (login, book class, show QR, shop checkout) that drive a real build of the
+app against a live `@fit/api`. Flows address elements by `testID` so they are
+locale-independent. Run them with `pnpm test:smoke` once an emulator and the API
+are up; see [`.maestro/README.md`](./.maestro/README.md) for the full setup. They
+run nightly / on demand in `.github/workflows/mobile-smoke.yml`, never on the
+per-PR path.
 
 ## Configuration
 

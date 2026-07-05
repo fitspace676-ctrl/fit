@@ -42,6 +42,7 @@ function QrFab({
   return (
     <View style={styles.qrSlot} pointerEvents="box-none">
       <Pressable
+        testID="tab-qr"
         accessibilityRole="button"
         accessibilityLabel={label}
         onPress={onPress}

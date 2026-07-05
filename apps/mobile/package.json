@@ -14,6 +14,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "test": "echo '[@fit/mobile] test: nothing to do yet'",
+    "test:smoke": "maestro test .maestro",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

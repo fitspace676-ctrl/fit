@@ -52,6 +52,7 @@ export function ScheduleClassCard({ instance, bookingState, onPress }: ScheduleC
 
   return (
     <Pressable
+      testID="class-card"
       accessibilityRole="button"
       onPress={() => onPress(instance.id)}
       className="overflow-hidden rounded-card border border-white/10 bg-white/5 p-3.5 active:bg-white/10"

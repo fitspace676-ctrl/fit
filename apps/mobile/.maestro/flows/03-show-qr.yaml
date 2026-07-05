@@ -1,0 +1,12 @@
+appId: com.fit.app
+name: 03-show-qr
+tags:
+  - smoke
+---
+# Smoke: sign in and open the QR check-in pass from the tab bar.
+- runFlow: '../subflows/launch-and-sign-in.yaml'
+- tapOn:
+    id: 'tab-qr'
+# The membership pass carrying the live-refreshing QR code.
+- assertVisible:
+    id: 'member-qr-pass'

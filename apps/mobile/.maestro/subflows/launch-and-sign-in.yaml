@@ -1,0 +1,37 @@
+appId: com.fit.app
+env:
+  MEMBER_EMAIL: 'sam@example.com'
+  MEMBER_PASSWORD: 'Test1234!'
+---
+# Shared setup: cold-start the app, sign in with the seeded member
+# (`sam@example.com`, an ACTIVE member of the `downtown` tenant), and clear the
+# first-run onboarding so the caller lands on the authenticated tab shell.
+#
+# Override MEMBER_EMAIL / MEMBER_PASSWORD with `--env` to run against a different
+# fixture account.
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: 'login-email'
+- tapOn:
+    id: 'login-email'
+- inputText: '${MEMBER_EMAIL}'
+- tapOn:
+    id: 'login-password'
+- inputText: '${MEMBER_PASSWORD}'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+# A fresh install (clearState) routes through the 3-slide onboarding; skip it.
+# An already-onboarded install lands straight on the tabs, so the tap is guarded.
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-skip'
+    commands:
+      - tapOn:
+          id: 'onboarding-skip'
+# The QR floating action button lives on the tab bar — its presence confirms we
+# reached the signed-in shell.
+- assertVisible:
+    id: 'tab-qr'

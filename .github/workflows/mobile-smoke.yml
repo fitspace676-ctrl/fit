@@ -1,0 +1,154 @@
+name: Mobile smoke (Maestro)
+
+# Mobile smoke tests drive a real Android emulator against a debug build of the
+# Expo app talking to a live API — far heavier and slower than the per-PR checks
+# in ci.yml. They run nightly and on demand rather than on every pull request, so
+# they never gate a merge; a failure here is triaged out-of-band.
+on:
+  workflow_dispatch:
+  schedule:
+    # 04:00 UTC daily.
+    - cron: '0 4 * * *'
+
+# Least-privilege default token.
+permissions:
+  contents: read
+
+# One smoke run per ref; a newer run supersedes an in-flight one.
+concurrency:
+  group: mobile-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Login · book · QR · checkout (Maestro on Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    # Real datastores for the API the emulated app talks to.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fit_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      # Shared secret the API signs session tokens with.
+      JWT_SECRET: mobile-smoke-secret
+      # The API base the app bundle is built to hit. `10.0.2.2` is the CI host's
+      # loopback as seen from inside the Android emulator, so the app reaches the
+      # API running on the runner.
+      EXPO_PUBLIC_API_URL: http://10.0.2.2:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Java (Android Gradle build)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Seed the database
+        run: pnpm --filter @fit/db db:seed
+
+      - name: Seed mobile smoke fixtures (shop product)
+        run: pnpm --filter @fit/db db:seed:mobile-smoke
+
+      - name: Start the API
+        # Bound to all interfaces so the emulator can reach it via 10.0.2.2.
+        run: pnpm --filter @fit/api start &
+        env:
+          PORT: '3000'
+          NODE_ENV: production
+
+      - name: Wait for the API to be ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/health >/dev/null 2>&1; then
+              echo "API is up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become ready in time" >&2
+          exit 1
+
+      - name: Prebuild the Android project
+        run: pnpm --filter @fit/mobile exec expo prebuild --platform android --no-install
+
+      - name: Build the debug APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run smoke flows on the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            maestro test apps/mobile/.maestro --format junit --output maestro-report.xml
+
+      - name: Upload Maestro report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-report
+          path: |
+            maestro-report.xml
+            ~/.maestro/tests/**
+          if-no-files-found: ignore

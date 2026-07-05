@@ -193,7 +193,10 @@ export default function QrScreen() {
         ) : payload ? (
           <>
             {/* ============ membership pass ============ */}
-            <View className="mt-5 overflow-hidden rounded-card border border-white/15 bg-brand-600 p-5">
+            <View
+              testID="member-qr-pass"
+              className="mt-5 overflow-hidden rounded-card border border-white/15 bg-brand-600 p-5"
+            >
               {/* Faked gradient: translucent overlays over the solid brand fill. */}
               <View className="absolute inset-x-0 top-0 h-px bg-white/40" />
               <View className="absolute -right-8 -top-10 h-44 w-44 rounded-full bg-white/10" />
