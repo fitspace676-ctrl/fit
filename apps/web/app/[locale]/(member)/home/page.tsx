@@ -1,5 +1,10 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
+import { Avatar } from '@astryxdesign/core/Avatar';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard, MemberBookingHistoryEntry, ProductSummary } from '@fit/types';
 import { getActiveGymId } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
@@ -8,7 +13,7 @@ import { fetchMyCreditPacks, totalRemainingCredits } from '@/lib/credit-packs';
 import { fetchProducts, formatMoney } from '@/lib/shop';
 import { fetchTrainers } from '@/lib/trainers';
 import { fetchClassInstances } from '@/lib/classes';
-import { Avatar, Badge, buttonClasses, Card, CountUp, Icon, Occupancy } from '@/src/components/ui';
+import { CountUp, Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { MembershipHero } from '@/src/components/member/home/membership-hero';
 
@@ -16,6 +21,411 @@ export const metadata: Metadata = { title: 'Home — Fit' };
 
 /** This is the signed-in member's own dashboard — always render per request. */
 export const dynamic = 'force-dynamic';
+
+// Astryx migration (T11.11): the member dashboard is rebuilt on Astryx
+// `Card` / `Button` / `Badge` / `Avatar` over the Fit brand theme tokens, with
+// all layout and the small data-viz bits (time chips, occupancy meter) authored
+// in compiled StyleX (`var(--color-*)` / `var(--font-family-*)`) — no Tailwind
+// utilities and no formacore Aurora-glass primitives. The data fetching below is
+// unchanged; only the presentation moved off Tailwind.
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2rem',
+  },
+  eyebrow: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.2em',
+    color: 'var(--color-text-secondary)',
+  },
+  greeting: {
+    marginTop: '0.25rem',
+    marginBottom: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  heroGrid: {
+    display: 'grid',
+    gap: '1.25rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': '1.05fr 1.4fr',
+    },
+  },
+  col: {
+    display: 'grid',
+    gap: '1.25rem',
+    alignContent: 'start',
+  },
+  card: {
+    padding: '1.25rem',
+  },
+  cardLg: {
+    padding: '1.5rem',
+  },
+  rowBetween: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  cardLabel: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  nextRow: {
+    marginTop: '1rem',
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'center',
+    },
+    gap: '1rem',
+  },
+  timeBox: {
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    height: '4rem',
+    width: '4rem',
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-background-muted)',
+    textAlign: 'center',
+  },
+  timeBoxSm: {
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    height: '3rem',
+    width: '3.5rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    textAlign: 'center',
+  },
+  timeText: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  timeTextSm: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  daySub: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    color: 'var(--color-text-secondary)',
+  },
+  grow: {
+    minWidth: 0,
+    flex: 1,
+  },
+  itemTitle: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  itemTitleSm: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  itemSub: {
+    margin: 0,
+    marginTop: '0.125rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  itemSubXs: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  empty: {
+    marginTop: '1rem',
+    display: 'grid',
+    placeItems: 'center',
+    gap: '0.5rem',
+    paddingBlock: '1.5rem',
+    textAlign: 'center',
+  },
+  emptyLg: {
+    display: 'grid',
+    placeItems: 'center',
+    gap: '0.5rem',
+    paddingBlock: '2.5rem',
+    textAlign: 'center',
+  },
+  emptyText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  mutedIcon: {
+    width: '2rem',
+    height: '2rem',
+    color: 'var(--color-text-disabled)',
+  },
+  statStrip: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: '0.75rem',
+  },
+  statValue: {
+    margin: 0,
+    marginTop: '0.75rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  statLabel: {
+    margin: 0,
+    marginTop: '0.125rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    color: 'var(--color-text-secondary)',
+  },
+  statIcon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  sectionTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.25rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  sectionHead: {
+    marginBottom: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  viewAll: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+    textDecoration: {
+      default: 'none',
+      ':hover': 'underline',
+    },
+  },
+  count: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  bookableGrid: {
+    display: 'grid',
+    gap: '0.75rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1280px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  classCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    padding: '1rem',
+  },
+  classTop: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+  },
+  twoCol: {
+    display: 'grid',
+    gap: '1.25rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(2, minmax(0, 1fr))',
+    },
+  },
+  trainerRow: {
+    marginTop: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  avatarRing: {
+    boxShadow: '0 0 0 2px var(--color-background-card), 0 0 0 4px var(--color-accent)',
+  },
+  specialties: {
+    marginTop: '0.5rem',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.375rem',
+  },
+  actionRow: {
+    marginTop: '1.25rem',
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  fullBtn: {
+    width: '100%',
+  },
+  flexBtn: {
+    flex: 1,
+  },
+  productGrid: {
+    marginTop: '1rem',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.75rem',
+  },
+  productCard: {
+    display: 'block',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-accent)',
+    },
+    padding: '0.75rem',
+    textDecoration: 'none',
+    transitionProperty: 'border-color',
+    transitionDuration: '150ms',
+  },
+  productThumb: {
+    aspectRatio: '1 / 1',
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    display: 'grid',
+    placeItems: 'center',
+  },
+  productImg: {
+    height: '100%',
+    width: '100%',
+    objectFit: 'cover',
+  },
+  productEmoji: {
+    fontSize: '1.5rem',
+  },
+  productName: {
+    margin: 0,
+    marginTop: '0.5rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  productPrice: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-accent)',
+  },
+  productEmpty: {
+    marginTop: '1.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  listCard: {
+    padding: 0,
+    overflow: 'hidden',
+  },
+  listRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '1rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+  },
+  listRowFirst: {
+    borderTopWidth: 0,
+  },
+  occ: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  occHead: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  occValue: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  occCap: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  occPct: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  occTrack: {
+    height: '0.5rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  occFill: {
+    height: '100%',
+    borderRadius: 'var(--radius-full)',
+  },
+  occFillOk: { backgroundColor: 'var(--color-success)' },
+  occFillWarn: { backgroundColor: 'var(--color-warning)' },
+  occFillFull: { backgroundColor: 'var(--color-error)' },
+  brandIcon: { color: 'var(--color-text-accent)' },
+  badgeIcon: { width: '0.875rem', height: '0.875rem' },
+});
 
 /** Resolve a value, swallowing failures to an empty fallback so one dead upstream
  * never blanks the whole dashboard. */
@@ -42,6 +452,27 @@ function dayLabel(iso: string, locale: string, today: string, tomorrow: string):
   if (dayDiff === 0) return today;
   if (dayDiff === 1) return tomorrow;
   return d.toLocaleDateString(locale, { weekday: 'short' });
+}
+
+/** A "value / cap" header over a fill bar, colour-coded by how full it is —
+ * rebuilt on the Astryx brand tokens (success → warning → error). */
+function OccupancyBar({ value, cap }: { value: number; cap: number }) {
+  const pct = cap > 0 ? Math.round((value / cap) * 100) : 0;
+  const fill = pct > 85 ? styles.occFillFull : pct > 60 ? styles.occFillWarn : styles.occFillOk;
+  return (
+    <div {...stylex.props(styles.occ)}>
+      <div {...stylex.props(styles.occHead)}>
+        <p {...stylex.props(styles.occValue)}>
+          {value}
+          <span {...stylex.props(styles.occCap)}>/{cap}</span>
+        </p>
+        <span {...stylex.props(styles.occPct)}>{pct}%</span>
+      </div>
+      <div {...stylex.props(styles.occTrack)}>
+        <div {...stylex.props(styles.occFill, fill)} style={{ width: `${Math.min(100, pct)}%` }} />
+      </div>
+    </div>
+  );
 }
 
 export default async function MemberHomePage({ params }: { params: Promise<{ locale: string }> }) {
@@ -96,20 +527,24 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
   const memberName = t('greetingFallbackName');
   const memberId = `FC-${(session?.userId ?? 'member').slice(-4).toUpperCase()}`;
 
+  const stats = [
+    { label: t('dayStreak'), value: Math.min(attended, 30), icon: 'flame' as const },
+    { label: t('checkInsMonth'), value: attended, icon: 'qr' as const },
+    { label: t('classesBooked'), value: upcoming.length, icon: 'calendar' as const },
+  ];
+
   return (
-    <div className="space-y-8">
+    <div {...stylex.props(styles.page)}>
       {/* Greeting */}
       <div>
-        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">
+        <p {...stylex.props(styles.eyebrow)}>
           {now.toLocaleDateString(activeLocale, { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
-        <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('greeting')}
-        </h1>
+        <h1 {...stylex.props(styles.greeting)}>{t('greeting')}</h1>
       </div>
 
       {/* Hero: membership + next class + stats */}
-      <section className="grid gap-5 lg:grid-cols-[1.05fr_1.4fr]">
+      <section {...stylex.props(styles.heroGrid)}>
         <MembershipHero
           planName={planName}
           active={credits > 0 || planName !== null}
@@ -121,91 +556,75 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
           qrSeed={session?.userId ?? 'guest'}
         />
 
-        <div className="grid gap-5">
+        <div {...stylex.props(styles.col)}>
           {/* Next class */}
-          <Card glow className="p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-ink-900 dark:text-white">{t('nextClass')}</p>
+          <Card variant="default" padding={0} xstyle={styles.card}>
+            <div {...stylex.props(styles.rowBetween)}>
+              <p {...stylex.props(styles.cardLabel)}>{t('nextClass')}</p>
               {nextBooking && (
-                <Badge tone="brand" icon="clock">
-                  {dayLabel(
+                <Badge
+                  variant="purple"
+                  icon={<Icon name="clock" {...stylex.props(styles.badgeIcon)} />}
+                  label={dayLabel(
                     nextBooking.classInstance.startsAt,
                     activeLocale,
                     todayLabel,
                     tomorrowLabel,
                   )}
-                </Badge>
+                />
               )}
             </div>
             {nextBooking ? (
-              <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-card bg-ink-50 text-center dark:bg-white/5">
-                  <span className="font-mono text-base font-bold text-ink-900 dark:text-white">
+              <div {...stylex.props(styles.nextRow)}>
+                <div {...stylex.props(styles.timeBox)}>
+                  <span {...stylex.props(styles.timeText)}>
                     {timeOf(nextBooking.classInstance.startsAt, activeLocale)}
                   </span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-display text-lg font-bold text-ink-900 dark:text-white">
-                    {nextBooking.classInstance.title}
-                  </p>
-                  <p className="mt-0.5 truncate text-sm text-ink-500 dark:text-ink-400">
+                <div {...stylex.props(styles.grow)}>
+                  <p {...stylex.props(styles.itemTitle)}>{nextBooking.classInstance.title}</p>
+                  <p {...stylex.props(styles.itemSub)}>
                     {nextBooking.classInstance.trainerName} · {nextBooking.classInstance.room}
                   </p>
-                  <div className="mt-2">
-                    <Occupancy
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <OccupancyBar
                       value={nextBooking.classInstance.bookedCount}
                       cap={nextBooking.classInstance.capacity}
                     />
                   </div>
                 </div>
-                <Link
+                <Button
+                  as={Link}
                   href={`/classes/${nextBooking.classInstance.id}`}
-                  className={buttonClasses('primary', 'md')}
-                >
-                  {t('checkIn')}
-                </Link>
+                  variant="primary"
+                  size="md"
+                  label={t('checkIn')}
+                />
               </div>
             ) : (
-              <div className="mt-4 grid place-items-center gap-2 py-6 text-center">
-                <Icon name="calendar" className="h-8 w-8 text-ink-300 dark:text-ink-600" />
-                <p className="text-sm text-ink-500 dark:text-ink-400">{t('noClasses')}</p>
-                <Link href="/classes" className={buttonClasses('outline', 'sm')}>
-                  {t('browseClasses')}
-                </Link>
+              <div {...stylex.props(styles.empty)}>
+                <Icon name="calendar" {...stylex.props(styles.mutedIcon)} />
+                <p {...stylex.props(styles.emptyText)}>{t('noClasses')}</p>
+                <Button
+                  as={Link}
+                  href="/classes"
+                  variant="secondary"
+                  size="sm"
+                  label={t('browseClasses')}
+                />
               </div>
             )}
           </Card>
 
           {/* Stat strip */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              {
-                label: t('dayStreak'),
-                value: Math.min(attended, 30),
-                icon: 'flame' as const,
-                tone: 'text-flame-500',
-              },
-              {
-                label: t('checkInsMonth'),
-                value: attended,
-                icon: 'qr' as const,
-                tone: 'text-accent-500',
-              },
-              {
-                label: t('classesBooked'),
-                value: upcoming.length,
-                icon: 'calendar' as const,
-                tone: 'text-iris-500',
-              },
-            ].map((s) => (
-              <Card key={s.label} className="p-4">
-                <Icon name={s.icon} className={`h-5 w-5 ${s.tone}`} />
-                <p className="mt-3 font-display text-2xl font-extrabold tabular-nums text-ink-900 dark:text-white">
+          <div {...stylex.props(styles.statStrip)}>
+            {stats.map((s) => (
+              <Card key={s.label} variant="default" padding={0} xstyle={styles.card}>
+                <Icon name={s.icon} {...stylex.props(styles.statIcon, styles.brandIcon)} />
+                <p {...stylex.props(styles.statValue)}>
                   <CountUp to={s.value} />
                 </p>
-                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
-                  {s.label}
-                </p>
+                <p {...stylex.props(styles.statLabel)}>{s.label}</p>
               </Card>
             ))}
           </div>
@@ -214,189 +633,186 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
 
       {/* Book a class */}
       <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-xl font-bold text-ink-900 dark:text-white">
-            {t('bookClass')}
-          </h2>
-          <Link
-            href="/classes"
-            className="text-sm font-semibold text-brand-600 hover:underline dark:text-brand-300"
-          >
+        <div {...stylex.props(styles.sectionHead)}>
+          <h2 {...stylex.props(styles.sectionTitle)}>{t('bookClass')}</h2>
+          <Link href="/classes" {...stylex.props(styles.viewAll)}>
             {t('viewAll')}
           </Link>
         </div>
         {bookable.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {bookable.map((c) => (
-              <Card key={c.id} className="flex flex-col gap-3 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="grid h-12 w-14 shrink-0 place-items-center rounded-card bg-ink-50 text-center dark:bg-white/5">
-                    <span className="font-mono text-sm font-bold text-ink-900 dark:text-white">
-                      {timeOf(c.startsAt, activeLocale)}
-                    </span>
-                    <span className="font-mono text-[10px] text-ink-400">
-                      {dayLabel(c.startsAt, activeLocale, todayLabel, tomorrowLabel)}
-                    </span>
+          <div {...stylex.props(styles.bookableGrid)}>
+            {bookable.map((c) => {
+              const full = c.bookedCount >= c.capacity;
+              return (
+                <Card key={c.id} variant="default" padding={0} xstyle={styles.classCard}>
+                  <div {...stylex.props(styles.classTop)}>
+                    <div {...stylex.props(styles.timeBoxSm)}>
+                      <span {...stylex.props(styles.timeTextSm)}>
+                        {timeOf(c.startsAt, activeLocale)}
+                      </span>
+                      <span {...stylex.props(styles.daySub)}>
+                        {dayLabel(c.startsAt, activeLocale, todayLabel, tomorrowLabel)}
+                      </span>
+                    </div>
+                    <div {...stylex.props(styles.grow)}>
+                      <p {...stylex.props(styles.itemTitleSm)}>{c.title}</p>
+                      <p {...stylex.props(styles.itemSubXs)}>
+                        {c.trainerName} · {c.locationName}
+                      </p>
+                    </div>
+                    {c.category && <Badge variant="blue" label={c.category} />}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-ink-900 dark:text-white">{c.title}</p>
-                    <p className="truncate text-xs text-ink-500 dark:text-ink-400">
-                      {c.trainerName} · {c.locationName}
-                    </p>
-                  </div>
-                  {c.category && <Badge tone="accent">{c.category}</Badge>}
-                </div>
-                <Occupancy value={c.bookedCount} cap={c.capacity} />
-                <Link
-                  href={`/classes/${c.id}`}
-                  className={buttonClasses(
-                    c.bookedCount >= c.capacity ? 'outline' : 'primary',
-                    'sm',
-                    'w-full',
-                  )}
-                >
-                  {c.bookedCount >= c.capacity ? t('joinWaitlist') : t('book')}
-                </Link>
-              </Card>
-            ))}
+                  <OccupancyBar value={c.bookedCount} cap={c.capacity} />
+                  <Button
+                    as={Link}
+                    href={`/classes/${c.id}`}
+                    variant={full ? 'secondary' : 'primary'}
+                    size="sm"
+                    label={full ? t('joinWaitlist') : t('book')}
+                    xstyle={styles.fullBtn}
+                  />
+                </Card>
+              );
+            })}
           </div>
         ) : (
-          <Card className="grid place-items-center gap-2 py-10 text-center">
-            <Icon name="calendar" className="h-8 w-8 text-ink-300 dark:text-ink-600" />
-            <p className="text-sm text-ink-500 dark:text-ink-400">{t('noBookable')}</p>
+          <Card variant="default" padding={0} xstyle={styles.emptyLg}>
+            <Icon name="calendar" {...stylex.props(styles.mutedIcon)} />
+            <p {...stylex.props(styles.emptyText)}>{t('noBookable')}</p>
           </Card>
         )}
       </section>
 
       {/* Trainer + shop */}
-      <section className="grid gap-5 lg:grid-cols-2">
+      <section {...stylex.props(styles.twoCol)}>
         {trainer && (
-          <Card glow className="p-5 sm:p-6">
-            <p className="text-sm font-bold text-ink-900 dark:text-white">{t('yourTrainer')}</p>
-            <div className="mt-4 flex items-center gap-4">
+          <Card variant="default" padding={0} xstyle={styles.cardLg}>
+            <p {...stylex.props(styles.cardLabel)}>{t('yourTrainer')}</p>
+            <div {...stylex.props(styles.trainerRow)}>
               <Avatar
-                src={
-                  trainer.avatarUrl ??
-                  `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(trainer.name)}`
-                }
-                ring
-                size="h-16 w-16"
+                src={trainer.avatarUrl ?? undefined}
+                name={trainer.name}
+                size={64}
+                xstyle={styles.avatarRing}
               />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-lg font-bold text-ink-900 dark:text-white">
-                  {trainer.name}
-                </p>
-                <p className="truncate text-sm text-ink-500 dark:text-ink-400">
-                  {trainer.headline}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
+              <div {...stylex.props(styles.grow)}>
+                <p {...stylex.props(styles.itemTitle)}>{trainer.name}</p>
+                <p {...stylex.props(styles.itemSub)}>{trainer.headline}</p>
+                <div {...stylex.props(styles.specialties)}>
                   {trainer.specialties.slice(0, 3).map((s) => (
-                    <Badge key={s} tone="iris">
-                      {s}
-                    </Badge>
+                    <Badge key={s} variant="purple" label={s} />
                   ))}
                 </div>
               </div>
             </div>
-            <div className="mt-5 flex gap-2">
-              <Link
+            <div {...stylex.props(styles.actionRow)}>
+              <Button
+                as={Link}
                 href={`/trainers/${trainer.id}`}
-                className={buttonClasses('primary', 'md', 'flex-1')}
-              >
-                {t('bookSession')}
-              </Link>
-              <Link href="/trainers" className={buttonClasses('outline', 'md')}>
-                {t('viewAll')}
-              </Link>
+                variant="primary"
+                size="md"
+                label={t('bookSession')}
+                xstyle={styles.flexBtn}
+              />
+              <Button
+                as={Link}
+                href="/trainers"
+                variant="secondary"
+                size="md"
+                label={t('viewAll')}
+              />
             </div>
           </Card>
         )}
 
-        <Card glow className="p-5 sm:p-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-ink-900 dark:text-white">{t('forTraining')}</p>
-            <Badge tone="success">{t('membersGet')}</Badge>
+        <Card variant="default" padding={0} xstyle={styles.cardLg}>
+          <div {...stylex.props(styles.rowBetween)}>
+            <p {...stylex.props(styles.cardLabel)}>{t('forTraining')}</p>
+            <Badge variant="success" label={t('membersGet')} />
           </div>
           {topProducts.length > 0 ? (
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div {...stylex.props(styles.productGrid)}>
               {topProducts.map((p) => (
-                <Link
-                  key={p.id}
-                  href="/shop"
-                  className="group rounded-card border border-ink-100 p-3 transition-colors hover:border-brand-300 dark:border-white/10 dark:hover:border-brand-500/50"
-                >
-                  <div className="aspect-square w-full overflow-hidden rounded-field bg-ink-50 dark:bg-white/5">
+                <Link key={p.id} href="/shop" {...stylex.props(styles.productCard)}>
+                  <div {...stylex.props(styles.productThumb)}>
                     {p.imageUrl ? (
-                      <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
+                      <img src={p.imageUrl} alt="" {...stylex.props(styles.productImg)} />
                     ) : (
-                      <span className="grid h-full w-full place-items-center text-2xl text-ink-300">
-                        🛍️
-                      </span>
+                      <span {...stylex.props(styles.productEmoji)}>🛍️</span>
                     )}
                   </div>
-                  <p className="mt-2 truncate text-sm font-semibold text-ink-900 dark:text-white">
-                    {p.name}
-                  </p>
-                  <p className="font-mono text-sm font-bold text-brand-600 dark:text-brand-300">
+                  <p {...stylex.props(styles.productName)}>{p.name}</p>
+                  <p {...stylex.props(styles.productPrice)}>
                     {formatMoney(p.priceAmount, p.currency, activeLocale)}
                   </p>
                 </Link>
               ))}
             </div>
           ) : (
-            <p className="mt-6 text-sm text-ink-500 dark:text-ink-400">{t('noProducts')}</p>
+            <p {...stylex.props(styles.productEmpty)}>{t('noProducts')}</p>
           )}
-          <div className="mt-4">
-            <Link href="/shop" className={buttonClasses('outline', 'sm', 'w-full')}>
-              {t('visitShop')}
-            </Link>
+          <div style={{ marginTop: '1rem' }}>
+            <Button
+              as={Link}
+              href="/shop"
+              variant="secondary"
+              size="sm"
+              label={t('visitShop')}
+              xstyle={styles.fullBtn}
+            />
           </div>
         </Card>
       </section>
 
       {/* Upcoming bookings */}
       <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-xl font-bold text-ink-900 dark:text-white">
-            {t('upcomingBookings')}
-          </h2>
-          <span className="text-sm text-ink-400">{upcoming.length}</span>
+        <div {...stylex.props(styles.sectionHead)}>
+          <h2 {...stylex.props(styles.sectionTitle)}>{t('upcomingBookings')}</h2>
+          <span {...stylex.props(styles.count)}>{upcoming.length}</span>
         </div>
         {upcoming.length > 0 ? (
-          <Card className="divide-y divide-ink-100 dark:divide-white/10">
-            {upcoming.slice(0, 5).map((b) => (
-              <div key={b.bookingId} className="flex items-center gap-4 p-4">
-                <div className="grid h-12 w-14 shrink-0 place-items-center rounded-card bg-ink-50 text-center dark:bg-white/5">
-                  <span className="font-mono text-sm font-bold text-ink-900 dark:text-white">
+          <Card variant="default" padding={0} xstyle={styles.listCard}>
+            {upcoming.slice(0, 5).map((b, i) => (
+              <div
+                key={b.bookingId}
+                {...stylex.props(styles.listRow, i === 0 && styles.listRowFirst)}
+              >
+                <div {...stylex.props(styles.timeBoxSm)}>
+                  <span {...stylex.props(styles.timeTextSm)}>
                     {timeOf(b.classInstance.startsAt, activeLocale)}
                   </span>
-                  <span className="font-mono text-[10px] text-ink-400">
+                  <span {...stylex.props(styles.daySub)}>
                     {dayLabel(b.classInstance.startsAt, activeLocale, todayLabel, tomorrowLabel)}
                   </span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-ink-900 dark:text-white">
-                    {b.classInstance.title}
-                  </p>
-                  <p className="truncate text-xs text-ink-500 dark:text-ink-400">
+                <div {...stylex.props(styles.grow)}>
+                  <p {...stylex.props(styles.itemTitleSm)}>{b.classInstance.title}</p>
+                  <p {...stylex.props(styles.itemSubXs)}>
                     {b.classInstance.trainerName} · {b.classInstance.room}
                   </p>
                 </div>
-                <Badge tone={b.status === 'WAITLIST' ? 'warning' : 'success'}>
-                  {b.status === 'WAITLIST'
-                    ? t('waitlist', { position: b.waitlistPosition ?? 0 })
-                    : t('confirmed')}
-                </Badge>
+                <Badge
+                  variant={b.status === 'WAITLIST' ? 'warning' : 'success'}
+                  label={
+                    b.status === 'WAITLIST'
+                      ? t('waitlist', { position: b.waitlistPosition ?? 0 })
+                      : t('confirmed')
+                  }
+                />
               </div>
             ))}
           </Card>
         ) : (
-          <Card className="grid place-items-center gap-2 py-10 text-center">
-            <Icon name="clock" className="h-8 w-8 text-ink-300 dark:text-ink-600" />
-            <p className="text-sm text-ink-500 dark:text-ink-400">{t('noClasses')}</p>
-            <Link href="/classes" className={buttonClasses('primary', 'sm')}>
-              {t('browseClasses')}
-            </Link>
+          <Card variant="default" padding={0} xstyle={styles.emptyLg}>
+            <Icon name="clock" {...stylex.props(styles.mutedIcon)} />
+            <p {...stylex.props(styles.emptyText)}>{t('noClasses')}</p>
+            <Button
+              as={Link}
+              href="/classes"
+              variant="primary"
+              size="sm"
+              label={t('browseClasses')}
+            />
           </Card>
         )}
       </section>

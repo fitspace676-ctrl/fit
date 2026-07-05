@@ -60,6 +60,12 @@ const MIGRATED_PATHS: readonly string[] = [
   // Rebuilt on the shared Astryx auth shell + Astryx form primitives (StyleX).
   'apps/web/app/[locale]/forgot-password',
   'apps/web/app/[locale]/reset-password',
+  // T11.11 — member dashboard: rebuilt on Astryx Card/Button/Badge/Avatar +
+  // StyleX. Guarded file-by-file (not the whole `(member)` group) so the
+  // not-yet-migrated member screens the shell hosts keep their Tailwind during
+  // coexistence.
+  'apps/web/app/[locale]/(member)/home/page.tsx',
+  'apps/web/src/components/member/home/membership-hero.tsx',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
