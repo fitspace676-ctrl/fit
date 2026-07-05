@@ -9,6 +9,7 @@
 
 import {
   prisma,
+  generateClassInstances,
   Role,
   GymMemberStatus,
   InstanceStatus,
@@ -17,8 +18,11 @@ import {
   LocationStatus,
   NotificationCategory,
   OrderStatus,
+  PackageBillingInterval,
+  PackagePlanStatus,
   PaymentMethod,
   PaymentStatus,
+  ProductStatus,
   SubscriptionInterval,
   SubscriptionStatus,
   TrainerStatus,
@@ -210,13 +214,16 @@ async function main() {
         // Every Mon/Wed/Fri — the canonical weekly RRULE the generator (T5.3) expands.
         rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
         color: '#ef4444',
-        validFrom: new Date('2026-06-08T00:00:00.000Z'),
+        // 07:00 UTC anchor: the generator materialises future occurrences at the
+        // template's `validFrom` time-of-day, so a 07:00 anchor keeps the 4-week
+        // horizon full of realistic early-morning classes rather than midnight ones.
+        validFrom: new Date('2026-06-08T07:00:00.000Z'),
       },
     });
 
-    // Materialise the first 4 weekly occurrences (08:00–09:00 UTC) so the
+    // Materialise the first 4 weekly occurrences (07:00–08:00 UTC) so the
     // calendar and booking flows have data to render against in local dev.
-    const firstStart = new Date('2026-06-08T08:00:00.000Z'); // a Monday
+    const firstStart = new Date('2026-06-08T07:00:00.000Z'); // a Monday
     await prisma.classInstance.createMany({
       data: Array.from({ length: 4 }, (_, i) => {
         const startsAt = new Date(firstStart);
@@ -234,15 +241,23 @@ async function main() {
     });
   }
 
-  // ── Demo enrichment for the `downtown` gym (dashboard/analytics fixtures) ──
+  // ── Demo / pilot enrichment for the `downtown` gym (T10.3) ────────────────
   //
-  // Populates the control-room dashboard with realistic, tenant-scoped data so the
-  // FormaCore reference screen renders against real queries: subscription plans +
-  // members on them, captured payments across the last ~30 days, trainers,
-  // locations (the dashboard's "areas"), today's classes with bookings, and
-  // today's check-ins. Every insert is guarded by existence/upsert — idempotent
-  // and non-destructive, safe to re-run, never deletes.
+  // Populates a realistic, tenant-scoped dataset so a pilot gym opens onto a fully
+  // furnished console: subscription plans + members on them, captured payments
+  // across the last ~30 days, trainers, locations (the dashboard's "areas"),
+  // today's classes with bookings, today's check-ins, staff login fixtures (one
+  // per role), the retail shop catalogue, and the PT / class-pass packages. The
+  // forward 4-week class schedule is materialised separately below. Every insert
+  // is guarded by existence/upsert — idempotent and non-destructive, safe to
+  // re-run, never deletes.
   await enrichDowntown(downtown.id);
+
+  // Materialise every active template's occurrences out to the standard 4-week
+  // booking horizon (the same pass the T5.3 cron runs), so a pilot demo opens onto
+  // a full forward schedule rather than just today's classes. Idempotent — it only
+  // adds occurrences newly inside the window, so re-seeding never duplicates.
+  const generation = await generateClassInstances(prisma);
 
   const memberships = await prisma.gymMember.findMany({
     where: { userId: alex.id },
@@ -256,6 +271,11 @@ async function main() {
   const downtownMembers = await prisma.gymMember.count({
     where: { gymId: downtown.id, role: Role.MEMBER },
   });
+  const downtownStaff = await prisma.gymMember.count({
+    where: { gymId: downtown.id, role: { not: Role.MEMBER } },
+  });
+  const downtownProducts = await prisma.product.count({ where: { gymId: downtown.id } });
+  const downtownPackages = await prisma.packagePlan.count({ where: { gymId: downtown.id } });
   const downtownCheckInsToday = await prisma.checkIn.count({
     where: { gymId: downtown.id, checkedInAt: { gte: startOfToday() } },
   });
@@ -263,8 +283,11 @@ async function main() {
   console.log('[@fit/db] seed complete:', {
     gyms: [downtown.slug, riverside.slug],
     alexRoles: memberships.map((m) => m.role),
-    classTemplate: `${CLASS_TITLE} (${classInstanceCount} instances)`,
+    classInstances: `${classInstanceCount} (downtown, incl. ${generation.instancesCreated} generated to +4wk)`,
     downtownMembers,
+    downtownStaff,
+    downtownProducts,
+    downtownPackages,
     downtownCheckInsToday,
     superAdmin:
       process.env.NODE_ENV !== 'production' ? 'superadmin@fit.local' : '(skipped in prod)',
@@ -292,6 +315,21 @@ function daysAgo(n: number): Date {
 function todayAt(hour: number, minute = 0): Date {
   const d = startOfToday();
   d.setHours(hour, minute, 0, 0);
+  return d;
+}
+
+/**
+ * A fixed past UTC anchor (~4 weeks ago) at `hour:00`. Used as a demo class
+ * template's `validFrom`: the T5.3 generator materialises future occurrences at
+ * the template's `validFrom` time-of-day (UTC), so anchoring here keeps the
+ * generated 4-week horizon at a realistic clock hour. On a UTC host this lands
+ * today's generated occurrence on the same instant as the explicit `todayAt(hour)`
+ * instance, which the idempotent generator then skips.
+ */
+function pastUtcAnchorAtHour(hour: number): Date {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 28);
+  d.setUTCHours(hour, 0, 0, 0);
   return d;
 }
 
@@ -363,6 +401,134 @@ const DEMO_TODAY_CLASSES = [
     booked: 7,
     color: '#F59E0B',
     trainer: 'Nika B.',
+  },
+] as const;
+
+/**
+ * Staff login fixtures for the `downtown` pilot gym — one non-MEMBER membership
+ * per {@link Role} the console gates on, each backed by a real (verified) user so
+ * a pilot operator can sign into the admin console as any role out of the box.
+ * They share the dev password (**Test1234!**) via {@link DEV_PASSWORD_HASH}, so
+ * these are demo/dev credentials only — never real ones. Upserted by email + the
+ * (userId, gymId) membership unique, so re-running the seed never duplicates them.
+ */
+const DEMO_STAFF = [
+  { name: 'Mariam Beridze', email: 'manager@downtown.demo', role: Role.MANAGER },
+  { name: 'Giorgi Nadiradze', email: 'reception@downtown.demo', role: Role.RECEPTIONIST },
+  { name: 'Coach Nia', email: 'coach@downtown.demo', role: Role.TRAINER },
+] as const;
+
+/** One purchasable variant of a demo {@link DEMO_PRODUCTS} product. `stock` is the
+ * on-hand count (a couple are intentionally at/near the low-stock threshold so the
+ * catalog's low-stock alert has something to surface); `priceAmount` null inherits
+ * the product's base price. Mirrors the `productVariantSchema` JSON the admin form
+ * stores in `Product.variants`. */
+type DemoVariant = { name: string; sku: string; stock: number; priceAmount?: number };
+
+/**
+ * The retail shop catalogue for the `downtown` pilot gym so the storefront (member
+ * shop + admin catalog + POS) renders against real data instead of an empty store.
+ * Prices are in GEL minor units (tetri). A mix of variant-bearing and sold-as-is
+ * products, one deliberately low on stock and one `INACTIVE`, exercises the roster
+ * badges, the low-stock report, and the active/inactive filter. Galleries are left
+ * empty so cards render the designed placeholder rather than broken image links.
+ * Upserted by (gymId, name) — re-running never duplicates or re-prices a product.
+ */
+const DEMO_PRODUCTS: ReadonlyArray<{
+  name: string;
+  description: string;
+  priceAmount: number;
+  status: ProductStatus;
+  variants: DemoVariant[];
+}> = [
+  {
+    name: 'Branded Training Tee',
+    description: 'Breathable performance tee with the club logo.',
+    priceAmount: 4500,
+    status: ProductStatus.ACTIVE,
+    variants: [
+      { name: 'S', sku: 'TEE-S', stock: 12 },
+      { name: 'M', sku: 'TEE-M', stock: 20 },
+      { name: 'L', sku: 'TEE-L', stock: 8 },
+      { name: 'XL', sku: 'TEE-XL', stock: 3 },
+    ],
+  },
+  {
+    name: 'Whey Protein 1kg',
+    description: 'Post-workout whey isolate — 25g protein per serving.',
+    priceAmount: 8900,
+    status: ProductStatus.ACTIVE,
+    variants: [
+      { name: 'Chocolate', sku: 'WHEY-CHOC', stock: 15 },
+      { name: 'Vanilla', sku: 'WHEY-VAN', stock: 2, priceAmount: 9500 },
+    ],
+  },
+  {
+    name: 'Insulated Shaker Bottle',
+    description: '700ml steel shaker that keeps drinks cold for hours.',
+    priceAmount: 2500,
+    status: ProductStatus.ACTIVE,
+    variants: [],
+  },
+  {
+    name: 'Resistance Bands Set',
+    description: 'Five looped bands from light to heavy, with a carry pouch.',
+    priceAmount: 3900,
+    status: ProductStatus.ACTIVE,
+    variants: [],
+  },
+  {
+    name: 'Microfibre Gym Towel',
+    description: 'Quick-dry towel sized for the bench and the bag.',
+    priceAmount: 1800,
+    status: ProductStatus.ACTIVE,
+    variants: [{ name: 'Standard', sku: 'TWL-STD', stock: 4 }],
+  },
+  {
+    name: 'Retired Logo Hoodie',
+    description: 'Last season’s hoodie — kept for order history, no longer sold.',
+    priceAmount: 6500,
+    status: ProductStatus.INACTIVE,
+    variants: [{ name: 'M', sku: 'HOOD-M', stock: 0 }],
+  },
+];
+
+/**
+ * The personal-training package catalogue for the `downtown` pilot gym so the PT /
+ * class-pass storefront isn't empty at onboarding. Prices in GEL minor units. A
+ * finite-`sessionCount` plan doubles as a class-pass / credit-pack entry (T8.5).
+ * Upserted by (gymId, name) — re-running never duplicates or re-prices a plan.
+ */
+const DEMO_PACKAGES = [
+  {
+    name: 'Intro PT — 3 Sessions',
+    description: 'A three-session starter with a coach to learn the ropes.',
+    priceAmount: 15000,
+    billingInterval: PackageBillingInterval.ONE_TIME,
+    sessionCount: 3,
+    creditValidityDays: 60,
+    popular: false,
+    features: ['3 one-on-one sessions', 'Movement assessment', 'Valid for 60 days'],
+  },
+  {
+    name: '10-Session PT Pack',
+    description: 'Ten personal-training sessions at the best per-session rate.',
+    priceAmount: 45000,
+    billingInterval: PackageBillingInterval.ONE_TIME,
+    sessionCount: 10,
+    creditValidityDays: 120,
+    popular: true,
+    features: ['10 one-on-one sessions', 'Progress tracking', 'Valid for 120 days'],
+  },
+  {
+    name: 'Monthly Unlimited PT',
+    description: 'Unlimited coached sessions, billed monthly.',
+    priceAmount: 60000,
+    billingInterval: PackageBillingInterval.MONTH,
+    sessionCount: null,
+    creditValidityDays: null,
+    popular: false,
+    features: ['Unlimited sessions', 'Priority booking', 'Nutrition check-ins'],
   },
 ] as const;
 
@@ -529,7 +695,9 @@ async function enrichDowntown(gymId: string): Promise<void> {
           durationMinutes: 60,
           rrule: 'FREQ=DAILY',
           color: cls.color,
-          validFrom: daysAgo(30),
+          // Anchor at the class hour (UTC) so the T5.3 generator fills the 4-week
+          // horizon with daily occurrences at that hour, not at seed-run time.
+          validFrom: pastUtcAnchorAtHour(cls.hour),
         },
         select: { id: true },
       });
@@ -600,6 +768,84 @@ async function enrichDowntown(gymId: string): Promise<void> {
         checkedInAt: todayAt(7 + idx, (idx * 13) % 60),
         locationId: locationIds[idx % locationIds.length] ?? null,
       })),
+    });
+  }
+
+  // ── Staff (login fixtures, one per non-MEMBER role) ─────────────────────
+  for (const staff of DEMO_STAFF) {
+    const user = await prisma.user.upsert({
+      where: { email: staff.email },
+      update: { name: staff.name, passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
+      create: {
+        name: staff.name,
+        email: staff.email,
+        passwordHash: DEV_PASSWORD_HASH,
+        emailVerifiedAt: new Date(),
+      },
+      select: { id: true },
+    });
+    await prisma.gymMember.upsert({
+      where: { userId_gymId: { userId: user.id, gymId } },
+      update: { role: staff.role, status: GymMemberStatus.ACTIVE },
+      create: {
+        userId: user.id,
+        gymId,
+        role: staff.role,
+        status: GymMemberStatus.ACTIVE,
+      },
+    });
+  }
+
+  // ── Retail shop catalogue (upsert by name) ──────────────────────────────
+  for (const spec of DEMO_PRODUCTS) {
+    const existing = await prisma.product.findFirst({
+      where: { gymId, name: spec.name },
+      select: { id: true },
+    });
+    if (existing) {
+      continue;
+    }
+    await prisma.product.create({
+      data: {
+        gymId,
+        name: spec.name,
+        description: spec.description,
+        priceAmount: spec.priceAmount,
+        currency: 'GEL',
+        status: spec.status,
+        variants: spec.variants.map((v) => ({
+          name: v.name,
+          sku: v.sku,
+          priceAmount: v.priceAmount ?? null,
+          stock: v.stock,
+        })),
+      },
+    });
+  }
+
+  // ── Personal-training package catalogue (upsert by name) ────────────────
+  for (const spec of DEMO_PACKAGES) {
+    const existing = await prisma.packagePlan.findFirst({
+      where: { gymId, name: spec.name },
+      select: { id: true },
+    });
+    if (existing) {
+      continue;
+    }
+    await prisma.packagePlan.create({
+      data: {
+        gymId,
+        name: spec.name,
+        description: spec.description,
+        priceAmount: spec.priceAmount,
+        currency: 'GEL',
+        billingInterval: spec.billingInterval,
+        sessionCount: spec.sessionCount,
+        creditValidityDays: spec.creditValidityDays,
+        features: [...spec.features],
+        popular: spec.popular,
+        status: PackagePlanStatus.ACTIVE,
+      },
     });
   }
 }
