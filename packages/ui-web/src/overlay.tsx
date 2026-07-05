@@ -31,6 +31,28 @@ export const OVERLAY_BACKDROP =
 /** The scrim wrapper that fills the viewport and stacks above the app chrome. */
 export const OVERLAY_ROOT = 'fixed inset-0 z-50';
 
+/**
+ * Selector for the elements a keyboard user can Tab to. Deliberately excludes
+ * anything explicitly removed from the tab order (`tabindex="-1"`) so the
+ * aria-hidden backdrop button never becomes a trap stop.
+ */
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+/** The tabbable descendants of `root`, in document order (empty when none). */
+export function focusableElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (el) => el.tabIndex !== -1 && el.getAttribute('aria-hidden') !== 'true',
+  );
+}
+
 export type ModalSize = 'sm' | 'md' | 'lg';
 
 const MODAL_WIDTHS: Record<ModalSize, string> = {
@@ -90,6 +112,8 @@ export function Overlay({
   children,
   className = '',
 }: OverlayProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   // Close on Escape while open.
   useEffect(() => {
     if (!open) {
@@ -103,6 +127,53 @@ export function Overlay({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  // Focus trap: move focus into the dialog on open, keep Tab / Shift+Tab
+  // cycling within it, and restore focus to the trigger when it closes. This is
+  // what makes the dialog the only interactive surface while it is up.
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') {
+      return;
+    }
+    const container = containerRef.current;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    // Land focus inside the dialog — the first control, or the panel itself.
+    const initial = focusableElements(container);
+    (initial[0] ?? container)?.focus();
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Tab' || !container) {
+        return;
+      }
+      const items = focusableElements(container);
+      if (items.length === 0) {
+        // Nothing tabbable — keep focus pinned to the panel.
+        event.preventDefault();
+        container.focus();
+        return;
+      }
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const active = document.activeElement;
+      if (event.shiftKey) {
+        if (active === first || !container.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !container.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    container?.addEventListener('keydown', onKeyDown);
+    return () => {
+      container?.removeEventListener('keydown', onKeyDown);
+      // Restore focus to whatever opened the dialog.
+      previouslyFocused?.focus?.();
+    };
+  }, [open]);
 
   // Lock body scroll while open so the page behind the scrim can't move.
   useEffect(() => {
@@ -122,6 +193,8 @@ export function Overlay({
 
   return createPortal(
     <div
+      ref={containerRef}
+      tabIndex={-1}
       className={`${OVERLAY_ROOT} ${className}`.trim()}
       role="dialog"
       aria-modal="true"
