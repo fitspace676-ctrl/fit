@@ -12,6 +12,15 @@ import { Icon } from './icon';
 // Form field primitives, formalising the input styling the redesigned admin
 // forms (settings, trainer, location, product) each hand-rolled as a local
 // `FIELD_CLASS` constant — now one shared control so every form reads the same.
+//
+// Astryx migration (T11.4): these controls stay native `<input>`/`<select>`/
+// `<textarea>` elements on the Fit brand theme rather than rendering Astryx's
+// `TextInput`/`Selector`/`CheckboxInput`. Those Astryx inputs are *controlled*
+// (a required `value` prop and a `(value, event)` onChange), which cannot back
+// react-hook-form's uncontrolled `register()` spread that every edit screen and
+// the Form kit (`./form`) depend on. Keeping them native preserves that contract
+// while the shell (`rounded-field`, brand focus ring, ink palette) already reads
+// the T11.1 Fit tokens; the Form kit's actions render Astryx `<Button>`.
 
 /** The shared control shell: height, radius, border, brand focus ring, dark skin. */
 const CONTROL =

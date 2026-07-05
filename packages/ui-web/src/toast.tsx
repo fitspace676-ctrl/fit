@@ -72,6 +72,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         A polite live region so screen readers announce each toast as it is
         added, without stealing focus. `aria-atomic="false"` keeps announcements
         scoped to the newly inserted toast rather than re-reading the whole stack.
+
+        Astryx migration (T11.4): the toast surface stays this Fit-theme pill
+        rather than rendering Astryx's `<Toast>`. Astryx's Toast is *itself* a
+        live region (`role="status"`/`alert`, with its own type-driven role +
+        auto-hide timer), so nesting one per entry inside this single, persistent
+        polite region double-announces and breaks the one-live-region contract
+        this kit is built on. The pill already reads the T11.1 brand tokens
+        (`rounded-pill`, ink/brand palette).
       */}
       <div
         role="status"
