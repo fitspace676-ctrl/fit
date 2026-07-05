@@ -17,5 +17,11 @@ packages/db/generated/
 # Large planning document — kept verbatim, not Prettier-managed
 PROJECT_PLAN.md
 
+# E2E (Playwright) local artifacts
+apps/e2e/.auth/
+apps/e2e/test-results/
+apps/e2e/playwright-report/
+apps/e2e/blob-report/
+
 # Local tooling metadata
 .planflow/
