@@ -1,8 +1,35 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { withSentryConfig } from '@sentry/nextjs';
 import createNextIntlPlugin from 'next-intl/plugin';
+import stylexPlugin from '@stylexswc/nextjs-plugin';
 
 // Point the next-intl plugin at the per-request config (locale + messages).
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * StyleX SWC compiler (T11.2). Astryx components ship pre-compiled CSS, but any
+ * app-authored `stylex.create()` + `xstyle` (layout wrappers, page grids, one-off
+ * spacing on Astryx components) must be compiled at build time — the
+ * `@stylexjs/stylex` runtime throws if `stylex.create` is reached un-compiled.
+ *
+ * We use the NAPI-RS SWC compiler rather than the Babel plugin so Next keeps its
+ * default SWC transform — critical here because `next/font/google` refuses to run
+ * under a custom Babel config. The webpack plugin extracts StyleX atoms into their
+ * own stylesheet, injected independently of the Tailwind PostCSS pipeline (which
+ * still owns `globals.css`), so the two coexist during the migration (T11.6).
+ */
+const withStylex = stylexPlugin({
+  rsOptions: {
+    dev: process.env.NODE_ENV !== 'production',
+    // Resolve cross-package token imports (e.g. `@astryxdesign/core/theme/tokens.stylex`).
+    unstable_moduleResolution: { type: 'commonJS', rootDir },
+    // Mirror the tsconfig `@/*` path alias so `stylex.create` in aliased modules resolves.
+    aliases: { '@/*': [path.join(rootDir, '*')] },
+  },
+});
 
 /**
  * Allow `next/image` to optimise objects served from the Cloudflare R2 public
@@ -66,7 +93,7 @@ const nextConfig = {
 // un-minified. The auth token comes from the `SENTRY_AUTH_TOKEN` build env var
 // (set in Vercel); without it the plugin no-ops the upload (non-fatal), so local
 // and unauthenticated builds still succeed.
-export default withSentryConfig(withNextIntl(nextConfig), {
+export default withSentryConfig(withNextIntl(withStylex(nextConfig)), {
   org: 'forma-0r',
   project: 'fit-web',
   sentryUrl: 'https://de.sentry.io/',
