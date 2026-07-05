@@ -64,6 +64,9 @@ jobs:
       - name: Check controllers declare an auth policy
         run: pnpm check:controller-guards
 
+      - name: Check migrated screens are Tailwind-free
+        run: pnpm check:tailwind-guardrail
+
       - name: Test
         run: pnpm test
 
