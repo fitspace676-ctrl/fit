@@ -1,10 +1,16 @@
 // @fit/ui-web — the web design system.
 //
-// The formacore "Aurora-glass" core primitives (Button, Badge, Card, Avatar,
-// Input, Select, Tabs …) consolidated into one shared library so the admin
-// console and member portal build every screen from the SAME source instead of
-// per-app copies (T1.3). Consuming apps must include this package in their
-// Tailwind `content` globs so its utility classes are generated.
+// The shared core primitives (Button, Badge, Card, Avatar, Input, Select,
+// Tabs …) consolidated into one library so the admin console and member portal
+// build every screen from the SAME source instead of per-app copies (T1.3).
+//
+// The primitives are being rebuilt on Astryx (@astryxdesign/core) under the Fit
+// brand theme (T11): Btn / Badge / Card already render Astryx components
+// underneath, while the remaining exports stay brand-token equivalents through
+// the Tailwind→Astryx coexistence. Export names and prop contracts are held
+// stable so consuming screens don't change. Consuming apps must still include
+// this package in their Tailwind `content` globs while any Tailwind-based
+// primitive (or the `buttonClasses` link helper) is in use.
 
 export { Icon, I, type IconName, type IconProps } from './src/icon';
 export { Btn, buttonClasses, type BtnProps, type BtnVariant, type BtnSize } from './src/button';
