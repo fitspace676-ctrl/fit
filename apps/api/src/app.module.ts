@@ -192,7 +192,7 @@ export class AppModule implements NestModule {
    *    the health probe, the public discovery listings
    *    (`GET /class-instances`, `GET /class-instances/:id`, the public live
    *    occupancy stream `GET /class-instances/occupancy/stream`, `GET /trainers`,
-   *    `GET /trainers/:id/reviews`, `GET /packages`, `GET /products`) — which an unauthenticated
+   *    `GET /trainers/:id/reviews`, `GET /packages`, `GET /products`, `GET /locations`) — which an unauthenticated
    *    visitor browses on a gym subdomain and which carry their `gymId` as a
    *    query param rather than a session — the public tenant lookup
    *    (`GET /gyms/by-subdomain/:slug`) the member site resolves before any
@@ -223,6 +223,7 @@ export class AppModule implements NestModule {
         { path: 'trainers/:id/reviews', method: RequestMethod.GET },
         { path: 'packages', method: RequestMethod.GET },
         { path: 'products', method: RequestMethod.GET },
+        { path: 'locations', method: RequestMethod.GET },
         { path: 'cart', method: RequestMethod.ALL },
         { path: 'cart/(.*)', method: RequestMethod.ALL },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
