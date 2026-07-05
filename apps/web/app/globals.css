@@ -1,3 +1,21 @@
+/*
+ * Astryx design-system foundation (T11.1).
+ *
+ * Import order is load-bearing — it maps to the Astryx cascade layers:
+ *   1. reset.css       → @layer reset       (element normalize)
+ *   2. astryx.css      → @layer astryx-base (compiled component styles)
+ *   3. our theme.css   → @layer astryx-theme (the Fit brand token overrides,
+ *                        built by `astryx theme build` from @fit/astryx-theme)
+ *
+ * These sit BEFORE Tailwind so Tailwind's (unlayered) base + utilities cascade
+ * on top — existing formacore screens keep rendering while Astryx components
+ * read the Fit tokens. `@import` must precede all other rules; Next.js inlines
+ * these package specifiers at build time.
+ */
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@fit/astryx-theme/theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

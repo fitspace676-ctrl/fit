@@ -1,0 +1,43 @@
+{
+  "name": "@fit/astryx-theme",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fit's custom Astryx theme — the formacore \"Aurora-glass\" brand (electric-indigo accent, ink neutrals, Manrope/Archivo/JetBrains type) mapped onto the Astryx theme-token contract.",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./built": {
+      "types": "./dist/fit.d.ts",
+      "default": "./dist/fit.js"
+    },
+    "./theme.css": "./dist/theme.css"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "echo '[@fit/astryx-theme] build: prebuilt theme is committed under dist/ — run `pnpm --filter @fit/astryx-theme theme:build` (needs Node >=22.13) to regenerate'",
+    "theme:build": "astryx theme build src/fitTheme.ts -o dist/theme.css",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "test": "echo '[@fit/astryx-theme] test: nothing to do yet'",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@astryxdesign/core": "0.1.3",
+    "@astryxdesign/theme-neutral": "0.1.3"
+  },
+  "devDependencies": {
+    "@astryxdesign/cli": "0.1.3",
+    "@fit/config": "workspace:*",
+    "@types/react": "^19.2.0",
+    "react": "^19.2.0",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  }
+}
