@@ -15,6 +15,49 @@ import { EMAIL_BRAND, escapeHtml, renderBrandedEmail } from '../mail/branded-ema
 /** Resend's transactional-email endpoint. */
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
+/** One low-variant of a product on the low-stock digest (T8.8): a human label
+ *  (the variant name, or its SKU / index when unnamed) and the on-hand count that
+ *  tripped the alert threshold. */
+export interface LowStockDigestVariant {
+  label: string;
+  stock: number;
+}
+
+/** One product on the low-stock digest (T8.8) — its name plus only the variants at
+ *  or below the threshold, and `lowestStock` (the most-depleted of them) so the
+ *  list can lead with the most urgent line. */
+export interface LowStockDigestProduct {
+  name: string;
+  variants: LowStockDigestVariant[];
+  lowestStock: number;
+}
+
+/** A gym's computed low-stock digest (T8.8): the products carrying at least one low
+ *  variant (most urgent first), the `threshold` the sweep ran at, and an optional
+ *  deep link to the console's products screen. */
+export interface LowStockDigest {
+  gymName: string;
+  threshold: number;
+  products: LowStockDigestProduct[];
+  productsUrl?: string;
+}
+
+/** A gym's computed end-of-day summary (T8.8): the day's takings, orders,
+ *  check-ins and new members for `date` (the gym-local business day, `YYYY-MM-DD`),
+ *  in the gym's `currency`, with an optional deep link to the console dashboard.
+ *  `revenue` is captured payments in the currency's MINOR units. */
+export interface DailySummary {
+  gymName: string;
+  date: string;
+  currency: string;
+  revenue: number;
+  orders: number;
+  checkIns: number;
+  newMembers: number;
+  lowStockProducts: number;
+  dashboardUrl?: string;
+}
+
 /**
  * Sends transactional email via Resend's REST API (no SDK dependency — a single
  * `fetch` keeps the surface small and trivially mockable in tests).
@@ -326,6 +369,78 @@ export class EmailService {
     this.logger.debug(`Report digest email dispatched to ${to}`);
     return true;
   }
+
+  /**
+   * Email a gym's owner/manager the daily low-stock reorder digest (T8.8). Builds
+   * the copy from the computed {@link LowStockDigest} via
+   * {@link buildLowStockDigestEmail} and delivers it. Resolves `true` once accepted,
+   * `false` — without sending — when Resend is unconfigured, and rejects only when
+   * Resend returns an error, matching {@link sendReportDigestEmail}'s contract so the
+   * ops scheduler can tally sent / skipped / failed.
+   */
+  async sendLowStockDigestEmail(to: string, digest: LowStockDigest): Promise<boolean> {
+    return this.deliver(
+      to,
+      buildLowStockDigestEmail(digest),
+      `low-stock digest for ${digest.gymName}`,
+    );
+  }
+
+  /**
+   * Email a gym's owner/manager the end-of-day summary (T8.8). Builds the copy from
+   * the computed {@link DailySummary} via {@link buildDailySummaryEmail} and delivers
+   * it, with the same sent / skipped (unconfigured) / rejected (Resend error)
+   * contract as the other ops mails.
+   */
+  async sendDailySummaryEmail(to: string, summary: DailySummary): Promise<boolean> {
+    return this.deliver(
+      to,
+      buildDailySummaryEmail(summary),
+      `daily summary for ${summary.gymName}`,
+    );
+  }
+
+  /**
+   * Post a prebuilt transactional email to Resend, or log-and-skip when Resend is
+   * unconfigured. The shared delivery seam behind the ops-alert senders (T8.8):
+   * returns `true` once Resend accepts the mail, `false` when Resend is unconfigured
+   * (the mail is logged, not sent), and rejects when Resend returns an error.
+   */
+  private async deliver(
+    to: string,
+    message: { subject: string; html: string; text: string },
+    context: string,
+  ): Promise<boolean> {
+    if (!this.isConfigured) {
+      this.logger.warn(
+        `Resend not configured (RESEND_API_KEY unset) — ${context} for ${to} not sent`,
+      );
+      return false;
+    }
+
+    const response = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM,
+        to: [to],
+        subject: message.subject,
+        html: message.html,
+        text: message.text,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+    }
+
+    this.logger.debug(`${context} email dispatched to ${to}`);
+    return true;
+  }
 }
 
 /**
@@ -599,6 +714,135 @@ export function buildReportDigestEmail(
     `${cadenceLabel} report digest for ${seller}\n` +
     `How ${seller} performed over ${windowLabel}.\n\n` +
     `${sectionsText}${linkText}`;
+
+  return { subject, html, text };
+}
+
+/**
+ * Render a computed {@link LowStockDigest} into the low-stock alert email's subject,
+ * HTML, and plain-text bodies (T8.8). Pure — no I/O — so the copy is unit-testable in
+ * isolation and {@link EmailService.sendLowStockDigestEmail} is just the delivery
+ * wrapper. Each low product becomes a table row per low variant (product name spanning
+ * its variants), most-urgent product first. Gym-supplied text (product / variant
+ * labels) is escaped before it reaches the markup.
+ */
+export function buildLowStockDigestEmail(digest: LowStockDigest): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const seller = digest.gymName.trim() || 'Fit';
+  const lineCount = digest.products.reduce((sum, product) => sum + product.variants.length, 0);
+  const unit = lineCount === 1 ? 'item' : 'items';
+  const subject = `Low stock: ${lineCount} ${unit} to reorder — ${seller}`;
+
+  const intro =
+    `<p style="margin:0 0 4px;">${lineCount} ${unit} at <strong>${escapeHtml(seller)}</strong> ` +
+    `${lineCount === 1 ? 'is' : 'are'} at or below your reorder threshold of ${digest.threshold}. ` +
+    `Restock before they sell out.</p>`;
+
+  const th = (label: string, align: 'left' | 'right'): string =>
+    `<th style="padding:6px 8px;text-align:${align};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:${EMAIL_BRAND.muted};border-bottom:1px solid ${EMAIL_BRAND.border};">${label}</th>`;
+
+  const rows = digest.products
+    .flatMap((product) =>
+      product.variants.map(
+        (variant) =>
+          `<tr>` +
+          `<td style="padding:6px 8px;text-align:left;font-size:13px;color:${EMAIL_BRAND.ink};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(product.name)}</td>` +
+          `<td style="padding:6px 8px;text-align:left;font-size:13px;color:${EMAIL_BRAND.muted};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(variant.label)}</td>` +
+          `<td style="padding:6px 8px;text-align:right;font-size:13px;font-weight:600;color:${variant.stock === 0 ? '#C2410C' : EMAIL_BRAND.ink};border-bottom:1px solid ${EMAIL_BRAND.border};">${variant.stock}</td>` +
+          `</tr>`,
+      ),
+    )
+    .join('');
+
+  const table =
+    `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-top:16px;">` +
+    `<thead><tr>${th('Product', 'left')}${th('Variant', 'left')}${th('On hand', 'right')}</tr></thead>` +
+    `<tbody>${rows}</tbody></table>`;
+
+  const linkHtml = digest.productsUrl
+    ? `<p style="margin:24px 0 0;"><a href="${digest.productsUrl}" style="color:${EMAIL_BRAND.brand};font-weight:600;">Manage products &rarr;</a></p>`
+    : '';
+
+  const html = renderBrandedEmail({
+    senderName: escapeHtml(seller),
+    heading: 'Low stock alert',
+    contentHtml: intro + table + linkHtml,
+    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on Fit.`,
+  });
+
+  const textRows = digest.products
+    .flatMap((product) =>
+      product.variants.map(
+        (variant) => `  ${product.name} — ${variant.label}: ${variant.stock} on hand`,
+      ),
+    )
+    .join('\n');
+  const linkText = digest.productsUrl ? `\n\nManage products: ${digest.productsUrl}` : '';
+  const text =
+    `Low stock alert for ${seller}\n` +
+    `${lineCount} ${unit} at or below your reorder threshold of ${digest.threshold}.\n\n` +
+    `${textRows}${linkText}`;
+
+  return { subject, html, text };
+}
+
+/**
+ * Render a computed {@link DailySummary} into the end-of-day summary email's subject,
+ * HTML, and plain-text bodies (T8.8). Pure — no I/O — so the copy is unit-testable in
+ * isolation and {@link EmailService.sendDailySummaryEmail} is just the delivery
+ * wrapper. Renders the day's figures as a label/value table, with revenue formatted in
+ * the gym's currency. Gym-supplied text (the gym name) is escaped before it reaches the
+ * markup.
+ */
+export function buildDailySummaryEmail(summary: DailySummary): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const seller = summary.gymName.trim() || 'Fit';
+  const revenue = formatReceiptMoney(summary.revenue, summary.currency);
+  const subject = `Daily summary ${summary.date} — ${seller}`;
+
+  const metrics: Array<{ label: string; value: string }> = [
+    { label: 'Revenue', value: revenue },
+    { label: 'Paid orders', value: String(summary.orders) },
+    { label: 'Check-ins', value: String(summary.checkIns) },
+    { label: 'New members', value: String(summary.newMembers) },
+    { label: 'Low-stock products', value: String(summary.lowStockProducts) },
+  ];
+
+  const intro = `<p style="margin:0 0 4px;">How <strong>${escapeHtml(seller)}</strong> did on ${summary.date}.</p>`;
+
+  const rows = metrics
+    .map(
+      (metric) =>
+        `<tr>` +
+        `<td style="padding:8px 8px;text-align:left;font-size:14px;color:${EMAIL_BRAND.muted};border-bottom:1px solid ${EMAIL_BRAND.border};">${metric.label}</td>` +
+        `<td style="padding:8px 8px;text-align:right;font-size:14px;font-weight:700;color:${EMAIL_BRAND.ink};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(metric.value)}</td>` +
+        `</tr>`,
+    )
+    .join('');
+  const table =
+    `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-top:16px;">` +
+    `<tbody>${rows}</tbody></table>`;
+
+  const linkHtml = summary.dashboardUrl
+    ? `<p style="margin:24px 0 0;"><a href="${summary.dashboardUrl}" style="color:${EMAIL_BRAND.brand};font-weight:600;">Open dashboard &rarr;</a></p>`
+    : '';
+
+  const html = renderBrandedEmail({
+    senderName: escapeHtml(seller),
+    heading: `Daily summary — ${summary.date}`,
+    contentHtml: intro + table + linkHtml,
+    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on Fit.`,
+  });
+
+  const textRows = metrics.map((metric) => `  ${metric.label}: ${metric.value}`).join('\n');
+  const linkText = summary.dashboardUrl ? `\n\nOpen dashboard: ${summary.dashboardUrl}` : '';
+  const text = `Daily summary for ${seller} — ${summary.date}\n\n` + `${textRows}${linkText}`;
 
   return { subject, html, text };
 }

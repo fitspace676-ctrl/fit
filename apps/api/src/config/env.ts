@@ -207,6 +207,31 @@ export const envSchema = z.object({
   // calendar into one tick.
   BOOKING_REMINDER_LEAD_MINUTES: z.coerce.number().int().positive().max(10080).default(120),
 
+  // ── Ops notifications (T8.8) ──
+  // Master switch for the low-stock digest cron that emails each gym's
+  // owners/managers a reorder heads-up when a product's on-hand stock has fallen to
+  // or below the alert threshold. Off by default so it never mails in dev / CI /
+  // preview; a production deploy sets it true. A single Redis lock guards each daily
+  // window, so it is safe on every replica (only one wins). `"true"` enables;
+  // anything else (incl. unset) leaves it disabled.
+  OPS_LOW_STOCK_DIGEST_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // Inclusive on-hand ceiling a product variant must be at or below to appear on the
+  // low-stock digest. Mirrors the console's `DEFAULT_LOW_STOCK_THRESHOLD` (5) and is
+  // bounded (0–1000) so a typo can't sweep the whole catalogue into one mail.
+  OPS_LOW_STOCK_THRESHOLD: z.coerce.number().int().min(0).max(1000).default(5),
+  // Master switch for the end-of-day summary cron that emails each gym's
+  // owners/managers a recap of the day's takings, orders, check-ins and new members.
+  // Off by default so it never mails in dev / CI / preview; a production deploy sets
+  // it true. A single Redis lock guards each daily window, so it is safe on every
+  // replica. `"true"` enables; anything else (incl. unset) leaves it disabled.
+  OPS_DAILY_SUMMARY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
   // ── Object storage (Cloudflare R2 — S3-compatible) ──
   // All optional: unset disables the signed-upload service (the endpoint then
   // returns 503) so the API still boots in CI / local dev without R2 creds.
