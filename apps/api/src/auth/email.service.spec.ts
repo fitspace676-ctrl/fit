@@ -9,10 +9,14 @@ vi.mock('../config/env', () => ({ env: mockEnv }));
 import type { PosReceipt, ReportDigest } from '@fit/types';
 import {
   EmailService,
+  buildDailySummaryEmail,
+  buildLowStockDigestEmail,
   buildReceiptEmail,
   buildReportDigestEmail,
   buildVerificationUrl,
   buildPasswordResetUrl,
+  type DailySummary,
+  type LowStockDigest,
 } from './email.service';
 
 /** A cash-sale receipt snapshot the receipt-email tests build on. */
@@ -497,5 +501,173 @@ describe('EmailService.sendReportDigestEmail', () => {
     await expect(service.sendReportDigestEmail('owner@example.com', weeklyDigest)).rejects.toThrow(
       /500/,
     );
+  });
+});
+
+/** A low-stock digest fixture: two products, one with a zero-stock variant. */
+const lowStockDigest: LowStockDigest = {
+  gymName: 'Downtown',
+  threshold: 5,
+  products: [
+    {
+      name: 'Protein bar',
+      variants: [
+        { label: 'Chocolate', stock: 0 },
+        { label: 'Vanilla', stock: 3 },
+      ],
+      lowestStock: 0,
+    },
+    { name: 'Shaker', variants: [{ label: '600ml', stock: 5 }], lowestStock: 5 },
+  ],
+};
+
+/** An end-of-day summary fixture with a non-quiet day. */
+const dailySummary: DailySummary = {
+  gymName: 'Downtown',
+  date: '2026-07-05',
+  currency: 'USD',
+  revenue: 12500,
+  orders: 4,
+  checkIns: 27,
+  newMembers: 2,
+  lowStockProducts: 3,
+};
+
+describe('buildLowStockDigestEmail', () => {
+  it('subjects the mail with the low-line count and gym name', () => {
+    const { subject } = buildLowStockDigestEmail(lowStockDigest);
+    // Three low variant lines across the two products.
+    expect(subject).toBe('Low stock: 3 items to reorder — Downtown');
+  });
+
+  it('singularises the subject for a single low line', () => {
+    const single: LowStockDigest = {
+      ...lowStockDigest,
+      products: [{ name: 'Shaker', variants: [{ label: '600ml', stock: 2 }], lowestStock: 2 }],
+    };
+    expect(buildLowStockDigestEmail(single).subject).toBe(
+      'Low stock: 1 item to reorder — Downtown',
+    );
+  });
+
+  it('renders a row per low variant with product, variant, and on-hand count', () => {
+    const { html, text } = buildLowStockDigestEmail(lowStockDigest);
+    expect(html).toContain('Protein bar');
+    expect(html).toContain('Chocolate');
+    expect(html).toContain('600ml');
+    expect(html).toContain('threshold of 5');
+    expect(text).toContain('Protein bar — Chocolate: 0 on hand');
+    expect(text).toContain('Shaker — 600ml: 5 on hand');
+  });
+
+  it('renders the products link only when a productsUrl is supplied', () => {
+    expect(buildLowStockDigestEmail(lowStockDigest).html).not.toContain('Manage products');
+    const withLink = buildLowStockDigestEmail({
+      ...lowStockDigest,
+      productsUrl: 'https://admin.fit/products',
+    });
+    expect(withLink.html).toContain('https://admin.fit/products');
+    expect(withLink.text).toContain('Manage products: https://admin.fit/products');
+  });
+
+  it('wraps the digest in the branded shell and escapes gym-supplied text', () => {
+    const { html } = buildLowStockDigestEmail({
+      ...lowStockDigest,
+      gymName: '<b>Gym</b>',
+      products: [{ name: '<i>Bar</i>', variants: [{ label: 'x', stock: 0 }], lowestStock: 0 }],
+    });
+    expect(html).toContain('#6257E3');
+    expect(html).not.toContain('<b>Gym</b>');
+    expect(html).toContain('&lt;i&gt;Bar&lt;/i&gt;');
+  });
+});
+
+describe('buildDailySummaryEmail', () => {
+  it('subjects the mail with the business day and gym name', () => {
+    expect(buildDailySummaryEmail(dailySummary).subject).toBe(
+      'Daily summary 2026-07-05 — Downtown',
+    );
+  });
+
+  it('renders revenue in the gym currency and every metric', () => {
+    const { html, text } = buildDailySummaryEmail(dailySummary);
+    expect(html).toContain('$125.00');
+    expect(html).toContain('Paid orders');
+    expect(html).toContain('Check-ins');
+    expect(html).toContain('New members');
+    expect(text).toContain('Revenue: $125.00');
+    expect(text).toContain('Check-ins: 27');
+    expect(text).toContain('New members: 2');
+  });
+
+  it('renders the dashboard link only when a dashboardUrl is supplied', () => {
+    expect(buildDailySummaryEmail(dailySummary).html).not.toContain('Open dashboard');
+    const withLink = buildDailySummaryEmail({
+      ...dailySummary,
+      dashboardUrl: 'https://admin.fit/dashboard',
+    });
+    expect(withLink.html).toContain('https://admin.fit/dashboard');
+    expect(withLink.text).toContain('Open dashboard: https://admin.fit/dashboard');
+  });
+
+  it('wraps the summary in the branded shell and escapes the gym name', () => {
+    const { html } = buildDailySummaryEmail({ ...dailySummary, gymName: '<b>Gym</b>' });
+    expect(html).toContain('#6257E3');
+    expect(html).not.toContain('<b>Gym</b>');
+    expect(html).toContain('&lt;b&gt;Gym&lt;/b&gt;');
+  });
+});
+
+describe('EmailService ops-alert senders', () => {
+  let fetchMock: ReturnType<typeof vi.fn<(url: string, init: RequestInit) => Promise<Response>>>;
+
+  beforeEach(() => {
+    configure();
+    fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response('{}', { status: 200 })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('sendLowStockDigestEmail resolves false without sending when unconfigured', async () => {
+    const sent = await new EmailService().sendLowStockDigestEmail(
+      'owner@example.com',
+      lowStockDigest,
+    );
+    expect(sent).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sendLowStockDigestEmail POSTs to Resend and resolves true when configured', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    const sent = await new EmailService().sendLowStockDigestEmail(
+      'owner@example.com',
+      lowStockDigest,
+    );
+    expect(sent).toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
+    expect(body.to).toEqual(['owner@example.com']);
+    expect(body.subject).toBe('Low stock: 3 items to reorder — Downtown');
+  });
+
+  it('sendDailySummaryEmail POSTs to Resend and resolves true when configured', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    const sent = await new EmailService().sendDailySummaryEmail('owner@example.com', dailySummary);
+    expect(sent).toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
+    expect(body.subject).toBe('Daily summary 2026-07-05 — Downtown');
+  });
+
+  it('an ops sender throws when Resend returns a non-2xx response', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    fetchMock.mockResolvedValue(new Response('boom', { status: 500 }));
+    await expect(
+      new EmailService().sendDailySummaryEmail('owner@example.com', dailySummary),
+    ).rejects.toThrow(/500/);
   });
 });

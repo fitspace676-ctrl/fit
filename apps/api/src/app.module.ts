@@ -20,6 +20,7 @@ import { LocationsModule } from './locations/locations.module';
 import { MailModule } from './mail/mail.module';
 import { MembersModule } from './members/members.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { OpsModule } from './ops/ops.module';
 import { OrdersModule } from './orders/orders.module';
 import { PackagePlansModule } from './packages/package-plans.module';
 import { PlatformModule } from './platform/platform.module';
@@ -81,6 +82,8 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   `ReportView`) and runs the scheduled weekly/monthly report-digest cron that
  *   emails those reports to each gym's owners/managers (T4.10). {@link ScheduleModule}
  *   (`.forRoot()`) provides the cron runtime the digest job registers against.
+ * - {@link OpsModule} runs the owner/manager ops-alert crons (T8.8) — a daily
+ *   low-stock reorder digest and an end-of-day summary email — with no HTTP surface.
  * - {@link ActivityModule} serves the staff console's tenant-scoped Activity feed
  *   (`/admin/activity` — a paginated, filterable newest-first merge of the gym's
  *   signups, bookings, check-ins, sales, and subscription enrolments derived from
@@ -151,6 +154,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     CheckInModule,
     AnalyticsModule,
     ReportsModule,
+    OpsModule,
     ActivityModule,
     GymsModule,
     SuperAdminModule,
