@@ -68,7 +68,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 md:bottom-6">
+      {/*
+        A polite live region so screen readers announce each toast as it is
+        added, without stealing focus. `aria-atomic="false"` keeps announcements
+        scoped to the newly inserted toast rather than re-reading the whole stack.
+      */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+        className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 md:bottom-6"
+      >
         {items.map((t) => (
           <div
             key={t.id}

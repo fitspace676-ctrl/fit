@@ -6,7 +6,9 @@ export {
   Dot,
   Avatar,
   Progress,
+  SkipLink,
   type CardProps,
   type AvatarProps,
   type ProgressProps,
+  type SkipLinkProps,
 } from '@fit/ui-web';

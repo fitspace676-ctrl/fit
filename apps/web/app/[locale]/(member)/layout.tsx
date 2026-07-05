@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { setRequestLocale } from 'next-intl/server';
-import { AuroraBackground, ToastProvider } from '@/src/components/ui';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { AuroraBackground, SkipLink, ToastProvider } from '@/src/components/ui';
 import { MemberHeader } from '@/src/components/member/member-header';
 import { MobileTabBar } from '@/src/components/member/mobile-tab-bar';
 
@@ -19,13 +19,18 @@ export default async function MemberLayout({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const t = await getTranslations('member.shell');
 
   return (
     <ToastProvider>
+      <SkipLink>{t('skipToContent')}</SkipLink>
       <AuroraBackground />
       <div className="relative flex min-h-screen flex-col">
         <MemberHeader />
-        <main className="mx-auto w-full max-w-[1200px] flex-1 px-4 pb-24 pt-6 sm:px-6 sm:pt-8 lg:px-8 md:pb-10">
+        <main
+          id="main-content"
+          className="mx-auto w-full max-w-[1200px] flex-1 px-4 pb-24 pt-6 sm:px-6 sm:pt-8 lg:px-8 md:pb-10"
+        >
           {children}
         </main>
         <MobileTabBar />

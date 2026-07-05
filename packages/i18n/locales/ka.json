@@ -689,6 +689,7 @@
     },
     "shell": {
       "brand": "FormaCore",
+      "skipToContent": "მთავარ შიგთავსზე გადასვლა",
       "search": "მოძებნე გაკვეთილი, მწვრთნელი…",
       "notifications": "შეტყობინებები",
       "noNotifications": "ყველაფერი წაკითხულია",
@@ -1189,6 +1190,7 @@
       "search": "ძებნა…",
       "openNav": "ნავიგაციის გახსნა",
       "closeNav": "ნავიგაციის დახურვა",
+      "skipToContent": "მთავარ შიგთავსზე გადასვლა",
       "quickSale": "სწრაფი გაყიდვა",
       "notifications": "შეტყობინებები",
       "signOut": "გასვლა",

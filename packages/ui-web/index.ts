@@ -14,9 +14,11 @@ export {
   Dot,
   Avatar,
   Progress,
+  SkipLink,
   type CardProps,
   type AvatarProps,
   type ProgressProps,
+  type SkipLinkProps,
 } from './src/primitives';
 export {
   Field,
@@ -26,6 +28,7 @@ export {
   Select,
   LABEL_CLASS,
   type FieldProps,
+  type FieldControlMeta,
   type InputProps,
   type TextareaProps,
   type SelectProps,

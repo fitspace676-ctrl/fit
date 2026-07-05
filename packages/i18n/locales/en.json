@@ -689,6 +689,7 @@
     },
     "shell": {
       "brand": "FormaCore",
+      "skipToContent": "Skip to main content",
       "search": "Search classes, trainers…",
       "notifications": "Notifications",
       "noNotifications": "You're all caught up",
@@ -1189,6 +1190,7 @@
       "search": "Search…",
       "openNav": "Open navigation",
       "closeNav": "Close navigation",
+      "skipToContent": "Skip to main content",
       "quickSale": "Quick sale",
       "notifications": "Notifications",
       "signOut": "Sign out",

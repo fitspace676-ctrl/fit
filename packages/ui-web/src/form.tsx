@@ -277,7 +277,15 @@ export function TextField({ name, label, hint, rules, fieldClassName, ...input }
   const error = fieldErrorText(errors, name);
   return (
     <Field label={label} hint={hint} error={error} className={fieldClassName}>
-      {(id) => <Input {...input} {...register(name, rules)} id={id} invalid={Boolean(error)} />}
+      {(id, meta) => (
+        <Input
+          {...input}
+          {...register(name, rules)}
+          id={id}
+          invalid={Boolean(error)}
+          aria-describedby={meta.describedById}
+        />
+      )}
     </Field>
   );
 }
@@ -313,8 +321,14 @@ export function TextareaField({
   const error = fieldErrorText(errors, name);
   return (
     <Field label={label} hint={hint} error={error} className={fieldClassName}>
-      {(id) => (
-        <Textarea {...textarea} {...register(name, rules)} id={id} invalid={Boolean(error)} />
+      {(id, meta) => (
+        <Textarea
+          {...textarea}
+          {...register(name, rules)}
+          id={id}
+          invalid={Boolean(error)}
+          aria-describedby={meta.describedById}
+        />
       )}
     </Field>
   );
@@ -343,8 +357,14 @@ export function SelectField({
   const error = fieldErrorText(errors, name);
   return (
     <Field label={label} hint={hint} error={error} className={fieldClassName}>
-      {(id) => (
-        <Select {...select} {...register(name, rules)} id={id} invalid={Boolean(error)}>
+      {(id, meta) => (
+        <Select
+          {...select}
+          {...register(name, rules)}
+          id={id}
+          invalid={Boolean(error)}
+          aria-describedby={meta.describedById}
+        >
           {children}
         </Select>
       )}
@@ -373,21 +393,28 @@ export function CheckboxField({
     formState: { errors },
   } = useFormContext();
   const error = fieldErrorText(errors, name);
+  const messageId = `${name}-message`;
+  const describedById = error || hint ? messageId : undefined;
   return (
     <div className={`flex flex-col gap-1.5 ${fieldClassName}`.trim()}>
       <label className="flex items-center gap-2.5 text-sm text-ink-700 dark:text-ink-200">
         <input
           type="checkbox"
           aria-invalid={error ? true : undefined}
+          aria-describedby={describedById}
           className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500 dark:border-white/20 dark:bg-white/[0.04]"
           {...register(name, rules)}
         />
         {children}
       </label>
       {error ? (
-        <p className="text-xs font-medium text-danger-600 dark:text-danger-400">{error}</p>
+        <p id={messageId} className="text-xs font-medium text-danger-600 dark:text-danger-400">
+          {error}
+        </p>
       ) : hint ? (
-        <p className={FORM_DESC_CLASS}>{hint}</p>
+        <p id={messageId} className={FORM_DESC_CLASS}>
+          {hint}
+        </p>
       ) : null}
     </div>
   );
