@@ -1,0 +1,12 @@
+{
+  // Extends the shared strict base, then adds the browser JSX/DOM bits the
+  // Astryx theme types pull in. Mirrors @fit/ui-web so this package sees the
+  // same rules its consuming apps do.
+  "extends": "@fit/config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist", "build", ".next", ".turbo", "coverage"]
+}
