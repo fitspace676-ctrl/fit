@@ -13,6 +13,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
   useEffect,
   useMemo,
   useState,
@@ -20,6 +21,13 @@ import {
 } from 'react';
 
 export type Theme = 'light' | 'dark';
+
+/**
+ * `useLayoutEffect` on the client, `useEffect` on the server — so the mount-time
+ * theme reconciliation runs *before the browser paints* (avoiding a flash) while
+ * staying quiet during SSR, where layout effects don't run and React warns.
+ */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 /** Cookie the chosen theme is persisted under (read by the server layout). */
 export const THEME_COOKIE = 'theme';
@@ -36,6 +44,17 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 function persist(theme: Theme): void {
   document.documentElement.classList.toggle('dark', theme === 'dark');
   document.cookie = `${THEME_COOKIE}=${theme}; path=/; max-age=31536000; samesite=lax`;
+}
+
+/**
+ * Read the persisted theme from the cookie on the client, or `null` when unset.
+ * On statically-served routes the server bakes in the *default* theme (the
+ * request cookie isn't read at prerender time), so the cookie — reconciled onto
+ * `<html>` by the pre-hydration `ThemeScript` — is the real source of truth.
+ */
+function readThemeCookie(): Theme | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${THEME_COOKIE}=(light|dark)`));
+  return match ? (match[1] as Theme) : null;
 }
 
 /**
@@ -59,11 +78,19 @@ export function ThemeProvider({ initial, children }: { initial: Theme; children:
     });
   }, []);
 
-  // Reconcile once on mount in case the cookie and the painted class drifted
-  // (e.g. the user changed the theme in another tab since this page was sent).
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
+  // Adopt the cookie's theme once on mount. The server-provided `initial` can be
+  // stale on statically-served routes (it reflects the build-time default, not
+  // the visitor's cookie), so we align React state to the cookie the
+  // pre-hydration `ThemeScript` already painted onto `<html>` — converging state,
+  // DOM, and cookie without ever flipping the theme back after paint (no FOUC).
+  // A layout effect (not passive) so the state update — and the resulting Astryx
+  // `<Theme>` re-sync of `data-theme` on `<html>` — is flushed before the paint.
+  useIsomorphicLayoutEffect(() => {
+    const resolved =
+      readThemeCookie() ?? (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark', resolved === 'dark');
+    setThemeState((prev) => (prev === resolved ? prev : resolved));
+  }, []);
 
   const value = useMemo<ThemeContextValue>(
     () => ({ theme, toggle, setTheme }),

@@ -7,6 +7,8 @@ import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { SentryInit } from './sentry-init';
 import { ThemeProvider, THEME_COOKIE, type Theme } from '@/components/theme/theme-provider';
+import { AstryxProvider } from '@/components/theme/astryx-provider';
+import { ThemeScript } from '@/components/theme/theme-script';
 
 /** UI body font — Manrope (`font-sans`). */
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', display: 'swap' });
@@ -43,13 +45,29 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html
       lang={locale}
+      // Both theme surfaces are stamped server-side from the cookie so the very
+      // first paint is correct: the Tailwind `.dark` class drives the legacy
+      // formacore screens, while `data-theme` (→ `color-scheme`, so Astryx's
+      // `light-dark()` tokens resolve) and `data-astryx-theme="fit"` (activates
+      // the @scope'd Fit brand token/component CSS) drive the Astryx surfaces.
       className={`${manrope.variable} ${archivo.variable} ${jetbrains.variable} ${theme === 'dark' ? 'dark' : ''}`}
+      data-theme={theme}
+      data-astryx-theme="fit"
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-ink-50 font-sans text-ink-900 antialiased dark:bg-ink-950 dark:text-white">
+        {/* Reconcile the theme from the cookie before hydration so a statically
+            cached document can never flash the wrong theme (belt-and-suspenders
+            over the server-stamped attributes above). */}
+        <ThemeScript />
         <SentryInit />
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <ThemeProvider initial={theme}>{children}</ThemeProvider>
+          <ThemeProvider initial={theme}>
+            {/* Route theme switching through Astryx's <Theme>: it keeps
+                `data-theme`/`data-astryx-theme` on <html> in lockstep with the
+                toggle so Astryx surfaces flip instantly, no FOUC, brand colors. */}
+            <AstryxProvider>{children}</AstryxProvider>
+          </ThemeProvider>
         </NextIntlClientProvider>
       </body>
     </html>
