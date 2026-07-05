@@ -196,7 +196,8 @@ export class AppModule implements NestModule {
    *    no tenant subdomain) it is a pass-through.
    * 2. {@link TenantMiddleware} establishes the tenant from the JWT on every
    *    route except the public ones: auth (must work before any session exists),
-   *    the health probe, the public discovery listings
+   *    the health probe, the self-hosted API docs (`GET /docs`, `/docs-json`),
+   *    the public discovery listings
    *    (`GET /class-instances`, `GET /class-instances/:id`, the public live
    *    occupancy stream `GET /class-instances/occupancy/stream`, `GET /trainers`,
    *    `GET /trainers/:id/reviews`, `GET /packages`, `GET /products`, `GET /locations`) — which an unauthenticated
@@ -223,6 +224,9 @@ export class AppModule implements NestModule {
       .exclude(
         { path: 'auth/(.*)', method: RequestMethod.ALL },
         { path: 'health', method: RequestMethod.ALL },
+        { path: 'docs', method: RequestMethod.GET },
+        { path: 'docs/(.*)', method: RequestMethod.GET },
+        { path: 'docs-json', method: RequestMethod.GET },
         { path: 'class-instances', method: RequestMethod.ALL },
         { path: 'class-instances/occupancy/stream', method: RequestMethod.GET },
         { path: 'class-instances/:id', method: RequestMethod.GET },

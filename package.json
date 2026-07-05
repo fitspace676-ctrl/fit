@@ -19,6 +19,7 @@
     "db:generate": "pnpm --filter @fit/db db:generate",
     "db:migrate": "pnpm --filter @fit/db db:migrate",
     "db:migrate:dev": "pnpm --filter @fit/db db:migrate:dev",
+    "db:seed": "pnpm --filter @fit/db db:seed",
     "db:studio": "pnpm --filter @fit/db db:studio",
     "db:status": "pnpm --filter @fit/db db:status",
     "db:generate-instances": "pnpm --filter @fit/db jobs:generate-instances",
