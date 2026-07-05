@@ -1,6 +1,128 @@
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { Avatar } from '@astryxdesign/core/Avatar';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import type { TrainerDetail } from '@fit/types';
-import { Avatar, Badge, buttonClasses, Card, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
+
+// Astryx migration (T11.13): the profile header is rebuilt on the Astryx `Card` /
+// `Avatar` / `Badge` / `Button` over the Fit brand theme, with the layout and the
+// decorative accent band authored in compiled StyleX (`var(--color-*)`) — no
+// Tailwind utilities and no formacore Aurora-glass primitives. The Astryx
+// `Avatar` renders the initials fallback from `name`, so the Dicebear helper is
+// gone.
+
+const styles = stylex.create({
+  card: {
+    position: 'relative',
+    overflow: 'hidden',
+    padding: {
+      default: '1.5rem',
+      '@media (min-width: 640px)': '2rem',
+    },
+  },
+  band: {
+    position: 'absolute',
+    insetInline: 0,
+    top: 0,
+    height: '7rem',
+    backgroundColor: 'var(--color-accent-muted)',
+    pointerEvents: 'none',
+  },
+  section: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  headRow: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'flex-start',
+      '@media (min-width: 640px)': 'center',
+    },
+    gap: '1.25rem',
+  },
+  headText: {
+    minWidth: 0,
+    flex: 1,
+  },
+  nameRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  name: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: {
+      default: '1.5rem',
+      '@media (min-width: 640px)': '1.875rem',
+    },
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  headline: {
+    marginTop: '0.25rem',
+    marginBottom: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  bio: {
+    margin: 0,
+    whiteSpace: 'pre-line',
+    fontSize: '0.875rem',
+    lineHeight: 1.65,
+    color: 'var(--color-text-secondary)',
+  },
+  facet: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  facetLabel: {
+    margin: 0,
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--color-text-secondary)',
+  },
+  chips: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.375rem',
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+  },
+  locations: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  locationIcon: {
+    height: '1rem',
+    width: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-text-disabled)',
+  },
+  badgeIcon: {
+    height: '0.875rem',
+    width: '0.875rem',
+  },
+});
 
 export interface TrainerProfileProps {
   trainer: TrainerDetail;
@@ -10,7 +132,7 @@ export interface TrainerProfileProps {
 }
 
 /**
- * The profile header of a trainer's detail page: avatar (or a Dicebear initials
+ * The profile header of a trainer's detail page: avatar (Astryx initials
  * fallback when there's no photo), name + headline, the full (untruncated) bio,
  * the specialty / location facets the index card only summarised, and a primary
  * action linking to the trainer's upcoming sessions. Purely presentational — the
@@ -20,58 +142,43 @@ export function TrainerProfile({ trainer, avgRating = 0, reviewCount = 0 }: Trai
   const t = useTranslations('trainers');
 
   return (
-    <Card glow className="p-6 sm:p-8">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(135deg,#7C3AED,#EC4899)] opacity-[0.08] dark:opacity-20"
-      />
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <span aria-hidden {...stylex.props(styles.band)} />
 
-      <section className="relative flex flex-col gap-6">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <Avatar
-            src={avatarSrc(trainer.avatarUrl, trainer.name)}
-            ring
-            size="h-20 w-20 sm:h-24 sm:w-24"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-                {trainer.name}
-              </h1>
+      <section {...stylex.props(styles.section)}>
+        <div {...stylex.props(styles.headRow)}>
+          <Avatar src={trainer.avatarUrl ?? undefined} name={trainer.name} size={96} />
+          <div {...stylex.props(styles.headText)}>
+            <div {...stylex.props(styles.nameRow)}>
+              <h1 {...stylex.props(styles.name)}>{trainer.name}</h1>
               {reviewCount > 0 && (
-                <Badge tone="warning" icon="star">
-                  {avgRating.toFixed(1)}
-                </Badge>
+                <Badge
+                  variant="warning"
+                  icon={<Icon name="star" {...stylex.props(styles.badgeIcon)} />}
+                  label={avgRating.toFixed(1)}
+                />
               )}
             </div>
-            {trainer.headline && (
-              <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{trainer.headline}</p>
-            )}
+            {trainer.headline && <p {...stylex.props(styles.headline)}>{trainer.headline}</p>}
           </div>
-          <a
+          <Button
             href="#trainer-schedule-heading"
-            className={buttonClasses('primary', 'md', 'shrink-0')}
-          >
-            <Icon name="calendarPlus" className="h-4 w-4" sw={2} />
-            {t('detail.schedule.title')}
-          </a>
+            variant="primary"
+            size="md"
+            icon={<Icon name="calendarPlus" {...stylex.props(styles.badgeIcon)} sw={2} />}
+            label={t('detail.schedule.title')}
+          />
         </div>
 
-        {trainer.bio && (
-          <p className="whitespace-pre-line text-sm leading-relaxed text-ink-600 dark:text-ink-300">
-            {trainer.bio}
-          </p>
-        )}
+        {trainer.bio && <p {...stylex.props(styles.bio)}>{trainer.bio}</p>}
 
         {trainer.specialties.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-              {t('detail.specialties')}
-            </h2>
-            <ul aria-label={t('detail.specialties')} className="flex flex-wrap gap-1.5">
+          <div {...stylex.props(styles.facet)}>
+            <h2 {...stylex.props(styles.facetLabel)}>{t('detail.specialties')}</h2>
+            <ul aria-label={t('detail.specialties')} {...stylex.props(styles.chips)}>
               {trainer.specialties.map((specialty) => (
                 <li key={specialty}>
-                  <Badge tone="brand">{specialty}</Badge>
+                  <Badge variant="purple" label={specialty} />
                 </li>
               ))}
             </ul>
@@ -79,12 +186,10 @@ export function TrainerProfile({ trainer, avgRating = 0, reviewCount = 0 }: Trai
         )}
 
         {trainer.locationNames.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-              {t('detail.locations')}
-            </h2>
-            <p className="flex items-center gap-1.5 text-sm text-ink-600 dark:text-ink-300">
-              <Icon name="pin" className="h-4 w-4 shrink-0 text-ink-400" sw={2} />
+          <div {...stylex.props(styles.facet)}>
+            <h2 {...stylex.props(styles.facetLabel)}>{t('detail.locations')}</h2>
+            <p {...stylex.props(styles.locations)}>
+              <Icon name="pin" {...stylex.props(styles.locationIcon)} sw={2} />
               {trainer.locationNames.join(' · ')}
             </p>
           </div>
@@ -92,12 +197,4 @@ export function TrainerProfile({ trainer, avgRating = 0, reviewCount = 0 }: Trai
       </section>
     </Card>
   );
-}
-
-/**
- * The avatar URL to render, falling back to a Dicebear initials avatar seeded by
- * the trainer's name when no photo is set.
- */
-function avatarSrc(url: string | null | undefined, name: string): string {
-  return url || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`;
 }

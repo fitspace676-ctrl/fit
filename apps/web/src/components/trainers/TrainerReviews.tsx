@@ -1,6 +1,124 @@
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Card } from '@astryxdesign/core/Card';
 import type { PublicReview } from '@fit/types';
-import { Card, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
+
+// Astryx migration (T11.13): the reviews section is rebuilt on the Astryx `Card`
+// over the Fit brand theme, with the aggregate header, the star glyphs, and each
+// review row authored in compiled StyleX (`var(--color-*)`) — no Tailwind
+// utilities and no formacore Aurora-glass primitives.
+
+const styles = stylex.create({
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  emptySection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  heading: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    letterSpacing: '-0.01em',
+    color: 'var(--color-text-primary)',
+  },
+  empty: {
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '1.5rem',
+    paddingBlock: '2.5rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  headRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  summary: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  summaryValue: {
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  list: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  reviewCard: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+  },
+  reviewHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  date: {
+    flexShrink: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-disabled)',
+  },
+  comment: {
+    marginTop: '0.5rem',
+    marginBottom: 0,
+    whiteSpace: 'pre-line',
+    fontSize: '0.875rem',
+    lineHeight: 1.65,
+    color: 'var(--color-text-secondary)',
+  },
+  author: {
+    marginTop: '0.5rem',
+    marginBottom: 0,
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  stars: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.125rem',
+  },
+  star: {
+    height: '1rem',
+    width: '1rem',
+  },
+  starFilled: {
+    color: 'var(--color-icon-yellow)',
+    fill: 'var(--color-icon-yellow)',
+  },
+  starEmpty: {
+    color: 'var(--color-border-emphasized)',
+    fill: 'var(--color-background-muted)',
+  },
+});
 
 export interface TrainerReviewsProps {
   /** The visible reviews on the current page (newest first), as the API returns them. */
@@ -26,51 +144,41 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
 
   if (total === 0) {
     return (
-      <section aria-labelledby="trainer-reviews-heading" className="flex flex-col gap-3">
-        <h2
-          id="trainer-reviews-heading"
-          className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white"
-        >
+      <section aria-labelledby="trainer-reviews-heading" {...stylex.props(styles.emptySection)}>
+        <h2 id="trainer-reviews-heading" {...stylex.props(styles.heading)}>
           {t('detail.reviews.title')}
         </h2>
-        <p className="rounded-card border border-dashed border-ink-200 bg-ink-50 px-6 py-10 text-center text-sm text-ink-500 dark:border-white/10 dark:bg-white/5 dark:text-ink-400">
-          {t('detail.reviews.empty')}
-        </p>
+        <p {...stylex.props(styles.empty)}>{t('detail.reviews.empty')}</p>
       </section>
     );
   }
 
   return (
-    <section aria-labelledby="trainer-reviews-heading" className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2
-          id="trainer-reviews-heading"
-          className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white"
-        >
+    <section aria-labelledby="trainer-reviews-heading" {...stylex.props(styles.section)}>
+      <div {...stylex.props(styles.headRow)}>
+        <h2 id="trainer-reviews-heading" {...stylex.props(styles.heading)}>
           {t('detail.reviews.title')}
         </h2>
-        <p className="flex items-center gap-2 text-sm text-ink-500 dark:text-ink-400">
+        <p {...stylex.props(styles.summary)}>
           <Stars
             rating={avgRating}
             label={t('detail.reviews.ratingLabel', { rating: avgRating })}
           />
-          <span className="font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
-            {avgRating.toFixed(1)}
-          </span>
+          <span {...stylex.props(styles.summaryValue)}>{avgRating.toFixed(1)}</span>
           <span>{t('detail.reviews.count', { count: total })}</span>
         </p>
       </div>
 
-      <ul className="flex flex-col gap-3">
+      <ul {...stylex.props(styles.list)}>
         {reviews.map((review) => (
           <li key={review.id}>
-            <Card glow className="px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
+            <Card variant="default" padding={0} xstyle={styles.reviewCard}>
+              <div {...stylex.props(styles.reviewHead)}>
                 <Stars
                   rating={review.rating}
                   label={t('detail.reviews.ratingLabel', { rating: review.rating })}
                 />
-                <span className="shrink-0 font-mono text-xs text-ink-400">
+                <span {...stylex.props(styles.date)}>
                   {new Date(review.createdAt).toLocaleDateString(locale, {
                     year: 'numeric',
                     month: 'short',
@@ -78,14 +186,8 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
                   })}
                 </span>
               </div>
-              {review.comment && (
-                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600 dark:text-ink-300">
-                  {review.comment}
-                </p>
-              )}
-              <p className="mt-2 text-xs font-semibold text-ink-500 dark:text-ink-400">
-                {review.authorName}
-              </p>
+              {review.comment && <p {...stylex.props(styles.comment)}>{review.comment}</p>}
+              <p {...stylex.props(styles.author)}>{review.authorName}</p>
             </Card>
           </li>
         ))}
@@ -102,16 +204,12 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
 function Stars({ rating, label }: { rating: number; label: string }) {
   const filled = Math.round(rating);
   return (
-    <span role="img" aria-label={label} className="inline-flex items-center gap-0.5">
+    <span role="img" aria-label={label} {...stylex.props(styles.stars)}>
       {[1, 2, 3, 4, 5].map((star) => (
         <Icon
           key={star}
           name="star"
-          className={`h-4 w-4 ${
-            star <= filled
-              ? 'fill-warning-400 text-warning-400'
-              : 'fill-ink-200 text-ink-200 dark:fill-white/10 dark:text-white/10'
-          }`}
+          {...stylex.props(styles.star, star <= filled ? styles.starFilled : styles.starEmpty)}
           sw={1.5}
         />
       ))}

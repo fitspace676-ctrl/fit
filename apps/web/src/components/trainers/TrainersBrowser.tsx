@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
 import type { TrainerCard as TrainerCardModel } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchTrainers } from '@/lib/trainers';
-import { Btn } from '@/src/components/ui';
 import { EmptyTrainers } from './EmptyTrainers';
 import { TrainerFilters } from './TrainerFilters';
 import { TrainersGrid } from './TrainersGrid';
@@ -16,6 +17,45 @@ import {
   writeFilterParams,
   type TrainerFilterState,
 } from './trainer-filters';
+
+// Astryx migration (T11.13): the orchestrator's loading / error / no-match
+// states are authored in compiled StyleX over the Fit brand tokens and the retry
+// / reset actions render the Astryx `Button` — no Tailwind utilities. The fetch
+// lifecycle and URL-sync logic below are unchanged; only the presentation moved
+// off Tailwind.
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  status: {
+    paddingBlock: '4rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-disabled)',
+  },
+  stateBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingBlock: '4rem',
+    textAlign: 'center',
+  },
+  stateText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  stateTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+});
 
 export interface TrainersBrowserProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
@@ -91,33 +131,37 @@ export function TrainersBrowser({ gymId, initialFilters }: TrainersBrowserProps)
   const filtered = useMemo(() => applyFilters(load.trainers, filters), [load.trainers, filters]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div {...stylex.props(styles.root)}>
       {load.status === 'ready' && load.trainers.length > 0 && (
         <TrainerFilters facets={facets} filters={filters} onChange={setFilters} />
       )}
 
       {load.status === 'loading' ? (
-        <p className="py-16 text-center text-sm text-ink-400">{t('loading')}</p>
+        <p {...stylex.props(styles.status)}>{t('loading')}</p>
       ) : load.status === 'error' ? (
-        <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="text-sm text-ink-500 dark:text-ink-400">{t('error')}</p>
-          <Btn v="outline" size="sm" onClick={() => setReloadKey((key) => key + 1)}>
-            {t('retry')}
-          </Btn>
+        <div {...stylex.props(styles.stateBlock)}>
+          <p {...stylex.props(styles.stateText)}>{t('error')}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            label={t('retry')}
+            onClick={() => setReloadKey((key) => key + 1)}
+          />
         </div>
       ) : load.trainers.length === 0 ? (
         <EmptyTrainers />
       ) : filtered.length === 0 ? (
         // Trainers exist but the active filters exclude them all — a distinct
         // state from "no trainers", with a one-tap reset.
-        <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="text-sm font-semibold text-ink-900 dark:text-white">
-            {t('filters.noMatch.title')}
-          </p>
-          <p className="text-sm text-ink-500 dark:text-ink-400">{t('filters.noMatch.subtitle')}</p>
-          <Btn v="outline" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
-            {t('filters.noMatch.action')}
-          </Btn>
+        <div {...stylex.props(styles.stateBlock)}>
+          <p {...stylex.props(styles.stateTitle)}>{t('filters.noMatch.title')}</p>
+          <p {...stylex.props(styles.stateText)}>{t('filters.noMatch.subtitle')}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            label={t('filters.noMatch.action')}
+            onClick={() => setFilters(EMPTY_FILTERS)}
+          />
         </div>
       ) : (
         <TrainersGrid trainers={filtered} />
