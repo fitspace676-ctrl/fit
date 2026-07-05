@@ -180,6 +180,13 @@ export const envSchema = z.object({
       }
       return offsets;
     }),
+  // Trial-ending heads-up (T8.7): how many whole days before a free trial converts
+  // the member is warned their first charge is coming. The daily billing sweep
+  // notifies every TRIAL subscription whose trial end falls within this lead window
+  // and hasn't been warned yet, so a longer lead simply widens that window. Defaults
+  // to 3 (three days before). Bounded to 30 so a typo can't sweep every trial into
+  // one run; the per-subscription dedupe key keeps it at-most-once regardless.
+  SUBSCRIPTION_TRIAL_ENDING_LEAD_DAYS: z.coerce.number().int().positive().max(30).default(3),
 
   // ── Class booking reminders (T8.6) ──
   // Master switch for the booking-reminder cron that notifies members ahead of a
