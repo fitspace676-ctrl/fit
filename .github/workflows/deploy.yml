@@ -1,0 +1,304 @@
+name: Deploy (production)
+
+# Production release pipeline. Runs only after the CI workflow has gone green on
+# `main` (never deploy a red commit), then executes the ordered sequence:
+#
+#   snapshot → migrate → deploy API (Railway) → deploy web apps (Vercel) → smoke
+#
+# A pre-deploy `pg_dump` is taken before any migration so a bad release can be
+# rolled back to a known-good database (see ROLLBACK.md). If the required
+# deploy secrets are not configured the pipeline reports "skipped" instead of
+# failing, so it is safe to land before the Railway/Vercel/R2 wiring exists.
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_snapshot:
+        description: 'Skip the pre-deploy DB snapshot (emergency use only)'
+        type: boolean
+        default: false
+
+# Never run two production deploys at once, and never cancel one in flight.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 0. Gate. Only proceed for a green CI run (or a manual dispatch), and detect
+  #    whether the deploy secrets are present. Downstream jobs key off
+  #    `ready == 'true'` so an unconfigured repo skips cleanly rather than fails.
+  # ---------------------------------------------------------------------------
+  guard:
+    name: Gate · CI green + secrets present
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Check required deploy secrets
+        id: check
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          missing=()
+          [ -n "$RAILWAY_TOKEN" ] || missing+=("RAILWAY_TOKEN")
+          [ -n "$VERCEL_TOKEN" ] || missing+=("VERCEL_TOKEN")
+          [ -n "$PROD_DATABASE_URL" ] || missing+=("PROD_DATABASE_URL")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy skipped::Missing deploy secrets: ${missing[*]}. Configure them to enable production deploys."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "All required deploy secrets are present."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # 1. Pre-deploy snapshot. `pg_dump` the production DB (custom format) and, when
+  #    R2 is configured, copy it to the bucket via the S3 API. This is the
+  #    rollback target for the migration that follows.
+  # ---------------------------------------------------------------------------
+  snapshot:
+    name: Pre-deploy DB snapshot
+    needs: guard
+    if: >-
+      needs.guard.outputs.ready == 'true' &&
+      !(github.event_name == 'workflow_dispatch' && inputs.skip_snapshot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      # `aws s3` reads these; the workflow maps them from the R2 API token.
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Postgres client (pg_dump)
+        run: |
+          if ! command -v pg_dump >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y postgresql-client
+          fi
+          pg_dump --version
+
+      - name: Snapshot the database
+        run: pnpm fit db snapshot --out "fit-${{ github.sha }}.dump"
+
+      # Belt-and-braces: also keep the dump as a workflow artifact so a rollback
+      # is possible even if the R2 copy was skipped/unavailable.
+      - name: Upload snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-snapshot-${{ github.sha }}
+          path: fit-${{ github.sha }}.dump
+          retention-days: 14
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 2. Migrate. Apply pending migrations to the production DB *before* the new
+  #    API code goes live (migrations must be forward-compatible). `always()` +
+  #    the guard check lets this run even when the snapshot was intentionally
+  #    skipped via workflow_dispatch.
+  # ---------------------------------------------------------------------------
+  migrate:
+    name: Apply migrations (prod)
+    needs: [guard, snapshot]
+    if: >-
+      always() &&
+      needs.guard.outputs.ready == 'true' &&
+      needs.snapshot.result != 'failure' &&
+      needs.snapshot.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Migration status (before)
+        run: pnpm db:status || true
+
+      - name: Deploy migrations
+        run: pnpm db:migrate
+
+  # ---------------------------------------------------------------------------
+  # 3. Deploy the API to Railway. Railway builds from railway.json (NIXPACKS) and
+  #    its startCommand re-runs `migrate deploy` (a no-op now), then boots NestJS.
+  #    We gate completion on the /health probe.
+  # ---------------------------------------------------------------------------
+  deploy-api:
+    name: Deploy API (Railway)
+    needs: [guard, migrate]
+    if: needs.guard.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      API_URL: ${{ vars.PROD_API_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy API service
+        run: railway up --service "${{ vars.RAILWAY_SERVICE || 'api' }}" --detach
+
+      - name: Wait for /health to report ready
+        run: |
+          if [ -z "$API_URL" ]; then
+            echo "::notice::PROD_API_URL not set — skipping health gate."
+            exit 0
+          fi
+          echo "Probing ${API_URL%/}/health …"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${API_URL%/}/health" || true)
+            if [ "$code" = "200" ]; then
+              echo "API healthy after ${i} attempt(s)."
+              exit 0
+            fi
+            echo "attempt ${i}: HTTP ${code:-000}; retrying in 10s"
+            sleep 10
+          done
+          echo "::error title=API health check failed::/health did not return 200 within timeout"
+          exit 1
+
+  # ---------------------------------------------------------------------------
+  # 4. Deploy the four Next.js apps to Vercel (production). Each is its own Vercel
+  #    project; the org id is shared and the project id is per app.
+  # ---------------------------------------------------------------------------
+  deploy-web:
+    name: Deploy ${{ matrix.app }} (Vercel)
+    needs: [guard, deploy-api]
+    if: needs.guard.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    strategy:
+      # Deploy the front-ends independently; one failure shouldn't strand others.
+      fail-fast: false
+      matrix:
+        include:
+          - app: admin
+            projectId: VERCEL_PROJECT_ID_ADMIN
+          - app: platform
+            projectId: VERCEL_PROJECT_ID_PLATFORM
+          - app: web
+            projectId: VERCEL_PROJECT_ID_WEB
+          - app: superadmin
+            projectId: VERCEL_PROJECT_ID_SUPERADMIN
+    defaults:
+      run:
+        # Each app is its own Vercel project rooted at apps/<app> (where its
+        # vercel.json lives); run the CLI from there so it links the right one.
+        working-directory: apps/${{ matrix.app }}
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets[matrix.projectId] }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard · project id present
+        run: |
+          if [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::error title=Missing project id::Set secret ${{ matrix.projectId }}."
+            exit 1
+          fi
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build (production)
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt output (production)
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+  # ---------------------------------------------------------------------------
+  # 5. Post-deploy smoke: probe the live stack (Postgres/Redis/API/R2) once more.
+  # ---------------------------------------------------------------------------
+  smoke:
+    name: Post-deploy smoke check
+    needs: [guard, deploy-api, deploy-web]
+    if: needs.guard.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      REDIS_URL: ${{ secrets.PROD_REDIS_URL }}
+      API_URL: ${{ vars.PROD_API_URL }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_PUBLIC_URL: ${{ vars.R2_PUBLIC_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Probe production services
+        run: pnpm fit services health

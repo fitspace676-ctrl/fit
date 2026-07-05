@@ -1,11 +1,17 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { CommandError } from '../output';
 
-/** Whether an executable is resolvable on the current PATH. */
+/**
+ * Whether an executable is resolvable on the current PATH.
+ *
+ * The POSIX probe is the shell builtin `command -v`, so it MUST run through a
+ * shell — spawning `command` as a bare executable ENOENTs on Linux/macOS (there
+ * is no `/usr/bin/command`) and would report every CLI as missing. `command` is
+ * always an internal, hardcoded vendor name, never user input.
+ */
 export function isCommandAvailable(command: string): boolean {
-  const probe = process.platform === 'win32' ? 'where' : 'command';
-  const args = process.platform === 'win32' ? [command] : ['-v', command];
-  const result = spawnSync(probe, args, { stdio: 'ignore', shell: process.platform === 'win32' });
+  const probe = process.platform === 'win32' ? `where ${command}` : `command -v ${command}`;
+  const result = spawnSync(probe, { stdio: 'ignore', shell: true });
   return result.status === 0;
 }
 

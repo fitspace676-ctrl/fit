@@ -118,6 +118,25 @@ Run from the repo root — Turbo fans each task out across all workspaces:
 build-dependent tasks declare `dependsOn: ["^build"]` so upstream workspace packages
 build before their consumers.
 
+## Deployment
+
+Production is **Railway** (Postgres, Redis, the NestJS API) + **Vercel** (the
+four Next.js apps) + **Cloudflare R2** (uploads and DB snapshots). Merges to
+`main` that pass CI trigger [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml),
+which runs an ordered release:
+
+```
+snapshot ─▶ migrate ─▶ deploy API (Railway) ─▶ deploy web ×4 (Vercel) ─▶ smoke
+```
+
+A pre-deploy `pg_dump` (via `pnpm fit db snapshot`) is taken before any
+migration, so a bad release can be rolled back to a known-good database. The
+full deploy sequence, the required GitHub secrets/variables, and the **rehearsed
+rollback** procedure are documented in [`ROLLBACK.md`](ROLLBACK.md).
+
+The pipeline **skips** (rather than fails) until the deploy secrets are
+configured, so it is safe to land ahead of the infra wiring.
+
 ## `fit` CLI
 
 `fit` is the single, scriptable source of truth for infra/env introspection. Any
