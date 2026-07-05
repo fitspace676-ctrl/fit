@@ -51,17 +51,22 @@ then locks that screen Tailwind-free for good.
 
 Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 
-| Path                                                | Task  | Status |
-| --------------------------------------------------- | ----- | ------ |
-| `apps/web/app/[locale]/astryx-smoke`                | T11.1 | ✅     |
-| `apps/admin/app/astryx-smoke`                       | T11.1 | ✅     |
-| `apps/web/src/components/theme/astryx-provider.tsx` | T11.1 | ✅     |
-| `apps/admin/components/theme/astryx-provider.tsx`   | T11.1 | ✅     |
-| `apps/web/app/[locale]/login`                       | T11.7 | ✅     |
-| `apps/web/app/[locale]/_components/auth`            | T11.7 | ✅     |
-| `apps/web/app/[locale]/register`                    | T11.8 | ✅     |
-| `apps/web/app/[locale]/forgot-password`             | T11.9 | ✅     |
-| `apps/web/app/[locale]/reset-password`              | T11.9 | ✅     |
+| Path                                                | Task   | Status |
+| --------------------------------------------------- | ------ | ------ |
+| `apps/web/app/[locale]/astryx-smoke`                | T11.1  | ✅     |
+| `apps/admin/app/astryx-smoke`                       | T11.1  | ✅     |
+| `apps/web/src/components/theme/astryx-provider.tsx` | T11.1  | ✅     |
+| `apps/admin/components/theme/astryx-provider.tsx`   | T11.1  | ✅     |
+| `apps/web/app/[locale]/login`                       | T11.7  | ✅     |
+| `apps/web/app/[locale]/_components/auth`            | T11.7  | ✅     |
+| `apps/web/app/[locale]/register`                    | T11.8  | ✅     |
+| `apps/web/app/[locale]/forgot-password`             | T11.9  | ✅     |
+| `apps/web/app/[locale]/reset-password`              | T11.9  | ✅     |
+| `apps/web/app/[locale]/(member)/layout.tsx`         | T11.10 | ✅     |
+| `apps/web/src/components/member/member-header.tsx`  | T11.10 | ✅     |
+| `apps/web/src/components/member/mobile-tab-bar.tsx` | T11.10 | ✅     |
+| `apps/web/src/components/member/theme-toggle.tsx`   | T11.10 | ✅     |
+| `apps/web/src/components/member/nav-items.ts`       | T11.10 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
@@ -69,7 +74,7 @@ are files currently using `className=` under each app, as a rough burn-down:
 
 | Area                                        | Tasks                  |
 | ------------------------------------------- | ---------------------- |
-| Web — member shell + home                   | T11.10, T11.11         |
+| Web — member home                           | T11.11                 |
 | Web — classes / trainers / bookings         | T11.12, T11.13, T11.14 |
 | Web — shop / cart / checkout                | T11.15                 |
 | Web — account / profile / membership        | T11.16                 |

@@ -693,6 +693,7 @@
     },
     "shell": {
       "brand": "FormaCore",
+      "primaryNav": "Primary",
       "skipToContent": "Skip to main content",
       "search": "Search classes, trainers…",
       "notifications": "Notifications",

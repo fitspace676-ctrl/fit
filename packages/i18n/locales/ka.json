@@ -693,6 +693,7 @@
     },
     "shell": {
       "brand": "FormaCore",
+      "primaryNav": "მთავარი ნავიგაცია",
       "skipToContent": "მთავარ შიგთავსზე გადასვლა",
       "search": "მოძებნე გაკვეთილი, მწვრთნელი…",
       "notifications": "შეტყობინებები",
