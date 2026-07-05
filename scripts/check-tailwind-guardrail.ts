@@ -73,6 +73,13 @@ const MIGRATED_PATHS: readonly string[] = [
   // classes route group and component dir are now Astryx-only.
   'apps/web/app/[locale]/(member)/classes',
   'apps/web/src/components/classes',
+  // T11.13 — member trainers browse (roster + filter card) + trainer detail
+  // (profile + schedule + reviews). Both route files and the whole trainers
+  // component dir are rebuilt on Astryx Card/Avatar/Badge/Button + StyleX.
+  // Guarded as directories since the trainers route group and component dir are
+  // now Astryx-only.
+  'apps/web/app/[locale]/(member)/trainers',
+  'apps/web/src/components/trainers',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

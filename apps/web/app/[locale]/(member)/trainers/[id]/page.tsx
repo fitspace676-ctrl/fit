@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getActiveGymId } from '@/lib/active-gym';
 import { fetchTrainer } from '@/lib/trainers';
@@ -9,6 +10,41 @@ import { TrainerNotFound } from '@/src/components/trainers/TrainerNotFound';
 import { TrainerProfile } from '@/src/components/trainers/TrainerProfile';
 import { TrainerReviews } from '@/src/components/trainers/TrainerReviews';
 import { TrainerSchedule } from '@/src/components/trainers/TrainerSchedule';
+
+// Astryx migration (T11.13): the detail route shell (back link + column) is
+// authored in compiled StyleX over the Fit brand tokens — no Tailwind utilities.
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2rem',
+  },
+  back: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    alignSelf: 'flex-start',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    textDecoration: 'none',
+    transitionProperty: 'color',
+    transitionDuration: '150ms',
+  },
+  backIcon: {
+    height: '1rem',
+    width: '1rem',
+  },
+  detail: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2rem',
+  },
+});
 
 /**
  * Render per request, never at build: the active gym is resolved from the
@@ -94,17 +130,14 @@ export default async function TrainerDetailPage({
   ]);
 
   return (
-    <div className="space-y-8">
-      <Link
-        href="/trainers"
-        className="inline-flex items-center gap-1 text-sm font-semibold text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
-      >
-        <Icon name="chevronLeft" className="h-4 w-4" sw={2} />
+    <div {...stylex.props(styles.page)}>
+      <Link href="/trainers" {...stylex.props(styles.back)}>
+        <Icon name="chevronLeft" {...stylex.props(styles.backIcon)} sw={2} />
         {t('detail.back')}
       </Link>
 
       {trainer ? (
-        <div className="flex flex-col gap-8">
+        <div {...stylex.props(styles.detail)}>
           <TrainerProfile
             trainer={trainer}
             avgRating={reviews.avgRating}
