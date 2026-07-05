@@ -37,6 +37,8 @@ to stderr.
 | `fit env check [--env …]`                                          | Validate the whole infra environment; lists set keys (never their values).            |
 | `fit db url`                                                       | Print the resolved `DATABASE_URL`.                                                    |
 | `fit db migrate\|studio\|seed\|reset`                              | Database lifecycle (wraps the root `db:*` scripts / Prisma).                          |
+| `fit db snapshot [--out <file>]`                                   | Pre-deploy `pg_dump` (custom format); copies to R2 when configured. Used by deploy.   |
+| `fit db restore <file\|s3://…>`                                    | Restore the DB from a dump (`pg_restore`); the rollback half of a bad migration.      |
 | `fit services status\|health`                                      | Probe Postgres, Redis, API `/health`, and R2. `health` exits non-zero if any is down. |
 | `fit token --role <ROLE> --gym <slug> [--sub <id>] [--ttl <secs>]` | Mint an HS256 JWT signed with the shared `JWT_SECRET`.                                |
 | `fit r2 config`                                                    | Report R2 configuration (credentials redacted).                                       |

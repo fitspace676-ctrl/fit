@@ -2,8 +2,9 @@ import type { ParsedArgs } from '../args';
 import { CommandError, type CommandResult } from '../output';
 import { loadInfraEnv } from '../env-source';
 import { delegate } from '../util/exec';
+import { runRestore, runSnapshot } from './snapshot';
 
-const USAGE = 'usage: fit db <url|migrate|studio|seed|reset|generate-instances>';
+const USAGE = 'usage: fit db <url|migrate|snapshot|restore|studio|seed|reset|generate-instances>';
 
 /**
  * Database access. `url` reads the validated `DATABASE_URL` from the shared
@@ -20,6 +21,14 @@ export async function run(args: ParsedArgs): Promise<CommandResult> {
     }
     case 'migrate':
       return delegated(['db:migrate']);
+    case 'snapshot':
+      // Pre-deploy safety net: dump the DB (and copy to R2 when configured)
+      // before `migrate deploy` runs. See ROLLBACK.md.
+      return runSnapshot(subArgs(args));
+    case 'restore':
+      // Destructive: replace the DB from a dump — the rollback half of a bad
+      // migration. Run deliberately against an explicit target.
+      return runRestore(subArgs(args));
     case 'studio':
       return delegated(['db:studio']);
     case 'reset':
@@ -37,6 +46,11 @@ export async function run(args: ParsedArgs): Promise<CommandResult> {
         detail: USAGE,
       });
   }
+}
+
+/** Drop the `db` subcommand from positionals so a handler sees its own args. */
+function subArgs(args: ParsedArgs): ParsedArgs {
+  return { flags: args.flags, positionals: args.positionals.slice(1) };
 }
 
 async function delegated(pnpmArgs: string[]): Promise<CommandResult> {
