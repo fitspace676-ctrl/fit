@@ -27,6 +27,7 @@ import {
   type TokenPair,
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
+import { RateLimit, RATE_LIMITS } from '../common/rate-limit/rate-limit.decorator';
 import { AuthService } from './auth.service';
 
 /**
@@ -40,8 +41,15 @@ import { AuthService } from './auth.service';
  * The whole controller is `@Public()`: every route must work before a session
  * exists (register, login, refresh, password reset, OAuth), so it opts out of
  * the global deny-by-default {@link PermissionsGuard}.
+ *
+ * Because it is public and unauthenticated it is also the API's most abuse-prone
+ * surface, so the whole controller carries the `auth` per-IP rate-limit budget
+ * (T9.7). The account-mutating / email-sending routes (register, gym provisioning,
+ * password forgot/reset) override it with the far tighter `authStrict` budget, as
+ * each is rarer and more costly to abuse.
  */
 @Public()
+@RateLimit(RATE_LIMITS.auth)
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -49,6 +57,7 @@ export class AuthController {
   /** `POST /auth/register` — create an account and send the verification email. */
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @RateLimit(RATE_LIMITS.authStrict)
   async register(@Body() body: unknown): Promise<RegisterResponse> {
     const input = parse(registerSchema, body);
     return this.auth.register(input);
@@ -57,6 +66,7 @@ export class AuthController {
   /** `POST /auth/register-gym` — provision a gym tenant and onboard its owner. */
   @Post('register-gym')
   @HttpCode(HttpStatus.CREATED)
+  @RateLimit(RATE_LIMITS.authStrict)
   async registerGym(@Body() body: unknown): Promise<RegisterGymResponse> {
     const input = parse(registerGymSchema, body);
     return this.auth.registerGym(input);
@@ -95,6 +105,7 @@ export class AuthController {
   /** `POST /auth/forgot-password` — mint a reset token and email the reset link. */
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @RateLimit(RATE_LIMITS.authStrict)
   async forgotPassword(@Body() body: unknown): Promise<ForgotPasswordResponse> {
     const input = parse(forgotPasswordSchema, body);
     return this.auth.requestPasswordReset(input);
@@ -103,6 +114,7 @@ export class AuthController {
   /** `POST /auth/reset-password` — consume a reset token, set the new password, and issue a session. */
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @RateLimit(RATE_LIMITS.authStrict)
   async resetPassword(@Body() body: unknown): Promise<TokenPair> {
     const input = parse(resetPasswordSchema, body);
     return this.auth.resetPassword(input);

@@ -58,6 +58,18 @@ export const envSchema = z.object({
   // deliberately short — support access must be time-limited. Default 10 minutes.
   JWT_IMPERSONATION_TTL: z.coerce.number().int().positive().default(600),
 
+  // ── Rate limiting (T9.7) ──
+  // Master switch for the per-IP, Redis-backed rate limiter that throttles the
+  // abuse-prone surfaces (auth credential routes, subscription enrolment,
+  // reception check-in). On by default so production is protected without extra
+  // config; set "false" to disable — useful for load tests or a local run where
+  // the limiter would get in the way. Anything other than "false" (incl. unset)
+  // leaves it enabled. The limiter also fails open on its own if Redis is down.
+  RATE_LIMIT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+
   // ── Google OAuth (Sign in with Google) ──
   // Comma-separated list of accepted Google OAuth client IDs — the `aud` claim
   // of an inbound ID token must match one of these. Typically holds the web,

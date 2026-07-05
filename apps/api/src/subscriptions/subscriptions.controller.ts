@@ -18,6 +18,7 @@ import {
   type UnfreezeSubscriptionResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import { RateLimit, RATE_LIMITS } from '../common/rate-limit/rate-limit.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { SubscriptionEnrollmentService } from './subscription-enrollment.service';
@@ -53,6 +54,7 @@ export class SubscriptionsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions(Permission.SubscriptionManage)
+  @RateLimit(RATE_LIMITS.enroll)
   async enroll(@Body() body: unknown): Promise<EnrollSubscriptionResponse> {
     return this.enrollment.enrollSelf(parse(enrollSubscriptionSchema, body).planId);
   }
