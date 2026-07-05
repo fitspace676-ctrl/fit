@@ -70,6 +70,18 @@ export const envSchema = z.object({
     .default('true')
     .transform((value) => value === 'true'),
 
+  // ── API documentation (T10.4) ──
+  // Master switch for the self-hosted OpenAPI reference. When on, the interactive
+  // Swagger UI is served at `GET /docs` and the raw OpenAPI 3 document at
+  // `GET /docs-json`, both introspected from the live route table at boot. On by
+  // default so a fresh clone gets browsable API docs with no extra config; set
+  // "false" to withhold the surface on a public production deployment. Anything
+  // other than "false" (incl. unset) leaves it enabled.
+  API_DOCS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+
   // ── Google OAuth (Sign in with Google) ──
   // Comma-separated list of accepted Google OAuth client IDs — the `aud` claim
   // of an inbound ID token must match one of these. Typically holds the web,

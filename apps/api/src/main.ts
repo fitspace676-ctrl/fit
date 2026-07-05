@@ -11,6 +11,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { isOriginAllowed } from './common/cors/allowed-origin';
+import { setupOpenApi } from './config/openapi';
 
 /** Parse a comma-separated origin list, dropping blanks. */
 function parseOrigins(raw: string | undefined): string[] {
@@ -52,6 +53,10 @@ async function bootstrap(): Promise<void> {
     credentials: true,
   });
   app.enableShutdownHooks();
+
+  // Self-hosted OpenAPI reference at /docs (gated by API_DOCS_ENABLED). Mounted
+  // before listen so the route table is fully registered when it introspects.
+  setupOpenApi(app);
 
   const port = env.PORT;
   await app.listen(port);

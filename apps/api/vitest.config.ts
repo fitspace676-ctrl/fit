@@ -26,15 +26,16 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       // Excluded from the denominator because they carry no branchable logic to
       // spec: DI wiring (`*.module.ts`), the process bootstraps (`main.ts`,
-      // `instrument.ts`), integration-only test helpers, and the spec files
-      // themselves. Everything with real behaviour (services, controllers,
-      // guards, middleware, pure helpers) stays counted.
+      // `instrument.ts`, `config/openapi.ts`), integration-only test helpers, and
+      // the spec files themselves. Everything with real behaviour (services,
+      // controllers, guards, middleware, pure helpers) stays counted.
       exclude: [
         'src/**/*.spec.ts',
         'src/**/*.int-spec.ts',
         'src/**/*.module.ts',
         'src/main.ts',
         'src/instrument.ts',
+        'src/config/openapi.ts',
         'src/test/**',
       ],
       reporter: ['text-summary', 'json-summary'],

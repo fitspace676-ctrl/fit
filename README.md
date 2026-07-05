@@ -26,6 +26,83 @@ pnpm install              # resolve and link all workspaces
 pnpm turbo run build      # build every app and package
 ```
 
+## Boot the whole stack locally
+
+From a fresh clone to a running platform with seeded data in well under an hour.
+Each step links to its own section below for detail.
+
+```bash
+# 1. Toolchain — pnpm via Corepack (see Prerequisites)
+corepack enable && corepack prepare pnpm@9.15.4 --activate
+
+# 2. Install + generate the typed Prisma client
+pnpm install
+pnpm db:generate
+
+# 3. Datastores — copy the env templates, then start Postgres + Redis.
+#    Fill in DATABASE_URL / REDIS_URL first (see "Database" below).
+cp .env.example .env.local
+cp packages/db/.env.example packages/db/.env
+docker compose up -d              # local Postgres (:5432) + Redis (:6379)
+
+# 4. Schema + demo data
+pnpm db:migrate                   # apply all migrations
+pnpm db:seed                      # two gyms, staff, members, classes, shop, subscriptions
+
+# 5. Run everything in dev (API + the four web apps, hot-reloading)
+pnpm dev
+```
+
+Once `pnpm dev` is up, the services listen on:
+
+| Service            | URL                     | Notes                                      |
+| ------------------ | ----------------------- | ------------------------------------------ |
+| API (`@fit/api`)   | `http://localhost:3000` | NestJS; OpenAPI reference at `/docs`       |
+| Member web         | `http://localhost:3001` | tenant client (`@fit/web`)                 |
+| Admin console      | `http://localhost:3002` | gym staff (`@fit/admin`)                   |
+| Platform / signup  | `http://localhost:3003` | marketing + owner signup (`@fit/platform`) |
+| SuperAdmin console | `http://localhost:3004` | platform operator (`@fit/superadmin`)      |
+
+**Seeded login fixtures** (dev only — never real credentials). The seed prints the
+full list on completion; the members share the password **`Test1234!`**:
+
+| Account                | Purpose                                         |
+| ---------------------- | ----------------------------------------------- |
+| `alex@example.com`     | multi-gym member (a different role in each gym) |
+| `sam@example.com`      | second member fixture                           |
+| `superadmin@fit.local` | SuperAdmin console (passwordless; mint a token) |
+
+To drive the API directly, mint a token with the [`fit` CLI](#fit-cli) instead of
+logging in — e.g. `pnpm fit token --role MANAGER --gym downtown`.
+
+> Running against Railway instead of Docker? Skip `docker compose up` and point
+> `DATABASE_URL` / `REDIS_URL` at the Railway public proxy URLs (see below).
+
+## API reference (OpenAPI)
+
+The API self-hosts an always-current OpenAPI 3 reference, introspected from the live
+route table at boot — it can't drift from the code:
+
+- **Interactive UI** — `http://localhost:3000/docs`
+- **Raw document** — `http://localhost:3000/docs-json`
+
+It is served whenever `API_DOCS_ENABLED` is on (the default); set it to `"false"` to
+withhold the surface on a public deployment. Authenticate the "try it out" console
+with a bearer token from `POST /auth/login` or `pnpm fit token`. The API validates
+requests with Zod rather than decorator DTOs, so the document is a complete index of
+paths, verbs, and auth rather than a full body-schema catalogue.
+
+## Architecture decision records
+
+The non-obvious backend seams are documented as ADRs under [`docs/adr/`](docs/adr/):
+
+- [Recurring subscription billing job](docs/adr/subscription-billing-job.md) — the
+  daily renewal/dunning sweep.
+- [Member notification pipeline](docs/adr/notification-pipeline.md) — the one seam
+  every producer calls to reach a member.
+- [Payment provider abstraction](docs/adr/payment-provider.md) — the charge/webhook
+  seam a real gateway plugs into.
+
 ## Layout
 
 ```
@@ -97,6 +174,7 @@ Run from the repo root:
 | `pnpm db:generate`    | Generate the typed Prisma client into `packages/db/generated/` |
 | `pnpm db:migrate`     | Apply pending migrations (`prisma migrate deploy`)             |
 | `pnpm db:migrate:dev` | Create + apply a new migration in development                  |
+| `pnpm db:seed`        | Seed dev fixtures (two gyms, staff, members, classes, shop)    |
 | `pnpm db:studio`      | Open Prisma Studio against the configured database             |
 | `pnpm db:status`      | Show migration status (`prisma migrate status`)                |
 
