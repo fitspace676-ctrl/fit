@@ -51,17 +51,19 @@ then locks that screen Tailwind-free for good.
 
 Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 
-| Path                                                | Task  | Status |
-| --------------------------------------------------- | ----- | ------ |
-| `apps/web/app/[locale]/astryx-smoke`                | T11.1 | ✅     |
-| `apps/admin/app/astryx-smoke`                       | T11.1 | ✅     |
-| `apps/web/src/components/theme/astryx-provider.tsx` | T11.1 | ✅     |
-| `apps/admin/components/theme/astryx-provider.tsx`   | T11.1 | ✅     |
-| `apps/web/app/[locale]/login`                       | T11.7 | ✅     |
-| `apps/web/app/[locale]/_components/auth`            | T11.7 | ✅     |
-| `apps/web/app/[locale]/register`                    | T11.8 | ✅     |
-| `apps/web/app/[locale]/forgot-password`             | T11.9 | ✅     |
-| `apps/web/app/[locale]/reset-password`              | T11.9 | ✅     |
+| Path                                                      | Task   | Status |
+| --------------------------------------------------------- | ------ | ------ |
+| `apps/web/app/[locale]/astryx-smoke`                      | T11.1  | ✅     |
+| `apps/admin/app/astryx-smoke`                             | T11.1  | ✅     |
+| `apps/web/src/components/theme/astryx-provider.tsx`       | T11.1  | ✅     |
+| `apps/admin/components/theme/astryx-provider.tsx`         | T11.1  | ✅     |
+| `apps/web/app/[locale]/login`                             | T11.7  | ✅     |
+| `apps/web/app/[locale]/_components/auth`                  | T11.7  | ✅     |
+| `apps/web/app/[locale]/register`                          | T11.8  | ✅     |
+| `apps/web/app/[locale]/forgot-password`                   | T11.9  | ✅     |
+| `apps/web/app/[locale]/reset-password`                    | T11.9  | ✅     |
+| `apps/web/app/[locale]/(member)/home/page.tsx`            | T11.11 | ✅     |
+| `apps/web/src/components/member/home/membership-hero.tsx` | T11.11 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
