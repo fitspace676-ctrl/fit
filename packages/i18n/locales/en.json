@@ -566,6 +566,8 @@
       "loading": "Loading your order…",
       "processing": "Processing…",
       "pay": "Pay now",
+      "reserve": "Reserve my membership",
+      "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk — no card is charged online.",
       "error": "We couldn't place your order. Please try again.",
       "terms": "I agree to the terms of service and the membership policy.",
       "summary": {

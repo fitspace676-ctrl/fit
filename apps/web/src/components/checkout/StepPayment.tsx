@@ -10,6 +10,17 @@ import { CHECKOUT_LOCATION_KEY } from './StepLocation';
 import { CHECKOUT_PACKAGE_KEY } from './StepPackage';
 import { readCheckoutCustomer } from './StepDetails';
 
+/**
+ * Online-payment feature flag (T10.8), inlined into the client bundle from
+ * `NEXT_PUBLIC_PAYMENTS_ENABLED`. There is no real payment gateway yet — the
+ * order response is treated as "captured" (the stub, T8.8) — so this is off by
+ * default and the step reserves the membership and points the buyer to the front
+ * desk rather than implying an online card charge. A deploy that has wired a real
+ * gateway sets the var to "true" to restore the "Pay now" flow. Read statically
+ * (not via `@/lib/env`) so the value is inlined by Next at build.
+ */
+const PAYMENTS_ENABLED = process.env.NEXT_PUBLIC_PAYMENTS_ENABLED === 'true';
+
 export interface StepPaymentProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
   gymId: string | null;
@@ -34,6 +45,12 @@ interface LoadState {
  * and, on success, `router.replace`s to the success page keyed by order id — a
  * replace (not push) so the browser Back button from the confirmation can't
  * resubmit the payment. Back returns to step 3 with the package preserved.
+ *
+ * Online payments are gated behind {@link PAYMENTS_ENABLED} (T10.8): until a real
+ * gateway is wired the flag is off, so the CTA reads "Reserve my membership" and a
+ * notice explains payment is completed at the front desk — the order (still a
+ * pending reservation) is created exactly as before, only the copy is honest about
+ * no card being charged online. With the flag on the surface reverts to "Pay now".
  */
 export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) {
   const t = useTranslations('checkout');
@@ -199,6 +216,12 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
         <p className="text-sm text-ink-500 dark:text-ink-400">{t('payment.subtitle')}</p>
       </div>
 
+      {!PAYMENTS_ENABLED ? (
+        <p className="rounded-card border border-ink-200 dark:border-white/10 bg-ink-50 dark:bg-white/5 px-4 py-3 text-sm text-ink-600 dark:text-ink-300">
+          {t('payment.notice')}
+        </p>
+      ) : null}
+
       <dl className="flex flex-col gap-3 rounded-card border border-ink-200 dark:border-white/10 p-5">
         <div className="flex items-start justify-between gap-3">
           <dt className="text-sm text-ink-500 dark:text-ink-400">{t('payment.summary.package')}</dt>
@@ -256,7 +279,11 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
           disabled={!termsAccepted || submitting}
           className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
         >
-          {submitting ? t('payment.processing') : t('payment.pay')}
+          {submitting
+            ? t('payment.processing')
+            : PAYMENTS_ENABLED
+              ? t('payment.pay')
+              : t('payment.reserve')}
         </button>
       </div>
     </div>

@@ -19,6 +19,20 @@ export const env = validateEnv(
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
     NEXT_PUBLIC_APPLE_CLIENT_ID: z.string().optional(),
     NEXT_PUBLIC_APPLE_REDIRECT_URI: z.string().url().optional(),
+    // ── Feature flag: online payments (T10.8) ──
+    // Gates the not-yet-ready online-payment surface in the purchase wizard.
+    // There is no real payment gateway yet — reaching the checkout response is
+    // treated as "captured" (the stub, T8.8) — so with this off (the default)
+    // the final step is honest: it reserves the membership and tells the buyer
+    // to complete payment at the gym's front desk rather than implying a card
+    // was charged online. A production deploy that has wired a real gateway sets
+    // it "true" to restore the "Pay now" flow. Anything other than "true" (incl.
+    // unset) leaves online payments disabled. `NEXT_PUBLIC_*` so the client
+    // bundle can branch on it. Mirrors the API's `SUBSCRIPTION_BILLING_ENABLED`.
+    NEXT_PUBLIC_PAYMENTS_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     NEXT_PUBLIC_COOKIE_DOMAIN: z.string().optional(),
     NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: z.string().optional(),
