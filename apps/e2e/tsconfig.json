@@ -1,0 +1,10 @@
+{
+  "extends": "@fit/config/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["node"],
+    "moduleResolution": "Bundler"
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "test-results", "playwright-report", ".turbo"]
+}
