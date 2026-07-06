@@ -12,8 +12,10 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type { ActivityEvent, ActivityEventType } from '@fit/types';
-import { Btn, Card, Icon, type IconName, type Tone } from '@/components/ui';
+import { Btn, Icon, type IconName, type Tone } from '@/components/ui';
 import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 
 /** Translator for the `admin.activity` namespace (from `useTranslations`). */
@@ -28,28 +30,165 @@ const TYPE_META: Record<ActivityEventType, { icon: IconName; tone: Tone }> = {
   subscription: { icon: 'ticket', tone: 'warning' },
 };
 
-/**
- * Static (JIT-safe) circle classes per tone — background, text and ring in both
- * themes. Kept as whole class strings, never interpolated, so Tailwind can see
- * every variant at build time.
- */
-const TONE_CIRCLE: Record<Tone, string> = {
-  iris: 'bg-iris-50 text-iris-600 ring-iris-500/25 dark:bg-iris-500/15 dark:text-iris-300 dark:ring-iris-400/30',
-  brand:
-    'bg-brand-50 text-brand-600 ring-brand-500/25 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/30',
-  accent:
-    'bg-accent-50 text-accent-600 ring-accent-500/25 dark:bg-accent-500/15 dark:text-accent-300 dark:ring-accent-400/30',
-  success:
-    'bg-success-50 text-success-600 ring-success-500/25 dark:bg-success-500/15 dark:text-success-300 dark:ring-success-400/30',
-  warning:
-    'bg-warning-50 text-warning-700 ring-warning-500/25 dark:bg-warning-500/15 dark:text-warning-300 dark:ring-warning-400/30',
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  emptyCard: {
+    paddingInline: '1rem',
+    paddingBlock: '2rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  feedCard: {
+    padding: {
+      default: '1.25rem',
+      '@media (min-width: 640px)': '1.5rem',
+    },
+  },
+  timeline: {
+    position: 'relative',
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+  },
+  timelineLine: {
+    position: 'absolute',
+    bottom: '0.5rem',
+    top: '0.5rem',
+    left: '19px',
+    width: '1px',
+    backgroundColor: 'var(--color-border)',
+  },
+  row: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '1rem',
+    paddingBlock: '0.625rem',
+  },
+  circle: {
+    position: 'relative',
+    zIndex: 10,
+    display: 'grid',
+    height: '2.5rem',
+    width: '2.5rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+  },
+  circleAccent: {
+    backgroundColor: 'var(--color-accent-muted)',
+    borderColor: 'var(--color-accent)',
+    color: 'var(--color-icon-accent)',
+  },
+  circleSuccess: {
+    backgroundColor: 'var(--color-success-muted)',
+    borderColor: 'var(--color-success)',
+    color: 'var(--color-success)',
+  },
+  circleWarning: {
+    backgroundColor: 'var(--color-warning-muted)',
+    borderColor: 'var(--color-warning)',
+    color: 'var(--color-warning)',
+  },
+  circleInk: {
+    backgroundColor: 'var(--color-background-muted)',
+    borderColor: 'var(--color-border)',
+    color: 'var(--color-text-secondary)',
+  },
+  circleError: {
+    backgroundColor: 'var(--color-error-muted)',
+    borderColor: 'var(--color-error)',
+    color: 'var(--color-error)',
+  },
+  circleIcon: {
+    width: '18px',
+    height: '18px',
+  },
+  rowBody: {
+    display: 'flex',
+    minWidth: 0,
+    flexGrow: 1,
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingTop: '0.25rem',
+  },
+  avatar: {
+    display: 'grid',
+    height: '1.75rem',
+    width: '1.75rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-secondary)',
+  },
+  rowText: {
+    minWidth: 0,
+  },
+  headline: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  actorName: {
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  detail: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  timeAgo: {
+    marginLeft: 'auto',
+    flexShrink: 0,
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerCount: {
+    fontVariantNumeric: 'tabular-nums',
+  },
+  pagerBtns: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+});
+
+/** Per-tone circle style — background, text and border for the timeline node. */
+const TONE_CIRCLE: Record<Tone, stylex.StyleXStyles> = {
+  iris: styles.circleAccent,
+  brand: styles.circleAccent,
+  accent: styles.circleAccent,
+  success: styles.circleSuccess,
+  warning: styles.circleWarning,
   // Unused by the feed today, but the map is total over Tone so it stays safe if
   // a future kind picks one of these.
-  ink: 'bg-ink-100 text-ink-600 ring-ink-300/40 dark:bg-white/10 dark:text-ink-300 dark:ring-white/15',
-  danger:
-    'bg-danger-50 text-danger-600 ring-danger-500/25 dark:bg-danger-500/15 dark:text-danger-300 dark:ring-danger-400/30',
-  flame:
-    'bg-flame-50 text-flame-600 ring-flame-500/25 dark:bg-flame-500/15 dark:text-flame-300 dark:ring-flame-400/30',
+  ink: styles.circleInk,
+  danger: styles.circleError,
+  flame: styles.circleWarning,
 };
 
 /** Two-letter initials for the actor avatar, or `·` when there is no name. */
@@ -94,28 +233,20 @@ function FeedRow({ event, t, locale }: { event: ActivityEvent; t: T; locale: str
   const detail = money ? `${event.detail} · ${money}` : event.detail;
 
   return (
-    <li className="relative flex items-start gap-4 py-2.5">
-      <span
-        className={`relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-full ring-1 ring-inset ${TONE_CIRCLE[meta.tone]}`}
-      >
-        <Icon name={meta.icon} className="h-[18px] w-[18px]" />
+    <li {...stylex.props(styles.row)}>
+      <span {...stylex.props(styles.circle, TONE_CIRCLE[meta.tone])}>
+        <Icon name={meta.icon} {...stylex.props(styles.circleIcon)} />
       </span>
-      <div className="flex min-w-0 flex-1 items-center gap-3 pt-1">
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink-100 text-[11px] font-bold text-ink-600 dark:bg-white/10 dark:text-ink-300">
-          {initials(event.memberName)}
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm text-ink-700 dark:text-ink-200">
-            <span className="font-semibold text-ink-900 dark:text-white">
-              {event.memberName ?? t('guest')}
-            </span>{' '}
+      <div {...stylex.props(styles.rowBody)}>
+        <span {...stylex.props(styles.avatar)}>{initials(event.memberName)}</span>
+        <div {...stylex.props(styles.rowText)}>
+          <p {...stylex.props(styles.headline)}>
+            <span {...stylex.props(styles.actorName)}>{event.memberName ?? t('guest')}</span>{' '}
             {event.title}
           </p>
-          <p className="truncate text-xs text-ink-500 dark:text-ink-400">{detail}</p>
+          <p {...stylex.props(styles.detail)}>{detail}</p>
         </div>
-        <span className="ml-auto shrink-0 text-xs tabular-nums text-ink-400 dark:text-ink-500">
-          {timeAgo(t, event.at)}
-        </span>
+        <span {...stylex.props(styles.timeAgo)}>{timeAgo(t, event.at)}</span>
       </div>
     </li>
   );
@@ -159,7 +290,7 @@ export function ActivityFeed({
 
   if (events.length === 0) {
     return (
-      <Card className="px-4 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
+      <Card variant="default" padding={0} xstyle={styles.emptyCard}>
         {t('empty')}
       </Card>
     );
@@ -171,10 +302,10 @@ export function ActivityFeed({
   const hasNext = page * limit < total;
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="p-5 sm:p-6">
-        <ol className="relative">
-          <span className="absolute bottom-2 left-[19px] top-2 w-px bg-ink-200 dark:bg-white/10" />
+    <div {...stylex.props(styles.stack)}>
+      <Card variant="default" padding={0} xstyle={styles.feedCard}>
+        <ol {...stylex.props(styles.timeline)}>
+          <span {...stylex.props(styles.timelineLine)} />
           {events.map((event) => (
             <FeedRow key={event.id} event={event} t={t} locale={locale} />
           ))}
@@ -182,9 +313,9 @@ export function ActivityFeed({
       </Card>
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="tabular-nums">{t('pager.range', { from, to, total })}</span>
-        <div className="flex gap-2">
+      <div {...stylex.props(styles.pagerRow)}>
+        <span {...stylex.props(styles.pagerCount)}>{t('pager.range', { from, to, total })}</span>
+        <div {...stylex.props(styles.pagerBtns)}>
           <Btn
             v="outline"
             size="sm"

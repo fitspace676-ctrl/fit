@@ -2,12 +2,150 @@
 
 import { type FormEvent, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import type { StaffRole } from '@fit/types';
 import { Btn, Dot, Icon, Modal } from '@/components/ui';
 import { INVITE_ROLES, ROLE_DOT } from './role-meta';
 import { inviteStaffAction } from './actions';
 
 const FORM_ID = 'staff-invite-form';
+
+const styles = stylex.create({
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  fieldLabel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    fontSize: '0.875rem',
+  },
+  labelText: {
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'var(--color-text-secondary)',
+  },
+  input: {
+    height: '2.75rem',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+  },
+  fieldset: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    margin: 0,
+    padding: 0,
+    borderWidth: 0,
+  },
+  legend: {
+    marginBottom: '0.375rem',
+    padding: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'var(--color-text-secondary)',
+  },
+  roleGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '0.5rem',
+  },
+  roleBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.625rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transitionProperty: 'color, background-color, border-color',
+    transitionDuration: '150ms',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+  },
+  roleBtnActive: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  roleBtnIdle: {
+    borderColor: 'var(--color-border)',
+    color: 'var(--color-text-secondary)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  callout: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.625rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.75rem',
+  },
+  calloutIcon: {
+    marginTop: '0.125rem',
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-icon-accent)',
+  },
+  calloutText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  calloutStrong: {
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  note: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-accent)',
+  },
+  error: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * The "invite staff" modal (T2.10), on the shared formacore overlay kit. Submits
@@ -68,11 +206,9 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
         </>
       }
     >
-      <form id={FORM_ID} onSubmit={onSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-400">
-            {t('inviteModal.emailLabel')}
-          </span>
+      <form id={FORM_ID} onSubmit={onSubmit} {...stylex.props(styles.form)}>
+        <label {...stylex.props(styles.fieldLabel)}>
+          <span {...stylex.props(styles.labelText)}>{t('inviteModal.emailLabel')}</span>
           <input
             type="email"
             name="email"
@@ -82,15 +218,13 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             disabled={pending}
-            className="h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+            {...stylex.props(styles.input)}
           />
         </label>
 
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-400">
-            {t('inviteModal.roleLabel')}
-          </legend>
-          <div className="grid grid-cols-2 gap-2">
+        <fieldset {...stylex.props(styles.fieldset)}>
+          <legend {...stylex.props(styles.legend)}>{t('inviteModal.roleLabel')}</legend>
+          <div {...stylex.props(styles.roleGrid)}>
             {INVITE_ROLES.map((option) => {
               const active = option === role;
               return (
@@ -100,11 +234,10 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                   aria-pressed={active}
                   disabled={pending}
                   onClick={() => setRole(option)}
-                  className={`inline-flex items-center gap-2 rounded-field border px-3 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 ${
-                    active
-                      ? 'border-brand-500 bg-brand-50 text-brand-700 ring-1 ring-brand-500/40 dark:border-brand-400/50 dark:bg-brand-500/10 dark:text-brand-200'
-                      : 'border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/[0.04]'
-                  }`}
+                  {...stylex.props(
+                    styles.roleBtn,
+                    active ? styles.roleBtnActive : styles.roleBtnIdle,
+                  )}
                 >
                   <Dot c={ROLE_DOT[option]} />
                   {t(`roles.${option}`)}
@@ -114,33 +247,21 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
           </div>
         </fieldset>
 
-        <div className="flex items-start gap-2.5 rounded-field bg-iris-50 px-3.5 py-3 ring-1 ring-inset ring-iris-500/20 dark:bg-iris-500/10 dark:ring-iris-400/20">
-          <Icon
-            name="shield"
-            className="mt-0.5 h-4 w-4 shrink-0 text-iris-600 dark:text-iris-300"
-            sw={2}
-          />
-          <p className="text-sm text-ink-600 dark:text-ink-300">
-            <span className="font-semibold text-ink-800 dark:text-ink-100">
-              {t(`roles.${role}`)}
-            </span>{' '}
-            · {t(`roleCaps.${role}`)}
+        <div {...stylex.props(styles.callout)}>
+          <Icon name="shield" {...stylex.props(styles.calloutIcon)} sw={2} />
+          <p {...stylex.props(styles.calloutText)}>
+            <span {...stylex.props(styles.calloutStrong)}>{t(`roles.${role}`)}</span> ·{' '}
+            {t(`roleCaps.${role}`)}
           </p>
         </div>
 
         {note ? (
-          <p
-            role="status"
-            className="rounded-field bg-brand-50 px-3 py-2 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-200"
-          >
+          <p role="status" {...stylex.props(styles.note)}>
             {note}
           </p>
         ) : null}
         {error ? (
-          <p
-            role="alert"
-            className="rounded-field bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:bg-danger-500/10 dark:text-danger-200"
-          >
+          <p role="alert" {...stylex.props(styles.error)}>
             {error}
           </p>
         ) : null}

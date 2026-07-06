@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type { PendingInvite } from '@fit/types';
 import {
   Badge,
   Btn,
-  Card,
   ConfirmDialog,
   DataTable,
   Dot,
@@ -16,6 +17,90 @@ import {
 } from '@/components/ui';
 import { ROLE_TONES } from './role-meta';
 import { inviteStaffAction, revokeInviteAction } from './actions';
+
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  noteCard: {
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  noteText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-accent)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  email: {
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  mono: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  expiresRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  badgeGap: {
+    gap: '0.375rem',
+  },
+  expiresMuted: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  actions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '0.5rem',
+  },
+  dangerBtn: {
+    color: 'var(--color-error)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-error-muted)',
+    },
+  },
+});
 
 /** Render an ISO instant as a short local date, or an em dash when absent/invalid. */
 function formatDate(iso: string, locale: string): string {
@@ -81,8 +166,7 @@ export function InvitesTable({
     {
       key: 'email',
       header: t('invites.columns.email'),
-      className: 'font-medium text-ink-900 dark:text-white',
-      cell: (invite) => invite.email,
+      cell: (invite) => <span {...stylex.props(styles.email)}>{invite.email}</span>,
     },
     {
       key: 'role',
@@ -92,40 +176,37 @@ export function InvitesTable({
     {
       key: 'sent',
       header: t('invites.columns.sent'),
-      className: 'font-mono tabular-nums text-ink-600 dark:text-ink-300',
-      cell: (invite) => formatDate(invite.createdAt, locale),
+      cell: (invite) => (
+        <span {...stylex.props(styles.mono)}>{formatDate(invite.createdAt, locale)}</span>
+      ),
     },
     {
       key: 'expires',
       header: t('invites.columns.expires'),
       cell: (invite) =>
         invite.expired ? (
-          <div className="flex items-center gap-2">
-            <Badge tone="warning" className="gap-1.5">
+          <div {...stylex.props(styles.expiresRow)}>
+            <Badge tone="warning" className={stylex.props(styles.badgeGap).className}>
               <Dot c="bg-warning-400" />
               {t('invites.expired')}
             </Badge>
-            <span className="font-mono text-xs tabular-nums text-ink-400">
+            <span {...stylex.props(styles.expiresMuted)}>
               {formatDate(invite.expiresAt, locale)}
             </span>
           </div>
         ) : (
-          <span className="font-mono tabular-nums text-ink-600 dark:text-ink-300">
-            {formatDate(invite.expiresAt, locale)}
-          </span>
+          <span {...stylex.props(styles.mono)}>{formatDate(invite.expiresAt, locale)}</span>
         ),
     },
     {
       key: 'actions',
-      header: <span className="sr-only">{t('invites.columns.actions')}</span>,
+      header: <span {...stylex.props(styles.srOnly)}>{t('invites.columns.actions')}</span>,
       align: 'right',
-      headerClassName: 'pr-5',
-      className: 'pr-5',
       cell: (invite) => {
         if (!canManage) return null;
         const rowBusy = busyId === invite.id && pending;
         return (
-          <div className="flex justify-end gap-2">
+          <div {...stylex.props(styles.actions)}>
             <Btn v="outline" size="sm" disabled={rowBusy} onClick={() => resend(invite)}>
               {t('invites.resend')}
             </Btn>
@@ -134,7 +215,7 @@ export function InvitesTable({
               size="sm"
               disabled={rowBusy}
               onClick={() => setConfirmRevoke(invite)}
-              className="text-danger-700 hover:bg-danger-50 dark:text-danger-300 dark:hover:bg-danger-500/10"
+              className={stylex.props(styles.dangerBtn).className}
             >
               {t('invites.revoke')}
             </Btn>
@@ -145,21 +226,18 @@ export function InvitesTable({
   ];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div {...stylex.props(styles.stack)}>
       {note ? (
-        <Card className="bg-brand-50 px-3 py-2 dark:bg-brand-500/10">
-          <p role="status" className="text-sm text-brand-700 dark:text-brand-200">
+        <Card variant="default" padding={0} xstyle={styles.noteCard}>
+          <p role="status" {...stylex.props(styles.noteText)}>
             {note}
           </p>
         </Card>
       ) : null}
       {error ? (
-        <Card className="flex items-start gap-2 border-danger-200 bg-danger-50 px-3 py-2 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-4 w-4 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
           </p>
         </Card>

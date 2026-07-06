@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import {
   WEEKDAYS,
   WEEKDAY_LABELS,
@@ -11,7 +12,7 @@ import {
   type LocationStatus,
   type Weekday,
 } from '@fit/types';
-import { Btn, buttonClasses } from '@/components/ui';
+import { Btn } from '@/components/ui';
 import {
   createLocationAction,
   requestLocationPhotoUploadAction,
@@ -23,14 +24,6 @@ const CREATE_STATUSES: ReadonlyArray<{ value: LocationStatus; label: string }> =
   { value: 'ACTIVE', label: 'Active' },
   { value: 'INACTIVE', label: 'Inactive' },
 ];
-
-/** Shared field styling so create + edit render identically. */
-const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
-
-/** Compact time input styling for the opening-hours editor. */
-const TIME_CLASS =
-  'h-9 rounded-field border border-ink-200 bg-white px-2.5 text-sm text-ink-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
 
 /** Accepted image MIME types for the photo, matching the storage service map. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -47,6 +40,243 @@ function defaultHours(): LocationHours {
     return acc;
   }, {} as LocationHours);
 }
+
+const styles = stylex.create({
+  form: {
+    display: 'flex',
+    maxWidth: '42rem',
+    flexDirection: 'column',
+    gap: '1rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '1.25rem',
+  },
+  photoGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  fieldGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  label: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  optional: {
+    fontWeight: 400,
+    color: 'var(--color-text-secondary)',
+  },
+  photoRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  photoImg: {
+    height: '4rem',
+    width: '6rem',
+    borderRadius: 'var(--radius-container)',
+    objectFit: 'cover',
+  },
+  photoFallback: {
+    display: 'flex',
+    height: '4rem',
+    width: '6rem',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+  photoControls: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  fileInput: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+    '::file-selector-button': {
+      marginRight: '0.75rem',
+      borderStyle: 'none',
+      borderWidth: 0,
+      borderRadius: 'var(--radius-element)',
+      backgroundColor: 'var(--color-accent-muted)',
+      paddingInline: '0.75rem',
+      paddingBlock: '0.375rem',
+      fontSize: '0.875rem',
+      fontWeight: 500,
+      color: 'var(--color-text-accent)',
+      cursor: 'pointer',
+    },
+  },
+  photoMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  removeBtn: {
+    borderStyle: 'none',
+    backgroundColor: 'transparent',
+    padding: 0,
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-error)',
+    },
+  },
+  uploadBanner: {
+    margin: 0,
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-warning-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-warning)',
+  },
+  input: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':disabled': 'var(--color-background-muted)',
+    },
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':disabled': 'var(--color-text-secondary)',
+    },
+    outline: 'none',
+  },
+  fieldset: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    margin: 0,
+    borderWidth: 0,
+    borderStyle: 'none',
+    padding: 0,
+    minInlineSize: 0,
+  },
+  legend: {
+    padding: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  daysWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  dayRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  dayName: {
+    width: '6rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  closedLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  checkbox: {
+    borderRadius: 'var(--radius-inner)',
+    borderColor: 'var(--color-border)',
+    accentColor: 'var(--color-accent)',
+  },
+  timeWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  timeInput: {
+    height: '2.25rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.625rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  dash: {
+    color: 'var(--color-text-secondary)',
+  },
+  closedAll: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorBanner: {
+    margin: 0,
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  cancelLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '2.75rem',
+    paddingInline: '1.25rem',
+    borderRadius: 'var(--radius-element)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+});
 
 type Initial = {
   name: string;
@@ -194,42 +424,33 @@ export function LocationForm(props: Props) {
   const cancelHref = isEdit ? `/locations/${props.locationId}` : '/locations';
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex max-w-2xl flex-col gap-4 rounded-card border border-ink-200 bg-white p-5 shadow-[0_14px_40px_-18px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-white/[0.035] dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl"
-    >
+    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
       {/* Photo. */}
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">Photo</span>
-        <div className="flex items-center gap-4">
+      <div {...stylex.props(styles.photoGroup)}>
+        <span {...stylex.props(styles.label)}>Photo</span>
+        <div {...stylex.props(styles.photoRow)}>
           {photoUrl ? (
             <img
               src={photoUrl}
               alt={`${name || 'Location'} photo`}
-              className="h-16 w-24 rounded-card object-cover"
+              {...stylex.props(styles.photoImg)}
             />
           ) : (
-            <span className="flex h-16 w-24 items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-              No photo
-            </span>
+            <span {...stylex.props(styles.photoFallback)}>No photo</span>
           )}
-          <div className="flex flex-col gap-1">
+          <div {...stylex.props(styles.photoControls)}>
             <input
               ref={fileInputRef}
               type="file"
               accept={ACCEPTED_IMAGE_TYPES.join(',')}
               onChange={(event) => void onPhotoChange(event)}
               disabled={uploading || pending}
-              className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/10 dark:file:text-brand-300 dark:hover:file:bg-brand-500/20"
+              {...stylex.props(styles.fileInput)}
             />
-            <div className="flex items-center gap-3 text-xs text-ink-400">
+            <div {...stylex.props(styles.photoMeta)}>
               <span>{uploading ? 'Uploading…' : 'JPEG, PNG, WebP or GIF, up to 5 MB.'}</span>
               {photoUrl && !uploading ? (
-                <button
-                  type="button"
-                  onClick={removePhoto}
-                  className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400"
-                >
+                <button type="button" onClick={removePhoto} {...stylex.props(styles.removeBtn)}>
                   Remove
                 </button>
               ) : null}
@@ -237,20 +458,14 @@ export function LocationForm(props: Props) {
           </div>
         </div>
         {uploadError ? (
-          <p
-            role="alert"
-            className="rounded-card bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-300"
-          >
+          <p role="alert" {...stylex.props(styles.uploadBanner)}>
             {uploadError}
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="location-name"
-          className="text-sm font-medium text-ink-700 dark:text-ink-200"
-        >
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="location-name" {...stylex.props(styles.label)}>
           Name
         </label>
         <input
@@ -261,16 +476,13 @@ export function LocationForm(props: Props) {
           value={name}
           onChange={(event) => setName(event.target.value)}
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="location-address"
-          className="text-sm font-medium text-ink-700 dark:text-ink-200"
-        >
-          Address <span className="font-normal text-ink-400">(optional)</span>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="location-address" {...stylex.props(styles.label)}>
+          Address <span {...stylex.props(styles.optional)}>(optional)</span>
         </label>
         <input
           id="location-address"
@@ -280,16 +492,13 @@ export function LocationForm(props: Props) {
           onChange={(event) => setAddress(event.target.value)}
           placeholder="e.g. 12 Rustaveli Ave, Tbilisi"
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="location-phone"
-          className="text-sm font-medium text-ink-700 dark:text-ink-200"
-        >
-          Phone <span className="font-normal text-ink-400">(optional)</span>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="location-phone" {...stylex.props(styles.label)}>
+          Phone <span {...stylex.props(styles.optional)}>(optional)</span>
         </label>
         <input
           id="location-phone"
@@ -299,16 +508,13 @@ export function LocationForm(props: Props) {
           onChange={(event) => setPhone(event.target.value)}
           placeholder="+995 32 200 0000"
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="location-amenities"
-          className="text-sm font-medium text-ink-700 dark:text-ink-200"
-        >
-          Amenities <span className="font-normal text-ink-400">(comma separated)</span>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="location-amenities" {...stylex.props(styles.label)}>
+          Amenities <span {...stylex.props(styles.optional)}>(comma separated)</span>
         </label>
         <input
           id="location-amenities"
@@ -318,52 +524,48 @@ export function LocationForm(props: Props) {
           onChange={(event) => setAmenities(event.target.value)}
           placeholder="Sauna, Pool, Parking, Lockers"
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
       {/* Weekly opening hours. */}
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-ink-700 dark:text-ink-200">
-          Opening hours
-        </legend>
-        <div className="flex flex-col gap-1.5">
+      <fieldset {...stylex.props(styles.fieldset)}>
+        <legend {...stylex.props(styles.legend)}>Opening hours</legend>
+        <div {...stylex.props(styles.daysWrap)}>
           {WEEKDAYS.map((day) => {
             const value = hours[day];
             return (
-              <div key={day} className="flex flex-wrap items-center gap-3">
-                <span className="w-24 text-sm text-ink-600 dark:text-ink-300">
-                  {WEEKDAY_LABELS[day]}
-                </span>
-                <label className="flex items-center gap-1.5 text-xs text-ink-500 dark:text-ink-400">
+              <div key={day} {...stylex.props(styles.dayRow)}>
+                <span {...stylex.props(styles.dayName)}>{WEEKDAY_LABELS[day]}</span>
+                <label {...stylex.props(styles.closedLabel)}>
                   <input
                     type="checkbox"
                     checked={value.closed}
                     onChange={(event) => setDay(day, { closed: event.target.checked })}
-                    className="rounded border-ink-300 text-brand-600 focus:ring-brand-500 dark:border-white/20 dark:bg-white/[0.04]"
+                    {...stylex.props(styles.checkbox)}
                   />
                   Closed
                 </label>
                 {!value.closed ? (
-                  <div className="flex items-center gap-2">
+                  <div {...stylex.props(styles.timeWrap)}>
                     <input
                       type="time"
                       aria-label={`${WEEKDAY_LABELS[day]} opening time`}
                       value={value.open}
                       onChange={(event) => setDay(day, { open: event.target.value })}
-                      className={TIME_CLASS}
+                      {...stylex.props(styles.timeInput)}
                     />
-                    <span className="text-ink-400">–</span>
+                    <span {...stylex.props(styles.dash)}>–</span>
                     <input
                       type="time"
                       aria-label={`${WEEKDAY_LABELS[day]} closing time`}
                       value={value.close}
                       onChange={(event) => setDay(day, { close: event.target.value })}
-                      className={TIME_CLASS}
+                      {...stylex.props(styles.timeInput)}
                     />
                   </div>
                 ) : (
-                  <span className="text-sm text-ink-400">Closed all day</span>
+                  <span {...stylex.props(styles.closedAll)}>Closed all day</span>
                 )}
               </div>
             );
@@ -372,11 +574,8 @@ export function LocationForm(props: Props) {
       </fieldset>
 
       {!isEdit ? (
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="location-status"
-            className="text-sm font-medium text-ink-700 dark:text-ink-200"
-          >
+        <div {...stylex.props(styles.fieldGroup)}>
+          <label htmlFor="location-status" {...stylex.props(styles.label)}>
             Status
           </label>
           <select
@@ -384,7 +583,7 @@ export function LocationForm(props: Props) {
             name="status"
             value={status}
             onChange={(event) => setStatus(event.target.value as LocationStatus)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.input)}
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
@@ -396,19 +595,16 @@ export function LocationForm(props: Props) {
       ) : null}
 
       {error ? (
-        <p
-          role="alert"
-          className="rounded-card bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:bg-danger-500/10 dark:text-danger-300"
-        >
+        <p role="alert" {...stylex.props(styles.errorBanner)}>
           {error}
         </p>
       ) : null}
 
-      <div className="flex items-center gap-3">
+      <div {...stylex.props(styles.actions)}>
         <Btn type="submit" v="primary" disabled={pending || uploading}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create location'}
         </Btn>
-        <Link href={cancelHref} className={buttonClasses('ghost', 'md')}>
+        <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
           Cancel
         </Link>
       </div>

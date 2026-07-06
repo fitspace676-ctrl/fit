@@ -1,12 +1,166 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, WEEKDAYS, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchLocation } from '@/lib/api';
-import { Badge, Card, Icon, type Tone } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge, Icon, type Tone } from '@/components/ui';
 import { formatDayHours, weekdayLabel } from '../format-hours';
 import { LocationActions } from './location-actions';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  errorPage: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  backLink: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-accent)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  metaLine: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  photo: {
+    maxHeight: '16rem',
+    width: '100%',
+    maxWidth: '36rem',
+    borderRadius: 'var(--radius-container)',
+    objectFit: 'cover',
+  },
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  sectionHeading: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  amenityWrap: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  amenityTag: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  emptyText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  hoursList: {
+    margin: 0,
+    maxWidth: '24rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+  },
+  hoursRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    borderTopWidth: {
+      default: '1px',
+      ':first-child': 0,
+    },
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+  },
+  hoursDay: {
+    color: 'var(--color-text-secondary)',
+  },
+  hoursClosed: {
+    color: 'var(--color-text-secondary)',
+  },
+  hoursOpen: {
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 500,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  footnote: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 export const metadata: Metadata = {
   title: 'Location — Fit Admin',
@@ -53,19 +207,13 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         ? `Could not load this location (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/locations"
-          className="text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-        >
+      <div {...stylex.props(styles.errorPage)}>
+        <Link href="/locations" {...stylex.props(styles.backLink)}>
           ← Back to locations
         </Link>
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
           </p>
         </Card>
@@ -83,28 +231,19 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
   const canWrite = session !== null && roleHasPermission(session.role, Permission.LocationWrite);
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/locations"
-        className="text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-      >
+    <div {...stylex.props(styles.page)}>
+      <Link href="/locations" {...stylex.props(styles.backLink)}>
         ← Back to locations
       </Link>
 
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-              {location.name}
-            </h1>
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headText)}>
+          <div {...stylex.props(styles.titleRow)}>
+            <h1 {...stylex.props(styles.title)}>{location.name}</h1>
             <Badge tone={status.tone}>{status.label}</Badge>
           </div>
-          {location.address ? (
-            <p className="text-sm text-ink-500 dark:text-ink-400">{location.address}</p>
-          ) : null}
-          {location.phone ? (
-            <p className="text-sm text-ink-500 dark:text-ink-400">{location.phone}</p>
-          ) : null}
+          {location.address ? <p {...stylex.props(styles.metaLine)}>{location.address}</p> : null}
+          {location.phone ? <p {...stylex.props(styles.metaLine)}>{location.phone}</p> : null}
         </div>
         {canWrite ? <LocationActions locationId={location.id} status={location.status} /> : null}
       </header>
@@ -113,44 +252,35 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         <img
           src={location.photoUrl}
           alt={`${location.name} photo`}
-          className="max-h-64 w-full max-w-xl rounded-card object-cover"
+          {...stylex.props(styles.photo)}
         />
       ) : null}
 
-      <section className="flex flex-col gap-2">
-        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          Amenities
-        </h2>
+      <section {...stylex.props(styles.section)}>
+        <h2 {...stylex.props(styles.sectionHeading)}>Amenities</h2>
         {location.amenities.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div {...stylex.props(styles.amenityWrap)}>
             {location.amenities.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-pill bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-600 dark:bg-white/10 dark:text-ink-300"
-              >
+              <span key={tag} {...stylex.props(styles.amenityTag)}>
                 {tag}
               </span>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-ink-400">No amenities listed.</p>
+          <p {...stylex.props(styles.emptyText)}>No amenities listed.</p>
         )}
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          Opening hours
-        </h2>
-        <dl className="max-w-sm divide-y divide-ink-100 overflow-hidden rounded-card border border-ink-200 bg-white shadow-[0_14px_40px_-18px_rgba(0,0,0,0.18)] dark:divide-white/10 dark:border-white/10 dark:bg-white/[0.035] dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl">
+      <section {...stylex.props(styles.section)}>
+        <h2 {...stylex.props(styles.sectionHeading)}>Opening hours</h2>
+        <dl {...stylex.props(styles.hoursList)}>
           {WEEKDAYS.map((day) => (
-            <div key={day} className="flex items-center justify-between px-3.5 py-2 text-sm">
-              <dt className="text-ink-600 dark:text-ink-300">{weekdayLabel(day)}</dt>
+            <div key={day} {...stylex.props(styles.hoursRow)}>
+              <dt {...stylex.props(styles.hoursDay)}>{weekdayLabel(day)}</dt>
               <dd
-                className={
-                  location.hours[day].closed
-                    ? 'text-ink-400'
-                    : 'font-mono font-medium tabular-nums text-ink-800 dark:text-ink-100'
-                }
+                {...stylex.props(
+                  location.hours[day].closed ? styles.hoursClosed : styles.hoursOpen,
+                )}
               >
                 {formatDayHours(location.hours[day])}
               </dd>
@@ -159,7 +289,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         </dl>
       </section>
 
-      <p className="text-xs text-ink-400">Added {formatDate(location.createdAt)}.</p>
+      <p {...stylex.props(styles.footnote)}>Added {formatDate(location.createdAt)}.</p>
     </div>
   );
 }

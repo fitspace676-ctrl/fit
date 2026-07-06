@@ -13,16 +13,68 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import { Btn } from '@/components/ui';
 import { ACTION_OPTIONS } from './audit-actions';
 
-/** Shared field styling, matching the activity feed's date fields. */
-const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
-
-/** Filter label styling. */
-const FILTER_LABEL_CLASS =
-  'mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+const styles = stylex.create({
+  row: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    gap: '0.75rem',
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'flex-end',
+    },
+  },
+  actionField: {
+    width: {
+      default: '100%',
+      '@media (min-width: 640px)': '16rem',
+    },
+  },
+  dateField: {
+    width: {
+      default: '100%',
+      '@media (min-width: 640px)': '11rem',
+    },
+  },
+  label: {
+    marginBottom: '0.25rem',
+    display: 'block',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  input: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  clearBtn: {
+    alignSelf: {
+      default: 'flex-start',
+      '@media (min-width: 640px)': 'auto',
+    },
+  },
+});
 
 export function AuditFilters({ action, from, to }: { action: string; from: string; to: string }) {
   const router = useRouter();
@@ -50,16 +102,16 @@ export function AuditFilters({ action, from, to }: { action: string; from: strin
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <div className="sm:w-64">
-        <label htmlFor="audit-action" className={FILTER_LABEL_CLASS}>
+    <div {...stylex.props(styles.row)}>
+      <div {...stylex.props(styles.actionField)}>
+        <label htmlFor="audit-action" {...stylex.props(styles.label)}>
           {t('filters.action')}
         </label>
         <select
           id="audit-action"
           value={action}
           onChange={(event) => commit('action', event.target.value)}
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         >
           <option value="">{t('filters.all')}</option>
           {ACTION_OPTIONS.map((option) => (
@@ -70,8 +122,8 @@ export function AuditFilters({ action, from, to }: { action: string; from: strin
         </select>
       </div>
 
-      <div className="sm:w-44">
-        <label htmlFor="audit-from" className={FILTER_LABEL_CLASS}>
+      <div {...stylex.props(styles.dateField)}>
+        <label htmlFor="audit-from" {...stylex.props(styles.label)}>
           {t('filters.from')}
         </label>
         <input
@@ -80,12 +132,12 @@ export function AuditFilters({ action, from, to }: { action: string; from: strin
           value={from}
           max={to || undefined}
           onChange={(event) => commit('from', event.target.value)}
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="sm:w-44">
-        <label htmlFor="audit-to" className={FILTER_LABEL_CLASS}>
+      <div {...stylex.props(styles.dateField)}>
+        <label htmlFor="audit-to" {...stylex.props(styles.label)}>
           {t('filters.to')}
         </label>
         <input
@@ -94,12 +146,12 @@ export function AuditFilters({ action, from, to }: { action: string; from: strin
           value={to}
           min={from || undefined}
           onChange={(event) => commit('to', event.target.value)}
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
       {action || from || to ? (
-        <Btn v="outline" size="md" onClick={clear} className="self-start sm:self-auto">
+        <Btn v="outline" size="md" onClick={clear} {...stylex.props(styles.clearBtn)}>
           {t('filters.clear')}
         </Btn>
       ) : null}

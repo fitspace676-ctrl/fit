@@ -3,6 +3,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import { z } from 'zod';
 import {
   GYM_LOGO_MAX_WIDTH,
@@ -20,7 +22,6 @@ import {
 } from '@fit/types';
 import {
   Btn,
-  Card,
   Controller,
   Form,
   Icon,
@@ -59,9 +60,473 @@ const FALLBACK_TIMEZONES = [
   'America/Los_Angeles',
 ];
 
-/** Compact time-input styling for the business-hours editor. */
-const TIME_CLASS =
-  'h-10 rounded-field border border-ink-200 bg-white px-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
+/** The Tailwind `animate-ping` echo, reproduced as a StyleX keyframe. */
+const ping = stylex.keyframes({
+  '75%, 100%': { transform: 'scale(2)', opacity: 0 },
+});
+
+const styles = stylex.create({
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+    paddingBottom: '6rem',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  breadcrumbCurrent: {
+    color: 'var(--color-text-primary)',
+  },
+  crumbIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  layout: {
+    display: 'grid',
+    gap: '1.25rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': '230px 1fr',
+    },
+  },
+  minCol: {
+    minWidth: 0,
+  },
+  // General section
+  stack5: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
+  },
+  colorRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '1.5rem',
+  },
+  localeSection: {
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '1.25rem',
+  },
+  legend: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  localeGrid: {
+    marginTop: '1rem',
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, 1fr)',
+    },
+  },
+  spanTwo: {
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 640px)': 'span 2 / span 2',
+    },
+  },
+  maxXs: {
+    maxWidth: '20rem',
+  },
+  stack2: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  stack4: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  // Section rail
+  railWrap: {
+    height: 'fit-content',
+    position: {
+      default: 'static',
+      '@media (min-width: 1024px)': 'sticky',
+    },
+    top: {
+      default: 'auto',
+      '@media (min-width: 1024px)': '88px',
+    },
+  },
+  railCard: {
+    padding: '0.375rem',
+  },
+  railList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+  },
+  railBtn: {
+    display: 'flex',
+    height: '2.75rem',
+    alignItems: 'center',
+    gap: '0.75rem',
+    width: '100%',
+    borderStyle: 'none',
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.75rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textAlign: 'left',
+    cursor: 'pointer',
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  railBtnActive: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    boxShadow: '0 6px 20px -8px var(--color-shadow)',
+  },
+  railBtnInactive: {
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  railIcon: {
+    width: '1.125rem',
+    height: '1.125rem',
+  },
+  railLabel: {
+    flex: 1,
+    textAlign: 'left',
+  },
+  // Section card
+  card: {
+    padding: {
+      default: '1.25rem',
+      '@media (min-width: 640px)': '1.5rem',
+    },
+  },
+  cardTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  cardDesc: {
+    marginTop: '0.125rem',
+    marginBottom: '1.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  // Logo field
+  fieldLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  logoRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  logoImg: {
+    height: '4rem',
+    width: '4rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    objectFit: 'contain',
+  },
+  logoNone: {
+    display: 'flex',
+    height: '4rem',
+    width: '4rem',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+  logoControls: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  fileInput: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+    '::file-selector-button': {
+      marginRight: '0.75rem',
+      borderStyle: 'none',
+      borderRadius: 'var(--radius-element)',
+      paddingInline: '0.75rem',
+      paddingBlock: '0.375rem',
+      fontSize: '0.875rem',
+      fontWeight: 500,
+      backgroundColor: {
+        default: 'var(--color-accent-muted)',
+        ':hover': 'var(--color-accent-muted)',
+      },
+      color: 'var(--color-text-accent)',
+      cursor: 'pointer',
+    },
+  },
+  logoHintRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  removeBtn: {
+    borderStyle: 'none',
+    background: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    fontWeight: 500,
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-error)',
+    },
+  },
+  uploadError: {
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-warning-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-warning)',
+  },
+  // Color field
+  colorField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  colorRowInner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  colorInput: {
+    height: '2.75rem',
+    width: '3.5rem',
+    cursor: 'pointer',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '0.25rem',
+  },
+  colorHex: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-secondary)',
+  },
+  // Day row
+  dayRow: {
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-background-muted)',
+    padding: '0.75rem',
+    boxShadow: 'inset 0 0 0 1px var(--color-border)',
+  },
+  dayInner: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  dayLabel: {
+    width: '6rem',
+    flexShrink: 0,
+    fontSize: '0.875rem',
+    fontWeight: 600,
+  },
+  dayLabelOpen: {
+    color: 'var(--color-text-primary)',
+  },
+  dayLabelClosed: {
+    color: 'var(--color-text-disabled)',
+  },
+  closedText: {
+    flex: 1,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-disabled)',
+  },
+  timeRange: {
+    display: 'flex',
+    flex: 1,
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  timeInput: {
+    height: '2.5rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.625rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  timeDash: {
+    color: 'var(--color-text-disabled)',
+  },
+  toggleWrap: {
+    marginLeft: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  toggleLabel: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  dayError: {
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-error)',
+  },
+  // Save bar
+  saveBar: {
+    position: 'fixed',
+    bottom: '1.25rem',
+    left: '50%',
+    zIndex: 40,
+    transitionProperty: 'transform, opacity',
+    transitionDuration: '300ms',
+  },
+  saveBarVisible: {
+    transform: 'translateX(-50%) translateY(0)',
+    opacity: 1,
+  },
+  saveBarHidden: {
+    transform: 'translateX(-50%) translateY(1rem)',
+    opacity: 0,
+    pointerEvents: 'none',
+  },
+  saveBarInner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-popover)',
+    paddingBlock: '0.625rem',
+    paddingLeft: '1rem',
+    paddingRight: '0.625rem',
+    color: 'var(--color-text-primary)',
+    boxShadow: '0 24px 60px -16px var(--color-shadow)',
+  },
+  pingWrap: {
+    position: 'relative',
+    display: 'grid',
+    height: '0.625rem',
+    width: '0.625rem',
+    placeItems: 'center',
+  },
+  pingEcho: {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-warning)',
+    opacity: 0.6,
+    animationName: ping,
+    animationDuration: '1s',
+    animationTimingFunction: 'cubic-bezier(0, 0, 0.2, 1)',
+    animationIterationCount: 'infinite',
+  },
+  pingDot: {
+    position: 'relative',
+    height: '0.625rem',
+    width: '0.625rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-warning)',
+  },
+  saveBarText: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  saveBarDivider: {
+    marginInline: '0.125rem',
+    height: '1.25rem',
+    width: '1px',
+    backgroundColor: 'var(--color-border)',
+  },
+  discardBtn: {
+    height: '2.25rem',
+    borderStyle: 'none',
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.75rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    opacity: {
+      default: 1,
+      ':disabled': 0.4,
+    },
+  },
+});
 
 /** All IANA time zones the runtime knows, falling back to a small curated set. */
 function timeZones(): string[] {
@@ -229,31 +694,26 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
     <Form
       form={form}
       onSubmit={(values) => void handleSubmit(values)}
-      className="flex flex-col gap-6 pb-24"
+      {...stylex.props(styles.form)}
     >
-      <nav
-        aria-label={t('breadcrumb.label')}
-        className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
-      >
+      <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
         <span>Iron Gym</span>
-        <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <span className="text-ink-600 dark:text-ink-300">{t('breadcrumb.settings')}</span>
+        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+        <span {...stylex.props(styles.breadcrumbCurrent)}>{t('breadcrumb.settings')}</span>
       </nav>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('title')}
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </header>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[230px_1fr]">
+      <div {...stylex.props(styles.layout)}>
         <SectionRail section={section} onSelect={setSection} />
 
-        <div className="min-w-0">
+        <div {...stylex.props(styles.minCol)}>
           {section === 'general' ? (
             <SectionCard title={t('general.title')} description={t('general.subtitle')}>
-              <div className="flex flex-col gap-5">
+              <div {...stylex.props(styles.stack5)}>
                 <LogoField />
                 <TextField
                   name="brand.name"
@@ -261,15 +721,13 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                   autoComplete="off"
                   required
                 />
-                <div className="flex flex-wrap gap-6">
+                <div {...stylex.props(styles.colorRow)}>
                   <ColorField name="brand.primaryColor" label={t('general.primaryColor')} />
                   <ColorField name="brand.secondaryColor" label={t('general.secondaryColor')} />
                 </div>
-                <div className="border-t border-ink-100 pt-5 dark:border-white/10">
-                  <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    {t('general.localeLegend')}
-                  </p>
-                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div {...stylex.props(styles.localeSection)}>
+                  <p {...stylex.props(styles.legend)}>{t('general.localeLegend')}</p>
+                  <div {...stylex.props(styles.localeGrid)}>
                     <SelectField name="locale.language" label={t('general.language')}>
                       {SUPPORTED_LANGUAGES.map((code) => (
                         <option key={code} value={code}>
@@ -288,7 +746,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                       name="locale.timezone"
                       label={t('general.timezone')}
                       hint={t('general.timezoneHint')}
-                      fieldClassName="sm:col-span-2"
+                      fieldClassName={stylex.props(styles.spanTwo).className}
                     >
                       {timezoneOptions.map((tz) => (
                         <option key={tz} value={tz}>
@@ -304,7 +762,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
 
           {section === 'hours' ? (
             <SectionCard title={t('hours.title')} description={t('hours.subtitle')}>
-              <div className="flex flex-col gap-2">
+              <div {...stylex.props(styles.stack2)}>
                 {WEEKDAYS.map((day) => (
                   <DayRow key={day} day={day} />
                 ))}
@@ -321,14 +779,14 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                 max={MAX_CANCELLATION_CUTOFF_HOURS}
                 step={1}
                 hint={<BookingHint />}
-                fieldClassName="max-w-xs"
+                fieldClassName={stylex.props(styles.maxXs).className}
               />
             </SectionCard>
           ) : null}
 
           {section === 'notifications' ? (
             <SectionCard title={t('notifications.title')} description={t('notifications.subtitle')}>
-              <div className="flex flex-col gap-4">
+              <div {...stylex.props(styles.stack4)}>
                 <TextField
                   name="notifications.fromName"
                   label={t('notifications.fromNameLabel')}
@@ -394,9 +852,9 @@ function SectionRail({
 }) {
   const t = useTranslations('admin.settings');
   return (
-    <div className="h-fit lg:sticky lg:top-[88px]">
-      <Card className="p-1.5">
-        <div className="flex flex-col gap-0.5">
+    <div {...stylex.props(styles.railWrap)}>
+      <Card variant="default" padding={0} xstyle={styles.railCard}>
+        <div {...stylex.props(styles.railList)}>
           {SECTIONS.map((item) => {
             const active = section === item.key;
             return (
@@ -405,14 +863,13 @@ function SectionRail({
                 type="button"
                 onClick={() => onSelect(item.key)}
                 aria-current={active ? 'page' : undefined}
-                className={`flex h-11 items-center gap-3 rounded-btn px-3 text-sm font-semibold transition ${
-                  active
-                    ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_20px_-8px_rgba(124,58,237,0.8)]'
-                    : 'text-ink-500 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/[0.06] dark:hover:text-white'
-                }`}
+                {...stylex.props(
+                  styles.railBtn,
+                  active ? styles.railBtnActive : styles.railBtnInactive,
+                )}
               >
-                <Icon name={item.icon} className="h-[18px] w-[18px]" sw={2} />
-                <span className="flex-1 text-left">{t(`sections.${item.key}`)}</span>
+                <Icon name={item.icon} {...stylex.props(styles.railIcon)} sw={2} />
+                <span {...stylex.props(styles.railLabel)}>{t(`sections.${item.key}`)}</span>
               </button>
             );
           })}
@@ -433,11 +890,9 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="p-5 sm:p-6">
-      <h3 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
-        {title}
-      </h3>
-      <p className="mb-5 mt-0.5 text-sm text-ink-500 dark:text-ink-400">{description}</p>
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.cardTitle)}>{title}</h3>
+      <p {...stylex.props(styles.cardDesc)}>{description}</p>
       {children}
     </Card>
   );
@@ -534,30 +989,28 @@ function LogoField() {
   const disabled = uploading || formState.isSubmitting;
 
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium text-ink-700 dark:text-ink-200">{t('logo.label')}</span>
-      <div className="flex items-center gap-4">
+    <div {...stylex.props(styles.stack2)}>
+      <span {...stylex.props(styles.fieldLabel)}>{t('logo.label')}</span>
+      <div {...stylex.props(styles.logoRow)}>
         {logoUrl ? (
           <img
             src={logoUrl}
             alt={t('logo.alt', { name: name || t('logo.fallbackName') })}
-            className="h-16 w-16 rounded-card border border-ink-200 object-contain dark:border-white/10"
+            {...stylex.props(styles.logoImg)}
           />
         ) : (
-          <span className="flex h-16 w-16 items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-            {t('logo.none')}
-          </span>
+          <span {...stylex.props(styles.logoNone)}>{t('logo.none')}</span>
         )}
-        <div className="flex flex-col gap-1">
+        <div {...stylex.props(styles.logoControls)}>
           <input
             ref={fileInputRef}
             type="file"
             accept={ACCEPTED_IMAGE_TYPES.join(',')}
             onChange={(event) => void onLogoChange(event)}
             disabled={disabled}
-            className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/10 dark:file:text-brand-300 dark:hover:file:bg-brand-500/20"
+            {...stylex.props(styles.fileInput)}
           />
-          <div className="flex items-center gap-3 text-xs text-ink-400">
+          <div {...stylex.props(styles.logoHintRow)}>
             <span>
               {uploading ? t('logo.uploading') : t('logo.hint', { max: GYM_LOGO_MAX_WIDTH })}
             </span>
@@ -565,7 +1018,7 @@ function LogoField() {
               <button
                 type="button"
                 onClick={() => setValue('brand.logoUrl', null, { shouldDirty: true })}
-                className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400"
+                {...stylex.props(styles.removeBtn)}
               >
                 {t('logo.remove')}
               </button>
@@ -574,10 +1027,7 @@ function LogoField() {
         </div>
       </div>
       {uploadError ? (
-        <p
-          role="alert"
-          className="rounded-card bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-300"
-        >
+        <p role="alert" {...stylex.props(styles.uploadError)}>
           {uploadError}
         </p>
       ) : null}
@@ -597,18 +1047,13 @@ function ColorField({
   const value = useWatch({ control, name });
   const id = useId();
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-ink-700 dark:text-ink-200">
+    <div {...stylex.props(styles.colorField)}>
+      <label htmlFor={id} {...stylex.props(styles.fieldLabel)}>
         {label}
       </label>
-      <div className="flex items-center gap-2">
-        <input
-          id={id}
-          type="color"
-          {...register(name)}
-          className="h-11 w-14 cursor-pointer rounded-field border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
-        />
-        <span className="font-mono text-sm uppercase text-ink-500 dark:text-ink-400">{value}</span>
+      <div {...stylex.props(styles.colorRowInner)}>
+        <input id={id} type="color" {...register(name)} {...stylex.props(styles.colorInput)} />
+        <span {...stylex.props(styles.colorHex)}>{value}</span>
       </div>
     </div>
   );
@@ -627,36 +1072,34 @@ function DayRow({ day }: { day: Weekday }) {
   const label = t(`weekday.${day}`);
 
   return (
-    <div className="rounded-card bg-ink-50 p-3 ring-1 ring-inset ring-ink-200 dark:bg-white/[0.03] dark:ring-white/10">
-      <div className="flex flex-wrap items-center gap-3">
+    <div {...stylex.props(styles.dayRow)}>
+      <div {...stylex.props(styles.dayInner)}>
         <span
-          className={`w-24 shrink-0 text-sm font-semibold ${
-            closed ? 'text-ink-400' : 'text-ink-900 dark:text-white'
-          }`}
+          {...stylex.props(styles.dayLabel, closed ? styles.dayLabelClosed : styles.dayLabelOpen)}
         >
           {label}
         </span>
         {closed ? (
-          <span className="flex-1 text-sm text-ink-400">{t('hours.closed')}</span>
+          <span {...stylex.props(styles.closedText)}>{t('hours.closed')}</span>
         ) : (
-          <div className="flex flex-1 items-center gap-2">
+          <div {...stylex.props(styles.timeRange)}>
             <input
               type="time"
               aria-label={t('hours.openAria', { day: label })}
               {...register(`hours.${day}.open`)}
-              className={TIME_CLASS}
+              {...stylex.props(styles.timeInput)}
             />
-            <span className="text-ink-400">—</span>
+            <span {...stylex.props(styles.timeDash)}>—</span>
             <input
               type="time"
               aria-label={t('hours.closeAria', { day: label })}
               {...register(`hours.${day}.close`)}
-              className={TIME_CLASS}
+              {...stylex.props(styles.timeInput)}
             />
           </div>
         )}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-ink-500 dark:text-ink-400">{t('hours.open')}</span>
+        <div {...stylex.props(styles.toggleWrap)}>
+          <span {...stylex.props(styles.toggleLabel)}>{t('hours.open')}</span>
           <Controller
             control={control}
             name={`hours.${day}.closed`}
@@ -670,11 +1113,7 @@ function DayRow({ day }: { day: Weekday }) {
           />
         </div>
       </div>
-      {closeError ? (
-        <p className="mt-2 text-xs font-medium text-danger-600 dark:text-danger-400">
-          {closeError}
-        </p>
-      ) : null}
+      {closeError ? <p {...stylex.props(styles.dayError)}>{closeError}</p> : null}
     </div>
   );
 }
@@ -701,22 +1140,20 @@ function SaveBar() {
       // controls are neither focusable nor announced until there are changes.
       inert={!isDirty}
       aria-hidden={!isDirty}
-      className={`fixed bottom-5 left-1/2 z-40 -translate-x-1/2 transition-all duration-300 ${
-        isDirty ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
-      }`}
+      {...stylex.props(styles.saveBar, isDirty ? styles.saveBarVisible : styles.saveBarHidden)}
     >
-      <div className="flex items-center gap-3 rounded-card bg-ink-900 py-2.5 pl-4 pr-2.5 text-white shadow-[0_24px_60px_-16px_rgba(0,0,0,0.8)] ring-1 ring-white/10">
-        <span className="relative grid h-2.5 w-2.5 place-items-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-warning-400 opacity-60" />
-          <span className="relative h-2.5 w-2.5 rounded-full bg-warning-400" />
+      <div {...stylex.props(styles.saveBarInner)}>
+        <span {...stylex.props(styles.pingWrap)}>
+          <span {...stylex.props(styles.pingEcho)} />
+          <span {...stylex.props(styles.pingDot)} />
         </span>
-        <span className="text-sm font-medium text-ink-200">{t('saveBar.unsaved')}</span>
-        <div className="mx-0.5 h-5 w-px bg-white/15" />
+        <span {...stylex.props(styles.saveBarText)}>{t('saveBar.unsaved')}</span>
+        <div {...stylex.props(styles.saveBarDivider)} />
         <button
           type="button"
           onClick={() => reset()}
           disabled={isSubmitting}
-          className="h-9 rounded-btn px-3 text-sm font-semibold text-ink-300 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
+          {...stylex.props(styles.discardBtn)}
         >
           {t('saveBar.discard')}
         </button>

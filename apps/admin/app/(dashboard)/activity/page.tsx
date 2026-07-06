@@ -6,8 +6,10 @@ import {
   type ListActivityQuery,
   type ListAuditLogQuery,
 } from '@fit/types';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import { ApiError, fetchActivity, fetchAuditLogs } from '@/lib/api';
-import { Card, Icon } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import { ActivityFeed } from './activity-feed';
 import { ActivityFilters } from './activity-filters';
 import { ActivityTabs } from './activity-tabs';
@@ -28,12 +30,114 @@ export const dynamic = 'force-dynamic';
 /** Next 15 hands `searchParams` as a promise of raw (string | string[]) values. */
 type SearchParams = Record<string, string | string[] | undefined>;
 
+const ping = stylex.keyframes({
+  '75%, 100%': { transform: 'scale(2)', opacity: 0 },
+});
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+  },
+  headings: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontSize: {
+      default: '1.5rem',
+      '@media (min-width: 640px)': '1.875rem',
+    },
+    fontWeight: 800,
+    letterSpacing: '-0.025em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  liveBadge: {
+    marginLeft: 'auto',
+    display: 'inline-flex',
+    height: '2rem',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-success)',
+    backgroundColor: 'var(--color-success-muted)',
+    paddingInline: '0.75rem',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    color: 'var(--color-success)',
+  },
+  livePulse: {
+    position: 'relative',
+    display: 'flex',
+    height: '0.5rem',
+    width: '0.5rem',
+  },
+  livePing: {
+    position: 'absolute',
+    display: 'inline-flex',
+    height: '100%',
+    width: '100%',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-success)',
+    opacity: 0.75,
+    animationName: ping,
+    animationDuration: '1s',
+    animationTimingFunction: 'cubic-bezier(0, 0, 0.2, 1)',
+    animationIterationCount: 'infinite',
+  },
+  liveDot: {
+    position: 'relative',
+    display: 'inline-flex',
+    height: '0.5rem',
+    width: '0.5rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-success)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
+
 /** A localized error card, shared by both tabs' API-failure paths. */
 function ErrorCard({ message }: { message: string }) {
   return (
-    <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-      <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300" />
-      <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+    <Card variant="default" padding={0} xstyle={styles.errorCard}>
+      <Icon name="info" {...stylex.props(styles.errorIcon)} />
+      <p role="alert" {...stylex.props(styles.errorText)}>
         {message}
       </p>
     </Card>
@@ -60,21 +164,19 @@ export default async function ActivityPage({
   const t = await getTranslations('admin.activity');
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            {t('title')}
-          </h1>
-          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headings)}>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>
             {tab === 'audit' ? t('audit.subtitle') : t('subtitle')}
           </p>
         </div>
         {tab === 'feed' ? (
-          <span className="ml-auto inline-flex h-8 shrink-0 items-center gap-2 rounded-pill bg-success-50 px-3 text-xs font-bold text-success-700 ring-1 ring-inset ring-success-500/25 dark:bg-success-500/12 dark:text-success-200 dark:ring-success-400/30">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success-500" />
+          <span {...stylex.props(styles.liveBadge)}>
+            <span {...stylex.props(styles.livePulse)}>
+              <span {...stylex.props(styles.livePing)} />
+              <span {...stylex.props(styles.liveDot)} />
             </span>
             {t('live')}
           </span>
@@ -120,7 +222,7 @@ async function FeedPanel({ raw }: { raw: SearchParams }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div {...stylex.props(styles.page)}>
       <ActivityFilters type={query.type ?? ''} from={query.from ?? ''} to={query.to ?? ''} />
       {content}
     </div>
@@ -157,7 +259,7 @@ async function AuditPanel({ raw }: { raw: SearchParams }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div {...stylex.props(styles.page)}>
       <AuditFilters action={query.action ?? ''} from={query.from ?? ''} to={query.to ?? ''} />
       {content}
     </div>

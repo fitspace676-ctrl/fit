@@ -150,6 +150,19 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/app/(dashboard)/check-in',
   'apps/admin/app/(dashboard)/schedule',
   'apps/admin/app/(dashboard)/classes',
+  // T11.21 — admin operational screens: the activity feed + audit-log (filterable
+  // event stream with type icons / relative times, tabbed with the audit trail),
+  // staff management (roster KPIs, staff + pending-invite tables, invite modal,
+  // role changes / removal), locations CRUD (board + detail + create/edit form
+  // with weekly-hours and amenities editors) and gym settings (brand / locale /
+  // business-hours / notification sender). Rebuilt on Astryx
+  // Card/DataTable/FilterChips/Badge/Form-kit + brand-tokened StyleX, no Tailwind.
+  // Each route group is now Astryx-only, so each is guarded as a directory.
+  'apps/admin/app/(dashboard)/activity',
+  'apps/admin/app/(dashboard)/audit-log',
+  'apps/admin/app/(dashboard)/staff',
+  'apps/admin/app/(dashboard)/locations',
+  'apps/admin/app/(dashboard)/settings',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
