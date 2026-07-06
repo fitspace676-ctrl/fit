@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
 import type { LocationSummary } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchLocations } from '@/lib/locations';
@@ -12,6 +14,171 @@ export const CHECKOUT_LOCATION_KEY = 'checkout_locationId';
 
 /** Weekday keys the `hours` map is keyed by, indexed by `Date.getDay()` (0 = Sun). */
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+// Astryx migration (T11.15): step 1 (pick location) is rebuilt on the Fit brand
+// theme — selectable location cards and status states authored in compiled
+// StyleX (`var(--color-*)` / `var(--radius-*)`), the Continue / retry actions on
+// the Astryx `Button` — no Tailwind utilities. Fetch, selection persistence and
+// navigation are unchanged.
+const styles = stylex.create({
+  status: {
+    paddingBlock: '4rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  centered: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingBlock: '4rem',
+    textAlign: 'center',
+  },
+  centeredTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  centeredText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  heading: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  grid: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+    },
+  },
+  card: {
+    display: 'flex',
+    width: '100%',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    textAlign: 'left',
+    cursor: 'pointer',
+    padding: 0,
+    backgroundColor: 'var(--color-background-card)',
+    transitionProperty: 'border-color, box-shadow',
+    transitionDuration: '150ms',
+  },
+  cardIdle: {
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-border-emphasized)',
+    },
+  },
+  cardSelected: {
+    borderColor: 'var(--color-accent)',
+    boxShadow: 'inset 0 0 0 1px var(--color-accent)',
+  },
+  photo: {
+    position: 'relative',
+    aspectRatio: '16 / 9',
+    width: '100%',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  cardBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    padding: '1rem',
+  },
+  cardHead: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  name: {
+    margin: 0,
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  address: {
+    margin: 0,
+    marginTop: '0.125rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pill: {
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+  },
+  pillIdle: {
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+  },
+  pillSelected: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  amenities: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.375rem',
+  },
+  amenity: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  hours: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  hoursValue: {
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  actionsEnd: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+});
 
 export interface StepLocationProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
@@ -102,49 +269,40 @@ export function StepLocation({ gymId, initialLocationId, onSelect }: StepLocatio
   const todayKey = useMemo(() => WEEKDAY_KEYS[new Date().getDay()]!, []);
 
   if (load.status === 'loading') {
-    return (
-      <p className="py-16 text-center text-sm text-ink-400 dark:text-ink-500">
-        {t('locations.loading')}
-      </p>
-    );
+    return <p {...stylex.props(styles.status)}>{t('locations.loading')}</p>;
   }
 
   if (load.status === 'error') {
     return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('locations.error')}</p>
-        <button
-          type="button"
+      <div {...stylex.props(styles.centered)}>
+        <p {...stylex.props(styles.centeredText)}>{t('locations.error')}</p>
+        <Button
+          variant="secondary"
+          size="md"
+          label={t('locations.retry')}
           onClick={() => setLoad((prev) => ({ ...prev, status: 'loading' }))}
-          className="rounded-card border border-ink-200 dark:border-white/10 px-4 py-2 text-sm font-medium text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
-        >
-          {t('locations.retry')}
-        </button>
+        />
       </div>
     );
   }
 
   if (load.locations.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 py-16 text-center">
-        <p className="text-sm font-medium text-ink-900 dark:text-white">
-          {t('locations.empty.title')}
-        </p>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('locations.empty.subtitle')}</p>
+      <div {...stylex.props(styles.centered)}>
+        <p {...stylex.props(styles.centeredTitle)}>{t('locations.empty.title')}</p>
+        <p {...stylex.props(styles.centeredText)}>{t('locations.empty.subtitle')}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-ink-900 dark:text-white">
-          {t('locations.title')}
-        </h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('locations.subtitle')}</p>
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.heading)}>
+        <h2 {...stylex.props(styles.title)}>{t('locations.title')}</h2>
+        <p {...stylex.props(styles.subtitle)}>{t('locations.subtitle')}</p>
       </div>
 
-      <ul className="grid gap-4 sm:grid-cols-2">
+      <ul {...stylex.props(styles.grid)}>
         {load.locations.map((location) => (
           <LocationCard
             key={location.id}
@@ -160,15 +318,14 @@ export function StepLocation({ gymId, initialLocationId, onSelect }: StepLocatio
         ))}
       </ul>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          disabled={!selectedId}
+      <div {...stylex.props(styles.actionsEnd)}>
+        <Button
+          variant="primary"
+          size="md"
+          label={t('continue')}
+          isDisabled={!selectedId}
           onClick={onContinue}
-          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
-        >
-          {t('continue')}
-        </button>
+        />
       </div>
     </div>
   );
@@ -202,61 +359,46 @@ function LocationCard({
         type="button"
         aria-pressed={selected}
         onClick={onSelect}
-        className={`flex w-full flex-col overflow-hidden rounded-card border text-left transition-colors ${
-          selected
-            ? 'border-brand-600 ring-1 ring-brand-600'
-            : 'border-ink-200 dark:border-white/10 hover:border-ink-300 dark:hover:border-white/20'
-        }`}
+        {...stylex.props(styles.card, selected ? styles.cardSelected : styles.cardIdle)}
       >
-        <div className="relative aspect-[16/9] w-full bg-ink-100 dark:bg-white/10">
+        <div {...stylex.props(styles.photo)}>
           {location.photoUrl ? (
             <Image
               src={location.photoUrl}
               alt=""
               fill
               sizes="(max-width: 640px) 100vw, 50vw"
-              className="object-cover"
+              style={{ objectFit: 'cover' }}
             />
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-3 p-4">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex flex-col gap-0.5">
-              <span className="font-semibold text-ink-900 dark:text-white">{location.name}</span>
+        <div {...stylex.props(styles.cardBody)}>
+          <div {...stylex.props(styles.cardHead)}>
+            <div style={{ minWidth: 0 }}>
+              <p {...stylex.props(styles.name)}>{location.name}</p>
               {location.address ? (
-                <span className="text-sm text-ink-500 dark:text-ink-400">{location.address}</span>
+                <p {...stylex.props(styles.address)}>{location.address}</p>
               ) : null}
             </div>
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                selected
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-ink-100 dark:bg-white/10 text-ink-500 dark:text-ink-400'
-              }`}
-            >
+            <span {...stylex.props(styles.pill, selected ? styles.pillSelected : styles.pillIdle)}>
               {selected ? selectedLabel : selectLabel}
             </span>
           </div>
 
           {location.amenities.length > 0 ? (
-            <ul className="flex flex-wrap gap-1.5">
+            <ul {...stylex.props(styles.amenities)}>
               {location.amenities.map((amenity) => (
-                <li
-                  key={amenity}
-                  className="rounded-full bg-ink-100 dark:bg-white/10 px-2.5 py-0.5 text-xs text-ink-600 dark:text-ink-300"
-                >
+                <li key={amenity} {...stylex.props(styles.amenity)}>
                   {amenity}
                 </li>
               ))}
             </ul>
           ) : null}
 
-          <p className="text-sm text-ink-500 dark:text-ink-400">
+          <p {...stylex.props(styles.hours)}>
             {todayLabel}:{' '}
-            <span className="font-medium text-ink-700 dark:text-ink-200">
-              {todayHours ?? closedLabel}
-            </span>
+            <span {...stylex.props(styles.hoursValue)}>{todayHours ?? closedLabel}</span>
           </p>
         </div>
       </button>

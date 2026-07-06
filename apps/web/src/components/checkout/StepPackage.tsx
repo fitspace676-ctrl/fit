@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
 import type { PackageInterval, PackageSummary } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchPackages } from '@/lib/packages';
@@ -9,6 +12,200 @@ import { CHECKOUT_LOCATION_KEY } from './StepLocation';
 
 /** sessionStorage key the wizard persists the chosen package under (T3.9). */
 export const CHECKOUT_PACKAGE_KEY = 'checkout_packageId';
+
+// Astryx migration (T11.15): step 2 (pick package) is rebuilt on the Fit brand
+// theme — selectable package cards, the feature checklist and status states
+// authored in compiled StyleX (`var(--color-*)` / `var(--radius-*)`), the
+// "Most popular" flag on the Astryx `Badge` and Back / Continue on the Astryx
+// `Button` — no Tailwind utilities. Fetch, selection persistence and navigation
+// are unchanged.
+const styles = stylex.create({
+  status: {
+    paddingBlock: '4rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  centered: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
+    paddingBlock: '4rem',
+    textAlign: 'center',
+  },
+  centeredTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  centeredText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  heading: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  grid: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  card: {
+    position: 'relative',
+    display: 'flex',
+    height: '100%',
+    width: '100%',
+    flexDirection: 'column',
+    gap: '1rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    padding: '1.25rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    backgroundColor: 'var(--color-background-card)',
+    transitionProperty: 'border-color, box-shadow',
+    transitionDuration: '150ms',
+  },
+  cardIdle: {
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-border-emphasized)',
+    },
+  },
+  cardPopular: {
+    borderColor: {
+      default: 'var(--color-accent-muted)',
+      ':hover': 'var(--color-accent)',
+    },
+  },
+  cardSelected: {
+    borderColor: 'var(--color-accent)',
+    boxShadow: 'inset 0 0 0 1px var(--color-accent)',
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: '-0.75rem',
+    left: '1.25rem',
+  },
+  cardHead: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  name: {
+    margin: 0,
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  sessions: {
+    margin: 0,
+    marginTop: '0.125rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  pill: {
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+  },
+  pillIdle: {
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+  },
+  pillSelected: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  priceRow: {
+    margin: 0,
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '0.25rem',
+  },
+  price: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    letterSpacing: '-0.01em',
+    color: 'var(--color-text-primary)',
+  },
+  priceSuffix: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  description: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  features: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  feature: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+  },
+  featureIcon: {
+    marginTop: '0.125rem',
+    height: '1rem',
+    width: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-text-accent)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  actionsStart: {
+    display: 'flex',
+    justifyContent: 'flex-start',
+  },
+});
 
 export interface StepPackageProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
@@ -138,60 +335,45 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
   }, [selectedId, effectiveLocationId, pathname, router]);
 
   if (load.status === 'loading') {
-    return (
-      <p className="py-16 text-center text-sm text-ink-400 dark:text-ink-500">
-        {t('packages.loading')}
-      </p>
-    );
+    return <p {...stylex.props(styles.status)}>{t('packages.loading')}</p>;
   }
 
   if (load.status === 'error') {
     return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('packages.error')}</p>
-        <button
-          type="button"
+      <div {...stylex.props(styles.centered)}>
+        <p {...stylex.props(styles.centeredText)}>{t('packages.error')}</p>
+        <Button
+          variant="secondary"
+          size="md"
+          label={t('packages.retry')}
           onClick={() => setLoad((prev) => ({ ...prev, status: 'loading' }))}
-          className="rounded-card border border-ink-200 dark:border-white/10 px-4 py-2 text-sm font-medium text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
-        >
-          {t('packages.retry')}
-        </button>
+        />
       </div>
     );
   }
 
   if (load.packages.length === 0) {
     return (
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col items-center gap-2 py-16 text-center">
-          <p className="text-sm font-medium text-ink-900 dark:text-white">
-            {t('packages.empty.title')}
-          </p>
-          <p className="text-sm text-ink-500 dark:text-ink-400">{t('packages.empty.subtitle')}</p>
+      <div {...stylex.props(styles.root)}>
+        <div {...stylex.props(styles.centered)}>
+          <p {...stylex.props(styles.centeredTitle)}>{t('packages.empty.title')}</p>
+          <p {...stylex.props(styles.centeredText)}>{t('packages.empty.subtitle')}</p>
         </div>
-        <div className="flex justify-start">
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
-          >
-            {t('back')}
-          </button>
+        <div {...stylex.props(styles.actionsStart)}>
+          <Button variant="secondary" size="md" label={t('back')} onClick={onBack} />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-ink-900 dark:text-white">
-          {t('packages.title')}
-        </h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('packages.subtitle')}</p>
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.heading)}>
+        <h2 {...stylex.props(styles.title)}>{t('packages.title')}</h2>
+        <p {...stylex.props(styles.subtitle)}>{t('packages.subtitle')}</p>
       </div>
 
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <ul {...stylex.props(styles.grid)}>
         {load.packages.map((pkg) => (
           <PackageCard
             key={pkg.id}
@@ -212,22 +394,15 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
         ))}
       </ul>
 
-      <div className="flex justify-between gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
-        >
-          {t('back')}
-        </button>
-        <button
-          type="button"
-          disabled={!selectedId}
+      <div {...stylex.props(styles.actions)}>
+        <Button variant="secondary" size="md" label={t('back')} onClick={onBack} />
+        <Button
+          variant="primary"
+          size="md"
+          label={t('continue')}
+          isDisabled={!selectedId}
           onClick={onContinue}
-          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
-        >
-          {t('continue')}
-        </button>
+        />
       </div>
     </div>
   );
@@ -272,60 +447,43 @@ function PackageCard({
         type="button"
         aria-pressed={selected}
         onClick={onSelect}
-        className={`relative flex h-full w-full flex-col gap-4 rounded-card border p-5 text-left transition-colors ${
-          selected
-            ? 'border-brand-600 ring-1 ring-brand-600'
-            : pkg.popular
-              ? 'border-brand-300 hover:border-brand-400'
-              : 'border-ink-200 dark:border-white/10 hover:border-ink-300 dark:hover:border-white/20'
-        }`}
+        {...stylex.props(
+          styles.card,
+          selected ? styles.cardSelected : pkg.popular ? styles.cardPopular : styles.cardIdle,
+        )}
       >
         {pkg.popular ? (
-          <span className="absolute -top-3 left-5 rounded-full bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white">
-            {popularLabel}
+          <span {...stylex.props(styles.popularBadge)}>
+            <Badge variant="purple" label={popularLabel} />
           </span>
         ) : null}
 
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-ink-900 dark:text-white">{pkg.name}</span>
-            <span className="text-xs font-medium text-ink-500 dark:text-ink-400">
-              {sessionsLabel}
-            </span>
+        <div {...stylex.props(styles.cardHead)}>
+          <div style={{ minWidth: 0 }}>
+            <p {...stylex.props(styles.name)}>{pkg.name}</p>
+            <p {...stylex.props(styles.sessions)}>{sessionsLabel}</p>
           </div>
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-              selected
-                ? 'bg-brand-600 text-white'
-                : 'bg-ink-100 dark:bg-white/10 text-ink-500 dark:text-ink-400'
-            }`}
-          >
+          <span {...stylex.props(styles.pill, selected ? styles.pillSelected : styles.pillIdle)}>
             {selected ? selectedLabel : selectLabel}
           </span>
         </div>
 
-        <p className="flex items-baseline gap-1">
-          <span className="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
-            {price}
-          </span>
-          {priceSuffix ? (
-            <span className="text-sm text-ink-500 dark:text-ink-400">{priceSuffix}</span>
-          ) : null}
+        <p {...stylex.props(styles.priceRow)}>
+          <span {...stylex.props(styles.price)}>{price}</span>
+          {priceSuffix ? <span {...stylex.props(styles.priceSuffix)}>{priceSuffix}</span> : null}
         </p>
 
-        {pkg.description ? (
-          <p className="text-sm text-ink-500 dark:text-ink-400">{pkg.description}</p>
-        ) : null}
+        {pkg.description ? <p {...stylex.props(styles.description)}>{pkg.description}</p> : null}
 
         {pkg.features.length > 0 ? (
-          <ul className="flex flex-col gap-2 text-sm text-ink-600 dark:text-ink-300">
+          <ul {...stylex.props(styles.features)}>
             {pkg.features.map((feature) => (
-              <li key={feature} className="flex items-start gap-2">
+              <li key={feature} {...stylex.props(styles.feature)}>
                 <svg
                   viewBox="0 0 20 20"
                   fill="currentColor"
-                  className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-600"
                   aria-hidden="true"
+                  {...stylex.props(styles.featureIcon)}
                 >
                   <path
                     fillRule="evenodd"

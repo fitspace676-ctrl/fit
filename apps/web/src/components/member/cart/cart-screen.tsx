@@ -1,12 +1,330 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { IconButton } from '@astryxdesign/core/IconButton';
+import { Selector } from '@astryxdesign/core/Selector';
+import { TextInput } from '@astryxdesign/core/TextInput';
 import type { CartView, LocationSummary } from '@fit/types';
-import { Badge, Btn, buttonClasses, Card, Icon, useToast } from '@/src/components/ui';
+import { Icon, useToast } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { formatMoney } from '@/lib/shop';
 import { checkoutCartAction, removeCartItemAction, updateCartItemAction } from '@/app/actions/cart';
+
+// Astryx migration (T11.15): the shop cart + checkout is rebuilt on Astryx
+// `Card` / `Button` / `IconButton` / `Badge` / `Selector` / `TextInput` over the
+// Fit brand theme tokens, with the quantity stepper, payment-method picker and
+// totals authored in compiled StyleX (`var(--color-*)` / `var(--font-family-*)`)
+// — no Tailwind utilities. Cart state, the stub-payment checkout server action
+// and the totals are unchanged.
+
+const styles = stylex.create({
+  // Confirmed-order panel
+  successCard: {
+    marginInline: 'auto',
+    maxWidth: '36rem',
+    padding: '2rem',
+    textAlign: 'center',
+  },
+  successIcon: {
+    marginInline: 'auto',
+    display: 'grid',
+    height: '4rem',
+    width: '4rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'color-mix(in srgb, var(--color-success) 15%, transparent)',
+    color: 'var(--color-success)',
+  },
+  successGlyph: {
+    height: '2rem',
+    width: '2rem',
+  },
+  successTitle: {
+    marginTop: '1rem',
+    marginBottom: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    color: 'var(--color-text-primary)',
+  },
+  successLine: {
+    marginTop: '0.25rem',
+    marginBottom: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  orderNo: {
+    fontFamily: 'var(--font-family-code)',
+    color: 'var(--color-text-primary)',
+  },
+  successCta: {
+    marginTop: '1.5rem',
+  },
+  // Empty cart
+  emptyWrap: {
+    marginInline: 'auto',
+    maxWidth: '36rem',
+  },
+  emptyCard: {
+    display: 'grid',
+    placeItems: 'center',
+    gap: '0.75rem',
+    paddingBlock: '3.5rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    height: '2.5rem',
+    width: '2.5rem',
+    color: 'var(--color-text-disabled)',
+  },
+  emptyTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  emptyHint: {
+    margin: 0,
+    maxWidth: '20rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  // Page
+  title: {
+    marginTop: 0,
+    marginBottom: '1.5rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  layout: {
+    display: 'grid',
+    gap: '1.25rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': '1.6fr 1fr',
+    },
+  },
+  items: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  itemCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '0.75rem',
+  },
+  itemThumb: {
+    height: '5rem',
+    width: '5rem',
+    flexShrink: 0,
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    display: 'grid',
+    placeItems: 'center',
+  },
+  itemImg: {
+    height: '100%',
+    width: '100%',
+    objectFit: 'cover',
+  },
+  itemEmoji: {
+    fontSize: '1.5rem',
+  },
+  itemBody: {
+    minWidth: 0,
+    flex: 1,
+  },
+  itemTopRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  itemName: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  itemVariant: {
+    margin: 0,
+    marginTop: '0.125rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  outOfStock: {
+    marginTop: '0.375rem',
+  },
+  itemBottomRow: {
+    marginTop: '0.5rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  stepper: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    paddingInline: '0.25rem',
+  },
+  qty: {
+    minWidth: '2rem',
+    textAlign: 'center',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  lineTotal: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  // Summary
+  summaryCard: {
+    height: 'fit-content',
+    padding: '1.5rem',
+    position: {
+      default: 'static',
+      '@media (min-width: 1024px)': 'sticky',
+    },
+    top: '5rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  summaryTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  payList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  payOption: {
+    display: 'flex',
+    width: '100%',
+    alignItems: 'center',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.625rem',
+    textAlign: 'left',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color',
+    transitionDuration: '150ms',
+  },
+  payIdle: {
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+    },
+  },
+  payActive: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  payIcon: {
+    height: '1rem',
+    width: '1rem',
+    color: 'var(--color-text-secondary)',
+  },
+  payLabel: {
+    flex: 1,
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  payCheck: {
+    height: '1rem',
+    width: '1rem',
+    color: 'var(--color-text-accent)',
+  },
+  totals: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '1rem',
+    fontSize: '0.875rem',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  rowLabel: {
+    color: 'var(--color-text-secondary)',
+  },
+  rowValue: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  rowValueDiscount: {
+    color: 'var(--color-success)',
+  },
+  totalRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: '0.5rem',
+  },
+  totalLabel: {
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  totalValue: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.25rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  checkout: {
+    width: '100%',
+  },
+  secure: {
+    margin: 0,
+    textAlign: 'center',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 export interface CartScreenProps {
   initialCart: CartView;
@@ -65,39 +383,43 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
 
   if (orderId) {
     return (
-      <Card glow className="mx-auto max-w-xl p-8 text-center">
-        <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-success-100 text-success-600 dark:bg-success-500/15 dark:text-success-300">
-          <Icon name="check" className="h-8 w-8" sw={2.4} />
+      <Card variant="default" padding={0} xstyle={styles.successCard}>
+        <span {...stylex.props(styles.successIcon)}>
+          <Icon name="check" {...stylex.props(styles.successGlyph)} sw={2.4} />
         </span>
-        <h1 className="mt-4 font-display text-2xl font-extrabold text-ink-900 dark:text-white">
-          {t('confirmed')}
-        </h1>
-        <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
-          {t('orderNo')} <span className="font-mono text-ink-700 dark:text-ink-200">{orderId}</span>
+        <h1 {...stylex.props(styles.successTitle)}>{t('confirmed')}</h1>
+        <p {...stylex.props(styles.successLine)}>
+          {t('orderNo')} <span {...stylex.props(styles.orderNo)}>{orderId}</span>
         </p>
-        <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{t('collectHint')}</p>
-        <Link href="/shop" className={buttonClasses('primary', 'md', 'mt-6')}>
-          {t('continueShopping')}
-        </Link>
+        <p {...stylex.props(styles.successLine)}>{t('collectHint')}</p>
+        <Button
+          as={Link}
+          href="/shop"
+          variant="primary"
+          size="md"
+          label={t('continueShopping')}
+          xstyle={styles.successCta}
+        />
       </Card>
     );
   }
 
   if (cart.items.length === 0) {
     return (
-      <div className="mx-auto max-w-xl">
-        <h1 className="mb-6 font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('title')}
-        </h1>
-        <Card className="grid place-items-center gap-3 py-14 text-center">
-          <Icon name="bag" className="h-10 w-10 text-ink-300 dark:text-ink-600" />
-          <p className="font-display text-lg font-bold text-ink-900 dark:text-white">
-            {t('empty')}
-          </p>
-          <p className="max-w-xs text-sm text-ink-500 dark:text-ink-400">{t('emptyHint')}</p>
-          <Link href="/shop" className={buttonClasses('primary', 'md')}>
-            <Icon name="bag" className="h-4 w-4" /> {t('browseShop')}
-          </Link>
+      <div {...stylex.props(styles.emptyWrap)}>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+          <Icon name="bag" {...stylex.props(styles.emptyIcon)} />
+          <p {...stylex.props(styles.emptyTitle)}>{t('empty')}</p>
+          <p {...stylex.props(styles.emptyHint)}>{t('emptyHint')}</p>
+          <Button
+            as={Link}
+            href="/shop"
+            variant="primary"
+            size="md"
+            icon={<Icon name="bag" />}
+            label={t('browseShop')}
+          />
         </Card>
       </div>
     );
@@ -105,75 +427,62 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
 
   return (
     <div>
-      <h1 className="mb-6 font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-        {t('title')}
-      </h1>
-      <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
+      <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+      <div {...stylex.props(styles.layout)}>
         {/* Items */}
-        <div className="space-y-3">
+        <div {...stylex.props(styles.items)}>
           {cart.items.map((item) => (
-            <Card key={item.variantId} className="flex items-center gap-3 p-3 sm:p-4">
-              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-field bg-ink-50 dark:bg-white/5">
+            <Card key={item.variantId} variant="default" padding={0} xstyle={styles.itemCard}>
+              <div {...stylex.props(styles.itemThumb)}>
                 {item.imageUrl ? (
-                  <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                  <img src={item.imageUrl} alt="" {...stylex.props(styles.itemImg)} />
                 ) : (
-                  <span className="grid h-full w-full place-items-center text-2xl">🛍️</span>
+                  <span {...stylex.props(styles.itemEmoji)}>🛍️</span>
                 )}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-ink-900 dark:text-white">
-                      {item.productName}
-                    </p>
+              <div {...stylex.props(styles.itemBody)}>
+                <div {...stylex.props(styles.itemTopRow)}>
+                  <div style={{ minWidth: 0 }}>
+                    <p {...stylex.props(styles.itemName)}>{item.productName}</p>
                     {item.variantName && (
-                      <p className="truncate text-xs text-ink-500 dark:text-ink-400">
-                        {item.variantName}
-                      </p>
+                      <p {...stylex.props(styles.itemVariant)}>{item.variantName}</p>
                     )}
                     {!item.available && (
-                      <span className="mt-1 inline-block">
-                        <Badge tone="danger">{t('outOfStock')}</Badge>
+                      <span {...stylex.props(styles.outOfStock)}>
+                        <Badge variant="error" label={t('outOfStock')} />
                       </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    aria-label={t('remove')}
-                    disabled={pending}
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    label={t('remove')}
+                    icon={<Icon name="trash" />}
+                    isDisabled={pending}
                     onClick={() => setQty(item.variantId, 0)}
-                    className="shrink-0 rounded-md p-1.5 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600 disabled:opacity-50 dark:hover:bg-danger-500/10"
-                  >
-                    <Icon name="trash" className="h-4 w-4" />
-                  </button>
+                  />
                 </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="inline-flex items-center rounded-pill border border-ink-200 dark:border-white/10">
-                    <button
-                      type="button"
-                      aria-label={t('decrease')}
-                      disabled={pending}
+                <div {...stylex.props(styles.itemBottomRow)}>
+                  <div {...stylex.props(styles.stepper)}>
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
+                      label={t('decrease')}
+                      icon={<Icon name="minus" />}
+                      isDisabled={pending}
                       onClick={() => setQty(item.variantId, item.qty - 1)}
-                      className="grid h-8 w-8 place-items-center rounded-l-pill text-ink-600 hover:bg-ink-50 disabled:opacity-50 dark:text-ink-300 dark:hover:bg-white/5"
-                    >
-                      <Icon name="minus" className="h-3.5 w-3.5" />
-                    </button>
-                    <span className="w-8 text-center font-mono text-sm tabular-nums text-ink-900 dark:text-white">
-                      {item.qty}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={t('increase')}
-                      disabled={pending}
+                    />
+                    <span {...stylex.props(styles.qty)}>{item.qty}</span>
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
+                      label={t('increase')}
+                      icon={<Icon name="plus" />}
+                      isDisabled={pending}
                       onClick={() => setQty(item.variantId, item.qty + 1)}
-                      className="grid h-8 w-8 place-items-center rounded-r-pill text-ink-600 hover:bg-ink-50 disabled:opacity-50 dark:text-ink-300 dark:hover:bg-white/5"
-                    >
-                      <Icon name="plus" className="h-3.5 w-3.5" />
-                    </button>
+                    />
                   </div>
-                  <p className="font-mono text-sm font-bold tabular-nums text-ink-900 dark:text-white">
-                    {money(item.lineTotal)}
-                  </p>
+                  <p {...stylex.props(styles.lineTotal)}>{money(item.lineTotal)}</p>
                 </div>
               </div>
             </Card>
@@ -181,33 +490,21 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
         </div>
 
         {/* Summary */}
-        <Card glow className="h-fit p-5 sm:p-6 lg:sticky lg:top-20">
-          <h2 className="font-display text-base font-bold text-ink-900 dark:text-white">
-            {t('summary')}
-          </h2>
+        <Card variant="default" padding={0} xstyle={styles.summaryCard}>
+          <h2 {...stylex.props(styles.summaryTitle)}>{t('summary')}</h2>
 
           {/* Pickup location */}
           {locations.length > 0 && (
-            <label className="mt-4 block">
-              <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                {t('pickup')}
-              </span>
-              <select
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-                className="h-11 w-full rounded-field border border-ink-200 bg-white px-3 text-sm text-ink-900 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
-              >
-                {locations.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Selector
+              label={t('pickup')}
+              value={locationId}
+              onChange={(value) => setLocationId(value)}
+              options={locations.map((l) => ({ value: l.id, label: l.name }))}
+            />
           )}
 
           {/* Payment method (cosmetic) */}
-          <div className="mt-4 space-y-2">
+          <div {...stylex.props(styles.payList)}>
             {(
               [
                 { k: 'desk', icon: 'pin' as const, label: t('payDesk') },
@@ -218,73 +515,60 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
               <button
                 key={m.k}
                 type="button"
+                aria-pressed={pay === m.k}
                 onClick={() => setPay(m.k)}
-                className={`flex w-full items-center gap-3 rounded-card border px-3.5 py-2.5 text-left text-sm transition ${
-                  pay === m.k
-                    ? 'border-brand-500 bg-brand-50 dark:border-brand-400/50 dark:bg-brand-500/10'
-                    : 'border-ink-200 hover:bg-ink-50 dark:border-white/10 dark:hover:bg-white/5'
-                }`}
+                {...stylex.props(styles.payOption, pay === m.k ? styles.payActive : styles.payIdle)}
               >
-                <Icon name={m.icon} className="h-4 w-4 text-ink-500 dark:text-ink-300" />
-                <span className="flex-1 font-medium text-ink-900 dark:text-white">{m.label}</span>
-                {pay === m.k && (
-                  <Icon name="check" className="h-4 w-4 text-brand-600 dark:text-brand-300" />
-                )}
+                <Icon name={m.icon} {...stylex.props(styles.payIcon)} />
+                <span {...stylex.props(styles.payLabel)}>{m.label}</span>
+                {pay === m.k && <Icon name="check" {...stylex.props(styles.payCheck)} />}
               </button>
             ))}
           </div>
 
           {/* Promo */}
-          <div className="mt-4 flex gap-2">
-            <input
-              value={promo}
-              onChange={(e) => setPromo(e.target.value)}
-              placeholder={t('promo')}
-              className="h-10 flex-1 rounded-field border border-ink-200 bg-white px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
-            />
-          </div>
+          <TextInput
+            type="text"
+            label={t('promo')}
+            isLabelHidden
+            value={promo}
+            placeholder={t('promo')}
+            onChange={(value) => setPromo(value)}
+          />
 
           {/* Totals */}
-          <div className="mt-5 space-y-2 border-t border-ink-100 pt-4 text-sm dark:border-white/10">
-            <Row label={t('subtotal')} value={money(cart.subtotal)} />
+          <div {...stylex.props(styles.totals)}>
+            <div {...stylex.props(styles.row)}>
+              <span {...stylex.props(styles.rowLabel)}>{t('subtotal')}</span>
+              <span {...stylex.props(styles.rowValue)}>{money(cart.subtotal)}</span>
+            </div>
             {cart.discount > 0 && (
-              <Row
-                label={t('discount')}
-                value={`−${money(cart.discount)}`}
-                tone="text-success-600 dark:text-success-300"
-              />
+              <div {...stylex.props(styles.row)}>
+                <span {...stylex.props(styles.rowLabel)}>{t('discount')}</span>
+                <span {...stylex.props(styles.rowValue, styles.rowValueDiscount)}>
+                  −{money(cart.discount)}
+                </span>
+              </div>
             )}
-            <div className="flex items-center justify-between pt-2">
-              <span className="font-semibold text-ink-900 dark:text-white">{t('total')}</span>
-              <span className="font-display text-xl font-extrabold tabular-nums text-ink-900 dark:text-white">
-                {money(cart.total)}
-              </span>
+            <div {...stylex.props(styles.totalRow)}>
+              <span {...stylex.props(styles.totalLabel)}>{t('total')}</span>
+              <span {...stylex.props(styles.totalValue)}>{money(cart.total)}</span>
             </div>
           </div>
 
-          <Btn
-            v="primary"
-            className="mt-5 w-full"
-            icon="bag"
-            disabled={pending || cart.items.length === 0}
+          <Button
+            variant="primary"
+            size="lg"
+            icon={<Icon name="bag" />}
+            label={pending ? t('placing') : `${t('placeOrder')} · ${money(cart.total)}`}
+            isLoading={pending}
+            isDisabled={pending || cart.items.length === 0}
             onClick={checkout}
-          >
-            {pending ? t('placing') : `${t('placeOrder')} · ${money(cart.total)}`}
-          </Btn>
-          <p className="mt-2 text-center text-xs text-ink-400">{t('securePayment')}</p>
+            xstyle={styles.checkout}
+          />
+          <p {...stylex.props(styles.secure)}>{t('securePayment')}</p>
         </Card>
       </div>
-    </div>
-  );
-}
-
-function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-ink-500 dark:text-ink-400">{label}</span>
-      <span className={`font-mono tabular-nums ${tone ?? 'text-ink-800 dark:text-ink-200'}`}>
-        {value}
-      </span>
     </div>
   );
 }

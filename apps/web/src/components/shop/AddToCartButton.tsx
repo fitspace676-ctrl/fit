@@ -2,10 +2,15 @@
 
 import { useTransition } from 'react';
 import { useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
 import { encodeVariantRef, type ProductSummary } from '@fit/types';
 import { useRouter } from '@/src/i18n/navigation';
-import { Btn, useToast } from '@/src/components/ui';
+import { Icon, useToast } from '@/src/components/ui';
 import { addToCartAction } from '@/app/actions/cart';
+
+// Astryx migration (T11.15): the quick add-to-cart control is rebuilt on the
+// Astryx secondary `Button` over the Fit brand theme tokens — no Tailwind. The
+// add / toast / refresh behaviour is unchanged.
 
 /**
  * Quick add-to-cart for a product card: adds the first variant (or the base
@@ -39,8 +44,14 @@ export function AddToCartButton({ product }: { product: ProductSummary }) {
   }
 
   return (
-    <Btn v="outline" size="sm" icon="plus" disabled={pending} onClick={add}>
-      {pending ? t('adding') : t('add')}
-    </Btn>
+    <Button
+      variant="secondary"
+      size="sm"
+      icon={<Icon name="plus" />}
+      label={pending ? t('adding') : t('add')}
+      isLoading={pending}
+      isDisabled={pending}
+      onClick={add}
+    />
   );
 }

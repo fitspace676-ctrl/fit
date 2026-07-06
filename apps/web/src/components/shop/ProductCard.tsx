@@ -1,8 +1,84 @@
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Card } from '@astryxdesign/core/Card';
 import type { ProductSummary } from '@fit/types';
 import { formatMoney } from '@/lib/shop';
-import { Card, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { AddToCartButton } from './AddToCartButton';
+
+// Astryx migration (T11.15): the shop product card is rebuilt on the Astryx
+// `Card` over the Fit brand theme tokens, with the thumbnail / copy / price row
+// authored in compiled StyleX (`var(--color-*)` / `var(--font-family-*)`) — no
+// Tailwind utilities. The "from <lowest>" pricing logic is unchanged.
+
+const styles = stylex.create({
+  card: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1rem',
+  },
+  thumb: {
+    aspectRatio: '1 / 1',
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    display: 'grid',
+    placeItems: 'center',
+  },
+  img: {
+    height: '100%',
+    width: '100%',
+    objectFit: 'cover',
+  },
+  placeholder: {
+    color: 'var(--color-text-disabled)',
+  },
+  placeholderIcon: {
+    height: '2.5rem',
+    width: '2.5rem',
+  },
+  body: {
+    display: 'flex',
+    minWidth: 0,
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  name: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '1rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  description: {
+    margin: 0,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  footer: {
+    marginTop: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  price: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+});
 
 export interface ProductCardProps {
   product: ProductSummary;
@@ -28,35 +104,24 @@ export function ProductCard({ product }: ProductCardProps) {
   const price = formatMoney(showFrom ? lowest : product.priceAmount, product.currency, locale);
 
   return (
-    <Card glow className="flex h-full flex-col gap-4 p-4">
-      <div className="aspect-square w-full overflow-hidden rounded-btn bg-ink-50 dark:bg-white/5">
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.thumb)}>
         {product.imageUrl ? (
-          <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
+          <img src={product.imageUrl} alt="" {...stylex.props(styles.img)} />
         ) : (
-          <span
-            aria-hidden
-            className="flex h-full w-full items-center justify-center text-ink-300 dark:text-ink-500"
-          >
-            <Icon name="bag" className="h-10 w-10" sw={1.8} />
+          <span aria-hidden {...stylex.props(styles.placeholder)}>
+            <Icon name="bag" {...stylex.props(styles.placeholderIcon)} sw={1.8} />
           </span>
         )}
       </div>
 
-      <div className="flex min-w-0 flex-col gap-1">
-        <h2 className="truncate text-base font-semibold text-ink-900 dark:text-white">
-          {product.name}
-        </h2>
-        {product.description && (
-          <p className="line-clamp-2 text-sm text-ink-500 dark:text-ink-400">
-            {product.description}
-          </p>
-        )}
+      <div {...stylex.props(styles.body)}>
+        <h2 {...stylex.props(styles.name)}>{product.name}</h2>
+        {product.description && <p {...stylex.props(styles.description)}>{product.description}</p>}
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-2">
-        <p className="font-mono text-base font-semibold text-brand-600 dark:text-brand-300">
-          {showFrom ? t('browse.fromPrice', { price }) : price}
-        </p>
+      <div {...stylex.props(styles.footer)}>
+        <p {...stylex.props(styles.price)}>{showFrom ? t('browse.fromPrice', { price }) : price}</p>
         <AddToCartButton product={product} />
       </div>
     </Card>
