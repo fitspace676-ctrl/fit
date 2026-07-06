@@ -1,12 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
 import type { ProductSummary } from '@fit/types';
 import { fetchProducts } from '@/lib/shop';
-import { Btn, Card } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { EmptyShop } from './EmptyShop';
 import { ProductsGrid } from './ProductsGrid';
+
+// Astryx migration (T11.15): the shop browser's loading / error / empty states
+// are rebuilt on the Astryx `EmptyState` + `Button` over the Fit brand theme
+// tokens, with layout in compiled StyleX — no Tailwind utilities. The catalogue
+// fetch lifecycle below is unchanged.
+
+const styles = stylex.create({
+  loading: {
+    paddingBlock: '4rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorIcon: {
+    height: '2.25rem',
+    width: '2.25rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 export interface ShopBrowserProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
@@ -58,21 +80,23 @@ export function ShopBrowser({ gymId }: ShopBrowserProps) {
   }, [gymId, reloadKey]);
 
   if (load.status === 'loading') {
-    return (
-      <p className="py-16 text-center text-sm text-ink-500 dark:text-ink-400">
-        {t('browse.loading')}
-      </p>
-    );
+    return <p {...stylex.props(styles.loading)}>{t('browse.loading')}</p>;
   }
 
   if (load.status === 'error') {
     return (
-      <Card glow className="flex flex-col items-center gap-4 px-6 py-16 text-center">
-        <p className="text-sm text-ink-600 dark:text-ink-300">{t('browse.error')}</p>
-        <Btn v="outline" onClick={() => setReloadKey((key) => key + 1)}>
-          {t('retry')}
-        </Btn>
-      </Card>
+      <EmptyState
+        icon={<Icon name="bag" {...stylex.props(styles.errorIcon)} sw={1.8} />}
+        title={t('browse.error')}
+        actions={
+          <Button
+            variant="secondary"
+            size="md"
+            label={t('retry')}
+            onClick={() => setReloadKey((key) => key + 1)}
+          />
+        }
+      />
     );
   }
 

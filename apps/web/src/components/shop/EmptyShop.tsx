@@ -1,5 +1,18 @@
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Icon } from '@/src/components/ui';
+
+// Astryx migration (T11.15): the shop's empty state is rebuilt on the Astryx
+// `EmptyState` over the Fit brand theme tokens — no Tailwind utilities.
+
+const styles = stylex.create({
+  icon: {
+    height: '2.25rem',
+    width: '2.25rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /**
  * Empty state shown when the active gym has no products (or there is no tenant
@@ -9,19 +22,10 @@ export function EmptyShop() {
   const t = useTranslations('shop');
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-card border border-dashed border-ink-200 bg-ink-50/60 px-6 py-16 text-center dark:border-white/10 dark:bg-white/5">
-      <span
-        aria-hidden
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-ink-100 text-ink-400 dark:bg-white/10 dark:text-ink-300"
-      >
-        <Icon name="bag" className="h-6 w-6" sw={1.9} />
-      </span>
-      <p className="text-base font-semibold text-ink-900 dark:text-white">
-        {t('browse.empty.title')}
-      </p>
-      <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
-        {t('browse.empty.subtitle')}
-      </p>
-    </div>
+    <EmptyState
+      icon={<Icon name="bag" {...stylex.props(styles.icon)} sw={1.9} />}
+      title={t('browse.empty.title')}
+      description={t('browse.empty.subtitle')}
+    />
   );
 }

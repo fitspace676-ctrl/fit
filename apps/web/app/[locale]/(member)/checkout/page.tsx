@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getActiveGymId } from '@/lib/active-gym';
 import { StepDetails } from '@/src/components/checkout/StepDetails';
@@ -18,6 +19,38 @@ export const metadata: Metadata = {
  * bake in a null gym and show the empty state on every tenant subdomain.
  */
 export const dynamic = 'force-dynamic';
+
+// Astryx migration (T11.15): the purchase-wizard page frame + header are authored
+// in compiled StyleX over the Fit brand theme tokens (`var(--color-*)` /
+// `var(--font-family-*)`) — no Tailwind utilities. Step routing is unchanged.
+const styles = stylex.create({
+  page: {
+    marginInline: 'auto',
+    width: '100%',
+    maxWidth: '48rem',
+    paddingInline: '1.25rem',
+    paddingBlock: '2.5rem',
+  },
+  header: {
+    marginBottom: '2rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /** Raw search params the checkout page reads (all optional strings). */
 interface CheckoutSearchParams {
@@ -58,10 +91,10 @@ export default async function CheckoutPage({
   const step = parseStep(sp.step);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-gutter py-10">
-      <header className="mb-8 flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold text-ink-900 dark:text-white">{t('title')}</h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </header>
 
       <WizardShell step={step}>

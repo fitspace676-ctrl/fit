@@ -1,16 +1,109 @@
 'use client';
 
 import { type FormEvent, useCallback, useMemo, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
+import { TextInput } from '@astryxdesign/core/TextInput';
 import { registerSchema, type OrderCustomer } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { registerWithCredentials } from '@/lib/auth';
 import { useSession } from '@/hooks/use-session';
+import { Icon } from '@/src/components/ui';
 import { CHECKOUT_LOCATION_KEY } from './StepLocation';
 import { CHECKOUT_PACKAGE_KEY } from './StepPackage';
 
 /** sessionStorage key the wizard persists the guest's contact details under (T3.10). */
 export const CHECKOUT_CUSTOMER_KEY = 'checkout_customer';
+
+// Astryx migration (T11.15): step 3 (who the order is for) is rebuilt on the Fit
+// brand theme — the guest register form uses Astryx `TextInput` (mirroring the
+// migrated register screen, T11.8) with Back / Continue on the Astryx `Button`;
+// the signed-in confirmation panel, error banner and layout are compiled StyleX
+// (`var(--color-*)`) — no Tailwind utilities. The register schema validation,
+// best-effort account creation and navigation are unchanged.
+const styles = stylex.create({
+  status: {
+    paddingBlock: '4rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  heading: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  signedIn: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-accent-muted)',
+    backgroundColor: 'var(--color-accent-muted)',
+    padding: '1rem',
+  },
+  signedInIcon: {
+    marginTop: '0.125rem',
+    height: '1.25rem',
+    width: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-text-accent)',
+  },
+  signedInText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+  },
+  error: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+    backgroundColor: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-error) 30%, transparent)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    height: '1rem',
+    width: '1rem',
+    flexShrink: 0,
+  },
+  fields: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+});
 
 /**
  * Read the guest contact details persisted in step 3, or `null` when none were
@@ -144,161 +237,99 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
   );
 
   if (isLoading) {
-    return (
-      <p className="py-16 text-center text-sm text-ink-400 dark:text-ink-500">
-        {t('details.loading')}
-      </p>
-    );
+    return <p {...stylex.props(styles.status)}>{t('details.loading')}</p>;
   }
 
   if (user) {
     return (
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold text-ink-900 dark:text-white">
-            {t('details.title')}
-          </h2>
-          <p className="text-sm text-ink-500 dark:text-ink-400">{t('details.subtitle')}</p>
+      <div {...stylex.props(styles.root)}>
+        <div {...stylex.props(styles.heading)}>
+          <h2 {...stylex.props(styles.title)}>{t('details.title')}</h2>
+          <p {...stylex.props(styles.subtitle)}>{t('details.subtitle')}</p>
         </div>
 
-        <div className="flex items-start gap-3 rounded-card border border-brand-200 bg-brand-50 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
-          <svg
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-600"
-            aria-hidden="true"
-          >
-            <path
-              fillRule="evenodd"
-              d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 1 1 1.4-1.4l2.8 2.79 6.8-6.79a1 1 0 0 1 1.4 0Z"
-              clipRule="evenodd"
-            />
-          </svg>
-          <p className="text-sm text-ink-700 dark:text-ink-200">{t('details.signedIn')}</p>
+        <div {...stylex.props(styles.signedIn)}>
+          <Icon name="check" {...stylex.props(styles.signedInIcon)} sw={2.4} />
+          <p {...stylex.props(styles.signedInText)}>{t('details.signedIn')}</p>
         </div>
 
-        <div className="flex justify-between gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
-          >
-            {t('back')}
-          </button>
-          <button
-            type="button"
-            disabled={!gymId || !effectivePackageId}
+        <div {...stylex.props(styles.actions)}>
+          <Button variant="secondary" size="md" label={t('back')} onClick={onBack} />
+          <Button
+            variant="primary"
+            size="md"
+            label={t('continue')}
+            isDisabled={!gymId || !effectivePackageId}
             onClick={onContinueSignedIn}
-            className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
-          >
-            {t('continue')}
-          </button>
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={onSubmitGuest} className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-ink-900 dark:text-white">{t('details.title')}</h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('details.guestSubtitle')}</p>
+    <form onSubmit={onSubmitGuest} {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.heading)}>
+        <h2 {...stylex.props(styles.title)}>{t('details.title')}</h2>
+        <p {...stylex.props(styles.subtitle)}>{t('details.guestSubtitle')}</p>
       </div>
 
       {error ? (
-        <p
-          role="alert"
-          className="rounded-card bg-danger-50 dark:bg-danger-500/10 px-3 py-2 text-sm text-danger-600 dark:text-danger-400"
-        >
+        <p role="alert" {...stylex.props(styles.error)}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} sw={2.2} />
           {error}
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-4">
-        <Field
-          label={t('details.fields.name')}
+      <div {...stylex.props(styles.fields)}>
+        <TextInput
           type="text"
-          name="name"
-          autoComplete="name"
-          required
+          label={t('details.fields.name')}
+          htmlName="name"
           value={name}
-          onChange={setName}
-          disabled={pending}
+          onChange={(value) => setName(value)}
+          isRequired
+          isDisabled={pending}
         />
-        <Field
-          label={t('details.fields.email')}
+        <TextInput
           type="email"
-          name="email"
-          autoComplete="email"
-          required
+          label={t('details.fields.email')}
+          htmlName="email"
           value={email}
-          onChange={setEmail}
-          disabled={pending}
+          onChange={(value) => setEmail(value)}
+          isRequired
+          isDisabled={pending}
         />
-        <Field
-          label={t('details.fields.password')}
+        <TextInput
           type="password"
-          name="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          hint={t('details.fields.passwordHint')}
+          label={t('details.fields.password')}
+          htmlName="password"
+          description={t('details.fields.passwordHint')}
           value={password}
-          onChange={setPassword}
-          disabled={pending}
+          onChange={(value) => setPassword(value)}
+          isRequired
+          isDisabled={pending}
         />
       </div>
 
-      <div className="flex justify-between gap-3">
-        <button
+      <div {...stylex.props(styles.actions)}>
+        <Button
           type="button"
+          variant="secondary"
+          size="md"
+          label={t('back')}
+          isDisabled={pending}
           onClick={onBack}
-          disabled={pending}
-          className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5 disabled:opacity-60"
-        >
-          {t('back')}
-        </button>
-        <button
+        />
+        <Button
           type="submit"
-          disabled={pending || !gymId || !effectivePackageId}
-          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
-        >
-          {pending ? t('details.submitting') : t('continue')}
-        </button>
+          variant="primary"
+          size="md"
+          label={pending ? t('details.submitting') : t('continue')}
+          isLoading={pending}
+          isDisabled={pending || !gymId || !effectivePackageId}
+        />
       </div>
     </form>
-  );
-}
-
-/** A labelled text input local to the details form (mirrors the auth TextField). */
-function Field({
-  label,
-  hint,
-  value,
-  onChange,
-  ...props
-}: {
-  label: string;
-  hint?: string;
-  value: string;
-  onChange: (value: string) => void;
-  type: string;
-  name: string;
-  autoComplete: string;
-  required?: boolean;
-  minLength?: number;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="flex flex-col gap-1.5 text-left">
-      <span className="text-sm font-medium text-ink-700 dark:text-ink-200">{label}</span>
-      <input
-        {...props}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-card border border-ink-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-ink-900 dark:text-white outline-none transition-colors placeholder:text-ink-400 dark:placeholder:text-ink-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:opacity-60"
-      />
-      {hint ? <span className="text-xs text-ink-400 dark:text-ink-500">{hint}</span> : null}
-    </label>
   );
 }

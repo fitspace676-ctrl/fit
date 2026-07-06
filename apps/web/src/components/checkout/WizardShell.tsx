@@ -1,3 +1,4 @@
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 
 /** The four purchase-wizard steps, in order. Drives the progress indicator. */
@@ -8,6 +9,68 @@ export const WIZARD_STEP_COUNT = WIZARD_STEPS.length;
 
 /** A 1-based wizard step number. */
 export type WizardStep = 1 | 2 | 3 | 4;
+
+// Astryx migration (T11.15): the "Step X of N" progress indicator is authored in
+// compiled StyleX over the Fit brand theme tokens (`var(--color-accent)` for the
+// active/complete bars) — no Tailwind utilities. Free of client state so the
+// page can render it server-side; step logic is unchanged.
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2rem',
+  },
+  head: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  progressText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  steps: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  step: {
+    display: 'flex',
+    flex: 1,
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  bar: {
+    height: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
+  },
+  barDone: {
+    backgroundColor: 'var(--color-accent)',
+  },
+  barTodo: {
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  label: {
+    fontSize: '0.75rem',
+    fontWeight: 500,
+  },
+  labelActive: {
+    color: 'var(--color-text-accent)',
+  },
+  labelDone: {
+    color: 'var(--color-text-secondary)',
+  },
+  labelTodo: {
+    color: 'var(--color-text-disabled)',
+  },
+});
 
 export interface WizardShellProps {
   /** The active step (1-based). Earlier steps render as complete, later as upcoming. */
@@ -26,33 +89,31 @@ export function WizardShell({ step, children }: WizardShellProps) {
   const t = useTranslations('checkout');
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-4">
-        <p className="text-sm font-medium text-ink-500 dark:text-ink-400">
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.head)}>
+        <p {...stylex.props(styles.progressText)}>
           {t('progress', { current: step, total: WIZARD_STEP_COUNT })}
         </p>
 
-        <ol className="flex items-center gap-2" aria-label={t('progressLabel')}>
+        <ol {...stylex.props(styles.steps)} aria-label={t('progressLabel')}>
           {WIZARD_STEPS.map((key, index) => {
             const position = index + 1;
             const active = position === step;
             const complete = position < step;
             return (
-              <li key={key} className="flex flex-1 flex-col gap-1.5">
+              <li key={key} {...stylex.props(styles.step)}>
                 <span
-                  className={`h-1.5 rounded-full transition-colors ${
-                    active || complete ? 'bg-brand-600' : 'bg-ink-200 dark:bg-white/10'
-                  }`}
+                  {...stylex.props(
+                    styles.bar,
+                    active || complete ? styles.barDone : styles.barTodo,
+                  )}
                   aria-current={active ? 'step' : undefined}
                 />
                 <span
-                  className={`text-xs font-medium ${
-                    active
-                      ? 'text-brand-700 dark:text-brand-300'
-                      : complete
-                        ? 'text-ink-600 dark:text-ink-300'
-                        : 'text-ink-400 dark:text-ink-500'
-                  }`}
+                  {...stylex.props(
+                    styles.label,
+                    active ? styles.labelActive : complete ? styles.labelDone : styles.labelTodo,
+                  )}
                 >
                   {t(`steps.${key}`)}
                 </span>

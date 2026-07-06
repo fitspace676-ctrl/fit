@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
 import type { PackageInterval, PackageSummary } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchPackages } from '@/lib/packages';
@@ -20,6 +23,154 @@ import { readCheckoutCustomer } from './StepDetails';
  * (not via `@/lib/env`) so the value is inlined by Next at build.
  */
 const PAYMENTS_ENABLED = process.env.NEXT_PUBLIC_PAYMENTS_ENABLED === 'true';
+
+// Astryx migration (T11.15): step 4 (review + pay) is rebuilt on the Fit brand
+// theme — the order summary and status states authored in compiled StyleX
+// (`var(--color-*)`), the terms checkbox on the Astryx `CheckboxInput` and
+// Back / Pay on the Astryx `Button` — no Tailwind utilities. Package resolution,
+// the T10.8 payments flag, order creation (T8.8 stub) and navigation are
+// unchanged.
+const styles = stylex.create({
+  status: {
+    paddingBlock: '4rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  centered: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
+    paddingBlock: '4rem',
+    textAlign: 'center',
+  },
+  centeredTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  centeredText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  heading: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  notice: {
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  summary: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    padding: '1.25rem',
+  },
+  summaryRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  summaryLabel: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  summaryValue: {
+    margin: 0,
+    textAlign: 'right',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  totalRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '0.75rem',
+  },
+  totalLabel: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  totalValue: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '0.25rem',
+  },
+  price: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    letterSpacing: '-0.01em',
+    color: 'var(--color-text-primary)',
+  },
+  priceSuffix: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  error: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+    backgroundColor: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-error) 30%, transparent)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  actionsStart: {
+    display: 'flex',
+    justifyContent: 'flex-start',
+  },
+});
 
 export interface StepPaymentProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
@@ -176,115 +327,84 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
   }, [gymId, effectivePackageId, effectiveLocationId, termsAccepted, submitting, router, t]);
 
   if (load.status === 'loading') {
-    return (
-      <p className="py-16 text-center text-sm text-ink-400 dark:text-ink-500">
-        {t('payment.loading')}
-      </p>
-    );
+    return <p {...stylex.props(styles.status)}>{t('payment.loading')}</p>;
   }
 
   if (load.status === 'error' || !load.pkg) {
     return (
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col items-center gap-2 py-16 text-center">
-          <p className="text-sm font-medium text-ink-900 dark:text-white">
-            {t('payment.unavailable.title')}
-          </p>
-          <p className="text-sm text-ink-500 dark:text-ink-400">
-            {t('payment.unavailable.subtitle')}
-          </p>
+      <div {...stylex.props(styles.root)}>
+        <div {...stylex.props(styles.centered)}>
+          <p {...stylex.props(styles.centeredTitle)}>{t('payment.unavailable.title')}</p>
+          <p {...stylex.props(styles.centeredText)}>{t('payment.unavailable.subtitle')}</p>
         </div>
-        <div className="flex justify-start">
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
-          >
-            {t('back')}
-          </button>
+        <div {...stylex.props(styles.actionsStart)}>
+          <Button variant="secondary" size="md" label={t('back')} onClick={onBack} />
         </div>
       </div>
     );
   }
 
   const pkg = load.pkg;
+  const suffix = intervalSuffix(pkg.interval);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-ink-900 dark:text-white">{t('payment.title')}</h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('payment.subtitle')}</p>
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.heading)}>
+        <h2 {...stylex.props(styles.title)}>{t('payment.title')}</h2>
+        <p {...stylex.props(styles.subtitle)}>{t('payment.subtitle')}</p>
       </div>
 
-      {!PAYMENTS_ENABLED ? (
-        <p className="rounded-card border border-ink-200 dark:border-white/10 bg-ink-50 dark:bg-white/5 px-4 py-3 text-sm text-ink-600 dark:text-ink-300">
-          {t('payment.notice')}
-        </p>
-      ) : null}
+      {!PAYMENTS_ENABLED ? <p {...stylex.props(styles.notice)}>{t('payment.notice')}</p> : null}
 
-      <dl className="flex flex-col gap-3 rounded-card border border-ink-200 dark:border-white/10 p-5">
-        <div className="flex items-start justify-between gap-3">
-          <dt className="text-sm text-ink-500 dark:text-ink-400">{t('payment.summary.package')}</dt>
-          <dd className="text-right text-sm font-medium text-ink-900 dark:text-white">
-            {pkg.name}
-          </dd>
+      <dl {...stylex.props(styles.summary)}>
+        <div {...stylex.props(styles.summaryRow)}>
+          <dt {...stylex.props(styles.summaryLabel)}>{t('payment.summary.package')}</dt>
+          <dd {...stylex.props(styles.summaryValue)}>{pkg.name}</dd>
         </div>
-        <div className="flex items-center justify-between gap-3 border-t border-ink-100 dark:border-white/10 pt-3">
-          <dt className="text-sm font-semibold text-ink-900 dark:text-white">
-            {t('payment.summary.total')}
-          </dt>
-          <dd className="flex items-baseline gap-1">
+        <div {...stylex.props(styles.totalRow)}>
+          <dt {...stylex.props(styles.totalLabel)}>{t('payment.summary.total')}</dt>
+          <dd {...stylex.props(styles.totalValue)}>
             <Money locale={locale} amount={pkg.priceAmount} currency={pkg.currency} />
-            {intervalSuffix(pkg.interval) ? (
-              <span className="text-sm text-ink-500 dark:text-ink-400">
-                {intervalSuffix(pkg.interval)}
-              </span>
-            ) : null}
+            {suffix ? <span {...stylex.props(styles.priceSuffix)}>{suffix}</span> : null}
           </dd>
         </div>
       </dl>
 
-      <label className="flex items-start gap-3 text-sm text-ink-600 dark:text-ink-300">
-        <input
-          type="checkbox"
-          checked={termsAccepted}
-          onChange={(e) => setTermsAccepted(e.target.checked)}
-          disabled={submitting}
-          className="mt-0.5 h-4 w-4 rounded border-ink-300 dark:border-white/20 text-brand-600 focus:ring-brand-500"
-        />
-        <span>{t('payment.terms')}</span>
-      </label>
+      <CheckboxInput
+        label={t('payment.terms')}
+        value={termsAccepted}
+        onChange={(checked) => setTermsAccepted(checked)}
+        isDisabled={submitting}
+      />
 
       {submitError ? (
-        <p
-          role="alert"
-          className="rounded-card bg-danger-50 dark:bg-danger-500/10 px-3 py-2 text-sm text-danger-600 dark:text-danger-400"
-        >
+        <p role="alert" {...stylex.props(styles.error)}>
           {submitError}
         </p>
       ) : null}
 
-      <div className="flex justify-between gap-3">
-        <button
-          type="button"
+      <div {...stylex.props(styles.actions)}>
+        <Button
+          variant="secondary"
+          size="md"
+          label={t('back')}
+          isDisabled={submitting}
           onClick={onBack}
-          disabled={submitting}
-          className="rounded-card border border-ink-200 dark:border-white/10 px-6 py-2.5 text-sm font-semibold text-ink-700 dark:text-ink-200 transition-colors hover:bg-ink-50 dark:hover:bg-white/5 disabled:opacity-60"
-        >
-          {t('back')}
-        </button>
-        <button
-          type="button"
+        />
+        <Button
+          variant="primary"
+          size="md"
+          label={
+            submitting
+              ? t('payment.processing')
+              : PAYMENTS_ENABLED
+                ? t('payment.pay')
+                : t('payment.reserve')
+          }
+          isLoading={submitting}
+          isDisabled={!termsAccepted || submitting}
           onClick={onPay}
-          disabled={!termsAccepted || submitting}
-          className="rounded-card bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-ink-200 dark:disabled:bg-white/10 disabled:text-ink-400 dark:disabled:text-ink-500"
-        >
-          {submitting
-            ? t('payment.processing')
-            : PAYMENTS_ENABLED
-              ? t('payment.pay')
-              : t('payment.reserve')}
-        </button>
+        />
       </div>
     </div>
   );
@@ -301,9 +421,5 @@ function Money({ locale, amount, currency }: { locale: string; amount: number; c
       }).format(amount / 100),
     [locale, amount, currency],
   );
-  return (
-    <span className="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
-      {formatted}
-    </span>
-  );
+  return <span {...stylex.props(styles.price)}>{formatted}</span>;
 }

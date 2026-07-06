@@ -87,6 +87,17 @@ const MIGRATED_PATHS: readonly string[] = [
   // directory.
   'apps/web/app/[locale]/(member)/account/bookings',
   'apps/web/src/components/account',
+  // T11.15 — member commerce: shop listing + product card, cart + checkout, and
+  // the four-step purchase wizard (+ success). Rebuilt on Astryx
+  // Card/Button/IconButton/Badge/Selector/TextInput/CheckboxInput + StyleX.
+  // Guarded as directories since the shop / cart / checkout route groups and
+  // component dirs are now Astryx-only.
+  'apps/web/app/[locale]/(member)/shop',
+  'apps/web/src/components/shop',
+  'apps/web/app/[locale]/(member)/cart',
+  'apps/web/src/components/member/cart',
+  'apps/web/app/[locale]/(member)/checkout',
+  'apps/web/src/components/checkout',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

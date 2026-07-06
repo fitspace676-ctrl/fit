@@ -70,6 +70,12 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/web/src/components/trainers`                        | T11.13 | ✅     |
 | `apps/web/app/[locale]/(member)/account/bookings`         | T11.14 | ✅     |
 | `apps/web/src/components/account`                         | T11.14 | ✅     |
+| `apps/web/app/[locale]/(member)/shop`                     | T11.15 | ✅     |
+| `apps/web/src/components/shop`                            | T11.15 | ✅     |
+| `apps/web/app/[locale]/(member)/cart`                     | T11.15 | ✅     |
+| `apps/web/src/components/member/cart`                     | T11.15 | ✅     |
+| `apps/web/app/[locale]/(member)/checkout`                 | T11.15 | ✅     |
+| `apps/web/src/components/checkout`                        | T11.15 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
