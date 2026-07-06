@@ -3,8 +3,10 @@
 import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import type { AdminProductRow, ProductStatus } from '@fit/types';
-import { Badge, Btn, Card, Icon, type Tone } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge, Btn, Icon, type Tone } from '@/components/ui';
 import { formatPrice } from './format-price';
 import { StockBadge, stockLevel } from './stock-badge';
 
@@ -14,15 +16,163 @@ const STATUS_STYLES: Record<ProductStatus, { label: string; tone: Tone }> = {
   INACTIVE: { label: 'Inactive', tone: 'ink' },
 };
 
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  emptyCard: {
+    paddingInline: '1rem',
+    paddingBlock: '2.5rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: '1fr 1fr',
+      '@media (min-width: 640px)': 'repeat(3, 1fr)',
+      '@media (min-width: 1024px)': 'repeat(4, 1fr)',
+    },
+    gap: '1rem',
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+  },
+  card: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  cardLow: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    // Low-stock cards wear a warning ring so a thinning line surfaces in the grid.
+    boxShadow: '0 0 0 1px var(--color-warning)',
+  },
+  cardOut: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    // Out-of-stock cards wear an error ring — the most urgent emphasis.
+    boxShadow: '0 0 0 1px var(--color-error)',
+  },
+  cardLink: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    textDecoration: 'none',
+    color: 'inherit',
+    outline: {
+      default: null,
+      ':focus': 'none',
+    },
+  },
+  media: {
+    position: 'relative',
+    aspectRatio: '1 / 1',
+    width: '100%',
+    overflow: 'hidden',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  image: {
+    height: '100%',
+    width: '100%',
+    objectFit: 'cover',
+    transitionProperty: 'transform',
+    transitionDuration: '150ms',
+    transform: {
+      default: 'none',
+      ':hover': 'scale(1.03)',
+    },
+  },
+  placeholder: {
+    display: 'flex',
+    height: '100%',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'var(--color-text-disabled)',
+  },
+  placeholderIcon: {
+    width: '2rem',
+    height: '2rem',
+  },
+  statusBadge: {
+    position: 'absolute',
+    left: '0.5rem',
+    top: '0.5rem',
+  },
+  body: {
+    display: 'flex',
+    flexGrow: 1,
+    flexDirection: 'column',
+    gap: '0.5rem',
+    padding: '0.875rem',
+  },
+  name: {
+    margin: 0,
+    display: '-webkit-box',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: 2,
+    overflow: 'hidden',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: {
+      default: 'var(--color-text-primary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+  },
+  priceRow: {
+    marginTop: 'auto',
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  price: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  variantCount: {
+    fontSize: '0.6875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerCount: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  pagerBtns: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+});
+
 /**
- * The product catalog grid (T4.5) — the formacore shop artboard's card layout,
- * replacing the old roster table. Server-rendered data, client-side interaction:
- * only the pager reads/writes the URL search params (search, status and sort live in
- * their own controls) so the server page stays the single source of truth. Each card
- * shows the primary gallery image (or a placeholder), the status badge, the formatted
- * base price, the variant count, and a stock badge derived from the product's on-hand
- * levels. Low / out-of-stock cards carry an accent ring so a thinning line stands out.
- * Nothing mutates here.
+ * The product catalog grid (T4.5), rebuilt on Astryx Cards + brand-tokened StyleX
+ * (T11.22) — the shop's card layout, replacing the old roster table. Server-rendered
+ * data, client-side interaction: only the pager reads/writes the URL search params
+ * (search, status and sort live in their own controls) so the server page stays the
+ * single source of truth. Each card shows the primary gallery image (or a
+ * placeholder), the status badge, the formatted base price, the variant count, and a
+ * stock badge derived from the product's on-hand levels. Low / out-of-stock cards
+ * carry an accent ring so a thinning line stands out. Nothing mutates here.
  */
 export function ProductsGrid({
   products,
@@ -60,59 +210,46 @@ export function ProductsGrid({
 
   if (products.length === 0) {
     return (
-      <Card className="px-4 py-10 text-center text-sm text-ink-500 dark:text-ink-400">
+      <Card variant="default" padding={0} xstyle={styles.emptyCard}>
         No products match your filters yet.
       </Card>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <div {...stylex.props(styles.stack)}>
+      <ul {...stylex.props(styles.grid)}>
         {products.map((product) => {
           const level = stockLevel(product);
           // Low / out-of-stock cards wear an accent ring so a thinning line surfaces
-          // in the grid at a glance (the artboard's low-stock emphasis).
-          const ring =
-            level === 'out'
-              ? 'ring-1 ring-danger-500/40 dark:ring-danger-400/40'
-              : level === 'low'
-                ? 'ring-1 ring-warning-500/40 dark:ring-warning-400/40'
-                : '';
+          // in the grid at a glance.
+          const cardStyle =
+            level === 'out' ? styles.cardOut : level === 'low' ? styles.cardLow : styles.card;
           const status = STATUS_STYLES[product.status];
           return (
             <li key={product.id}>
-              <Card className={`flex h-full flex-col overflow-hidden ${ring}`}>
-                <Link
-                  href={`/products/${product.id}`}
-                  className="group flex h-full flex-col focus:outline-none"
-                >
-                  <div className="relative aspect-square w-full overflow-hidden bg-ink-50 dark:bg-white/[0.03]">
+              <Card variant="default" padding={0} xstyle={cardStyle}>
+                <Link href={`/products/${product.id}`} {...stylex.props(styles.cardLink)}>
+                  <div {...stylex.props(styles.media)}>
                     {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt=""
-                        className="h-full w-full object-cover transition group-hover:scale-[1.03]"
-                      />
+                      <img src={product.imageUrl} alt="" {...stylex.props(styles.image)} />
                     ) : (
-                      <span className="flex h-full w-full items-center justify-center text-ink-300 dark:text-ink-500">
-                        <Icon name="bag" className="h-8 w-8" />
+                      <span {...stylex.props(styles.placeholder)}>
+                        <Icon name="bag" {...stylex.props(styles.placeholderIcon)} />
                       </span>
                     )}
-                    <span className="absolute left-2 top-2">
+                    <span {...stylex.props(styles.statusBadge)}>
                       <Badge tone={status.tone}>{status.label}</Badge>
                     </span>
                   </div>
 
-                  <div className="flex flex-1 flex-col gap-2 p-3.5">
-                    <h3 className="line-clamp-2 text-sm font-semibold text-ink-900 group-hover:text-brand-700 dark:text-white dark:group-hover:text-brand-300">
-                      {product.name}
-                    </h3>
-                    <div className="mt-auto flex items-baseline justify-between gap-2">
-                      <span className="font-mono text-base font-bold tabular-nums text-ink-900 dark:text-white">
+                  <div {...stylex.props(styles.body)}>
+                    <h3 {...stylex.props(styles.name)}>{product.name}</h3>
+                    <div {...stylex.props(styles.priceRow)}>
+                      <span {...stylex.props(styles.price)}>
                         {formatPrice(product.priceAmount, product.currency)}
                       </span>
-                      <span className="text-[11px] text-ink-400">
+                      <span {...stylex.props(styles.variantCount)}>
                         {product.variantCount > 0
                           ? `${product.variantCount} ${product.variantCount === 1 ? 'variant' : 'variants'}`
                           : 'No variants'}
@@ -130,11 +267,11 @@ export function ProductsGrid({
       </ul>
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="font-mono tabular-nums">
+      <div {...stylex.props(styles.pagerRow)}>
+        <span {...stylex.props(styles.pagerCount)}>
           {from}–{to} of {total}
         </span>
-        <div className="flex gap-2">
+        <div {...stylex.props(styles.pagerBtns)}>
           <Btn
             v="outline"
             size="sm"

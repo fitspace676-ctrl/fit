@@ -1,9 +1,107 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { computeCashVariance } from '@fit/types';
 import { formatPrice, inputToMinor } from '@/app/(dashboard)/products/format-price';
-import { Card } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+
+const styles = stylex.create({
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    padding: '1rem',
+  },
+  heading: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    margin: 0,
+    fontSize: '0.875rem',
+  },
+  rowLabel: {
+    margin: 0,
+    color: 'var(--color-text-secondary)',
+  },
+  rowValue: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  countLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  countInput: {
+    width: '9rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
+    textAlign: 'right',
+    fontSize: '1rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  varianceRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    margin: 0,
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '0.75rem',
+    fontSize: '1rem',
+  },
+  varianceLabel: {
+    margin: 0,
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  varianceValue: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  toneBalanced: {
+    color: 'var(--color-success)',
+  },
+  toneOver: {
+    color: 'var(--color-warning)',
+  },
+  toneShort: {
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * The cash-drawer balance control on the reconciliation report. The operator counts
@@ -29,25 +127,23 @@ export function CashCountForm({
 
   const tone =
     variance === null
-      ? ''
+      ? null
       : variance.status === 'balanced'
-        ? 'text-success-700 dark:text-success-300'
+        ? styles.toneBalanced
         : variance.status === 'over'
-          ? 'text-warning-700 dark:text-warning-300'
-          : 'text-danger-600 dark:text-danger-400';
+          ? styles.toneOver
+          : styles.toneShort;
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
-      <h2 className="text-sm font-semibold text-ink-900 dark:text-white">Balance the drawer</h2>
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h2 {...stylex.props(styles.heading)}>Balance the drawer</h2>
 
-      <dl className="flex items-center justify-between text-sm">
-        <dt className="text-ink-500 dark:text-ink-400">Expected cash</dt>
-        <dd className="font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
-          {formatPrice(expectedCash, currency)}
-        </dd>
+      <dl {...stylex.props(styles.row)}>
+        <dt {...stylex.props(styles.rowLabel)}>Expected cash</dt>
+        <dd {...stylex.props(styles.rowValue)}>{formatPrice(expectedCash, currency)}</dd>
       </dl>
 
-      <label className="flex items-center justify-between gap-2 text-sm font-medium text-ink-700 dark:text-ink-200">
+      <label {...stylex.props(styles.countLabel)}>
         <span>Counted cash</span>
         <input
           type="number"
@@ -57,20 +153,20 @@ export function CashCountForm({
           onChange={(event) => setCounted(event.target.value)}
           placeholder="0.00"
           aria-label="Counted cash"
-          className="w-36 rounded-field border border-ink-200 bg-white px-2 py-1 text-right text-base text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.countInput)}
         />
       </label>
 
       {variance !== null ? (
-        <dl className="flex items-center justify-between border-t border-ink-100 pt-3 text-base dark:border-white/10">
-          <dt className="font-medium text-ink-600 dark:text-ink-300">
+        <dl {...stylex.props(styles.varianceRow)}>
+          <dt {...stylex.props(styles.varianceLabel)}>
             {variance.status === 'balanced'
               ? 'Balanced'
               : variance.status === 'over'
                 ? 'Over'
                 : 'Short'}
           </dt>
-          <dd className={`font-mono font-bold tabular-nums ${tone}`}>
+          <dd {...stylex.props(styles.varianceValue, tone)}>
             {variance.variance > 0 ? '+' : ''}
             {formatPrice(variance.variance, currency)}
           </dd>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import type { OrderChannel } from '@fit/types';
 
 /** Channel options offered by the filter. */
@@ -13,20 +14,75 @@ const CHANNEL_OPTIONS: ReadonlyArray<{ value: OrderChannel; label: string }> = [
 /** Debounce (ms) before a keystroke in the member box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 250;
 
-/** Shared kit field styling for the filter inputs + selects. */
-const FIELD_CLASS =
-  'w-full h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
-
-/** Shared label styling. */
-const LABEL_CLASS = 'mb-1 block text-xs font-medium text-ink-500 dark:text-ink-400';
+const styles = stylex.create({
+  row: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 1024px)': 'row',
+    },
+    flexWrap: {
+      default: 'nowrap',
+      '@media (min-width: 1024px)': 'wrap',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 1024px)': 'flex-end',
+    },
+    gap: '0.75rem',
+  },
+  channelField: {
+    width: {
+      default: '100%',
+      '@media (min-width: 1024px)': '10rem',
+    },
+  },
+  memberField: {
+    flexGrow: 1,
+    minWidth: {
+      default: null,
+      '@media (min-width: 1024px)': '12rem',
+    },
+  },
+  dateField: {
+    width: {
+      default: '100%',
+      '@media (min-width: 1024px)': '10rem',
+    },
+  },
+  label: {
+    marginBottom: '0.25rem',
+    display: 'block',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  input: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+});
 
 /**
- * The orders roster filter bar (T7.9, restyled T4.3): a channel select, a
- * debounced member-id box, and a `from`/`to` date range. Status is filtered by
- * the segmented pill tabs above (see {@link OrdersStatusTabs}), not here. Each
- * control writes its state to the URL search params (the single source of truth
- * the server page reads), resetting to page 1 on any change. Navigation runs in a
- * transition so the inputs stay responsive.
+ * The orders roster filter bar (T7.9, restyled T4.3, rebuilt on brand-tokened
+ * StyleX in T11.22): a channel select, a debounced member-id box, and a
+ * `from`/`to` date range. Status is filtered by the segmented pill tabs above
+ * (see {@link OrdersStatusTabs}), not here. Each control writes its state to the
+ * URL search params (the single source of truth the server page reads), resetting
+ * to page 1 on any change. Navigation runs in a transition so the inputs stay
+ * responsive.
  */
 export function OrdersFilters({
   channel,
@@ -69,16 +125,16 @@ export function OrdersFilters({
   }
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
-      <div className="lg:w-40">
-        <label htmlFor="order-channel" className={LABEL_CLASS}>
+    <div {...stylex.props(styles.row)}>
+      <div {...stylex.props(styles.channelField)}>
+        <label htmlFor="order-channel" {...stylex.props(styles.label)}>
           Channel
         </label>
         <select
           id="order-channel"
           value={channel}
           onChange={(event) => commit('channel', event.target.value)}
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         >
           <option value="">All channels</option>
           {CHANNEL_OPTIONS.map((option) => (
@@ -89,8 +145,8 @@ export function OrdersFilters({
         </select>
       </div>
 
-      <div className="flex-1 lg:min-w-48">
-        <label htmlFor="order-member" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.memberField)}>
+        <label htmlFor="order-member" {...stylex.props(styles.label)}>
           Member ID
         </label>
         <input
@@ -99,12 +155,12 @@ export function OrdersFilters({
           value={memberValue}
           onChange={(event) => onMemberChange(event.target.value)}
           placeholder="Filter by member id…"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="lg:w-40">
-        <label htmlFor="order-from" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.dateField)}>
+        <label htmlFor="order-from" {...stylex.props(styles.label)}>
           From
         </label>
         <input
@@ -112,12 +168,12 @@ export function OrdersFilters({
           type="date"
           value={from}
           onChange={(event) => commit('from', event.target.value)}
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="lg:w-40">
-        <label htmlFor="order-to" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.dateField)}>
+        <label htmlFor="order-to" {...stylex.props(styles.label)}>
           To
         </label>
         <input
@@ -125,7 +181,7 @@ export function OrdersFilters({
           type="date"
           value={to}
           onChange={(event) => commit('to', event.target.value)}
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
     </div>

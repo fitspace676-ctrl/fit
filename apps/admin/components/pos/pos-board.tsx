@@ -1,13 +1,46 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { usePosCart } from '@/stores/pos-cart-store';
 import type { PosMemberRow, PosProductRow } from '@/app/(dashboard)/pos/actions';
-import { Card } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
 import { MemberLookup } from './member-lookup';
 import { PosCart } from './pos-cart';
 import { PosPayment } from './pos-payment';
 import { ProductGrid } from './product-grid';
+
+const styles = stylex.create({
+  grid: {
+    display: 'grid',
+    minHeight: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': '3fr 2fr',
+    },
+  },
+  productPane: {
+    minHeight: 0,
+    padding: '1rem',
+  },
+  cartPane: {
+    display: 'flex',
+    minHeight: 0,
+    flexDirection: 'column',
+    gap: '0.75rem',
+    padding: '1rem',
+  },
+  cartArea: {
+    minHeight: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+  },
+});
 
 /**
  * The POS board — the tablet-optimised two-column workspace wiring the grid, the
@@ -79,17 +112,17 @@ export function PosBoard() {
   }, [resetSale, isPaying]);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
-      <Card className="min-h-0 p-4">
+    <div {...stylex.props(styles.grid)}>
+      <Card variant="default" padding={0} xstyle={styles.productPane}>
         <ProductGrid searchRef={productSearchRef} onAdd={onAdd} />
       </Card>
-      <Card className="flex min-h-0 flex-col gap-3 p-4">
+      <Card variant="default" padding={0} xstyle={styles.cartPane}>
         <MemberLookup
           searchRef={memberSearchRef}
           selectedMember={selectedMember}
           onSelect={onSelectMember}
         />
-        <div className="min-h-0 flex-1">
+        <div {...stylex.props(styles.cartArea)}>
           <PosCart onCharge={() => setIsPaying(true)} />
         </div>
       </Card>

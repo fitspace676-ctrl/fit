@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import {
   MAX_PRODUCT_IMAGES,
   MAX_PRODUCT_VARIANTS,
@@ -23,14 +24,319 @@ const CREATE_STATUSES: ReadonlyArray<{ value: ProductStatus; label: string }> = 
   { value: 'INACTIVE', label: 'Inactive' },
 ];
 
-/** Shared field styling so create + edit render identically. */
-const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
-
 /** Accepted image MIME types for the gallery, matching the storage service map. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 /** Client-side size ceiling (bytes) — a friendly guard before the signed PUT. */
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+const styles = stylex.create({
+  form: {
+    display: 'flex',
+    maxWidth: '42rem',
+    flexDirection: 'column',
+    gap: '1rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '1.25rem',
+  },
+  galleryGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  fieldGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  label: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  optional: {
+    fontWeight: 400,
+    color: 'var(--color-text-secondary)',
+  },
+  galleryRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.75rem',
+  },
+  galleryItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.25rem',
+  },
+  galleryImg: {
+    height: '5rem',
+    width: '5rem',
+    borderRadius: 'var(--radius-container)',
+    objectFit: 'cover',
+    boxShadow: '0 0 0 1px var(--color-border)',
+  },
+  galleryControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.75rem',
+  },
+  primaryTag: {
+    fontWeight: 500,
+    color: 'var(--color-text-accent)',
+  },
+  makePrimaryBtn: {
+    borderStyle: 'none',
+    backgroundColor: 'transparent',
+    padding: 0,
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+  },
+  removeBtn: {
+    borderStyle: 'none',
+    backgroundColor: 'transparent',
+    padding: 0,
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-error)',
+    },
+  },
+  galleryEmpty: {
+    display: 'flex',
+    height: '5rem',
+    width: '100%',
+    maxWidth: '20rem',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+  fileGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  fileInput: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+    '::file-selector-button': {
+      marginRight: '0.75rem',
+      borderStyle: 'none',
+      borderWidth: 0,
+      borderRadius: 'var(--radius-element)',
+      backgroundColor: 'var(--color-accent-muted)',
+      paddingInline: '0.75rem',
+      paddingBlock: '0.375rem',
+      fontSize: '0.875rem',
+      fontWeight: 500,
+      color: 'var(--color-text-accent)',
+      cursor: 'pointer',
+    },
+  },
+  fileHint: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  uploadBanner: {
+    margin: 0,
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-warning-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-warning)',
+  },
+  input: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':disabled': 'var(--color-background-muted)',
+    },
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':disabled': 'var(--color-text-secondary)',
+    },
+    outline: 'none',
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  textarea: {
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.625rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  uppercase: {
+    textTransform: 'uppercase',
+  },
+  priceRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '1rem',
+  },
+  priceGroup: {
+    display: 'flex',
+    flexGrow: 1,
+    flexBasis: 0,
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  currencyGroup: {
+    display: 'flex',
+    width: '8rem',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  fieldset: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    margin: 0,
+    borderWidth: 0,
+    borderStyle: 'none',
+    padding: 0,
+    minInlineSize: 0,
+  },
+  legend: {
+    padding: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  variantsWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  variantHeadRow: {
+    display: {
+      default: 'none',
+      '@media (min-width: 640px)': 'grid',
+    },
+    gridTemplateColumns: '1fr 1fr 7rem 5rem auto',
+    gap: '0.5rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  variantRow: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': '1fr 1fr 7rem 5rem auto',
+    },
+    gap: '0.5rem',
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'center',
+    },
+  },
+  variantRemoveBtn: {
+    justifySelf: {
+      default: 'start',
+      '@media (min-width: 640px)': 'auto',
+    },
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'transparent',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-error)',
+    },
+  },
+  noVariants: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  errorBanner: {
+    margin: 0,
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  cancelLink: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+});
 
 /** A variant row as the form edits it — prices are major-unit input strings here. */
 interface VariantDraft {
@@ -75,9 +381,9 @@ function blankVariant(): VariantDraft {
 }
 
 /**
- * The create / edit product form (T4.6). One component serves both flows. Beyond
- * the profile fields (name, description, base price, currency) it owns two richer
- * editors:
+ * The create / edit product form (T4.6), rebuilt on brand-tokened StyleX (T11.22).
+ * One component serves both flows. Beyond the profile fields (name, description,
+ * base price, currency) it owns two richer editors:
  *
  *  • An image gallery — each chosen image is uploaded straight to R2 via a
  *    presigned `PUT` (minted by {@link requestProductImageUploadAction}); only the
@@ -239,32 +545,25 @@ export function ProductForm(props: Props) {
   const atVariantLimit = variants.length >= MAX_PRODUCT_VARIANTS;
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex max-w-2xl flex-col gap-4 rounded-card border border-ink-200 bg-white p-5 shadow-[0_14px_40px_-18px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-white/[0.035] dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl"
-    >
+    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
       {/* Image gallery. */}
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">
-          Image gallery <span className="font-normal text-ink-400">(first is the primary)</span>
+      <div {...stylex.props(styles.galleryGroup)}>
+        <span {...stylex.props(styles.label)}>
+          Image gallery <span {...stylex.props(styles.optional)}>(first is the primary)</span>
         </span>
         {images.length > 0 ? (
-          <div className="flex flex-wrap gap-3">
+          <div {...stylex.props(styles.galleryRow)}>
             {images.map((url, index) => (
-              <div key={url} className="flex flex-col items-center gap-1">
-                <img
-                  src={url}
-                  alt=""
-                  className="h-20 w-20 rounded-card object-cover ring-1 ring-ink-200 dark:ring-white/10"
-                />
-                <div className="flex items-center gap-2 text-xs">
+              <div key={url} {...stylex.props(styles.galleryItem)}>
+                <img src={url} alt="" {...stylex.props(styles.galleryImg)} />
+                <div {...stylex.props(styles.galleryControls)}>
                   {index === 0 ? (
-                    <span className="font-medium text-brand-700 dark:text-brand-300">Primary</span>
+                    <span {...stylex.props(styles.primaryTag)}>Primary</span>
                   ) : (
                     <button
                       type="button"
                       onClick={() => makePrimary(url)}
-                      className="font-medium text-ink-500 hover:text-brand-700 dark:text-ink-400 dark:hover:text-brand-300"
+                      {...stylex.props(styles.makePrimaryBtn)}
                     >
                       Make primary
                     </button>
@@ -272,7 +571,7 @@ export function ProductForm(props: Props) {
                   <button
                     type="button"
                     onClick={() => removeImage(url)}
-                    className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400 dark:hover:text-danger-400"
+                    {...stylex.props(styles.removeBtn)}
                   >
                     Remove
                   </button>
@@ -281,11 +580,9 @@ export function ProductForm(props: Props) {
             ))}
           </div>
         ) : (
-          <span className="flex h-20 w-full max-w-xs items-center justify-center rounded-card bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-            No images yet
-          </span>
+          <span {...stylex.props(styles.galleryEmpty)}>No images yet</span>
         )}
-        <div className="flex flex-col gap-1">
+        <div {...stylex.props(styles.fileGroup)}>
           <input
             ref={fileInputRef}
             type="file"
@@ -293,9 +590,9 @@ export function ProductForm(props: Props) {
             accept={ACCEPTED_IMAGE_TYPES.join(',')}
             onChange={(event) => void onImagesChange(event)}
             disabled={uploading || pending || atImageLimit}
-            className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/15 dark:file:text-brand-300 dark:hover:file:bg-brand-500/25"
+            {...stylex.props(styles.fileInput)}
           />
-          <span className="text-xs text-ink-400">
+          <span {...stylex.props(styles.fileHint)}>
             {uploading
               ? 'Uploading…'
               : atImageLimit
@@ -304,20 +601,14 @@ export function ProductForm(props: Props) {
           </span>
         </div>
         {uploadError ? (
-          <p
-            role="alert"
-            className="rounded-card bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-300"
-          >
+          <p role="alert" {...stylex.props(styles.uploadBanner)}>
             {uploadError}
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="product-name"
-          className="text-sm font-medium text-ink-700 dark:text-ink-200"
-        >
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="product-name" {...stylex.props(styles.label)}>
           Name
         </label>
         <input
@@ -328,16 +619,13 @@ export function ProductForm(props: Props) {
           value={name}
           onChange={(event) => setName(event.target.value)}
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="product-description"
-          className="text-sm font-medium text-ink-700 dark:text-ink-200"
-        >
-          Description <span className="font-normal text-ink-400">(optional)</span>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="product-description" {...stylex.props(styles.label)}>
+          Description <span {...stylex.props(styles.optional)}>(optional)</span>
         </label>
         <textarea
           id="product-description"
@@ -346,16 +634,13 @@ export function ProductForm(props: Props) {
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder="A short description of the product."
-          className="w-full rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.textarea)}
         />
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-1 flex-col gap-1">
-          <label
-            htmlFor="product-price"
-            className="text-sm font-medium text-ink-700 dark:text-ink-200"
-          >
+      <div {...stylex.props(styles.priceRow)}>
+        <div {...stylex.props(styles.priceGroup)}>
+          <label htmlFor="product-price" {...stylex.props(styles.label)}>
             Base price
           </label>
           <input
@@ -368,14 +653,11 @@ export function ProductForm(props: Props) {
             value={price}
             onChange={(event) => setPrice(event.target.value)}
             placeholder="0.00"
-            className={FIELD_CLASS}
+            {...stylex.props(styles.input)}
           />
         </div>
-        <div className="flex w-32 flex-col gap-1">
-          <label
-            htmlFor="product-currency"
-            className="text-sm font-medium text-ink-700 dark:text-ink-200"
-          >
+        <div {...stylex.props(styles.currencyGroup)}>
+          <label htmlFor="product-currency" {...stylex.props(styles.label)}>
             Currency
           </label>
           <input
@@ -387,37 +669,34 @@ export function ProductForm(props: Props) {
             onChange={(event) => setCurrency(event.target.value.toUpperCase())}
             placeholder="USD"
             autoComplete="off"
-            className={`${FIELD_CLASS} uppercase`}
+            {...stylex.props(styles.input, styles.uppercase)}
           />
         </div>
       </div>
 
       {/* Variants. */}
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-ink-700 dark:text-ink-200">
-          Variants <span className="font-normal text-ink-400">(optional)</span>
+      <fieldset {...stylex.props(styles.fieldset)}>
+        <legend {...stylex.props(styles.legend)}>
+          Variants <span {...stylex.props(styles.optional)}>(optional)</span>
         </legend>
         {variants.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <div className="hidden grid-cols-[1fr_1fr_7rem_5rem_auto] gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400 sm:grid">
+          <div {...stylex.props(styles.variantsWrap)}>
+            <div {...stylex.props(styles.variantHeadRow)}>
               <span>Name</span>
               <span>SKU</span>
               <span>Price</span>
               <span>Stock</span>
-              <span className="sr-only">Remove</span>
+              <span {...stylex.props(styles.srOnly)}>Remove</span>
             </div>
             {variants.map((variant, index) => (
-              <div
-                key={index}
-                className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_7rem_5rem_auto] sm:items-center"
-              >
+              <div key={index} {...stylex.props(styles.variantRow)}>
                 <input
                   type="text"
                   aria-label={`Variant ${index + 1} name`}
                   value={variant.name}
                   onChange={(event) => setVariant(index, { name: event.target.value })}
                   placeholder="e.g. Small / Black"
-                  className={FIELD_CLASS}
+                  {...stylex.props(styles.input)}
                 />
                 <input
                   type="text"
@@ -425,7 +704,7 @@ export function ProductForm(props: Props) {
                   value={variant.sku}
                   onChange={(event) => setVariant(index, { sku: event.target.value })}
                   placeholder="SKU"
-                  className={FIELD_CLASS}
+                  {...stylex.props(styles.input)}
                 />
                 <input
                   type="number"
@@ -436,7 +715,7 @@ export function ProductForm(props: Props) {
                   value={variant.price}
                   onChange={(event) => setVariant(index, { price: event.target.value })}
                   placeholder="Base"
-                  className={FIELD_CLASS}
+                  {...stylex.props(styles.input)}
                 />
                 <input
                   type="number"
@@ -446,12 +725,12 @@ export function ProductForm(props: Props) {
                   aria-label={`Variant ${index + 1} stock`}
                   value={variant.stock}
                   onChange={(event) => setVariant(index, { stock: event.target.value })}
-                  className={FIELD_CLASS}
+                  {...stylex.props(styles.input)}
                 />
                 <button
                   type="button"
                   onClick={() => removeVariant(index)}
-                  className="justify-self-start rounded-btn border border-ink-200 px-3 py-2 text-sm font-medium text-ink-500 hover:text-danger-600 dark:border-white/10 dark:text-ink-400 dark:hover:text-danger-400 sm:justify-self-auto"
+                  {...stylex.props(styles.variantRemoveBtn)}
                 >
                   Remove
                 </button>
@@ -459,7 +738,7 @@ export function ProductForm(props: Props) {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-ink-400">
+          <p {...stylex.props(styles.noVariants)}>
             No variants. Add sizes, colours, or flavours as purchasable options.
           </p>
         )}
@@ -471,11 +750,8 @@ export function ProductForm(props: Props) {
       </fieldset>
 
       {!isEdit ? (
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="product-status"
-            className="text-sm font-medium text-ink-700 dark:text-ink-200"
-          >
+        <div {...stylex.props(styles.fieldGroup)}>
+          <label htmlFor="product-status" {...stylex.props(styles.label)}>
             Status
           </label>
           <select
@@ -483,7 +759,7 @@ export function ProductForm(props: Props) {
             name="status"
             value={status}
             onChange={(event) => setStatus(event.target.value as ProductStatus)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.input)}
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
@@ -495,22 +771,16 @@ export function ProductForm(props: Props) {
       ) : null}
 
       {error ? (
-        <p
-          role="alert"
-          className="rounded-card bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:bg-danger-500/10 dark:text-danger-300"
-        >
+        <p role="alert" {...stylex.props(styles.errorBanner)}>
           {error}
         </p>
       ) : null}
 
-      <div className="flex items-center gap-3">
+      <div {...stylex.props(styles.actions)}>
         <Btn type="submit" v="primary" size="md" disabled={pending || uploading}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
         </Btn>
-        <Link
-          href={cancelHref}
-          className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
-        >
+        <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
           Cancel
         </Link>
       </div>

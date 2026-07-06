@@ -2,12 +2,171 @@
 
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import { formatPrice } from '@/app/(dashboard)/products/format-price';
 import { searchPosProductsAction, type PosProductRow } from '@/app/(dashboard)/pos/actions';
-import { Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke fires a new product search. */
 const SEARCH_DEBOUNCE_MS = 200;
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  searchWrap: {
+    position: 'relative',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  searchInput: {
+    height: '3rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '1rem',
+    paddingBlock: 0,
+    fontSize: '1rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  scrollArea: {
+    minHeight: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    overflowY: 'auto',
+  },
+  empty: {
+    margin: 0,
+    paddingInline: '0.25rem',
+    paddingBlock: '2rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  grid: {
+    display: 'grid',
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    gap: '0.75rem',
+    gridTemplateColumns: {
+      default: 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 640px)': 'repeat(3, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(4, minmax(0, 1fr))',
+    },
+  },
+  tile: {
+    display: 'flex',
+    height: '100%',
+    width: '100%',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-accent)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '0.75rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    transitionProperty: 'color, background-color, border-color, box-shadow',
+    transitionDuration: '150ms',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+  },
+  tileMedia: {
+    aspectRatio: '1 / 1',
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  tileImg: {
+    height: '100%',
+    width: '100%',
+    objectFit: 'cover',
+  },
+  tileInitial: {
+    display: 'flex',
+    height: '100%',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.5rem',
+    color: 'var(--color-text-disabled)',
+  },
+  tileName: {
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  tilePrice: {
+    marginTop: 'auto',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+});
 
 /**
  * The POS product grid (left column). A debounced full-text search over the gym's
@@ -62,9 +221,9 @@ export function ProductGrid({
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="relative">
-        <label htmlFor="pos-product-search" className="sr-only">
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.searchWrap)}>
+        <label htmlFor="pos-product-search" {...stylex.props(styles.srOnly)}>
           {t('searchLabel')}
         </label>
         <input
@@ -73,47 +232,36 @@ export function ProductGrid({
           type="search"
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder={t('searchPlaceholder')}
-          className="h-12 w-full rounded-field border border-ink-200 bg-white px-4 text-base text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.searchInput)}
         />
       </div>
 
       {error ? (
-        <Card
-          role="alert"
-          className="flex items-center gap-2 p-3 text-sm text-danger-700 dark:text-danger-300"
-        >
-          <Icon name="info" className="h-4 w-4 shrink-0" />
-          <span>{error}</span>
+        <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <span {...stylex.props(styles.errorText)}>{error}</span>
         </Card>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div {...stylex.props(styles.scrollArea)}>
         {products.length === 0 && !isPending && !error ? (
-          <p className="px-1 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
-            {t('empty')}
-          </p>
+          <p {...stylex.props(styles.empty)}>{t('empty')}</p>
         ) : (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <ul {...stylex.props(styles.grid)}>
             {products.map((product) => (
               <li key={product.id}>
-                <button
-                  type="button"
-                  onClick={() => onAdd(product)}
-                  className="flex h-full w-full flex-col gap-2 rounded-card border border-ink-200 bg-white p-3 text-left transition hover:border-brand-400 hover:shadow-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-brand-500/60"
-                >
-                  <div className="aspect-square w-full overflow-hidden rounded-btn bg-ink-100 dark:bg-white/5">
+                <button type="button" onClick={() => onAdd(product)} {...stylex.props(styles.tile)}>
+                  <div {...stylex.props(styles.tileMedia)}>
                     {product.imageUrl ? (
-                      <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
+                      <img src={product.imageUrl} alt="" {...stylex.props(styles.tileImg)} />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-2xl text-ink-300 dark:text-ink-600">
+                      <div {...stylex.props(styles.tileInitial)}>
                         {product.name.slice(0, 1).toUpperCase()}
                       </div>
                     )}
                   </div>
-                  <span className="line-clamp-2 text-sm font-medium text-ink-900 dark:text-white">
-                    {product.name}
-                  </span>
-                  <span className="mt-auto font-mono text-sm font-semibold text-brand-700 dark:text-brand-300">
+                  <span {...stylex.props(styles.tileName)}>{product.name}</span>
+                  <span {...stylex.props(styles.tilePrice)}>
                     {formatPrice(product.priceAmount, product.currency)}
                   </span>
                 </button>

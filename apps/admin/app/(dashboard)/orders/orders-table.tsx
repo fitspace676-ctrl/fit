@@ -3,8 +3,9 @@
 import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import type { AdminOrderRow, AdminOrderStatus } from '@fit/types';
-import { Badge, Btn, Card, Dot, buttonClasses, type Tone } from '@/components/ui';
+import { Badge, Btn, DataTable, type Column, type Tone } from '@/components/ui';
 import {
   CHANNEL_LABELS,
   ORDER_STATUS_STYLES,
@@ -13,25 +14,130 @@ import {
   formatMoney,
 } from './format';
 
-/** The leading status-dot colour per tone, matching the formacore status pills. */
-const STATUS_DOT: Record<Tone, string> = {
-  ink: 'bg-ink-400',
-  brand: 'bg-brand-500',
-  success: 'bg-success-500',
-  warning: 'bg-warning-500',
-  danger: 'bg-danger-500',
-  accent: 'bg-accent-500',
-  iris: 'bg-iris-500',
-  flame: 'bg-flame-500',
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  exportRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  exportLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.375rem',
+    height: '2.25rem',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':hover': 'var(--color-background-muted)',
+    },
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+    textDecoration: 'none',
+  },
+  statusInner: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  },
+  dot: {
+    display: 'inline-block',
+    height: '0.375rem',
+    width: '0.375rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  dotInk: {
+    backgroundColor: 'var(--color-text-secondary)',
+  },
+  dotAccent: {
+    backgroundColor: 'var(--color-accent)',
+  },
+  dotSuccess: {
+    backgroundColor: 'var(--color-success)',
+  },
+  dotWarning: {
+    backgroundColor: 'var(--color-warning)',
+  },
+  dotError: {
+    backgroundColor: 'var(--color-error)',
+  },
+  idLink: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+  },
+  cellText: {
+    color: 'var(--color-text-primary)',
+  },
+  moneyCell: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  refundedNote: {
+    display: 'block',
+    fontSize: '0.75rem',
+    fontWeight: 400,
+    color: 'var(--color-error)',
+  },
+  empty: {
+    margin: 0,
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerCount: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  pagerBtns: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+});
+
+/** The leading status-dot colour per pill tone, on the brand tokens. */
+const STATUS_DOT: Record<Tone, stylex.StyleXStyles> = {
+  ink: styles.dotInk,
+  brand: styles.dotAccent,
+  success: styles.dotSuccess,
+  warning: styles.dotWarning,
+  danger: styles.dotError,
+  accent: styles.dotAccent,
+  iris: styles.dotAccent,
+  flame: styles.dotWarning,
 };
 
-/** A status pill with a leading tone dot, matching the formacore orders artboard. */
+/** A status pill with a leading tone dot, matching the orders roster pills. */
 function StatusPill({ status }: { status: AdminOrderStatus }) {
   const { label, tone } = ORDER_STATUS_STYLES[status];
   return (
     <Badge tone={tone}>
-      <span className="inline-flex items-center gap-1.5">
-        <Dot c={STATUS_DOT[tone]} />
+      <span {...stylex.props(styles.statusInner)}>
+        <span aria-hidden {...stylex.props(styles.dot, STATUS_DOT[tone])} />
         {label}
       </span>
     </Badge>
@@ -39,7 +145,8 @@ function StatusPill({ status }: { status: AdminOrderStatus }) {
 }
 
 /**
- * The orders roster table (T7.9). Server-rendered data, client-side interaction:
+ * The orders roster table (T7.9), rebuilt on the Astryx DataTable kit +
+ * brand-tokened StyleX (T11.22). Server-rendered data, client-side interaction:
  * pagination and a CSV-export link, both reading the URL search params so the
  * server page stays the single source of truth. Each row shows the order's date,
  * channel, status, who it's for, the settlement method, the net total (with the
@@ -83,102 +190,97 @@ export function OrdersTable({
   const hasPrev = page > 1;
   const hasNext = page * limit < total;
 
+  const columns: ReadonlyArray<Column<AdminOrderRow>> = [
+    {
+      key: 'order',
+      header: 'Order',
+      cell: (order) => (
+        <Link href={`/orders/${order.id}`} {...stylex.props(styles.idLink)}>
+          {order.id.slice(-8)}
+        </Link>
+      ),
+    },
+    {
+      key: 'date',
+      header: 'Date',
+      cell: (order) => (
+        <span {...stylex.props(styles.cellText)}>{formatDateTime(order.createdAt)}</span>
+      ),
+    },
+    {
+      key: 'channel',
+      header: 'Channel',
+      cell: (order) => (
+        <span {...stylex.props(styles.cellText)}>{CHANNEL_LABELS[order.channel]}</span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (order) => <StatusPill status={order.status} />,
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      cell: (order) => (
+        <span {...stylex.props(styles.cellText)}>
+          {order.customerName ?? (order.memberId ? 'Member' : 'Walk-in')}
+        </span>
+      ),
+    },
+    {
+      key: 'method',
+      header: 'Method',
+      cell: (order) => (
+        <span {...stylex.props(styles.cellText)}>
+          {order.paymentMethod ? PAYMENT_METHOD_LABELS[order.paymentMethod] : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      align: 'right',
+      cell: (order) => (
+        <span {...stylex.props(styles.moneyCell)}>
+          {formatMoney(order.total, order.currency)}
+          {order.refundedAmount > 0 && (
+            <span {...stylex.props(styles.refundedNote)}>
+              −{formatMoney(order.refundedAmount, order.currency)} refunded
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: 'items',
+      header: 'Items',
+      align: 'right',
+      cell: (order) => <span {...stylex.props(styles.moneyCell)}>{order.itemCount}</span>,
+    },
+  ];
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-end">
-        <a href={`/orders/export${exportQuery}`} className={buttonClasses('outline', 'sm')}>
+    <div {...stylex.props(styles.stack)}>
+      <div {...stylex.props(styles.exportRow)}>
+        <a href={`/orders/export${exportQuery}`} {...stylex.props(styles.exportLink)}>
           Export CSV
         </a>
       </div>
 
-      {orders.length === 0 ? (
-        <Card className="px-4 py-10 text-center text-sm text-ink-500 dark:text-ink-400">
-          No orders match your filters yet.
-        </Card>
-      ) : (
-        <Card className="overflow-x-auto p-0">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-ink-100 dark:border-white/10">
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Order
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Date
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Channel
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Status
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Customer
-                </th>
-                <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Method
-                </th>
-                <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Total
-                </th>
-                <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                  Items
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <tr
-                  key={order.id}
-                  className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
-                >
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/orders/${order.id}`}
-                      className="font-mono text-xs font-medium text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
-                    >
-                      {order.id.slice(-8)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                    {formatDateTime(order.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                    {CHANNEL_LABELS[order.channel]}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusPill status={order.status} />
-                  </td>
-                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                    {order.customerName ?? (order.memberId ? 'Member' : 'Walk-in')}
-                  </td>
-                  <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                    {order.paymentMethod ? PAYMENT_METHOD_LABELS[order.paymentMethod] : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-900 dark:text-white">
-                    {formatMoney(order.total, order.currency)}
-                    {order.refundedAmount > 0 && (
-                      <span className="block text-xs font-normal text-danger-600 dark:text-danger-300">
-                        −{formatMoney(order.refundedAmount, order.currency)} refunded
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                    {order.itemCount}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
+      <DataTable<AdminOrderRow>
+        columns={columns}
+        rows={orders}
+        rowKey={(order) => order.id}
+        empty={<p {...stylex.props(styles.empty)}>No orders match your filters yet.</p>}
+      />
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="font-mono tabular-nums">
+      <div {...stylex.props(styles.pagerRow)}>
+        <span {...stylex.props(styles.pagerCount)}>
           {from}–{to} of {total}
         </span>
-        <div className="flex gap-2">
+        <div {...stylex.props(styles.pagerBtns)}>
           <Btn
             v="outline"
             size="sm"

@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProduct } from '@/lib/api';
-import { Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 import { ProductForm } from '../../product-form';
 
 export const metadata: Metadata = {
@@ -14,11 +16,74 @@ export const metadata: Metadata = {
 // Reflects the staff session and writes live product state — never cached.
 export const dynamic = 'force-dynamic';
 
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  errorPage: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    alignSelf: 'flex-start',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-accent)',
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  errorIcon: {
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
+
 /**
- * Edit-a-product page (T4.6). Like {@link NewProductPage} it gates on the
- * `ProductWrite` capability (not linear by role) before rendering, and reuses the
- * shared {@link ProductForm} prefilled from `GET /admin/products/:id`. A `404` from
- * the API — unknown or cross-tenant id — becomes Next's `notFound()`.
+ * Edit-a-product page (T4.6), rebuilt on brand-tokened StyleX (T11.22). Like
+ * {@link NewProductPage} it gates on the `ProductWrite` capability (not linear by
+ * role) before rendering, and reuses the shared {@link ProductForm} prefilled from
+ * `GET /admin/products/:id`. A `404` from the API — unknown or cross-tenant id —
+ * becomes Next's `notFound()`.
  */
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -40,19 +105,13 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         ? `Could not load this product (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/products"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <div {...stylex.props(styles.errorPage)}>
+        <Link href="/products" {...stylex.props(styles.backLink)}>
+          <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to products
         </Link>
-        <Card
-          role="alert"
-          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
-        >
-          <Icon name="info" className="h-5 w-5 shrink-0" />
+        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{message}</span>
         </Card>
       </div>
@@ -60,20 +119,15 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href={`/products/${id}`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+    <div {...stylex.props(styles.page)}>
+      <Link href={`/products/${id}`} {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         Back to product
       </Link>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Edit product
-        </h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>Edit product</h1>
+        <p {...stylex.props(styles.subtitle)}>
           Update {product.name}’s details, price, images, and variants.
         </p>
       </header>

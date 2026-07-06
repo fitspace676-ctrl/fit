@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { listOrdersQuerySchema, type ListOrdersQueryInput } from '@fit/types';
 import { ApiError, fetchOrders, ordersQueryString } from '@/lib/api';
 import { OrdersFilters } from './orders-filters';
@@ -16,6 +17,44 @@ export const metadata: Metadata = {
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
 
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorText: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
+
 /** Next 15 hands `searchParams` as a promise of raw (string | string[]) values. */
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -25,12 +64,13 @@ function one(value: string | string[] | undefined): string | undefined {
 }
 
 /**
- * The orders roster (T7.9). Server-renders one filtered, server-paginated page of
- * `GET /orders` from the URL search params and hands it to the client filters
- * (channel / status / member / date range) and the client table (pagination +
- * CSV export link). The `/orders` route already requires staff with `BillingRead`
- * (middleware + nav gate) and the API re-enforces it, so the only failure handled
- * here is the API call itself.
+ * The orders roster (T7.9), rebuilt on Astryx + brand-tokened StyleX (T11.22).
+ * Server-renders one filtered, server-paginated page of `GET /orders` from the
+ * URL search params and hands it to the client filters (channel / status /
+ * member / date range) and the client table (pagination + CSV export link). The
+ * `/orders` route already requires staff with `BillingRead` (middleware + nav
+ * gate) and the API re-enforces it, so the only failure handled here is the API
+ * call itself.
  */
 export default async function OrdersPage({
   searchParams,
@@ -75,20 +115,14 @@ export default async function OrdersPage({
       error instanceof ApiError
         ? `Could not load orders (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
-    content = (
-      <p className="rounded-card border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-700 dark:text-danger-300">
-        {message}
-      </p>
-    );
+    content = <p {...stylex.props(styles.errorText)}>{message}</p>;
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Orders
-        </h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>Orders</h1>
+        <p {...stylex.props(styles.subtitle)}>
           POS and online orders. Filter, open an order to view its items, payments, refunds and
           status history, or export the filtered set to CSV.
         </p>
