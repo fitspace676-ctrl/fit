@@ -85,6 +85,10 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/components/top-bar.tsx`                       | T11.17 | ✅     |
 | `apps/admin/components/nav-icon.tsx`                      | T11.17 | ✅     |
 | `apps/admin/components/locale-switcher.tsx`               | T11.17 | ✅     |
+| `apps/admin/app/(dashboard)/page.tsx`                     | T11.18 | ✅     |
+| `apps/admin/app/(dashboard)/dashboard-view.tsx`           | T11.18 | ✅     |
+| `apps/admin/app/(dashboard)/charts.tsx`                   | T11.18 | ✅     |
+| `apps/admin/app/(dashboard)/analytics`                    | T11.18 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
