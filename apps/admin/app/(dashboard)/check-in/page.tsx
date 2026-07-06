@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCheckInStats, fetchTodayCheckIns } from '@/lib/api';
-import { Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 import { ReceptionBoard } from './reception-board';
 
 export const metadata: Metadata = {
@@ -15,6 +17,107 @@ export const metadata: Metadata = {
 // Reception reflects live tenant state and the staff session token, so it must
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
+
+const ping = stylex.keyframes({
+  '75%': { transform: 'scale(2)', opacity: 0 },
+  '100%': { transform: 'scale(2)', opacity: 0 },
+});
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  liveChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-success-muted)',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-success)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-success) 30%, transparent)',
+  },
+  pulseWrap: {
+    position: 'relative',
+    display: 'flex',
+    height: '0.5rem',
+    width: '0.5rem',
+  },
+  pingDot: {
+    position: 'absolute',
+    display: 'inline-flex',
+    height: '100%',
+    width: '100%',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-success)',
+    opacity: 0.75,
+    animationName: ping,
+    animationDuration: '1s',
+    animationTimingFunction: 'cubic-bezier(0, 0, 0.2, 1)',
+    animationIterationCount: 'infinite',
+  },
+  solidDot: {
+    position: 'relative',
+    display: 'inline-flex',
+    height: '0.5rem',
+    width: '0.5rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-success)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '28rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * The reception (check-in) screen (T4.12). Server-fetches the live KPI snapshot and
@@ -45,12 +148,9 @@ export default async function CheckInPage() {
         ? t('error.withStatus', { status: error.status, message: error.message })
         : t('error.unreachable');
     board = (
-      <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-        <Icon
-          name="info"
-          className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-        />
-        <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+      <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Icon name="info" {...stylex.props(styles.errorIcon)} />
+        <p role="alert" {...stylex.props(styles.errorText)}>
           {message}
         </p>
       </Card>
@@ -58,21 +158,19 @@ export default async function CheckInPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            {t('title')}
-          </h1>
-          <span className="inline-flex items-center gap-1.5 rounded-pill bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 ring-1 ring-inset ring-success-500/30 dark:bg-success-500/10 dark:text-success-200">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-500 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success-500" />
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headLeft)}>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <span {...stylex.props(styles.liveChip)}>
+            <span {...stylex.props(styles.pulseWrap)}>
+              <span {...stylex.props(styles.pingDot)} />
+              <span {...stylex.props(styles.solidDot)} />
             </span>
             {t('live')}
           </span>
         </div>
-        <p className="max-w-md text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
+        <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </header>
 
       {board}

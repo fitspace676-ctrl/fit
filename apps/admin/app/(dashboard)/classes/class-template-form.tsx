@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import {
   buildRRule,
   parseRRule,
@@ -10,7 +12,7 @@ import {
   type ClassTemplateStatus,
   type Recurrence,
 } from '@fit/types';
-import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
+import { Btn, Icon } from '@/components/ui';
 import { createClassTemplateAction, updateClassTemplateAction } from './actions';
 import { RecurrenceEditor } from './recurrence-editor';
 
@@ -26,16 +28,133 @@ const CREATE_STATUSES: ReadonlyArray<{ value: ClassTemplateStatus; label: string
   { value: 'PAUSED', label: 'Paused' },
 ];
 
-/** Shared field styling so create + edit render identically. */
-const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
-
-/** Field styling for multi-line inputs (textareas) — same tokens, no fixed height. */
-const TEXTAREA_CLASS =
-  'w-full rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
-
-/** Shared label styling. */
-const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
+const styles = stylex.create({
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    maxWidth: '42rem',
+  },
+  fieldGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '1rem',
+  },
+  colFlex: {
+    display: 'flex',
+    flex: 1,
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  colColor: {
+    display: 'flex',
+    width: '8rem',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  label: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  labelOptional: {
+    fontWeight: 400,
+    color: 'var(--color-text-secondary)',
+  },
+  field: {
+    height: '2.75rem',
+    width: '100%',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':disabled': 'var(--color-background-muted)',
+    },
+    paddingBlock: 0,
+    fontSize: '0.875rem',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':disabled': 'var(--color-text-disabled)',
+    },
+    outline: 'none',
+  },
+  textarea: {
+    width: '100%',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.625rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':disabled': 'var(--color-background-muted)',
+    },
+    fontSize: '0.875rem',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':disabled': 'var(--color-text-disabled)',
+    },
+    outline: 'none',
+  },
+  colorField: {
+    height: '2.75rem',
+    width: '100%',
+    paddingInline: '0.25rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  cancelLink: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /** The default recurrence a new template starts on — a weekly Monday class. */
 const DEFAULT_RECURRENCE: Recurrence = {
@@ -175,9 +294,9 @@ export function ClassTemplateForm(props: Props) {
   const cancelHref = isEdit ? `/classes/${props.templateId}` : '/classes';
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="class-title" className={LABEL_CLASS}>
+    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="class-title" {...stylex.props(styles.label)}>
           Title
         </label>
         <input
@@ -189,14 +308,14 @@ export function ClassTemplateForm(props: Props) {
           onChange={(event) => setTitle(event.target.value)}
           autoComplete="off"
           placeholder="e.g. Morning HIIT"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.field)}
         />
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-category" className={LABEL_CLASS}>
-            Category <span className="font-normal text-ink-400">(optional)</span>
+      <div {...stylex.props(styles.row)}>
+        <div {...stylex.props(styles.colFlex)}>
+          <label htmlFor="class-category" {...stylex.props(styles.label)}>
+            Category <span {...stylex.props(styles.labelOptional)}>(optional)</span>
           </label>
           <input
             id="class-category"
@@ -206,11 +325,11 @@ export function ClassTemplateForm(props: Props) {
             onChange={(event) => setCategory(event.target.value)}
             autoComplete="off"
             placeholder="e.g. Cardio"
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           />
         </div>
-        <div className="flex w-32 flex-col gap-1">
-          <label htmlFor="class-color" className={LABEL_CLASS}>
+        <div {...stylex.props(styles.colColor)}>
+          <label htmlFor="class-color" {...stylex.props(styles.label)}>
             Color
           </label>
           <input
@@ -219,14 +338,14 @@ export function ClassTemplateForm(props: Props) {
             type="color"
             value={color}
             onChange={(event) => setColor(event.target.value)}
-            className="h-11 w-full rounded-field border border-ink-200 bg-white px-1 dark:border-white/10 dark:bg-white/[0.04]"
+            {...stylex.props(styles.colorField)}
           />
         </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="class-description" className={LABEL_CLASS}>
-          Description <span className="font-normal text-ink-400">(optional)</span>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="class-description" {...stylex.props(styles.label)}>
+          Description <span {...stylex.props(styles.labelOptional)}>(optional)</span>
         </label>
         <textarea
           id="class-description"
@@ -235,13 +354,13 @@ export function ClassTemplateForm(props: Props) {
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder="A short description of the class."
-          className={TEXTAREA_CLASS}
+          {...stylex.props(styles.textarea)}
         />
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-capacity" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.row)}>
+        <div {...stylex.props(styles.colFlex)}>
+          <label htmlFor="class-capacity" {...stylex.props(styles.label)}>
             Capacity
           </label>
           <input
@@ -255,11 +374,11 @@ export function ClassTemplateForm(props: Props) {
             value={capacity}
             onChange={(event) => setCapacity(event.target.value)}
             placeholder="12"
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           />
         </div>
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-duration" className={LABEL_CLASS}>
+        <div {...stylex.props(styles.colFlex)}>
+          <label htmlFor="class-duration" {...stylex.props(styles.label)}>
             Duration (minutes)
           </label>
           <input
@@ -274,7 +393,7 @@ export function ClassTemplateForm(props: Props) {
             value={durationMinutes}
             onChange={(event) => setDurationMinutes(event.target.value)}
             placeholder="60"
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           />
         </div>
       </div>
@@ -283,9 +402,9 @@ export function ClassTemplateForm(props: Props) {
       <RecurrenceEditor value={recurrence} onChange={setRecurrence} />
 
       {/* Validity window. */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-valid-from" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.row)}>
+        <div {...stylex.props(styles.colFlex)}>
+          <label htmlFor="class-valid-from" {...stylex.props(styles.label)}>
             Starts
           </label>
           <input
@@ -295,12 +414,12 @@ export function ClassTemplateForm(props: Props) {
             required
             value={validFrom}
             onChange={(event) => setValidFrom(event.target.value)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           />
         </div>
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-valid-until" className={LABEL_CLASS}>
-            Ends <span className="font-normal text-ink-400">(blank = open-ended)</span>
+        <div {...stylex.props(styles.colFlex)}>
+          <label htmlFor="class-valid-until" {...stylex.props(styles.label)}>
+            Ends <span {...stylex.props(styles.labelOptional)}>(blank = open-ended)</span>
           </label>
           <input
             id="class-valid-until"
@@ -309,23 +428,23 @@ export function ClassTemplateForm(props: Props) {
             min={validFrom}
             value={validUntil}
             onChange={(event) => setValidUntil(event.target.value)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           />
         </div>
       </div>
 
       {/* Default trainer / location / room. */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-trainer" className={LABEL_CLASS}>
-            Trainer <span className="font-normal text-ink-400">(optional)</span>
+      <div {...stylex.props(styles.row)}>
+        <div {...stylex.props(styles.colFlex)}>
+          <label htmlFor="class-trainer" {...stylex.props(styles.label)}>
+            Trainer <span {...stylex.props(styles.labelOptional)}>(optional)</span>
           </label>
           <select
             id="class-trainer"
             name="trainerId"
             value={trainerId}
             onChange={(event) => setTrainerId(event.target.value)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           >
             <option value="">No default trainer</option>
             {props.trainers.map((trainer) => (
@@ -335,16 +454,16 @@ export function ClassTemplateForm(props: Props) {
             ))}
           </select>
         </div>
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="class-location" className={LABEL_CLASS}>
-            Location <span className="font-normal text-ink-400">(optional)</span>
+        <div {...stylex.props(styles.colFlex)}>
+          <label htmlFor="class-location" {...stylex.props(styles.label)}>
+            Location <span {...stylex.props(styles.labelOptional)}>(optional)</span>
           </label>
           <select
             id="class-location"
             name="locationId"
             value={locationId}
             onChange={(event) => setLocationId(event.target.value)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           >
             <option value="">No default location</option>
             {props.locations.map((location) => (
@@ -356,9 +475,9 @@ export function ClassTemplateForm(props: Props) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="class-room" className={LABEL_CLASS}>
-          Room <span className="font-normal text-ink-400">(optional)</span>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="class-room" {...stylex.props(styles.label)}>
+          Room <span {...stylex.props(styles.labelOptional)}>(optional)</span>
         </label>
         <input
           id="class-room"
@@ -368,13 +487,13 @@ export function ClassTemplateForm(props: Props) {
           onChange={(event) => setRoom(event.target.value)}
           autoComplete="off"
           placeholder="e.g. Studio A"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.field)}
         />
       </div>
 
       {!isEdit ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor="class-status" className={LABEL_CLASS}>
+        <div {...stylex.props(styles.fieldGroup)}>
+          <label htmlFor="class-status" {...stylex.props(styles.label)}>
             Status
           </label>
           <select
@@ -382,7 +501,7 @@ export function ClassTemplateForm(props: Props) {
             name="status"
             value={status}
             onChange={(event) => setStatus(event.target.value as ClassTemplateStatus)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
@@ -394,22 +513,19 @@ export function ClassTemplateForm(props: Props) {
       ) : null}
 
       {error ? (
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
           </p>
         </Card>
       ) : null}
 
-      <div className="flex items-center gap-3">
+      <div {...stylex.props(styles.actions)}>
         <Btn type="submit" v="primary" size="md" disabled={pending}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create class'}
         </Btn>
-        <Link href={cancelHref} className={buttonClasses('ghost', 'md')}>
+        <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
           Cancel
         </Link>
       </div>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import type {
   AdminClassInstanceDetail,
   AdminClassInstanceRosterEntry,
@@ -13,12 +14,10 @@ import type {
 import {
   Badge,
   Btn,
-  buttonClasses,
   ConfirmDialog,
   Drawer,
   Icon,
   Input,
-  Progress,
   useToast,
   type IconName,
   type Tone,
@@ -34,6 +33,360 @@ import {
 } from './actions';
 
 type T = ReturnType<typeof useTranslations>;
+
+const spin = stylex.keyframes({
+  to: { transform: 'rotate(360deg)' },
+});
+
+const pulse = stylex.keyframes({
+  '0%': { opacity: 1 },
+  '50%': { opacity: 0.5 },
+  '100%': { opacity: 1 },
+});
+
+const styles = stylex.create({
+  footer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '0.5rem',
+  },
+  editLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    height: '2.75rem',
+    paddingInline: '1.25rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    color: 'var(--color-text-primary)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+  },
+  editIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
+  },
+  statusSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  badgeWrap: {
+    alignSelf: 'flex-start',
+  },
+  detailList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.625rem',
+    margin: 0,
+    fontSize: '0.875rem',
+  },
+  detailRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.625rem',
+    color: 'var(--color-text-primary)',
+  },
+  detailIcon: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-text-secondary)',
+  },
+  detailText: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  occCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    padding: '0.75rem',
+  },
+  occLabels: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+  },
+  occSpots: {
+    color: 'var(--color-text-primary)',
+  },
+  occRemaining: {
+    color: 'var(--color-text-secondary)',
+  },
+  barTrack: {
+    height: '0.5rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 'var(--radius-full)',
+  },
+  occWaitlist: {
+    margin: 0,
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  rosterSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  sectionTitle: {
+    margin: 0,
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'var(--color-text-secondary)',
+  },
+  rosterEmpty: {
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'var(--color-border)',
+    paddingBlock: '2rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  rosterList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '0.625rem',
+  },
+  avatar: {
+    display: 'grid',
+    height: '2.25rem',
+    width: '2.25rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    color: 'var(--color-text-secondary)',
+  },
+  rowText: {
+    display: 'flex',
+    minWidth: 0,
+    flex: 1,
+    flexDirection: 'column',
+  },
+  rowName: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  rowEmail: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  markGroup: {
+    display: 'flex',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.25rem',
+  },
+  promoteGroup: {
+    display: 'flex',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  badgeShrink: {
+    flexShrink: 0,
+  },
+  markBtn: {
+    display: 'inline-flex',
+    height: '2rem',
+    alignItems: 'center',
+    gap: '0.25rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.625rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    outlineStyle: 'none',
+    transitionProperty: 'background-color, border-color, color',
+    transitionDuration: '150ms',
+    opacity: {
+      default: 1,
+      ':disabled': 0.4,
+    },
+    pointerEvents: {
+      default: 'auto',
+      ':disabled': 'none',
+    },
+  },
+  markInactive: {
+    borderColor: 'var(--color-border)',
+    color: 'var(--color-text-secondary)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  markSuccess: {
+    borderColor: 'var(--color-success)',
+    backgroundColor: 'var(--color-success)',
+    color: 'var(--color-on-success)',
+  },
+  markWarning: {
+    borderColor: 'var(--color-warning)',
+    backgroundColor: 'var(--color-warning)',
+    color: 'var(--color-on-warning)',
+  },
+  accentBtn: {
+    display: 'inline-flex',
+    height: '2rem',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.25rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-accent)',
+    paddingInline: '0.625rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-accent-muted)',
+    },
+    cursor: 'pointer',
+    outlineStyle: 'none',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
+    opacity: {
+      default: 1,
+      ':disabled': 0.4,
+    },
+    pointerEvents: {
+      default: 'auto',
+      ':disabled': 'none',
+    },
+  },
+  btnIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  spinner: {
+    width: '0.875rem',
+    height: '0.875rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '2px',
+    borderStyle: 'solid',
+    borderColor: 'currentColor',
+    borderRightColor: 'transparent',
+    animationName: spin,
+    animationDuration: '0.6s',
+    animationIterationCount: 'infinite',
+    animationTimingFunction: 'linear',
+  },
+  btnLabel: {
+    display: {
+      default: 'none',
+      '@media (min-width: 640px)': 'inline',
+    },
+  },
+  bookSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '1.25rem',
+  },
+  hint: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  skeletonAvatar: {
+    height: '2.25rem',
+    width: '2.25rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    animationName: pulse,
+    animationDuration: '1.5s',
+    animationIterationCount: 'infinite',
+    animationTimingFunction: 'ease-in-out',
+  },
+  skeletonLine: {
+    height: '0.875rem',
+    width: '8rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    animationName: pulse,
+    animationDuration: '1.5s',
+    animationIterationCount: 'infinite',
+    animationTimingFunction: 'ease-in-out',
+  },
+  skeletonRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    padding: '0.625rem',
+  },
+});
 
 /** The roster status tones — held seats read calm, no-shows warn, waitlist is muted. */
 const ROSTER_TONES: Record<AdminClassInstanceRosterEntry['status'], Tone> = {
@@ -246,9 +599,9 @@ export function ClassDrawer({
         title={head?.title ?? t('loading')}
         footer={
           head ? (
-            <div className="flex items-center justify-end gap-2">
-              <Link href={`/classes/${head.templateId}`} className={buttonClasses('outline', 'md')}>
-                <Icon name="settings" className="h-4 w-4" sw={2} />
+            <div {...stylex.props(styles.footer)}>
+              <Link href={`/classes/${head.templateId}`} {...stylex.props(styles.editLink)}>
+                <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
                 {t('actions.edit')}
               </Link>
               {canCancel ? (
@@ -261,13 +614,13 @@ export function ClassDrawer({
         }
       >
         {head ? (
-          <div className="flex flex-col gap-5">
+          <div {...stylex.props(styles.body)}>
             {/* Status + when / where. */}
-            <div className="flex flex-col gap-3">
-              <Badge tone={STATUS_TONES[status]} className="self-start">
-                {t(`status.${status}`)}
-              </Badge>
-              <dl className="flex flex-col gap-2.5 text-sm">
+            <div {...stylex.props(styles.statusSection)}>
+              <span {...stylex.props(styles.badgeWrap)}>
+                <Badge tone={STATUS_TONES[status]}>{t(`status.${status}`)}</Badge>
+              </span>
+              <dl {...stylex.props(styles.detailList)}>
                 <DetailRow icon="calendar" text={formatDay(head.startsAt, locale)} />
                 <DetailRow
                   icon="clock"
@@ -317,7 +670,7 @@ export function ClassDrawer({
             ) : null}
           </div>
         ) : error ? (
-          <p role="alert" className="text-sm text-danger-600 dark:text-danger-300">
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
           </p>
         ) : (
@@ -343,9 +696,9 @@ export function ClassDrawer({
 /** A labelled detail line: an icon and its value. */
 function DetailRow({ icon, text }: { icon: 'calendar' | 'clock' | 'user' | 'pin'; text: string }) {
   return (
-    <div className="flex items-center gap-2.5 text-ink-700 dark:text-ink-200">
-      <Icon name={icon} className="h-4 w-4 shrink-0 text-ink-400" sw={2} />
-      <span className="min-w-0 truncate">{text}</span>
+    <div {...stylex.props(styles.detailRow)}>
+      <Icon name={icon} sw={2} {...stylex.props(styles.detailIcon)} />
+      <span {...stylex.props(styles.detailText)}>{text}</span>
     </div>
   );
 }
@@ -363,23 +716,27 @@ function Occupancy({
   waitlist: number;
 }) {
   const pct = capacity > 0 ? (booked / capacity) * 100 : 0;
-  const tone = pct > 85 ? 'bg-danger-500' : pct > 60 ? 'bg-warning-500' : 'bg-success-500';
+  const barColor =
+    pct > 85 ? 'var(--color-error)' : pct > 60 ? 'var(--color-warning)' : 'var(--color-success)';
   const remaining = Math.max(0, capacity - booked);
   return (
-    <div className="flex flex-col gap-2 rounded-card border border-ink-100 p-3 dark:border-white/10">
-      <div className="flex items-center justify-between text-sm font-semibold">
-        <span className="text-ink-700 dark:text-ink-200">
+    <div {...stylex.props(styles.occCard)}>
+      <div {...stylex.props(styles.occLabels)}>
+        <span {...stylex.props(styles.occSpots)}>
           {t('occupancy.spots', { booked, cap: capacity })}
         </span>
-        <span className="text-ink-400">
+        <span {...stylex.props(styles.occRemaining)}>
           {remaining === 0 ? t('occupancy.full') : t('occupancy.remaining', { remaining })}
         </span>
       </div>
-      <Progress value={pct} tone={tone} />
+      <div {...stylex.props(styles.barTrack)}>
+        <div
+          {...stylex.props(styles.barFill)}
+          style={{ width: `${Math.min(100, pct)}%`, backgroundColor: barColor }}
+        />
+      </div>
       {waitlist > 0 ? (
-        <p className="text-xs font-medium text-ink-500 dark:text-ink-400">
-          {t('occupancy.waitlist', { count: waitlist })}
-        </p>
+        <p {...stylex.props(styles.occWaitlist)}>{t('occupancy.waitlist', { count: waitlist })}</p>
       ) : null}
     </div>
   );
@@ -417,22 +774,18 @@ function Roster({
   onPromote: (bookingId: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-400">
-        {t('roster.title')}
-      </h3>
+    <div {...stylex.props(styles.rosterSection)}>
+      <h3 {...stylex.props(styles.sectionTitle)}>{t('roster.title')}</h3>
       {loading ? (
         <RosterSkeleton />
       ) : error ? (
-        <p role="alert" className="text-sm text-danger-600 dark:text-danger-300">
+        <p role="alert" {...stylex.props(styles.errorText)}>
           {error}
         </p>
       ) : !detail || detail.roster.length === 0 ? (
-        <p className="rounded-card border border-dashed border-ink-100 py-8 text-center text-sm text-ink-400 dark:border-white/10 dark:text-ink-500">
-          {t('roster.empty')}
-        </p>
+        <p {...stylex.props(styles.rosterEmpty)}>{t('roster.empty')}</p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul {...stylex.props(styles.rosterList)}>
           {detail.roster.map((entry) => (
             <RosterRow
               key={entry.bookingId}
@@ -487,27 +840,25 @@ function RosterRow({
 }) {
   const label = entry.memberName?.trim() || entry.memberEmail;
   return (
-    <li className="flex items-center gap-3 rounded-card border border-ink-100 bg-white p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-100 text-xs font-bold uppercase text-ink-500 dark:bg-white/10 dark:text-ink-300">
-        {initials(label)}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">{label}</span>
+    <li {...stylex.props(styles.row)}>
+      <span {...stylex.props(styles.avatar)}>{initials(label)}</span>
+      <div {...stylex.props(styles.rowText)}>
+        <span {...stylex.props(styles.rowName)}>{label}</span>
         {entry.memberName ? (
-          <span className="truncate text-xs text-ink-400">{entry.memberEmail}</span>
+          <span {...stylex.props(styles.rowEmail)}>{entry.memberEmail}</span>
         ) : null}
       </div>
       {canMark ? (
         <div
           role="group"
           aria-label={t('roster.markGroup', { member: label })}
-          className="flex shrink-0 items-center gap-1"
+          {...stylex.props(styles.markGroup)}
         >
           <MarkButton
             icon="check"
             label={t('roster.status.ATTENDED')}
             active={entry.status === 'ATTENDED'}
-            activeClass="border-success-500 bg-success-500 text-white"
+            activeTone="success"
             busy={marking}
             disabled={busy}
             onClick={() => onMark(entry.bookingId, 'ATTENDED')}
@@ -516,7 +867,7 @@ function RosterRow({
             icon="x"
             label={t('roster.status.NO_SHOW')}
             active={entry.status === 'NO_SHOW'}
-            activeClass="border-warning-500 bg-warning-500 text-white"
+            activeTone="warning"
             busy={marking}
             disabled={busy}
             onClick={() => onMark(entry.bookingId, 'NO_SHOW')}
@@ -525,7 +876,7 @@ function RosterRow({
       ) : canPromote ? (
         // A queued entry the desk can lift into a seat: its position stays visible
         // beside a promote control (which the API turns into a held seat).
-        <div className="flex shrink-0 items-center gap-2">
+        <div {...stylex.props(styles.promoteGroup)}>
           <Badge tone={ROSTER_TONES.WAITLIST}>
             {entry.waitlistPosition
               ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
@@ -540,11 +891,13 @@ function RosterRow({
           />
         </div>
       ) : (
-        <Badge tone={ROSTER_TONES[entry.status]} className="shrink-0">
-          {entry.status === 'WAITLIST' && entry.waitlistPosition
-            ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
-            : t(`roster.status.${entry.status}`)}
-        </Badge>
+        <span {...stylex.props(styles.badgeShrink)}>
+          <Badge tone={ROSTER_TONES[entry.status]}>
+            {entry.status === 'WAITLIST' && entry.waitlistPosition
+              ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
+              : t(`roster.status.${entry.status}`)}
+          </Badge>
+        </span>
       )}
     </li>
   );
@@ -561,7 +914,7 @@ function MarkButton({
   icon,
   label,
   active,
-  activeClass,
+  activeTone,
   busy,
   disabled,
   onClick,
@@ -569,7 +922,8 @@ function MarkButton({
   icon: IconName;
   label: string;
   active: boolean;
-  activeClass: string;
+  /** The tone the button carries once it's the set outcome. */
+  activeTone: 'success' | 'warning';
   busy: boolean;
   disabled: boolean;
   onClick: () => void;
@@ -582,21 +936,21 @@ function MarkButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-8 items-center gap-1 rounded-btn border px-2.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-4 focus-visible:ring-brand-500/30 disabled:opacity-40 disabled:pointer-events-none ${
+      {...stylex.props(
+        styles.markBtn,
         active
-          ? activeClass
-          : 'border-ink-200 text-ink-500 hover:bg-ink-50 dark:border-white/15 dark:text-ink-300 dark:hover:bg-white/10'
-      }`}
+          ? activeTone === 'success'
+            ? styles.markSuccess
+            : styles.markWarning
+          : styles.markInactive,
+      )}
     >
       {busy ? (
-        <span
-          className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
-          aria-hidden
-        />
+        <span {...stylex.props(styles.spinner)} aria-hidden />
       ) : (
-        <Icon name={icon} className="h-3.5 w-3.5" sw={2.5} />
+        <Icon name={icon} sw={2.5} {...stylex.props(styles.btnIcon)} />
       )}
-      <span className="hidden sm:inline">{label}</span>
+      <span {...stylex.props(styles.btnLabel)}>{label}</span>
     </button>
   );
 }
@@ -629,17 +983,14 @@ function PromoteButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-8 items-center gap-1 rounded-btn border border-brand-500 px-2.5 text-xs font-semibold text-brand-600 outline-none transition-colors hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-500/30 disabled:pointer-events-none disabled:opacity-40 dark:border-brand-400/60 dark:text-brand-300 dark:hover:bg-brand-500/10"
+      {...stylex.props(styles.accentBtn)}
     >
       {busy ? (
-        <span
-          className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
-          aria-hidden
-        />
+        <span {...stylex.props(styles.spinner)} aria-hidden />
       ) : (
-        <Icon name="arrow" className="h-3.5 w-3.5" sw={2.5} />
+        <Icon name="arrow" sw={2.5} {...stylex.props(styles.btnIcon)} />
       )}
-      <span className="hidden sm:inline">{text}</span>
+      <span {...stylex.props(styles.btnLabel)}>{text}</span>
     </button>
   );
 }
@@ -707,10 +1058,8 @@ function BookMember({
   const trimmed = query.trim();
 
   return (
-    <div className="flex flex-col gap-3 border-t border-ink-100 pt-5 dark:border-white/10">
-      <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-400">
-        {t('book.title')}
-      </h3>
+    <div {...stylex.props(styles.bookSection)}>
+      <h3 {...stylex.props(styles.sectionTitle)}>{t('book.title')}</h3>
       <Input
         type="search"
         value={query}
@@ -721,19 +1070,17 @@ function BookMember({
         autoComplete="off"
       />
       {!trimmed ? (
-        <p className="text-sm text-ink-400 dark:text-ink-500">{t('book.hint')}</p>
+        <p {...stylex.props(styles.hint)}>{t('book.hint')}</p>
       ) : searching ? (
-        <p className="text-sm text-ink-400 dark:text-ink-500">{t('book.searching')}</p>
+        <p {...stylex.props(styles.hint)}>{t('book.searching')}</p>
       ) : searchError ? (
-        <p role="alert" className="text-sm text-danger-600 dark:text-danger-300">
+        <p role="alert" {...stylex.props(styles.errorText)}>
           {searchError}
         </p>
       ) : results.length === 0 ? (
-        <p className="text-sm text-ink-400 dark:text-ink-500">
-          {t('book.noResults', { query: trimmed })}
-        </p>
+        <p {...stylex.props(styles.hint)}>{t('book.noResults', { query: trimmed })}</p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul {...stylex.props(styles.rosterList)}>
           {results.map((member) => (
             <BookResultRow
               key={member.id}
@@ -771,13 +1118,11 @@ function BookResultRow({
 }) {
   const label = member.name?.trim() || member.email;
   return (
-    <li className="flex items-center gap-3 rounded-card border border-ink-100 bg-white p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-100 text-xs font-bold uppercase text-ink-500 dark:bg-white/10 dark:text-ink-300">
-        {initials(label)}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">{label}</span>
-        {member.name ? <span className="truncate text-xs text-ink-400">{member.email}</span> : null}
+    <li {...stylex.props(styles.row)}>
+      <span {...stylex.props(styles.avatar)}>{initials(label)}</span>
+      <div {...stylex.props(styles.rowText)}>
+        <span {...stylex.props(styles.rowName)}>{label}</span>
+        {member.name ? <span {...stylex.props(styles.rowEmail)}>{member.email}</span> : null}
       </div>
       <button
         type="button"
@@ -785,17 +1130,14 @@ function BookResultRow({
         title={t('book.bookMember', { member: label })}
         onClick={() => onBook(member.id)}
         disabled={busy}
-        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-btn border border-brand-500 px-2.5 text-xs font-semibold text-brand-600 outline-none transition-colors hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-500/30 disabled:pointer-events-none disabled:opacity-40 dark:border-brand-400/60 dark:text-brand-300 dark:hover:bg-brand-500/10"
+        {...stylex.props(styles.accentBtn)}
       >
         {booking ? (
-          <span
-            className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
-            aria-hidden
-          />
+          <span {...stylex.props(styles.spinner)} aria-hidden />
         ) : (
-          <Icon name="plus" className="h-3.5 w-3.5" sw={2.5} />
+          <Icon name="plus" sw={2.5} {...stylex.props(styles.btnIcon)} />
         )}
-        <span className="hidden sm:inline">{t('book.action')}</span>
+        <span {...stylex.props(styles.btnLabel)}>{t('book.action')}</span>
       </button>
     </li>
   );
@@ -804,14 +1146,11 @@ function BookResultRow({
 /** A placeholder for the roster while it loads. */
 function RosterSkeleton() {
   return (
-    <ul className="flex flex-col gap-1.5" aria-hidden>
+    <ul {...stylex.props(styles.rosterList)} aria-hidden>
       {[0, 1, 2].map((i) => (
-        <li
-          key={i}
-          className="flex items-center gap-3 rounded-card border border-ink-100 p-2.5 dark:border-white/10"
-        >
-          <span className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-ink-100 dark:bg-white/10" />
-          <span className="h-3.5 w-32 animate-pulse rounded-pill bg-ink-100 dark:bg-white/10" />
+        <li key={i} {...stylex.props(styles.skeletonRow)}>
+          <span {...stylex.props(styles.skeletonAvatar)} />
+          <span {...stylex.props(styles.skeletonLine)} />
         </li>
       ))}
     </ul>

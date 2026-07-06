@@ -3,13 +3,350 @@
 import { useCallback, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import type { AdminScheduleInstance, ClassInstanceStatus } from '@fit/types';
-import { Badge, Btn, Card, Icon, type Tone } from '@/components/ui';
+import { Badge, Btn, Icon, type Tone } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
 import { useOccupancyStream } from '@/hooks/use-occupancy-stream';
 import { ClassDrawer } from './class-drawer';
 import { addWeeks, mondayOf, toIsoDate, weekDays } from './week';
 
 type T = ReturnType<typeof useTranslations>;
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  toolbar: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 1024px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 1024px)': 'center',
+    },
+    justifyContent: {
+      default: 'flex-start',
+      '@media (min-width: 1024px)': 'space-between',
+    },
+    gap: '1rem',
+  },
+  navGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  navBox: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '0.125rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+  },
+  navBtn: {
+    display: 'grid',
+    height: '2rem',
+    width: '2rem',
+    placeItems: 'center',
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    cursor: 'pointer',
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  navBtnIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  rangeLabel: {
+    margin: 0,
+    marginLeft: '0.25rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  filterGroup: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  gridScroll: {
+    overflowX: 'auto',
+    paddingBottom: '0.25rem',
+  },
+  grid: {
+    display: 'grid',
+    minWidth: '52rem',
+    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+    gap: '0.75rem',
+  },
+  column: {
+    display: 'flex',
+    minWidth: 0,
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  dayHeader: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingBlock: '0.5rem',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  dayHeaderToday: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  weekdayLabel: {
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'var(--color-text-secondary)',
+  },
+  dayNum: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  dayNumToday: {
+    color: 'var(--color-text-accent)',
+  },
+  cardStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  emptyDay: {
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'var(--color-border)',
+    paddingBlock: '1.5rem',
+    textAlign: 'center',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  card: {
+    position: 'relative',
+    display: 'flex',
+    width: '100%',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-border-emphasized)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '0.625rem',
+    paddingLeft: '0.75rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    boxShadow: {
+      default: 'var(--shadow-low)',
+      ':hover': 'var(--shadow-high)',
+    },
+    transform: {
+      default: 'translateY(0)',
+      ':hover': 'translateY(-0.125rem)',
+    },
+    transitionProperty: 'transform, box-shadow, border-color',
+    transitionDuration: '150ms',
+    outlineStyle: 'none',
+  },
+  cardCanceled: {
+    opacity: 0.7,
+  },
+  accentRail: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '0.25rem',
+  },
+  timeRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  smallIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+    flexShrink: 0,
+  },
+  mono: {
+    fontVariantNumeric: 'tabular-nums',
+  },
+  cardTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    lineHeight: 1.25,
+    color: 'var(--color-text-primary)',
+  },
+  cardTitleCanceled: {
+    textDecorationLine: 'line-through',
+  },
+  metaCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    fontSize: '0.6875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metaRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    minWidth: 0,
+  },
+  truncate: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  occWrap: {
+    marginTop: '0.125rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  occLabels: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+  },
+  occBooked: {
+    color: 'var(--color-text-primary)',
+  },
+  occRemaining: {
+    color: 'var(--color-text-secondary)',
+  },
+  barTrack: {
+    height: '0.375rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 'var(--radius-full)',
+  },
+  badgeWrap: {
+    alignSelf: 'flex-start',
+  },
+  selectLabel: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  selectWrap: {
+    position: 'relative',
+  },
+  select: {
+    height: '2.25rem',
+    appearance: 'none',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingLeft: '0.75rem',
+    paddingRight: '2.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+    outlineStyle: 'none',
+  },
+  selectChevron: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    right: '0.75rem',
+    top: '50%',
+    width: '1rem',
+    height: '1rem',
+    transform: 'translateY(-50%)',
+    color: 'var(--color-text-secondary)',
+  },
+  emptyCard: {
+    display: 'grid',
+    placeItems: 'center',
+    paddingBlock: '4rem',
+    textAlign: 'center',
+  },
+  emptyInner: {
+    display: 'flex',
+    maxWidth: '24rem',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  emptyIcon: {
+    display: 'grid',
+    height: '3rem',
+    width: '3rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+  },
+  emptyIconSvg: {
+    width: '1.5rem',
+    height: '1.5rem',
+  },
+  emptyText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /** A `{ id, name }` filter option (a gym trainer or branch). */
 export interface ScheduleOption {
@@ -118,41 +455,35 @@ export function ScheduleBoard({
   const hasFilters = trainerId !== '' || locationId !== '';
 
   return (
-    <div className="flex flex-col gap-6">
+    <div {...stylex.props(styles.root)}>
       {/* Toolbar: week navigation + filters. */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2">
-          <div className="inline-flex items-center rounded-btn border border-ink-200 bg-white p-0.5 dark:border-white/10 dark:bg-white/[0.04]">
+      <div {...stylex.props(styles.toolbar)}>
+        <div {...stylex.props(styles.navGroup)}>
+          <div {...stylex.props(styles.navBox)}>
             <button
               type="button"
               aria-label={t('toolbar.prev')}
               onClick={() => goToWeek(addWeeks(monday, -1))}
-              className="grid h-8 w-8 place-items-center rounded-lg text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
+              {...stylex.props(styles.navBtn)}
             >
-              <Icon name="chevronLeft" className="h-4 w-4" />
+              <Icon name="chevronLeft" {...stylex.props(styles.navBtnIcon)} />
             </button>
             <button
               type="button"
               aria-label={t('toolbar.next')}
               onClick={() => goToWeek(addWeeks(monday, 1))}
-              className="grid h-8 w-8 place-items-center rounded-lg text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
+              {...stylex.props(styles.navBtn)}
             >
-              <Icon name="chevronRight" className="h-4 w-4" />
+              <Icon name="chevronRight" {...stylex.props(styles.navBtnIcon)} />
             </button>
           </div>
           <Btn v="outline" size="sm" icon="calendar" onClick={() => goToWeek(mondayOf(new Date()))}>
             {t('toolbar.today')}
           </Btn>
-          <p className="ml-1 font-display text-base font-bold text-ink-900 dark:text-white">
-            {rangeLabel}
-          </p>
+          <p {...stylex.props(styles.rangeLabel)}>{rangeLabel}</p>
         </div>
 
-        <div
-          aria-label={t('filters.aria')}
-          className="flex flex-wrap items-center gap-2"
-          role="group"
-        >
+        <div aria-label={t('filters.aria')} {...stylex.props(styles.filterGroup)} role="group">
           <FilterSelect
             label={t('filters.trainer')}
             value={trainerId}
@@ -189,12 +520,8 @@ export function ScheduleBoard({
       {instances.length === 0 ? (
         <EmptyWeek t={t} filtered={hasFilters} />
       ) : (
-        <div className="overflow-x-auto pb-1">
-          <div
-            role="grid"
-            aria-label={t('week.gridAria')}
-            className="grid min-w-[52rem] grid-cols-7 gap-3"
-          >
+        <div {...stylex.props(styles.gridScroll)}>
+          <div role="grid" aria-label={t('week.gridAria')} {...stylex.props(styles.grid)}>
             {days.map((day) => {
               const key = toIsoDate(day);
               return (
@@ -241,31 +568,17 @@ function DayColumn({
   onOpen: (instance: AdminScheduleInstance) => void;
 }) {
   return (
-    <div role="gridcell" className="flex min-w-0 flex-col gap-2">
-      <div
-        className={`flex flex-col items-center rounded-btn border py-2 ${
-          isToday
-            ? 'border-brand-500/40 bg-brand-50 dark:border-brand-500/30 dark:bg-brand-500/10'
-            : 'border-ink-100 bg-ink-50/60 dark:border-white/5 dark:bg-white/[0.02]'
-        }`}
-      >
-        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">
-          {weekdayShort(day, locale)}
-        </span>
-        <span
-          className={`font-display text-lg font-extrabold tabular-nums ${
-            isToday ? 'text-brand-600 dark:text-brand-300' : 'text-ink-900 dark:text-white'
-          }`}
-        >
+    <div role="gridcell" {...stylex.props(styles.column)}>
+      <div {...stylex.props(styles.dayHeader, isToday && styles.dayHeaderToday)}>
+        <span {...stylex.props(styles.weekdayLabel)}>{weekdayShort(day, locale)}</span>
+        <span {...stylex.props(styles.dayNum, isToday && styles.dayNumToday)}>
           {day.getUTCDate()}
         </span>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div {...stylex.props(styles.cardStack)}>
         {instances.length === 0 ? (
-          <p className="rounded-card border border-dashed border-ink-100 py-6 text-center text-xs text-ink-300 dark:border-white/5 dark:text-ink-600">
-            {t('empty.day')}
-          </p>
+          <p {...stylex.props(styles.emptyDay)}>{t('empty.day')}</p>
         ) : (
           instances.map((instance) => (
             <ClassCard
@@ -297,7 +610,8 @@ function ClassCard({
 }) {
   const remaining = Math.max(0, instance.capacity - instance.bookedCount);
   const pct = instance.capacity > 0 ? (instance.bookedCount / instance.capacity) * 100 : 0;
-  const barTone = pct > 85 ? 'bg-danger-500' : pct > 60 ? 'bg-warning-500' : 'bg-success-500';
+  const barColor =
+    pct > 85 ? 'var(--color-error)' : pct > 60 ? 'var(--color-warning)' : 'var(--color-success)';
   const statusTone = STATUS_TONES[instance.status];
   const canceled = instance.status === 'CANCELED';
 
@@ -309,43 +623,37 @@ function ClassCard({
         title: instance.title,
         time: formatTime(instance.startsAt, locale),
       })}
-      className={`group relative flex w-full flex-col gap-2 overflow-hidden rounded-card border border-ink-100 bg-white p-2.5 pl-3 text-left shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:border-ink-200 hover:shadow-[0_12px_30px_-14px_rgba(0,0,0,0.28)] focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20 ${
-        canceled ? 'opacity-70' : ''
-      }`}
+      {...stylex.props(styles.card, canceled && styles.cardCanceled)}
     >
       {/* Category colour accent rail. */}
       <span
         aria-hidden
-        className="absolute inset-y-0 left-0 w-1"
+        {...stylex.props(styles.accentRail)}
         style={{ backgroundColor: instance.color }}
       />
 
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-500 dark:text-ink-400">
-        <Icon name="clock" className="h-3.5 w-3.5 shrink-0" sw={2} />
-        <span className="tabular-nums">
+      <div {...stylex.props(styles.timeRow)}>
+        <Icon name="clock" sw={2} {...stylex.props(styles.smallIcon)} />
+        <span {...stylex.props(styles.mono)}>
           {formatTime(instance.startsAt, locale)}–{formatTime(instance.endsAt, locale)}
         </span>
       </div>
 
-      <p
-        className={`text-sm font-bold leading-tight text-ink-900 dark:text-white ${
-          canceled ? 'line-through' : ''
-        }`}
-      >
+      <p {...stylex.props(styles.cardTitle, canceled && styles.cardTitleCanceled)}>
         {instance.title}
       </p>
 
-      <div className="flex flex-col gap-1 text-[11px] text-ink-500 dark:text-ink-400">
+      <div {...stylex.props(styles.metaCol)}>
         {instance.trainerName ? (
-          <span className="flex items-center gap-1.5 truncate">
-            <Icon name="user" className="h-3.5 w-3.5 shrink-0" sw={2} />
-            <span className="truncate">{instance.trainerName}</span>
+          <span {...stylex.props(styles.metaRow, styles.truncate)}>
+            <Icon name="user" sw={2} {...stylex.props(styles.smallIcon)} />
+            <span {...stylex.props(styles.truncate)}>{instance.trainerName}</span>
           </span>
         ) : null}
         {instance.locationName || instance.room ? (
-          <span className="flex items-center gap-1.5 truncate">
-            <Icon name="pin" className="h-3.5 w-3.5 shrink-0" sw={2} />
-            <span className="truncate">
+          <span {...stylex.props(styles.metaRow, styles.truncate)}>
+            <Icon name="pin" sw={2} {...stylex.props(styles.smallIcon)} />
+            <span {...stylex.props(styles.truncate)}>
               {[instance.locationName, instance.room].filter(Boolean).join(' · ')}
             </span>
           </span>
@@ -353,27 +661,27 @@ function ClassCard({
       </div>
 
       {/* Occupancy: a compact fill bar over "booked / capacity". */}
-      <div className="mt-0.5 flex flex-col gap-1">
-        <div className="flex items-center justify-between text-[11px] font-semibold">
-          <span className="text-ink-600 dark:text-ink-300">
+      <div {...stylex.props(styles.occWrap)}>
+        <div {...stylex.props(styles.occLabels)}>
+          <span {...stylex.props(styles.occBooked)}>
             {t('card.spots', { booked: instance.bookedCount, cap: instance.capacity })}
           </span>
-          <span className="text-ink-400">
+          <span {...stylex.props(styles.occRemaining)}>
             {remaining === 0 ? t('card.full') : t('card.remaining', { remaining })}
           </span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
+        <div {...stylex.props(styles.barTrack)}>
           <div
-            className={`h-full rounded-pill ${barTone}`}
-            style={{ width: `${Math.min(100, pct)}%` }}
+            {...stylex.props(styles.barFill)}
+            style={{ width: `${Math.min(100, pct)}%`, backgroundColor: barColor }}
           />
         </div>
       </div>
 
       {statusTone ? (
-        <Badge tone={statusTone} className="self-start">
-          {t(`status.${instance.status}`)}
-        </Badge>
+        <span {...stylex.props(styles.badgeWrap)}>
+          <Badge tone={statusTone}>{t(`status.${instance.status}`)}</Badge>
+        </span>
       ) : null}
     </button>
   );
@@ -394,13 +702,13 @@ function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="inline-flex items-center gap-2">
-      <span className="sr-only">{label}</span>
-      <div className="relative">
+    <label {...stylex.props(styles.selectLabel)}>
+      <span {...stylex.props(styles.srOnly)}>{label}</span>
+      <div {...stylex.props(styles.selectWrap)}>
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-9 appearance-none rounded-field border border-ink-200 bg-white pl-3 pr-9 text-sm font-medium text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.select)}
         >
           <option value="">{allLabel}</option>
           {options.map((option) => (
@@ -409,10 +717,7 @@ function FilterSelect({
             </option>
           ))}
         </select>
-        <Icon
-          name="chevronDown"
-          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
-        />
+        <Icon name="chevronDown" {...stylex.props(styles.selectChevron)} />
       </div>
     </label>
   );
@@ -421,12 +726,12 @@ function FilterSelect({
 /** The empty state — no occurrences in the visible week (optionally filtered). */
 function EmptyWeek({ t, filtered }: { t: T; filtered: boolean }) {
   return (
-    <Card className="grid place-items-center py-16 text-center">
-      <div className="flex max-w-sm flex-col items-center gap-3">
-        <span className="grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-400 dark:bg-white/5">
-          <Icon name="calendar" className="h-6 w-6" />
+    <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+      <div {...stylex.props(styles.emptyInner)}>
+        <span {...stylex.props(styles.emptyIcon)}>
+          <Icon name="calendar" {...stylex.props(styles.emptyIconSvg)} />
         </span>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
+        <p {...stylex.props(styles.emptyText)}>
           {filtered ? t('empty.filtered') : t('empty.week')}
         </p>
       </div>

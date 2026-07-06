@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
   listAdminClassTemplatesQuerySchema,
@@ -8,7 +9,8 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchClassTemplates } from '@/lib/api';
-import { buttonClasses, Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 import { ClassTemplatesFilters } from './classes-filters';
 import { ClassTemplatesTable } from './classes-table';
 
@@ -21,6 +23,79 @@ export const metadata: Metadata = {
 // The roster reflects live tenant state and the staff session token, so it must
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headTitles: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  addBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    height: '2.75rem',
+    paddingInline: '1.25rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+  },
+  addIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /** Next 15 hands `searchParams` as a promise of raw (string | string[]) values. */
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -66,12 +141,9 @@ export default async function ClassTemplatesPage({
         ? `Could not load class templates (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-        <Icon
-          name="info"
-          className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-        />
-        <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+      <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Icon name="info" {...stylex.props(styles.errorIcon)} />
+        <p role="alert" {...stylex.props(styles.errorText)}>
           {message}
         </p>
       </Card>
@@ -79,21 +151,19 @@ export default async function ClassTemplatesPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            Classes
-          </h1>
-          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headTitles)}>
+          <h1 {...stylex.props(styles.title)}>Classes</h1>
+          <p {...stylex.props(styles.subtitle)}>
             Your gym’s recurring class templates. Search by title or category, filter by status,
             sort any column, open a template, or add a new one with a visual recurrence editor,
             capacity, duration, and a default trainer and location.
           </p>
         </div>
         {canWrite ? (
-          <Link href="/classes/new" className={buttonClasses('primary', 'md')}>
-            <Icon name="plus" className="h-4 w-4" sw={2} />
+          <Link href="/classes/new" {...stylex.props(styles.addBtn)}>
+            <Icon name="plus" sw={2} {...stylex.props(styles.addIcon)} />
             New class
           </Link>
         ) : null}

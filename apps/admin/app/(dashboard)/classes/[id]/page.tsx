@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchClassTemplate } from '@/lib/api';
-import { Badge, Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge, Icon } from '@/components/ui';
 import { STATUS_STYLES, formatDate, formatDateTime, formatDuration } from '../format';
 import { TemplateActions } from './template-actions';
 
@@ -15,6 +17,155 @@ export const metadata: Metadata = {
 // The detail reflects live template state and the staff session token, so it must
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  errorPage: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-accent)',
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headTitles: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  swatch: {
+    height: '1rem',
+    width: '1rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  recurrence: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  infoCard: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    columnGap: '2.5rem',
+    rowGap: '1rem',
+    padding: '1.25rem',
+    fontSize: '0.875rem',
+  },
+  stat: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+  },
+  statLabel: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  statValue: {
+    color: 'var(--color-text-primary)',
+  },
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  descSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  sectionLabel: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  codeBox: {
+    width: 'fit-content',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  descText: {
+    margin: 0,
+    maxWidth: '42rem',
+    whiteSpace: 'pre-line',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+  },
+  footerText: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * The class-template detail page (T5.2). Server-fetches `GET /admin/classes/:id`
@@ -43,20 +194,14 @@ export default async function ClassTemplateDetailPage({
         ? `Could not load this class (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/classes"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <div {...stylex.props(styles.errorPage)}>
+        <Link href="/classes" {...stylex.props(styles.backLink)}>
+          <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to classes
         </Link>
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
           </p>
         </Card>
@@ -73,85 +218,74 @@ export default async function ClassTemplateDetailPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
 
-  const labelClass = 'font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
-
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/classes"
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+    <div {...stylex.props(styles.page)}>
+      <Link href="/classes" {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         Back to classes
       </Link>
 
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headTitles)}>
+          <div {...stylex.props(styles.titleRow)}>
             <span
               aria-hidden
-              className="h-4 w-4 shrink-0 rounded-full"
+              {...stylex.props(styles.swatch)}
               style={{ backgroundColor: template.color }}
             />
-            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-              {template.title}
-            </h1>
+            <h1 {...stylex.props(styles.title)}>{template.title}</h1>
             <Badge tone={status.tone}>{status.label}</Badge>
             {template.category ? <Badge tone="ink">{template.category}</Badge> : null}
           </div>
-          <p className="text-sm text-ink-600 dark:text-ink-300">{template.recurrence}</p>
+          <p {...stylex.props(styles.recurrence)}>{template.recurrence}</p>
         </div>
         {canWrite ? <TemplateActions templateId={template.id} status={template.status} /> : null}
       </header>
 
-      <Card className="flex flex-wrap gap-x-10 gap-y-4 p-5 text-sm">
-        <div className="flex flex-col gap-0.5">
-          <span className={labelClass}>Capacity</span>
-          <span className="text-ink-800 dark:text-ink-100">{template.capacity} spots</span>
+      <Card variant="default" padding={0} xstyle={styles.infoCard}>
+        <div {...stylex.props(styles.stat)}>
+          <span {...stylex.props(styles.statLabel)}>Capacity</span>
+          <span {...stylex.props(styles.statValue)}>{template.capacity} spots</span>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <span className={labelClass}>Duration</span>
-          <span className="text-ink-800 dark:text-ink-100">
+        <div {...stylex.props(styles.stat)}>
+          <span {...stylex.props(styles.statLabel)}>Duration</span>
+          <span {...stylex.props(styles.statValue)}>
             {formatDuration(template.durationMinutes)}
           </span>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <span className={labelClass}>Trainer</span>
-          <span className="text-ink-800 dark:text-ink-100">{template.trainerName ?? '—'}</span>
+        <div {...stylex.props(styles.stat)}>
+          <span {...stylex.props(styles.statLabel)}>Trainer</span>
+          <span {...stylex.props(styles.statValue)}>{template.trainerName ?? '—'}</span>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <span className={labelClass}>Location</span>
-          <span className="text-ink-800 dark:text-ink-100">
+        <div {...stylex.props(styles.stat)}>
+          <span {...stylex.props(styles.statLabel)}>Location</span>
+          <span {...stylex.props(styles.statValue)}>
             {template.locationName ?? '—'}
             {template.room ? ` · ${template.room}` : ''}
           </span>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <span className={labelClass}>Runs</span>
-          <span className="text-ink-800 dark:text-ink-100">
+        <div {...stylex.props(styles.stat)}>
+          <span {...stylex.props(styles.statLabel)}>Runs</span>
+          <span {...stylex.props(styles.statValue)}>
             {formatDate(template.validFrom)} –{' '}
             {template.validUntil ? formatDate(template.validUntil) : 'open-ended'}
           </span>
         </div>
       </Card>
 
-      <section className="flex flex-col gap-1">
-        <span className={labelClass}>Recurrence rule</span>
-        <code className="w-fit rounded-field bg-ink-50 px-2 py-1 font-mono text-xs text-ink-500 dark:bg-white/5 dark:text-ink-400">
-          {template.rrule}
-        </code>
+      <section {...stylex.props(styles.section)}>
+        <span {...stylex.props(styles.sectionLabel)}>Recurrence rule</span>
+        <code {...stylex.props(styles.codeBox)}>{template.rrule}</code>
       </section>
 
       {template.description ? (
-        <section className="flex flex-col gap-2">
-          <h2 className={labelClass}>Description</h2>
-          <p className="max-w-2xl whitespace-pre-line text-sm text-ink-700 dark:text-ink-200">
-            {template.description}
-          </p>
+        <section {...stylex.props(styles.descSection)}>
+          <h2 {...stylex.props(styles.sectionLabel)}>Description</h2>
+          <p {...stylex.props(styles.descText)}>{template.description}</p>
         </section>
       ) : null}
 
-      <p className="text-xs text-ink-400">Added {formatDateTime(template.createdAt)}.</p>
+      <p {...stylex.props(styles.footerText)}>Added {formatDateTime(template.createdAt)}.</p>
     </div>
   );
 }

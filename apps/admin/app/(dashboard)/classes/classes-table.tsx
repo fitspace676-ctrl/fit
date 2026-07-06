@@ -3,14 +3,84 @@
 import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type {
   AdminClassTemplateRow,
   ClassTemplateSort,
   ClassTemplateStatus,
   SortDir,
 } from '@fit/types';
-import { Badge, Btn, Card } from '@/components/ui';
+import { Badge, Btn, DataTable, nextSortDir, type Column } from '@/components/ui';
 import { STATUS_STYLES, formatDate, formatDuration } from './format';
+
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  emptyCard: {
+    paddingInline: '1rem',
+    paddingBlock: '3rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  titleCell: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  swatch: {
+    height: '0.75rem',
+    width: '0.75rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  titleLink: {
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+  },
+  categoryTag: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.625rem',
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--color-text-secondary)',
+  },
+  cellText: {
+    color: 'var(--color-text-primary)',
+  },
+  capacityText: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  pagerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerCount: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  pagerBtns: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+});
 
 /** A status pill mirroring the packages roster styling. */
 function StatusPill({ status }: { status: ClassTemplateStatus }) {
@@ -59,14 +129,10 @@ export function ClassTemplatesTable({
     return qs ? `${pathname}?${qs}` : pathname;
   }
 
-  function sortHref(key: ClassTemplateSort): string {
-    const nextDir: SortDir = sort === key && dir === 'asc' ? 'desc' : 'asc';
-    return hrefWith({ sort: key, dir: nextDir });
-  }
-
-  function sortIndicator(key: ClassTemplateSort): string {
-    if (sort !== key) return '';
-    return dir === 'asc' ? ' ▲' : ' ▼';
+  /** Toggle sort on a column: same column flips direction, a new column starts ascending. */
+  function onSort(key: string): void {
+    const nextDir = nextSortDir(sort === key, dir);
+    startTransition(() => router.replace(hrefWith({ sort: key, dir: nextDir })));
   }
 
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
@@ -76,106 +142,91 @@ export function ClassTemplatesTable({
 
   if (templates.length === 0) {
     return (
-      <Card className="px-4 py-12 text-center text-sm text-ink-500 dark:text-ink-400">
+      <Card variant="default" padding={0} xstyle={styles.emptyCard}>
         No class templates match your filters yet.
       </Card>
     );
   }
 
-  const headClass =
-    'py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
-  const sortLinkClass =
-    'inline-flex items-center transition-colors hover:text-ink-600 dark:hover:text-ink-200';
+  const columns: ReadonlyArray<Column<AdminClassTemplateRow>> = [
+    {
+      key: 'title',
+      header: 'Title',
+      sortKey: 'title',
+      cell: (template) => (
+        <div {...stylex.props(styles.titleCell)}>
+          <span
+            aria-hidden
+            {...stylex.props(styles.swatch)}
+            style={{ backgroundColor: template.color }}
+          />
+          <Link href={`/classes/${template.id}`} {...stylex.props(styles.titleLink)}>
+            {template.title}
+          </Link>
+          {template.category ? (
+            <span {...stylex.props(styles.categoryTag)}>{template.category}</span>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: 'recurrence',
+      header: 'Recurrence',
+      cell: (template) => <span {...stylex.props(styles.cellText)}>{template.recurrence}</span>,
+    },
+    {
+      key: 'trainer',
+      header: 'Trainer',
+      cell: (template) => (
+        <span {...stylex.props(styles.cellText)}>{template.trainerName ?? '—'}</span>
+      ),
+    },
+    {
+      key: 'capacity',
+      header: 'Capacity',
+      sortKey: 'capacity',
+      cell: (template) => <span {...stylex.props(styles.capacityText)}>{template.capacity}</span>,
+    },
+    {
+      key: 'duration',
+      header: 'Duration',
+      cell: (template) => (
+        <span {...stylex.props(styles.cellText)}>{formatDuration(template.durationMinutes)}</span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortKey: 'status',
+      cell: (template) => <StatusPill status={template.status} />,
+    },
+    {
+      key: 'validFrom',
+      header: 'Starts',
+      sortKey: 'validFrom',
+      cell: (template) => (
+        <span {...stylex.props(styles.cellText)}>{formatDate(template.validFrom)}</span>
+      ),
+    },
+  ];
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-ink-100 dark:border-white/10">
-              <th className={`${headClass} pl-5`}>
-                <Link href={sortHref('title')} scroll={false} className={sortLinkClass}>
-                  Title
-                  <span aria-hidden>{sortIndicator('title')}</span>
-                </Link>
-              </th>
-              <th className={headClass}>Recurrence</th>
-              <th className={headClass}>Trainer</th>
-              <th className={headClass}>
-                <Link href={sortHref('capacity')} scroll={false} className={sortLinkClass}>
-                  Capacity
-                  <span aria-hidden>{sortIndicator('capacity')}</span>
-                </Link>
-              </th>
-              <th className={headClass}>Duration</th>
-              <th className={headClass}>
-                <Link href={sortHref('status')} scroll={false} className={sortLinkClass}>
-                  Status
-                  <span aria-hidden>{sortIndicator('status')}</span>
-                </Link>
-              </th>
-              <th className={`${headClass} pr-5`}>
-                <Link href={sortHref('validFrom')} scroll={false} className={sortLinkClass}>
-                  Starts
-                  <span aria-hidden>{sortIndicator('validFrom')}</span>
-                </Link>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {templates.map((template) => (
-              <tr
-                key={template.id}
-                className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
-              >
-                <td className="py-3 pr-4 pl-5">
-                  <div className="flex items-center gap-2">
-                    <span
-                      aria-hidden
-                      className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: template.color }}
-                    />
-                    <Link
-                      href={`/classes/${template.id}`}
-                      className="font-medium text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
-                    >
-                      {template.title}
-                    </Link>
-                    {template.category ? (
-                      <span className="rounded-pill bg-ink-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500 dark:bg-white/10 dark:text-ink-400">
-                        {template.category}
-                      </span>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">{template.recurrence}</td>
-                <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">
-                  {template.trainerName ?? '—'}
-                </td>
-                <td className="py-3 pr-4 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                  {template.capacity}
-                </td>
-                <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">
-                  {formatDuration(template.durationMinutes)}
-                </td>
-                <td className="py-3 pr-4">
-                  <StatusPill status={template.status} />
-                </td>
-                <td className="py-3 pr-5 text-ink-700 dark:text-ink-200">
-                  {formatDate(template.validFrom)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+    <div {...stylex.props(styles.stack)}>
+      <DataTable<AdminClassTemplateRow>
+        columns={columns}
+        rows={templates}
+        rowKey={(template) => template.id}
+        sort={sort}
+        dir={dir}
+        onSort={onSort}
+      />
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="font-mono tabular-nums">
+      <div {...stylex.props(styles.pagerRow)}>
+        <span {...stylex.props(styles.pagerCount)}>
           {from}–{to} of {total}
         </span>
-        <div className="flex gap-2">
+        <div {...stylex.props(styles.pagerBtns)}>
           <Btn
             v="outline"
             size="sm"

@@ -140,6 +140,16 @@ const MIGRATED_PATHS: readonly string[] = [
   // Astryx-only, so each is guarded as a directory.
   'apps/admin/app/(dashboard)/members',
   'apps/admin/app/(dashboard)/trainers',
+  // T11.20 — admin check-in board (scanner viewport + debounced member lookup +
+  // eligibility card + live arrivals feed), the schedule week-calendar (day-column
+  // occurrence cards + occupancy bars + the class-instance Drawer with roster /
+  // capacity / quick-actions) and the class-templates surfaces (list on the Astryx
+  // DataTable kit, detail, create/edit form + recurrence editor). Rebuilt on Astryx
+  // Card/DataTable/Drawer/Badge/Button + brand-tokened StyleX, no Tailwind. Each
+  // route group is now Astryx-only, so each is guarded as a directory.
+  'apps/admin/app/(dashboard)/check-in',
+  'apps/admin/app/(dashboard)/schedule',
+  'apps/admin/app/(dashboard)/classes',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
