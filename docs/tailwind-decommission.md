@@ -80,6 +80,11 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/web/app/[locale]/(member)/account/membership`       | T11.16 | ✅     |
 | `apps/web/src/components/member/profile`                  | T11.16 | ✅     |
 | `apps/web/src/components/member/notification-bell.tsx`    | T11.16 | ✅     |
+| `apps/admin/components/admin-shell.tsx`                   | T11.17 | ✅     |
+| `apps/admin/components/sidebar.tsx`                       | T11.17 | ✅     |
+| `apps/admin/components/top-bar.tsx`                       | T11.17 | ✅     |
+| `apps/admin/components/nav-icon.tsx`                      | T11.17 | ✅     |
+| `apps/admin/components/locale-switcher.tsx`               | T11.17 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:

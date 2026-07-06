@@ -39,12 +39,14 @@ export function NavIcon({ name }: { name: NavIconKey }) {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
+      width={20}
+      height={20}
       fill="none"
       stroke="currentColor"
       strokeWidth={1.75}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="h-5 w-5 shrink-0"
+      style={{ flexShrink: 0 }}
     >
       <path d={ICON_PATHS[name]} />
     </svg>

@@ -5,8 +5,15 @@ import { Archivo, JetBrains_Mono, Manrope } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
+// Astryx component styles (layer `astryx-base`) load AFTER globals.css so the
+// layer is declared last and outranks Tailwind's `tw-base` preflight — see the
+// cascade note in globals.css (T11.17, mirroring the web fix in T11.7). A CSS
+// `@import` inside globals.css would load before its own rules and invert this
+// order, so it is imported here.
+import '@astryxdesign/core/astryx.css';
 import { SentryInit } from './sentry-init';
 import { ThemeProvider, THEME_COOKIE, type Theme } from '@/components/theme/theme-provider';
+import { AstryxProvider } from '@/components/theme/astryx-provider';
 
 /** UI body font — Manrope (`font-sans`). */
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', display: 'swap' });
@@ -49,7 +56,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="min-h-screen bg-ink-50 font-sans text-ink-900 antialiased dark:bg-ink-950 dark:text-white">
         <SentryInit />
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <ThemeProvider initial={theme}>{children}</ThemeProvider>
+          <ThemeProvider initial={theme}>
+            <AstryxProvider>{children}</AstryxProvider>
+          </ThemeProvider>
         </NextIntlClientProvider>
       </body>
     </html>

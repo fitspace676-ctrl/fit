@@ -1,14 +1,18 @@
 'use client';
 
-// @fit/admin — authenticated console shell (formacore).
+// @fit/admin — authenticated console shell (Astryx, T11.17).
 //
-// The chrome wrapping every signed-in page: a persistent dark sidebar on `md`+, a
-// top bar, and the page content. On small screens the sidebar collapses into a
-// drawer toggled from the top bar. Owns only the drawer open/closed state.
+// The chrome wrapping every signed-in page, rebuilt on the Astryx `AppShell` over
+// the Fit brand tokens: a collapsible side navigation on `md`+, a top bar, and
+// the page content. Below the `md` breakpoint AppShell folds the side nav into an
+// overlay drawer, toggled from the `<MobileNavToggle>` the top bar renders. All
+// nav/top-bar state (collapse, drawer open/close) is owned by AppShell itself.
 
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { AuroraBackground, SkipLink, ToastProvider } from '@/components/ui';
+import { AppShell } from '@astryxdesign/core/AppShell';
+import { SkipLink, ToastProvider } from '@/components/ui';
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
 
@@ -23,6 +27,12 @@ export interface ShellSystemState {
   checkInCount: number | null;
 }
 
+const styles = stylex.create({
+  content: {
+    display: 'block',
+  },
+});
+
 export function AdminShell({
   gymSlug,
   system,
@@ -32,44 +42,22 @@ export function AdminShell({
   system: ShellSystemState;
   children: ReactNode;
 }) {
-  const [navOpen, setNavOpen] = useState(false);
-  const closeNav = (): void => setNavOpen(false);
   const t = useTranslations('admin.common');
 
   return (
     <ToastProvider>
       <SkipLink>{t('skipToContent')}</SkipLink>
-      <AuroraBackground />
-      <div className="relative flex min-h-screen">
-        {/* Desktop sidebar — dark, always visible from md up. */}
-        <aside className="hidden w-60 shrink-0 bg-ink-950 md:block">
-          <div className="sticky top-0 h-screen overflow-y-auto">
-            <Sidebar gymSlug={gymSlug} system={system} />
-          </div>
-        </aside>
-
-        {/* Mobile drawer — overlay + sliding panel. */}
-        {navOpen && (
-          <div className="fixed inset-0 z-40 md:hidden">
-            <button
-              type="button"
-              aria-label={t('closeNav')}
-              onClick={closeNav}
-              className="absolute inset-0 bg-ink-950/60 backdrop-blur-sm"
-            />
-            <aside className="absolute inset-y-0 left-0 w-64 overflow-y-auto bg-ink-950 shadow-2xl">
-              <Sidebar gymSlug={gymSlug} system={system} onNavigate={closeNav} />
-            </aside>
-          </div>
-        )}
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar gymSlug={gymSlug} onOpenNav={() => setNavOpen(true)} />
-          <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8">
-            {children}
-          </main>
+      <AppShell
+        variant="surface"
+        contentPadding={6}
+        topNav={<TopBar gymSlug={gymSlug} />}
+        sideNav={<Sidebar gymSlug={gymSlug} system={system} />}
+        mobileNav={{ hasToggle: false, breakpoint: 'md' }}
+      >
+        <div id="main-content" {...stylex.props(styles.content)}>
+          {children}
         </div>
-      </div>
+      </AppShell>
     </ToastProvider>
   );
 }

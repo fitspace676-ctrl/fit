@@ -109,6 +109,17 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/web/app/[locale]/(member)/account/membership',
   'apps/web/src/components/member/profile',
   'apps/web/src/components/member/notification-bell.tsx',
+  // T11.17 — admin console shell: the AppShell frame, collapsible SideNav, the
+  // TopNav (search + quick-sale + theme toggle + notifications + session menu),
+  // the language SegmentedControl and the inline nav icons. Rebuilt on Astryx
+  // AppShell/SideNav/TopNav/Button/IconButton/TextInput/DropdownMenu/Badge/
+  // StatusDot/Avatar/SegmentedControl + StyleX. This shell hosts every admin
+  // screen; the screens it wraps stay Tailwind until T11.18–T11.23 migrate them.
+  'apps/admin/components/admin-shell.tsx',
+  'apps/admin/components/sidebar.tsx',
+  'apps/admin/components/top-bar.tsx',
+  'apps/admin/components/nav-icon.tsx',
+  'apps/admin/components/locale-switcher.tsx',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
