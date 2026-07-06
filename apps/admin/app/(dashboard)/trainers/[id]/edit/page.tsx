@@ -2,10 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainer } from '@/lib/api';
-import { Card, Icon } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import { TrainerForm } from '../../trainer-form';
 
 export const metadata: Metadata = {
@@ -14,6 +15,76 @@ export const metadata: Metadata = {
 
 // Reflects the staff session and writes live trainer state — never cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    padding: '1rem',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * Edit-a-trainer page (T4.4). Like {@link NewTrainerPage} it gates on the
@@ -42,44 +113,31 @@ export default async function EditTrainerPage({ params }: { params: Promise<{ id
         ? t('errors.loadTrainer', { status: error.status, message: error.message })
         : t('errors.unreachable');
     return (
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/trainers"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <div {...stylex.props(styles.errorStack)}>
+        <Link href="/trainers" {...stylex.props(styles.backLink)}>
+          <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           {t('form.backToTrainers')}
         </Link>
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <div {...stylex.props(styles.errorCard)}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
           </p>
-        </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href={`/trainers/${id}`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+    <div {...stylex.props(styles.page)}>
+      <Link href={`/trainers/${id}`} {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         {t('form.backToTrainer')}
       </Link>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('form.editTitle')}
-        </h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          {t('form.editSubtitle', { name: trainer.name })}
-        </p>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>{t('form.editTitle')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('form.editSubtitle', { name: trainer.name })}</p>
       </header>
 
       <TrainerForm

@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import {
   MAX_FREEZE_DURATION_DAYS,
   type CreditPackCatalogueEntry,
@@ -12,18 +14,7 @@ import {
   type MemberCurrentPlan,
   type MemberDetail,
 } from '@fit/types';
-import {
-  Btn,
-  buttonClasses,
-  Card,
-  Field,
-  Icon,
-  Input,
-  Modal,
-  Progress,
-  useToast,
-  type IconName,
-} from '@/components/ui';
+import { Btn, Field, Icon, Input, Modal, Progress, useToast, type IconName } from '@/components/ui';
 import {
   freezeMemberSubscriptionAction,
   grantMemberCreditPackAction,
@@ -33,21 +24,394 @@ import {
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
 
-/** The detail page's tab keys, matching the Planflow "formacore" reference order; labels come from `memberTabs.<key>`. */
+/** The detail page's tab keys, matching the reference order; labels come from `memberTabs.<key>`. */
 const TABS = ['overview', 'subscriptions', 'bookings', 'payments', 'invoices', 'notes'] as const;
 type Tab = (typeof TABS)[number];
 
-/** Shared list-row surface, matching the formacore card treatment. */
-const ROW_CLASS =
-  'flex items-center justify-between rounded-card border border-ink-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-white/[0.035]';
-
-/** Icon + tint per activity kind. */
+/** Icon per activity kind. */
 const ACTIVITY_ICON: Record<MemberActivityKind, IconName> = {
   checkin: 'check',
   booking: 'calendar',
   payment: 'card',
   milestone: 'star',
 };
+
+const styles = stylex.create({
+  wrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  tablist: {
+    display: 'flex',
+    gap: '0.25rem',
+    overflowX: 'auto',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  tab: {
+    flexShrink: 0,
+    marginBottom: '-1px',
+    borderWidth: 0,
+    borderBottomWidth: '2px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'transparent',
+    background: 'none',
+    cursor: 'pointer',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  tabActive: {
+    borderBottomColor: 'var(--color-accent)',
+    color: 'var(--color-text-accent)',
+  },
+  list: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontSize: '0.875rem',
+  },
+  rowMin: {
+    minWidth: 0,
+  },
+  rowTitle: {
+    margin: 0,
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  rowTitleMono: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 500,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  rowTitleTrunc: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  rowSub: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  rowStatus: {
+    flexShrink: 0,
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  rowStatusMono: {
+    flexShrink: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  downloadLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    height: '2.25rem',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: 'var(--color-text-primary)',
+  },
+  smIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  emptyCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingInline: '1rem',
+    paddingBlock: '2.5rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    width: '1.75rem',
+    height: '1.75rem',
+    color: 'var(--color-text-disabled)',
+  },
+  emptyText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  overviewGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  overviewMain: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 'span 2',
+    },
+  },
+  overviewSide: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1.25rem',
+  },
+  cardTight: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    padding: '1.25rem',
+  },
+  cardHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionLabel: {
+    margin: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  metaMono: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  mutedText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  activityList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  activityRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+  },
+  activityIcon: {
+    marginTop: '0.125rem',
+    display: 'grid',
+    height: '2rem',
+    width: '2rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  activityMain: {
+    minWidth: 0,
+    flex: 1,
+  },
+  activityHead: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  activityTitle: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  activityTime: {
+    flexShrink: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  activityDetail: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  chart: {
+    display: 'flex',
+    height: '8rem',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  chartCol: {
+    display: 'flex',
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  chartBarBox: {
+    display: 'flex',
+    width: '100%',
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  chartBar: {
+    width: '100%',
+    borderTopLeftRadius: 'var(--radius-inner)',
+    borderTopRightRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-accent)',
+    transitionProperty: 'height',
+    transitionDuration: '700ms',
+    transitionTimingFunction: 'ease-out',
+  },
+  chartLabel: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  planNameRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  planDot: {
+    display: 'inline-block',
+    height: '0.625rem',
+    width: '0.625rem',
+    borderRadius: 'var(--radius-full)',
+  },
+  planName: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    color: 'var(--color-text-primary)',
+  },
+  priceRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '0.25rem',
+  },
+  priceValue: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.5rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  priceInterval: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  periodBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  periodHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  periodDays: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  frozenPill: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-accent)',
+  },
+  freezeNote: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  btnRow: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  balance: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  tagChips: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.375rem',
+  },
+  tagChip: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /** Format minor currency units as a Georgian Lari amount. */
 function formatAmount(minorUnits: number, currency: string): string {
@@ -82,9 +446,9 @@ function formatDateTime(iso: string, locale: string): string {
 /** A centered empty-state line shown when a tab has no records yet. */
 function EmptyState({ children }: { children: string }) {
   return (
-    <Card className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-      <Icon name="info" className="h-7 w-7 text-ink-300 dark:text-ink-500" />
-      <p className="text-sm text-ink-500 dark:text-ink-400">{children}</p>
+    <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+      <Icon name="info" {...stylex.props(styles.emptyIcon)} />
+      <p {...stylex.props(styles.emptyText)}>{children}</p>
     </Card>
   );
 }
@@ -112,11 +476,8 @@ export function MemberTabs({
   const [active, setActive] = useState<Tab>('overview');
 
   return (
-    <div className="flex flex-col gap-6">
-      <div
-        role="tablist"
-        className="flex gap-1 overflow-x-auto border-b border-ink-200 dark:border-white/10"
-      >
+    <div {...stylex.props(styles.wrap)}>
+      <div role="tablist" {...stylex.props(styles.tablist)}>
         {TABS.map((tab) => {
           const isActive = tab === active;
           return (
@@ -126,11 +487,7 @@ export function MemberTabs({
               role="tab"
               aria-selected={isActive}
               onClick={() => setActive(tab)}
-              className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium ${
-                isActive
-                  ? 'border-brand-500 text-brand-700 dark:text-brand-300'
-                  : 'border-transparent text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200'
-              }`}
+              {...stylex.props(styles.tab, isActive && styles.tabActive)}
             >
               {t(`memberTabs.${tab}`)}
             </button>
@@ -154,21 +511,19 @@ export function MemberTabs({
           (member.subscriptions.length === 0 ? (
             <EmptyState>{t('detail.noSubscriptions')}</EmptyState>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul {...stylex.props(styles.list)}>
               {member.subscriptions.map((sub) => (
-                <li key={sub.id} className={ROW_CLASS}>
-                  <div>
-                    <p className="font-medium text-ink-900 dark:text-white">{sub.planName}</p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                <li key={sub.id} {...stylex.props(styles.row)}>
+                  <div {...stylex.props(styles.rowMin)}>
+                    <p {...stylex.props(styles.rowTitle)}>{sub.planName}</p>
+                    <p {...stylex.props(styles.rowSub)}>
                       {t('detail.subStarted', { date: formatDate(sub.startedAt, locale) })}
                       {sub.renewsAt
                         ? t('detail.subRenews', { date: formatDate(sub.renewsAt, locale) })
                         : ''}
                     </p>
                   </div>
-                  <span className="text-xs font-medium text-ink-600 dark:text-ink-300">
-                    {sub.status}
-                  </span>
+                  <span {...stylex.props(styles.rowStatus)}>{sub.status}</span>
                 </li>
               ))}
             </ul>
@@ -178,18 +533,16 @@ export function MemberTabs({
           (member.bookings.length === 0 ? (
             <EmptyState>{t('detail.noBookings')}</EmptyState>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul {...stylex.props(styles.list)}>
               {member.bookings.map((booking) => (
-                <li key={booking.id} className={ROW_CLASS}>
-                  <div>
-                    <p className="font-medium text-ink-900 dark:text-white">{booking.title}</p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                <li key={booking.id} {...stylex.props(styles.row)}>
+                  <div {...stylex.props(styles.rowMin)}>
+                    <p {...stylex.props(styles.rowTitle)}>{booking.title}</p>
+                    <p {...stylex.props(styles.rowSub)}>
                       {formatDateTime(booking.startsAt, locale)}
                     </p>
                   </div>
-                  <span className="text-xs font-medium text-ink-600 dark:text-ink-300">
-                    {booking.status}
-                  </span>
+                  <span {...stylex.props(styles.rowStatus)}>{booking.status}</span>
                 </li>
               ))}
             </ul>
@@ -199,20 +552,16 @@ export function MemberTabs({
           (member.payments.length === 0 ? (
             <EmptyState>{t('detail.noPayments')}</EmptyState>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul {...stylex.props(styles.list)}>
               {member.payments.map((payment) => (
-                <li key={payment.id} className={ROW_CLASS}>
-                  <div>
-                    <p className="font-mono font-medium tabular-nums text-ink-900 dark:text-white">
+                <li key={payment.id} {...stylex.props(styles.row)}>
+                  <div {...stylex.props(styles.rowMin)}>
+                    <p {...stylex.props(styles.rowTitleMono)}>
                       {formatAmount(payment.amount, member.currency)}
                     </p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
-                      {formatDate(payment.paidAt, locale)}
-                    </p>
+                    <p {...stylex.props(styles.rowSub)}>{formatDate(payment.paidAt, locale)}</p>
                   </div>
-                  <span className="text-xs font-medium text-ink-600 dark:text-ink-300">
-                    {payment.status}
-                  </span>
+                  <span {...stylex.props(styles.rowStatus)}>{payment.status}</span>
                 </li>
               ))}
             </ul>
@@ -222,14 +571,14 @@ export function MemberTabs({
           (member.invoices.length === 0 ? (
             <EmptyState>{t('detail.noInvoices')}</EmptyState>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul {...stylex.props(styles.list)}>
               {member.invoices.map((invoice) => (
-                <li key={invoice.id} className={ROW_CLASS}>
-                  <div>
-                    <p className="font-mono font-medium tabular-nums text-ink-900 dark:text-white">
+                <li key={invoice.id} {...stylex.props(styles.row)}>
+                  <div {...stylex.props(styles.rowMin)}>
+                    <p {...stylex.props(styles.rowTitleMono)}>
                       {invoice.number} · {formatAmount(invoice.amount, invoice.currency)}
                     </p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                    <p {...stylex.props(styles.rowSub)}>
                       {formatDate(invoice.issuedAt, locale)} · {invoice.status}
                     </p>
                   </div>
@@ -237,10 +586,10 @@ export function MemberTabs({
                       action — a plain <a> so the browser handles the file download. */}
                   <a
                     href={`/invoices/${invoice.id}/pdf`}
-                    className={buttonClasses('outline', 'sm')}
                     aria-label={t('detail.downloadInvoice')}
+                    {...stylex.props(styles.downloadLink)}
                   >
-                    <Icon name="download" className="h-4 w-4" /> {t('detail.download')}
+                    <Icon name="download" {...stylex.props(styles.smIcon)} /> {t('detail.download')}
                   </a>
                 </li>
               ))}
@@ -275,13 +624,13 @@ function OverviewPanel({
   locale: string;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <div className="flex flex-col gap-4 lg:col-span-2">
+    <div {...stylex.props(styles.overviewGrid)}>
+      <div {...stylex.props(styles.overviewMain)}>
         <ActivityCard activity={member.recentActivity} t={t} locale={locale} />
         <AttendanceCard member={member} t={t} locale={locale} />
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div {...stylex.props(styles.overviewSide)}>
         <CurrentPlanCard
           plan={member.currentPlan}
           memberId={member.id}
@@ -315,29 +664,25 @@ function ActivityCard({
   locale: string;
 }) {
   return (
-    <Card glow className="flex flex-col gap-4 p-5">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {t('detail.recentActivity')}
-      </h3>
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.recentActivity')}</h3>
       {activity.length === 0 ? (
-        <p className="text-sm text-ink-400">{t('detail.noRecentActivity')}</p>
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noRecentActivity')}</p>
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul {...stylex.props(styles.activityList)}>
           {activity.map((entry, i) => (
-            <li key={`${entry.kind}-${entry.at}-${i}`} className="flex items-start gap-3">
-              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-                <Icon name={ACTIVITY_ICON[entry.kind]} className="h-4 w-4" />
+            <li key={`${entry.kind}-${entry.at}-${i}`} {...stylex.props(styles.activityRow)}>
+              <span {...stylex.props(styles.activityIcon)}>
+                <Icon name={ACTIVITY_ICON[entry.kind]} {...stylex.props(styles.smIcon)} />
               </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="truncate text-sm font-medium text-ink-900 dark:text-white">
-                    {entry.title}
-                  </p>
-                  <span className="shrink-0 font-mono text-xs tabular-nums text-ink-400">
+              <div {...stylex.props(styles.activityMain)}>
+                <div {...stylex.props(styles.activityHead)}>
+                  <p {...stylex.props(styles.activityTitle)}>{entry.title}</p>
+                  <span {...stylex.props(styles.activityTime)}>
                     {formatDateTime(entry.at, locale)}
                   </span>
                 </div>
-                <p className="truncate text-xs text-ink-500 dark:text-ink-400">{entry.detail}</p>
+                <p {...stylex.props(styles.activityDetail)}>{entry.detail}</p>
               </div>
             </li>
           ))}
@@ -352,26 +697,24 @@ function AttendanceCard({ member, t, locale }: { member: MemberDetail; t: T; loc
   const weeks = member.attendance8w;
   const max = Math.max(1, ...weeks.map((w) => w.count));
   return (
-    <Card glow className="flex flex-col gap-4 p-5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          {t('detail.attendanceTitle')}
-        </h3>
-        <span className="font-mono text-xs tabular-nums text-ink-400">
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHead)}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.attendanceTitle')}</h3>
+        <span {...stylex.props(styles.metaMono)}>
           {t('detail.totalCount', { count: member.totalVisits })}
         </span>
       </div>
-      <div className="flex h-32 items-end justify-between gap-2">
+      <div {...stylex.props(styles.chart)}>
         {weeks.map((week) => {
           const label = new Date(week.weekStart).toLocaleDateString(locale, {
             month: 'short',
             day: 'numeric',
           });
           return (
-            <div key={week.weekStart} className="flex flex-1 flex-col items-center gap-2">
-              <div className="flex w-full flex-1 items-end">
+            <div key={week.weekStart} {...stylex.props(styles.chartCol)}>
+              <div {...stylex.props(styles.chartBarBox)}>
                 <div
-                  className="w-full rounded-t-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] transition-[height] duration-700 ease-out"
+                  {...stylex.props(styles.chartBar)}
                   style={{
                     height: `${(week.count / max) * 100}%`,
                     minHeight: week.count > 0 ? 6 : 2,
@@ -379,7 +722,7 @@ function AttendanceCard({ member, t, locale }: { member: MemberDetail; t: T; loc
                   title={t('detail.visits', { count: week.count })}
                 />
               </div>
-              <span className="font-mono text-[10px] tabular-nums text-ink-400">{label}</span>
+              <span {...stylex.props(styles.chartLabel)}>{label}</span>
             </div>
           );
         })}
@@ -406,11 +749,9 @@ function CurrentPlanCard({
 }) {
   if (!plan) {
     return (
-      <Card glow className="flex flex-col gap-3 p-5">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          {t('detail.currentPlan')}
-        </h3>
-        <p className="text-sm text-ink-400">{t('detail.noLiveSubscription')}</p>
+      <Card variant="default" padding={0} xstyle={styles.cardTight}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.currentPlan')}</h3>
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noLiveSubscription')}</p>
       </Card>
     );
   }
@@ -431,36 +772,32 @@ function CurrentPlanCard({
         : 'intervalPeriod';
 
   return (
-    <Card glow className="flex flex-col gap-4 p-5">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {t('detail.currentPlan')}
-      </h3>
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.currentPlan')}</h3>
 
-      <div className="flex items-center gap-2">
+      <div {...stylex.props(styles.planNameRow)}>
         <span
           aria-hidden
-          className="inline-block h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: plan.color ?? '#7C3AED' }}
+          {...stylex.props(styles.planDot)}
+          style={{ backgroundColor: plan.color ?? '#6257E3' }}
         />
-        <span className="font-display text-lg font-extrabold text-ink-900 dark:text-white">
-          {plan.name}
-        </span>
+        <span {...stylex.props(styles.planName)}>{plan.name}</span>
       </div>
 
-      <div className="flex items-baseline gap-1">
-        <span className="font-mono text-2xl font-bold tabular-nums text-ink-900 dark:text-white">
+      <div {...stylex.props(styles.priceRow)}>
+        <span {...stylex.props(styles.priceValue)}>
           {currency === 'GEL' ? '₾' : currency === 'USD' ? '$' : `${currency} `}
           {(plan.priceAmount / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
         </span>
-        <span className="text-sm text-ink-500 dark:text-ink-400">
+        <span {...stylex.props(styles.priceInterval)}>
           {t('detail.perInterval', { interval: t(`detail.${intervalKey}`) })}
         </span>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between text-xs text-ink-500 dark:text-ink-400">
+      <div {...stylex.props(styles.periodBlock)}>
+        <div {...stylex.props(styles.periodHead)}>
           <span>{t('detail.renews', { date: formatDate(plan.currentPeriodEnd, locale) })}</span>
-          <span className="font-mono tabular-nums">
+          <span {...stylex.props(styles.periodDays)}>
             {t('detail.daysLeft', { count: plan.daysRemaining })}
           </span>
         </div>
@@ -545,11 +882,11 @@ function PlanFreezeControls({
   return (
     <>
       {isFrozen ? (
-        <p className="rounded-btn bg-iris-50 px-3 py-2 text-xs font-medium text-iris-700 dark:bg-iris-500/10 dark:text-iris-200">
+        <p {...stylex.props(styles.frozenPill)}>
           {t('detail.frozenUntil', { date: formatDate(plan.frozenUntil ?? '', locale) })}
         </p>
       ) : (
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+        <p {...stylex.props(styles.freezeNote)}>
           {t('detail.freezeAllowance', {
             used: plan.freezeDaysUsed,
             total: plan.freezeDaysPerPeriod,
@@ -557,7 +894,7 @@ function PlanFreezeControls({
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div {...stylex.props(styles.btnRow)}>
         {isFrozen ? (
           <Btn
             v="outline"
@@ -666,33 +1003,29 @@ function CreditsCard({
   }
 
   return (
-    <Card glow className="flex flex-col gap-4 p-5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          {t('detail.credits')}
-        </h3>
-        <span className="font-mono text-lg font-bold tabular-nums text-ink-900 dark:text-white">
-          {totalRemaining}
-        </span>
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHead)}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.credits')}</h3>
+        <span {...stylex.props(styles.balance)}>{totalRemaining}</span>
       </div>
 
       {packs.length === 0 ? (
-        <p className="text-sm text-ink-400">{t('detail.noCredits')}</p>
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noCredits')}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul {...stylex.props(styles.list)}>
           {packs.map((pack) => (
-            <li key={pack.id} className={ROW_CLASS}>
-              <div className="min-w-0">
-                <p className="truncate font-medium text-ink-900 dark:text-white">
+            <li key={pack.id} {...stylex.props(styles.row)}>
+              <div {...stylex.props(styles.rowMin)}>
+                <p {...stylex.props(styles.rowTitleTrunc)}>
                   {pack.planTitle ?? t('detail.creditPack')}
                 </p>
-                <p className="text-xs text-ink-500 dark:text-ink-400">
+                <p {...stylex.props(styles.rowSub)}>
                   {pack.expiresAt
                     ? t('detail.creditExpires', { date: formatDate(pack.expiresAt, locale) })
                     : t('detail.creditNoExpiry')}
                 </p>
               </div>
-              <span className="shrink-0 font-mono text-xs tabular-nums text-ink-600 dark:text-ink-300">
+              <span {...stylex.props(styles.rowStatusMono)}>
                 {t('detail.creditRemaining', {
                   remaining: pack.remainingCredits,
                   total: pack.totalCredits,
@@ -723,12 +1056,12 @@ function CreditsCard({
         description={t('detail.addCreditModalBody')}
         size="sm"
       >
-        <ul className="flex flex-col gap-2">
+        <ul {...stylex.props(styles.list)}>
           {catalogue.map((pack) => (
-            <li key={pack.id} className={ROW_CLASS}>
-              <div className="min-w-0">
-                <p className="truncate font-medium text-ink-900 dark:text-white">{pack.name}</p>
-                <p className="text-xs text-ink-500 dark:text-ink-400">
+            <li key={pack.id} {...stylex.props(styles.row)}>
+              <div {...stylex.props(styles.rowMin)}>
+                <p {...stylex.props(styles.rowTitleTrunc)}>{pack.name}</p>
+                <p {...stylex.props(styles.rowSub)}>
                   {t('detail.creditPackMeta', {
                     count: pack.sessionCount,
                     price: formatAmount(pack.priceAmount, pack.currency),
@@ -753,23 +1086,18 @@ function CreditsCard({
  */
 function TagsCard({ tags, t }: { tags: string[]; t: T }) {
   return (
-    <Card glow className="flex flex-col gap-3 p-5">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {t('detail.tags')}
-      </h3>
+    <Card variant="default" padding={0} xstyle={styles.cardTight}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.tags')}</h3>
       {tags.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div {...stylex.props(styles.tagChips)}>
           {tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-pill bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-600 dark:bg-white/10 dark:text-ink-300"
-            >
+            <span key={tag} {...stylex.props(styles.tagChip)}>
               {tag}
             </span>
           ))}
         </div>
       ) : (
-        <p className="text-sm text-ink-400">{t('detail.noTags')}</p>
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noTags')}</p>
       )}
       <Btn v="outline" size="sm" icon="tag" disabled title={t('detail.tagsDisabledTitle')}>
         {t('detail.add')}

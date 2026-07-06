@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import type { MemberStatus } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Btn, FilterBar, TableSearch } from '@/components/ui';
 
 /** The status options offered by the Filter panel, in roster-priority order; labels come from `status.<value>`. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: MemberStatus }> = [
@@ -16,8 +17,48 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: MemberStatus }> = [
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
 
+const styles = stylex.create({
+  wrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  statusRow: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'center',
+    },
+    gap: '0.5rem',
+  },
+  label: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  select: {
+    height: '2.75rem',
+    width: {
+      default: '100%',
+      '@media (min-width: 640px)': '12rem',
+    },
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+  },
+});
+
 /**
- * The roster's search + Filter row (Planflow "formacore"). A debounced search box
+ * The roster's search + Filter row (T11.19). A debounced {@link TableSearch}
  * (name / email) and a "Filter" button that reveals the status select — the
  * segmented tabs are the primary status control, so this is the secondary path
  * that also drives the `status` URL param. Both write their state to the URL
@@ -31,11 +72,7 @@ export function MembersFilters({ search, status }: { search: string; status: str
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
-  const [searchValue, setSearchValue] = useState(search);
   const [filtersOpen, setFiltersOpen] = useState(false);
-
-  // Keep the input in sync if the URL changes from elsewhere (e.g. back button).
-  useEffect(() => setSearchValue(search), [search]);
 
   /** Push a single param change to the URL, always resetting to page 1. */
   function commit(key: string, value: string): void {
@@ -50,36 +87,16 @@ export function MembersFilters({ search, status }: { search: string; status: str
     startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname));
   }
 
-  // Debounce the search box so typing doesn't fire a request per keystroke.
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function onSearchChange(value: string): void {
-    setSearchValue(value);
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = setTimeout(() => commit('search', value.trim()), SEARCH_DEBOUNCE_MS);
-  }
-
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <label htmlFor="member-search" className="sr-only">
-            {t('filters.searchLabel')}
-          </label>
-          <Icon
-            name="search"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
-          />
-          <input
-            id="member-search"
-            type="search"
-            value={searchValue}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder={t('filters.searchPlaceholder')}
-            className="h-11 w-full rounded-field border border-ink-200 bg-white pl-10 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
-          />
-        </div>
+    <div {...stylex.props(styles.wrap)}>
+      <FilterBar>
+        <TableSearch
+          value={search}
+          onSearch={(value) => commit('search', value)}
+          placeholder={t('filters.searchPlaceholder')}
+          ariaLabel={t('filters.searchLabel')}
+          debounceMs={SEARCH_DEBOUNCE_MS}
+        />
 
         <Btn
           v={status || filtersOpen ? 'primary' : 'outline'}
@@ -90,21 +107,18 @@ export function MembersFilters({ search, status }: { search: string; status: str
         >
           {status ? t('filters.filterActive') : t('filters.filter')}
         </Btn>
-      </div>
+      </FilterBar>
 
       {filtersOpen ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label
-            htmlFor="member-status"
-            className="text-sm font-medium text-ink-600 dark:text-ink-300"
-          >
+        <div {...stylex.props(styles.statusRow)}>
+          <label htmlFor="member-status" {...stylex.props(styles.label)}>
             {t('filters.statusLabel')}
           </label>
           <select
             id="member-status"
             value={status}
             onChange={(event) => commit('status', event.target.value)}
-            className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white sm:w-48"
+            {...stylex.props(styles.select)}
           >
             <option value="">{t('filters.allStatuses')}</option>
             {STATUS_OPTIONS.map((option) => (

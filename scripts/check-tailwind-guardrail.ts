@@ -132,6 +132,14 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/app/(dashboard)/dashboard-view.tsx',
   'apps/admin/app/(dashboard)/charts.tsx',
   'apps/admin/app/(dashboard)/analytics',
+  // T11.19 — admin members + trainers (list + detail + create/edit): rosters
+  // rebuilt on the Astryx DataTable + FilterChips + TableSearch kit, plan-mix and
+  // profile/schedule cards on Astryx Card/Badge/Avatar, and the create/edit forms
+  // on the Astryx Form kit — all layout in brand-tokened StyleX, no Tailwind. Both
+  // route groups (list, `[id]` detail + tabs, `new`, `[id]/edit`) are now
+  // Astryx-only, so each is guarded as a directory.
+  'apps/admin/app/(dashboard)/members',
+  'apps/admin/app/(dashboard)/trainers',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

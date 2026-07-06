@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { Icon } from '@/components/ui';
@@ -13,6 +14,65 @@ export const metadata: Metadata = {
 
 // Reflects the staff session and writes live tenant state — never cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  crumbIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  crumbLink: {
+    textDecoration: 'none',
+    color: 'var(--color-text-secondary)',
+  },
+  crumbCurrent: {
+    color: 'var(--color-text-primary)',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-accent)',
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /**
  * Create-a-member page (T4.3). The middleware already requires a staff session to
@@ -30,33 +90,25 @@ export default async function NewMemberPage() {
   const t = await getTranslations('admin.members');
 
   return (
-    <div className="flex flex-col gap-6">
-      <nav
-        aria-label={t('breadcrumb.label')}
-        className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
-      >
+    <div {...stylex.props(styles.page)}>
+      <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
         <span>Iron Gym</span>
-        <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <Link href="/members" className="hover:text-ink-600 dark:hover:text-ink-300">
+        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+        <Link href="/members" {...stylex.props(styles.crumbLink)}>
           {t('breadcrumb.members')}
         </Link>
-        <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <span className="text-ink-600 dark:text-ink-300">{t('list.addMember')}</span>
+        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+        <span {...stylex.props(styles.crumbCurrent)}>{t('list.addMember')}</span>
       </nav>
 
-      <Link
-        href="/members"
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <Link href="/members" {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         {t('nav.backToMembers')}
       </Link>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('list.addMember')}
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('newPage.subtitle')}</p>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>{t('list.addMember')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('newPage.subtitle')}</p>
       </header>
 
       <MemberForm mode="create" />

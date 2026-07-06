@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLocale, getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
   roleHasPermission,
@@ -11,7 +12,8 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
-import { Badge, Btn, Card, Icon, type IconName, type Tone } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge, Btn, Icon, type IconName, type Tone } from '@/components/ui';
 import { MemberActions } from './member-actions';
 import { MemberTabs } from './member-tabs';
 
@@ -32,6 +34,200 @@ const STATUS_TONES: Record<string, Tone> = {
   INVITED: 'ink',
   SUSPENDED: 'warning',
 };
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  errorPage: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  topRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  crumbIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  crumbLink: {
+    textDecoration: 'none',
+    color: 'var(--color-text-secondary)',
+  },
+  crumbCurrent: {
+    color: 'var(--color-text-primary)',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-accent)',
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  identityCard: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'flex-start',
+    },
+    justifyContent: {
+      default: 'flex-start',
+      '@media (min-width: 640px)': 'space-between',
+    },
+    gap: '1rem',
+    padding: '1.25rem',
+  },
+  identityLeft: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '1rem',
+  },
+  identityAvatar: {
+    display: 'flex',
+    height: '4rem',
+    width: '4rem',
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '1.25rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+  identityCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  titleRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  name: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  metaRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: '0.75rem',
+    rowGap: '0.25rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metaMono: {
+    fontFamily: 'var(--font-family-code)',
+  },
+  kpiGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(4, minmax(0, 1fr))',
+    },
+  },
+  kpiCard: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    padding: '1.25rem',
+  },
+  kpiIcon: {
+    display: 'grid',
+    height: '2.5rem',
+    width: '2.5rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  kpiIconSvg: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  kpiValue: {
+    margin: 0,
+    marginTop: '1rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  kpiLabel: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  kpiContext: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /** Format a minor-unit amount as a Georgian Lari (or currency) amount. */
 function formatAmount(minorUnits: number, currency: string): string {
@@ -95,29 +291,25 @@ function DetailKpi({
   icon: IconName;
 }) {
   return (
-    <Card glow className="flex h-full flex-col p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+      <span {...stylex.props(styles.kpiIcon)}>
+        <Icon name={icon} {...stylex.props(styles.kpiIconSvg)} />
       </span>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
-        {value}
-      </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {label}
-      </p>
-      <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">{context}</p>
+      <p {...stylex.props(styles.kpiValue)}>{value}</p>
+      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
+      <p {...stylex.props(styles.kpiContext)}>{context}</p>
     </Card>
   );
 }
 
 /**
- * The member detail page (T4.2), reskinned to the Planflow "formacore" layout:
- * a breadcrumb + Message action, a back link, an identity header card, four live
- * KPI cards (lifetime value / total visits / member since / next billing), and the
- * Overview/Subscriptions/Bookings/Payments/Notes tabs. Every figure comes from the
- * enriched `GET /members/:id` (real tenant-scoped queries). A `404` from the API —
- * unknown or cross-tenant id — becomes Next's `notFound()`; any other failure
- * surfaces inline so the staff member sees why.
+ * The member detail page (T4.2), rebuilt on Astryx Card/Badge + brand-tokened
+ * StyleX (T11.19): a breadcrumb + Message action, a back link, an identity header
+ * card, four live KPI cards (lifetime value / total visits / member since / next
+ * billing), and the Overview/Subscriptions/Bookings/Payments/Notes tabs. Every
+ * figure comes from the enriched `GET /members/:id` (real tenant-scoped queries).
+ * A `404` from the API — unknown or cross-tenant id — becomes Next's `notFound()`;
+ * any other failure surfaces inline so the staff member sees why.
  */
 export default async function MemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -136,20 +328,14 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
         ? t('errors.loadMember', { status: error.status, message: error.message })
         : t('errors.apiUnreachable');
     return (
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/members"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <div {...stylex.props(styles.errorPage)}>
+        <Link href="/members" {...stylex.props(styles.backLink)}>
+          <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           {t('nav.backToMembers')}
         </Link>
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
           </p>
         </Card>
@@ -188,49 +374,39 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav
-          aria-label={t('breadcrumb.label')}
-          className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
-        >
+    <div {...stylex.props(styles.page)}>
+      <div {...stylex.props(styles.topRow)}>
+        <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
           <span>Iron Gym</span>
-          <Icon name="chevronRight" className="h-3.5 w-3.5" />
-          <Link href="/members" className="hover:text-ink-600 dark:hover:text-ink-300">
+          <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+          <Link href="/members" {...stylex.props(styles.crumbLink)}>
             {t('breadcrumb.members')}
           </Link>
-          <Icon name="chevronRight" className="h-3.5 w-3.5" />
-          <span className="text-ink-600 dark:text-ink-300">{member.name}</span>
+          <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+          <span {...stylex.props(styles.crumbCurrent)}>{member.name}</span>
         </nav>
         <Btn v="outline" size="sm" icon="message" disabled>
           {t('detail.message')}
         </Btn>
       </div>
 
-      <Link
-        href="/members"
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <Link href="/members" {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         {t('nav.backToMembers')}
       </Link>
 
       {/* Identity header card. */}
-      <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-4">
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xl font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
-            {initialsOf(member.name)}
-          </span>
-          <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-                {member.name}
-              </h1>
+      <Card variant="default" padding={0} xstyle={styles.identityCard}>
+        <div {...stylex.props(styles.identityLeft)}>
+          <span {...stylex.props(styles.identityAvatar)}>{initialsOf(member.name)}</span>
+          <div {...stylex.props(styles.identityCol)}>
+            <div {...stylex.props(styles.titleRow)}>
+              <h1 {...stylex.props(styles.name)}>{member.name}</h1>
               <Badge tone={statusTone}>{statusLabel}</Badge>
               {member.plan ? <Badge tone="brand">{member.plan.name}</Badge> : null}
             </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500 dark:text-ink-400">
-              <span className="font-mono">ID {member.id.slice(0, 8)}</span>
+            <div {...stylex.props(styles.metaRow)}>
+              <span {...stylex.props(styles.metaMono)}>ID {member.id.slice(0, 8)}</span>
               <span aria-hidden>·</span>
               <span>{member.email}</span>
               {member.phone ? (
@@ -246,10 +422,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
       </Card>
 
       {/* Four live KPI cards. */}
-      <section
-        aria-label={t('detail.memberMetrics')}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
+      <section aria-label={t('detail.memberMetrics')} {...stylex.props(styles.kpiGrid)}>
         <DetailKpi
           label={t('detail.lifetimeValue')}
           value={formatAmount(member.lifetimeValue, member.currency)}

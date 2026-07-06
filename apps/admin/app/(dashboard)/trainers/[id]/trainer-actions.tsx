@@ -4,9 +4,71 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import type { TrainerStatus } from '@fit/types';
-import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
+import { Btn, Icon } from '@/components/ui';
 import { setTrainerActiveAction } from '../actions';
+
+const styles = stylex.create({
+  wrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '0.5rem',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  editLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    height: '2.25rem',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':hover': 'var(--color-background-muted)',
+    },
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: 'var(--color-text-primary)',
+  },
+  editIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.375rem',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * The trainer detail page's write controls (T4.4), shown only to `TrainerWrite`
@@ -43,10 +105,10 @@ export function TrainerActions({
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex items-center gap-2">
-        <Link href={`/trainers/${trainerId}/edit`} className={buttonClasses('outline', 'sm')}>
-          <Icon name="settings" className="h-4 w-4" sw={2} />
+    <div {...stylex.props(styles.wrap)}>
+      <div {...stylex.props(styles.row)}>
+        <Link href={`/trainers/${trainerId}/edit`} {...stylex.props(styles.editLink)}>
+          <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
           {t('detail.edit')}
         </Link>
         <Btn v="outline" size="sm" onClick={toggle} disabled={pending}>
@@ -58,15 +120,12 @@ export function TrainerActions({
         </Btn>
       </div>
       {error ? (
-        <Card className="flex items-start gap-2 border-danger-200 bg-danger-50 px-3 py-1.5 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-4 w-4 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <div {...stylex.props(styles.errorCard)}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
           </p>
-        </Card>
+        </div>
       ) : null}
     </div>
   );

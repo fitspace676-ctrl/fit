@@ -4,8 +4,9 @@ import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import type { TrainerStatus } from '@fit/types';
-import { Btn, buttonClasses, Card, Icon } from '@/components/ui';
+import { Btn, Icon } from '@/components/ui';
 import {
   createTrainerAction,
   requestTrainerPhotoUploadAction,
@@ -18,21 +19,214 @@ const CREATE_STATUSES: ReadonlyArray<{ value: TrainerStatus; labelKey: string }>
   { value: 'INACTIVE', labelKey: 'status.inactive' },
 ];
 
-/** Shared field styling so create + edit render identically. */
-const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
-
-/** Field styling for multi-line inputs (textareas) — same tokens, no fixed height. */
-const TEXTAREA_CLASS =
-  'w-full rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/5';
-
-/** Shared label styling. */
-const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
-
 /** Accepted image MIME types for the headshot, matching the storage service map. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 /** Client-side size ceiling (bytes) — a friendly guard before the signed PUT. */
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+const styles = stylex.create({
+  form: {
+    display: 'flex',
+    maxWidth: '32rem',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  photoGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  fieldGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  label: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  optional: {
+    fontWeight: 400,
+    color: 'var(--color-text-secondary)',
+  },
+  photoRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  photoImg: {
+    height: '4rem',
+    width: '4rem',
+    borderRadius: 'var(--radius-full)',
+    objectFit: 'cover',
+  },
+  photoFallback: {
+    display: 'flex',
+    height: '4rem',
+    width: '4rem',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '1.125rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+  photoControls: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  fileInput: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+    '::file-selector-button': {
+      marginRight: '0.75rem',
+      borderStyle: 'none',
+      borderWidth: 0,
+      borderRadius: 'var(--radius-element)',
+      backgroundColor: 'var(--color-accent-muted)',
+      paddingInline: '0.75rem',
+      paddingBlock: '0.375rem',
+      fontSize: '0.875rem',
+      fontWeight: 500,
+      color: 'var(--color-text-accent)',
+      cursor: 'pointer',
+    },
+  },
+  photoMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  removeBtn: {
+    borderStyle: 'none',
+    backgroundColor: 'transparent',
+    padding: 0,
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-error)',
+    },
+  },
+  input: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':disabled': 'var(--color-background-muted)',
+    },
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':disabled': 'var(--color-text-secondary)',
+    },
+    outline: 'none',
+  },
+  textarea: {
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':disabled': 'var(--color-background-muted)',
+    },
+    paddingInline: '0.875rem',
+    paddingBlock: '0.625rem',
+    fontSize: '0.875rem',
+    fontFamily: 'inherit',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':disabled': 'var(--color-text-secondary)',
+    },
+    outline: 'none',
+  },
+  banner: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    padding: '1rem',
+  },
+  bannerWarning: {
+    borderColor: 'var(--color-warning)',
+    backgroundColor: 'var(--color-warning-muted)',
+  },
+  bannerError: {
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  bannerIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+  },
+  iconWarning: {
+    color: 'var(--color-warning)',
+  },
+  iconError: {
+    color: 'var(--color-error)',
+  },
+  bannerText: {
+    margin: 0,
+    fontSize: '0.875rem',
+  },
+  textWarning: {
+    color: 'var(--color-warning)',
+  },
+  textError: {
+    color: 'var(--color-error)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  cancelLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '2.75rem',
+    paddingInline: '1.25rem',
+    borderRadius: 'var(--radius-element)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+});
 
 type Initial = {
   name: string;
@@ -171,39 +365,33 @@ export function TrainerForm(props: Props) {
   const cancelHref = isEdit ? `/trainers/${props.trainerId}` : '/trainers';
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-4">
+    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
       {/* Photo. */}
-      <div className="flex flex-col gap-2">
-        <span className={LABEL_CLASS}>{t('form.photo')}</span>
-        <div className="flex items-center gap-4">
+      <div {...stylex.props(styles.photoGroup)}>
+        <span {...stylex.props(styles.label)}>{t('form.photo')}</span>
+        <div {...stylex.props(styles.photoRow)}>
           {photoUrl ? (
             <img
               src={photoUrl}
               alt={t('form.photoAlt', { name: name || t('form.trainerFallback') })}
-              className="h-16 w-16 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
+              {...stylex.props(styles.photoImg)}
             />
           ) : (
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-lg font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
-              {initialsOf(name)}
-            </span>
+            <span {...stylex.props(styles.photoFallback)}>{initialsOf(name)}</span>
           )}
-          <div className="flex flex-col gap-1">
+          <div {...stylex.props(styles.photoControls)}>
             <input
               ref={fileInputRef}
               type="file"
               accept={ACCEPTED_IMAGE_TYPES.join(',')}
               onChange={(event) => void onPhotoChange(event)}
               disabled={uploading || pending}
-              className="text-sm text-ink-600 file:mr-3 file:rounded-btn file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100 disabled:opacity-50 dark:text-ink-300 dark:file:bg-brand-500/15 dark:file:text-brand-200 dark:hover:file:bg-brand-500/25"
+              {...stylex.props(styles.fileInput)}
             />
-            <div className="flex items-center gap-3 text-xs text-ink-400">
+            <div {...stylex.props(styles.photoMeta)}>
               <span>{uploading ? t('form.uploading') : t('form.photoHint')}</span>
               {photoUrl && !uploading ? (
-                <button
-                  type="button"
-                  onClick={removePhoto}
-                  className="font-medium text-ink-500 hover:text-danger-600 dark:text-ink-400 dark:hover:text-danger-300"
-                >
+                <button type="button" onClick={removePhoto} {...stylex.props(styles.removeBtn)}>
                   {t('form.remove')}
                 </button>
               ) : null}
@@ -211,20 +399,17 @@ export function TrainerForm(props: Props) {
           </div>
         </div>
         {uploadError ? (
-          <Card className="flex items-start gap-3 border-warning-200 bg-warning-50 p-4 dark:border-warning-500/20 dark:bg-warning-500/10">
-            <Icon
-              name="info"
-              className="mt-0.5 h-5 w-5 shrink-0 text-warning-600 dark:text-warning-300"
-            />
-            <p role="alert" className="text-sm text-warning-800 dark:text-warning-200">
+          <div {...stylex.props(styles.banner, styles.bannerWarning)}>
+            <Icon name="info" {...stylex.props(styles.bannerIcon, styles.iconWarning)} />
+            <p role="alert" {...stylex.props(styles.bannerText, styles.textWarning)}>
               {uploadError}
             </p>
-          </Card>
+          </div>
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="trainer-name" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="trainer-name" {...stylex.props(styles.label)}>
           {t('form.name')}
         </label>
         <input
@@ -235,14 +420,13 @@ export function TrainerForm(props: Props) {
           value={name}
           onChange={(event) => setName(event.target.value)}
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="trainer-headline" className={LABEL_CLASS}>
-          {t('form.headline')}{' '}
-          <span className="font-normal text-ink-400">{t('form.optional')}</span>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="trainer-headline" {...stylex.props(styles.label)}>
+          {t('form.headline')} <span {...stylex.props(styles.optional)}>{t('form.optional')}</span>
         </label>
         <input
           id="trainer-headline"
@@ -252,13 +436,13 @@ export function TrainerForm(props: Props) {
           onChange={(event) => setHeadline(event.target.value)}
           placeholder={t('form.headlinePlaceholder')}
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="trainer-bio" className={LABEL_CLASS}>
-          {t('form.bio')} <span className="font-normal text-ink-400">{t('form.optional')}</span>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="trainer-bio" {...stylex.props(styles.label)}>
+          {t('form.bio')} <span {...stylex.props(styles.optional)}>{t('form.optional')}</span>
         </label>
         <textarea
           id="trainer-bio"
@@ -266,14 +450,14 @@ export function TrainerForm(props: Props) {
           rows={4}
           value={bio}
           onChange={(event) => setBio(event.target.value)}
-          className={TEXTAREA_CLASS}
+          {...stylex.props(styles.textarea)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="trainer-specialties" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="trainer-specialties" {...stylex.props(styles.label)}>
           {t('form.specialties')}{' '}
-          <span className="font-normal text-ink-400">{t('form.commaSeparated')}</span>
+          <span {...stylex.props(styles.optional)}>{t('form.commaSeparated')}</span>
         </label>
         <input
           id="trainer-specialties"
@@ -283,13 +467,13 @@ export function TrainerForm(props: Props) {
           onChange={(event) => setSpecialties(event.target.value)}
           placeholder={t('form.specialtiesPlaceholder')}
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.input)}
         />
       </div>
 
       {!isEdit ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor="trainer-status" className={LABEL_CLASS}>
+        <div {...stylex.props(styles.fieldGroup)}>
+          <label htmlFor="trainer-status" {...stylex.props(styles.label)}>
             {t('form.status')}
           </label>
           <select
@@ -297,7 +481,7 @@ export function TrainerForm(props: Props) {
             name="status"
             value={status}
             onChange={(event) => setStatus(event.target.value as TrainerStatus)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.input)}
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
@@ -309,22 +493,19 @@ export function TrainerForm(props: Props) {
       ) : null}
 
       {error ? (
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <div {...stylex.props(styles.banner, styles.bannerError)}>
+          <Icon name="info" {...stylex.props(styles.bannerIcon, styles.iconError)} />
+          <p role="alert" {...stylex.props(styles.bannerText, styles.textError)}>
             {error}
           </p>
-        </Card>
+        </div>
       ) : null}
 
-      <div className="flex items-center gap-3">
+      <div {...stylex.props(styles.actions)}>
         <Btn type="submit" v="primary" size="md" disabled={pending || uploading}>
           {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createTrainer')}
         </Btn>
-        <Link href={cancelHref} className={buttonClasses('ghost', 'md')}>
+        <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
           {t('form.cancel')}
         </Link>
       </div>

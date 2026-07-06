@@ -4,8 +4,10 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type { MemberStatus } from '@fit/types';
-import { Btn, Card, Icon } from '@/components/ui';
+import { Btn, Icon } from '@/components/ui';
 import { createMemberAction, updateMemberAction } from './actions';
 
 /** Selectable initial statuses when creating a member; labels come from `form.status<Value>`. */
@@ -14,12 +16,87 @@ const CREATE_STATUSES: ReadonlyArray<{ value: MemberStatus; labelKey: string }> 
   { value: 'INVITED', labelKey: 'statusInvited' },
 ];
 
-/** Shared field styling so create + edit render identically. */
-const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 disabled:bg-ink-50 disabled:text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:disabled:bg-white/[0.02] dark:disabled:text-ink-400';
-
-/** Shared label styling. */
-const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
+const styles = stylex.create({
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    maxWidth: '32rem',
+  },
+  fieldGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  label: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  labelOptional: {
+    fontWeight: 400,
+    color: 'var(--color-text-secondary)',
+  },
+  field: {
+    height: '2.75rem',
+    width: '100%',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':disabled': 'var(--color-background-muted)',
+    },
+    paddingBlock: 0,
+    fontSize: '0.875rem',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':disabled': 'var(--color-text-disabled)',
+    },
+    outline: 'none',
+  },
+  hint: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  cancelLink: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 type Props =
   | { mode: 'create' }
@@ -69,9 +146,9 @@ export function MemberForm(props: Props) {
   const cancelHref = isEdit ? `/members/${props.memberId}` : '/members';
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="member-name" className={LABEL_CLASS}>
+    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="member-name" {...stylex.props(styles.label)}>
           {t('form.name')}
         </label>
         <input
@@ -82,12 +159,12 @@ export function MemberForm(props: Props) {
           value={name}
           onChange={(event) => setName(event.target.value)}
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.field)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="member-email" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="member-email" {...stylex.props(styles.label)}>
           {t('form.email')}
         </label>
         <input
@@ -99,15 +176,15 @@ export function MemberForm(props: Props) {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.field)}
         />
-        {isEdit ? <p className="text-xs text-ink-400">{t('form.emailReadonlyHint')}</p> : null}
+        {isEdit ? <p {...stylex.props(styles.hint)}>{t('form.emailReadonlyHint')}</p> : null}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="member-phone" className={LABEL_CLASS}>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="member-phone" {...stylex.props(styles.label)}>
           {t('form.phone')}{' '}
-          <span className="font-normal text-ink-400">{t('form.phoneOptional')}</span>
+          <span {...stylex.props(styles.labelOptional)}>{t('form.phoneOptional')}</span>
         </label>
         <input
           id="member-phone"
@@ -116,13 +193,13 @@ export function MemberForm(props: Props) {
           value={phone}
           onChange={(event) => setPhone(event.target.value)}
           autoComplete="off"
-          className={FIELD_CLASS}
+          {...stylex.props(styles.field)}
         />
       </div>
 
       {!isEdit ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor="member-status" className={LABEL_CLASS}>
+        <div {...stylex.props(styles.fieldGroup)}>
+          <label htmlFor="member-status" {...stylex.props(styles.label)}>
             {t('form.status')}
           </label>
           <select
@@ -130,7 +207,7 @@ export function MemberForm(props: Props) {
             name="status"
             value={status}
             onChange={(event) => setStatus(event.target.value as MemberStatus)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.field)}
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
@@ -142,25 +219,19 @@ export function MemberForm(props: Props) {
       ) : null}
 
       {error ? (
-        <Card className="flex items-start gap-2 bg-danger-50 px-3 py-2 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-4 w-4 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
           </p>
         </Card>
       ) : null}
 
-      <div className="flex items-center gap-3">
+      <div {...stylex.props(styles.actions)}>
         <Btn type="submit" v="primary" disabled={pending}>
           {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createMember')}
         </Btn>
-        <Link
-          href={cancelHref}
-          className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
-        >
+        <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
           {t('form.cancel')}
         </Link>
       </div>

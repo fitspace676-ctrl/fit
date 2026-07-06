@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type { AdminTrainerDetail } from '@fit/types';
-import { Card, Icon } from '@/components/ui';
+import { Icon } from '@/components/ui';
 
 type T = ReturnType<typeof useTranslations>;
 
-/** The detail tabs, matching the Planflow "formacore" reference order. */
+/** The detail tabs, matching the reference order. */
 const TABS = ['Overview', 'Schedule', 'Clients', 'Reviews', 'Availability'] as const;
 type Tab = (typeof TABS)[number];
 
@@ -20,6 +22,307 @@ const TAB_LABEL_KEYS: Record<Tab, string> = {
   Reviews: 'tabs.reviews',
   Availability: 'tabs.availability',
 };
+
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  tabStrip: {
+    display: 'flex',
+    gap: '0.25rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  tabBtn: {
+    marginBottom: '-1px',
+    borderStyle: 'none',
+    borderBottomWidth: '2px',
+    borderBottomStyle: 'solid',
+    backgroundColor: 'transparent',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  tabBtnActive: {
+    borderBottomColor: 'var(--color-accent)',
+    color: 'var(--color-text-accent)',
+  },
+  tabBtnInactive: {
+    borderBottomColor: 'transparent',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  overviewGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  aboutCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
+    padding: '1.25rem',
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 'span 2',
+    },
+  },
+  block: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  sectionLabel: {
+    margin: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  sectionLabelRow: {
+    margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  labelIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  bioText: {
+    margin: 0,
+    whiteSpace: 'pre-line',
+    fontSize: '0.875rem',
+    lineHeight: 1.625,
+    color: 'var(--color-text-primary)',
+  },
+  mutedText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  secondaryText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  tagRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  tag: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  certList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  certItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingBlock: '0.625rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    ':first-child': {
+      borderTopWidth: 0,
+    },
+  },
+  certIconTile: {
+    display: 'grid',
+    height: '2rem',
+    width: '2rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  certIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  certText: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  weekCard: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    padding: '1.25rem',
+  },
+  weekRows: {
+    marginTop: '0.25rem',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  weekRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBlock: '0.5rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    ':first-child': {
+      borderTopWidth: 0,
+    },
+  },
+  weekLabel: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  weekValue: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  panelCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1.25rem',
+  },
+  nextRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  iconTile: {
+    display: 'grid',
+    height: '2.5rem',
+    width: '2.5rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  tileIcon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  nextTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  nextTime: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  note: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  richLink: {
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  emptyCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
+    paddingInline: '1rem',
+    paddingBlock: '3rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    display: 'grid',
+    height: '3rem',
+    width: '3rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+  },
+  emptyIconSvg: {
+    width: '1.5rem',
+    height: '1.5rem',
+  },
+  emptyTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  emptyBody: {
+    margin: 0,
+    maxWidth: '24rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  reviewHead: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  ratingGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  bigStar: {
+    width: '1.5rem',
+    height: '1.5rem',
+    color: 'var(--color-warning)',
+  },
+  bigRating: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  manageLink: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+});
 
 /** Format an ISO instant as a short local date-time, or an em dash when absent. */
 function formatDateTime(iso: string | null | undefined, locale: string): string {
@@ -39,11 +342,9 @@ function formatDateTime(iso: string | null | undefined, locale: string): string 
 /** One "This week" row in the Overview side card. */
 function WeekRow({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-ink-500 dark:text-ink-400">{label}</span>
-      <span className="font-display text-base font-extrabold tabular-nums text-ink-900 dark:text-white">
-        {value}
-      </span>
+    <div {...stylex.props(styles.weekRow)}>
+      <span {...stylex.props(styles.weekLabel)}>{label}</span>
+      <span {...stylex.props(styles.weekValue)}>{value}</span>
     </div>
   );
 }
@@ -61,8 +362,8 @@ export function TrainerTabs({ trainer }: { trainer: AdminTrainerDetail }) {
   const [active, setActive] = useState<Tab>('Overview');
 
   return (
-    <div className="flex flex-col gap-6">
-      <div role="tablist" className="flex gap-1 border-b border-ink-200 dark:border-white/10">
+    <div {...stylex.props(styles.stack)}>
+      <div role="tablist" {...stylex.props(styles.tabStrip)}>
         {TABS.map((tab) => {
           const isActive = tab === active;
           return (
@@ -72,11 +373,10 @@ export function TrainerTabs({ trainer }: { trainer: AdminTrainerDetail }) {
               role="tab"
               aria-selected={isActive}
               onClick={() => setActive(tab)}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-                isActive
-                  ? 'border-brand-500 text-brand-700 dark:text-brand-300'
-                  : 'border-transparent text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200'
-              }`}
+              {...stylex.props(
+                styles.tabBtn,
+                isActive ? styles.tabBtnActive : styles.tabBtnInactive,
+              )}
             >
               {t(TAB_LABEL_KEYS[tab])}
             </button>
@@ -98,70 +398,57 @@ export function TrainerTabs({ trainer }: { trainer: AdminTrainerDetail }) {
 /** Overview — the About card plus the "This week" side card. */
 function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <Card className="flex flex-col gap-5 p-5 lg:col-span-2">
-        <div className="flex flex-col gap-2">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-            {t('tabs.about')}
-          </h3>
+    <div {...stylex.props(styles.overviewGrid)}>
+      <Card variant="default" padding={0} xstyle={styles.aboutCard}>
+        <div {...stylex.props(styles.block)}>
+          <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.about')}</h3>
           {trainer.bio ? (
-            <p className="whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">
-              {trainer.bio}
-            </p>
+            <p {...stylex.props(styles.bioText)}>{trainer.bio}</p>
           ) : (
-            <p className="text-sm text-ink-400">{t('tabs.noBio')}</p>
+            <p {...stylex.props(styles.mutedText)}>{t('tabs.noBio')}</p>
           )}
         </div>
 
-        <div className="flex flex-col gap-2">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-            {t('tabs.specialties')}
-          </h3>
+        <div {...stylex.props(styles.block)}>
+          <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.specialties')}</h3>
           {trainer.specialties.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div {...stylex.props(styles.tagRow)}>
               {trainer.specialties.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-pill bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-600 dark:bg-white/10 dark:text-ink-300"
-                >
+                <span key={tag} {...stylex.props(styles.tag)}>
                   {tag}
                 </span>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-ink-400">{t('tabs.noSpecialties')}</p>
+            <p {...stylex.props(styles.mutedText)}>{t('tabs.noSpecialties')}</p>
           )}
         </div>
 
-        <div className="flex flex-col gap-2">
-          <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-            <Icon name="award" className="h-3.5 w-3.5" />
+        <div {...stylex.props(styles.block)}>
+          <h3 {...stylex.props(styles.sectionLabelRow)}>
+            <Icon name="award" {...stylex.props(styles.labelIcon)} />
             {t('tabs.certifications')}
           </h3>
           {trainer.specialties.length > 0 ? (
-            <ul className="flex flex-col divide-y divide-ink-100 dark:divide-white/10">
+            <ul {...stylex.props(styles.certList)}>
               {trainer.specialties.map((tag) => (
-                <li key={tag} className="flex items-center gap-3 py-2.5">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-                    <Icon name="award" className="h-4 w-4" />
+                <li key={tag} {...stylex.props(styles.certItem)}>
+                  <span {...stylex.props(styles.certIconTile)}>
+                    <Icon name="award" {...stylex.props(styles.certIcon)} />
                   </span>
-                  <span className="text-sm font-medium text-ink-800 dark:text-ink-100">
-                    {t('tabs.certified', { tag })}
-                  </span>
+                  <span {...stylex.props(styles.certText)}>{t('tabs.certified', { tag })}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-ink-400">{t('tabs.noCertifications')}</p>
+            <p {...stylex.props(styles.mutedText)}>{t('tabs.noCertifications')}</p>
           )}
         </div>
       </Card>
 
-      <Card className="flex h-full flex-col gap-1 p-5">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          {t('tabs.thisWeek')}
-        </h3>
-        <div className="mt-1 flex flex-col divide-y divide-ink-100 dark:divide-white/10">
+      <Card variant="default" padding={0} xstyle={styles.weekCard}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.thisWeek')}</h3>
+        <div {...stylex.props(styles.weekRows)}>
           <WeekRow label={t('tabs.classesLed')} value={trainer.thisWeek.classesLed} />
           <WeekRow label={t('tabs.newReviews')} value={trainer.thisWeek.newReviews} />
           <WeekRow label={t('tabs.membersTrained')} value={trainer.thisWeek.membersTrained} />
@@ -182,35 +469,28 @@ function SchedulePanel({
   locale: string;
 }) {
   return (
-    <Card className="flex flex-col gap-4 p-5">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {t('tabs.nextClass')}
-      </h3>
+    <Card variant="default" padding={0} xstyle={styles.panelCard}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.nextClass')}</h3>
       {trainer.nextClass ? (
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-            <Icon name="calendar" className="h-5 w-5" />
+        <div {...stylex.props(styles.nextRow)}>
+          <span {...stylex.props(styles.iconTile)}>
+            <Icon name="calendar" {...stylex.props(styles.tileIcon)} />
           </span>
           <div>
-            <p className="text-sm font-semibold text-ink-900 dark:text-white">
-              {trainer.nextClass.title}
-            </p>
-            <p className="text-xs text-ink-500 dark:text-ink-400">
+            <p {...stylex.props(styles.nextTitle)}>{trainer.nextClass.title}</p>
+            <p {...stylex.props(styles.nextTime)}>
               {formatDateTime(trainer.nextClass.startsAt, locale)}
             </p>
           </div>
         </div>
       ) : (
-        <p className="text-sm text-ink-400">{t('tabs.noUpcomingClass')}</p>
+        <p {...stylex.props(styles.mutedText)}>{t('tabs.noUpcomingClass')}</p>
       )}
-      <p className="text-xs text-ink-500 dark:text-ink-400">
+      <p {...stylex.props(styles.note)}>
         {t.rich('tabs.scheduleCalendarNote', {
           count: trainer.classesThisWeek,
           link: (chunks) => (
-            <Link
-              href="/classes"
-              className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-            >
+            <Link href="/classes" {...stylex.props(styles.richLink)}>
               {chunks}
             </Link>
           ),
@@ -226,12 +506,12 @@ function SchedulePanel({
  */
 function ClientsPanel({ t }: { t: T }) {
   return (
-    <Card className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-      <span className="grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-500 dark:bg-white/10 dark:text-ink-300">
-        <Icon name="users" className="h-6 w-6" />
+    <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+      <span {...stylex.props(styles.emptyIcon)}>
+        <Icon name="users" {...stylex.props(styles.emptyIconSvg)} />
       </span>
-      <p className="text-sm font-medium text-ink-700 dark:text-ink-200">{t('tabs.clientsTitle')}</p>
-      <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">{t('tabs.clientsBody')}</p>
+      <p {...stylex.props(styles.emptyTitle)}>{t('tabs.clientsTitle')}</p>
+      <p {...stylex.props(styles.emptyBody)}>{t('tabs.clientsBody')}</p>
     </Card>
   );
 }
@@ -239,15 +519,13 @@ function ClientsPanel({ t }: { t: T }) {
 /** Reviews — the live aggregate + a link into the moderation queue. */
 function ReviewsPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Icon name="star" className="h-6 w-6 text-amber-500" />
-          <span className="font-display text-3xl font-extrabold tabular-nums text-ink-900 dark:text-white">
-            {trainer.rating.toFixed(1)}
-          </span>
+    <Card variant="default" padding={0} xstyle={styles.panelCard}>
+      <div {...stylex.props(styles.reviewHead)}>
+        <div {...stylex.props(styles.ratingGroup)}>
+          <Icon name="star" {...stylex.props(styles.bigStar)} />
+          <span {...stylex.props(styles.bigRating)}>{trainer.rating.toFixed(1)}</span>
         </div>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
+        <p {...stylex.props(styles.secondaryText)}>
           {t('tabs.reviewsSummary', {
             count: trainer.reviewCount,
             newReviews: trainer.thisWeek.newReviews,
@@ -255,9 +533,9 @@ function ReviewsPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
         </p>
       </div>
       {trainer.reviewCount === 0 ? (
-        <p className="text-sm text-ink-400">{t('tabs.noReviews')}</p>
+        <p {...stylex.props(styles.mutedText)}>{t('tabs.noReviews')}</p>
       ) : (
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('tabs.reviewsModerate')}</p>
+        <p {...stylex.props(styles.secondaryText)}>{t('tabs.reviewsModerate')}</p>
       )}
     </Card>
   );
@@ -266,17 +544,12 @@ function ReviewsPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
 /** Availability — a link to the trainer's weekly availability editor. */
 function AvailabilityPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
-    <Card className="flex flex-col gap-3 p-5">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {t('tabs.weeklyAvailability')}
-      </h3>
-      <p className="text-sm text-ink-500 dark:text-ink-400">
+    <Card variant="default" padding={0} xstyle={styles.panelCard}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.weeklyAvailability')}</h3>
+      <p {...stylex.props(styles.secondaryText)}>
         {t('tabs.availabilityBody', { name: trainer.name, count: trainer.classesThisWeek })}
       </p>
-      <Link
-        href={`/trainers/${trainer.id}/edit`}
-        className="text-sm font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-      >
+      <Link href={`/trainers/${trainer.id}/edit`} {...stylex.props(styles.manageLink)}>
         {t('tabs.manageAvailability')}
       </Link>
     </Card>

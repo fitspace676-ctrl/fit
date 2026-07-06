@@ -2,10 +2,13 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLocale, getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import { Permission, roleHasPermission, type AdminTrainerDetail } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainer } from '@/lib/api';
-import { Badge, Btn, Card, Icon, type IconName, type Tone } from '@/components/ui';
+import { Btn, Icon, type IconName } from '@/components/ui';
 import { TrainerActions } from './trainer-actions';
 import { TrainerTabs } from './trainer-tabs';
 
@@ -17,8 +20,8 @@ export const metadata: Metadata = {
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
 
-/** Tone treatment per status, matching the roster cards' pills. */
-const STATUS_TONES: Record<string, Tone> = {
+/** Astryx badge variant per status, matching the roster cards' pills. */
+const STATUS_VARIANTS: Record<string, BadgeVariant> = {
   ACTIVE: 'success',
   INACTIVE: 'warning',
 };
@@ -28,6 +31,236 @@ const STATUS_LABEL_KEYS: Record<string, string> = {
   ACTIVE: 'status.active',
   INACTIVE: 'status.onLeave',
 };
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  topRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  crumbIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  crumbLink: {
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  crumbCurrent: {
+    color: 'var(--color-text-primary)',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  identityCard: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'flex-start',
+    },
+    justifyContent: {
+      default: 'flex-start',
+      '@media (min-width: 640px)': 'space-between',
+    },
+    gap: '1rem',
+    padding: '1.25rem',
+  },
+  identityLeft: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '1rem',
+  },
+  photoImg: {
+    height: '4rem',
+    width: '4rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    objectFit: 'cover',
+  },
+  photoFallback: {
+    display: 'flex',
+    height: '4rem',
+    width: '4rem',
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '1.25rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+  nameBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  nameRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  headline: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metaRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: '0.75rem',
+    rowGap: '0.25rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  ratingInline: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+  },
+  starIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+    color: 'var(--color-warning)',
+  },
+  ratingValue: {
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  kpiGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(4, minmax(0, 1fr))',
+    },
+  },
+  kpiCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    padding: '1.25rem',
+  },
+  iconTile: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  icon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  kpiValue: {
+    margin: 0,
+    marginTop: '1rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  kpiLabel: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  kpiContext: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  addedNote: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    padding: '1rem',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 function formatDate(iso: string | null, locale: string): string {
@@ -72,25 +305,21 @@ function DetailKpi({
   icon: IconName;
 }) {
   return (
-    <Card className="flex h-full flex-col p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+      <span {...stylex.props(styles.iconTile)}>
+        <Icon name={icon} {...stylex.props(styles.icon)} />
       </span>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
-        {value}
-      </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {label}
-      </p>
-      <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">{context}</p>
+      <p {...stylex.props(styles.kpiValue)}>{value}</p>
+      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
+      <p {...stylex.props(styles.kpiContext)}>{context}</p>
     </Card>
   );
 }
 
 /**
- * The trainer detail page (T4.4), reskinned to the Planflow "formacore" layout:
- * a breadcrumb + Message action, a back link, an identity header card, four live
- * KPI cards, and the Overview/Schedule/Clients/Reviews/Availability tabs. Every
+ * The trainer detail page (T4.4), rebuilt on Astryx Card/Badge + brand-tokened
+ * StyleX: a breadcrumb + Message action, a back link, an identity header card, four
+ * live KPI cards, and the Overview/Schedule/Clients/Reviews/Availability tabs. Every
  * figure comes from the enriched `GET /admin/trainers/:id` (real tenant-scoped
  * queries). A `404` from the API — unknown or cross-tenant id — becomes Next's
  * `notFound()`; any other failure surfaces inline.
@@ -112,28 +341,22 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
         ? t('errors.loadTrainer', { status: error.status, message: error.message })
         : t('errors.unreachable');
     return (
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/trainers"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <div {...stylex.props(styles.errorStack)}>
+        <Link href="/trainers" {...stylex.props(styles.backLink)}>
+          <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           {t('detail.backToTrainers')}
         </Link>
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <div {...stylex.props(styles.errorCard)}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
           </p>
-        </Card>
+        </div>
       </div>
     );
   }
 
-  const statusTone = STATUS_TONES[trainer.status] ?? ('ink' as const);
+  const statusVariant = STATUS_VARIANTS[trainer.status] ?? 'neutral';
   const statusLabel = STATUS_LABEL_KEYS[trainer.status]
     ? t(STATUS_LABEL_KEYS[trainer.status]!)
     : trainer.status;
@@ -143,65 +366,53 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
   const canWrite = session !== null && roleHasPermission(session.role, Permission.TrainerWrite);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav
-          aria-label={t('list.breadcrumbAria')}
-          className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
-        >
+    <div {...stylex.props(styles.page)}>
+      <div {...stylex.props(styles.topRow)}>
+        <nav aria-label={t('list.breadcrumbAria')} {...stylex.props(styles.breadcrumb)}>
           <span>Iron Gym</span>
-          <Icon name="chevronRight" className="h-3.5 w-3.5" />
-          <Link href="/trainers" className="hover:text-ink-600 dark:hover:text-ink-300">
+          <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+          <Link href="/trainers" {...stylex.props(styles.crumbLink)}>
             {t('list.breadcrumb')}
           </Link>
-          <Icon name="chevronRight" className="h-3.5 w-3.5" />
-          <span className="text-ink-600 dark:text-ink-300">{trainer.name}</span>
+          <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+          <span {...stylex.props(styles.crumbCurrent)}>{trainer.name}</span>
         </nav>
         <Btn v="outline" size="sm" icon="message" disabled>
           {t('detail.message')}
         </Btn>
       </div>
 
-      <Link
-        href="/trainers"
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <Link href="/trainers" {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         {t('detail.backToTrainers')}
       </Link>
 
       {/* Identity header card. */}
-      <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-4">
+      <Card variant="default" padding={0} xstyle={styles.identityCard}>
+        <div {...stylex.props(styles.identityLeft)}>
           {trainer.photoUrl ? (
             <img
               src={trainer.photoUrl}
               alt={t('detail.photoAlt', { name: trainer.name })}
-              className="h-16 w-16 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
+              {...stylex.props(styles.photoImg)}
             />
           ) : (
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-xl font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
-              {initialsOf(trainer.name)}
-            </span>
+            <span {...stylex.props(styles.photoFallback)}>{initialsOf(trainer.name)}</span>
           )}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-                {trainer.name}
-              </h1>
-              <Badge tone={statusTone}>{statusLabel}</Badge>
-              {trainer.specialties[0] ? <Badge tone="brand">{trainer.specialties[0]}</Badge> : null}
+          <div {...stylex.props(styles.nameBlock)}>
+            <div {...stylex.props(styles.nameRow)}>
+              <h1 {...stylex.props(styles.title)}>{trainer.name}</h1>
+              <Badge variant={statusVariant} label={statusLabel} />
+              {trainer.specialties[0] ? (
+                <Badge variant="purple" label={trainer.specialties[0]} />
+              ) : null}
             </div>
-            {trainer.headline ? (
-              <p className="text-sm text-ink-500 dark:text-ink-400">{trainer.headline}</p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500 dark:text-ink-400">
-              <span className="inline-flex items-center gap-1">
-                <Icon name="star" className="h-3.5 w-3.5 text-amber-500" />
-                <span className="font-semibold tabular-nums text-ink-700 dark:text-ink-200">
-                  {trainer.rating.toFixed(1)}
-                </span>
-                · {t('reviews', { count: trainer.reviewCount })}
+            {trainer.headline ? <p {...stylex.props(styles.headline)}>{trainer.headline}</p> : null}
+            <div {...stylex.props(styles.metaRow)}>
+              <span {...stylex.props(styles.ratingInline)}>
+                <Icon name="star" {...stylex.props(styles.starIcon)} />
+                <span {...stylex.props(styles.ratingValue)}>{trainer.rating.toFixed(1)}</span>·{' '}
+                {t('reviews', { count: trainer.reviewCount })}
               </span>
               <span aria-hidden>·</span>
               <span>{formatHired(trainer.hiredAt, t, locale)}</span>
@@ -212,10 +423,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
       </Card>
 
       {/* Four live KPI cards. */}
-      <section
-        aria-label={t('detail.metricsAria')}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
+      <section aria-label={t('detail.metricsAria')} {...stylex.props(styles.kpiGrid)}>
         <DetailKpi
           label={t('detail.kpiRating')}
           value={trainer.rating.toFixed(1)}
@@ -244,7 +452,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
 
       <TrainerTabs trainer={trainer} />
 
-      <p className="text-xs text-ink-400">
+      <p {...stylex.props(styles.addedNote)}>
         {t('detail.profileAdded', { date: formatDate(trainer.createdAt, locale) })}
       </p>
     </div>

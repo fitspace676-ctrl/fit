@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { Icon } from '@/components/ui';
@@ -13,6 +14,49 @@ export const metadata: Metadata = {
 
 // Reflects the staff session and writes live tenant state — never cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /**
  * Create-a-trainer page (T4.4). The middleware already requires a staff session to
@@ -29,20 +73,15 @@ export default async function NewTrainerPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/trainers"
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+    <div {...stylex.props(styles.page)}>
+      <Link href="/trainers" {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         {t('form.backToTrainers')}
       </Link>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('form.newTitle')}
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('form.newSubtitle')}</p>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>{t('form.newTitle')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('form.newSubtitle')}</p>
       </header>
 
       <TrainerForm mode="create" />
