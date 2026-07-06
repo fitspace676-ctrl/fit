@@ -56,3 +56,18 @@ input[type='password'] {
     Arial,
     sans-serif !important;
 }
+
+/*
+ * Hide every scrollbar app-wide while keeping scrolling fully functional — the
+ * console scrolls its sidebar/content via wheel, trackpad, keys, and the custom
+ * scroll-affordance buttons, so no native scrollbar should ever be painted.
+ */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* WebKit (Chrome/Safari/Edge) */
+}

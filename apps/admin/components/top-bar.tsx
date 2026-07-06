@@ -34,8 +34,9 @@ const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '';
 
 const styles = stylex.create({
   topNav: {
-    minHeight: '5.5rem',
+    minHeight: '3.5rem',
     paddingInline: '1.5rem',
+    paddingBlock: '0.375rem',
     borderBlockEndWidth: '1px',
     borderBlockEndStyle: 'solid',
     borderBlockEndColor: 'var(--color-border)',
@@ -117,6 +118,7 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
             <Selector
               label={t('locationLabel')}
               isLabelHidden
+              startIcon={<Icon name="pin" {...stylex.props(styles.btnIcon)} />}
               options={locationOptions}
               value={locationId}
               onChange={onLocationChange}

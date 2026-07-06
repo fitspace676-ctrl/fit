@@ -11,23 +11,15 @@
 // skeleton stands in so the layout doesn't jump.
 //
 // The Check-in item carries today's live arrival count as a badge. The rail is
-// collapsible to an icon-only toolbar; the collapse toggle lives at the top —
-// beside the brand heading when expanded, and just under the brand icon when
-// collapsed — so it never drops to the foot of the rail.
+// fixed-width (collapse is intentionally disabled); scroll-affordance buttons
+// fade in at the top/bottom edges when the nav overflows.
 
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import NextLink from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import {
-  SideNav,
-  SideNavSection,
-  SideNavItem,
-  SideNavHeading,
-  SideNavCollapseButton,
-  useSideNavCollapse,
-} from '@astryxdesign/core/SideNav';
+import { SideNav, SideNavSection, SideNavItem, SideNavHeading } from '@astryxdesign/core/SideNav';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Icon } from '@/components/ui';
 import { useSession } from '@/hooks/use-session';
@@ -68,7 +60,7 @@ const styles = stylex.create({
     backgroundColor: 'var(--color-background-surface)',
   },
   brandHeading: {
-    minHeight: '3.5rem',
+    minHeight: '2.5rem',
     paddingInline: '0.5rem',
     borderRadius: 'var(--radius-element)',
   },
@@ -87,14 +79,67 @@ const styles = stylex.create({
     width: '1.125rem',
     height: '1.125rem',
   },
-  collapseIcon: {
+  // Zero-height sticky rails pinned to the top / bottom of the scroll viewport;
+  // they host the scroll-affordance buttons without taking any layout space.
+  scrollEdge: {
+    position: 'sticky',
+    zIndex: 4,
+    height: 0,
+    pointerEvents: 'none',
+  },
+  scrollEdgeTop: {
+    top: 0,
+  },
+  scrollEdgeBottom: {
+    bottom: 0,
+  },
+  scrollButton: {
+    position: 'absolute',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    display: 'grid',
+    placeItems: 'center',
+    width: '2rem',
+    height: '2rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border-emphasized)',
+      ':hover': 'var(--color-accent)',
+    },
+    // Semi-transparent fill + backdrop blur → the nav items behind read as a
+    // frosted-glass smear rather than being fully occluded.
+    backgroundColor: 'color-mix(in srgb, var(--color-background-body) 55%, transparent)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    boxShadow: 'var(--shadow-high)',
+    cursor: 'pointer',
+    opacity: 0,
+    pointerEvents: 'none',
+    transition:
+      'opacity var(--duration-medium) var(--ease-standard), color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard)',
+  },
+  scrollButtonVisible: {
+    opacity: 1,
+    pointerEvents: 'auto',
+  },
+  scrollButtonTop: {
+    top: '0.5rem',
+  },
+  scrollButtonBottom: {
+    bottom: '0.5rem',
+  },
+  scrollButtonIcon: {
     width: '1rem',
     height: '1rem',
   },
-  collapsedToggleRow: {
-    display: 'flex',
-    justifyContent: 'center',
-    paddingBlockStart: '0.25rem',
+  scrollButtonIconUp: {
+    transform: 'rotate(180deg)',
   },
   accordion: {
     display: 'flex',
@@ -255,9 +300,53 @@ export function Sidebar({ system }: SidebarProps) {
   const current = appPath(pathname);
   const items = visibleNavItems(user?.role ?? null);
 
+  // Scroll-affordance state. `scrollEl` is the SideNav's internal scroll viewport,
+  // captured from the top rail's parent (its direct parent is the scrollable div).
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+  const [edges, setEdges] = useState({ up: false, down: false });
+
+  const captureScrollEl = useCallback((node: HTMLDivElement | null) => {
+    setScrollEl(node ? node.parentElement : null);
+  }, []);
+
+  useEffect(() => {
+    if (!scrollEl) return;
+    const update = (): void => {
+      const { scrollTop, clientHeight, scrollHeight } = scrollEl;
+      setEdges({
+        up: scrollTop > 8,
+        down: scrollTop + clientHeight < scrollHeight - 8,
+      });
+    };
+    update();
+    scrollEl.addEventListener('scroll', update, { passive: true });
+    // Viewport resizes and content changes (accordions opening) both move the edges.
+    const resizeObserver = new ResizeObserver(update);
+    resizeObserver.observe(scrollEl);
+    const mutationObserver = new MutationObserver(update);
+    mutationObserver.observe(scrollEl, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    });
+    return () => {
+      scrollEl.removeEventListener('scroll', update);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [scrollEl]);
+
+  const scrollToEnd = useCallback(
+    (dir: 'up' | 'down') => {
+      if (!scrollEl) return;
+      scrollEl.scrollTo({ top: dir === 'up' ? 0 : scrollEl.scrollHeight, behavior: 'smooth' });
+    },
+    [scrollEl],
+  );
+
   return (
     <SideNav
-      collapsible={{ hasButton: false }}
       xstyle={styles.panel}
       header={
         <SideNavHeading
@@ -270,55 +359,116 @@ export function Sidebar({ system }: SidebarProps) {
               <Icon name="bolt" sw={2.4} {...stylex.props(styles.brandIcon)} />
             </span>
           }
-          headerEndContent={<HeaderCollapseButton />}
         />
       }
-      topContent={<CollapsedExpandButton />}
     >
       {isLoading ? (
         <SideNavSection title={t('navGroups.overview')} isHeaderHidden>
           <SidebarSkeleton />
         </SideNavSection>
       ) : (
-        NAV_GROUPS.map((group) => {
-          const groupItems = items.filter((item) =>
-            (group.hrefs as readonly string[]).includes(item.href),
-          );
-          if (groupItems.length === 0) return null;
+        <>
+          <ScrollEdgeButton
+            dir="up"
+            visible={edges.up}
+            onClick={() => scrollToEnd('up')}
+            label={t('common.scrollUp')}
+            containerRef={captureScrollEl}
+          />
+          {NAV_GROUPS.map((group) => {
+            const groupItems = items.filter((item) =>
+              (group.hrefs as readonly string[]).includes(item.href),
+            );
+            if (groupItems.length === 0) return null;
 
-          return (
-            <AccordionNavGroup
-              key={group.labelKey}
-              title={t(group.labelKey)}
-              isActive={groupItems.some((item) => isNavItemActive(item.href, current))}
-            >
-              {groupItems.map((item) => {
-                const active = isNavItemActive(item.href, current);
-                const badge =
-                  item.icon === 'checkin' && system.checkInCount && system.checkInCount > 0
-                    ? system.checkInCount
-                    : null;
-                return (
-                  <div key={item.href} {...stylex.props(styles.navItemHover)}>
-                    <SideNavItem
-                      as={NextLink}
-                      href={item.href}
-                      label={t(item.labelKey)}
-                      icon={<NavIcon name={item.icon} />}
-                      size="lg"
-                      isSelected={active}
-                      endContent={
-                        badge !== null ? <Badge variant="purple" label={badge} /> : undefined
-                      }
-                    />
-                  </div>
-                );
-              })}
-            </AccordionNavGroup>
-          );
-        })
+            return (
+              <AccordionNavGroup
+                key={group.labelKey}
+                title={t(group.labelKey)}
+                isActive={groupItems.some((item) => isNavItemActive(item.href, current))}
+              >
+                {groupItems.map((item) => {
+                  const active = isNavItemActive(item.href, current);
+                  const badge =
+                    item.icon === 'checkin' && system.checkInCount && system.checkInCount > 0
+                      ? system.checkInCount
+                      : null;
+                  return (
+                    <div key={item.href} {...stylex.props(styles.navItemHover)}>
+                      <SideNavItem
+                        as={NextLink}
+                        href={item.href}
+                        label={t(item.labelKey)}
+                        icon={<NavIcon name={item.icon} />}
+                        size="lg"
+                        isSelected={active}
+                        endContent={
+                          badge !== null ? <Badge variant="purple" label={badge} /> : undefined
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </AccordionNavGroup>
+            );
+          })}
+          <ScrollEdgeButton
+            dir="down"
+            visible={edges.down}
+            onClick={() => scrollToEnd('down')}
+            label={t('common.scrollDown')}
+          />
+        </>
       )}
     </SideNav>
+  );
+}
+
+/**
+ * A scroll-affordance button pinned to the top or bottom edge of the nav scroll
+ * viewport. It lives in a zero-height sticky rail (so it never shifts the list),
+ * fades in only when there is more to scroll in its direction, and smooth-scrolls
+ * to that end on click. The `up` variant reuses the down chevron, rotated.
+ */
+function ScrollEdgeButton({
+  dir,
+  visible,
+  onClick,
+  label,
+  containerRef,
+}: {
+  dir: 'up' | 'down';
+  visible: boolean;
+  onClick: () => void;
+  label: string;
+  containerRef?: (node: HTMLDivElement | null) => void;
+}) {
+  return (
+    <div
+      ref={containerRef}
+      aria-hidden={!visible}
+      {...stylex.props(
+        styles.scrollEdge,
+        dir === 'up' ? styles.scrollEdgeTop : styles.scrollEdgeBottom,
+      )}
+    >
+      <button
+        type="button"
+        aria-label={label}
+        tabIndex={visible ? 0 : -1}
+        onClick={onClick}
+        {...stylex.props(
+          styles.scrollButton,
+          dir === 'up' ? styles.scrollButtonTop : styles.scrollButtonBottom,
+          visible && styles.scrollButtonVisible,
+        )}
+      >
+        <Icon
+          name="chevronDown"
+          {...stylex.props(styles.scrollButtonIcon, dir === 'up' && styles.scrollButtonIconUp)}
+        />
+      </button>
+    </div>
   );
 }
 
@@ -331,10 +481,8 @@ function AccordionNavGroup({
   isActive: boolean;
   children: ReactNode;
 }) {
-  const { isCollapsed } = useSideNavCollapse();
   const [isOpen, setIsOpen] = useState(true);
   const panelId = useId();
-  const expanded = isCollapsed || isOpen;
 
   useEffect(() => {
     if (isActive) setIsOpen(true);
@@ -342,75 +490,30 @@ function AccordionNavGroup({
 
   return (
     <div {...stylex.props(styles.accordion, isOpen && styles.accordionOpen)}>
-      {!isCollapsed && (
-        <button
-          type="button"
-          aria-expanded={isOpen}
-          aria-controls={panelId}
-          onClick={() => setIsOpen((open) => !open)}
-          {...stylex.props(styles.accordionButton, isOpen && styles.accordionButtonOpen)}
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        onClick={() => setIsOpen((open) => !open)}
+        {...stylex.props(styles.accordionButton, isOpen && styles.accordionButtonOpen)}
+      >
+        {isOpen && <span aria-hidden {...stylex.props(styles.accordionMarker)} />}
+        <span {...stylex.props(styles.accordionTitle)}>{title}</span>
+        <span
+          {...stylex.props(styles.accordionChevronWrap, isOpen && styles.accordionChevronWrapOpen)}
         >
-          {isOpen && <span aria-hidden {...stylex.props(styles.accordionMarker)} />}
-          <span {...stylex.props(styles.accordionTitle)}>{title}</span>
-          <span
-            {...stylex.props(
-              styles.accordionChevronWrap,
-              isOpen && styles.accordionChevronWrapOpen,
-            )}
-          >
-            <Icon
-              name="chevronDown"
-              {...stylex.props(styles.accordionChevron, isOpen && styles.accordionChevronOpen)}
-            />
-          </span>
-        </button>
-      )}
+          <Icon
+            name="chevronDown"
+            {...stylex.props(styles.accordionChevron, isOpen && styles.accordionChevronOpen)}
+          />
+        </span>
+      </button>
       <div
         id={panelId}
-        {...stylex.props(styles.accordionPanel, expanded && styles.accordionPanelOpen)}
+        {...stylex.props(styles.accordionPanel, isOpen && styles.accordionPanelOpen)}
       >
         <div {...stylex.props(styles.accordionItems)}>{children}</div>
       </div>
-    </div>
-  );
-}
-
-/**
- * Collapse ("chevronLeft") toggle rendered at the trailing edge of the brand
- * header while the rail is expanded. When collapsed, {@link SideNavHeading}
- * renders icon-only and drops `headerEndContent`, so this returns nothing there
- * — the expand toggle moves to {@link CollapsedExpandButton}.
- */
-function HeaderCollapseButton() {
-  const t = useTranslations('admin');
-  const { isCollapsed } = useSideNavCollapse();
-  if (isCollapsed) {
-    return null;
-  }
-  return (
-    <SideNavCollapseButton label={t('common.closeNav')}>
-      <Icon name="chevronLeft" {...stylex.props(styles.collapseIcon)} />
-    </SideNavCollapseButton>
-  );
-}
-
-/**
- * Expand ("chevronRight") toggle pinned just below the brand icon while the rail
- * is collapsed, so the control stays at the top in both states rather than
- * dropping to the foot of the rail. Lives in the SideNav `topContent` zone (which
- * renders in both modes); returns nothing while expanded.
- */
-function CollapsedExpandButton() {
-  const t = useTranslations('admin');
-  const { isCollapsed } = useSideNavCollapse();
-  if (!isCollapsed) {
-    return null;
-  }
-  return (
-    <div {...stylex.props(styles.collapsedToggleRow)}>
-      <SideNavCollapseButton label={t('common.openNav')}>
-        <Icon name="chevronRight" {...stylex.props(styles.collapseIcon)} />
-      </SideNavCollapseButton>
     </div>
   );
 }
