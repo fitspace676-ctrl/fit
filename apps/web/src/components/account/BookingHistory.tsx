@@ -1,13 +1,191 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type { MemberBookingHistoryEntry } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
-import { buttonClasses, Card, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { formatTime } from '@/src/components/classes/date-utils';
 import { BookingHistoryCard } from './BookingHistoryCard';
 import { relativeDayLabel } from './booking-format';
+
+// Astryx migration (T11.14): the "My bookings" board is rebuilt on the Astryx
+// design system over the Fit brand theme. Upcoming/past is an Astryx
+// `SegmentedControl`; the category filter is a StyleX pill row; the soonest
+// upcoming class is a brand-gradient "Next up" hero; the empty/no-match states
+// use the Astryx `EmptyState` / `Card`. All layout is compiled StyleX
+// (`var(--color-*)`), no Tailwind utilities. Split-by-start logic is unchanged.
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  emptyIcon: {
+    height: '2.25rem',
+    width: '2.25rem',
+    color: 'var(--color-text-secondary)',
+  },
+  controls: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'center',
+    },
+    gap: '0.75rem',
+  },
+  filters: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    overflowX: 'auto',
+    marginInlineStart: {
+      default: null,
+      '@media (min-width: 640px)': 'auto',
+    },
+  },
+  pill: {
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color, color',
+    transitionDuration: '150ms',
+  },
+  pillIdle: {
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+    },
+    color: 'var(--color-text-secondary)',
+  },
+  pillActive: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+  },
+  noneCard: {
+    paddingBlock: '3rem',
+    textAlign: 'center',
+  },
+  noneTitle: {
+    margin: 0,
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  noneHint: {
+    marginTop: '0.25rem',
+    marginBottom: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  // "Next up" hero
+  hero: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    backgroundImage:
+      'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 92%, #7c3aed), #ec4899)',
+    padding: '1.5rem',
+    color: '#ffffff',
+    boxShadow: '0 24px 60px -24px color-mix(in srgb, var(--color-accent) 70%, transparent)',
+  },
+  heroGlow: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    top: '-4rem',
+    right: '-2.5rem',
+    height: '14rem',
+    width: '14rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    filter: 'blur(48px)',
+  },
+  heroRow: {
+    position: 'relative',
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  heroTime: {
+    width: '4rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingBlock: '0.5rem',
+    textAlign: 'center',
+    backdropFilter: 'blur(4px)',
+  },
+  heroDay: {
+    margin: 0,
+    fontSize: '0.625rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+  },
+  heroClock: {
+    margin: 0,
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    lineHeight: 1.1,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  heroBody: {
+    minWidth: 0,
+    flex: 1,
+  },
+  heroLabel: {
+    margin: 0,
+    fontSize: '0.75rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'rgba(255, 255, 255, 0.75)',
+  },
+  heroTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 900,
+    letterSpacing: '-0.02em',
+  },
+  heroMeta: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  heroAction: {
+    // Force a light action against the gradient regardless of theme.
+    backgroundColor: {
+      default: '#ffffff',
+      ':hover': 'rgba(255, 255, 255, 0.9)',
+    },
+    color: 'var(--color-text-accent)',
+  },
+});
 
 export interface BookingHistoryProps {
   entries: MemberBookingHistoryEntry[];
@@ -18,7 +196,7 @@ export interface BookingHistoryProps {
 type View = 'upcoming' | 'past';
 
 /**
- * The members' "My bookings" board, on the FormaCore design system. The member's
+ * The members' "My bookings" board, on the Astryx design system. The member's
  * bookings split into Upcoming (start ≥ now, soonest first) and Past (most recent
  * first); a category filter narrows either tab and the soonest upcoming class is
  * surfaced as a gradient "Next up" hero. Booking actions (cancel / re-book) live
@@ -39,18 +217,14 @@ export function BookingHistory({ entries, now }: BookingHistoryProps) {
 
   if (entries.length === 0) {
     return (
-      <Card className="grid place-items-center gap-2 px-6 py-14 text-center">
-        <Icon name="calendar" className="h-9 w-9 text-ink-300 dark:text-ink-600" />
-        <h2 className="font-display text-base font-bold text-ink-900 dark:text-white">
-          {t('empty.title')}
-        </h2>
-        <p className="mx-auto max-w-sm text-sm text-ink-500 dark:text-ink-400">
-          {t('empty.subtitle')}
-        </p>
-        <Link href="/classes" className={buttonClasses('primary', 'md', 'mt-3')}>
-          {t('empty.action')}
-        </Link>
-      </Card>
+      <EmptyState
+        icon={<Icon name="calendar" {...stylex.props(styles.emptyIcon)} />}
+        title={t('empty.title')}
+        description={t('empty.subtitle')}
+        actions={
+          <Button as={Link} href="/classes" variant="primary" size="md" label={t('empty.action')} />
+        }
+      />
     );
   }
 
@@ -60,44 +234,23 @@ export function BookingHistory({ entries, now }: BookingHistoryProps) {
   const nextUp = upcoming[0];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div {...stylex.props(styles.root)}>
       {nextUp ? <NextUpHero entry={nextUp} now={now} locale={locale} /> : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="inline-flex rounded-pill border border-ink-200 bg-white/70 p-1 backdrop-blur dark:border-white/10 dark:bg-white/[0.04]">
-          {(
-            [
-              { k: 'upcoming', l: `${t('upcoming')} · ${upcoming.length}` },
-              { k: 'past', l: t('past') },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.k}
-              type="button"
-              onClick={() => setView(tab.k)}
-              aria-pressed={view === tab.k}
-              className={`h-9 rounded-pill px-4 text-sm font-semibold transition ${
-                view === tab.k
-                  ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_6px_18px_-8px_rgba(98,87,227,0.8)]'
-                  : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
-              }`}
-            >
-              {tab.l}
-            </button>
-          ))}
-        </div>
+      <div {...stylex.props(styles.controls)}>
+        <SegmentedControl value={view} onChange={(v) => setView(v as View)} label={t('title')}>
+          <SegmentedControlItem value="upcoming" label={`${t('upcoming')} · ${upcoming.length}`} />
+          <SegmentedControlItem value="past" label={t('past')} />
+        </SegmentedControl>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto sm:ml-auto">
+        <div {...stylex.props(styles.filters)}>
           {categories.map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => setCategory(cat)}
-              className={`h-9 shrink-0 rounded-pill px-3.5 text-xs font-semibold ring-1 ring-inset transition ${
-                category === cat
-                  ? 'bg-brand-50 text-brand-700 ring-brand-500/50 dark:bg-brand-500/15 dark:text-brand-200 dark:ring-brand-400/40'
-                  : 'bg-white/70 text-ink-600 ring-ink-200 hover:bg-ink-50 dark:bg-white/[0.04] dark:text-ink-300 dark:ring-white/10 dark:hover:bg-white/10'
-              }`}
+              aria-pressed={category === cat}
+              {...stylex.props(styles.pill, category === cat ? styles.pillActive : styles.pillIdle)}
             >
               {cat === 'All' ? t('filters.all') : cat}
             </button>
@@ -106,16 +259,16 @@ export function BookingHistory({ entries, now }: BookingHistoryProps) {
       </div>
 
       {shown.length === 0 ? (
-        <Card className="py-12 text-center">
-          <p className="font-semibold text-ink-900 dark:text-white">
+        <Card variant="default" xstyle={styles.noneCard}>
+          <p {...stylex.props(styles.noneTitle)}>
             {view === 'upcoming' ? t('noUpcoming') : t('noPast')}
           </p>
           {view === 'upcoming' ? (
-            <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{t('noUpcomingHint')}</p>
+            <p {...stylex.props(styles.noneHint)}>{t('noUpcomingHint')}</p>
           ) : null}
         </Card>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul {...stylex.props(styles.list)}>
           {shown.map((entry) => (
             <BookingHistoryCard
               key={entry.bookingId}
@@ -145,28 +298,28 @@ function NextUpHero({
   const day = relativeDayLabel(instance.startsAt, now, locale, t);
 
   return (
-    <div className="relative overflow-hidden rounded-card bg-[linear-gradient(135deg,#7C3AED,#EC4899)] p-5 text-white shadow-[0_30px_70px_-24px_rgba(80,68,210,0.8)] sm:p-6">
-      <div className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
-      <div className="relative flex flex-wrap items-center gap-4">
-        <div className="w-16 shrink-0 rounded-card bg-white/20 py-2 text-center backdrop-blur">
-          <p className="text-[10px] font-bold uppercase">{day}</p>
-          <p className="text-lg font-extrabold leading-tight tabular-nums">
-            {formatTime(instance.startsAt, locale)}
-          </p>
+    <div {...stylex.props(styles.hero)}>
+      <div aria-hidden {...stylex.props(styles.heroGlow)} />
+      <div {...stylex.props(styles.heroRow)}>
+        <div {...stylex.props(styles.heroTime)}>
+          <p {...stylex.props(styles.heroDay)}>{day}</p>
+          <p {...stylex.props(styles.heroClock)}>{formatTime(instance.startsAt, locale)}</p>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs uppercase tracking-[0.12em] text-white/75">{t('nextUp')}</p>
-          <h2 className="font-display text-2xl font-black tracking-tight">{instance.title}</h2>
-          <p className="text-sm text-white/80">
+        <div {...stylex.props(styles.heroBody)}>
+          <p {...stylex.props(styles.heroLabel)}>{t('nextUp')}</p>
+          <h2 {...stylex.props(styles.heroTitle)}>{instance.title}</h2>
+          <p {...stylex.props(styles.heroMeta)}>
             {[instance.trainerName, instance.locationName].filter(Boolean).join(' · ')}
           </p>
         </div>
-        <Link
+        <Button
+          as={Link}
           href={`/classes/${instance.id}`}
-          className="inline-flex h-11 items-center gap-2 rounded-btn bg-white px-5 text-sm font-bold text-ink-950 transition hover:bg-white/90"
-        >
-          {t('viewClass')}
-        </Link>
+          variant="secondary"
+          size="md"
+          label={t('viewClass')}
+          xstyle={styles.heroAction}
+        />
       </div>
     </div>
   );

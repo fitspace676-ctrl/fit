@@ -80,6 +80,13 @@ const MIGRATED_PATHS: readonly string[] = [
   // now Astryx-only.
   'apps/web/app/[locale]/(member)/trainers',
   'apps/web/src/components/trainers',
+  // T11.14 — member "My bookings" board (upcoming/past segmented control + cancel
+  // confirm dialog). The bookings route file is guarded file-by-file (the sibling
+  // account screens — profile, membership — keep their Tailwind until T11.16),
+  // while the whole `src/components/account` dir is Astryx-only and guarded as a
+  // directory.
+  'apps/web/app/[locale]/(member)/account/bookings',
+  'apps/web/src/components/account',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

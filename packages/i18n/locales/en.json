@@ -38,7 +38,13 @@
         "subtitle": "When you book a class it will show up here, along with your past sessions.",
         "action": "Browse classes"
       },
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "confirm": {
+        "title": "Cancel this booking?",
+        "description": "You’ll give up your spot in {title}. You can book again later if there’s room.",
+        "confirm": "Cancel booking",
+        "keep": "Keep booking"
+      }
     }
   },
   "common": {
