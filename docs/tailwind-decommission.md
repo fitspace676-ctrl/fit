@@ -107,7 +107,7 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
-`apps/web` ≈ 77, `apps/admin` ≈ 92.
+`apps/web` ≈ 22, `apps/admin` ≈ 25.
 
 | Area                                  | Tasks                  |
 | ------------------------------------- | ---------------------- |
