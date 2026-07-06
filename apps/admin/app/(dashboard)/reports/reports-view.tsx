@@ -1,8 +1,27 @@
 'use client';
 
+// @fit/admin — the Reports screen's client view, rebuilt on Astryx (T11.22).
+//
+// Renders the real report {@link ReportDefinition} catalogue as cards, a
+// date-range control, and — when a report is selected — a preview table of its
+// computed rows with CSV / XLSX download links. Selecting a card or a range
+// writes `?report=`/`?range=` to the URL so the server component re-fetches
+// (the data source of truth stays server-side). Every section degrades to an
+// explicit empty state; no figure is invented.
+//
+// Presentation is Astryx `Card` / `Button` / `SegmentedControl` over the Fit
+// brand theme tokens, with all layout authored in compiled StyleX
+// (`var(--color-*)` / `var(--font-family-*)`) — no Tailwind utilities and no
+// FormaCore Aurora-glass primitives. The data flow below is unchanged; only the
+// presentation moved off Tailwind.
+
 import { useMemo, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
+import { Button } from '@astryxdesign/core/Button';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type {
   ReportCellValue,
   ReportColumn,
@@ -12,7 +31,7 @@ import type {
   ReportRange,
   ReportResult,
 } from '@fit/types';
-import { Card, Icon, buttonClasses, type IconName } from '@/components/ui';
+import { Btn, Icon, type IconName } from '@/components/ui';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -24,6 +43,221 @@ const RANGE_OPTIONS: ReadonlyArray<{ value: ReportRange; labelKey: string }> = [
   { value: '12m', labelKey: 'range12m' },
 ];
 
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  pending: {
+    opacity: 0.7,
+    transitionProperty: 'opacity',
+    transitionDuration: '150ms',
+  },
+  rangeControl: {
+    alignSelf: 'flex-start',
+  },
+  catalogue: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1280px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  card: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    padding: '1.25rem',
+  },
+  cardActive: {
+    boxShadow: '0 0 0 2px var(--color-accent)',
+  },
+  cardTop: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+  },
+  iconTile: {
+    display: 'grid',
+    height: '2.75rem',
+    width: '2.75rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+  },
+  chipSuccess: {
+    backgroundColor: 'var(--color-success-muted)',
+    color: 'var(--color-success)',
+  },
+  chipBlue: {
+    backgroundColor: 'var(--color-background-blue)',
+    color: 'var(--color-text-blue)',
+  },
+  chipAccent: {
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  chipWarning: {
+    backgroundColor: 'var(--color-warning-muted)',
+    color: 'var(--color-warning)',
+  },
+  chipNeutral: {
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+  },
+  icon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  iconSm: {
+    width: '1rem',
+    height: '1rem',
+  },
+  cardCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
+  cardTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  cardDescription: {
+    margin: 0,
+    marginTop: '0.125rem',
+    fontSize: '0.75rem',
+    lineHeight: 1.625,
+    color: 'var(--color-text-secondary)',
+  },
+  cardFoot: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: '1rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '0.75rem',
+  },
+  columnCount: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  previewCard: {
+    overflow: 'hidden',
+  },
+  previewHead: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'center',
+    },
+    justifyContent: {
+      default: 'flex-start',
+      '@media (min-width: 640px)': 'space-between',
+    },
+    gap: '0.75rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    paddingInline: '1.25rem',
+    paddingBlock: '1rem',
+  },
+  previewTitleBox: {
+    minWidth: 0,
+  },
+  previewTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  rowCount: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  downloads: {
+    display: 'flex',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  emptyPad: {
+    padding: '2rem',
+  },
+  tableWrap: {
+    overflowX: 'auto',
+  },
+  table: {
+    width: '100%',
+    minWidth: '36rem',
+    borderCollapse: 'collapse',
+    fontSize: '0.875rem',
+  },
+  headRow: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    textAlign: 'left',
+  },
+  th: {
+    paddingInline: '1.25rem',
+    paddingBlock: '0.75rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'var(--color-text-secondary)',
+  },
+  bodyRow: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  bodyRowLast: {
+    borderBottomWidth: 0,
+  },
+  td: {
+    paddingInline: '1.25rem',
+    paddingBlock: '0.75rem',
+    color: 'var(--color-text-primary)',
+  },
+  numericHead: {
+    textAlign: 'right',
+  },
+  numericCell: {
+    textAlign: 'right',
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  empty: {
+    display: 'grid',
+    minHeight: '6rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'var(--color-border)',
+    paddingInline: '1rem',
+    paddingBlock: '1.5rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
+
 /**
  * Per-report card presentation (icon + tinted chip), keyed by {@link ReportKey}.
  * The report's name/description/columns are the catalogue's (the API is the single
@@ -31,28 +265,16 @@ const RANGE_OPTIONS: ReadonlyArray<{ value: ReportRange; labelKey: string }> = [
  * without an entry falls back to the neutral chart chip, so a future report the
  * API adds still renders rather than crashing.
  */
-const REPORT_META: Record<ReportKey, { icon: IconName; chip: string }> = {
-  'revenue-by-channel': {
-    icon: 'card',
-    chip: 'bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-300',
-  },
-  'attendance-by-class': {
-    icon: 'check',
-    chip: 'bg-accent-50 text-accent-600 dark:bg-accent-500/15 dark:text-accent-300',
-  },
-  'membership-growth': {
-    icon: 'users',
-    chip: 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300',
-  },
-  'no-show-rate': {
-    icon: 'clock',
-    chip: 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-300',
-  },
+const REPORT_META: Record<ReportKey, { icon: IconName; chip: keyof typeof styles }> = {
+  'revenue-by-channel': { icon: 'card', chip: 'chipSuccess' },
+  'attendance-by-class': { icon: 'check', chip: 'chipBlue' },
+  'membership-growth': { icon: 'users', chip: 'chipAccent' },
+  'no-show-rate': { icon: 'clock', chip: 'chipWarning' },
 };
 
 const FALLBACK_META = {
   icon: 'chart' as IconName,
-  chip: 'bg-ink-100 text-ink-600 dark:bg-white/10 dark:text-ink-300',
+  chip: 'chipNeutral' as keyof typeof styles,
 };
 
 /**
@@ -89,19 +311,26 @@ export function ReportsView({
   }
 
   return (
-    <div className={`flex flex-col gap-6 ${isPending ? 'opacity-70 transition-opacity' : ''}`}>
-      <RangeControl
+    <div {...stylex.props(styles.page, isPending && styles.pending)}>
+      <SegmentedControl
         value={range}
-        onSelect={(next) => navigate({ range: next })}
-        disabled={isPending}
-        t={t}
-      />
+        onChange={(next) => navigate({ range: next })}
+        label={t('reportingRange')}
+        size="sm"
+        isDisabled={isPending}
+        xstyle={styles.rangeControl}
+      >
+        {RANGE_OPTIONS.map((option) => (
+          <SegmentedControlItem
+            key={option.value}
+            value={option.value}
+            label={t(option.labelKey)}
+          />
+        ))}
+      </SegmentedControl>
 
       {/* Report catalogue */}
-      <section
-        aria-label={t('catalogueLabel')}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
-      >
+      <section aria-label={t('catalogueLabel')} {...stylex.props(styles.catalogue)}>
         {reports.map((report) => (
           <ReportCard
             key={report.key}
@@ -118,55 +347,10 @@ export function ReportsView({
       {selected && preview ? (
         <ReportPreview preview={preview} range={range} t={t} />
       ) : (
-        <Card glow className="p-8">
+        <Card variant="default" padding={0} xstyle={styles.emptyPad}>
           <EmptyState>{t('selectPrompt')}</EmptyState>
         </Card>
       )}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Range control                                                              */
-/* -------------------------------------------------------------------------- */
-
-function RangeControl({
-  value,
-  onSelect,
-  disabled,
-  t,
-}: {
-  value: ReportRange;
-  onSelect: (next: ReportRange) => void;
-  disabled: boolean;
-  t: T;
-}) {
-  return (
-    <div
-      role="tablist"
-      aria-label={t('reportingRange')}
-      className="inline-flex w-fit rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
-    >
-      {RANGE_OPTIONS.map((option) => {
-        const active = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            disabled={disabled}
-            onClick={() => onSelect(option.value)}
-            className={`rounded-btn px-3.5 py-1.5 text-sm font-semibold transition-colors disabled:pointer-events-none ${
-              active
-                ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]'
-                : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
-            }`}
-          >
-            {t(option.labelKey)}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -190,37 +374,23 @@ function ReportCard({
 }) {
   const meta = REPORT_META[report.key] ?? FALLBACK_META;
   return (
-    <Card
-      glow
-      className={`flex h-full flex-col p-5 transition-shadow ${
-        active ? 'ring-2 ring-brand-500 dark:ring-brand-400' : ''
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-card ${meta.chip}`}>
-          <Icon name={meta.icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={[styles.card, active && styles.cardActive]}>
+      <div {...stylex.props(styles.cardTop)}>
+        <span {...stylex.props(styles.iconTile, styles[meta.chip])}>
+          <Icon name={meta.icon} {...stylex.props(styles.icon)} />
         </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="font-display font-extrabold tracking-tight text-ink-900 dark:text-white">
-            {report.name}
-          </h3>
-          <p className="mt-0.5 text-xs leading-relaxed text-ink-500 dark:text-ink-400">
-            {report.description}
-          </p>
+        <div {...stylex.props(styles.cardCopy)}>
+          <h3 {...stylex.props(styles.cardTitle)}>{report.name}</h3>
+          <p {...stylex.props(styles.cardDescription)}>{report.description}</p>
         </div>
       </div>
-      <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3 dark:border-white/10">
-        <span className="text-xs text-ink-400 dark:text-ink-500">
+      <div {...stylex.props(styles.cardFoot)}>
+        <span {...stylex.props(styles.columnCount)}>
           {t('columnCount', { count: report.columns.length })}
         </span>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onSelect}
-          className={buttonClasses(active ? 'primary' : 'ink', 'sm')}
-        >
+        <Btn v={active ? 'primary' : 'ink'} size="sm" disabled={disabled} onClick={onSelect}>
           {active ? t('viewing') : t('run')}
-        </button>
+        </Btn>
       </div>
     </Card>
   );
@@ -249,43 +419,43 @@ function ReportPreview({ preview, range, t }: { preview: ReportResult; range: Re
     )}&format=${format}`;
 
   return (
-    <Card glow className="overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-ink-100 px-5 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white">
-            {preview.name}
-          </h2>
-          <p className="text-xs text-ink-400 dark:text-ink-500">
-            {t('rowCount', { count: preview.rows.length })}
-          </p>
+    <Card variant="default" padding={0} xstyle={styles.previewCard}>
+      <div {...stylex.props(styles.previewHead)}>
+        <div {...stylex.props(styles.previewTitleBox)}>
+          <h2 {...stylex.props(styles.previewTitle)}>{preview.name}</h2>
+          <p {...stylex.props(styles.rowCount)}>{t('rowCount', { count: preview.rows.length })}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <a href={exportHref('csv')} className={buttonClasses('outline', 'sm')}>
-            <Icon name="download" className="h-4 w-4" />
-            {t('downloadCsv')}
-          </a>
-          <a href={exportHref('xlsx')} className={buttonClasses('outline', 'sm')}>
-            <Icon name="download" className="h-4 w-4" />
-            {t('downloadXlsx')}
-          </a>
+        <div {...stylex.props(styles.downloads)}>
+          <Button
+            label={t('downloadCsv')}
+            variant="secondary"
+            size="sm"
+            href={exportHref('csv')}
+            icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+          />
+          <Button
+            label={t('downloadXlsx')}
+            variant="secondary"
+            size="sm"
+            href={exportHref('xlsx')}
+            icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+          />
         </div>
       </div>
 
       {preview.rows.length === 0 ? (
-        <div className="p-8">
+        <div {...stylex.props(styles.emptyPad)}>
           <EmptyState>{t('emptyRows')}</EmptyState>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[36rem] border-collapse text-sm">
+        <div {...stylex.props(styles.tableWrap)}>
+          <table {...stylex.props(styles.table)}>
             <thead>
-              <tr className="border-b border-ink-100 text-left dark:border-white/10">
+              <tr {...stylex.props(styles.headRow)}>
                 {preview.columns.map((column) => (
                   <th
                     key={column.key}
-                    className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400 ${
-                      isNumericColumn(column.type) ? 'text-right' : ''
-                    }`}
+                    {...stylex.props(styles.th, isNumericColumn(column.type) && styles.numericHead)}
                   >
                     {column.label}
                   </th>
@@ -294,13 +464,20 @@ function ReportPreview({ preview, range, t }: { preview: ReportResult; range: Re
             </thead>
             <tbody>
               {preview.rows.map((row, i) => (
-                <tr key={i} className="border-b border-ink-100 last:border-0 dark:border-white/5">
+                <tr
+                  key={i}
+                  {...stylex.props(
+                    styles.bodyRow,
+                    i === preview.rows.length - 1 && styles.bodyRowLast,
+                  )}
+                >
                   {preview.columns.map((column) => (
                     <td
                       key={column.key}
-                      className={`px-5 py-3 text-ink-700 dark:text-ink-200 ${
-                        isNumericColumn(column.type) ? 'text-right font-mono tabular-nums' : ''
-                      }`}
+                      {...stylex.props(
+                        styles.td,
+                        isNumericColumn(column.type) && styles.numericCell,
+                      )}
                     >
                       {formatCell(column, row[column.key] ?? null, money, number)}
                     </td>
@@ -352,9 +529,5 @@ function formatCell(
 /* -------------------------------------------------------------------------- */
 
 function EmptyState({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid min-h-24 place-items-center rounded-field border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-400 dark:border-white/10 dark:text-ink-500">
-      {children}
-    </div>
-  );
+  return <div {...stylex.props(styles.empty)}>{children}</div>;
 }
