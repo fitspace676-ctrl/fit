@@ -10,10 +10,10 @@
 // `middleware.ts`, which re-checks the role. Until the session resolves a
 // skeleton stands in so the layout doesn't jump.
 //
-// Below the nav sits a user card built from the verified session role and the
-// active gym. The Check-in item carries today's live arrival count as a badge.
-// The rail is collapsible to an icon-only toolbar; the footer folds away in that
-// mode (it reads `useSideNavCollapse`).
+// The Check-in item carries today's live arrival count as a badge. The rail is
+// collapsible to an icon-only toolbar; the collapse toggle lives at the top —
+// beside the brand heading when expanded, and just under the brand icon when
+// collapsed — so it never drops to the foot of the rail.
 
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -29,7 +29,6 @@ import {
   useSideNavCollapse,
 } from '@astryxdesign/core/SideNav';
 import { Badge } from '@astryxdesign/core/Badge';
-import { Avatar } from '@astryxdesign/core/Avatar';
 import { Icon } from '@/components/ui';
 import { useSession } from '@/hooks/use-session';
 import { isNavItemActive, visibleNavItems } from '@/lib/nav';
@@ -45,11 +44,6 @@ function appPath(pathname: string): string {
     return pathname.slice(BASE_PATH.length) || '/';
   }
   return pathname;
-}
-
-/** Title-case a role token (`OWNER` → `Owner`) for the user card. */
-function roleLabel(role: string): string {
-  return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
 }
 
 const NAV_GROUPS = [
@@ -96,6 +90,11 @@ const styles = stylex.create({
   collapseIcon: {
     width: '1rem',
     height: '1rem',
+  },
+  collapsedToggleRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    paddingBlockStart: '0.25rem',
   },
   accordion: {
     display: 'flex',
@@ -189,44 +188,6 @@ const styles = stylex.create({
       backgroundColor: 'var(--color-neutral)',
     },
   },
-  userCard: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.625rem',
-    borderRadius: 'var(--radius-inner)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-body)',
-    boxShadow: 'inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 4%, transparent)',
-    padding: '0.625rem 0.75rem',
-  },
-  userText: {
-    display: 'flex',
-    minWidth: 0,
-    flexDirection: 'column',
-    lineHeight: 1.2,
-  },
-  userName: {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    color: 'var(--color-text-primary)',
-  },
-  userMeta: {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
-    color: 'var(--color-text-secondary)',
-  },
-  footer: {
-    display: 'grid',
-    gap: '0.5rem',
-  },
   skeleton: {
     display: 'flex',
     flexDirection: 'column',
@@ -281,13 +242,13 @@ const styles = stylex.create({
 });
 
 export interface SidebarProps {
-  /** The gym slug being managed (for the user card), or `null` off a tenant host. */
+  /** The gym slug being managed, or `null` off a tenant host. */
   gymSlug: string | null;
   /** Live system signal — the SYSTEM widget + Check-in badge source. */
   system: ShellSystemState;
 }
 
-export function Sidebar({ gymSlug, system }: SidebarProps) {
+export function Sidebar({ system }: SidebarProps) {
   const { user, isLoading } = useSession();
   const pathname = usePathname();
   const t = useTranslations('admin');
@@ -302,7 +263,6 @@ export function Sidebar({ gymSlug, system }: SidebarProps) {
         <SideNavHeading
           as={NextLink}
           heading={t('common.brand')}
-          subheading={t('common.brandTagline')}
           headingHref="/"
           xstyle={styles.brandHeading}
           icon={
@@ -310,14 +270,10 @@ export function Sidebar({ gymSlug, system }: SidebarProps) {
               <Icon name="bolt" sw={2.4} {...stylex.props(styles.brandIcon)} />
             </span>
           }
+          headerEndContent={<HeaderCollapseButton />}
         />
       }
-      footer={!isLoading ? <SidebarFooter user={user} gymSlug={gymSlug} /> : null}
-      footerIcons={
-        <SideNavCollapseButton label={t('common.closeNav')}>
-          <Icon name="chevronLeft" {...stylex.props(styles.collapseIcon)} />
-        </SideNavCollapseButton>
-      }
+      topContent={<CollapsedExpandButton />}
     >
       {isLoading ? (
         <SideNavSection title={t('navGroups.overview')} isHeaderHidden>
@@ -419,32 +375,42 @@ function AccordionNavGroup({
   );
 }
 
-/** User card. Folds to nothing when the rail is collapsed. */
-function SidebarFooter({
-  user,
-  gymSlug,
-}: {
-  user: { role: string } | null;
-  gymSlug: string | null;
-}) {
+/**
+ * Collapse ("chevronLeft") toggle rendered at the trailing edge of the brand
+ * header while the rail is expanded. When collapsed, {@link SideNavHeading}
+ * renders icon-only and drops `headerEndContent`, so this returns nothing there
+ * — the expand toggle moves to {@link CollapsedExpandButton}.
+ */
+function HeaderCollapseButton() {
+  const t = useTranslations('admin');
   const { isCollapsed } = useSideNavCollapse();
   if (isCollapsed) {
     return null;
   }
   return (
-    <div {...stylex.props(styles.footer)}>
-      {user && (
-        <div {...stylex.props(styles.userCard)}>
-          <Avatar name={roleLabel(user.role)} size={36} />
-          <span {...stylex.props(styles.userText)}>
-            <span {...stylex.props(styles.userName)}>{roleLabel(user.role)}</span>
-            <span {...stylex.props(styles.userMeta)}>
-              {roleLabel(user.role)}
-              {gymSlug ? ` · ${gymSlug}` : ''}
-            </span>
-          </span>
-        </div>
-      )}
+    <SideNavCollapseButton label={t('common.closeNav')}>
+      <Icon name="chevronLeft" {...stylex.props(styles.collapseIcon)} />
+    </SideNavCollapseButton>
+  );
+}
+
+/**
+ * Expand ("chevronRight") toggle pinned just below the brand icon while the rail
+ * is collapsed, so the control stays at the top in both states rather than
+ * dropping to the foot of the rail. Lives in the SideNav `topContent` zone (which
+ * renders in both modes); returns nothing while expanded.
+ */
+function CollapsedExpandButton() {
+  const t = useTranslations('admin');
+  const { isCollapsed } = useSideNavCollapse();
+  if (!isCollapsed) {
+    return null;
+  }
+  return (
+    <div {...stylex.props(styles.collapsedToggleRow)}>
+      <SideNavCollapseButton label={t('common.openNav')}>
+        <Icon name="chevronRight" {...stylex.props(styles.collapseIcon)} />
+      </SideNavCollapseButton>
     </div>
   );
 }

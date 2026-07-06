@@ -1204,6 +1204,10 @@
       "skipToContent": "Skip to main content",
       "quickSale": "Quick sale",
       "notifications": "Notifications",
+      "locationLabel": "Location",
+      "allLocations": "All locations",
+      "profile": "Profile",
+      "settings": "Settings",
       "signOut": "Sign out",
       "switchToLight": "Switch to light",
       "switchToDark": "Switch to dark",
@@ -1212,6 +1216,16 @@
         "ka": "ქართული",
         "en": "English"
       }
+    },
+    "profile": {
+      "title": "Profile",
+      "subtitle": "Your account and the gym you're managing.",
+      "accountSection": "Account",
+      "role": "Role",
+      "userId": "User ID",
+      "gym": "Gym",
+      "noGym": "—",
+      "signOut": "Sign out"
     },
     "nav": {
       "dashboard": "Dashboard",

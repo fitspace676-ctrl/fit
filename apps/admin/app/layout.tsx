@@ -12,6 +12,7 @@ import './globals.css';
 // order, so it is imported here.
 import '@astryxdesign/core/astryx.css';
 import { SentryInit } from './sentry-init';
+import { TopLoader } from '@/components/top-loader';
 import { ThemeProvider, THEME_COOKIE, type Theme } from '@/components/theme/theme-provider';
 import { AstryxProvider } from '@/components/theme/astryx-provider';
 
@@ -55,6 +56,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     >
       <body className="min-h-screen bg-ink-50 font-sans text-ink-900 antialiased dark:bg-ink-950 dark:text-white">
         <SentryInit />
+        <TopLoader />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider initial={theme}>
             <AstryxProvider>{children}</AstryxProvider>

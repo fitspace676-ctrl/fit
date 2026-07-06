@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { Permission, roleHasPermission } from '@fit/types';
-import { AdminShell, type ShellSystemState } from '@/components/admin-shell';
+import { AdminShell, type ShellLocation, type ShellSystemState } from '@/components/admin-shell';
 import { getActiveGymSlug } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
-import { fetchCheckInStats } from '@/lib/api';
+import { fetchCheckInStats, fetchLocations } from '@/lib/api';
 
 /**
  * Authenticated console layout. Every page under this route group renders inside
@@ -35,8 +35,20 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     }
   }
 
+  // The top-bar location switcher is populated from the gym's active locations.
+  // Gated by LocationRead; on any failure the switcher simply stays empty.
+  let locations: ShellLocation[] = [];
+  if (session && roleHasPermission(session.role, Permission.LocationRead)) {
+    try {
+      const res = await fetchLocations({ status: 'ACTIVE', limit: 100 });
+      locations = res.data.map((location) => ({ id: location.id, name: location.name }));
+    } catch {
+      locations = [];
+    }
+  }
+
   return (
-    <AdminShell gymSlug={gymSlug} system={system}>
+    <AdminShell gymSlug={gymSlug} system={system} locations={locations}>
       {children}
     </AdminShell>
   );

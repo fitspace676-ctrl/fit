@@ -27,6 +27,12 @@ export interface ShellSystemState {
   checkInCount: number | null;
 }
 
+/** A gym location as the top-bar switcher needs it. */
+export interface ShellLocation {
+  id: string;
+  name: string;
+}
+
 const styles = stylex.create({
   content: {
     display: 'block',
@@ -46,10 +52,12 @@ const styles = stylex.create({
 export function AdminShell({
   gymSlug,
   system,
+  locations,
   children,
 }: {
   gymSlug: string | null;
   system: ShellSystemState;
+  locations: ShellLocation[];
   children: ReactNode;
 }) {
   const t = useTranslations('admin.common');
@@ -65,7 +73,7 @@ export function AdminShell({
       >
         <div id="main-content" {...stylex.props(styles.content)}>
           <div {...stylex.props(styles.topBar)}>
-            <TopBar />
+            <TopBar locations={locations} />
           </div>
           <div {...stylex.props(styles.page)}>{children}</div>
         </div>

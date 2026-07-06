@@ -64,34 +64,6 @@ const styles = stylex.create({
     transitionProperty: 'opacity',
     transitionDuration: '150ms',
   },
-  header: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  eyebrow: {
-    margin: 0,
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.2em',
-    color: 'var(--color-text-accent)',
-  },
-  titleRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-    color: 'var(--color-text-primary)',
-  },
   liveDot: {
     display: 'inline-block',
     height: '0.375rem',
@@ -565,35 +537,8 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
     startTransition(() => router.replace(`${pathname}?${params.toString()}`));
   }
 
-  const now = new Date();
-  const eyebrow = now
-    .toLocaleDateString(locale, {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    })
-    .toUpperCase();
-  const greeting = t(greetingKey(now.getHours()));
-  const firstName = data.viewer.name.split(' ')[0] || data.viewer.name;
-
   return (
     <div {...stylex.props(styles.page, isPending && styles.pending)}>
-      {/* Eyebrow + greeting */}
-      <header {...stylex.props(styles.header)}>
-        <p {...stylex.props(styles.eyebrow)}>{eyebrow}</p>
-        <div {...stylex.props(styles.titleRow)}>
-          <h1 {...stylex.props(styles.title)}>
-            {greeting}, {firstName}
-          </h1>
-          <Badge
-            variant="success"
-            label={t('allSystemsLive')}
-            icon={<span {...stylex.props(styles.liveDot)} />}
-          />
-        </div>
-      </header>
-
       {/* In the gym now + KPIs */}
       <section {...stylex.props(styles.gridThirds)}>
         <InGymNow data={data} />
@@ -1022,13 +967,6 @@ function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
 
 function EmptyState({ children }: { children: ReactNode }) {
   return <div {...stylex.props(styles.empty)}>{children}</div>;
-}
-
-/** i18n key (under `admin.dashboard.greeting`) for the time-of-day greeting. */
-function greetingKey(hour: number): string {
-  if (hour < 12) return 'greeting.morning';
-  if (hour < 18) return 'greeting.afternoon';
-  return 'greeting.evening';
 }
 
 function formatTime(locale: string, iso: string): string {

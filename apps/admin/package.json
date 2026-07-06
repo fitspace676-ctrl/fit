@@ -23,6 +23,7 @@
     "@stylexjs/stylex": "^0.18.3",
     "next": "^15.1.6",
     "next-intl": "^3.26.0",
+    "nextjs-toploader": "^3.9.17",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^3.24.1",

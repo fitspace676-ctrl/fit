@@ -3,67 +3,36 @@
 // @fit/admin — console top bar (Astryx, T11.17).
 //
 // Rebuilt on the Astryx `TopNav` over the Fit brand tokens. Sits above the page
-// content: the mobile drawer toggle, the gym being managed, a search field, a
-// quick-sale shortcut, the language switcher, a theme toggle, notifications, and
-// a session menu (role + sign out). Sign-out clears the shared session cookie
-// via `DELETE /api/session`.
+// content: the mobile drawer toggle, a location switcher (the gym's active
+// locations), the language switcher, a theme toggle, and a session menu (avatar →
+// profile / settings / sign out). Sign-out clears the shared session cookie via
+// `DELETE /api/session`.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import NextLink from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { TopNav } from '@astryxdesign/core/TopNav';
-import { Button } from '@astryxdesign/core/Button';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Avatar } from '@astryxdesign/core/Avatar';
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
+import { Selector } from '@astryxdesign/core/Selector';
 import { MobileNavToggle } from '@astryxdesign/core/MobileNav';
 import { useSession } from '@/hooks/use-session';
 import { Icon } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
+import type { ShellLocation } from './admin-shell';
 import { LocaleSwitcher } from './locale-switcher';
+
+/** localStorage key persisting the selected location across reloads. */
+const LOCATION_STORAGE_KEY = 'fit-admin-active-location';
+/** Sentinel value for the "all locations" option. */
+const ALL_LOCATIONS = 'all';
 
 /** Base path (`/admin` behind the tenant proxy); applied to non-router fetch/redirect. */
 const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '';
 
 const styles = stylex.create({
-  search: {
-    width: '32rem',
-    maxWidth: '40vw',
-    height: '2.5rem',
-    alignItems: 'center',
-    gap: '0.5rem',
-    paddingInline: '0.75rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: 'var(--color-border-emphasized)',
-      ':focus-within': 'var(--color-accent)',
-    },
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-background-surface)',
-    boxSizing: 'border-box',
-    display: {
-      default: 'none',
-      '@media (min-width: 640px)': 'flex',
-    },
-  },
-  searchInput: {
-    width: '100%',
-    minWidth: 0,
-    height: '100%',
-    padding: 0,
-    borderWidth: 0,
-    outline: 'none',
-    backgroundColor: 'transparent',
-    color: 'var(--color-text-primary)',
-    fontFamily: 'var(--font-family-body)',
-    fontSize: '0.875rem',
-    lineHeight: 1,
-    '::placeholder': {
-      color: 'var(--color-text-secondary)',
-    },
-  },
   topNav: {
     minHeight: '5.5rem',
     paddingInline: '1.5rem',
@@ -74,33 +43,18 @@ const styles = stylex.create({
   startContent: {
     display: 'flex',
     alignItems: 'center',
+    gap: '0.75rem',
+    minWidth: 0,
+  },
+  locationSelect: {
+    minWidth: 0,
+    width: '15rem',
+    maxWidth: '38vw',
   },
   actions: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
-  },
-  quickSale: {
-    display: {
-      default: 'none',
-      '@media (min-width: 640px)': 'inline-flex',
-    },
-  },
-  bellWrap: {
-    position: 'relative',
-    display: 'inline-flex',
-  },
-  bellDot: {
-    position: 'absolute',
-    top: '0.375rem',
-    right: '0.375rem',
-    height: '0.5rem',
-    width: '0.5rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent)',
-    borderWidth: '2px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-background-body)',
   },
   icon: {
     width: '1.25rem',
@@ -112,12 +66,36 @@ const styles = stylex.create({
   },
 });
 
-export function TopBar() {
+export function TopBar({ locations }: { locations: ShellLocation[] }) {
   const { user, isLoading } = useSession();
   const { theme, toggle } = useTheme();
+  const router = useRouter();
   const t = useTranslations('admin.common');
-  const [query, setQuery] = useState('');
   const isDark = theme === 'dark';
+  const [locationId, setLocationId] = useState(ALL_LOCATIONS);
+
+  // Restore the persisted selection after mount (kept out of the initial render
+  // so server and client markup match), ignoring a stale id no longer present.
+  useEffect(() => {
+    const stored = window.localStorage.getItem(LOCATION_STORAGE_KEY);
+    if (stored && (stored === ALL_LOCATIONS || locations.some((l) => l.id === stored))) {
+      setLocationId(stored);
+    }
+  }, [locations]);
+
+  function onLocationChange(value: string): void {
+    setLocationId(value);
+    try {
+      window.localStorage.setItem(LOCATION_STORAGE_KEY, value);
+    } catch {
+      // Private mode / storage disabled — selection still lives in component state.
+    }
+  }
+
+  const locationOptions = [
+    { value: ALL_LOCATIONS, label: t('allLocations') },
+    ...locations.map((location) => ({ value: location.id, label: location.name })),
+  ];
 
   const signOut = async (): Promise<void> => {
     try {
@@ -135,32 +113,21 @@ export function TopBar() {
       startContent={
         <div {...stylex.props(styles.startContent)}>
           <MobileNavToggle label={t('openNav')} />
-          <label {...stylex.props(styles.search)}>
-            <Icon name="search" {...stylex.props(styles.btnIcon)} />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t('search')}
-              aria-label={t('search')}
-              {...stylex.props(styles.searchInput)}
+          {locations.length > 0 && (
+            <Selector
+              label={t('locationLabel')}
+              isLabelHidden
+              options={locationOptions}
+              value={locationId}
+              onChange={onLocationChange}
+              size="md"
+              xstyle={styles.locationSelect}
             />
-          </label>
+          )}
         </div>
       }
       endContent={
         <div {...stylex.props(styles.actions)}>
-          <span {...stylex.props(styles.quickSale)}>
-            <Button
-              as={NextLink}
-              href="/pos"
-              variant="primary"
-              size="md"
-              icon={<Icon name="plus" sw={2.4} {...stylex.props(styles.btnIcon)} />}
-              label={t('quickSale')}
-            />
-          </span>
-
           <LocaleSwitcher />
 
           <IconButton
@@ -171,26 +138,27 @@ export function TopBar() {
             icon={<Icon name={isDark ? 'sun' : 'moon'} {...stylex.props(styles.icon)} />}
           />
 
-          <span {...stylex.props(styles.bellWrap)}>
-            <IconButton
-              variant="ghost"
-              size="md"
-              label={t('notifications')}
-              icon={<Icon name="bell" {...stylex.props(styles.icon)} />}
-            />
-            <span aria-hidden {...stylex.props(styles.bellDot)} />
-          </span>
-
           {!isLoading && user && (
             <DropdownMenu
               button={{
                 label: user.role,
                 variant: 'ghost',
                 size: 'md',
+                isIconOnly: true,
                 icon: <Avatar name={user.role} size={32} />,
               }}
-              hasChevron
               items={[
+                {
+                  label: t('profile'),
+                  icon: <Icon name="user" {...stylex.props(styles.btnIcon)} />,
+                  onClick: () => router.push('/profile'),
+                },
+                {
+                  label: t('settings'),
+                  icon: <Icon name="settings" {...stylex.props(styles.btnIcon)} />,
+                  onClick: () => router.push('/settings'),
+                },
+                { type: 'divider' },
                 {
                   label: t('signOut'),
                   icon: <Icon name="logout" {...stylex.props(styles.btnIcon)} />,
