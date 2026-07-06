@@ -91,6 +91,9 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/(dashboard)/analytics`                    | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/members`                      | T11.19 | ✅     |
 | `apps/admin/app/(dashboard)/trainers`                     | T11.19 | ✅     |
+| `apps/admin/app/(dashboard)/check-in`                     | T11.20 | ✅     |
+| `apps/admin/app/(dashboard)/schedule`                     | T11.20 | ✅     |
+| `apps/admin/app/(dashboard)/classes`                      | T11.20 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
@@ -103,7 +106,6 @@ are files currently using `className=` under each app, as a rough burn-down:
 | Web — shop / cart / checkout                | T11.15                 |
 | Web — account / profile / membership        | T11.16                 |
 | Admin — shell + dashboard                   | T11.17, T11.18         |
-| Admin — check-in / schedule                 | T11.20                 |
 | Admin — activity / audit / staff / settings | T11.21                 |
 | Admin — commerce (orders/POS/products)      | T11.22                 |
 | Admin — billing (plans/subs/invoices)       | T11.23                 |

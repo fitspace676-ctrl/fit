@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import type { ClassTemplateStatus } from '@fit/types';
 
 /** The status options offered by the filter, in roster-priority order. */
@@ -12,6 +13,58 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: ClassTemplateStatus; label: string 
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
+
+const styles = stylex.create({
+  wrap: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'center',
+    },
+    gap: '0.75rem',
+  },
+  searchWrap: {
+    position: 'relative',
+    flex: 1,
+  },
+  selectWrap: {
+    width: {
+      default: '100%',
+      '@media (min-width: 640px)': '12rem',
+    },
+  },
+  control: {
+    height: '2.75rem',
+    width: '100%',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+});
 
 /**
  * The class-template roster filter bar: a debounced search box (title / category)
@@ -50,9 +103,9 @@ export function ClassTemplatesFilters({ search, status }: { search: string; stat
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="relative flex-1">
-        <label htmlFor="class-search" className="sr-only">
+    <div {...stylex.props(styles.wrap)}>
+      <div {...stylex.props(styles.searchWrap)}>
+        <label htmlFor="class-search" {...stylex.props(styles.srOnly)}>
           Search class templates by title or category
         </label>
         <input
@@ -61,19 +114,19 @@ export function ClassTemplatesFilters({ search, status }: { search: string; stat
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search by title or category…"
-          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.control)}
         />
       </div>
 
-      <div className="sm:w-48">
-        <label htmlFor="class-status" className="sr-only">
+      <div {...stylex.props(styles.selectWrap)}>
+        <label htmlFor="class-status" {...stylex.props(styles.srOnly)}>
           Filter by status
         </label>
         <select
           id="class-status"
           value={status}
           onChange={(event) => commit('status', event.target.value)}
-          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.control)}
         >
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((option) => (

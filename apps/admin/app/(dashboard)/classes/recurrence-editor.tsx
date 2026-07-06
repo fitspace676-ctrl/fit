@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import {
   buildRRule,
   describeRecurrence,
@@ -12,6 +13,135 @@ import {
 } from '@fit/types';
 import { Field, Input, Select } from '@/components/ui';
 import { FREQ_OPTIONS, WEEKDAY_OPTIONS, freqNoun } from './format';
+
+const styles = stylex.create({
+  fieldset: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    padding: '1rem',
+  },
+  legend: {
+    paddingInline: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  freqRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    gap: '1rem',
+  },
+  freqField: {
+    width: '10rem',
+  },
+  everyInner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  w20: {
+    width: '5rem',
+  },
+  w44: {
+    width: '11rem',
+  },
+  everyNoun: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  weekdayRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  weekdayBtn: {
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  weekdayInactive: {
+    borderColor: 'var(--color-border)',
+    color: 'var(--color-text-secondary)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  weekdayActive: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  endWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  endLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  endOptions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  radioLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+  },
+  radioLabelWrap: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+  },
+  radio: {
+    width: '1rem',
+    height: '1rem',
+    accentColor: 'var(--color-accent)',
+  },
+  preview: {
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+  },
+  previewSummary: {
+    margin: 0,
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  previewRule: {
+    marginTop: '0.125rem',
+    marginBottom: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  previewEmpty: {
+    margin: 0,
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /**
  * The visual RRULE editor. Instead of typing an RFC-5545 string by hand, staff
@@ -67,28 +197,30 @@ export function RecurrenceEditor({
   }
 
   return (
-    <fieldset className="flex flex-col gap-4 rounded-card border border-ink-200 p-4 dark:border-white/10">
-      <legend className="px-1 text-sm font-medium text-ink-700 dark:text-ink-200">Repeats</legend>
+    <fieldset {...stylex.props(styles.fieldset)}>
+      <legend {...stylex.props(styles.legend)}>Repeats</legend>
 
       {/* Frequency + interval. */}
-      <div className="flex flex-wrap items-start gap-4">
-        <Field label="Frequency" htmlFor="rec-freq" className="w-40">
-          <Select
-            id="rec-freq"
-            value={value.freq}
-            onChange={(event) => setFreq(event.target.value as RecurrenceFreq)}
-          >
-            {FREQ_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
+      <div {...stylex.props(styles.freqRow)}>
+        <div {...stylex.props(styles.freqField)}>
+          <Field label="Frequency" htmlFor="rec-freq">
+            <Select
+              id="rec-freq"
+              value={value.freq}
+              onChange={(event) => setFreq(event.target.value as RecurrenceFreq)}
+            >
+              {FREQ_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
 
         <Field label="Every" htmlFor="rec-interval">
-          <div className="flex items-center gap-2">
-            <div className="w-20">
+          <div {...stylex.props(styles.everyInner)}>
+            <div {...stylex.props(styles.w20)}>
               <Input
                 id="rec-interval"
                 type="number"
@@ -100,7 +232,7 @@ export function RecurrenceEditor({
                 onChange={(event) => setInterval(event.target.value)}
               />
             </div>
-            <span className="text-sm text-ink-500 dark:text-ink-400">
+            <span {...stylex.props(styles.everyNoun)}>
               {freqNoun(value.freq)}
               {value.interval === 1 ? '' : 's'}
             </span>
@@ -114,7 +246,7 @@ export function RecurrenceEditor({
           label="On these days"
           error={weeklyNeedsDay ? 'Pick at least one weekday.' : undefined}
         >
-          <div className="flex flex-wrap gap-2">
+          <div {...stylex.props(styles.weekdayRow)}>
             {WEEKDAY_OPTIONS.map((day) => {
               const active = value.weekdays.includes(day.value);
               return (
@@ -123,12 +255,10 @@ export function RecurrenceEditor({
                   type="button"
                   aria-pressed={active}
                   onClick={() => toggleWeekday(day.value)}
-                  className={[
-                    'rounded-btn border px-3 py-1.5 text-sm font-medium transition-colors',
-                    active
-                      ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400/40 dark:bg-brand-500/15 dark:text-brand-200'
-                      : 'border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/5',
-                  ].join(' ')}
+                  {...stylex.props(
+                    styles.weekdayBtn,
+                    active ? styles.weekdayActive : styles.weekdayInactive,
+                  )}
                 >
                   {day.label}
                 </button>
@@ -139,30 +269,30 @@ export function RecurrenceEditor({
       ) : null}
 
       {/* End condition. */}
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-ink-700 dark:text-ink-200">Ends</span>
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+      <div {...stylex.props(styles.endWrap)}>
+        <span {...stylex.props(styles.endLabel)}>Ends</span>
+        <div {...stylex.props(styles.endOptions)}>
+          <label {...stylex.props(styles.radioLabel)}>
             <input
               type="radio"
               name="rec-end"
               checked={value.end.type === 'never'}
               onChange={() => setEnd({ type: 'never' })}
-              className="h-4 w-4 text-brand-600 focus:ring-brand-400"
+              {...stylex.props(styles.radio)}
             />
             Never
           </label>
 
-          <label className="flex flex-wrap items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+          <label {...stylex.props(styles.radioLabelWrap)}>
             <input
               type="radio"
               name="rec-end"
               checked={value.end.type === 'count'}
               onChange={() => setEnd({ type: 'count', count: 10 })}
-              className="h-4 w-4 text-brand-600 focus:ring-brand-400"
+              {...stylex.props(styles.radio)}
             />
             After
-            <div className="w-20">
+            <div {...stylex.props(styles.w20)}>
               <Input
                 type="number"
                 min="1"
@@ -180,7 +310,7 @@ export function RecurrenceEditor({
             occurrences
           </label>
 
-          <label className="flex flex-wrap items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+          <label {...stylex.props(styles.radioLabelWrap)}>
             <input
               type="radio"
               name="rec-end"
@@ -188,10 +318,10 @@ export function RecurrenceEditor({
               onChange={() =>
                 setEnd({ type: 'until', until: value.end.type === 'until' ? value.end.until : '' })
               }
-              className="h-4 w-4 text-brand-600 focus:ring-brand-400"
+              {...stylex.props(styles.radio)}
             />
             On date
-            <div className="w-44">
+            <div {...stylex.props(styles.w44)}>
               <Input
                 type="date"
                 aria-label="End date"
@@ -205,14 +335,14 @@ export function RecurrenceEditor({
       </div>
 
       {/* Live preview of what the rule schedules. */}
-      <div className="rounded-field bg-ink-50 px-3 py-2 text-sm dark:bg-white/5">
+      <div {...stylex.props(styles.preview)}>
         {summary ? (
           <>
-            <p className="font-medium text-ink-700 dark:text-ink-200">{summary}</p>
-            <p className="mt-0.5 font-mono text-xs text-ink-400">{rrule}</p>
+            <p {...stylex.props(styles.previewSummary)}>{summary}</p>
+            <p {...stylex.props(styles.previewRule)}>{rrule}</p>
           </>
         ) : (
-          <p className="text-ink-400">Finish the recurrence to see a preview.</p>
+          <p {...stylex.props(styles.previewEmpty)}>Finish the recurrence to see a preview.</p>
         )}
       </div>
     </fieldset>

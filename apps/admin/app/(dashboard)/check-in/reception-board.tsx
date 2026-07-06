@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import type {
   CheckInMethod,
   CheckInRow,
@@ -9,7 +10,8 @@ import type {
   EligibilityStatus,
   MemberEligibility,
 } from '@fit/types';
-import { Badge, Btn, Card, CountUp, Icon, useToast, type Tone } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge, Btn, CountUp, Icon, useToast, type Tone } from '@/components/ui';
 import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 import {
   fetchEligibilityAction,
@@ -22,6 +24,515 @@ type T = ReturnType<typeof useTranslations>;
 
 /** Debounce (ms) before a keystroke in the member search triggers a lookup. */
 const SEARCH_DEBOUNCE_MS = 220;
+
+/** The scan line's slow opacity pulse (mirrors Tailwind `animate-pulse`). */
+const pulse = stylex.keyframes({
+  '50%': { opacity: 0.5 },
+});
+
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  metrics: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(4, minmax(0, 1fr))',
+    },
+  },
+  mainGrid: {
+    display: 'grid',
+    gap: '1.5rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(12, minmax(0, 1fr))',
+    },
+  },
+  leftCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 'span 7',
+    },
+  },
+  rightCol: {
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 'span 5',
+    },
+  },
+
+  // Shared card scaffolding.
+  cardTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  cardSubtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  titleGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+  },
+  rowBetween: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  infoCol: {
+    minWidth: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+  },
+  grow: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+  },
+  fullBtn: {
+    width: '100%',
+  },
+
+  // StatCard.
+  statCard: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    padding: '1.25rem',
+  },
+  statIcon: {
+    display: 'grid',
+    height: '2.5rem',
+    width: '2.5rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  icon5: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  statValue: {
+    marginBlock: '1rem 0',
+    marginInline: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  statLabel: {
+    marginBlock: '0.25rem 0',
+    marginInline: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+
+  // ScannerCard.
+  scannerCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
+    padding: '1.5rem',
+  },
+  manualCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1.5rem',
+  },
+  viewport: {
+    position: 'relative',
+    marginInline: 'auto',
+    display: 'grid',
+    aspectRatio: '1 / 1',
+    width: '100%',
+    maxWidth: '20rem',
+    placeItems: 'center',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  corner: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    height: '2rem',
+    width: '2rem',
+    borderStyle: 'solid',
+    borderWidth: 0,
+    borderColor: 'var(--color-accent)',
+  },
+  cornerTL: {
+    top: '1.5rem',
+    left: '1.5rem',
+    borderTopWidth: '2px',
+    borderLeftWidth: '2px',
+    borderTopLeftRadius: '0.5rem',
+  },
+  cornerTR: {
+    top: '1.5rem',
+    right: '1.5rem',
+    borderTopWidth: '2px',
+    borderRightWidth: '2px',
+    borderTopRightRadius: '0.5rem',
+  },
+  cornerBL: {
+    bottom: '1.5rem',
+    left: '1.5rem',
+    borderBottomWidth: '2px',
+    borderLeftWidth: '2px',
+    borderBottomLeftRadius: '0.5rem',
+  },
+  cornerBR: {
+    bottom: '1.5rem',
+    right: '1.5rem',
+    borderBottomWidth: '2px',
+    borderRightWidth: '2px',
+    borderBottomRightRadius: '0.5rem',
+  },
+  scanLine: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    left: '2.5rem',
+    right: '2.5rem',
+    top: '50%',
+    height: '1px',
+    backgroundImage: 'linear-gradient(to right, transparent, var(--color-accent), transparent)',
+    animationName: pulse,
+    animationDuration: '2s',
+    animationTimingFunction: 'cubic-bezier(0.4, 0, 0.6, 1)',
+    animationIterationCount: 'infinite',
+  },
+  qrIcon: {
+    width: '5rem',
+    height: '5rem',
+    color: 'var(--color-text-disabled)',
+  },
+
+  // Manual search.
+  searchWrap: {
+    position: 'relative',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  searchIcon: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    left: '0.875rem',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: '1rem',
+    height: '1rem',
+    color: 'var(--color-text-secondary)',
+  },
+  searchInput: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingLeft: '2.5rem',
+    paddingRight: '0.875rem',
+    paddingBlock: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  alertText: {
+    marginBlock: '0.5rem 0',
+    marginInline: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  dropdown: {
+    marginTop: '0.5rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+  },
+  dropdownMsg: {
+    margin: 0,
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  resultList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+  },
+  resultItem: {
+    borderTopWidth: {
+      default: '1px',
+      ':first-child': '0',
+    },
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+  },
+  resultBtn: {
+    display: 'flex',
+    width: '100%',
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingInline: '1rem',
+    paddingBlock: '0.625rem',
+    textAlign: 'left',
+    borderWidth: 0,
+    cursor: 'pointer',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  resultName: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  resultEmail: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  arrowIcon: {
+    width: '1rem',
+    height: '1rem',
+    color: 'var(--color-text-disabled)',
+  },
+
+  // EligibilityCard.
+  eligPanel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+    padding: '1rem',
+  },
+  eligHead: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  eligName: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  eligEmail: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  eligDl: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.75rem',
+    margin: 0,
+    fontSize: '0.875rem',
+  },
+  eligCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+  },
+  eligDt: {
+    margin: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.025em',
+    color: 'var(--color-text-secondary)',
+  },
+  eligDd: {
+    margin: 0,
+    color: 'var(--color-text-primary)',
+  },
+  eligWarning: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-warning-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-warning)',
+  },
+  eligActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  readOnly: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+
+  // ArrivalsCard.
+  arrivalsCard: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    padding: '1.5rem',
+  },
+  arrivalsHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '1rem',
+  },
+  emptyWrap: {
+    display: 'grid',
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    placeItems: 'center',
+    paddingBlock: '3rem',
+    textAlign: 'center',
+  },
+  emptyInner: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  emptyIcon: {
+    display: 'grid',
+    height: '3rem',
+    width: '3rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+  },
+  icon6: {
+    width: '1.5rem',
+    height: '1.5rem',
+  },
+  arrivalsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+  },
+  arrivalRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingBlock: '0.75rem',
+    borderTopWidth: {
+      default: '1px',
+      ':first-child': '0',
+    },
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+  },
+  arrivalName: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  arrivalTime: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+
+  // MemberAvatar.
+  avatarImg: {
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    objectFit: 'cover',
+    boxShadow: 'inset 0 0 0 1px var(--color-border)',
+  },
+  avatarFallback: {
+    display: 'grid',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    color: 'var(--color-text-accent)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+  },
+  avatarSm: {
+    height: '2.25rem',
+    width: '2.25rem',
+  },
+  avatarMd: {
+    height: '2.75rem',
+    width: '2.75rem',
+  },
+});
 
 /** Visual treatment per eligibility status — green active, amber frozen, red expired. */
 const ELIGIBILITY_TONES: Record<EligibilityStatus, Tone> = {
@@ -110,19 +621,16 @@ export function ReceptionBoard({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <section
-        aria-label={t('metrics.aria')}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
+    <div {...stylex.props(styles.stack)}>
+      <section aria-label={t('metrics.aria')} {...stylex.props(styles.metrics)}>
         <StatCard label={t('stats.checkedInToday')} value={stats.checkedInToday} icon="check" />
         <StatCard label={t('stats.inGymNow')} value={stats.inGymNow} icon="users" />
         <StatCard label={t('stats.peakToday')} value={stats.peakToday} icon="chart" />
         <StatCard label={t('stats.noShows')} value={stats.noShowsToday} icon="clock" />
       </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="flex flex-col gap-6 lg:col-span-7">
+      <div {...stylex.props(styles.mainGrid)}>
+        <div {...stylex.props(styles.leftCol)}>
           <ScannerCard onSimulate={focusSearch} t={t} />
           <ManualCheckInCard
             searchInputRef={searchInputRef}
@@ -132,7 +640,7 @@ export function ReceptionBoard({
           />
         </div>
 
-        <div className="lg:col-span-5">
+        <div {...stylex.props(styles.rightCol)}>
           <ArrivalsCard arrivals={arrivals} t={t} />
         </div>
       </div>
@@ -151,16 +659,14 @@ function StatCard({
   icon: Parameters<typeof Icon>[0]['name'];
 }) {
   return (
-    <Card className="flex h-full flex-col p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={styles.statCard}>
+      <span {...stylex.props(styles.statIcon)}>
+        <Icon name={icon} {...stylex.props(styles.icon5)} />
       </span>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+      <p {...stylex.props(styles.statValue)}>
         <CountUp to={value} />
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {label}
-      </p>
+      <p {...stylex.props(styles.statLabel)}>{label}</p>
     </Card>
   );
 }
@@ -173,30 +679,28 @@ function StatCard({
  */
 function ScannerCard({ onSimulate, t }: { onSimulate: () => void; t: T }) {
   return (
-    <Card glow className="flex flex-col gap-5 p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-0.5">
-          <h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">
-            {t('scanner.title')}
-          </h2>
-          <p className="text-sm text-ink-500 dark:text-ink-400">{t('scanner.subtitle')}</p>
+    <Card variant="default" padding={0} xstyle={styles.scannerCard}>
+      <div {...stylex.props(styles.rowBetween)}>
+        <div {...stylex.props(styles.titleGroup)}>
+          <h2 {...stylex.props(styles.cardTitle)}>{t('scanner.title')}</h2>
+          <p {...stylex.props(styles.cardSubtitle)}>{t('scanner.subtitle')}</p>
         </div>
         <Badge tone="success" icon="spark">
           {t('scanner.ready')}
         </Badge>
       </div>
 
-      <div className="relative mx-auto grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-card border border-ink-200 bg-ink-50 dark:border-white/10 dark:bg-white/[0.03]">
+      <div {...stylex.props(styles.viewport)}>
         {/* Decorative corner frame + sweeping scan line. */}
-        <span className="pointer-events-none absolute left-6 top-6 h-8 w-8 rounded-tl-lg border-l-2 border-t-2 border-brand-500" />
-        <span className="pointer-events-none absolute right-6 top-6 h-8 w-8 rounded-tr-lg border-r-2 border-t-2 border-brand-500" />
-        <span className="pointer-events-none absolute bottom-6 left-6 h-8 w-8 rounded-bl-lg border-b-2 border-l-2 border-brand-500" />
-        <span className="pointer-events-none absolute bottom-6 right-6 h-8 w-8 rounded-br-lg border-b-2 border-r-2 border-brand-500" />
-        <span className="pointer-events-none absolute inset-x-10 top-1/2 h-px animate-pulse bg-gradient-to-r from-transparent via-brand-500 to-transparent" />
-        <Icon name="qr" className="h-20 w-20 text-ink-300 dark:text-white/20" sw={1.5} />
+        <span {...stylex.props(styles.corner, styles.cornerTL)} />
+        <span {...stylex.props(styles.corner, styles.cornerTR)} />
+        <span {...stylex.props(styles.corner, styles.cornerBL)} />
+        <span {...stylex.props(styles.corner, styles.cornerBR)} />
+        <span {...stylex.props(styles.scanLine)} />
+        <Icon name="qr" {...stylex.props(styles.qrIcon)} sw={1.5} />
       </div>
 
-      <Btn v="outline" icon="qr" onClick={onSimulate} className="w-full">
+      <Btn v="outline" icon="qr" onClick={onSimulate} {...stylex.props(styles.fullBtn)}>
         {t('scanner.simulate')}
       </Btn>
     </Card>
@@ -308,12 +812,10 @@ function ManualCheckInCard({
   }
 
   return (
-    <Card className="flex flex-col gap-4 p-6">
-      <div className="flex flex-col gap-0.5">
-        <h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">
-          {t('manual.title')}
-        </h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{t('manual.subtitle')}</p>
+    <Card variant="default" padding={0} xstyle={styles.manualCard}>
+      <div {...stylex.props(styles.titleGroup)}>
+        <h2 {...stylex.props(styles.cardTitle)}>{t('manual.title')}</h2>
+        <p {...stylex.props(styles.cardSubtitle)}>{t('manual.subtitle')}</p>
       </div>
 
       {picked ? (
@@ -328,14 +830,11 @@ function ManualCheckInCard({
           t={t}
         />
       ) : (
-        <div className="relative">
-          <label htmlFor="checkin-search" className="sr-only">
+        <div {...stylex.props(styles.searchWrap)}>
+          <label htmlFor="checkin-search" {...stylex.props(styles.srOnly)}>
             {t('manual.searchLabel')}
           </label>
-          <Icon
-            name="search"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
-          />
+          <Icon name="search" {...stylex.props(styles.searchIcon)} />
           <input
             id="checkin-search"
             ref={searchInputRef}
@@ -343,44 +842,38 @@ function ManualCheckInCard({
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={t('manual.searchPlaceholder')}
-            className="h-11 w-full rounded-field border border-ink-200 bg-white pl-10 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+            {...stylex.props(styles.searchInput)}
           />
 
           {searchError ? (
-            <p role="alert" className="mt-2 text-sm text-danger-600 dark:text-danger-300">
+            <p role="alert" {...stylex.props(styles.alertText)}>
               {searchError}
             </p>
           ) : null}
 
           {query.trim() !== '' && !searchError ? (
-            <div className="mt-2 overflow-hidden rounded-card border border-ink-200 dark:border-white/10">
+            <div {...stylex.props(styles.dropdown)}>
               {searching && results.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-ink-500 dark:text-ink-400">
-                  {t('manual.searching')}
-                </p>
+                <p {...stylex.props(styles.dropdownMsg)}>{t('manual.searching')}</p>
               ) : results.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-ink-500 dark:text-ink-400">
+                <p {...stylex.props(styles.dropdownMsg)}>
                   {t('manual.noMatch', { query: query.trim() })}
                 </p>
               ) : (
-                <ul className="divide-y divide-ink-100 dark:divide-white/5">
+                <ul {...stylex.props(styles.resultList)}>
                   {results.map((member) => (
-                    <li key={member.id}>
+                    <li key={member.id} {...stylex.props(styles.resultItem)}>
                       <button
                         type="button"
                         onClick={() => void pick(member)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-ink-50 dark:hover:bg-white/5"
+                        {...stylex.props(styles.resultBtn)}
                       >
                         <MemberAvatar name={member.name} photoUrl={member.photoUrl} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
-                            {member.name}
-                          </span>
-                          <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
-                            {member.email}
-                          </span>
+                        <span {...stylex.props(styles.infoCol)}>
+                          <span {...stylex.props(styles.resultName)}>{member.name}</span>
+                          <span {...stylex.props(styles.resultEmail)}>{member.email}</span>
                         </span>
-                        <Icon name="arrow" className="h-4 w-4 text-ink-300 dark:text-ink-600" />
+                        <Icon name="arrow" {...stylex.props(styles.arrowIcon)} />
                       </button>
                     </li>
                   ))}
@@ -418,12 +911,12 @@ function EligibilityCard({
     ? { tone: ELIGIBILITY_TONES[eligibility.status], label: t(`eligibility.${eligibility.status}`) }
     : null;
   return (
-    <div className="flex flex-col gap-4 rounded-card border border-ink-200 bg-ink-50/60 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-      <div className="flex items-center gap-3">
-        <MemberAvatar name={member.name} photoUrl={member.photoUrl} size="h-11 w-11" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-ink-900 dark:text-white">{member.name}</p>
-          <p className="truncate text-xs text-ink-500 dark:text-ink-400">{member.email}</p>
+    <div {...stylex.props(styles.eligPanel)}>
+      <div {...stylex.props(styles.eligHead)}>
+        <MemberAvatar name={member.name} photoUrl={member.photoUrl} size="md" />
+        <div {...stylex.props(styles.infoCol)}>
+          <p {...stylex.props(styles.eligName)}>{member.name}</p>
+          <p {...stylex.props(styles.eligEmail)}>{member.email}</p>
         </div>
         {loading ? (
           <Badge tone="ink">{t('eligibility.checking')}</Badge>
@@ -433,18 +926,14 @@ function EligibilityCard({
       </div>
 
       {eligibility ? (
-        <dl className="grid grid-cols-2 gap-3 text-sm">
-          <div className="flex flex-col gap-0.5">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
-              {t('eligibility.plan')}
-            </dt>
-            <dd className="text-ink-900 dark:text-white">{eligibility.planName ?? '—'}</dd>
+        <dl {...stylex.props(styles.eligDl)}>
+          <div {...stylex.props(styles.eligCol)}>
+            <dt {...stylex.props(styles.eligDt)}>{t('eligibility.plan')}</dt>
+            <dd {...stylex.props(styles.eligDd)}>{eligibility.planName ?? '—'}</dd>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
-              {t('eligibility.access')}
-            </dt>
-            <dd className="text-ink-900 dark:text-white">
+          <div {...stylex.props(styles.eligCol)}>
+            <dt {...stylex.props(styles.eligDt)}>{t('eligibility.access')}</dt>
+            <dd {...stylex.props(styles.eligDd)}>
               {eligibility.status === 'ACTIVE' ? t('eligibility.granted') : t('eligibility.review')}
             </dd>
           </div>
@@ -452,20 +941,20 @@ function EligibilityCard({
       ) : null}
 
       {eligibility && eligibility.status !== 'ACTIVE' ? (
-        <p className="rounded-btn bg-warning-50 px-3 py-2 text-xs text-warning-800 dark:bg-warning-500/10 dark:text-warning-200">
+        <p {...stylex.props(styles.eligWarning)}>
           {eligibility.status === 'FROZEN'
             ? t('eligibility.frozenWarning')
             : t('eligibility.inactiveWarning')}
         </p>
       ) : null}
 
-      <div className="flex items-center gap-2">
+      <div {...stylex.props(styles.eligActions)}>
         <Btn
           v="primary"
           icon="check"
           onClick={onCheckIn}
           disabled={!canCheckIn || loading || checkingIn}
-          className="flex-1"
+          {...stylex.props(styles.grow)}
         >
           {checkingIn ? t('eligibility.checkingIn') : t('eligibility.checkIn')}
         </Btn>
@@ -473,7 +962,7 @@ function EligibilityCard({
           {t('eligibility.cancel')}
         </Btn>
       </div>
-      {!canCheckIn ? <p className="text-xs text-ink-400">{t('eligibility.readOnly')}</p> : null}
+      {!canCheckIn ? <p {...stylex.props(styles.readOnly)}>{t('eligibility.readOnly')}</p> : null}
     </div>
   );
 }
@@ -482,33 +971,29 @@ function EligibilityCard({
 function ArrivalsCard({ arrivals, t }: { arrivals: CheckInRow[]; t: T }) {
   const locale = useLocale();
   return (
-    <Card className="flex h-full flex-col p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">
-          {t('arrivals.title')}
-        </h2>
+    <Card variant="default" padding={0} xstyle={styles.arrivalsCard}>
+      <div {...stylex.props(styles.arrivalsHead)}>
+        <h2 {...stylex.props(styles.cardTitle)}>{t('arrivals.title')}</h2>
         <Badge tone="ink">{t('arrivals.count', { count: arrivals.length })}</Badge>
       </div>
 
       {arrivals.length === 0 ? (
-        <div className="grid flex-1 place-items-center py-12 text-center">
-          <div className="flex flex-col items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-400 dark:bg-white/5">
-              <Icon name="users" className="h-6 w-6" />
+        <div {...stylex.props(styles.emptyWrap)}>
+          <div {...stylex.props(styles.emptyInner)}>
+            <span {...stylex.props(styles.emptyIcon)}>
+              <Icon name="users" {...stylex.props(styles.icon6)} />
             </span>
-            <p className="text-sm text-ink-500 dark:text-ink-400">{t('arrivals.empty')}</p>
+            <p {...stylex.props(styles.cardSubtitle)}>{t('arrivals.empty')}</p>
           </div>
         </div>
       ) : (
-        <ul className="flex flex-col divide-y divide-ink-100 dark:divide-white/5">
+        <ul {...stylex.props(styles.arrivalsList)}>
           {arrivals.map((arrival) => (
-            <li key={arrival.id} className="flex items-center gap-3 py-3">
+            <li key={arrival.id} {...stylex.props(styles.arrivalRow)}>
               <MemberAvatar name={arrival.name} photoUrl={arrival.photoUrl} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink-900 dark:text-white">
-                  {arrival.name}
-                </p>
-                <p className="text-xs text-ink-500 dark:text-ink-400">
+              <div {...stylex.props(styles.infoCol)}>
+                <p {...stylex.props(styles.arrivalName)}>{arrival.name}</p>
+                <p {...stylex.props(styles.arrivalTime)}>
                   {timeAgo(arrival.checkedInAt, t, locale)}
                 </p>
               </div>
@@ -529,26 +1014,18 @@ function ArrivalsCard({ arrivals, t }: { arrivals: CheckInRow[]; t: T }) {
 function MemberAvatar({
   name,
   photoUrl,
-  size = 'h-9 w-9',
+  size = 'sm',
 }: {
   name: string;
   photoUrl: string | null;
-  size?: string;
+  size?: 'sm' | 'md';
 }) {
+  const sizeStyle = size === 'md' ? styles.avatarMd : styles.avatarSm;
   if (photoUrl) {
-    return (
-      <img
-        src={photoUrl}
-        alt=""
-        className={`${size} shrink-0 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10`}
-      />
-    );
+    return <img src={photoUrl} alt="" {...stylex.props(styles.avatarImg, sizeStyle)} />;
   }
   return (
-    <span
-      aria-hidden
-      className={`${size} grid shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-200`}
-    >
+    <span aria-hidden {...stylex.props(styles.avatarFallback, sizeStyle)}>
       {initials(name)}
     </span>
   );

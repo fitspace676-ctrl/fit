@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchClassTemplate } from '@/lib/api';
-import { Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 import { ClassTemplateForm } from '../../class-template-form';
 import { loadRelationOptions } from '../../options';
 
@@ -14,6 +16,72 @@ export const metadata: Metadata = {
 
 // Reflects the staff session and writes live template state — never cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  errorPage: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-accent)',
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * Edit-a-class-template page (T5.2). Like {@link NewClassTemplatePage} it gates on
@@ -46,20 +114,14 @@ export default async function EditClassTemplatePage({
         ? `Could not load this class (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/classes"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <div {...stylex.props(styles.errorPage)}>
+        <Link href="/classes" {...stylex.props(styles.backLink)}>
+          <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to classes
         </Link>
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
           </p>
         </Card>
@@ -70,20 +132,15 @@ export default async function EditClassTemplatePage({
   const { trainers, locations } = await loadRelationOptions();
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href={`/classes/${id}`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+    <div {...stylex.props(styles.page)}>
+      <Link href={`/classes/${id}`} {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         Back to class
       </Link>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Edit class
-        </h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>Edit class</h1>
+        <p {...stylex.props(styles.subtitle)}>
           Update {template.title}’s details, schedule, capacity, duration, and default trainer and
           location.
         </p>
