@@ -4,6 +4,8 @@ import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type {
   MemberBillingState,
   MemberPlan,
@@ -14,7 +16,17 @@ import type {
   MemberTabCounts,
   SortDir,
 } from '@fit/types';
-import { Badge, Btn, Card, Icon, type Tone } from '@/components/ui';
+import {
+  Badge,
+  Btn,
+  DataTable,
+  FilterChips,
+  Icon,
+  nextSortDir,
+  type Column,
+  type FilterChip,
+  type Tone,
+} from '@/components/ui';
 import { MembersFilters } from './members-filters';
 import { bulkExportMembersAction } from './actions';
 
@@ -28,33 +40,294 @@ const STATUS_TONES: Record<MemberStatus, Tone> = {
   SUSPENDED: 'warning',
 };
 
-/** The engine gradient shared by the active tab (Planflow "formacore"). */
-const ENGINE_GRADIENT = 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)]';
+/** Fallback plan colour (brand accent) when a plan carries no colour of its own. */
+const PLAN_FALLBACK = '#6257E3';
 
 /**
  * The roster's segmented tabs, mapped to the `status` URL param. "All" clears the
  * filter; the others pin a `GymMemberStatus`. Counts come from the gym-wide
  * response so each tab shows its total. "Frozen" is a subscription-derived count
- * with no `GymMemberStatus`, so it's shown as a read-only count (no filter param).
+ * with no `GymMemberStatus`, so selecting it clears the status filter (read-only).
  */
 const TABS: ReadonlyArray<{
   labelKey: string;
-  status: MemberStatus | '';
+  value: string;
   countKey: keyof MemberTabCounts;
 }> = [
-  { labelKey: 'all', status: '', countKey: 'all' },
-  { labelKey: 'active', status: 'ACTIVE', countKey: 'active' },
-  { labelKey: 'frozen', status: '', countKey: 'frozen' },
-  { labelKey: 'trial', status: 'INVITED', countKey: 'trial' },
-  { labelKey: 'expired', status: 'SUSPENDED', countKey: 'expired' },
+  { labelKey: 'all', value: '', countKey: 'all' },
+  { labelKey: 'active', value: 'ACTIVE', countKey: 'active' },
+  { labelKey: 'frozen', value: 'frozen', countKey: 'frozen' },
+  { labelKey: 'trial', value: 'INVITED', countKey: 'trial' },
+  { labelKey: 'expired', value: 'SUSPENDED', countKey: 'expired' },
 ];
 
-/** Sortable columns, in render order; header labels come from `columns.<key>`. */
-const SORTABLE: ReadonlyArray<{ key: MemberSort }> = [
-  { key: 'name' },
-  { key: 'status' },
-  { key: 'lastVisitAt' },
-];
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  planCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1.25rem',
+  },
+  planHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  planLabel: {
+    margin: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  planMeta: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  planEmpty: {
+    display: 'grid',
+    minHeight: '4rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'var(--color-border)',
+    paddingInline: '1rem',
+    paddingBlock: '1rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  planBar: {
+    display: 'flex',
+    height: '0.75rem',
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  planSeg: {
+    height: '100%',
+  },
+  planLegend: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    columnGap: '1.25rem',
+    rowGap: '0.5rem',
+  },
+  legendItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  swatch: {
+    display: 'inline-block',
+    height: '0.625rem',
+    width: '0.625rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  legendName: {
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  legendCount: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  toolbar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  clearBtn: {
+    borderWidth: 0,
+    background: 'none',
+    cursor: 'pointer',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  noticeCard: {
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  noticeText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-accent)',
+  },
+  errorCard: {
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  nameCell: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  avatar: {
+    display: 'grid',
+    height: '2.25rem',
+    width: '2.25rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    color: 'var(--color-text-accent)',
+  },
+  nameCol: {
+    minWidth: 0,
+  },
+  nameLink: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-primary)',
+  },
+  emailText: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  lastVisit: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  planWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  planDot: {
+    display: 'inline-block',
+    height: '0.625rem',
+    width: '0.625rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  planCellName: {
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  planCellDetail: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  muted: {
+    color: 'var(--color-text-secondary)',
+  },
+  overduePill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-warning-muted)',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-warning)',
+  },
+  overdueDot: {
+    height: '0.375rem',
+    width: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-warning)',
+  },
+  billingMono: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  actionLink: {
+    display: 'grid',
+    height: '2rem',
+    width: '2rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    color: 'var(--color-text-secondary)',
+    textDecoration: 'none',
+  },
+  actionGlyph: {
+    fontSize: '1.125rem',
+    lineHeight: 1,
+  },
+  emptyWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.75rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    display: 'grid',
+    height: '3rem',
+    width: '3rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  emptyIconSvg: {
+    width: '1.5rem',
+    height: '1.5rem',
+  },
+  emptyTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  emptyHint: {
+    margin: 0,
+    maxWidth: '24rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerCount: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  pagerBtns: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+});
 
 /** A status pill mirroring the roster styling. */
 function StatusPill({ status }: { status: MemberStatus }) {
@@ -115,20 +388,20 @@ function NextBillingCell({
   switch (row.billingState) {
     case 'overdue':
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        <span {...stylex.props(styles.overduePill)}>
+          <span aria-hidden {...stylex.props(styles.overdueDot)} />
           {t('billing.overdue')}
         </span>
       );
     case 'paused':
-      return <span className="text-ink-400 dark:text-ink-500">{t('billing.paused')}</span>;
+      return <span {...stylex.props(styles.muted)}>{t('billing.paused')}</span>;
     case 'due':
       return (
-        <span className="font-mono tabular-nums">{formatDate(row.nextBillingAt, locale)}</span>
+        <span {...stylex.props(styles.billingMono)}>{formatDate(row.nextBillingAt, locale)}</span>
       );
     case 'none':
     default:
-      return <span className="font-mono tabular-nums">—</span>;
+      return <span {...stylex.props(styles.billingMono)}>—</span>;
   }
 }
 
@@ -136,17 +409,17 @@ function NextBillingCell({
 function PlanCell({ plan }: { plan: MemberPlan | null }) {
   const t = useTranslations('admin.members');
   if (!plan) {
-    return <span className="text-ink-400 dark:text-ink-500">{t('list.noPlan')}</span>;
+    return <span {...stylex.props(styles.muted)}>{t('list.noPlan')}</span>;
   }
   return (
-    <div className="flex items-center gap-2">
+    <div {...stylex.props(styles.planWrap)}>
       <span
         aria-hidden
-        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-        style={{ backgroundColor: plan.color ?? '#7C3AED' }}
+        {...stylex.props(styles.planDot)}
+        style={{ backgroundColor: plan.color ?? PLAN_FALLBACK }}
       />
-      <span className="font-medium text-ink-800 dark:text-ink-100">{plan.name}</span>
-      <span className="text-xs text-ink-400 dark:text-ink-500">{plan.detail}</span>
+      <span {...stylex.props(styles.planCellName)}>{plan.name}</span>
+      <span {...stylex.props(styles.planCellDetail)}>{plan.detail}</span>
     </div>
   );
 }
@@ -156,47 +429,41 @@ function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
   const t = useTranslations('admin.members');
   const { total, plans } = planMix;
   return (
-    <Card glow className="flex flex-col gap-4 p-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-          {t('list.planMix')}
-        </h2>
-        <span className="font-mono text-xs tabular-nums text-ink-400">
+    <Card variant="default" padding={0} xstyle={styles.planCard}>
+      <div {...stylex.props(styles.planHead)}>
+        <h2 {...stylex.props(styles.planLabel)}>{t('list.planMix')}</h2>
+        <span {...stylex.props(styles.planMeta)}>
           {total} {t('list.paid')}
         </span>
       </div>
 
       {total === 0 ? (
-        <div className="grid min-h-16 place-items-center rounded-field border border-dashed border-ink-200 px-4 py-4 text-center text-sm text-ink-400 dark:border-white/10 dark:text-ink-500">
-          {t('list.planMixEmpty')}
-        </div>
+        <div {...stylex.props(styles.planEmpty)}>{t('list.planMixEmpty')}</div>
       ) : (
         <>
-          <div className="flex h-3 w-full overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
+          <div {...stylex.props(styles.planBar)}>
             {plans.map((slice) => (
               <span
                 key={slice.planId ?? slice.name}
-                className="h-full first:rounded-l-pill last:rounded-r-pill"
+                {...stylex.props(styles.planSeg)}
                 style={{
                   width: `${(slice.count / total) * 100}%`,
-                  backgroundColor: slice.color ?? '#7C3AED',
+                  backgroundColor: slice.color ?? PLAN_FALLBACK,
                 }}
                 title={`${slice.name}: ${slice.count}`}
               />
             ))}
           </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
+          <div {...stylex.props(styles.planLegend)}>
             {plans.map((slice) => (
-              <div key={slice.planId ?? slice.name} className="flex items-center gap-2">
+              <div key={slice.planId ?? slice.name} {...stylex.props(styles.legendItem)}>
                 <span
                   aria-hidden
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: slice.color ?? '#7C3AED' }}
+                  {...stylex.props(styles.swatch)}
+                  style={{ backgroundColor: slice.color ?? PLAN_FALLBACK }}
                 />
-                <span className="text-sm text-ink-600 dark:text-ink-300">{slice.name}</span>
-                <span className="font-mono text-sm font-semibold tabular-nums text-ink-900 dark:text-white">
-                  {slice.count}
-                </span>
+                <span {...stylex.props(styles.legendName)}>{slice.name}</span>
+                <span {...stylex.props(styles.legendCount)}>{slice.count}</span>
               </div>
             ))}
           </div>
@@ -207,13 +474,13 @@ function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
 }
 
 /**
- * The members roster table (T4.2), reskinned to the Planflow "formacore"
- * reference. Server-rendered data, client-side interaction: the plan-mix bar +
- * segmented tabs (which write `status` to the URL), the search + filter row,
- * row selection feeding the CSV export, sortable column headers, and pagination —
- * all of which read/write the URL search params so the server page stays the
- * single source of truth. The data itself never mutates here; selection is the
- * only local state. Renders correctly with an empty roster.
+ * The members roster table (T4.2), rebuilt on the Astryx DataTable + FilterChips +
+ * TableSearch kit (T11.19). Server-rendered data, client-side interaction: the
+ * plan-mix bar + segmented tabs (which write `status` to the URL), the search +
+ * filter row, row selection feeding the CSV export, sortable column headers, and
+ * pagination — all of which read/write the URL search params so the server page
+ * stays the single source of truth. The data itself never mutates here; selection
+ * is the only local state. Renders correctly with an empty roster.
  */
 export function MembersTable({
   members,
@@ -270,7 +537,9 @@ export function MembersTable({
   }
 
   /** Navigate to a status segment, always resetting to page 1. */
-  function selectTab(nextStatus: MemberStatus | ''): void {
+  function selectTab(nextValue: string): void {
+    // "Frozen" is a read-only count with no status param — clear the filter.
+    const nextStatus = nextValue === 'frozen' ? '' : nextValue;
     startTransition(() => router.replace(hrefWith({ status: nextStatus, page: '' })));
   }
 
@@ -317,63 +586,112 @@ export function MembersTable({
   }
 
   /** Toggle sort on a column: same column flips direction, a new column starts ascending. */
-  function sortHref(key: MemberSort): string {
-    const nextDir: SortDir = sort === key && dir === 'asc' ? 'desc' : 'asc';
-    return hrefWith({ sort: key, dir: nextDir });
+  function onSort(key: string): void {
+    const nextDir = nextSortDir(sort === key, dir);
+    startTransition(() => router.replace(hrefWith({ sort: key, dir: nextDir })));
   }
 
-  /** The arrow glyph shown next to the active sort column. */
-  function sortIndicator(key: MemberSort): string {
-    if (sort !== key) return '';
-    return dir === 'asc' ? ' ▲' : ' ▼';
-  }
+  const chips: FilterChip[] = TABS.map((tab) => ({
+    label: t(`tabs.${tab.labelKey}`),
+    value: tab.value,
+    count: counts[tab.countKey],
+  }));
+
+  const columns: ReadonlyArray<Column<MemberRow>> = [
+    {
+      key: 'name',
+      header: t('columns.name'),
+      sortKey: 'name',
+      cell: (member) => (
+        <div {...stylex.props(styles.nameCell)}>
+          <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
+          <div {...stylex.props(styles.nameCol)}>
+            <Link href={`/members/${member.id}`} {...stylex.props(styles.nameLink)}>
+              {member.name}
+            </Link>
+            <div {...stylex.props(styles.emailText)}>{member.email}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: t('columns.status'),
+      sortKey: 'status',
+      cell: (member) => <StatusPill status={member.status} />,
+    },
+    {
+      key: 'lastVisitAt',
+      header: t('columns.lastVisitAt'),
+      sortKey: 'lastVisitAt',
+      cell: (member) => (
+        <span {...stylex.props(styles.lastVisit)}>
+          {formatLastVisit(member.lastVisitAt, t, locale)}
+        </span>
+      ),
+    },
+    {
+      key: 'plan',
+      header: t('list.columnPlan'),
+      cell: (member) => <PlanCell plan={member.plan} />,
+    },
+    {
+      key: 'nextBilling',
+      header: t('list.columnNextBilling'),
+      cell: (member) => <NextBillingCell row={member} t={t} locale={locale} />,
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: (member) => (
+        <Link
+          href={`/members/${member.id}`}
+          aria-label={t('list.openMember', { name: member.name })}
+          {...stylex.props(styles.actionLink)}
+        >
+          <span aria-hidden {...stylex.props(styles.actionGlyph)}>
+            ⋯
+          </span>
+        </Link>
+      ),
+    },
+  ];
 
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to = Math.min(page * limit, total);
   const hasPrev = page > 1;
   const hasNext = page * limit < total;
 
+  const emptyState = (
+    <div {...stylex.props(styles.emptyWrap)}>
+      <span {...stylex.props(styles.emptyIcon)}>
+        <Icon name="users" {...stylex.props(styles.emptyIconSvg)} />
+      </span>
+      <p {...stylex.props(styles.emptyTitle)}>{t('list.emptyTitle')}</p>
+      <p {...stylex.props(styles.emptyHint)}>
+        {canWrite ? t('list.emptyHintWrite') : t('list.emptyHintRead')}
+      </p>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col gap-6">
+    <div {...stylex.props(styles.stack)}>
       <PlanMixCard planMix={planMix} />
 
       {/* Segmented tabs-with-counts. */}
-      <div
-        role="tablist"
-        aria-label={t('list.tablistLabel')}
-        className="inline-flex w-fit flex-wrap gap-1 rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
-      >
-        {TABS.map((tab) => {
-          const active = tab.status === status || (tab.labelKey === 'all' && status === '');
-          return (
-            <button
-              key={tab.labelKey}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => selectTab(tab.status)}
-              className={`inline-flex items-center gap-1.5 rounded-btn px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                active
-                  ? `${ENGINE_GRADIENT} text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]`
-                  : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
-              }`}
-            >
-              {t(`tabs.${tab.labelKey}`)}
-              <span
-                className={`font-mono text-xs tabular-nums ${active ? 'text-white/80' : 'text-ink-400'}`}
-              >
-                {counts[tab.countKey]}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <FilterChips
+        chips={chips}
+        active={status}
+        onSelect={selectTab}
+        ariaLabel={t('list.tablistLabel')}
+      />
 
       {/* Search + Filter row. */}
       <MembersFilters search={search} status={status} />
 
       {/* Selection + export toolbar. */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div {...stylex.props(styles.toolbar)}>
         <Btn v="outline" size="sm" icon="download" onClick={exportSelected} disabled={exporting}>
           {exporting
             ? t('list.exportStarting')
@@ -385,7 +703,7 @@ export function MembersTable({
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="text-xs font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
+            {...stylex.props(styles.clearBtn)}
           >
             {t('list.clearSelection')}
           </button>
@@ -393,139 +711,42 @@ export function MembersTable({
       </div>
 
       {exportNote ? (
-        <Card className="bg-brand-50 px-3 py-2 dark:bg-brand-500/10">
-          <p role="status" className="text-sm text-brand-700 dark:text-brand-200">
+        <Card variant="default" padding={0} xstyle={styles.noticeCard}>
+          <p role="status" {...stylex.props(styles.noticeText)}>
             {exportNote}
           </p>
         </Card>
       ) : null}
       {exportError ? (
-        <Card className="bg-danger-50 px-3 py-2 dark:bg-danger-500/10">
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {exportError}
           </p>
         </Card>
       ) : null}
 
-      {members.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 px-4 py-14 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-            <Icon name="users" className="h-6 w-6" />
-          </span>
-          <p className="text-sm font-medium text-ink-700 dark:text-ink-200">
-            {t('list.emptyTitle')}
-          </p>
-          <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
-            {canWrite ? t('list.emptyHintWrite') : t('list.emptyHintRead')}
-          </p>
-        </Card>
-      ) : (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-ink-100 dark:border-white/10">
-                  <th className="w-10 py-3 pl-5 pr-4">
-                    <input
-                      type="checkbox"
-                      aria-label={t('list.selectAll')}
-                      checked={allSelected}
-                      onChange={toggleAll}
-                      className="h-4 w-4 rounded border-ink-300 dark:border-white/20"
-                    />
-                  </th>
-                  {SORTABLE.map((column) => (
-                    <th
-                      key={column.key}
-                      className="py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
-                    >
-                      <Link
-                        href={sortHref(column.key)}
-                        scroll={false}
-                        className="inline-flex items-center hover:text-ink-600 dark:hover:text-ink-200"
-                      >
-                        {t(`columns.${column.key}`)}
-                        <span aria-hidden>{sortIndicator(column.key)}</span>
-                      </Link>
-                    </th>
-                  ))}
-                  <th className="py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    {t('list.columnPlan')}
-                  </th>
-                  <th className="py-3 pr-4 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    {t('list.columnNextBilling')}
-                  </th>
-                  <th className="w-10 py-3 pr-5" aria-label={t('list.rowActions')} />
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => (
-                  <tr
-                    key={member.id}
-                    className="border-b border-ink-50 last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
-                  >
-                    <td className="py-3 pl-5 pr-4">
-                      <input
-                        type="checkbox"
-                        aria-label={t('list.selectMember', { name: member.name })}
-                        checked={selected.has(member.id)}
-                        onChange={() => toggleRow(member.id)}
-                        className="h-4 w-4 rounded border-ink-300 dark:border-white/20"
-                      />
-                    </td>
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-3">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-200">
-                          {initialsOf(member.name)}
-                        </span>
-                        <div className="min-w-0">
-                          <Link
-                            href={`/members/${member.id}`}
-                            className="block truncate font-medium text-ink-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300"
-                          >
-                            {member.name}
-                          </Link>
-                          <div className="truncate text-xs text-ink-500 dark:text-ink-400">
-                            {member.email}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <StatusPill status={member.status} />
-                    </td>
-                    <td className="py-3 pr-4 font-mono tabular-nums text-ink-700 dark:text-ink-200">
-                      {formatLastVisit(member.lastVisitAt, t, locale)}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <PlanCell plan={member.plan} />
-                    </td>
-                    <td className="py-3 pr-4 text-ink-700 dark:text-ink-200">
-                      <NextBillingCell row={member} t={t} locale={locale} />
-                    </td>
-                    <td className="py-3 pr-5">
-                      <Link
-                        href={`/members/${member.id}`}
-                        aria-label={t('list.openMember', { name: member.name })}
-                        className="grid h-8 w-8 place-items-center rounded-btn text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 dark:hover:bg-white/5 dark:hover:text-white"
-                      >
-                        <span aria-hidden className="text-lg leading-none">
-                          ⋯
-                        </span>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      <DataTable<MemberRow>
+        columns={columns}
+        rows={members}
+        rowKey={(member) => member.id}
+        sort={sort}
+        dir={dir}
+        onSort={onSort}
+        selection={{
+          selectedIds: selected,
+          allSelected,
+          onToggle: toggleRow,
+          onToggleAll: toggleAll,
+          selectAllLabel: t('list.selectAll'),
+        }}
+        empty={emptyState}
+        caption={t('list.tablistLabel')}
+      />
 
       {/* Footer + pager. */}
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="font-mono tabular-nums">{t('list.showing', { from, to, total })}</span>
-        <div className="flex gap-2">
+      <div {...stylex.props(styles.pagerRow)}>
+        <span {...stylex.props(styles.pagerCount)}>{t('list.showing', { from, to, total })}</span>
+        <div {...stylex.props(styles.pagerBtns)}>
           <Btn
             v="outline"
             size="sm"

@@ -4,13 +4,16 @@ import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import type { AdminTrainerRow, AdminTrainerSummary, TrainerStatus } from '@fit/types';
-import { Badge, Btn, Card, CountUp, Icon, type IconName, type Tone } from '@/components/ui';
+import { Btn, CountUp, Icon, type IconName } from '@/components/ui';
 
 type T = ReturnType<typeof useTranslations>;
 
-/** Tone treatment per trainer status — success active, warning inactive. */
-const STATUS_TONES: Record<TrainerStatus, Tone> = {
+/** Astryx badge variant per trainer status — success active, warning inactive. */
+const STATUS_VARIANTS: Record<TrainerStatus, BadgeVariant> = {
   ACTIVE: 'success',
   INACTIVE: 'warning',
 };
@@ -21,8 +24,416 @@ const STATUS_LABEL_KEYS: Record<TrainerStatus, string> = {
   INACTIVE: 'status.onLeave',
 };
 
-/** The engine gradient shared by the primary controls (Planflow "formacore"). */
-const ENGINE_GRADIENT = 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)]';
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  kpiGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(4, minmax(0, 1fr))',
+    },
+  },
+  kpiCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    padding: '1.25rem',
+  },
+  iconTile: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  icon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  kpiValue: {
+    margin: 0,
+    marginTop: '1rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  kpiLabel: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  kpiContext: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  controls: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 1024px)': 'row',
+    },
+    gap: '0.75rem',
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 1024px)': 'center',
+    },
+    justifyContent: {
+      default: 'flex-start',
+      '@media (min-width: 1024px)': 'space-between',
+    },
+  },
+  segmentList: {
+    display: 'inline-flex',
+    flexWrap: 'wrap',
+    gap: '0.25rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '0.25rem',
+  },
+  segBtn: {
+    borderStyle: 'none',
+    borderRadius: 'var(--radius-inner)',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transitionProperty: 'color, background-color',
+    transitionDuration: '150ms',
+  },
+  segBtnActive: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  segBtnInactive: {
+    backgroundColor: 'transparent',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  searchWrap: {
+    position: 'relative',
+    width: {
+      default: 'auto',
+      '@media (min-width: 1024px)': '18rem',
+    },
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  searchIcon: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    insetBlock: 0,
+    left: '0.75rem',
+    display: 'flex',
+    alignItems: 'center',
+    color: 'var(--color-text-secondary)',
+  },
+  searchIconSvg: {
+    width: '1rem',
+    height: '1rem',
+  },
+  searchInput: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingLeft: '2.25rem',
+    paddingRight: '0.875rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  cardGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1280px)': 'repeat(2, minmax(0, 1fr))',
+    },
+  },
+  trainerCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1.25rem',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-accent)',
+    },
+    transitionProperty: 'border-color',
+    transitionDuration: '150ms',
+  },
+  cardTop: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+  },
+  avatarImg: {
+    height: '3rem',
+    width: '3rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    objectFit: 'cover',
+  },
+  avatarFallback: {
+    display: 'flex',
+    height: '3rem',
+    width: '3rem',
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
+  cardBody: {
+    minWidth: 0,
+    flex: 1,
+  },
+  nameRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  nameLink: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+  },
+  headline: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  ratingRow: {
+    marginTop: '0.25rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  starIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+    color: 'var(--color-warning)',
+  },
+  ratingValue: {
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  kebab: {
+    display: 'grid',
+    height: '2rem',
+    width: '2rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  kebabDot: {
+    fontSize: '1.125rem',
+    lineHeight: 1,
+  },
+  tagRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.375rem',
+  },
+  tag: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  statGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.5rem',
+  },
+  statTile: {
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+  },
+  statValue: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    lineHeight: 1,
+    color: 'var(--color-text-primary)',
+  },
+  statLabel: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.625rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'var(--color-text-secondary)',
+  },
+  footer: {
+    marginTop: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '0.75rem',
+    fontSize: '0.75rem',
+  },
+  footerMeta: {
+    display: 'flex',
+    minWidth: 0,
+    alignItems: 'center',
+    gap: '0.375rem',
+    color: 'var(--color-text-secondary)',
+  },
+  smIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+    flexShrink: 0,
+  },
+  truncate: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  viewLink: {
+    flexShrink: 0,
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  emptyCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
+    paddingInline: '1rem',
+    paddingBlock: '3.5rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    display: 'grid',
+    height: '3rem',
+    width: '3rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  emptyIconSvg: {
+    width: '1.5rem',
+    height: '1.5rem',
+  },
+  emptyTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  emptyHint: {
+    margin: 0,
+    maxWidth: '24rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  noMatchCard: {
+    paddingInline: '1rem',
+    paddingBlock: '3rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pager: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pageRange: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  pagerBtns: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+});
 
 /** Render a trainer's initials for the avatar placeholder. */
 function initialsOf(name: string): string {
@@ -65,17 +476,15 @@ function KpiCard({
   decimals?: boolean;
 }) {
   return (
-    <Card className="flex h-full flex-col p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+      <span {...stylex.props(styles.iconTile)}>
+        <Icon name={icon} {...stylex.props(styles.icon)} />
       </span>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+      <p {...stylex.props(styles.kpiValue)}>
         {decimals ? value.toFixed(1) : <CountUp to={value} />}
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {label}
-      </p>
-      <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">{context}</p>
+      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
+      <p {...stylex.props(styles.kpiContext)}>{context}</p>
     </Card>
   );
 }
@@ -83,13 +492,9 @@ function KpiCard({
 /** A compact stat tile inside a trainer card (Classes / wk · PT clients). */
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-btn border border-ink-100 bg-ink-50/60 px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
-      <p className="font-display text-lg font-extrabold tabular-nums leading-none text-ink-900 dark:text-white">
-        {value}
-      </p>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-400">
-        {label}
-      </p>
+    <div {...stylex.props(styles.statTile)}>
+      <p {...stylex.props(styles.statValue)}>{value}</p>
+      <p {...stylex.props(styles.statLabel)}>{label}</p>
     </div>
   );
 }
@@ -97,86 +502,68 @@ function StatTile({ label, value }: { label: string; value: string }) {
 /** A single trainer card in the 2-up grid. */
 function TrainerCard({ trainer, t, locale }: { trainer: AdminTrainerRow; t: T; locale: string }) {
   return (
-    <Card className="flex flex-col gap-4 p-5 transition-colors hover:border-brand-300 dark:hover:border-brand-500/50">
-      <div className="flex items-start gap-3">
+    <Card variant="default" padding={0} xstyle={styles.trainerCard}>
+      <div {...stylex.props(styles.cardTop)}>
         {trainer.photoUrl ? (
-          <img
-            src={trainer.photoUrl}
-            alt=""
-            className="h-12 w-12 rounded-full object-cover ring-1 ring-ink-200 dark:ring-white/10"
-          />
+          <img src={trainer.photoUrl} alt="" {...stylex.props(styles.avatarImg)} />
         ) : (
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
-            {initialsOf(trainer.name)}
-          </span>
+          <span {...stylex.props(styles.avatarFallback)}>{initialsOf(trainer.name)}</span>
         )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/trainers/${trainer.id}`}
-              className="truncate font-semibold text-ink-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
-            >
+        <div {...stylex.props(styles.cardBody)}>
+          <div {...stylex.props(styles.nameRow)}>
+            <Link href={`/trainers/${trainer.id}`} {...stylex.props(styles.nameLink)}>
               {trainer.name}
             </Link>
-            <Badge tone={STATUS_TONES[trainer.status]}>
-              {t(STATUS_LABEL_KEYS[trainer.status])}
-            </Badge>
+            <Badge
+              variant={STATUS_VARIANTS[trainer.status]}
+              label={t(STATUS_LABEL_KEYS[trainer.status])}
+            />
           </div>
-          {trainer.headline ? (
-            <p className="truncate text-xs text-ink-500 dark:text-ink-400">{trainer.headline}</p>
-          ) : null}
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-500 dark:text-ink-400">
-            <Icon name="star" className="h-3.5 w-3.5 text-amber-500" />
-            <span className="font-semibold tabular-nums text-ink-700 dark:text-ink-200">
-              {trainer.rating.toFixed(1)}
-            </span>
+          {trainer.headline ? <p {...stylex.props(styles.headline)}>{trainer.headline}</p> : null}
+          <div {...stylex.props(styles.ratingRow)}>
+            <Icon name="star" {...stylex.props(styles.starIcon)} />
+            <span {...stylex.props(styles.ratingValue)}>{trainer.rating.toFixed(1)}</span>
             <span>· {t('reviews', { count: trainer.reviewCount })}</span>
           </div>
         </div>
         <Link
           href={`/trainers/${trainer.id}`}
           aria-label={t('list.openTrainer', { name: trainer.name })}
-          className="grid h-8 w-8 place-items-center rounded-btn text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 dark:hover:bg-white/5 dark:hover:text-white"
+          {...stylex.props(styles.kebab)}
         >
-          <span aria-hidden className="text-lg leading-none">
+          <span aria-hidden {...stylex.props(styles.kebabDot)}>
             ⋯
           </span>
         </Link>
       </div>
 
       {trainer.specialties.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div {...stylex.props(styles.tagRow)}>
           {trainer.specialties.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-pill bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600 dark:bg-white/10 dark:text-ink-300"
-            >
+            <span key={tag} {...stylex.props(styles.tag)}>
               {tag}
             </span>
           ))}
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div {...stylex.props(styles.statGrid)}>
         <StatTile label={t('list.statClassesPerWk')} value={String(trainer.classesThisWeek)} />
         <StatTile label={t('list.statReviews')} value={String(trainer.reviewCount)} />
       </div>
 
-      <div className="mt-auto flex items-center justify-between border-t border-ink-100 pt-3 text-xs dark:border-white/10">
-        <span className="flex items-center gap-1.5 text-ink-500 dark:text-ink-400">
-          <Icon name="calendar" className="h-3.5 w-3.5" />
+      <div {...stylex.props(styles.footer)}>
+        <span {...stylex.props(styles.footerMeta)}>
+          <Icon name="calendar" {...stylex.props(styles.smIcon)} />
           {trainer.nextClass ? (
-            <span className="truncate">
+            <span {...stylex.props(styles.truncate)}>
               {formatNextClass(trainer.nextClass.startsAt, t, locale)} · {trainer.nextClass.title}
             </span>
           ) : (
             <span>{t('list.noUpcomingClass')}</span>
           )}
         </span>
-        <Link
-          href={`/trainers/${trainer.id}`}
-          className="shrink-0 font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-        >
+        <Link href={`/trainers/${trainer.id}`} {...stylex.props(styles.viewLink)}>
           {t('list.view')}
         </Link>
       </div>
@@ -254,12 +641,9 @@ export function TrainersRoster({
   const hasNext = page * limit < total;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div {...stylex.props(styles.stack)}>
       {/* Gym-wide KPI cards — real aggregates over the whole filtered roster. */}
-      <section
-        aria-label={t('list.rosterMetricsAria')}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
+      <section aria-label={t('list.rosterMetricsAria')} {...stylex.props(styles.kpiGrid)}>
         <KpiCard
           label={t('list.kpiTrainers')}
           value={summary.total}
@@ -288,11 +672,11 @@ export function TrainersRoster({
       </section>
 
       {/* Specialty segment + search. */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div {...stylex.props(styles.controls)}>
         <div
           role="tablist"
           aria-label={t('list.filterBySpecialtyAria')}
-          className="inline-flex flex-wrap gap-1 rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
+          {...stylex.props(styles.segmentList)}
         >
           {specialties.map((option) => {
             const active = option === specialty;
@@ -303,11 +687,10 @@ export function TrainersRoster({
                 role="tab"
                 aria-selected={active}
                 onClick={() => setSpecialty(option)}
-                className={`rounded-btn px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                  active
-                    ? `${ENGINE_GRADIENT} text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]`
-                    : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
-                }`}
+                {...stylex.props(
+                  styles.segBtn,
+                  active ? styles.segBtnActive : styles.segBtnInactive,
+                )}
               >
                 {option === 'All' ? t('list.filterAll') : option}
               </button>
@@ -315,12 +698,12 @@ export function TrainersRoster({
           })}
         </div>
 
-        <div className="relative lg:w-72">
-          <label htmlFor="trainer-search" className="sr-only">
+        <div {...stylex.props(styles.searchWrap)}>
+          <label htmlFor="trainer-search" {...stylex.props(styles.srOnly)}>
             {t('list.searchLabel')}
           </label>
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-400">
-            <Icon name="search" className="h-4 w-4" />
+          <span {...stylex.props(styles.searchIcon)}>
+            <Icon name="search" {...stylex.props(styles.searchIconSvg)} />
           </span>
           <input
             id="trainer-search"
@@ -328,30 +711,28 @@ export function TrainersRoster({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('list.searchPlaceholder')}
-            className="h-11 w-full rounded-field border border-ink-200 bg-white pl-9 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+            {...stylex.props(styles.searchInput)}
           />
         </div>
       </div>
 
       {/* The 2-up card grid. */}
       {trainers.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 px-4 py-14 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-            <Icon name="users" className="h-6 w-6" />
+        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+          <span {...stylex.props(styles.emptyIcon)}>
+            <Icon name="users" {...stylex.props(styles.emptyIconSvg)} />
           </span>
-          <p className="text-sm font-medium text-ink-700 dark:text-ink-200">
-            {t('list.emptyTitle')}
-          </p>
-          <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
+          <p {...stylex.props(styles.emptyTitle)}>{t('list.emptyTitle')}</p>
+          <p {...stylex.props(styles.emptyHint)}>
             {canWrite ? t('list.emptyHintCanWrite') : t('list.emptyHint')}
           </p>
         </Card>
       ) : visible.length === 0 ? (
-        <Card className="px-4 py-12 text-center text-sm text-ink-500 dark:text-ink-400">
+        <Card variant="default" padding={0} xstyle={styles.noMatchCard}>
           {t('list.noMatch')}
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div {...stylex.props(styles.cardGrid)}>
           {visible.map((trainer) => (
             <TrainerCard key={trainer.id} trainer={trainer} t={t} locale={locale} />
           ))}
@@ -360,9 +741,11 @@ export function TrainersRoster({
 
       {/* Server-side pager (the search/segment are client-side over this page). */}
       {total > limit ? (
-        <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-          <span className="font-mono tabular-nums">{t('list.pageRange', { from, to, total })}</span>
-          <div className="flex gap-2">
+        <div {...stylex.props(styles.pager)}>
+          <span {...stylex.props(styles.pageRange)}>
+            {t('list.pageRange', { from, to, total })}
+          </span>
+          <div {...stylex.props(styles.pagerBtns)}>
             <Btn
               v="outline"
               size="sm"

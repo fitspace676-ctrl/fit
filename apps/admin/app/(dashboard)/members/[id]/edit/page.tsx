@@ -2,10 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchMember } from '@/lib/api';
-import { Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 import { MemberForm } from '../../member-form';
 
 export const metadata: Metadata = {
@@ -14,6 +16,88 @@ export const metadata: Metadata = {
 
 // Reflects the staff session and writes live member state — never cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  errorPage: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  crumbIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  crumbLink: {
+    textDecoration: 'none',
+    color: 'var(--color-text-secondary)',
+  },
+  crumbCurrent: {
+    color: 'var(--color-text-primary)',
+  },
+  backLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-accent)',
+  },
+  backIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    padding: '1rem',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * Edit-a-member page (T4.3). Like {@link NewMemberPage} it gates on the
@@ -44,20 +128,14 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
         ? t('errors.loadMember', { status: error.status, message: error.message })
         : t('errors.apiUnreachable');
     return (
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/members"
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <div {...stylex.props(styles.errorPage)}>
+        <Link href="/members" {...stylex.props(styles.backLink)}>
+          <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           {t('nav.backToMembers')}
         </Link>
-        <Card className="flex items-start gap-3 bg-danger-50 p-4 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
           </p>
         </Card>
@@ -66,39 +144,29 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <nav
-        aria-label={t('breadcrumb.label')}
-        className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
-      >
+    <div {...stylex.props(styles.page)}>
+      <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
         <span>Iron Gym</span>
-        <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <Link href="/members" className="hover:text-ink-600 dark:hover:text-ink-300">
+        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+        <Link href="/members" {...stylex.props(styles.crumbLink)}>
           {t('breadcrumb.members')}
         </Link>
-        <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <Link href={`/members/${id}`} className="hover:text-ink-600 dark:hover:text-ink-300">
+        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+        <Link href={`/members/${id}`} {...stylex.props(styles.crumbLink)}>
           {member.name}
         </Link>
-        <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <span className="text-ink-600 dark:text-ink-300">{t('editPage.breadcrumb')}</span>
+        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+        <span {...stylex.props(styles.crumbCurrent)}>{t('editPage.breadcrumb')}</span>
       </nav>
 
-      <Link
-        href={`/members/${id}`}
-        className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <Icon name="arrowLeft" className="h-4 w-4" sw={2} />
+      <Link href={`/members/${id}`} {...stylex.props(styles.backLink)}>
+        <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         {t('nav.backToMember')}
       </Link>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('editPage.title')}
-        </h1>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          {t('editPage.subtitle', { name: member.name })}
-        </p>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>{t('editPage.title')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('editPage.subtitle', { name: member.name })}</p>
       </header>
 
       <MemberForm

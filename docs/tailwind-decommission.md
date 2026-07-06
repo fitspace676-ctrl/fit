@@ -1,6 +1,6 @@
 # Tailwind decommission plan (T11.6)
 
-_Owner: web platform · Tracks the Astryx + StyleX migration (Epic T11) · Last updated: 2026-07-05_
+_Owner: web platform · Tracks the Astryx + StyleX migration (Epic T11) · Last updated: 2026-07-06_
 
 `apps/web` and `apps/admin` ship **Tailwind CSS 3.4** today. The Astryx design
 system + compiled **StyleX** replaces it (foundation landed in T11.1–T11.5). This
@@ -89,6 +89,8 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/(dashboard)/dashboard-view.tsx`           | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/charts.tsx`                   | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/analytics`                    | T11.18 | ✅     |
+| `apps/admin/app/(dashboard)/members`                      | T11.19 | ✅     |
+| `apps/admin/app/(dashboard)/trainers`                     | T11.19 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
@@ -101,7 +103,6 @@ are files currently using `className=` under each app, as a rough burn-down:
 | Web — shop / cart / checkout                | T11.15                 |
 | Web — account / profile / membership        | T11.16                 |
 | Admin — shell + dashboard                   | T11.17, T11.18         |
-| Admin — members / trainers                  | T11.19                 |
 | Admin — check-in / schedule                 | T11.20                 |
 | Admin — activity / audit / staff / settings | T11.21                 |
 | Admin — commerce (orders/POS/products)      | T11.22                 |
