@@ -76,6 +76,10 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/web/src/components/member/cart`                     | T11.15 | ✅     |
 | `apps/web/app/[locale]/(member)/checkout`                 | T11.15 | ✅     |
 | `apps/web/src/components/checkout`                        | T11.15 | ✅     |
+| `apps/web/app/[locale]/(member)/account/profile`          | T11.16 | ✅     |
+| `apps/web/app/[locale]/(member)/account/membership`       | T11.16 | ✅     |
+| `apps/web/src/components/member/profile`                  | T11.16 | ✅     |
+| `apps/web/src/components/member/notification-bell.tsx`    | T11.16 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:

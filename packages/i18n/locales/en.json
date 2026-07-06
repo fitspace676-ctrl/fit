@@ -877,7 +877,8 @@
         "buying": "Buying…",
         "boughtToast": "{count, plural, one {# credit} other {# credits}} added",
         "errUnavailable": "That pack is no longer available.",
-        "errGeneric": "Something went wrong. Please try again."
+        "errGeneric": "Something went wrong. Please try again.",
+        "close": "Close"
       }
     },
     "profile": {

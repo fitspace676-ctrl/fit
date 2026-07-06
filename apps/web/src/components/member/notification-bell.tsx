@@ -1,9 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { Popover } from '@astryxdesign/core/Popover';
 import { useRouter } from '@/src/i18n/navigation';
 import { Icon, type IconName } from '@/src/components/ui';
+
+// Astryx migration (T11.16): the member notification bell + inbox dropdown is
+// rebuilt on the Astryx `Popover` (button + dialog ARIA pattern, light-dismiss,
+// focus trap) over the Fit brand theme. The trigger, unread pill, inbox rows and
+// empty state are authored in compiled StyleX (`var(--color-*)`), no Tailwind
+// utilities. The `/api/notifications` fetch + mark-read behaviour is unchanged.
 
 /** One inbox row as the `/api/notifications` proxy returns it (mirrors the API's
  * `NotificationDto`). */
@@ -29,15 +37,214 @@ const CATEGORY_ICON: Record<InboxItem['category'], IconName> = {
   SYSTEM: 'info',
 };
 
+const styles = stylex.create({
+  bell: {
+    position: 'relative',
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+    },
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    cursor: 'pointer',
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  bellIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+  unread: {
+    position: 'absolute',
+    right: '-0.125rem',
+    top: '-0.125rem',
+    display: 'grid',
+    placeItems: 'center',
+    height: '18px',
+    minWidth: '18px',
+    paddingInline: '0.25rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    fontSize: '10px',
+    fontWeight: 700,
+    lineHeight: 1,
+    boxShadow: '0 0 0 2px var(--color-background-body)',
+  },
+  panel: {
+    width: '20rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-popover)',
+    boxShadow: 'var(--shadow-high)',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+  },
+  headerTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  markAll: {
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-accent)',
+    },
+    cursor: 'pointer',
+  },
+  empty: {
+    display: 'grid',
+    placeItems: 'center',
+    gap: '0.5rem',
+    paddingInline: '1rem',
+    paddingBlock: '2.5rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    height: '1.5rem',
+    width: '1.5rem',
+    color: 'var(--color-text-disabled)',
+  },
+  emptyText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  list: {
+    maxHeight: '22rem',
+    overflowY: 'auto',
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+  },
+  item: {
+    display: 'flex',
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    borderWidth: 0,
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
+  },
+  itemFirst: {
+    borderTopWidth: 0,
+  },
+  itemRead: {
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-tint-hover)',
+    },
+  },
+  itemUnread: {
+    backgroundColor: {
+      default: 'var(--color-accent-muted)',
+      ':hover': 'var(--color-accent-muted)',
+    },
+  },
+  itemIcon: {
+    marginTop: '0.125rem',
+    display: 'grid',
+    placeItems: 'center',
+    height: '2rem',
+    width: '2rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  itemIconRead: {
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+  },
+  itemIconUnread: {
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  glyph: {
+    height: '1rem',
+    width: '1rem',
+  },
+  body: {
+    minWidth: 0,
+    flex: 1,
+  },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  title: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  dot: {
+    height: '0.375rem',
+    width: '0.375rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+  },
+  text: {
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+    marginTop: '0.125rem',
+    marginBottom: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  time: {
+    display: 'block',
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-disabled)',
+  },
+});
+
 /**
- * Member notification bell + inbox dropdown (T6.10).
+ * Member notification bell + inbox dropdown (T6.10), on the Astryx design system.
  *
  * Loads the caller's recent notifications + unread count from the same-origin
  * `/api/notifications` proxy (which forwards the httpOnly session token to the
- * inbox API, T8.4). The bell shows an unread badge; opening the dropdown lists
- * the items, tapping one marks it read and follows its deep-link, and a header
- * action marks everything read. All reads/writes are best-effort — a failure
- * leaves the bell quietly empty rather than breaking the header.
+ * inbox API, T8.4). The bell shows an unread badge; opening the Astryx `Popover`
+ * lists the items, tapping one marks it read and follows its deep-link, and a
+ * header action marks everything read. All reads/writes are best-effort — a
+ * failure leaves the bell quietly empty rather than breaking the header.
  */
 export function NotificationBell() {
   const t = useTranslations('member.shell');
@@ -62,10 +269,6 @@ export function NotificationBell() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
 
   const markRead = useCallback(async (ids?: string[]) => {
     try {
@@ -97,99 +300,96 @@ export function NotificationBell() {
     }
   };
 
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label={t('notifications')}
-        aria-expanded={open}
-        className="relative grid h-10 w-10 place-items-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
-      >
-        <Icon name="bell" className="h-5 w-5" />
+  const panel = (
+    <div {...stylex.props(styles.panel)}>
+      <div {...stylex.props(styles.header)}>
+        <p {...stylex.props(styles.headerTitle)}>{t('notifications')}</p>
         {unread > 0 && (
-          <span
-            aria-hidden
-            className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white dark:ring-ink-950"
-          >
-            {unread > 9 ? '9+' : unread}
-          </span>
+          <button type="button" onClick={() => void markRead()} {...stylex.props(styles.markAll)}>
+            {t('markAllRead')}
+          </button>
         )}
-      </button>
+      </div>
 
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-hidden
-            tabIndex={-1}
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 cursor-default"
-          />
-          <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-card border border-ink-200 bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-ink-900">
-            <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3 dark:border-white/10">
-              <p className="text-sm font-bold text-ink-900 dark:text-white">{t('notifications')}</p>
-              {unread > 0 && (
+      {items.length === 0 ? (
+        <div {...stylex.props(styles.empty)}>
+          <Icon name="check" {...stylex.props(styles.emptyIcon)} />
+          <p {...stylex.props(styles.emptyText)}>{t('noNotifications')}</p>
+        </div>
+      ) : (
+        <ul {...stylex.props(styles.list)}>
+          {items.map((item, index) => {
+            const read = Boolean(item.readAt);
+            return (
+              <li key={item.id}>
                 <button
                   type="button"
-                  onClick={() => void markRead()}
-                  className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-500 dark:text-brand-400"
+                  onClick={() => onItemClick(item)}
+                  {...stylex.props(
+                    styles.item,
+                    index === 0 && styles.itemFirst,
+                    read ? styles.itemRead : styles.itemUnread,
+                  )}
                 >
-                  {t('markAllRead')}
+                  <span
+                    {...stylex.props(
+                      styles.itemIcon,
+                      read ? styles.itemIconRead : styles.itemIconUnread,
+                    )}
+                  >
+                    <Icon
+                      name={CATEGORY_ICON[item.category]}
+                      {...stylex.props(styles.glyph)}
+                      sw={2.1}
+                    />
+                  </span>
+                  <span {...stylex.props(styles.body)}>
+                    <span {...stylex.props(styles.titleRow)}>
+                      <span {...stylex.props(styles.title)}>{item.title}</span>
+                      {!read && <span aria-hidden {...stylex.props(styles.dot)} />}
+                    </span>
+                    <span {...stylex.props(styles.text)}>{item.body}</span>
+                    <span {...stylex.props(styles.time)}>{formatRelative(item.createdAt)}</span>
+                  </span>
                 </button>
-              )}
-            </div>
-
-            {items.length === 0 ? (
-              <div className="grid place-items-center gap-2 px-4 py-10 text-center">
-                <Icon name="check" className="h-6 w-6 text-ink-300 dark:text-ink-500" />
-                <p className="text-sm text-ink-500 dark:text-ink-400">{t('noNotifications')}</p>
-              </div>
-            ) : (
-              <ul className="max-h-[22rem] divide-y divide-ink-100 overflow-y-auto dark:divide-white/10">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => onItemClick(item)}
-                      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-ink-50 dark:hover:bg-white/5 ${
-                        item.readAt ? '' : 'bg-brand-50/60 dark:bg-brand-500/5'
-                      }`}
-                    >
-                      <span
-                        className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-                          item.readAt
-                            ? 'bg-ink-100 text-ink-500 dark:bg-white/5 dark:text-ink-400'
-                            : 'bg-brand-100 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300'
-                        }`}
-                      >
-                        <Icon name={CATEGORY_ICON[item.category]} className="h-4 w-4" sw={2.1} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">
-                            {item.title}
-                          </span>
-                          {!item.readAt && (
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
-                          )}
-                        </span>
-                        <span className="mt-0.5 line-clamp-2 block text-xs text-ink-500 dark:text-ink-400">
-                          {item.body}
-                        </span>
-                        <span className="mt-1 block text-[11px] font-medium text-ink-400 dark:text-ink-500">
-                          {formatRelative(item.createdAt)}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
+  );
+
+  return (
+    <Popover
+      isOpen={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) void load();
+      }}
+      placement="below"
+      alignment="end"
+      label={t('notifications')}
+      content={panel}
+    >
+      {({ ref, onClick, ...aria }) => (
+        <button
+          ref={ref}
+          type="button"
+          onClick={onClick}
+          {...aria}
+          aria-label={t('notifications')}
+          {...stylex.props(styles.bell)}
+        >
+          <Icon name="bell" {...stylex.props(styles.bellIcon)} />
+          {unread > 0 && (
+            <span aria-hidden {...stylex.props(styles.unread)}>
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </button>
+      )}
+    </Popover>
   );
 }
 

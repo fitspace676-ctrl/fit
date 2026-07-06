@@ -1,5 +1,11 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { ProgressBar } from '@astryxdesign/core/ProgressBar';
+import type { BadgeVariant } from '@astryxdesign/core/Badge';
 import type { MemberBookingHistoryEntry } from '@fit/types';
 import { fetchMembership } from '@/lib/membership';
 import {
@@ -9,10 +15,18 @@ import {
 } from '@/lib/credit-packs';
 import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
-import { Badge, buttonClasses, Card, Icon, Progress } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { FreezeCard } from './freeze-card';
 import { BuyCreditsCard } from './buy-credits-card';
+
+// Astryx migration (T11.16): the member membership screen is rebuilt on the
+// Astryx design system over the Fit brand theme. The status badge, the gradient
+// plan card, the manage-plan / metrics / invoices sections use Astryx
+// Card / Badge / Button / ProgressBar; all layout is compiled StyleX
+// (`var(--color-*)`), no Tailwind utilities. Live membership (GET
+// /me/subscription) remains the single source of truth and the invoice download
+// proxy (`/api/invoices/:id`) is unchanged.
 
 export const metadata: Metadata = { title: 'Membership — Fit' };
 export const dynamic = 'force-dynamic';
@@ -25,14 +39,320 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-const STATUS_TONE = {
-  TRIAL: 'iris',
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
+  TRIAL: 'purple',
   ACTIVE: 'success',
-  FROZEN: 'iris',
-  CANCELED: 'ink',
+  FROZEN: 'blue',
+  CANCELED: 'neutral',
   PAST_DUE: 'warning',
-  EXPIRED: 'ink',
-} as const;
+  EXPIRED: 'neutral',
+};
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  head: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  eyebrow: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.2em',
+    color: 'var(--color-text-secondary)',
+  },
+  title: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  alert: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border-orange)',
+    backgroundColor: 'var(--color-warning-muted)',
+    padding: '1rem',
+  },
+  alertIcon: {
+    marginTop: '0.125rem',
+    display: 'grid',
+    placeItems: 'center',
+    height: '2rem',
+    width: '2rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'color-mix(in srgb, var(--color-warning) 25%, transparent)',
+    color: 'var(--color-text-orange)',
+  },
+  alertTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-orange)',
+  },
+  alertBody: {
+    margin: 0,
+    marginTop: '0.125rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  twoCol: {
+    display: 'grid',
+    gap: '1.25rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': '1.5fr 1fr',
+    },
+    alignItems: 'start',
+  },
+  planCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    backgroundImage:
+      'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 92%, #7c3aed), #ec4899)',
+    padding: '1.75rem',
+    color: '#ffffff',
+    boxShadow: '0 24px 60px -24px color-mix(in srgb, var(--color-accent) 70%, transparent)',
+  },
+  aura: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    right: '-2.5rem',
+    top: '-4rem',
+    height: '12rem',
+    width: '12rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    filter: 'blur(48px)',
+  },
+  planTop: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  planTile: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.25rem',
+    width: '2.25rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  planTileIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+  planName: {
+    position: 'relative',
+    margin: 0,
+    marginTop: '1.25rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+  },
+  planPerks: {
+    position: 'relative',
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.875rem',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  planMetaRow: {
+    position: 'relative',
+    marginTop: '1.5rem',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.75rem 2rem',
+    fontSize: '0.875rem',
+  },
+  metaLabel: {
+    margin: 0,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  metaValue: {
+    margin: 0,
+    fontWeight: 600,
+  },
+  metaNote: {
+    margin: 0,
+    marginTop: '0.125rem',
+    fontSize: '0.75rem',
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  actions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    padding: '1.5rem',
+  },
+  actionsLabel: {
+    margin: 0,
+    marginBottom: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  fullStart: {
+    width: '100%',
+    justifyContent: 'flex-start',
+  },
+  metrics: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(3, 1fr)',
+    },
+    alignItems: 'start',
+  },
+  metricCard: {
+    padding: '1.25rem',
+  },
+  metricHead: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metricIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+  metricLabel: {
+    margin: 0,
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  },
+  metricValue: {
+    margin: 0,
+    marginTop: '0.75rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  metricBig: {
+    margin: 0,
+    marginTop: '0.75rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  metricUnit: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  progressWrap: {
+    marginTop: '0.75rem',
+  },
+  invoicesHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '0.75rem',
+  },
+  invoicesTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  tableWrap: {
+    overflowX: 'auto',
+    padding: 0,
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '0.875rem',
+  },
+  th: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    paddingInline: '1.25rem',
+    paddingBlock: '0.75rem',
+    textAlign: 'left',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  td: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    paddingInline: '1.25rem',
+    paddingBlock: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  tdMono: {
+    fontFamily: 'var(--font-family-code)',
+    color: 'var(--color-text-primary)',
+  },
+  tdAmount: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  emptyInvoices: {
+    display: 'grid',
+    placeItems: 'center',
+    gap: '0.5rem',
+    paddingBlock: '2.5rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    height: '1.75rem',
+    width: '1.75rem',
+    color: 'var(--color-text-disabled)',
+  },
+  emptyText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  glyph: {
+    height: '1rem',
+    width: '1rem',
+  },
+});
+
+function invoiceVariant(status: string): BadgeVariant {
+  if (status === 'PAID') return 'success';
+  if (status === 'FAILED') return 'error';
+  return 'warning';
+}
 
 export default async function MembershipPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -72,104 +392,113 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
       : '—';
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.head)}>
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">
-            {t('eyebrow')}
-          </p>
-          <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            {t('title')}
-          </h1>
+          <p {...stylex.props(styles.eyebrow)}>{t('eyebrow')}</p>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
         </div>
-        <Link href="/checkout" className={buttonClasses('primary', 'md')}>
-          {hasMembership ? t('changePlan') : t('choosePlan')}
-        </Link>
+        <Button
+          as={Link}
+          href="/checkout"
+          variant="primary"
+          size="md"
+          label={hasMembership ? t('changePlan') : t('choosePlan')}
+        />
       </div>
 
       {status === 'PAST_DUE' ? (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-card border border-amber-300/70 bg-amber-50 p-4 text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/40 dark:text-amber-200"
-        >
-          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-btn bg-amber-400/25">
-            <Icon name="card" className="h-4 w-4" sw={2.3} />
+        <div role="alert" {...stylex.props(styles.alert)}>
+          <span {...stylex.props(styles.alertIcon)}>
+            <Icon name="card" {...stylex.props(styles.glyph)} sw={2.3} />
           </span>
           <div>
-            <p className="font-display text-sm font-bold">{t('pastDue.title')}</p>
-            <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-200/80">
-              {t('pastDue.body')}
-            </p>
+            <p {...stylex.props(styles.alertTitle)}>{t('pastDue.title')}</p>
+            <p {...stylex.props(styles.alertBody)}>{t('pastDue.body')}</p>
           </div>
         </div>
       ) : null}
 
-      <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+      <section {...stylex.props(styles.twoCol)}>
         {/* Current plan */}
-        <div className="relative overflow-hidden rounded-card bg-[linear-gradient(135deg,#7C3AED,#EC4899)] p-6 text-white shadow-[0_24px_60px_-24px_rgba(80,68,210,0.8)] sm:p-7">
-          <span className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/15 blur-3xl" />
-          <div className="relative flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-btn bg-white/15">
-              <Icon name="ticket" className="h-5 w-5" sw={2.3} />
+        <div {...stylex.props(styles.planCard)}>
+          <span aria-hidden {...stylex.props(styles.aura)} />
+          <div {...stylex.props(styles.planTop)}>
+            <span {...stylex.props(styles.planTile)}>
+              <Icon name="ticket" {...stylex.props(styles.planTileIcon)} sw={2.3} />
             </span>
             {hasMembership ? (
-              <Badge tone={STATUS_TONE[status]}>{t(`status.${status}`)}</Badge>
+              <Badge variant={STATUS_VARIANT[status] ?? 'neutral'} label={t(`status.${status}`)} />
             ) : null}
           </div>
-          <p className="relative mt-5 font-display text-3xl font-extrabold tracking-tight">
-            {planName ?? t('noPlan')}
-          </p>
+          <p {...stylex.props(styles.planName)}>{planName ?? t('noPlan')}</p>
           {subscription ? (
             <>
-              <p className="relative mt-1 text-sm text-white/80">{t('perks')}</p>
-              <div className="relative mt-6 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+              <p {...stylex.props(styles.planPerks)}>{t('perks')}</p>
+              <div {...stylex.props(styles.planMetaRow)}>
                 <div>
-                  <p className="text-white/60">{renewing ? t('nextBilling') : t('endsOn')}</p>
-                  <p className="font-semibold">
+                  <p {...stylex.props(styles.metaLabel)}>
+                    {renewing ? t('nextBilling') : t('endsOn')}
+                  </p>
+                  <p {...stylex.props(styles.metaValue)}>
                     {fmtDate(subscription.currentPeriodEnd)}
                     {renewing
                       ? ` · ${formatMoney(subscription.priceAmount, subscription.currency, activeLocale)}`
                       : ''}
                   </p>
                   {pendingCancel ? (
-                    <p className="mt-0.5 text-xs text-white/60">{t('cancelNotice')}</p>
+                    <p {...stylex.props(styles.metaNote)}>{t('cancelNotice')}</p>
                   ) : null}
                 </div>
                 <div>
-                  <p className="text-white/60">{t('memberSince')}</p>
-                  <p className="font-semibold">{fmtDate(subscription.memberSince)}</p>
+                  <p {...stylex.props(styles.metaLabel)}>{t('memberSince')}</p>
+                  <p {...stylex.props(styles.metaValue)}>{fmtDate(subscription.memberSince)}</p>
                 </div>
               </div>
             </>
           ) : (
-            <p className="relative mt-2 text-sm text-white/80">{t('noPlanHint')}</p>
+            <p {...stylex.props(styles.planPerks)}>{t('noPlanHint')}</p>
           )}
         </div>
 
         {/* Actions */}
-        <Card glow className="flex flex-col gap-2 p-5 sm:p-6">
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-            {t('managePlan')}
-          </p>
-          <Link href="/checkout" className={buttonClasses('outline', 'md', 'w-full justify-start')}>
-            <Icon name="ticket" className="h-4 w-4" />{' '}
-            {hasMembership ? t('changePlan') : t('choosePlan')}
-          </Link>
-          <Link
-            href="/account/bookings"
-            className={buttonClasses('ghost', 'md', 'w-full justify-start')}
-          >
-            <Icon name="calendar" className="h-4 w-4" /> {t('viewBookings')}
-          </Link>
-          <Link href="/shop" className={buttonClasses('ghost', 'md', 'w-full justify-start')}>
-            <Icon name="bag" className="h-4 w-4" /> {t('shopMember')}
-          </Link>
+        <Card variant="default" padding={0}>
+          <div {...stylex.props(styles.actions)}>
+            <p {...stylex.props(styles.actionsLabel)}>{t('managePlan')}</p>
+            <Button
+              as={Link}
+              href="/checkout"
+              variant="secondary"
+              size="md"
+              icon={<Icon name="ticket" {...stylex.props(styles.glyph)} />}
+              label={hasMembership ? t('changePlan') : t('choosePlan')}
+              xstyle={styles.fullStart}
+            />
+            <Button
+              as={Link}
+              href="/account/bookings"
+              variant="ghost"
+              size="md"
+              icon={<Icon name="calendar" {...stylex.props(styles.glyph)} />}
+              label={t('viewBookings')}
+              xstyle={styles.fullStart}
+            />
+            <Button
+              as={Link}
+              href="/shop"
+              variant="ghost"
+              size="md"
+              icon={<Icon name="bag" {...stylex.props(styles.glyph)} />}
+              label={t('shopMember')}
+              xstyle={styles.fullStart}
+            />
+          </div>
         </Card>
       </section>
 
       {/* Freeze / pause membership (T5.7) — only for a real, live subscription. */}
       {subscription ? (
-        <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+        <section {...stylex.props(styles.twoCol)}>
           <FreezeCard
             id={subscription.id}
             status={subscription.status}
@@ -182,46 +511,46 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
       ) : null}
 
       {/* Metrics */}
-      <section className="grid gap-4 sm:grid-cols-3">
-        <Card className="p-5">
-          <div className="flex items-center gap-2 text-ink-500 dark:text-ink-400">
-            <Icon name="card" className="h-5 w-5" />
-            <p className="text-xs font-semibold uppercase tracking-wide">{t('paymentMethod')}</p>
+      <section {...stylex.props(styles.metrics)}>
+        <Card variant="default" padding={0} xstyle={styles.metricCard}>
+          <div {...stylex.props(styles.metricHead)}>
+            <Icon name="card" {...stylex.props(styles.metricIcon)} />
+            <p {...stylex.props(styles.metricLabel)}>{t('paymentMethod')}</p>
           </div>
-          <p className="mt-3 font-display text-lg font-bold text-ink-900 dark:text-white">
-            {t('payAtDesk')}
-          </p>
+          <p {...stylex.props(styles.metricValue)}>{t('payAtDesk')}</p>
         </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 text-ink-500 dark:text-ink-400">
-            <Icon name="spark" className="h-5 w-5" />
-            <p className="text-xs font-semibold uppercase tracking-wide">{t('thisPeriod')}</p>
+        <Card variant="default" padding={0} xstyle={styles.metricCard}>
+          <div {...stylex.props(styles.metricHead)}>
+            <Icon name="spark" {...stylex.props(styles.metricIcon)} />
+            <p {...stylex.props(styles.metricLabel)}>{t('thisPeriod')}</p>
           </div>
-          <p className="mt-3 font-display text-2xl font-extrabold tabular-nums text-ink-900 dark:text-white">
-            {attended} <span className="text-sm font-medium text-ink-400">{t('classes')}</span>
+          <p {...stylex.props(styles.metricBig)}>
+            {attended} <span {...stylex.props(styles.metricUnit)}>{t('classes')}</span>
           </p>
-          <Progress value={Math.min(100, attended * 8)} className="mt-3" tone="bg-brand-500" />
+          <div {...stylex.props(styles.progressWrap)}>
+            <ProgressBar
+              value={Math.min(100, attended * 8)}
+              label={t('thisPeriod')}
+              isLabelHidden
+              variant="accent"
+            />
+          </div>
         </Card>
         <BuyCreditsCard credits={credits} catalogue={catalogue} />
       </section>
 
       {/* Invoices */}
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold text-ink-900 dark:text-white">
-            {t('invoices')}
-          </h2>
+        <div {...stylex.props(styles.invoicesHead)}>
+          <h2 {...stylex.props(styles.invoicesTitle)}>{t('invoices')}</h2>
         </div>
         {invoices.length > 0 ? (
-          <Card className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <Card variant="default" padding={0} xstyle={styles.tableWrap}>
+            <table {...stylex.props(styles.table)}>
               <thead>
-                <tr className="border-b border-ink-100 text-left dark:border-white/10">
+                <tr>
                   {['invoice', 'date', 'amount', 'statusCol', 'downloadCol'].map((h) => (
-                    <th
-                      key={h}
-                      className="px-5 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
-                    >
+                    <th key={h} {...stylex.props(styles.th)}>
                       {t(h)}
                     </th>
                   ))}
@@ -229,44 +558,35 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
               </thead>
               <tbody>
                 {invoices.map((inv) => (
-                  <tr
-                    key={inv.id}
-                    className="border-b border-ink-50 last:border-0 dark:border-white/5"
-                  >
-                    <td className="px-5 py-3 font-mono text-ink-700 dark:text-ink-200">{inv.id}</td>
-                    <td className="px-5 py-3 text-ink-600 dark:text-ink-300">
+                  <tr key={inv.id}>
+                    <td {...stylex.props(styles.td, styles.tdMono)}>{inv.id}</td>
+                    <td {...stylex.props(styles.td)}>
                       {new Date(inv.date).toLocaleDateString(activeLocale, {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
                       })}
                     </td>
-                    <td className="px-5 py-3 font-mono tabular-nums text-ink-900 dark:text-white">
+                    <td {...stylex.props(styles.td, styles.tdAmount)}>
                       {formatMoney(inv.amount, inv.currency, activeLocale)}
                     </td>
-                    <td className="px-5 py-3">
+                    <td {...stylex.props(styles.td)}>
                       <Badge
-                        tone={
-                          inv.status === 'PAID'
-                            ? 'success'
-                            : inv.status === 'FAILED'
-                              ? 'danger'
-                              : 'warning'
-                        }
-                      >
-                        {t(`invoiceStatus.${inv.status}`)}
-                      </Badge>
+                        variant={invoiceVariant(inv.status)}
+                        label={t(`invoiceStatus.${inv.status}`)}
+                      />
                     </td>
-                    <td className="px-5 py-3">
+                    <td {...stylex.props(styles.td)}>
                       {/* Not a localized <Link>: the download proxy lives at the
                           locale-less `/api/invoices/:id` route handler. */}
-                      <a
+                      <Button
                         href={`/api/invoices/${inv.id}`}
-                        className={buttonClasses('ghost', 'sm')}
+                        variant="ghost"
+                        size="sm"
+                        icon={<Icon name="download" {...stylex.props(styles.glyph)} />}
+                        label={t('download')}
                         aria-label={t('downloadPdf')}
-                      >
-                        <Icon name="download" className="h-4 w-4" /> {t('download')}
-                      </a>
+                      />
                     </td>
                   </tr>
                 ))}
@@ -274,9 +594,11 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             </table>
           </Card>
         ) : (
-          <Card className="grid place-items-center gap-2 py-10 text-center">
-            <Icon name="download" className="h-7 w-7 text-ink-300 dark:text-ink-600" />
-            <p className="text-sm text-ink-500 dark:text-ink-400">{t('noInvoices')}</p>
+          <Card variant="default" padding={0}>
+            <div {...stylex.props(styles.emptyInvoices)}>
+              <Icon name="download" {...stylex.props(styles.emptyIcon)} />
+              <p {...stylex.props(styles.emptyText)}>{t('noInvoices')}</p>
+            </div>
           </Card>
         )}
       </section>
