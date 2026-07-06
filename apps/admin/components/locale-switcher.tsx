@@ -54,7 +54,7 @@ export function LocaleSwitcher() {
       value={activeLocale}
       onChange={select}
       label={t('label')}
-      size="sm"
+      size="md"
       xstyle={styles.root}
     >
       {locales.map((locale) => (

@@ -46,6 +46,12 @@ export const fitTheme = defineTheme({
   },
 
   tokens: {
+    // Keep the page canvas deep and lift every card/surface one neutral step.
+    // Defining both surface tokens here keeps custom and Astryx cards aligned.
+    '--color-background-body': ['#F1F1F1', '#1B1B1B'],
+    '--color-background-surface': ['#FFFFFF', '#262626'],
+    '--color-background-card': ['#FFFFFF', '#262626'],
+
     // =========================================================================
     // Accent — electric indigo (#6257E3) is Fit's primary action color, so it
     // maps onto Astryx's single semantic `accent`. Dark mode lifts to brand-400
@@ -90,7 +96,10 @@ export const fitTheme = defineTheme({
     // Buttons use the formacore `btn` radius (.75rem), a touch rounder than the
     // .5rem field radius.
     button: {
-      base: { borderRadius: '0.75rem' },
+      base: { borderRadius: '0.75rem', fontWeight: '600' },
+      'size:sm': { height: '2.25rem', paddingInline: '0.875rem' },
+      'size:md': { height: '2.75rem', paddingInline: '1rem' },
+      'size:lg': { height: '3rem', paddingInline: '1.25rem' },
     },
   },
 });

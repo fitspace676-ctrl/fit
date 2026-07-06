@@ -15,7 +15,7 @@ import { useTranslations } from 'next-intl';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { Button } from '@astryxdesign/core/Button';
 import { IconButton } from '@astryxdesign/core/IconButton';
-import { TextInput } from '@astryxdesign/core/TextInput';
+import { Avatar } from '@astryxdesign/core/Avatar';
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
 import { MobileNavToggle } from '@astryxdesign/core/MobileNav';
 import { useSession } from '@/hooks/use-session';
@@ -27,25 +27,53 @@ import { LocaleSwitcher } from './locale-switcher';
 const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '';
 
 const styles = stylex.create({
-  gym: {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    color: 'var(--color-text-primary)',
-  },
-  gymMuted: {
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
   search: {
-    width: '100%',
-    maxWidth: '24rem',
+    width: '32rem',
+    maxWidth: '40vw',
+    height: '2.5rem',
+    alignItems: 'center',
+    gap: '0.5rem',
+    paddingInline: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border-emphasized)',
+      ':focus-within': 'var(--color-accent)',
+    },
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-surface)',
+    boxSizing: 'border-box',
     display: {
       default: 'none',
-      '@media (min-width: 640px)': 'block',
+      '@media (min-width: 640px)': 'flex',
     },
+  },
+  searchInput: {
+    width: '100%',
+    minWidth: 0,
+    height: '100%',
+    padding: 0,
+    borderWidth: 0,
+    outline: 'none',
+    backgroundColor: 'transparent',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'var(--font-family-body)',
+    fontSize: '0.875rem',
+    lineHeight: 1,
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  topNav: {
+    minHeight: '5.5rem',
+    paddingInline: '1.5rem',
+    borderBlockEndWidth: '1px',
+    borderBlockEndStyle: 'solid',
+    borderBlockEndColor: 'var(--color-border)',
+  },
+  startContent: {
+    display: 'flex',
+    alignItems: 'center',
   },
   actions: {
     display: 'flex',
@@ -84,12 +112,7 @@ const styles = stylex.create({
   },
 });
 
-interface TopBarProps {
-  /** The gym slug being managed, resolved server-side; `null` off a tenant host. */
-  gymSlug: string | null;
-}
-
-export function TopBar({ gymSlug }: TopBarProps) {
+export function TopBar() {
   const { user, isLoading } = useSession();
   const { theme, toggle } = useTheme();
   const t = useTranslations('admin.common');
@@ -108,24 +131,22 @@ export function TopBar({ gymSlug }: TopBarProps) {
   return (
     <TopNav
       label={t('consoleName')}
-      startContent={<MobileNavToggle label={t('openNav')} />}
-      heading={
-        gymSlug ? (
-          <span {...stylex.props(styles.gym)}>{gymSlug}</span>
-        ) : (
-          <span {...stylex.props(styles.gymMuted)}>{t('consoleName')}</span>
-        )
-      }
-      centerContent={
-        <TextInput
-          label={t('search')}
-          isLabelHidden
-          value={query}
-          onChange={(value) => setQuery(value)}
-          placeholder={t('search')}
-          startIcon={<Icon name="search" {...stylex.props(styles.btnIcon)} />}
-          xstyle={styles.search}
-        />
+      xstyle={styles.topNav}
+      startContent={
+        <div {...stylex.props(styles.startContent)}>
+          <MobileNavToggle label={t('openNav')} />
+          <label {...stylex.props(styles.search)}>
+            <Icon name="search" {...stylex.props(styles.btnIcon)} />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('search')}
+              aria-label={t('search')}
+              {...stylex.props(styles.searchInput)}
+            />
+          </label>
+        </div>
       }
       endContent={
         <div {...stylex.props(styles.actions)}>
@@ -134,7 +155,7 @@ export function TopBar({ gymSlug }: TopBarProps) {
               as={NextLink}
               href="/pos"
               variant="primary"
-              size="sm"
+              size="md"
               icon={<Icon name="plus" sw={2.4} {...stylex.props(styles.btnIcon)} />}
               label={t('quickSale')}
             />
@@ -162,7 +183,12 @@ export function TopBar({ gymSlug }: TopBarProps) {
 
           {!isLoading && user && (
             <DropdownMenu
-              button={{ label: user.role, variant: 'ghost', size: 'sm' }}
+              button={{
+                label: user.role,
+                variant: 'ghost',
+                size: 'md',
+                icon: <Avatar name={user.role} size={32} />,
+              }}
               hasChevron
               items={[
                 {

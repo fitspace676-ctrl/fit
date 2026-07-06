@@ -33,3 +33,26 @@
 }
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Password-field bullet alignment (cross-app fix — mirrors @fit/web).
+ *
+ * Masked inputs render their `•` bullets in the body font (Manrope, via Astryx's
+ * `--font-family-body`), whose bullet glyph sits high in the em-box — leaving the
+ * dots visibly above center in every password field. Rendering ONLY the masked
+ * field in a system font (whose bullet is vertically centered) fixes the
+ * alignment without affecting the real value: the show/hide toggle flips `type`
+ * to `text`, so the visible password renders in the design-system font again.
+ * `!important` is required to clear Astryx's StyleX `font-family` rule, which
+ * carries very high (triple-`:not(#id)`) specificity but no `!important`.
+ */
+input[type='password'] {
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif !important;
+}

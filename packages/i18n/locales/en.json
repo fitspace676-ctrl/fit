@@ -1231,6 +1231,14 @@
       "auditLog": "Audit log",
       "settings": "Settings"
     },
+    "navGroups": {
+      "overview": "Overview",
+      "people": "People",
+      "operations": "Operations",
+      "commerce": "Commerce",
+      "insights": "Insights",
+      "system": "System"
+    },
     "system": {
       "title": "System",
       "uptime": "99.9%",
@@ -1807,6 +1815,8 @@
         "allStatuses": "All statuses"
       },
       "form": {
+        "contactSection": "Contact details",
+        "membershipSection": "Membership",
         "name": "Name",
         "email": "Email",
         "emailReadonlyHint": "Email is the member’s sign-in identity and can’t be changed here.",

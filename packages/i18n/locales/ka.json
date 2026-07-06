@@ -1231,6 +1231,14 @@
       "auditLog": "აუდიტის ჟურნალი",
       "settings": "პარამეტრები"
     },
+    "navGroups": {
+      "overview": "მთავარი",
+      "people": "ადამიანები",
+      "operations": "ოპერაციები",
+      "commerce": "გაყიდვები",
+      "insights": "ანალიზი",
+      "system": "სისტემა"
+    },
     "system": {
       "title": "სისტემა",
       "uptime": "99.9%",
@@ -1807,6 +1815,8 @@
         "allStatuses": "ყველა სტატუსი"
       },
       "form": {
+        "contactSection": "საკონტაქტო ინფორმაცია",
+        "membershipSection": "წევრობა",
         "name": "სახელი",
         "email": "ელფოსტა",
         "emailReadonlyHint": "ელფოსტა წევრის შესვლის იდენტიფიკატორია და აქ ვერ შეიცვლება.",

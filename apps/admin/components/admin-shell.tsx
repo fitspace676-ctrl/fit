@@ -30,6 +30,16 @@ export interface ShellSystemState {
 const styles = stylex.create({
   content: {
     display: 'block',
+    minHeight: '100%',
+  },
+  topBar: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 10,
+    backgroundColor: 'var(--color-background-body)',
+  },
+  page: {
+    padding: '1.5rem',
   },
 });
 
@@ -48,14 +58,16 @@ export function AdminShell({
     <ToastProvider>
       <SkipLink>{t('skipToContent')}</SkipLink>
       <AppShell
-        variant="surface"
-        contentPadding={6}
-        topNav={<TopBar gymSlug={gymSlug} />}
+        variant="wash"
+        contentPadding={0}
         sideNav={<Sidebar gymSlug={gymSlug} system={system} />}
         mobileNav={{ hasToggle: false, breakpoint: 'md' }}
       >
         <div id="main-content" {...stylex.props(styles.content)}>
-          {children}
+          <div {...stylex.props(styles.topBar)}>
+            <TopBar />
+          </div>
+          <div {...stylex.props(styles.page)}>{children}</div>
         </div>
       </AppShell>
     </ToastProvider>

@@ -23,6 +23,10 @@ import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { Badge } from '@astryxdesign/core/Badge';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Stack } from '@astryxdesign/core/Stack';
+import { Text } from '@astryxdesign/core/Text';
+import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type {
   DashboardAlert,
@@ -32,7 +36,7 @@ import type {
 } from '@fit/types';
 import { CountUp, Icon, type IconName } from '@/components/ui';
 import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
-import { AreaChart, Donut, OccupancyBar, type AreaPoint } from './charts';
+import { AreaChart, Donut, type AreaPoint } from './charts';
 
 /** Translator for the `admin.dashboard` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -130,6 +134,13 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     padding: '1.25rem',
+  },
+  occupancyCard: {
+    height: '100%',
+  },
+  kpiCard: {
+    height: '100%',
+    minHeight: '13rem',
   },
   // The revenue + schedule cards span two of the three grid columns on lg+.
   cardWide: {
@@ -239,14 +250,18 @@ const styles = stylex.create({
     fontWeight: 600,
     color: 'var(--color-text-secondary)',
   },
+  areaValue: {
+    whiteSpace: 'nowrap',
+  },
   iconTile: {
     display: 'grid',
     placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
-    borderRadius: 'var(--radius-element)',
+    height: '2.75rem',
+    width: '2.75rem',
+    borderRadius: '0.75rem',
     backgroundColor: 'var(--color-accent-muted)',
     color: 'var(--color-text-accent)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 18%, transparent)',
   },
   icon: {
     width: '1.25rem',
@@ -254,9 +269,8 @@ const styles = stylex.create({
   },
   kpiValue: {
     margin: 0,
-    marginTop: '1rem',
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.875rem',
+    fontSize: '2.125rem',
     fontWeight: 800,
     fontVariantNumeric: 'tabular-nums',
     letterSpacing: '-0.02em',
@@ -264,7 +278,7 @@ const styles = stylex.create({
   },
   kpiLabel: {
     margin: 0,
-    marginTop: '0.25rem',
+    marginTop: '0.375rem',
     fontSize: '0.6875rem',
     fontWeight: 600,
     textTransform: 'uppercase',
@@ -623,41 +637,65 @@ function InGymNow({ data }: { data: DashboardOverviewResponse }) {
   const pct = capacity > 0 ? Math.round((current / capacity) * 100) : 0;
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
-      <div {...stylex.props(styles.cardHead)}>
-        <h2 {...stylex.props(styles.sectionLabel)}>{t('inGymNow.title')}</h2>
-        <span {...stylex.props(styles.livePill)}>
-          <span {...stylex.props(styles.liveDot)} />
-          {t('inGymNow.live')}
-        </span>
-      </div>
-
-      <div {...stylex.props(styles.inGymTop)}>
-        <Donut pct={pct} size={104} stroke={10}>
-          <span {...stylex.props(styles.donutValue)}>
-            <span {...stylex.props(styles.donutNumber)}>
-              <CountUp to={current} />
-            </span>
-            <span {...stylex.props(styles.donutCaption)}>{t('inGymNow.of', { capacity })}</span>
+    <Card variant="default" padding={5} xstyle={styles.occupancyCard}>
+      <Stack gap={4} height="100%">
+        <HStack justify="between" align="center">
+          <Text type="label" color="secondary" weight="bold">
+            {t('inGymNow.title')}
+          </Text>
+          <span {...stylex.props(styles.livePill)}>
+            <span {...stylex.props(styles.liveDot)} />
+            {t('inGymNow.live')}
           </span>
-        </Donut>
-        <p {...stylex.props(styles.inGymCopy)}>
-          {current === 0
-            ? t('inGymNow.quiet')
-            : t('inGymNow.capacity', { pct, areas: areas.length })}
-        </p>
-      </div>
+        </HStack>
 
-      {areas.length > 0 && (
-        <ul {...stylex.props(styles.areaList)}>
-          {areas.map((area) => (
-            <li key={area.name}>
-              <p {...stylex.props(styles.areaName)}>{area.name}</p>
-              <OccupancyBar value={area.occupancy} cap={area.capacity} />
-            </li>
-          ))}
-        </ul>
-      )}
+        <HStack gap={5} align="center">
+          <Donut pct={pct} size={104} stroke={10}>
+            <span {...stylex.props(styles.donutValue)}>
+              <span {...stylex.props(styles.donutNumber)}>
+                <CountUp to={current} />
+              </span>
+              <span {...stylex.props(styles.donutCaption)}>{t('inGymNow.of', { capacity })}</span>
+            </span>
+          </Donut>
+          <p {...stylex.props(styles.inGymCopy)}>
+            {current === 0
+              ? t('inGymNow.quiet')
+              : t('inGymNow.capacity', { pct, areas: areas.length })}
+          </p>
+        </HStack>
+
+        {areas.length > 0 && (
+          <ul {...stylex.props(styles.areaList)}>
+            {areas.map((area) => (
+              <li key={area.name}>
+                <Stack gap={1}>
+                  <HStack justify="between" align="center">
+                    <Text type="supporting" color="secondary" weight="medium">
+                      {area.name}
+                    </Text>
+                    <Text
+                      type="supporting"
+                      color="secondary"
+                      hasTabularNumbers
+                      xstyle={styles.areaValue}
+                    >
+                      {area.occupancy}/{area.capacity}
+                    </Text>
+                  </HStack>
+                  <ProgressBar
+                    value={area.occupancy}
+                    max={Math.max(area.capacity, 1)}
+                    label={area.name}
+                    isLabelHidden
+                    variant="success"
+                  />
+                </Stack>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Stack>
     </Card>
   );
 }
@@ -678,17 +716,23 @@ function KpiCard({
   format?: (value: number) => string;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
-      <div {...stylex.props(styles.cardHeadPlain)}>
-        <span {...stylex.props(styles.iconTile)}>
-          <Icon name={icon} {...stylex.props(styles.icon)} />
-        </span>
-        <DeltaChip kpi={kpi} />
-      </div>
-      <p {...stylex.props(styles.kpiValue)}>
-        {format ? format(kpi.value) : <CountUp to={Math.round(kpi.value)} />}
-      </p>
-      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
+    <Card variant="default" padding={5} xstyle={styles.kpiCard}>
+      <Stack height="100%" justify="between" gap={5}>
+        <HStack justify="between" align="center">
+          <span {...stylex.props(styles.iconTile)}>
+            <Icon name={icon} {...stylex.props(styles.icon)} />
+          </span>
+          <DeltaChip kpi={kpi} />
+        </HStack>
+        <Stack gap={1}>
+          <Text type="display-3" weight="bold" hasTabularNumbers display="block">
+            {format ? format(kpi.value) : <CountUp to={Math.round(kpi.value)} />}
+          </Text>
+          <Text type="supporting" color="secondary" weight="semibold" display="block">
+            {label}
+          </Text>
+        </Stack>
+      </Stack>
     </Card>
   );
 }

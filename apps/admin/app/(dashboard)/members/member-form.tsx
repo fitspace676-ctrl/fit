@@ -6,15 +6,13 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
+import { TextInput } from '@astryxdesign/core/TextInput';
+import { ToggleButton } from '@astryxdesign/core/ToggleButton';
+import { Stack } from '@astryxdesign/core/Stack';
+import { Text } from '@astryxdesign/core/Text';
 import type { MemberStatus } from '@fit/types';
 import { Btn, Icon } from '@/components/ui';
 import { createMemberAction, updateMemberAction } from './actions';
-
-/** Selectable initial statuses when creating a member; labels come from `form.status<Value>`. */
-const CREATE_STATUSES: ReadonlyArray<{ value: MemberStatus; labelKey: string }> = [
-  { value: 'ACTIVE', labelKey: 'statusActive' },
-  { value: 'INVITED', labelKey: 'statusInvited' },
-];
 
 const styles = stylex.create({
   form: {
@@ -22,6 +20,21 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
     maxWidth: '32rem',
+  },
+  formInDrawer: {
+    minHeight: '100%',
+    maxWidth: 'none',
+  },
+  formSection: {
+    overflow: 'visible',
+  },
+  sectionIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  statusToggle: {
+    width: '100%',
+    justifyContent: 'flex-start',
   },
   fieldGroup: {
     display: 'flex',
@@ -90,6 +103,30 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.75rem',
   },
+  actionsInDrawer: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    width: '100%',
+  },
+  footer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  drawerFooter: {
+    position: 'sticky',
+    bottom: 0,
+    zIndex: 1,
+    marginTop: 'auto',
+    gap: '0.75rem',
+    paddingBlockStart: '1rem',
+    paddingBlockEnd: '0.25rem',
+    backgroundColor: 'var(--color-background-body)',
+  },
+  actionButton: {
+    width: '100%',
+    height: '3rem',
+  },
   cancelLink: {
     fontSize: '0.875rem',
     fontWeight: 500,
@@ -99,11 +136,13 @@ const styles = stylex.create({
 });
 
 type Props =
-  | { mode: 'create' }
+  | { mode: 'create'; onSuccess?: () => void; onCancel?: () => void }
   | {
       mode: 'edit';
       memberId: string;
       initial: { name: string; email: string; phone: string };
+      onSuccess?: () => void;
+      onCancel?: () => void;
     };
 
 /**
@@ -135,8 +174,13 @@ export function MemberForm(props: Props) {
         ? await updateMemberAction(props.memberId, { name, phone })
         : await createMemberAction({ name, email, phone, status });
       if (result.ok) {
-        router.push(`/members/${result.data.id}`);
-        router.refresh();
+        if (props.onSuccess) {
+          props.onSuccess();
+          router.refresh();
+        } else {
+          router.push(`/members/${result.data.id}`);
+          router.refresh();
+        }
       } else {
         setError(result.error);
       }
@@ -146,94 +190,115 @@ export function MemberForm(props: Props) {
   const cancelHref = isEdit ? `/members/${props.memberId}` : '/members';
 
   return (
-    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
-      <div {...stylex.props(styles.fieldGroup)}>
-        <label htmlFor="member-name" {...stylex.props(styles.label)}>
-          {t('form.name')}
-        </label>
-        <input
-          id="member-name"
-          name="name"
-          type="text"
-          required
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          autoComplete="off"
-          {...stylex.props(styles.field)}
-        />
-      </div>
+    <form onSubmit={onSubmit} {...stylex.props(styles.form, props.onCancel && styles.formInDrawer)}>
+      <Card variant="default" padding={4} xstyle={styles.formSection}>
+        <Stack gap={4}>
+          <Text type="label" weight="semibold" color="secondary" display="block">
+            {t('form.contactSection')}
+          </Text>
+          <TextInput
+            label={t('form.name')}
+            htmlName="name"
+            type="text"
+            isRequired
+            hasAutoFocus
+            size="lg"
+            width="100%"
+            value={name}
+            onChange={setName}
+            startIcon={<Icon name="user" {...stylex.props(styles.sectionIcon)} />}
+          />
 
-      <div {...stylex.props(styles.fieldGroup)}>
-        <label htmlFor="member-email" {...stylex.props(styles.label)}>
-          {t('form.email')}
-        </label>
-        <input
-          id="member-email"
-          name="email"
-          type="email"
-          required={!isEdit}
-          disabled={isEdit}
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          autoComplete="off"
-          {...stylex.props(styles.field)}
-        />
-        {isEdit ? <p {...stylex.props(styles.hint)}>{t('form.emailReadonlyHint')}</p> : null}
-      </div>
+          <TextInput
+            label={t('form.email')}
+            htmlName="email"
+            type="email"
+            isRequired={!isEdit}
+            isDisabled={isEdit}
+            disabledMessage={isEdit ? t('form.emailReadonlyHint') : undefined}
+            description={isEdit ? t('form.emailReadonlyHint') : undefined}
+            size="lg"
+            width="100%"
+            value={email}
+            onChange={setEmail}
+            startIcon={<Icon name="message" {...stylex.props(styles.sectionIcon)} />}
+          />
 
-      <div {...stylex.props(styles.fieldGroup)}>
-        <label htmlFor="member-phone" {...stylex.props(styles.label)}>
-          {t('form.phone')}{' '}
-          <span {...stylex.props(styles.labelOptional)}>{t('form.phoneOptional')}</span>
-        </label>
-        <input
-          id="member-phone"
-          name="phone"
-          type="tel"
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-          autoComplete="off"
-          {...stylex.props(styles.field)}
-        />
-      </div>
+          <TextInput
+            label={t('form.phone')}
+            htmlName="phone"
+            type="text"
+            isOptional
+            size="lg"
+            width="100%"
+            value={phone}
+            onChange={setPhone}
+            startIcon={<Icon name="message" {...stylex.props(styles.sectionIcon)} />}
+          />
+        </Stack>
+      </Card>
 
       {!isEdit ? (
-        <div {...stylex.props(styles.fieldGroup)}>
-          <label htmlFor="member-status" {...stylex.props(styles.label)}>
-            {t('form.status')}
-          </label>
-          <select
-            id="member-status"
-            name="status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as MemberStatus)}
-            {...stylex.props(styles.field)}
-          >
-            {CREATE_STATUSES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {t(`form.${option.labelKey}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
-
-      {error ? (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
-          <Icon name="info" {...stylex.props(styles.errorIcon)} />
-          <p role="alert" {...stylex.props(styles.errorText)}>
-            {error}
-          </p>
+        <Card variant="default" padding={4} xstyle={styles.formSection}>
+          <Stack gap={3}>
+            <Text type="label" weight="semibold" color="secondary" display="block">
+              {t('form.membershipSection')}
+            </Text>
+            <Text type="supporting" color="secondary" display="block">
+              {t('form.status')}
+            </Text>
+            <ToggleButton
+              label={status === 'ACTIVE' ? t('form.statusActive') : t('form.statusInvited')}
+              isPressed={status === 'ACTIVE'}
+              onPressedChange={(isPressed) => setStatus(isPressed ? 'ACTIVE' : 'INVITED')}
+              size="lg"
+              icon={<Icon name="users" {...stylex.props(styles.sectionIcon)} />}
+              pressedIcon={<Icon name="check" {...stylex.props(styles.sectionIcon)} />}
+              xstyle={styles.statusToggle}
+            />
+          </Stack>
         </Card>
       ) : null}
 
-      <div {...stylex.props(styles.actions)}>
-        <Btn type="submit" v="primary" disabled={pending}>
-          {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createMember')}
-        </Btn>
-        <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
-          {t('form.cancel')}
-        </Link>
+      <div {...stylex.props(styles.footer, props.onCancel && styles.drawerFooter)}>
+        {error ? (
+          <Card variant="default" padding={0} xstyle={styles.errorCard}>
+            <Icon name="info" {...stylex.props(styles.errorIcon)} />
+            <p role="alert" {...stylex.props(styles.errorText)}>
+              {error}
+            </p>
+          </Card>
+        ) : null}
+
+        <div {...stylex.props(styles.actions, props.onCancel && styles.actionsInDrawer)}>
+          <Btn
+            type="submit"
+            v="primary"
+            size={props.onCancel ? 'lg' : 'md'}
+            icon="plus"
+            disabled={pending}
+            {...(props.onCancel ? stylex.props(styles.actionButton) : {})}
+          >
+            {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createMember')}
+          </Btn>
+          {props.onCancel ? (
+            <Btn
+              type="button"
+              v="outline"
+              size="lg"
+              icon="x"
+              onClick={props.onCancel}
+              disabled={pending}
+              {...stylex.props(styles.actionButton)}
+            >
+              {t('form.cancel')}
+            </Btn>
+          ) : (
+            <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
+              {t('form.cancel')}
+            </Link>
+          )}
+        </div>
       </div>
     </form>
   );

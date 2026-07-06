@@ -11,8 +11,14 @@ import {
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchMembers } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
+import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
+import { Heading } from '@astryxdesign/core/Heading';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Stack } from '@astryxdesign/core/Stack';
+import { Text } from '@astryxdesign/core/Text';
 import { Icon } from '@/components/ui';
 import { MembersTable } from './members-table';
+import { AddMemberDrawer } from './add-member-drawer';
 
 export const metadata: Metadata = {
   title: 'Members — Fit Admin',
@@ -68,23 +74,6 @@ const styles = stylex.create({
     margin: 0,
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
-  },
-  addBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    height: '2.75rem',
-    paddingInline: '1.25rem',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    textDecoration: 'none',
-  },
-  addIcon: {
-    width: '1rem',
-    height: '1rem',
   },
   errorCard: {
     display: 'flex',
@@ -176,27 +165,29 @@ export default async function MembersPage({
   }
 
   return (
-    <div {...stylex.props(styles.page)}>
-      <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
-        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
-        <span {...stylex.props(styles.crumbCurrent)}>{t('breadcrumb.members')}</span>
-      </nav>
+    <Stack gap={6}>
+      <Breadcrumbs
+        label={t('breadcrumb.label')}
+        variant="supporting"
+        separator={<Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />}
+      >
+        <BreadcrumbItem as={Link} href="/">
+          Iron Gym
+        </BreadcrumbItem>
+        <BreadcrumbItem isCurrent>{t('breadcrumb.members')}</BreadcrumbItem>
+      </Breadcrumbs>
 
-      <header {...stylex.props(styles.header)}>
-        <div {...stylex.props(styles.headTitles)}>
-          <h1 {...stylex.props(styles.title)}>{t('list.title')}</h1>
-          <p {...stylex.props(styles.subtitle)}>{subtitle}</p>
-        </div>
-        {canWrite ? (
-          <Link href="/members/new" {...stylex.props(styles.addBtn)}>
-            <Icon name="plus" sw={2} {...stylex.props(styles.addIcon)} />
-            {t('list.addMember')}
-          </Link>
-        ) : null}
-      </header>
+      <HStack as="header" justify="between" align="start" gap={4} wrap="wrap">
+        <Stack gap={1}>
+          <Heading level={1}>{t('list.title')}</Heading>
+          <Text type="supporting" color="secondary">
+            {subtitle}
+          </Text>
+        </Stack>
+        {canWrite ? <AddMemberDrawer /> : null}
+      </HStack>
 
       {content}
-    </div>
+    </Stack>
   );
 }
