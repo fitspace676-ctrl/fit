@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { fetchMemberBookings } from '@/lib/member-bookings';
 import { BookingHistory } from '@/src/components/account/BookingHistory';
@@ -9,6 +10,43 @@ import { BookingHistory } from '@/src/components/account/BookingHistory';
  * shell would have no session to read.
  */
 export const dynamic = 'force-dynamic';
+
+// Astryx migration (T11.14): the member "My bookings" board is rebuilt on the
+// Astryx design system over the Fit brand theme — the header, the
+// upcoming/past segmented control, the cards and the cancel confirm dialog are
+// all authored in compiled StyleX (`var(--color-*)` / `var(--font-family-*)`)
+// and Astryx primitives, no Tailwind utilities and no formacore Aurora-glass.
+// The data fetch and split-by-start logic are unchanged.
+
+const styles = stylex.create({
+  page: {
+    marginInline: 'auto',
+    width: '100%',
+    maxWidth: '48rem',
+  },
+  header: {
+    marginBottom: '1.5rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  eyebrow: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.2em',
+    color: 'var(--color-text-secondary)',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+});
 
 interface AccountBookingsParams {
   locale: string;
@@ -46,14 +84,10 @@ export default async function AccountBookingsPage({
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
-      <header className="mb-6 flex flex-col gap-1">
-        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">
-          {t('eyebrow')}
-        </p>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('title')}
-        </h1>
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <p {...stylex.props(styles.eyebrow)}>{t('eyebrow')}</p>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
       </header>
 
       <BookingHistory entries={entries} now={Date.now()} />

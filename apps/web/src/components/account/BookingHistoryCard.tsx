@@ -1,12 +1,146 @@
 'use client';
 
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Avatar } from '@astryxdesign/core/Avatar';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import type { MemberBookingHistoryEntry, MemberBookingStatus } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
-import { Avatar, Badge, buttonClasses, Card, Icon, type Tone } from '@/src/components/ui';
-import { BookingActionButton } from '@/src/components/member/booking-action-button';
+import { Icon } from '@/src/components/ui';
 import { formatTime } from '@/src/components/classes/date-utils';
+import { CancelBookingButton } from './CancelBookingButton';
 import { formatDuration, formatShortDate, relativeDayLabel } from './booking-format';
+
+// Astryx migration (T11.14): one booking card, rebuilt on the Astryx `Card` /
+// `Avatar` / `Badge` / `Button` over the Fit brand theme — the left time block,
+// title, trainer/location/date row, status badge and the cancel/re-book action
+// are all StyleX (`var(--color-*)`), no Tailwind utilities. The category chip
+// keeps its per-category color via an inline `style` (a runtime value StyleX
+// can't precompile). Cancel now runs behind an Astryx AlertDialog confirmation
+// ({@link CancelBookingButton}); the underlying server action is unchanged.
+
+const styles = stylex.create({
+  card: {
+    padding: '1.25rem',
+  },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  timeBlock: {
+    width: '4rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingBlock: '0.5rem',
+    textAlign: 'center',
+  },
+  day: {
+    margin: 0,
+    fontSize: '0.625rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.03em',
+    color: 'var(--color-text-secondary)',
+  },
+  dayToday: {
+    color: 'var(--color-text-accent)',
+  },
+  time: {
+    margin: 0,
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    lineHeight: 1.1,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  duration: {
+    margin: 0,
+    fontSize: '0.625rem',
+    color: 'var(--color-text-secondary)',
+  },
+  details: {
+    minWidth: 0,
+    flex: 1,
+  },
+  titleRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  title: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    letterSpacing: '-0.01em',
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+  },
+  titleMuted: {
+    color: 'var(--color-text-disabled)',
+  },
+  chip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+  },
+  chipDot: {
+    height: '0.375rem',
+    width: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+  },
+  meta: {
+    marginTop: '0.375rem',
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: '0.75rem',
+    rowGap: '0.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metaItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  },
+  metaIcon: {
+    height: '0.875rem',
+    width: '0.875rem',
+    flexShrink: 0,
+    color: 'var(--color-text-secondary)',
+  },
+  actions: {
+    marginInlineStart: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+});
+
+/** The Astryx `Badge` variant for each booking status. */
+const STATUS_VARIANT: Record<MemberBookingStatus, 'success' | 'warning' | 'purple' | 'neutral'> = {
+  BOOKED: 'success',
+  WAITLIST: 'warning',
+  ATTENDED: 'purple',
+  NO_SHOW: 'neutral',
+  CANCELED: 'neutral',
+};
 
 export interface BookingHistoryCardProps {
   entry: MemberBookingHistoryEntry;
@@ -16,26 +150,13 @@ export interface BookingHistoryCardProps {
   past?: boolean;
 }
 
-/** A Dicebear initials avatar seeded by the trainer's name (no photo on the card model). */
-function avatarSrc(name: string): string {
-  return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`;
-}
-
-/** The badge tone for each booking status. */
-const STATUS_TONE: Record<MemberBookingStatus, Tone> = {
-  BOOKED: 'success',
-  WAITLIST: 'warning',
-  ATTENDED: 'brand',
-  NO_SHOW: 'ink',
-  CANCELED: 'ink',
-};
-
 /**
- * One booking on the member board, on the FormaCore design system: a glassy card
- * with a left time block (relative day · start · duration), the category chip,
- * the title (deep-linking to the class), the trainer/location/date row, the
- * status badge, and a primary action — Cancel for a live upcoming booking (runs
- * the cancel server action), Book again for a past one.
+ * One booking on the member board, on the Astryx design system: a card with a
+ * left time block (relative day · start · duration), the category chip, the
+ * title (deep-linking to the class), the trainer/location/date row, the status
+ * badge, and a primary action — Cancel for a live upcoming booking (behind an
+ * AlertDialog confirmation that runs the cancel server action), Book again for a
+ * past one, or View class otherwise.
  */
 export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryCardProps) {
   const t = useTranslations('account.bookings');
@@ -48,39 +169,29 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
 
   return (
     <li>
-      <Card className="p-4 sm:p-5">
-        <div className="flex flex-wrap items-center gap-4">
+      <Card variant="default" padding={0} xstyle={styles.card}>
+        <div {...stylex.props(styles.row)}>
           {/* Time block */}
-          <div className="w-16 shrink-0 rounded-card bg-ink-50 py-2 text-center ring-1 ring-inset ring-ink-100 dark:bg-white/5 dark:ring-white/10">
-            <p
-              className={`text-[10px] font-bold uppercase tracking-wide ${
-                isToday ? 'text-brand-600 dark:text-brand-300' : 'text-ink-500 dark:text-ink-400'
-              }`}
-            >
-              {dayLabel}
-            </p>
-            <p className="text-lg font-extrabold leading-tight tabular-nums text-ink-900 dark:text-white">
-              {formatTime(instance.startsAt, locale)}
-            </p>
-            <p className="text-[10px] text-ink-400">
+          <div {...stylex.props(styles.timeBlock)}>
+            <p {...stylex.props(styles.day, isToday && styles.dayToday)}>{dayLabel}</p>
+            <p {...stylex.props(styles.time)}>{formatTime(instance.startsAt, locale)}</p>
+            <p {...stylex.props(styles.duration)}>
               {formatDuration(instance.startsAt, instance.endsAt)}
             </p>
           </div>
 
           {/* Details */}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
+          <div {...stylex.props(styles.details)}>
+            <div {...stylex.props(styles.titleRow)}>
               <Link
                 href={`/classes/${instance.id}`}
-                className={`font-display text-lg font-extrabold tracking-tight transition-colors hover:text-brand-600 dark:hover:text-brand-300 ${
-                  muted ? 'text-ink-400' : 'text-ink-900 dark:text-white'
-                }`}
+                {...stylex.props(styles.title, muted && styles.titleMuted)}
               >
                 {instance.title}
               </Link>
               {instance.category && (
                 <span
-                  className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
+                  {...stylex.props(styles.chip)}
                   style={{
                     color: instance.color,
                     backgroundColor: `${instance.color}1f`,
@@ -89,56 +200,61 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
                 >
                   <span
                     aria-hidden
-                    className="h-1.5 w-1.5 rounded-full"
+                    {...stylex.props(styles.chipDot)}
                     style={{ backgroundColor: instance.color }}
                   />
                   {instance.category}
                 </span>
               )}
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-500 dark:text-ink-400">
+            <div {...stylex.props(styles.meta)}>
               {instance.trainerName ? (
-                <span className="flex items-center gap-1.5">
-                  <Avatar src={avatarSrc(instance.trainerName)} size="h-5 w-5" />
+                <span {...stylex.props(styles.metaItem)}>
+                  <Avatar name={instance.trainerName} size={20} />
                   {instance.trainerName}
                 </span>
               ) : null}
               {instance.locationName ? (
-                <span className="flex items-center gap-1.5">
-                  <Icon name="pin" className="h-3.5 w-3.5 shrink-0 text-ink-400" sw={2} />
+                <span {...stylex.props(styles.metaItem)}>
+                  <Icon name="pin" {...stylex.props(styles.metaIcon)} sw={2} />
                   {instance.locationName}
                 </span>
               ) : null}
-              <span className="flex items-center gap-1.5">
-                <Icon name="calendar" className="h-3.5 w-3.5 shrink-0 text-ink-400" sw={2} />
+              <span {...stylex.props(styles.metaItem)}>
+                <Icon name="calendar" {...stylex.props(styles.metaIcon)} sw={2} />
                 {formatShortDate(instance.startsAt, locale)}
               </span>
             </div>
           </div>
 
           {/* Status + action */}
-          <div className="ml-auto flex items-center gap-2">
-            <Badge tone={STATUS_TONE[status]}>
-              {status === 'WAITLIST' && entry.waitlistPosition !== null
-                ? t('waitlistPosition', { position: entry.waitlistPosition })
-                : t(`status.${status}`)}
-            </Badge>
+          <div {...stylex.props(styles.actions)}>
+            <Badge
+              variant={STATUS_VARIANT[status]}
+              label={
+                status === 'WAITLIST' && entry.waitlistPosition !== null
+                  ? t('waitlistPosition', { position: entry.waitlistPosition })
+                  : t(`status.${status}`)
+              }
+            />
             {cancelable ? (
-              <BookingActionButton
-                classId={instance.id}
-                action="cancel"
-                label={t('cancel')}
-                v="outline"
-                size="sm"
-              />
+              <CancelBookingButton classId={instance.id} classTitle={instance.title} />
             ) : past ? (
-              <Link href={`/classes/${instance.id}`} className={buttonClasses('primary', 'sm')}>
-                {t('bookAgain')}
-              </Link>
+              <Button
+                as={Link}
+                href={`/classes/${instance.id}`}
+                variant="primary"
+                size="sm"
+                label={t('bookAgain')}
+              />
             ) : (
-              <Link href={`/classes/${instance.id}`} className={buttonClasses('outline', 'sm')}>
-                {t('viewClass')}
-              </Link>
+              <Button
+                as={Link}
+                href={`/classes/${instance.id}`}
+                variant="secondary"
+                size="sm"
+                label={t('viewClass')}
+              />
             )}
           </div>
         </div>
