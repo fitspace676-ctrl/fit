@@ -98,6 +98,17 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/web/src/components/member/cart',
   'apps/web/app/[locale]/(member)/checkout',
   'apps/web/src/components/checkout',
+  // T11.16 — member account: profile (identity + tabbed personal/preferences/
+  // notifications/security), membership (plan/status/freeze/credits/invoices)
+  // and the notification bell + inbox dropdown. Rebuilt on Astryx
+  // Card/Badge/Button/ProgressBar/TabList/TextInput/SegmentedControl/Switch/
+  // NumberInput/Popover + StyleX. The account route group is now fully migrated
+  // (bookings T11.14 + profile + membership), and the notification bell is
+  // guarded file-by-file (the member shell/header stays Tailwind for now).
+  'apps/web/app/[locale]/(member)/account/profile',
+  'apps/web/app/[locale]/(member)/account/membership',
+  'apps/web/src/components/member/profile',
+  'apps/web/src/components/member/notification-bell.tsx',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

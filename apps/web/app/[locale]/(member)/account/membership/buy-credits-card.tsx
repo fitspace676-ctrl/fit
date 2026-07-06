@@ -1,12 +1,21 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import { PACK_UNAVAILABLE_CODE, type CreditPackCatalogueEntry } from '@fit/types';
 import { useRouter } from '@/src/i18n/navigation';
-import { Btn, Card, Icon, Modal, useToast } from '@/src/components/ui';
+import { Icon, useToast } from '@/src/components/ui';
 import { formatMoney } from '@/lib/shop';
 import { purchaseCreditPackAction } from '@/app/actions/credit-packs';
+
+// Astryx migration (T11.16): the "PT credits" metric card + self-service pack
+// purchase flow is rebuilt on the Astryx design system over the Fit brand theme —
+// the metric, the "Buy more" trigger and the pack picker modal use Astryx
+// Card / Button, all layout in compiled StyleX (`var(--color-*)`), no Tailwind
+// utilities. The purchase server action and toast behaviour are unchanged.
 
 /** Props for the PT-credits card: the live balance and the gym's buyable packs. */
 export interface BuyCreditsCardProps {
@@ -14,13 +23,147 @@ export interface BuyCreditsCardProps {
   catalogue: CreditPackCatalogueEntry[];
 }
 
+const styles = stylex.create({
+  card: {
+    padding: '1.25rem',
+  },
+  head: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    color: 'var(--color-text-secondary)',
+  },
+  headIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+  label: {
+    margin: 0,
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  },
+  value: {
+    margin: 0,
+    marginTop: '0.75rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  buyMore: {
+    marginTop: '0.5rem',
+    display: 'inline-block',
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    padding: 0,
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-accent)',
+    },
+    textDecorationLine: {
+      default: 'none',
+      ':hover': 'underline',
+    },
+    cursor: 'pointer',
+  },
+  none: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-disabled)',
+  },
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 50,
+    display: 'grid',
+    placeItems: 'center',
+    padding: '1rem',
+    backgroundColor: 'var(--color-overlay)',
+    backdropFilter: 'blur(4px)',
+  },
+  modal: {
+    width: '100%',
+    maxWidth: '26rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-card)',
+    padding: '1.5rem',
+  },
+  modalTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  modalBody: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  packs: {
+    marginTop: '1.25rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+  },
+  pack: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-card)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+  },
+  packText: {
+    minWidth: 0,
+  },
+  packName: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  packMeta: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  modalActions: {
+    marginTop: '1.25rem',
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+});
+
 /**
- * The "PT credits" metric card with a self-service purchase flow (T5.8): shows the
- * member's remaining class credits and — when the gym sells finite-session packs —
- * a "Buy more" button that opens a picker. Choosing a pack posts to
- * `POST /credit-packs/purchase` via the server action, toasts the outcome, and
- * refreshes the page so the new balance shows. A gym with no packs on sale renders
- * the balance read-only (no button), matching the honest-empty-state convention.
+ * The "PT credits" metric card with a self-service purchase flow (T5.8), on the
+ * Astryx design system: shows the member's remaining class credits and — when the
+ * gym sells finite-session packs — a "Buy more" button that opens a picker.
+ * Choosing a pack posts to `POST /credit-packs/purchase` via the server action,
+ * toasts the outcome, and refreshes the page so the new balance shows. A gym with
+ * no packs on sale renders the balance read-only (no button), matching the
+ * honest-empty-state convention.
  */
 export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
   const t = useTranslations('member.membership.credits');
@@ -49,57 +192,64 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
   }
 
   return (
-    <Card className="p-5">
-      <div className="flex items-center gap-2 text-ink-500 dark:text-ink-400">
-        <Icon name="dumbbell" className="h-5 w-5" />
-        <p className="text-xs font-semibold uppercase tracking-wide">{t('title')}</p>
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.head)}>
+        <Icon name="dumbbell" {...stylex.props(styles.headIcon)} />
+        <p {...stylex.props(styles.label)}>{t('title')}</p>
       </div>
-      <p className="mt-3 font-display text-2xl font-extrabold tabular-nums text-ink-900 dark:text-white">
-        {credits}
-      </p>
+      <p {...stylex.props(styles.value)}>{credits}</p>
       {catalogue.length > 0 ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="mt-2 inline-block text-xs font-semibold text-brand-600 hover:underline dark:text-brand-300"
-        >
+        <button type="button" onClick={() => setOpen(true)} {...stylex.props(styles.buyMore)}>
           {t('buyMore')}
         </button>
       ) : (
-        <p className="mt-2 text-xs text-ink-400">{t('noneOnSale')}</p>
+        <p {...stylex.props(styles.none)}>{t('noneOnSale')}</p>
       )}
 
-      <Modal
-        open={open}
-        onClose={() => (pending ? undefined : setOpen(false))}
-        title={t('modalTitle')}
-        description={t('modalBody')}
-        size="sm"
-      >
-        <ul className="flex flex-col gap-2">
-          {catalogue.map((pack) => (
-            <li
-              key={pack.id}
-              className="flex items-center justify-between gap-3 rounded-card border border-ink-100 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink-900 dark:text-white">
-                  {pack.name}
-                </p>
-                <p className="text-xs text-ink-500 dark:text-ink-400">
-                  {t('packMeta', {
-                    count: pack.sessionCount,
-                    price: formatMoney(pack.priceAmount, pack.currency, locale),
-                  })}
-                </p>
-              </div>
-              <Btn v="primary" size="sm" onClick={() => buy(pack)} disabled={pending}>
-                {buyingId === pack.id ? t('buying') : t('buy')}
-              </Btn>
-            </li>
-          ))}
-        </ul>
-      </Modal>
+      {open ? (
+        <div
+          {...stylex.props(styles.overlay)}
+          role="dialog"
+          aria-modal="true"
+          onClick={() => (pending ? undefined : setOpen(false))}
+        >
+          <div {...stylex.props(styles.modal)} onClick={(e) => e.stopPropagation()}>
+            <p {...stylex.props(styles.modalTitle)}>{t('modalTitle')}</p>
+            <p {...stylex.props(styles.modalBody)}>{t('modalBody')}</p>
+            <ul {...stylex.props(styles.packs)}>
+              {catalogue.map((pack) => (
+                <li key={pack.id} {...stylex.props(styles.pack)}>
+                  <div {...stylex.props(styles.packText)}>
+                    <p {...stylex.props(styles.packName)}>{pack.name}</p>
+                    <p {...stylex.props(styles.packMeta)}>
+                      {t('packMeta', {
+                        count: pack.sessionCount,
+                        price: formatMoney(pack.priceAmount, pack.currency, locale),
+                      })}
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    label={buyingId === pack.id ? t('buying') : t('buy')}
+                    onClick={() => buy(pack)}
+                    isDisabled={pending}
+                  />
+                </li>
+              ))}
+            </ul>
+            <div {...stylex.props(styles.modalActions)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                label={t('close')}
+                onClick={() => setOpen(false)}
+                isDisabled={pending}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Card>
   );
 }
