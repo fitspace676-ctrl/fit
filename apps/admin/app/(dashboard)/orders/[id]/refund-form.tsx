@@ -2,16 +2,92 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import { Btn } from '@/components/ui';
 import { formatMoney } from '../format';
 import { refundOrderAction } from './actions';
 
-/** Shared kit field styling for the refund inputs. */
-const FIELD_CLASS =
-  'rounded-field border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
-
 /** Minor units per major unit (USD/EUR/GEL — all two-decimal). */
 const MINOR_PER_MAJOR = 100;
+
+const styles = stylex.create({
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  fieldCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  label: {
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  input: {
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.625rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  amountInput: {
+    width: '10rem',
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  textarea: {
+    width: '100%',
+  },
+  checkboxRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+  },
+  checkbox: {
+    height: '1rem',
+    width: '1rem',
+    accentColor: 'var(--color-accent)',
+  },
+  errorMsg: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  successMsg: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-success)',
+    backgroundColor: 'var(--color-success-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-success)',
+  },
+});
 
 /**
  * The refund control on the order detail page (T7.9). Shown only to `BillingManage`
@@ -73,12 +149,9 @@ export function RefundForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="refund-amount"
-          className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
-        >
+    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
+      <div {...stylex.props(styles.fieldCol)}>
+        <label htmlFor="refund-amount" {...stylex.props(styles.label)}>
           Amount ({currency})
         </label>
         <input
@@ -89,15 +162,12 @@ export function RefundForm({
           max={(refundableMinor / MINOR_PER_MAJOR).toFixed(2)}
           value={amount}
           onChange={(event) => setAmount(event.target.value)}
-          className={`w-40 font-mono tabular-nums ${FIELD_CLASS}`}
+          {...stylex.props(styles.input, styles.amountInput)}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="refund-reason"
-          className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400"
-        >
+      <div {...stylex.props(styles.fieldCol)}>
+        <label htmlFor="refund-reason" {...stylex.props(styles.label)}>
           Reason
         </label>
         <textarea
@@ -107,30 +177,22 @@ export function RefundForm({
           rows={2}
           maxLength={500}
           placeholder="e.g. Customer returned the item"
-          className={`w-full ${FIELD_CLASS}`}
+          {...stylex.props(styles.input, styles.textarea)}
         />
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+      <label {...stylex.props(styles.checkboxRow)}>
         <input
           type="checkbox"
           checked={restockItems}
           onChange={(event) => setRestockItems(event.target.checked)}
-          className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-400 dark:border-white/20 dark:bg-white/10"
+          {...stylex.props(styles.checkbox)}
         />
         Restock items (uncheck if the goods came back damaged)
       </label>
 
-      {error && (
-        <p className="rounded-card border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-danger-700 dark:text-danger-300">
-          {error}
-        </p>
-      )}
-      {done && (
-        <p className="rounded-card border border-success-500/30 bg-success-500/10 px-3 py-2 text-sm text-success-700 dark:text-success-300">
-          Refund issued.
-        </p>
-      )}
+      {error && <p {...stylex.props(styles.errorMsg)}>{error}</p>}
+      {done && <p {...stylex.props(styles.successMsg)}>Refund issued.</p>}
 
       <div>
         <Btn type="submit" v="primary" size="md" disabled={isPending}>

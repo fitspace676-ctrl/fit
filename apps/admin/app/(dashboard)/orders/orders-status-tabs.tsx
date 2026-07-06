@@ -3,6 +3,7 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminOrderStatus } from '@fit/types';
+import { FilterChips, type FilterChip } from '@/components/ui';
 
 /** The tabs, in lifecycle order. `''` is the "All" tab that clears the filter. */
 const TABS: ReadonlyArray<{ value: AdminOrderStatus | ''; label: string }> = [
@@ -13,17 +14,12 @@ const TABS: ReadonlyArray<{ value: AdminOrderStatus | ''; label: string }> = [
   { value: 'REFUNDED', label: 'Refunded' },
 ];
 
-/** The engine gradient the active tab wears, shared across the formacore screens. */
-const ACTIVE_TAB =
-  'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white ring-transparent shadow-[0_6px_18px_-8px_rgba(124,58,237,0.8)]';
-const IDLE_TAB =
-  'bg-ink-50 text-ink-600 ring-ink-200 hover:bg-ink-100 dark:bg-white/[0.03] dark:text-ink-300 dark:ring-white/10 dark:hover:bg-white/[0.06]';
-
 /**
- * The orders roster's segmented status tabs (T4.3), matching the formacore orders
- * artboard: a pill row that maps to the `status` URL param the server page reads.
- * "All" clears the filter; each other tab pins an {@link AdminOrderStatus}. Every
- * change resets to page 1 and runs in a transition so the pills stay responsive.
+ * The orders roster's segmented status tabs (T4.3), rebuilt on the Astryx
+ * {@link FilterChips} kit (T11.22): a pill row that maps to the `status` URL
+ * param the server page reads. "All" clears the filter; each other tab pins an
+ * {@link AdminOrderStatus}. Every change resets to page 1 and runs in a
+ * transition so the pills stay responsive.
  */
 export function OrdersStatusTabs({ status }: { status: string }) {
   const router = useRouter();
@@ -43,29 +39,14 @@ export function OrdersStatusTabs({ status }: { status: string }) {
     startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname));
   }
 
+  const chips: FilterChip[] = TABS.map((tab) => ({ label: tab.label, value: tab.value }));
+
   return (
-    <div
-      role="tablist"
-      aria-label="Filter orders by status"
-      className="flex flex-wrap items-center gap-1.5"
-    >
-      {TABS.map((tab) => {
-        const active = tab.value === status || (tab.value === '' && status === '');
-        return (
-          <button
-            key={tab.label}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => select(tab.value)}
-            className={`h-9 rounded-pill px-3.5 text-xs font-semibold ring-1 ring-inset transition ${
-              active ? ACTIVE_TAB : IDLE_TAB
-            }`}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
+    <FilterChips
+      chips={chips}
+      active={status}
+      onSelect={select}
+      ariaLabel="Filter orders by status"
+    />
   );
 }
