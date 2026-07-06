@@ -94,22 +94,26 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/(dashboard)/check-in`                     | T11.20 | ✅     |
 | `apps/admin/app/(dashboard)/schedule`                     | T11.20 | ✅     |
 | `apps/admin/app/(dashboard)/classes`                      | T11.20 | ✅     |
+| `apps/admin/app/(dashboard)/activity`                     | T11.21 | ✅     |
+| `apps/admin/app/(dashboard)/audit-log`                    | T11.21 | ✅     |
+| `apps/admin/app/(dashboard)/staff`                        | T11.21 | ✅     |
+| `apps/admin/app/(dashboard)/locations`                    | T11.21 | ✅     |
+| `apps/admin/app/(dashboard)/settings`                     | T11.21 | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
-`apps/web` ≈ 77, `apps/admin` ≈ 112.
+`apps/web` ≈ 77, `apps/admin` ≈ 92.
 
-| Area                                        | Tasks                  |
-| ------------------------------------------- | ---------------------- |
-| Web — member shell + home                   | T11.10, T11.11         |
-| Web — classes / trainers / bookings         | T11.12, T11.13, T11.14 |
-| Web — shop / cart / checkout                | T11.15                 |
-| Web — account / profile / membership        | T11.16                 |
-| Admin — shell + dashboard                   | T11.17, T11.18         |
-| Admin — activity / audit / staff / settings | T11.21                 |
-| Admin — commerce (orders/POS/products)      | T11.22                 |
-| Admin — billing (plans/subs/invoices)       | T11.23                 |
-| Parity + a11y + dead-code sweep             | T11.24, T11.25, T11.26 |
+| Area                                   | Tasks                  |
+| -------------------------------------- | ---------------------- |
+| Web — member shell + home              | T11.10, T11.11         |
+| Web — classes / trainers / bookings    | T11.12, T11.13, T11.14 |
+| Web — shop / cart / checkout           | T11.15                 |
+| Web — account / profile / membership   | T11.16                 |
+| Admin — shell + dashboard              | T11.17, T11.18         |
+| Admin — commerce (orders/POS/products) | T11.22                 |
+| Admin — billing (plans/subs/invoices)  | T11.23                 |
+| Parity + a11y + dead-code sweep        | T11.24, T11.25, T11.26 |
 
 The demo/showcase route `apps/web/app/[locale]/astryx-primitives` is **not**
 migrated and never enters the manifest — it uses Tailwind on purpose to scaffold

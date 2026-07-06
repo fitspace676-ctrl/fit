@@ -1,9 +1,43 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { LocationForm } from '../location-form';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  backLink: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    color: 'var(--color-text-accent)',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 export const metadata: Metadata = {
   title: 'New location — Fit Admin',
@@ -26,19 +60,14 @@ export default async function NewLocationPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/locations"
-        className="text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-      >
+    <div {...stylex.props(styles.page)}>
+      <Link href="/locations" {...stylex.props(styles.backLink)}>
         ← Back to locations
       </Link>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          New location
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>New location</h1>
+        <p {...stylex.props(styles.subtitle)}>
           Add a branch to your gym. Set its address, opening hours, and amenities so members can
           find and choose where to train.
         </p>

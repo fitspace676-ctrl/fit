@@ -4,15 +4,14 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type { AdminLocationRow, LocationStatus } from '@fit/types';
 import {
   Badge,
-  Card,
   CountUp,
-  Dot,
   FilterChips,
   Icon,
-  buttonClasses,
   useToast,
   type FilterChip,
   type IconName,
@@ -20,6 +19,438 @@ import {
 } from '@/components/ui';
 import { formatDayHours, hoursForDate, isOpenAt } from './format-hours';
 import { setLocationActiveAction } from './actions';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  crumbIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  crumbCurrent: {
+    color: 'var(--color-text-primary)',
+  },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  addLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    height: '2.75rem',
+    paddingInline: '1.25rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+  },
+  addIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  kpiSection: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(4, minmax(0, 1fr))',
+    },
+  },
+  kpiCard: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    padding: '1.25rem',
+  },
+  kpiIcon: {
+    display: 'grid',
+    height: '2.5rem',
+    width: '2.5rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  kpiIconSvg: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  kpiValue: {
+    margin: 0,
+    marginTop: '1rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  kpiLabel: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  kpiContext: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  filterRow: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 1024px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 1024px)': 'center',
+    },
+    justifyContent: {
+      default: 'flex-start',
+      '@media (min-width: 1024px)': 'space-between',
+    },
+    gap: '0.75rem',
+  },
+  searchWrap: {
+    position: 'relative',
+    width: {
+      default: 'auto',
+      '@media (min-width: 1024px)': '18rem',
+    },
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  searchIcon: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    insetBlock: 0,
+    left: '0.75rem',
+    display: 'flex',
+    alignItems: 'center',
+    color: 'var(--color-icon-secondary)',
+  },
+  searchIconSvg: {
+    width: '1rem',
+    height: '1rem',
+  },
+  searchInput: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingLeft: '2.25rem',
+    paddingRight: '0.875rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  emptyCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
+    paddingInline: '1rem',
+    paddingBlock: '3rem',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    display: 'grid',
+    height: '2.75rem',
+    width: '2.75rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-icon-secondary)',
+  },
+  emptyIconSvg: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  emptyTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  emptyHint: {
+    margin: 0,
+    maxWidth: '24rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  grid: {
+    display: 'grid',
+    gap: '1.25rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 768px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1280px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  photoHead: {
+    position: 'relative',
+    height: '9rem',
+  },
+  photoImg: {
+    position: 'absolute',
+    inset: 0,
+    height: '100%',
+    width: '100%',
+    objectFit: 'cover',
+  },
+  photoFallback: {
+    position: 'absolute',
+    inset: 0,
+    display: 'grid',
+    placeItems: 'center',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-icon-accent)',
+  },
+  photoFallbackIcon: {
+    width: '2rem',
+    height: '2rem',
+  },
+  photoScrim: {
+    position: 'absolute',
+    inset: 0,
+    backgroundImage:
+      'linear-gradient(to top, rgba(9, 9, 11, 0.8), rgba(9, 9, 11, 0.2) 60%, transparent)',
+  },
+  badgePos: {
+    position: 'absolute',
+    left: '0.75rem',
+    top: '0.75rem',
+  },
+  badgeInner: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  },
+  badgeDot: {
+    display: 'inline-block',
+    height: '0.375rem',
+    width: '0.375rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  menuPos: {
+    position: 'absolute',
+    right: '0.5rem',
+    top: '0.5rem',
+  },
+  menuAnchor: {
+    position: 'relative',
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+  menuTrigger: {
+    display: 'grid',
+    height: '2.25rem',
+    width: '2.25rem',
+    placeItems: 'center',
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: {
+      default: 'rgba(9, 9, 11, 0.3)',
+      ':hover': 'rgba(9, 9, 11, 0.5)',
+    },
+    color: 'var(--color-on-accent)',
+    backdropFilter: 'blur(4px)',
+    cursor: 'pointer',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+  },
+  menuTriggerIcon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  menuBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 30,
+  },
+  menu: {
+    position: 'absolute',
+    right: 0,
+    top: '2.5rem',
+    zIndex: 40,
+    width: '11rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-popover)',
+    padding: '0.375rem',
+  },
+  menuItem: {
+    display: 'flex',
+    height: '2.25rem',
+    width: '100%',
+    alignItems: 'center',
+    gap: '0.625rem',
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.625rem',
+    textAlign: 'left',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    color: 'var(--color-text-secondary)',
+    cursor: 'pointer',
+  },
+  menuItemIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  photoIdentity: {
+    position: 'absolute',
+    insetInline: '1rem',
+    bottom: '0.75rem',
+  },
+  photoName: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    textDecoration: {
+      default: 'none',
+      ':hover': 'underline',
+    },
+    color: 'var(--color-on-accent)',
+  },
+  photoAddress: {
+    margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-on-accent)',
+    opacity: 0.75,
+  },
+  photoAddressIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  body: {
+    display: 'flex',
+    flex: 1,
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1.25rem',
+  },
+  metaRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+  },
+  metaItem: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metaIcon: {
+    width: '1rem',
+    height: '1rem',
+    color: 'var(--color-icon-secondary)',
+  },
+  amenityWrap: {
+    marginTop: 'auto',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.375rem',
+    paddingTop: '0.25rem',
+  },
+  amenityTag: {
+    display: 'inline-flex',
+    height: '1.75rem',
+    alignItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.625rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  noAmenities: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /** One roster KPI card — icon tile, animated headline value, and label. */
 function KpiCard({
@@ -36,17 +467,15 @@ function KpiCard({
   icon: IconName;
 }) {
   return (
-    <Card className="flex h-full flex-col p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+      <span {...stylex.props(styles.kpiIcon)}>
+        <Icon name={icon} {...stylex.props(styles.kpiIconSvg)} />
       </span>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+      <p {...stylex.props(styles.kpiValue)}>
         <CountUp to={value} suffix={suffix} />
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {label}
-      </p>
-      <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">{context}</p>
+      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
+      <p {...stylex.props(styles.kpiContext)}>{context}</p>
     </Card>
   );
 }
@@ -144,16 +573,16 @@ export function LocationsBoard({
   /** The badge treatment for a card: inactive lifecycle wins, else live open/closed. */
   function openStateOf(location: AdminLocationRow): OpenState {
     if (location.status === 'INACTIVE') {
-      return { tone: 'ink', dot: 'bg-ink-400', label: t('card.inactive') };
+      return { tone: 'ink', dot: 'var(--color-text-secondary)', label: t('card.inactive') };
     }
     if (now === null) {
       // Pre-mount: fall back to the lifecycle label (it is active) until the
       // client clock resolves the live open/closed state.
-      return { tone: 'success', dot: 'bg-success-400', label: t('status.ACTIVE') };
+      return { tone: 'success', dot: 'var(--color-success)', label: t('status.ACTIVE') };
     }
     return isOpenAt(location.hours, now)
-      ? { tone: 'success', dot: 'bg-success-400', label: t('card.open') }
-      : { tone: 'ink', dot: 'bg-ink-400', label: t('card.closed') };
+      ? { tone: 'success', dot: 'var(--color-success)', label: t('card.open') }
+      : { tone: 'ink', dot: 'var(--color-text-secondary)', label: t('card.closed') };
   }
 
   /** Today's hours as a short line, or `null` before the client clock resolves. */
@@ -186,33 +615,28 @@ export function LocationsBoard({
   const noMatch = locations.length > 0 && visible.length === 0;
 
   return (
-    <div className="flex flex-col gap-6">
-      <nav
-        aria-label={t('breadcrumb.label')}
-        className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
-      >
+    <div {...stylex.props(styles.page)}>
+      <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
         <span>Iron Gym</span>
-        <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <span className="text-ink-600 dark:text-ink-300">{t('breadcrumb.locations')}</span>
+        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+        <span {...stylex.props(styles.crumbCurrent)}>{t('breadcrumb.locations')}</span>
       </nav>
 
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            {t('title')}
-          </h1>
-          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headText)}>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </div>
         {canWrite ? (
-          <Link href="/locations/new" className={buttonClasses('primary', 'md')}>
-            <Icon name="plus" className="h-4 w-4" sw={2} />
+          <Link href="/locations/new" {...stylex.props(styles.addLink)}>
+            <Icon name="plus" {...stylex.props(styles.addIcon)} sw={2} />
             {t('add')}
           </Link>
         ) : null}
       </header>
 
       {/* Gym-wide KPI cards — live aggregates over the whole roster. */}
-      <section aria-label={t('title')} className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section aria-label={t('title')} {...stylex.props(styles.kpiSection)}>
         <KpiCard
           label={t('kpi.total')}
           value={locations.length}
@@ -239,19 +663,19 @@ export function LocationsBoard({
         />
       </section>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div {...stylex.props(styles.filterRow)}>
         <FilterChips
           chips={statusChips}
           active={statusFilter}
           onSelect={(value) => setStatusFilter(value as LocationStatus | '')}
           ariaLabel={t('filters.statusAria')}
         />
-        <div className="relative lg:w-72">
-          <label htmlFor="location-search" className="sr-only">
+        <div {...stylex.props(styles.searchWrap)}>
+          <label htmlFor="location-search" {...stylex.props(styles.srOnly)}>
             {t('filters.searchLabel')}
           </label>
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-400">
-            <Icon name="search" className="h-4 w-4" />
+          <span {...stylex.props(styles.searchIcon)}>
+            <Icon name="search" {...stylex.props(styles.searchIconSvg)} />
           </span>
           <input
             id="location-search"
@@ -259,56 +683,62 @@ export function LocationsBoard({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('filters.searchPlaceholder')}
-            className="h-11 w-full rounded-field border border-ink-200 bg-white pl-9 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+            {...stylex.props(styles.searchInput)}
           />
         </div>
       </div>
 
       {visible.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-          <span className="grid h-11 w-11 place-items-center rounded-btn bg-ink-100 text-ink-400 dark:bg-white/5 dark:text-ink-500">
-            <Icon name={noMatch ? 'search' : 'pin'} className="h-5 w-5" />
+        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+          <span {...stylex.props(styles.emptyIcon)}>
+            <Icon name={noMatch ? 'search' : 'pin'} {...stylex.props(styles.emptyIconSvg)} />
           </span>
-          <p className="text-sm font-semibold text-ink-700 dark:text-ink-200">
+          <p {...stylex.props(styles.emptyTitle)}>
             {noMatch ? t('empty.noMatchTitle') : t('empty.emptyTitle')}
           </p>
-          <p className="max-w-sm text-sm text-ink-500 dark:text-ink-400">
+          <p {...stylex.props(styles.emptyHint)}>
             {noMatch ? t('empty.noMatchHint') : t('empty.emptyHint')}
           </p>
         </Card>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div {...stylex.props(styles.grid)}>
           {visible.map((location) => {
             const open = openStateOf(location);
             const today = todayLine(location);
             const rowBusy = busyId === location.id && pending;
             return (
-              <Card key={location.id} className="flex flex-col">
+              <Card key={location.id} variant="default" padding={0} xstyle={styles.card}>
                 {/* Photo header with the identity overlay, status badge and row menu. */}
-                <div className="relative h-36">
+                <div {...stylex.props(styles.photoHead)}>
                   {location.photoUrl ? (
                     <img
                       src={location.photoUrl}
                       alt={location.name}
-                      className="absolute inset-0 h-full w-full object-cover"
+                      {...stylex.props(styles.photoImg)}
                     />
                   ) : (
-                    <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-brand-500/20 to-accent-500/20 text-brand-500 dark:text-brand-300">
-                      <Icon name="pin" className="h-8 w-8" />
+                    <div {...stylex.props(styles.photoFallback)}>
+                      <Icon name="pin" {...stylex.props(styles.photoFallbackIcon)} />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-ink-950/80 via-ink-950/20 to-transparent" />
+                  <div aria-hidden {...stylex.props(styles.photoScrim)} />
 
-                  <div className="absolute left-3 top-3">
-                    <Badge tone={open.tone} className="gap-1.5">
-                      <Dot c={open.dot} />
-                      {open.label}
+                  <div {...stylex.props(styles.badgePos)}>
+                    <Badge tone={open.tone}>
+                      <span {...stylex.props(styles.badgeInner)}>
+                        <span
+                          aria-hidden
+                          {...stylex.props(styles.badgeDot)}
+                          style={{ backgroundColor: open.dot }}
+                        />
+                        {open.label}
+                      </span>
                     </Badge>
                   </div>
 
                   {canWrite ? (
-                    <div className="absolute right-2 top-2">
-                      <div className="relative flex justify-end">
+                    <div {...stylex.props(styles.menuPos)}>
+                      <div {...stylex.props(styles.menuAnchor)}>
                         <button
                           type="button"
                           aria-label={t('rowMenu.open', { name: location.name })}
@@ -316,48 +746,45 @@ export function LocationsBoard({
                           aria-expanded={menuFor === location.id}
                           disabled={rowBusy}
                           onClick={() => setMenuFor(menuFor === location.id ? null : location.id)}
-                          className="grid h-9 w-9 place-items-center rounded-btn bg-ink-950/30 text-white/90 backdrop-blur transition hover:bg-ink-950/50 disabled:opacity-50"
+                          {...stylex.props(styles.menuTrigger)}
                         >
-                          <Icon name="settings" className="h-5 w-5" />
+                          <Icon name="settings" {...stylex.props(styles.menuTriggerIcon)} />
                         </button>
                         {menuFor === location.id ? (
                           <>
                             <div
-                              className="fixed inset-0 z-30"
+                              {...stylex.props(styles.menuBackdrop)}
                               aria-hidden
                               onClick={() => setMenuFor(null)}
                             />
-                            <div
-                              role="menu"
-                              className="absolute right-0 top-10 z-40 w-44 rounded-card border border-ink-200 bg-white p-1.5 shadow-[0_24px_60px_-16px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-ink-900/95 dark:backdrop-blur-xl"
-                            >
+                            <div role="menu" {...stylex.props(styles.menu)}>
                               <Link
                                 href={`/locations/${location.id}`}
                                 role="menuitem"
                                 onClick={() => setMenuFor(null)}
-                                className="flex h-9 w-full items-center gap-2.5 rounded-btn px-2.5 text-left text-sm font-medium text-ink-600 transition hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/[0.06]"
+                                {...stylex.props(styles.menuItem)}
                               >
-                                <Icon name="search" className="h-4 w-4" />
+                                <Icon name="search" {...stylex.props(styles.menuItemIcon)} />
                                 {t('rowMenu.view')}
                               </Link>
                               <Link
                                 href={`/locations/${location.id}/edit`}
                                 role="menuitem"
                                 onClick={() => setMenuFor(null)}
-                                className="flex h-9 w-full items-center gap-2.5 rounded-btn px-2.5 text-left text-sm font-medium text-ink-600 transition hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/[0.06]"
+                                {...stylex.props(styles.menuItem)}
                               >
-                                <Icon name="settings" className="h-4 w-4" />
+                                <Icon name="settings" {...stylex.props(styles.menuItemIcon)} />
                                 {t('rowMenu.edit')}
                               </Link>
                               <button
                                 type="button"
                                 role="menuitem"
                                 onClick={() => setActive(location, location.status !== 'ACTIVE')}
-                                className="flex h-9 w-full items-center gap-2.5 rounded-btn px-2.5 text-left text-sm font-medium text-ink-600 transition hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/[0.06]"
+                                {...stylex.props(styles.menuItem)}
                               >
                                 <Icon
                                   name={location.status === 'ACTIVE' ? 'lock' : 'check'}
-                                  className="h-4 w-4"
+                                  {...stylex.props(styles.menuItemIcon)}
                                 />
                                 {location.status === 'ACTIVE'
                                   ? t('rowMenu.deactivate')
@@ -370,47 +797,41 @@ export function LocationsBoard({
                     </div>
                   ) : null}
 
-                  <div className="absolute inset-x-4 bottom-3">
-                    <Link
-                      href={`/locations/${location.id}`}
-                      className="font-display text-lg font-extrabold tracking-tight text-white hover:underline"
-                    >
+                  <div {...stylex.props(styles.photoIdentity)}>
+                    <Link href={`/locations/${location.id}`} {...stylex.props(styles.photoName)}>
                       {location.name}
                     </Link>
-                    <p className="flex items-center gap-1.5 text-xs text-white/75">
-                      <Icon name="pin" className="h-3.5 w-3.5" sw={2} />
+                    <p {...stylex.props(styles.photoAddress)}>
+                      <Icon name="pin" {...stylex.props(styles.photoAddressIcon)} sw={2} />
                       {location.address || t('card.noAddress')}
                     </p>
                   </div>
                 </div>
 
                 {/* Body: today's hours, phone, and the amenities chips. */}
-                <div className="flex flex-1 flex-col gap-4 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span className="inline-flex items-center gap-1.5 text-ink-600 dark:text-ink-300">
-                      <Icon name="clock" className="h-4 w-4 text-ink-400" sw={2} />
+                <div {...stylex.props(styles.body)}>
+                  <div {...stylex.props(styles.metaRow)}>
+                    <span {...stylex.props(styles.metaItem)}>
+                      <Icon name="clock" {...stylex.props(styles.metaIcon)} sw={2} />
                       {today ?? '—'}
                     </span>
                     {location.phone ? (
-                      <span className="inline-flex items-center gap-1.5 text-ink-600 dark:text-ink-300">
-                        <Icon name="bell" className="h-4 w-4 text-ink-400" sw={2} />
+                      <span {...stylex.props(styles.metaItem)}>
+                        <Icon name="bell" {...stylex.props(styles.metaIcon)} sw={2} />
                         {location.phone}
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
+                  <div {...stylex.props(styles.amenityWrap)}>
                     {location.amenities.length > 0 ? (
                       location.amenities.map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-flex h-7 items-center rounded-pill bg-ink-100 px-2.5 text-[11px] font-semibold text-ink-600 dark:bg-white/10 dark:text-ink-300"
-                        >
+                        <span key={tag} {...stylex.props(styles.amenityTag)}>
                           {tag}
                         </span>
                       ))
                     ) : (
-                      <span className="text-xs text-ink-400">{t('card.noAmenities')}</span>
+                      <span {...stylex.props(styles.noAmenities)}>{t('card.noAmenities')}</span>
                     )}
                   </div>
                 </div>

@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type { PendingInvite, StaffMember, StaffRole } from '@fit/types';
 import {
   Btn,
-  Card,
   CountUp,
   FilterChips,
   Icon,
@@ -17,6 +18,185 @@ import { STAFF_ROLES } from './role-meta';
 import { StaffTable } from './staff-table';
 import { InvitesTable } from './invites-table';
 import { InviteModal } from './invite-modal';
+
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  crumbIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  crumbCurrent: {
+    color: 'var(--color-text-primary)',
+  },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headline: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontSize: {
+      default: '1.5rem',
+      '@media (min-width: 640px)': '1.875rem',
+    },
+    fontWeight: 800,
+    letterSpacing: '-0.025em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  kpiGrid: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: '1fr 1fr',
+      '@media (min-width: 1024px)': 'repeat(4, 1fr)',
+    },
+    gap: '1rem',
+  },
+  kpiCard: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+    padding: '1.25rem',
+  },
+  kpiIcon: {
+    display: 'grid',
+    height: '2.5rem',
+    width: '2.5rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  kpiIconSvg: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+  kpiValue: {
+    margin: 0,
+    marginTop: '1rem',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.025em',
+    color: 'var(--color-text-primary)',
+  },
+  kpiLabel: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  kpiContext: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  tabLabel: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  },
+  tabCount: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  filterRow: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 1024px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 1024px)': 'center',
+    },
+    justifyContent: {
+      default: 'flex-start',
+      '@media (min-width: 1024px)': 'space-between',
+    },
+    gap: '0.75rem',
+  },
+  searchWrap: {
+    position: 'relative',
+    width: {
+      default: '100%',
+      '@media (min-width: 1024px)': '18rem',
+    },
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  searchIcon: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '0.75rem',
+    display: 'flex',
+    alignItems: 'center',
+    pointerEvents: 'none',
+    color: 'var(--color-icon-secondary)',
+  },
+  searchIconSvg: {
+    height: '1rem',
+    width: '1rem',
+  },
+  searchInput: {
+    height: '2.75rem',
+    width: '100%',
+    paddingLeft: '2.25rem',
+    paddingRight: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+});
 
 /** One roster KPI card — icon tile, animated headline value, label, and context. */
 function KpiCard({
@@ -31,17 +211,15 @@ function KpiCard({
   icon: IconName;
 }) {
   return (
-    <Card className="flex h-full flex-col p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-        <Icon name={icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+      <span {...stylex.props(styles.kpiIcon)}>
+        <Icon name={icon} {...stylex.props(styles.kpiIconSvg)} />
       </span>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+      <p {...stylex.props(styles.kpiValue)}>
         <CountUp to={value} />
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {label}
-      </p>
-      <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">{context}</p>
+      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
+      <p {...stylex.props(styles.kpiContext)}>{context}</p>
     </Card>
   );
 }
@@ -49,9 +227,9 @@ function KpiCard({
 /** A tab label with a trailing count chip. */
 function TabLabel({ label, count }: { label: string; count: number }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span {...stylex.props(styles.tabLabel)}>
       {label}
-      <span className="font-mono text-xs tabular-nums text-ink-400">{count}</span>
+      <span {...stylex.props(styles.tabCount)}>{count}</span>
     </span>
   );
 }
@@ -118,22 +296,17 @@ export function StaffConsole({
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      <nav
-        aria-label={t('breadcrumb.label')}
-        className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
-      >
+    <div {...stylex.props(styles.stack)}>
+      <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
         <span>Iron Gym</span>
-        <Icon name="chevronRight" className="h-3.5 w-3.5" />
-        <span className="text-ink-600 dark:text-ink-300">{t('breadcrumb.staff')}</span>
+        <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+        <span {...stylex.props(styles.crumbCurrent)}>{t('breadcrumb.staff')}</span>
       </nav>
 
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            {t('title')}
-          </h1>
-          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headline)}>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </div>
         {canManage ? (
           <Btn v="primary" icon="plus" onClick={() => setInviteOpen(true)}>
@@ -143,7 +316,7 @@ export function StaffConsole({
       </header>
 
       {/* Gym-wide KPI cards — live aggregates over the whole roster. */}
-      <section aria-label={t('title')} className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section aria-label={t('title')} {...stylex.props(styles.kpiGrid)}>
         <KpiCard
           label={t('kpi.total')}
           value={staff.length}
@@ -188,19 +361,19 @@ export function StaffConsole({
 
       {tab === 'people' ? (
         <>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div {...stylex.props(styles.filterRow)}>
             <FilterChips
               chips={roleChips}
               active={roleFilter}
               onSelect={(value) => setRoleFilter(value as StaffRole | '')}
               ariaLabel={t('filters.roleAria')}
             />
-            <div className="relative lg:w-72">
-              <label htmlFor="staff-search" className="sr-only">
+            <div {...stylex.props(styles.searchWrap)}>
+              <label htmlFor="staff-search" {...stylex.props(styles.srOnly)}>
                 {t('filters.searchLabel')}
               </label>
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-400">
-                <Icon name="search" className="h-4 w-4" />
+              <span {...stylex.props(styles.searchIcon)}>
+                <Icon name="search" {...stylex.props(styles.searchIconSvg)} />
               </span>
               <input
                 id="staff-search"
@@ -208,7 +381,7 @@ export function StaffConsole({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t('filters.searchPlaceholder')}
-                className="h-11 w-full rounded-field border border-ink-200 bg-white pl-9 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                {...stylex.props(styles.searchInput)}
               />
             </div>
           </div>

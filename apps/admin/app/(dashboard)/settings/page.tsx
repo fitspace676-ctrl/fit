@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import { ApiError, fetchGymSettings } from '@/lib/api';
-import { Card, Icon } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
 export const metadata: Metadata = {
@@ -12,6 +14,71 @@ export const metadata: Metadata = {
 // Settings reflect live tenant state and the staff session token, so the page
 // must never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  breadcrumbCurrent: {
+    color: 'var(--color-text-primary)',
+  },
+  crumbIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    padding: '1rem',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * The gym settings page (T2.12), rebuilt to the formacore settings artboard.
@@ -32,27 +99,19 @@ export default async function SettingsPage() {
         ? t('errors.loadSettings', { status: error.status, message: error.message })
         : t('errors.apiUnreachable');
     return (
-      <div className="flex flex-col gap-6">
-        <nav
-          aria-label={t('breadcrumb.label')}
-          className="flex items-center gap-1.5 text-xs font-medium text-ink-400 dark:text-ink-500"
-        >
+      <div {...stylex.props(styles.page)}>
+        <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
           <span>Iron Gym</span>
-          <Icon name="chevronRight" className="h-3.5 w-3.5" />
-          <span className="text-ink-600 dark:text-ink-300">{t('breadcrumb.settings')}</span>
+          <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
+          <span {...stylex.props(styles.breadcrumbCurrent)}>{t('breadcrumb.settings')}</span>
         </nav>
-        <header className="flex flex-col gap-1">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-            {t('title')}
-          </h1>
-          <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('subtitle')}</p>
+        <header {...stylex.props(styles.header)}>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </header>
-        <Card className="flex items-start gap-3 border-danger-200 bg-danger-50 p-4 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-5 w-5 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
           </p>
         </Card>

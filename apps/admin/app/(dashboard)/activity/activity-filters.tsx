@@ -13,15 +13,98 @@ import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ACTIVITY_EVENT_TYPES, type ActivityEventType } from '@fit/types';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import { Btn } from '@/components/ui';
 
-/** Shared date-field styling, matching the audit-log filter bar. */
-const FIELD_CLASS =
-  'h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
-
-/** Filter label styling. */
-const FILTER_LABEL_CLASS =
-  'mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  chipRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    overflowX: 'auto',
+  },
+  chip: {
+    height: '2.25rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    paddingInline: '0.875rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transitionProperty: 'background-color, color, border-color',
+    transitionDuration: '150ms',
+  },
+  chipActive: {
+    backgroundColor: 'var(--color-accent-muted)',
+    borderColor: 'var(--color-accent)',
+    color: 'var(--color-text-accent)',
+  },
+  chipInactive: {
+    backgroundColor: {
+      default: 'var(--color-background-muted)',
+      ':hover': 'var(--color-background-surface)',
+    },
+    borderColor: 'var(--color-border)',
+    color: 'var(--color-text-secondary)',
+  },
+  range: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    gap: '0.75rem',
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'flex-end',
+    },
+  },
+  field: {
+    width: {
+      default: '100%',
+      '@media (min-width: 640px)': '11rem',
+    },
+  },
+  label: {
+    marginBottom: '0.25rem',
+    display: 'block',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  input: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  clearBtn: {
+    alignSelf: {
+      default: 'flex-start',
+      '@media (min-width: 640px)': 'auto',
+    },
+  },
+});
 
 export function ActivityFilters({
   type,
@@ -57,9 +140,9 @@ export function ActivityFilters({
   ];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div {...stylex.props(styles.stack)}>
       {/* Kind chips. */}
-      <div className="flex items-center gap-1.5 overflow-x-auto">
+      <div {...stylex.props(styles.chipRow)}>
         {chips.map((chip) => {
           const active = type === chip.value;
           return (
@@ -68,12 +151,7 @@ export function ActivityFilters({
               type="button"
               aria-pressed={active}
               onClick={() => commit('type', chip.value)}
-              className={[
-                'h-9 shrink-0 rounded-pill px-3.5 text-xs font-semibold ring-1 ring-inset transition',
-                active
-                  ? 'bg-brand-500/10 text-brand-600 ring-brand-500/60 dark:text-brand-300'
-                  : 'bg-ink-50 text-ink-600 ring-ink-200 hover:bg-ink-100 dark:bg-white/[0.03] dark:text-ink-300 dark:ring-white/10 dark:hover:bg-white/[0.06]',
-              ].join(' ')}
+              {...stylex.props(styles.chip, active ? styles.chipActive : styles.chipInactive)}
             >
               {chip.label}
             </button>
@@ -82,9 +160,9 @@ export function ActivityFilters({
       </div>
 
       {/* Date range. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="sm:w-44">
-          <label htmlFor="activity-from" className={FILTER_LABEL_CLASS}>
+      <div {...stylex.props(styles.range)}>
+        <div {...stylex.props(styles.field)}>
+          <label htmlFor="activity-from" {...stylex.props(styles.label)}>
             {t('filters.from')}
           </label>
           <input
@@ -93,12 +171,12 @@ export function ActivityFilters({
             value={from}
             max={to || undefined}
             onChange={(event) => commit('from', event.target.value)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.input)}
           />
         </div>
 
-        <div className="sm:w-44">
-          <label htmlFor="activity-to" className={FILTER_LABEL_CLASS}>
+        <div {...stylex.props(styles.field)}>
+          <label htmlFor="activity-to" {...stylex.props(styles.label)}>
             {t('filters.to')}
           </label>
           <input
@@ -107,7 +185,7 @@ export function ActivityFilters({
             value={to}
             min={from || undefined}
             onChange={(event) => commit('to', event.target.value)}
-            className={FIELD_CLASS}
+            {...stylex.props(styles.input)}
           />
         </div>
 
@@ -116,7 +194,7 @@ export function ActivityFilters({
             v="outline"
             size="md"
             onClick={() => startTransition(() => router.replace(pathname))}
-            className="self-start sm:self-auto"
+            {...stylex.props(styles.clearBtn)}
           >
             {t('filters.clear')}
           </Btn>

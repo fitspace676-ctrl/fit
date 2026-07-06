@@ -12,12 +12,124 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import type { AuditLogRow } from '@fit/types';
-import { Badge, Btn, Card } from '@/components/ui';
+import { Badge, Btn } from '@/components/ui';
 import { auditActionLabelKey } from './audit-actions';
 
 /** Translator for the `admin.activity.audit` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
+
+const styles = stylex.create({
+  muted: {
+    color: 'var(--color-text-secondary)',
+  },
+  actorCell: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  actorName: {
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  actorEmail: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metaWrap: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.25rem',
+  },
+  metaChip: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  metaKey: {
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  emptyCard: {
+    paddingInline: '1rem',
+    paddingBlock: '2rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  tableCard: {
+    overflowX: 'auto',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    textAlign: 'left',
+    fontSize: '0.875rem',
+  },
+  headRow: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  head: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  bodyRow: {
+    verticalAlign: 'top',
+    borderBottomWidth: {
+      default: '1px',
+      ':last-child': 0,
+    },
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  cell: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+  },
+  whenCell: {
+    whiteSpace: 'nowrap',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  pagerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  pagerCount: {
+    fontVariantNumeric: 'tabular-nums',
+  },
+  pagerBtns: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+});
 
 /** Render an ISO instant as a short local date + time, or an em dash when absent. */
 function formatTimestamp(iso: string, locale: string): string {
@@ -36,14 +148,12 @@ function formatTimestamp(iso: string, locale: string): string {
 /** A user's display name + email as a stacked cell, or an em dash when there is none. */
 function ActorCell({ name, email }: { name: string | null; email: string | null }) {
   if (!name && !email) {
-    return <span className="text-ink-400">—</span>;
+    return <span {...stylex.props(styles.muted)}>—</span>;
   }
   return (
-    <div className="flex flex-col">
-      <span className="font-medium text-ink-900 dark:text-white">{name ?? email}</span>
-      {name && email ? (
-        <span className="text-xs text-ink-500 dark:text-ink-400">{email}</span>
-      ) : null}
+    <div {...stylex.props(styles.actorCell)}>
+      <span {...stylex.props(styles.actorName)}>{name ?? email}</span>
+      {name && email ? <span {...stylex.props(styles.actorEmail)}>{email}</span> : null}
     </div>
   );
 }
@@ -69,17 +179,13 @@ function formatMetadataValue(value: unknown): string {
 function MetadataCell({ metadata }: { metadata: Record<string, unknown> | null }) {
   const entries = metadata ? Object.entries(metadata) : [];
   if (entries.length === 0) {
-    return <span className="text-ink-400">—</span>;
+    return <span {...stylex.props(styles.muted)}>—</span>;
   }
   return (
-    <div className="flex flex-wrap gap-1">
+    <div {...stylex.props(styles.metaWrap)}>
       {entries.map(([key, value]) => (
-        <span
-          key={key}
-          className="rounded-pill bg-ink-100 px-2 py-0.5 text-xs text-ink-600 dark:bg-white/10 dark:text-ink-300"
-        >
-          <span className="font-medium text-ink-500 dark:text-ink-400">{key}:</span>{' '}
-          {formatMetadataValue(value)}
+        <span key={key} {...stylex.props(styles.metaChip)}>
+          <span {...stylex.props(styles.metaKey)}>{key}:</span> {formatMetadataValue(value)}
         </span>
       ))}
     </div>
@@ -120,7 +226,7 @@ export function AuditTable({
 
   if (entries.length === 0) {
     return (
-      <Card className="px-4 py-8 text-center text-sm text-ink-500 dark:text-ink-400">
+      <Card variant="default" padding={0} xstyle={styles.emptyCard}>
         {t('empty')}
       </Card>
     );
@@ -131,41 +237,35 @@ export function AuditTable({
   const hasPrev = page > 1;
   const hasNext = page * limit < total;
 
-  const HEAD_CLASS =
-    'px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400';
-
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-sm">
+    <div {...stylex.props(styles.stack)}>
+      <Card variant="default" padding={0} xstyle={styles.tableCard}>
+        <table {...stylex.props(styles.table)}>
           <thead>
-            <tr className="border-b border-ink-100 dark:border-white/10">
-              <th className={HEAD_CLASS}>{t('columns.when')}</th>
-              <th className={HEAD_CLASS}>{t('columns.action')}</th>
-              <th className={HEAD_CLASS}>{t('columns.actor')}</th>
-              <th className={HEAD_CLASS}>{t('columns.target')}</th>
-              <th className={HEAD_CLASS}>{t('columns.details')}</th>
+            <tr {...stylex.props(styles.headRow)}>
+              <th {...stylex.props(styles.head)}>{t('columns.when')}</th>
+              <th {...stylex.props(styles.head)}>{t('columns.action')}</th>
+              <th {...stylex.props(styles.head)}>{t('columns.actor')}</th>
+              <th {...stylex.props(styles.head)}>{t('columns.target')}</th>
+              <th {...stylex.props(styles.head)}>{t('columns.details')}</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry) => (
-              <tr
-                key={entry.id}
-                className="border-b border-ink-50 align-top last:border-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
-              >
-                <td className="whitespace-nowrap px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
+              <tr key={entry.id} {...stylex.props(styles.bodyRow)}>
+                <td {...stylex.props(styles.whenCell)}>
                   {formatTimestamp(entry.createdAt, locale)}
                 </td>
-                <td className="px-4 py-3">
+                <td {...stylex.props(styles.cell)}>
                   <ActionBadge action={entry.action} t={t} />
                 </td>
-                <td className="px-4 py-3">
+                <td {...stylex.props(styles.cell)}>
                   <ActorCell name={entry.actorName} email={entry.actorEmail} />
                 </td>
-                <td className="px-4 py-3">
+                <td {...stylex.props(styles.cell)}>
                   <ActorCell name={entry.targetName} email={entry.targetEmail} />
                 </td>
-                <td className="px-4 py-3">
+                <td {...stylex.props(styles.cell)}>
                   <MetadataCell metadata={entry.metadata} />
                 </td>
               </tr>
@@ -175,9 +275,9 @@ export function AuditTable({
       </Card>
 
       {/* Pager. */}
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
-        <span className="tabular-nums">{t('pager.range', { from, to, total })}</span>
-        <div className="flex gap-2">
+      <div {...stylex.props(styles.pagerRow)}>
+        <span {...stylex.props(styles.pagerCount)}>{t('pager.range', { from, to, total })}</span>
+        <div {...stylex.props(styles.pagerBtns)}>
           <Btn
             v="outline"
             size="sm"

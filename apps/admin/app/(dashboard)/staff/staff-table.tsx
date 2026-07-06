@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
 import { ROLE_PERMISSIONS, type Permission, type StaffMember, type StaffRole } from '@fit/types';
 import { ROLE_RANK } from '@/lib/auth-session';
 import {
   Badge,
   Btn,
-  Card,
   ConfirmDialog,
   DataTable,
   Dot,
@@ -29,6 +30,145 @@ import { removeStaffAction, updateStaffRoleAction } from './actions';
 
 /** Translator for the `admin.staff` namespace. */
 type T = ReturnType<typeof useTranslations>;
+
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  memberCell: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  avatar: {
+    display: 'grid',
+    height: '2.25rem',
+    width: '2.25rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    color: 'var(--color-text-accent)',
+  },
+  memberCol: {
+    minWidth: 0,
+  },
+  nameRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  name: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  email: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  roleCell: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  roleSelect: {
+    height: '2.25rem',
+    paddingInline: '0.625rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+  },
+  badgeGap: {
+    gap: '0.375rem',
+  },
+  joined: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  dangerBtn: {
+    color: 'var(--color-error)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-error-muted)',
+    },
+  },
+  confirmIntro: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  lostList: {
+    marginTop: '0.5rem',
+    listStyleType: 'disc',
+    paddingInlineStart: '1.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  lostItem: {
+    marginTop: '0.25rem',
+  },
+  noChange: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /** The capabilities held by `from` but not by `to` — what a downgrade gives up. */
 function lostPermissions(from: StaffRole, to: StaffRole): Permission[] {
@@ -54,16 +194,14 @@ function formatDate(iso: string, locale: string): string {
 /** The member cell — avatar initials, name (+ "You" flag), and email. */
 function MemberCell({ member, isSelf, t }: { member: StaffMember; isSelf: boolean; t: T }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-200">
-        {initialsOf(member.name)}
-      </span>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium text-ink-900 dark:text-white">{member.name}</span>
+    <div {...stylex.props(styles.memberCell)}>
+      <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
+      <div {...stylex.props(styles.memberCol)}>
+        <div {...stylex.props(styles.nameRow)}>
+          <span {...stylex.props(styles.name)}>{member.name}</span>
           {isSelf ? <Badge tone="brand">{t('you')}</Badge> : null}
         </div>
-        <div className="truncate text-xs text-ink-500 dark:text-ink-400">{member.email}</div>
+        <div {...stylex.props(styles.email)}>{member.email}</div>
       </div>
     </div>
   );
@@ -161,14 +299,14 @@ export function StaffTable({
           return <Badge tone={ROLE_TONES[member.role]}>{roleLabel(member.role)}</Badge>;
         }
         return (
-          <div className="flex items-center gap-2">
+          <div {...stylex.props(styles.roleCell)}>
             <Dot c={ROLE_DOT[member.role]} />
             <select
               aria-label={t('rowMenu.changeRole')}
               value={member.role}
               disabled={rowBusy}
               onChange={(event) => onRoleSelect(member, event.target.value as StaffRole)}
-              className="h-9 rounded-field border border-ink-200 bg-white px-2.5 text-sm font-medium text-ink-700 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-200"
+              {...stylex.props(styles.roleSelect)}
             >
               {STAFF_ROLES.map((role) => (
                 <option key={role} value={role}>
@@ -184,7 +322,10 @@ export function StaffTable({
       key: 'status',
       header: t('columns.status'),
       cell: (member) => (
-        <Badge tone={STATUS_TONES[member.status]} className="gap-1.5">
+        <Badge
+          tone={STATUS_TONES[member.status]}
+          className={stylex.props(styles.badgeGap).className}
+        >
           <Dot c={STATUS_DOT[member.status]} />
           {t(`status.${member.status}`)}
         </Badge>
@@ -193,15 +334,14 @@ export function StaffTable({
     {
       key: 'joined',
       header: t('columns.joined'),
-      className: 'font-mono tabular-nums text-ink-700 dark:text-ink-200',
-      cell: (member) => formatDate(member.joinedAt, locale),
+      cell: (member) => (
+        <span {...stylex.props(styles.joined)}>{formatDate(member.joinedAt, locale)}</span>
+      ),
     },
     {
       key: 'actions',
-      header: <span className="sr-only">{t('columns.actions')}</span>,
+      header: <span {...stylex.props(styles.srOnly)}>{t('columns.actions')}</span>,
       align: 'right',
-      headerClassName: 'w-24 pr-5',
-      className: 'pr-5',
       cell: (member) => {
         if (!canManage) return null;
         const isSelf = currentUserId !== null && member.userId === currentUserId;
@@ -214,7 +354,7 @@ export function StaffTable({
             disabled={rowBusy || isSelf}
             title={isSelf ? t('rowMenu.cannotRemoveSelf') : undefined}
             onClick={() => setConfirmRemove(member)}
-            className="text-danger-700 hover:bg-danger-50 dark:text-danger-300 dark:hover:bg-danger-500/10"
+            className={stylex.props(styles.dangerBtn).className}
           >
             {t('rowMenu.remove')}
           </Btn>
@@ -224,14 +364,11 @@ export function StaffTable({
   ];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div {...stylex.props(styles.stack)}>
       {error ? (
-        <Card className="flex items-start gap-2 border-danger-200 bg-danger-50 px-3 py-2 dark:border-danger-500/20 dark:bg-danger-500/10">
-          <Icon
-            name="info"
-            className="mt-0.5 h-4 w-4 shrink-0 text-danger-600 dark:text-danger-300"
-          />
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-200">
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
           </p>
         </Card>
@@ -291,19 +428,19 @@ export function StaffTable({
       >
         {confirmChange ? (
           <>
-            <p className="text-sm text-ink-600 dark:text-ink-300">
+            <p {...stylex.props(styles.confirmIntro)}>
               {t('confirm.downgradeIntro', { role: roleLabel(confirmChange.nextRole) })}
             </p>
             {confirmChange.lost.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-600 dark:text-ink-300">
+              <ul {...stylex.props(styles.lostList)}>
                 {confirmChange.lost.map((perm) => (
-                  <li key={perm}>{t(`permissions.${PERMISSION_KEYS[perm]}`)}</li>
+                  <li key={perm} {...stylex.props(styles.lostItem)}>
+                    {t(`permissions.${PERMISSION_KEYS[perm]}`)}
+                  </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">
-                {t('confirm.downgradeNoChange')}
-              </p>
+              <p {...stylex.props(styles.noChange)}>{t('confirm.downgradeNoChange')}</p>
             )}
           </>
         ) : null}
