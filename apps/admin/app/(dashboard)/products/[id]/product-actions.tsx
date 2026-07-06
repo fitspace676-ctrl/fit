@@ -3,17 +3,68 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import type { ProductStatus } from '@fit/types';
-import { Btn, Card, Icon, buttonClasses } from '@/components/ui';
+import { Btn, Icon } from '@/components/ui';
 import { setProductActiveAction } from '../actions';
 
+const styles = stylex.create({
+  wrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '0.5rem',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  editLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '2.25rem',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':hover': 'var(--color-background-muted)',
+    },
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: 'var(--color-text-primary)',
+  },
+  error: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    margin: 0,
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  errorIcon: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+  },
+});
+
 /**
- * The product detail page's write controls (T4.6), shown only to `ProductWrite`
- * staff (the server component gates rendering). An "Edit" link plus a deactivate /
- * reactivate toggle: an inactive product can be reactivated, an active one
- * deactivated. The lifecycle call goes through {@link setProductActiveAction}; on
- * success the router refreshes so the header pill reflects the new status, and any
- * error surfaces inline.
+ * The product detail page's write controls (T4.6), rebuilt on brand-tokened StyleX
+ * (T11.22), shown only to `ProductWrite` staff (the server component gates
+ * rendering). An "Edit" link plus a deactivate / reactivate toggle: an inactive
+ * product can be reactivated, an active one deactivated. The lifecycle call goes
+ * through {@link setProductActiveAction}; on success the router refreshes so the
+ * header pill reflects the new status, and any error surfaces inline.
  */
 export function ProductActions({
   productId,
@@ -41,9 +92,9 @@ export function ProductActions({
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex items-center gap-2">
-        <Link href={`/products/${productId}/edit`} className={buttonClasses('outline', 'sm')}>
+    <div {...stylex.props(styles.wrap)}>
+      <div {...stylex.props(styles.row)}>
+        <Link href={`/products/${productId}/edit`} {...stylex.props(styles.editLink)}>
           Edit
         </Link>
         <Btn v={isInactive ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>
@@ -51,13 +102,10 @@ export function ProductActions({
         </Btn>
       </div>
       {error ? (
-        <Card
-          role="alert"
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-danger-700 dark:text-danger-300"
-        >
-          <Icon name="info" className="h-4 w-4 shrink-0" />
+        <p role="alert" {...stylex.props(styles.error)}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{error}</span>
-        </Card>
+        </p>
       ) : null}
     </div>
   );

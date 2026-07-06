@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
 import type { ProductSort, SortDir } from '@fit/types';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
@@ -21,12 +22,68 @@ const SORT_OPTIONS: ReadonlyArray<{ sort: ProductSort; dir: SortDir; label: stri
   { sort: 'createdAt', dir: 'asc', label: 'Oldest first' },
 ];
 
+const styles = stylex.create({
+  row: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 640px)': 'center',
+    },
+    gap: '0.75rem',
+  },
+  searchWrap: {
+    position: 'relative',
+    flexGrow: 1,
+    flexBasis: 0,
+  },
+  sortWrap: {
+    width: {
+      default: '100%',
+      '@media (min-width: 640px)': '14rem',
+    },
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  control: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+});
+
 /**
  * The product catalog filter bar: a debounced search box (name / description) and a
- * sort select. Both write their state to the URL search params (the single source of
- * truth the server page reads), resetting to page 1 on any change. Navigation runs
- * in a transition so the input stays responsive. Status filtering lives in the
- * sibling `ProductsStatusTabs`.
+ * sort select, rebuilt on brand-tokened StyleX (T11.22). Both write their state to
+ * the URL search params (the single source of truth the server page reads),
+ * resetting to page 1 on any change. Navigation runs in a transition so the input
+ * stays responsive. Status filtering lives in the sibling `ProductsStatusTabs`.
  */
 export function ProductsFilters({
   search,
@@ -69,9 +126,9 @@ export function ProductsFilters({
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="relative flex-1">
-        <label htmlFor="product-search" className="sr-only">
+    <div {...stylex.props(styles.row)}>
+      <div {...stylex.props(styles.searchWrap)}>
+        <label htmlFor="product-search" {...stylex.props(styles.srOnly)}>
           Search products by name or description
         </label>
         <input
@@ -80,12 +137,12 @@ export function ProductsFilters({
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search by name or description…"
-          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.control)}
         />
       </div>
 
-      <div className="sm:w-56">
-        <label htmlFor="product-sort" className="sr-only">
+      <div {...stylex.props(styles.sortWrap)}>
+        <label htmlFor="product-sort" {...stylex.props(styles.srOnly)}>
           Sort products
         </label>
         <select
@@ -95,7 +152,7 @@ export function ProductsFilters({
             const [nextSort = 'name', nextDir = 'asc'] = event.target.value.split(':');
             commit({ sort: nextSort, dir: nextDir });
           }}
-          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.control)}
         >
           {SORT_OPTIONS.map((option) => (
             <option key={`${option.sort}:${option.dir}`} value={`${option.sort}:${option.dir}`}>

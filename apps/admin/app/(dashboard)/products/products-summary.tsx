@@ -1,23 +1,78 @@
+import * as stylex from '@stylexjs/stylex';
 import type { ProductRosterSummary } from '@fit/types';
-import { Card, Icon, type IconName } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon, type IconName } from '@/components/ui';
+
+const styles = stylex.create({
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: '1fr 1fr',
+      '@media (min-width: 1024px)': 'repeat(4, 1fr)',
+    },
+    gap: '1rem',
+  },
+  tile: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    padding: {
+      default: '1rem',
+      '@media (min-width: 640px)': '1.25rem',
+    },
+  },
+  tileIcon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  value: {
+    marginTop: '0.75rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    letterSpacing: '-0.025em',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  label: {
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'var(--color-text-secondary)',
+  },
+  toneBrand: {
+    color: 'var(--color-text-accent)',
+  },
+  toneSuccess: {
+    color: 'var(--color-success)',
+  },
+  toneWarning: {
+    color: 'var(--color-warning)',
+  },
+  toneDanger: {
+    color: 'var(--color-error)',
+  },
+});
 
 /** One summary tile's static config — icon, label, accent tone, and value. */
 type Tile = {
   key: string;
   label: string;
   icon: IconName;
-  /** Tailwind text-colour class for the tile's icon, matching the formacore tiles. */
-  tone: string;
+  /** StyleX colour style for the tile's icon, mapped from the brand tokens. */
+  tone: stylex.StyleXStyles;
   value: string;
 };
 
 /**
- * The product catalog summary tiles (T4.5) — four at-a-glance counts for the whole
- * filtered set (not just the visible page), matching the formacore shop artboard's
- * KPI row: how many products match, how many are active, and the low-stock /
- * out-of-stock alert counts that surface a thinning catalog. Server-rendered from
- * the `GET /admin/products` response `summary`, so the tiles always agree with the
- * grid below.
+ * The product catalog summary tiles (T4.5), rebuilt on Astryx + brand-tokened
+ * StyleX (T11.22) — four at-a-glance counts for the whole filtered set (not just
+ * the visible page): how many products match, how many are active, and the
+ * low-stock / out-of-stock alert counts that surface a thinning catalog.
+ * Server-rendered from the `GET /admin/products` response `summary`, so the tiles
+ * always agree with the grid below.
  */
 export function ProductsSummary({ summary }: { summary: ProductRosterSummary }) {
   const { productCount, activeCount, lowStockCount, outOfStockCount } = summary;
@@ -27,43 +82,39 @@ export function ProductsSummary({ summary }: { summary: ProductRosterSummary }) 
       key: 'products',
       label: 'Products',
       icon: 'bag',
-      tone: 'text-brand-500 dark:text-brand-300',
+      tone: styles.toneBrand,
       value: productCount.toLocaleString(),
     },
     {
       key: 'active',
       label: 'Active',
       icon: 'check',
-      tone: 'text-success-600 dark:text-success-300',
+      tone: styles.toneSuccess,
       value: activeCount.toLocaleString(),
     },
     {
       key: 'low',
       label: 'Low stock',
       icon: 'flame',
-      tone: 'text-warning-600 dark:text-warning-300',
+      tone: styles.toneWarning,
       value: lowStockCount.toLocaleString(),
     },
     {
       key: 'out',
       label: 'Out of stock',
       icon: 'info',
-      tone: 'text-danger-600 dark:text-danger-300',
+      tone: styles.toneDanger,
       value: outOfStockCount.toLocaleString(),
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div {...stylex.props(styles.grid)}>
       {tiles.map((tile) => (
-        <Card key={tile.key} glow className="p-4 sm:p-5">
-          <Icon name={tile.icon} className={`h-5 w-5 ${tile.tone}`} />
-          <div className="mt-3 font-display text-2xl font-extrabold tracking-tight tabular-nums text-ink-900 dark:text-white">
-            {tile.value}
-          </div>
-          <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-400">
-            {tile.label}
-          </div>
+        <Card key={tile.key} variant="default" padding={0} xstyle={styles.tile}>
+          <Icon name={tile.icon} {...stylex.props(styles.tileIcon, tile.tone)} />
+          <div {...stylex.props(styles.value)}>{tile.value}</div>
+          <div {...stylex.props(styles.label)}>{tile.label}</div>
         </Card>
       ))}
     </div>
