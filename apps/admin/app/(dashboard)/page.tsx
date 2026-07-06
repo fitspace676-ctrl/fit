@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
   roleHasPermission,
@@ -9,6 +10,45 @@ import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchDashboardOverview } from '@/lib/api';
 import { DashboardView } from './dashboard-view';
+
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  welcome: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  body: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  alert: {
+    margin: 0,
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+});
 
 export const metadata: Metadata = {
   title: 'Dashboard — Fit Admin',
@@ -52,12 +92,9 @@ export default async function DashboardPage({
         ? t('withStatus', { status: error.status, message: error.message })
         : t('unreachable');
     return (
-      <div className="flex flex-col gap-6">
+      <div {...stylex.props(styles.stack)}>
         <Welcome />
-        <p
-          role="alert"
-          className="rounded-card border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-300"
-        >
+        <p role="alert" {...stylex.props(styles.alert)}>
           {message}
         </p>
       </div>
@@ -71,11 +108,9 @@ export default async function DashboardPage({
 async function Welcome() {
   const t = await getTranslations('admin.dashboard');
   return (
-    <header className="flex flex-col gap-1">
-      <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-        {t('title')}
-      </h1>
-      <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">{t('welcomeBody')}</p>
+    <header {...stylex.props(styles.welcome)}>
+      <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+      <p {...stylex.props(styles.body)}>{t('welcomeBody')}</p>
     </header>
   );
 }

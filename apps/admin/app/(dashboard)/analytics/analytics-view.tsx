@@ -1,15 +1,34 @@
 'use client';
 
-import { useMemo, useTransition, type ReactNode } from 'react';
+// @fit/admin — the Analytics screen's client view, rebuilt on Astryx (T11.18).
+//
+// Renders the real {@link AdminAnalyticsResponse} as a range control, four KPI
+// cards, a revenue area chart, a channel-mix donut, a plan-mix bar list, and a
+// top-classes list — every section degrades to an explicit empty state when its
+// series is empty, never inventing a value. The range control writes `?range=` to
+// the URL so the server component re-fetches (the data source of truth stays
+// server-side).
+//
+// Presentation is Astryx `Card` / `Badge` / `SegmentedControl` over the Fit brand
+// theme tokens, with all layout and the data-viz bits authored in compiled StyleX
+// (`var(--color-*)` / `var(--font-family-*)`) — no Tailwind utilities and no
+// FormaCore Aurora-glass primitives.
+
+import { useMemo, useTransition, useId, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge } from '@astryxdesign/core/Badge';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type {
   AdminAnalyticsResponse,
   AnalyticsChannelSlice,
   AnalyticsKpi,
   AnalyticsRange,
 } from '@fit/types';
-import { AreaChart, Card, CountUp, Icon, type AreaPoint, type IconName } from '@/components/ui';
+import { CountUp, Icon, type IconName } from '@/components/ui';
+import { AreaChart, type AreaPoint } from '../charts';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -21,25 +40,314 @@ const RANGE_OPTIONS: ReadonlyArray<{ value: AnalyticsRange; labelKey: string }> 
   { value: '12m', labelKey: 'range12m' },
 ];
 
-/** Fixed palette for the channel-mix slices, brand-first. */
-const CHANNEL_COLORS: Record<AnalyticsChannelSlice['channel'], string> = {
-  POS: 'text-brand-500 dark:text-brand-400',
-  ONLINE: 'text-accent-500 dark:text-accent-400',
-};
-
 const CHANNEL_LABEL_KEYS: Record<AnalyticsChannelSlice['channel'], string> = {
   POS: 'channelPos',
   ONLINE: 'channelOnline',
 };
 
-/**
- * The Analytics screen's client view. Renders the real {@link AdminAnalyticsResponse}
- * as a range control, four KPI cards, a revenue area chart, a channel-mix donut, a
- * plan-mix bar list, and a top-classes list — every section degrades to an explicit
- * empty state when its series is empty, never inventing a value. The range control
- * writes `?range=` to the URL so the server component re-fetches (the data source of
- * truth stays server-side).
- */
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  pending: {
+    opacity: 0.7,
+    transitionProperty: 'opacity',
+    transitionDuration: '150ms',
+  },
+  kpiGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(4, minmax(0, 1fr))',
+    },
+  },
+  gridThirds: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  gridHalves: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(2, minmax(0, 1fr))',
+    },
+  },
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '1.25rem',
+  },
+  cardWide: {
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '1.25rem',
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 'span 2',
+    },
+  },
+  cardHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '1rem',
+  },
+  cardHeadPlain: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionLabel: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  labelSpaced: {
+    marginBottom: '1rem',
+  },
+  metaText: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  iconTile: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  icon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  kpiValue: {
+    margin: 0,
+    marginTop: '1rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  kpiLabel: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  deltaMuted: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-disabled)',
+  },
+  channelWrap: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 640px)': 'row',
+    },
+    alignItems: 'center',
+    gap: '1.25rem',
+  },
+  donutBox: {
+    position: 'relative',
+    display: 'grid',
+    flexShrink: 0,
+    placeItems: 'center',
+  },
+  donutSvg: {
+    transform: 'rotate(-90deg)',
+  },
+  donutTrack: {
+    color: 'var(--color-background-muted)',
+  },
+  donutCenter: {
+    position: 'absolute',
+    insetInline: 0,
+    insetBlock: 0,
+    display: 'grid',
+    placeItems: 'center',
+    textAlign: 'center',
+  },
+  donutTotal: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  legend: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    flex: 1,
+    alignSelf: 'stretch',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  legendRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    fontSize: '0.875rem',
+  },
+  legendName: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    color: 'var(--color-text-secondary)',
+  },
+  swatch: {
+    display: 'inline-block',
+    height: '0.625rem',
+    width: '0.625rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'currentColor',
+  },
+  channelPos: { color: 'var(--color-accent)' },
+  channelOnline: { color: 'var(--color-text-teal)' },
+  legendValue: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  planList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  planHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '0.25rem',
+    fontSize: '0.875rem',
+  },
+  planName: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    color: 'var(--color-text-primary)',
+  },
+  planCount: {
+    marginLeft: '0.75rem',
+    flexShrink: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  planTrack: {
+    height: '0.5rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  planFill: {
+    height: '100%',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+  },
+  rankList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  rankRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+  },
+  rankLeft: {
+    display: 'flex',
+    minWidth: 0,
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  rankBadge: {
+    display: 'grid',
+    height: '1.5rem',
+    width: '1.5rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    color: 'var(--color-text-accent)',
+  },
+  rankTitle: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    color: 'var(--color-text-primary)',
+  },
+  rankCount: {
+    flexShrink: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  empty: {
+    display: 'grid',
+    minHeight: '6rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'var(--color-border)',
+    paddingInline: '1rem',
+    paddingBlock: '1.5rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  rangeControl: {
+    alignSelf: 'flex-start',
+  },
+});
+
+/** StyleX colour per channel slice, brand-first. */
+const CHANNEL_STYLE: Record<AnalyticsChannelSlice['channel'], keyof typeof styles> = {
+  POS: 'channelPos',
+  ONLINE: 'channelOnline',
+};
+
 export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
   const t = useTranslations('admin.analytics');
   const locale = useLocale();
@@ -71,14 +379,26 @@ export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
   }));
 
   return (
-    <div className={`flex flex-col gap-6 ${isPending ? 'opacity-70 transition-opacity' : ''}`}>
-      <RangeControl value={data.range} onSelect={selectRange} disabled={isPending} t={t} />
+    <div {...stylex.props(styles.page, isPending && styles.pending)}>
+      <SegmentedControl
+        value={data.range}
+        onChange={(next) => selectRange(next as AnalyticsRange)}
+        label={t('reportingRange')}
+        size="sm"
+        isDisabled={isPending}
+        xstyle={styles.rangeControl}
+      >
+        {RANGE_OPTIONS.map((option) => (
+          <SegmentedControlItem
+            key={option.value}
+            value={option.value}
+            label={t(option.labelKey)}
+          />
+        ))}
+      </SegmentedControl>
 
       {/* KPI cards */}
-      <section
-        aria-label={t('keyMetrics')}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
+      <section aria-label={t('keyMetrics')} {...stylex.props(styles.kpiGrid)}>
         <KpiCard
           label={t('revenue')}
           icon="card"
@@ -105,13 +425,11 @@ export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
       </section>
 
       {/* Revenue + channel mix */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card glow className="p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-              {t('revenue')}
-            </h2>
-            <span className="font-mono text-xs text-ink-400">{t('capturedPayments')}</span>
+      <section {...stylex.props(styles.gridThirds)}>
+        <Card variant="default" padding={0} xstyle={styles.cardWide}>
+          <div {...stylex.props(styles.cardHead)}>
+            <h2 {...stylex.props(styles.sectionLabel)}>{t('revenue')}</h2>
+            <span {...stylex.props(styles.metaText)}>{t('capturedPayments')}</span>
           </div>
           {revenuePoints.some((p) => p.value > 0) ? (
             <AreaChart data={revenuePoints} ariaLabel={t('revenueChartLabel')} />
@@ -120,75 +438,26 @@ export function AnalyticsView({ data }: { data: AdminAnalyticsResponse }) {
           )}
         </Card>
 
-        <Card glow className="p-5">
-          <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-            {t('channelMix')}
-          </h2>
+        <Card variant="default" padding={0} xstyle={styles.card}>
+          <h2 {...stylex.props(styles.sectionLabel, styles.labelSpaced)}>{t('channelMix')}</h2>
           <ChannelMix slices={data.channelMix} format={(v) => money.format(v / 100)} t={t} />
         </Card>
       </section>
 
       {/* Plan mix + top classes */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card glow className="p-5">
-          <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
+      <section {...stylex.props(styles.gridHalves)}>
+        <Card variant="default" padding={0} xstyle={styles.card}>
+          <h2 {...stylex.props(styles.sectionLabel, styles.labelSpaced)}>
             {t('subscribersByPlan')}
           </h2>
           <PlanMix data={data} t={t} />
         </Card>
 
-        <Card glow className="p-5">
-          <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-            {t('topClasses')}
-          </h2>
+        <Card variant="default" padding={0} xstyle={styles.card}>
+          <h2 {...stylex.props(styles.sectionLabel, styles.labelSpaced)}>{t('topClasses')}</h2>
           <TopClasses data={data} t={t} />
         </Card>
       </section>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Range control                                                              */
-/* -------------------------------------------------------------------------- */
-
-function RangeControl({
-  value,
-  onSelect,
-  disabled,
-  t,
-}: {
-  value: AnalyticsRange;
-  onSelect: (next: AnalyticsRange) => void;
-  disabled: boolean;
-  t: T;
-}) {
-  return (
-    <div
-      role="tablist"
-      aria-label={t('reportingRange')}
-      className="inline-flex w-fit rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
-    >
-      {RANGE_OPTIONS.map((option) => {
-        const active = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            disabled={disabled}
-            onClick={() => onSelect(option.value)}
-            className={`rounded-btn px-3.5 py-1.5 text-sm font-semibold transition-colors disabled:pointer-events-none ${
-              active
-                ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]'
-                : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
-            }`}
-          >
-            {t(option.labelKey)}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -216,14 +485,14 @@ function KpiCard({
   t: T;
 }) {
   return (
-    <Card glow className="flex h-full flex-col p-5">
-      <div className="flex items-center justify-between">
-        <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-          <Icon name={icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHeadPlain)}>
+        <span {...stylex.props(styles.iconTile)}>
+          <Icon name={icon} {...stylex.props(styles.icon)} />
         </span>
         <DeltaChip deltaPct={kpi.deltaPct} invert={invertDelta} t={t} />
       </div>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+      <p {...stylex.props(styles.kpiValue)}>
         {format ? (
           format(kpi.value)
         ) : (
@@ -233,30 +502,18 @@ function KpiCard({
           </>
         )}
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {label}
-      </p>
+      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
     </Card>
   );
 }
 
 function DeltaChip({ deltaPct, invert, t }: { deltaPct: number | null; invert: boolean; t: T }) {
   if (deltaPct === null) {
-    return <span className="text-xs text-ink-300 dark:text-ink-600">{t('noPriorData')}</span>;
+    return <span {...stylex.props(styles.deltaMuted)}>{t('noPriorData')}</span>;
   }
   const isGood = invert ? deltaPct <= 0 : deltaPct >= 0;
   const arrow = deltaPct >= 0 ? '▲' : '▼';
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-xs font-semibold tabular-nums ${
-        isGood
-          ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-300'
-          : 'bg-danger-50 text-danger-700 dark:bg-danger-500/15 dark:text-danger-300'
-      }`}
-    >
-      {arrow} {Math.abs(deltaPct)}%
-    </span>
-  );
+  return <Badge variant={isGood ? 'success' : 'error'} label={`${arrow} ${Math.abs(deltaPct)}%`} />;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -273,6 +530,8 @@ function ChannelMix({
   t: T;
 }) {
   const total = slices.reduce((sum, s) => sum + s.amount, 0);
+  const rawId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+
   if (total <= 0) {
     return <EmptyState>{t('emptyChannelMix')}</EmptyState>;
   }
@@ -284,19 +543,16 @@ function ChannelMix({
   let offset = 0;
 
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
-      <div
-        className="relative grid shrink-0 place-items-center"
-        style={{ width: size, height: size }}
-      >
-        <svg width={size} height={size} className="-rotate-90">
+    <div {...stylex.props(styles.channelWrap)}>
+      <div {...stylex.props(styles.donutBox)} style={{ width: size, height: size }}>
+        <svg width={size} height={size} {...stylex.props(styles.donutSvg)}>
           <circle
             cx={size / 2}
             cy={size / 2}
             r={r}
             fill="none"
             strokeWidth={stroke}
-            className="text-ink-100 dark:text-white/10"
+            {...stylex.props(styles.donutTrack)}
             stroke="currentColor"
           />
           {slices.map((slice) => {
@@ -304,14 +560,14 @@ function ChannelMix({
             const dash = frac * circ;
             const el = (
               <circle
-                key={slice.channel}
+                key={`${rawId}-${slice.channel}`}
                 cx={size / 2}
                 cy={size / 2}
                 r={r}
                 fill="none"
                 strokeWidth={stroke}
                 strokeLinecap="butt"
-                className={CHANNEL_COLORS[slice.channel]}
+                {...stylex.props(styles[CHANNEL_STYLE[slice.channel]])}
                 stroke="currentColor"
                 strokeDasharray={`${dash} ${circ - dash}`}
                 strokeDashoffset={-offset}
@@ -321,26 +577,19 @@ function ChannelMix({
             return el;
           })}
         </svg>
-        <div className="absolute inset-0 grid place-items-center text-center">
-          <span className="font-display text-sm font-bold text-ink-900 dark:text-white">
-            {format(total)}
-          </span>
+        <div {...stylex.props(styles.donutCenter)}>
+          <span {...stylex.props(styles.donutTotal)}>{format(total)}</span>
         </div>
       </div>
 
-      <ul className="flex-1 space-y-2 self-stretch">
+      <ul {...stylex.props(styles.legend)}>
         {slices.map((slice) => (
-          <li key={slice.channel} className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex items-center gap-2 text-ink-600 dark:text-ink-300">
-              <span
-                className={`inline-block h-2.5 w-2.5 rounded-full ${CHANNEL_COLORS[slice.channel]}`}
-                style={{ backgroundColor: 'currentColor' }}
-              />
+          <li key={slice.channel} {...stylex.props(styles.legendRow)}>
+            <span {...stylex.props(styles.legendName)}>
+              <span {...stylex.props(styles.swatch, styles[CHANNEL_STYLE[slice.channel]])} />
               {t(CHANNEL_LABEL_KEYS[slice.channel])}
             </span>
-            <span className="font-mono tabular-nums text-ink-900 dark:text-white">
-              {format(slice.amount)}
-            </span>
+            <span {...stylex.props(styles.legendValue)}>{format(slice.amount)}</span>
           </li>
         ))}
       </ul>
@@ -360,18 +609,16 @@ function PlanMix({ data, t }: { data: AdminAnalyticsResponse; t: T }) {
   const max = Math.max(1, ...planMix.map((p) => p.subscribers));
 
   return (
-    <ul className="space-y-3">
+    <ul {...stylex.props(styles.planList)}>
       {planMix.map((plan) => (
         <li key={plan.planId ?? plan.name}>
-          <div className="mb-1 flex items-center justify-between text-sm">
-            <span className="truncate text-ink-700 dark:text-ink-200">{plan.name}</span>
-            <span className="ml-3 shrink-0 font-mono tabular-nums text-ink-500 dark:text-ink-400">
-              {plan.subscribers}
-            </span>
+          <div {...stylex.props(styles.planHead)}>
+            <span {...stylex.props(styles.planName)}>{plan.name}</span>
+            <span {...stylex.props(styles.planCount)}>{plan.subscribers}</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
+          <div {...stylex.props(styles.planTrack)}>
             <div
-              className="h-full rounded-pill bg-[linear-gradient(135deg,#7C3AED,#EC4899)]"
+              {...stylex.props(styles.planFill)}
               style={{ width: `${(plan.subscribers / max) * 100}%` }}
             />
           </div>
@@ -391,19 +638,14 @@ function TopClasses({ data, t }: { data: AdminAnalyticsResponse; t: T }) {
     return <EmptyState>{t('emptyTopClasses')}</EmptyState>;
   }
   return (
-    <ol className="space-y-2">
+    <ol {...stylex.props(styles.rankList)}>
       {topClasses.map((row, i) => (
-        <li
-          key={row.templateId}
-          className="flex items-center justify-between gap-3 rounded-field border border-ink-100 px-3 py-2 text-sm dark:border-white/5"
-        >
-          <span className="flex items-center gap-3">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-50 font-mono text-xs font-bold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-              {i + 1}
-            </span>
-            <span className="truncate text-ink-700 dark:text-ink-200">{row.title}</span>
+        <li key={row.templateId} {...stylex.props(styles.rankRow)}>
+          <span {...stylex.props(styles.rankLeft)}>
+            <span {...stylex.props(styles.rankBadge)}>{i + 1}</span>
+            <span {...stylex.props(styles.rankTitle)}>{row.title}</span>
           </span>
-          <span className="shrink-0 font-mono tabular-nums text-ink-500 dark:text-ink-400">
+          <span {...stylex.props(styles.rankCount)}>
             {t('bookingsCount', { count: row.bookings })}
           </span>
         </li>
@@ -417,9 +659,5 @@ function TopClasses({ data, t }: { data: AdminAnalyticsResponse; t: T }) {
 /* -------------------------------------------------------------------------- */
 
 function EmptyState({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid min-h-24 place-items-center rounded-field border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-400 dark:border-white/10 dark:text-ink-500">
-      {children}
-    </div>
-  );
+  return <div {...stylex.props(styles.empty)}>{children}</div>;
 }

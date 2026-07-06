@@ -1,6 +1,6 @@
 'use client';
 
-// @fit/admin — the FormaCore control-room dashboard view.
+// @fit/admin — the control-room dashboard view, rebuilt on Astryx (T11.18).
 //
 // Renders the real {@link DashboardOverviewResponse} as the reference layout: an
 // "in the gym now" live occupancy card (donut + per-area bars), three KPI cards,
@@ -10,27 +10,29 @@
 // empty state when its source is empty, never inventing a value. The range control
 // writes `?range=` to the URL so the server component re-fetches — the source of
 // truth stays server-side.
+//
+// Presentation is Astryx `Card` / `Badge` / `SegmentedControl` over the Fit brand
+// theme tokens, with all layout and the data-viz bits authored in compiled StyleX
+// (`var(--color-*)` / `var(--font-family-*)`) — no Tailwind utilities and no
+// FormaCore Aurora-glass primitives. The data flow below is unchanged; only the
+// presentation moved off Tailwind.
 
 import { useMemo, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import { Card } from '@astryxdesign/core/Card';
+import { Badge } from '@astryxdesign/core/Badge';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type {
   DashboardAlert,
   DashboardKpi,
   DashboardOverviewResponse,
   DashboardRange,
 } from '@fit/types';
-import {
-  AreaChart,
-  Card,
-  CountUp,
-  Donut,
-  Icon,
-  Occupancy,
-  type AreaPoint,
-  type IconName,
-} from '@/components/ui';
+import { CountUp, Icon, type IconName } from '@/components/ui';
 import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
+import { AreaChart, Donut, OccupancyBar, type AreaPoint } from './charts';
 
 /** Translator for the `admin.dashboard` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -40,6 +42,485 @@ const RANGE_VALUES = ['7d', '30d', '12w'] as const satisfies readonly DashboardR
 
 /** i18n keys (under `admin.dashboard.weekdays`) indexed by JS day-of-week (0 = Sun). */
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+const pulse = stylex.keyframes({
+  '0%': { opacity: 1 },
+  '50%': { opacity: 0.35 },
+  '100%': { opacity: 1 },
+});
+
+const styles = stylex.create({
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  pending: {
+    opacity: 0.7,
+    transitionProperty: 'opacity',
+    transitionDuration: '150ms',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  eyebrow: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.2em',
+    color: 'var(--color-text-accent)',
+  },
+  titleRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  liveDot: {
+    display: 'inline-block',
+    height: '0.375rem',
+    width: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'currentColor',
+    animationName: pulse,
+    animationDuration: '1.6s',
+    animationIterationCount: 'infinite',
+  },
+  gridThirds: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  kpiGroup: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(3, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': '1fr',
+      '@media (min-width: 1280px)': 'repeat(3, minmax(0, 1fr))',
+    },
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 'span 2',
+    },
+  },
+  span2: {
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 'span 2',
+    },
+  },
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '1.25rem',
+  },
+  // The revenue + schedule cards span two of the three grid columns on lg+.
+  cardWide: {
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '1.25rem',
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 'span 2',
+    },
+  },
+  cardHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '1rem',
+  },
+  // KPI header: no bottom margin — the value below carries its own top margin.
+  cardHeadPlain: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  labelSpaced: {
+    marginBottom: '1rem',
+  },
+  cardHeadBaseline: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: '1rem',
+  },
+  sectionLabel: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  metaText: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  livePill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.625rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-accent)',
+  },
+  inGymTop: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1.25rem',
+  },
+  donutValue: {
+    display: 'flex',
+    flexDirection: 'column',
+    lineHeight: 1,
+  },
+  donutNumber: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  donutCaption: {
+    marginTop: '0.125rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    color: 'var(--color-text-secondary)',
+  },
+  inGymCopy: {
+    minWidth: 0,
+    flex: 1,
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  areaList: {
+    listStyle: 'none',
+    margin: 0,
+    marginTop: '1.25rem',
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  areaName: {
+    margin: 0,
+    marginBottom: '0.25rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  iconTile: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  icon: {
+    width: '1.25rem',
+    height: '1.25rem',
+  },
+  kpiValue: {
+    margin: 0,
+    marginTop: '1rem',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  kpiLabel: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  deltaMuted: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-disabled)',
+  },
+  revenueHead: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    marginBottom: '1rem',
+  },
+  revenueCaption: {
+    margin: 0,
+    marginTop: '0.125rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  axisRow: {
+    marginTop: '0.25rem',
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    color: 'var(--color-text-secondary)',
+  },
+  planBar: {
+    display: 'flex',
+    height: '0.75rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    marginBottom: '1rem',
+  },
+  planSeg: {
+    height: '100%',
+  },
+  list: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  planRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    fontSize: '0.875rem',
+  },
+  planName: {
+    display: 'flex',
+    minWidth: 0,
+    alignItems: 'center',
+    gap: '0.5rem',
+    color: 'var(--color-text-secondary)',
+  },
+  swatch: {
+    display: 'inline-block',
+    height: '0.625rem',
+    width: '0.625rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  truncate: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  planCount: {
+    flexShrink: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  scheduleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.625rem',
+  },
+  scheduleAccent: {
+    height: '2rem',
+    width: '0.25rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  scheduleTime: {
+    width: '3.5rem',
+    flexShrink: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  scheduleMain: {
+    minWidth: 0,
+    flex: 1,
+  },
+  scheduleTitle: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  scheduleSub: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  scheduleRight: {
+    flexShrink: 0,
+    textAlign: 'right',
+  },
+  scheduleCount: {
+    display: 'block',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  scheduleFill: {
+    display: 'block',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  fillOk: { color: 'var(--color-success)' },
+  fillWarn: { color: 'var(--color-warning)' },
+  fillFull: { color: 'var(--color-error)' },
+  alertRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+  },
+  alertIcon: {
+    marginTop: '0.125rem',
+    display: 'grid',
+    height: '2rem',
+    width: '2rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+  },
+  alertToneSuccess: {
+    backgroundColor: 'var(--color-success-muted)',
+    color: 'var(--color-success)',
+  },
+  alertToneWarning: {
+    backgroundColor: 'var(--color-warning-muted)',
+    color: 'var(--color-warning)',
+  },
+  alertToneError: {
+    backgroundColor: 'var(--color-error-muted)',
+    color: 'var(--color-error)',
+  },
+  smIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  alertMain: {
+    minWidth: 0,
+    flex: 1,
+  },
+  alertTitle: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  alertDetail: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  checkInGrid: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'grid',
+    gap: '0.5rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  checkInRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+  },
+  avatar: {
+    display: 'grid',
+    height: '2.25rem',
+    width: '2.25rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+  },
+  empty: {
+    display: 'grid',
+    flex: 1,
+    minHeight: '6rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'var(--color-border)',
+    paddingInline: '1rem',
+    paddingBlock: '1.5rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  rangeControl: {
+    flexShrink: 0,
+  },
+});
 
 export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
   const router = useRouter();
@@ -83,27 +564,26 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
   const firstName = data.viewer.name.split(' ')[0] || data.viewer.name;
 
   return (
-    <div className={`flex flex-col gap-6 ${isPending ? 'opacity-70 transition-opacity' : ''}`}>
+    <div {...stylex.props(styles.page, isPending && styles.pending)}>
       {/* Eyebrow + greeting */}
-      <header className="flex flex-col gap-2">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-500 dark:text-brand-400">
-          {eyebrow}
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
+      <header {...stylex.props(styles.header)}>
+        <p {...stylex.props(styles.eyebrow)}>{eyebrow}</p>
+        <div {...stylex.props(styles.titleRow)}>
+          <h1 {...stylex.props(styles.title)}>
             {greeting}, {firstName}
           </h1>
-          <span className="inline-flex items-center gap-1.5 rounded-pill bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-300">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success-500" />
-            {t('allSystemsLive')}
-          </span>
+          <Badge
+            variant="success"
+            label={t('allSystemsLive')}
+            icon={<span {...stylex.props(styles.liveDot)} />}
+          />
         </div>
       </header>
 
       {/* In the gym now + KPIs */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section {...stylex.props(styles.gridThirds)}>
         <InGymNow data={data} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-2 lg:grid-cols-1 xl:grid-cols-3">
+        <div {...stylex.props(styles.kpiGroup)}>
           <KpiCard
             label={t('kpi.todaysRevenue')}
             icon="card"
@@ -116,13 +596,13 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
       </section>
 
       {/* Revenue + plan mix */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section {...stylex.props(styles.gridThirds)}>
         <RevenueCard data={data} money={money} onSelectRange={selectRange} disabled={isPending} />
         <PlanMixCard data={data} />
       </section>
 
       {/* Today's schedule + alerts */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section {...stylex.props(styles.gridThirds)}>
         <ScheduleCard data={data} />
         <AlertsCard data={data} />
       </section>
@@ -143,45 +623,37 @@ function InGymNow({ data }: { data: DashboardOverviewResponse }) {
   const pct = capacity > 0 ? Math.round((current / capacity) * 100) : 0;
 
   return (
-    <Card glow className="flex flex-col p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          {t('inGymNow.title')}
-        </h2>
-        <span className="inline-flex items-center gap-1.5 rounded-pill bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHead)}>
+        <h2 {...stylex.props(styles.sectionLabel)}>{t('inGymNow.title')}</h2>
+        <span {...stylex.props(styles.livePill)}>
+          <span {...stylex.props(styles.liveDot)} />
           {t('inGymNow.live')}
         </span>
       </div>
 
-      <div className="flex items-center gap-5">
+      <div {...stylex.props(styles.inGymTop)}>
         <Donut pct={pct} size={104} stroke={10}>
-          <div className="flex flex-col leading-none">
-            <span className="font-display text-2xl font-extrabold tabular-nums text-ink-900 dark:text-white">
+          <span {...stylex.props(styles.donutValue)}>
+            <span {...stylex.props(styles.donutNumber)}>
               <CountUp to={current} />
             </span>
-            <span className="mt-0.5 font-mono text-[10px] text-ink-400">
-              {t('inGymNow.of', { capacity })}
-            </span>
-          </div>
+            <span {...stylex.props(styles.donutCaption)}>{t('inGymNow.of', { capacity })}</span>
+          </span>
         </Donut>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm text-ink-500 dark:text-ink-400">
-            {current === 0
-              ? t('inGymNow.quiet')
-              : t('inGymNow.capacity', { pct, areas: areas.length })}
-          </p>
-        </div>
+        <p {...stylex.props(styles.inGymCopy)}>
+          {current === 0
+            ? t('inGymNow.quiet')
+            : t('inGymNow.capacity', { pct, areas: areas.length })}
+        </p>
       </div>
 
       {areas.length > 0 && (
-        <ul className="mt-5 space-y-3">
+        <ul {...stylex.props(styles.areaList)}>
           {areas.map((area) => (
             <li key={area.name}>
-              <p className="mb-1 truncate text-xs font-semibold text-ink-600 dark:text-ink-300">
-                {area.name}
-              </p>
-              <Occupancy value={area.occupancy} cap={area.capacity} />
+              <p {...stylex.props(styles.areaName)}>{area.name}</p>
+              <OccupancyBar value={area.occupancy} cap={area.capacity} />
             </li>
           ))}
         </ul>
@@ -206,19 +678,17 @@ function KpiCard({
   format?: (value: number) => string;
 }) {
   return (
-    <Card glow className="flex h-full flex-col p-5">
-      <div className="flex items-center justify-between">
-        <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-          <Icon name={icon} className="h-5 w-5" />
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHeadPlain)}>
+        <span {...stylex.props(styles.iconTile)}>
+          <Icon name={icon} {...stylex.props(styles.icon)} />
         </span>
         <DeltaChip kpi={kpi} />
       </div>
-      <p className="mt-4 font-display text-3xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
+      <p {...stylex.props(styles.kpiValue)}>
         {format ? format(kpi.value) : <CountUp to={Math.round(kpi.value)} />}
       </p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-        {label}
-      </p>
+      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
     </Card>
   );
 }
@@ -226,21 +696,14 @@ function KpiCard({
 function DeltaChip({ kpi }: { kpi: DashboardKpi }) {
   const t = useTranslations('admin.dashboard');
   if (kpi.deltaPct === null) {
-    return <span className="text-xs text-ink-300 dark:text-ink-600">{t('kpi.noPriorData')}</span>;
+    return <span {...stylex.props(styles.deltaMuted)}>{t('kpi.noPriorData')}</span>;
   }
   const good = kpi.deltaPct >= 0;
-  const arrow = good ? '▲' : '▼';
-  const text = `${Math.abs(kpi.deltaPct)}%`;
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-xs font-semibold tabular-nums ${
-        good
-          ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-300'
-          : 'bg-danger-50 text-danger-700 dark:bg-danger-500/15 dark:text-danger-300'
-      }`}
-    >
-      {arrow} {text}
-    </span>
+    <Badge
+      variant={good ? 'success' : 'error'}
+      label={`${good ? '▲' : '▼'} ${Math.abs(kpi.deltaPct)}%`}
+    />
   );
 }
 
@@ -268,51 +731,35 @@ function RevenueCard({
   const hasData = points.some((p) => p.value > 0);
 
   return (
-    <Card glow className="flex flex-col p-5 lg:col-span-2">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <Card variant="default" padding={0} xstyle={styles.cardWide}>
+      <div {...stylex.props(styles.revenueHead)}>
         <div>
-          <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-            {t('revenue.title')}
-          </h2>
-          <p className="mt-0.5 font-mono text-xs text-ink-400">
+          <h2 {...stylex.props(styles.sectionLabel)}>{t('revenue.title')}</h2>
+          <p {...stylex.props(styles.revenueCaption)}>
             {t('revenue.caption', {
               range: t(rangeCaptionKey(data.revenue.range)),
               total: money.format(data.revenue.total / 100),
             })}
           </p>
         </div>
-        <div
-          role="tablist"
-          aria-label={t('revenue.rangeAria')}
-          className="inline-flex w-fit rounded-btn border border-ink-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.04]"
+        <SegmentedControl
+          value={data.revenue.range}
+          onChange={(next) => onSelectRange(next as DashboardRange)}
+          label={t('revenue.rangeAria')}
+          size="sm"
+          isDisabled={disabled}
+          xstyle={styles.rangeControl}
         >
-          {RANGE_VALUES.map((value) => {
-            const active = value === data.revenue.range;
-            return (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                disabled={disabled}
-                onClick={() => onSelectRange(value)}
-                className={`rounded-btn px-3 py-1 text-xs font-semibold transition-colors disabled:pointer-events-none ${
-                  active
-                    ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_14px_-4px_rgba(98,87,227,0.8)]'
-                    : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
-                }`}
-              >
-                {t(`ranges.${value}`)}
-              </button>
-            );
-          })}
-        </div>
+          {RANGE_VALUES.map((value) => (
+            <SegmentedControlItem key={value} value={value} label={t(`ranges.${value}`)} />
+          ))}
+        </SegmentedControl>
       </div>
 
       {hasData ? (
         <>
           <AreaChart data={points} ariaLabel={t('revenue.chartAria')} />
-          <div className="mt-1 flex justify-between font-mono text-[10px] text-ink-400">
+          <div {...stylex.props(styles.axisRow)}>
             {points.map((p, i) => (
               <span key={i}>{p.label}</span>
             ))}
@@ -346,46 +793,39 @@ function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
   const { total, plans } = data.planMix;
 
   return (
-    <Card glow className="flex flex-col p-5">
-      <div className="mb-4 flex items-baseline justify-between">
-        <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          {t('planMix.title')}
-        </h2>
-        <span className="font-mono text-xs text-ink-400">{t('planMix.count', { total })}</span>
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHeadBaseline)}>
+        <h2 {...stylex.props(styles.sectionLabel)}>{t('planMix.title')}</h2>
+        <span {...stylex.props(styles.metaText)}>{t('planMix.count', { total })}</span>
       </div>
 
       {plans.length === 0 || total === 0 ? (
         <EmptyState>{t('planMix.empty')}</EmptyState>
       ) : (
         <>
-          <div className="mb-4 flex h-3 overflow-hidden rounded-pill bg-ink-100 dark:bg-white/10">
+          <div {...stylex.props(styles.planBar)}>
             {plans.map((plan) => (
               <span
                 key={plan.planId ?? plan.name}
-                className="h-full"
+                {...stylex.props(styles.planSeg)}
                 style={{
                   width: `${(plan.count / total) * 100}%`,
-                  backgroundColor: plan.color ?? '#7C3AED',
+                  backgroundColor: plan.color ?? 'var(--color-accent)',
                 }}
               />
             ))}
           </div>
-          <ul className="space-y-2">
+          <ul {...stylex.props(styles.list)}>
             {plans.map((plan) => (
-              <li
-                key={plan.planId ?? plan.name}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span className="flex min-w-0 items-center gap-2 text-ink-600 dark:text-ink-300">
+              <li key={plan.planId ?? plan.name} {...stylex.props(styles.planRow)}>
+                <span {...stylex.props(styles.planName)}>
                   <span
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: plan.color ?? '#7C3AED' }}
+                    {...stylex.props(styles.swatch)}
+                    style={{ backgroundColor: plan.color ?? 'var(--color-accent)' }}
                   />
-                  <span className="truncate">{plan.name}</span>
+                  <span {...stylex.props(styles.truncate)}>{plan.name}</span>
                 </span>
-                <span className="shrink-0 font-mono tabular-nums text-ink-900 dark:text-white">
-                  {plan.count}
-                </span>
+                <span {...stylex.props(styles.planCount)}>{plan.count}</span>
               </li>
             ))}
           </ul>
@@ -405,49 +845,36 @@ function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
   const rows = data.todaysSchedule;
 
   return (
-    <Card glow className="flex flex-col p-5 lg:col-span-2">
-      <h2 className="mb-4 font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-        {t('schedule.title')}
-      </h2>
+    <Card variant="default" padding={0} xstyle={styles.cardWide}>
+      <h2 {...stylex.props(styles.sectionLabel, styles.labelSpaced)}>{t('schedule.title')}</h2>
       {rows.length === 0 ? (
         <EmptyState>{t('schedule.empty')}</EmptyState>
       ) : (
-        <ul className="space-y-2">
+        <ul {...stylex.props(styles.list)}>
           {rows.map((row, i) => {
             const fill = row.capacity > 0 ? Math.round((row.booked / row.capacity) * 100) : 0;
+            const fillTone =
+              fill > 85 ? styles.fillFull : fill > 60 ? styles.fillWarn : styles.fillOk;
             return (
-              <li
-                key={`${row.startsAt}-${i}`}
-                className="flex items-center gap-3 rounded-field border border-ink-100 px-3 py-2.5 dark:border-white/5"
-              >
+              <li key={`${row.startsAt}-${i}`} {...stylex.props(styles.scheduleRow)}>
                 <span
-                  className="h-8 w-1 shrink-0 rounded-pill"
-                  style={{ backgroundColor: row.color ?? '#7C3AED' }}
+                  {...stylex.props(styles.scheduleAccent)}
+                  style={{ backgroundColor: row.color ?? 'var(--color-accent)' }}
                 />
-                <span className="w-14 shrink-0 font-mono text-xs tabular-nums text-ink-500 dark:text-ink-400">
+                <span {...stylex.props(styles.scheduleTime)}>
                   {formatTime(locale, row.startsAt)}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
-                    {row.title}
-                  </span>
-                  <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
+                <span {...stylex.props(styles.scheduleMain)}>
+                  <span {...stylex.props(styles.scheduleTitle)}>{row.title}</span>
+                  <span {...stylex.props(styles.scheduleSub)}>
                     {row.trainerName ?? t('schedule.unassigned')}
                   </span>
                 </span>
-                <span className="shrink-0 text-right">
-                  <span className="block font-mono text-sm tabular-nums text-ink-900 dark:text-white">
+                <span {...stylex.props(styles.scheduleRight)}>
+                  <span {...stylex.props(styles.scheduleCount)}>
                     {row.booked}/{row.capacity}
                   </span>
-                  <span
-                    className={`block font-mono text-[10px] tabular-nums ${
-                      fill > 85
-                        ? 'text-danger-500'
-                        : fill > 60
-                          ? 'text-warning-500'
-                          : 'text-success-500'
-                    }`}
-                  >
+                  <span {...stylex.props(styles.scheduleFill, fillTone)}>
                     {t('schedule.full', { fill })}
                   </span>
                 </span>
@@ -470,39 +897,33 @@ const ALERT_ICON: Record<DashboardAlert['kind'], IconName> = {
   payment_failed: 'info',
 };
 
-const ALERT_TONE: Record<DashboardAlert['kind'], string> = {
-  payment: 'bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-300',
-  class_full: 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-300',
-  payment_failed: 'bg-danger-50 text-danger-600 dark:bg-danger-500/15 dark:text-danger-300',
+const ALERT_TONE: Record<DashboardAlert['kind'], keyof typeof styles> = {
+  payment: 'alertToneSuccess',
+  class_full: 'alertToneWarning',
+  payment_failed: 'alertToneError',
 };
 
 function AlertsCard({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
   const alerts = data.alerts;
   return (
-    <Card glow className="flex flex-col p-5">
-      <div className="mb-4 flex items-baseline justify-between">
-        <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          {t('alerts.title')}
-        </h2>
-        <span className="font-mono text-xs text-ink-400">{alerts.length}</span>
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHeadBaseline)}>
+        <h2 {...stylex.props(styles.sectionLabel)}>{t('alerts.title')}</h2>
+        <span {...stylex.props(styles.metaText)}>{alerts.length}</span>
       </div>
       {alerts.length === 0 ? (
         <EmptyState>{t('alerts.empty')}</EmptyState>
       ) : (
-        <ul className="space-y-2.5">
+        <ul {...stylex.props(styles.list)}>
           {alerts.map((alert, i) => (
-            <li key={`${alert.kind}-${i}`} className="flex items-start gap-3">
-              <span
-                className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-btn ${ALERT_TONE[alert.kind]}`}
-              >
-                <Icon name={ALERT_ICON[alert.kind]} className="h-4 w-4" />
+            <li key={`${alert.kind}-${i}`} {...stylex.props(styles.alertRow)}>
+              <span {...stylex.props(styles.alertIcon, styles[ALERT_TONE[alert.kind]])}>
+                <Icon name={ALERT_ICON[alert.kind]} {...stylex.props(styles.smIcon)} />
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
-                  {alert.title}
-                </span>
-                <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
+              <span {...stylex.props(styles.alertMain)}>
+                <span {...stylex.props(styles.alertTitle)}>{alert.title}</span>
+                <span {...stylex.props(styles.alertDetail)}>
                   {alert.detail} · {timeAgo(t, alert.at)}
                 </span>
               </span>
@@ -522,33 +943,24 @@ function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
   const rows = data.recentCheckIns;
   return (
-    <Card glow className="flex flex-col p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-sm font-bold uppercase tracking-[0.15em] text-ink-500 dark:text-ink-400">
-          {t('recentCheckIns.title')}
-        </h2>
-        <span className="inline-flex items-center gap-1.5 rounded-pill bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHead)}>
+        <h2 {...stylex.props(styles.sectionLabel)}>{t('recentCheckIns.title')}</h2>
+        <span {...stylex.props(styles.livePill)}>
+          <span {...stylex.props(styles.liveDot)} />
           {t('inGymNow.live')}
         </span>
       </div>
       {rows.length === 0 ? (
         <EmptyState>{t('recentCheckIns.empty')}</EmptyState>
       ) : (
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <ul {...stylex.props(styles.checkInGrid)}>
           {rows.map((row, i) => (
-            <li
-              key={`${row.checkedInAt}-${i}`}
-              className="flex items-center gap-3 rounded-field border border-ink-100 px-3 py-2 dark:border-white/5"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] font-display text-xs font-bold text-white">
-                {initials(row.name)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">
-                  {row.name}
-                </span>
-                <span className="block truncate text-xs text-ink-500 dark:text-ink-400">
+            <li key={`${row.checkedInAt}-${i}`} {...stylex.props(styles.checkInRow)}>
+              <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
+              <span {...stylex.props(styles.alertMain)}>
+                <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
+                <span {...stylex.props(styles.alertDetail)}>
                   {row.planName ?? t('recentCheckIns.noPlan')} · {timeAgo(t, row.checkedInAt)}
                 </span>
               </span>
@@ -565,11 +977,7 @@ function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
 /* -------------------------------------------------------------------------- */
 
 function EmptyState({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid min-h-24 flex-1 place-items-center rounded-field border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-400 dark:border-white/10 dark:text-ink-500">
-      {children}
-    </div>
-  );
+  return <div {...stylex.props(styles.empty)}>{children}</div>;
 }
 
 /** i18n key (under `admin.dashboard.greeting`) for the time-of-day greeting. */

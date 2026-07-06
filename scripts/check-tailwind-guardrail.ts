@@ -120,6 +120,18 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/components/top-bar.tsx',
   'apps/admin/components/nav-icon.tsx',
   'apps/admin/components/locale-switcher.tsx',
+  // T11.18 — admin dashboard + analytics: the control-room landing (KPI stat
+  // tiles, live occupancy, revenue area chart, plan-mix, schedule, alerts, recent
+  // check-ins) and the analytics report (KPIs, revenue chart, channel-mix donut,
+  // plan-mix, top classes). Rebuilt on Astryx Card/Badge/SegmentedControl + a
+  // brand-tokened StyleX chart kit (`charts.tsx`) — no Tailwind, no Recharts. The
+  // dashboard landing is guarded file-by-file (the sibling `kpi-card.tsx` is a
+  // dead FormaCore leftover the T11.24 sweep removes, so it stays out of the
+  // manifest); the analytics route group is Astryx-only and guarded as a directory.
+  'apps/admin/app/(dashboard)/page.tsx',
+  'apps/admin/app/(dashboard)/dashboard-view.tsx',
+  'apps/admin/app/(dashboard)/charts.tsx',
+  'apps/admin/app/(dashboard)/analytics',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
