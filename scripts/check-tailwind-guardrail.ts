@@ -163,6 +163,19 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/app/(dashboard)/staff',
   'apps/admin/app/(dashboard)/locations',
   'apps/admin/app/(dashboard)/settings',
+  // T11.22 — admin commerce screens: orders list + detail (status timeline +
+  // refund form), the POS workspace (product grid + cart pane + member lookup +
+  // cash/card/member-account payment modal) with end-of-day reconciliation, the
+  // product catalog (grid + filters + editor + low-stock adjuster) and the
+  // reports hub (report cards, date presets, CSV/XLSX export). Rebuilt on Astryx
+  // Card/DataTable/Badge/Modal/Form-kit + brand-tokened StyleX, no Tailwind.
+  // Each route group (and the POS component dir) is now Astryx-only, so each is
+  // guarded as a directory.
+  'apps/admin/app/(dashboard)/orders',
+  'apps/admin/app/(dashboard)/pos',
+  'apps/admin/app/(dashboard)/products',
+  'apps/admin/app/(dashboard)/reports',
+  'apps/admin/components/pos',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
