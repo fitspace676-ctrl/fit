@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import type { PaymentMethod, PosReceipt } from '@fit/types';
 import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/products/format-price';
 import {
@@ -9,7 +10,8 @@ import {
   recordPosSaleAction,
   type PosMemberRow,
 } from '@/app/(dashboard)/pos/actions';
-import { Btn, Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Btn, Icon } from '@/components/ui';
 import {
   lineTotal,
   selectChangeDue,
@@ -48,6 +50,389 @@ const METHODS: ReadonlyArray<{ method: PaymentMethod; labelKey: string; hintKey:
 
 /** Round-up suggestions offered as quick-tender chips, in minor units (5 / 10 / 20 / 50). */
 const QUICK_TENDER_STEPS = [500, 1000, 2000, 5000];
+
+const styles = stylex.create({
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 50,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '1rem',
+    backgroundColor: 'rgba(9, 9, 11, 0.5)',
+    backdropFilter: 'blur(4px)',
+  },
+  dialog: {
+    display: 'flex',
+    width: '100%',
+    maxWidth: '28rem',
+    flexDirection: 'column',
+    gap: '1rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '1.25rem',
+    boxShadow: '0 24px 60px -20px var(--color-shadow)',
+    outline: 'none',
+  },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  titleTotal: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.5rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  methodGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: '0.5rem',
+  },
+  methodBtn: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.25rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    padding: '0.75rem',
+    textAlign: 'center',
+    transitionProperty: 'color, background-color, border-color, box-shadow',
+    transitionDuration: '150ms',
+    cursor: {
+      default: 'pointer',
+      ':disabled': 'not-allowed',
+    },
+    opacity: {
+      default: 1,
+      ':disabled': 0.4,
+    },
+  },
+  methodBtnSelected: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    boxShadow: '0 0 0 1px var(--color-accent)',
+  },
+  methodBtnIdle: {
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-border-emphasized)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  methodLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  methodHint: {
+    fontSize: '0.6875rem',
+    lineHeight: 1.25,
+    color: 'var(--color-text-secondary)',
+  },
+  chargedTo: {
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-accent-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-accent)',
+  },
+  cashSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '0.75rem',
+  },
+  cashLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  cashInput: {
+    width: '8rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
+    textAlign: 'right',
+    fontSize: '1rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  quickRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  quickBtn: {
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-accent-muted)',
+    },
+    paddingInline: '0.75rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    cursor: 'pointer',
+  },
+  changeRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '1rem',
+  },
+  changeLabel: {
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  changeValue: {
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  changeValueShort: {
+    color: 'var(--color-error)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  footer: {
+    display: 'flex',
+    gap: '0.5rem',
+    paddingTop: '0.25rem',
+  },
+  flex1: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+  },
+  flex2: {
+    flexGrow: 2,
+    flexShrink: 1,
+    flexBasis: '0%',
+  },
+
+  // PaymentSuccess.
+  successRoot: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    textAlign: 'center',
+  },
+  successHead: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.25rem',
+  },
+  successDisc: {
+    display: 'flex',
+    height: '3rem',
+    width: '3rem',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-success-muted)',
+    color: 'var(--color-success)',
+  },
+  successDiscIcon: {
+    width: '1.5rem',
+    height: '1.5rem',
+  },
+  successTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  successSummary: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  successDl: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    padding: '0.75rem',
+    fontSize: '0.875rem',
+  },
+  successRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  successRowLg: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '1rem',
+  },
+  successDt: {
+    margin: 0,
+    color: 'var(--color-text-secondary)',
+  },
+  successDtStrong: {
+    margin: 0,
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  successDd: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  successDdSemibold: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  successDdBold: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+
+  // ReceiptSender.
+  receipt: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '0.75rem',
+    textAlign: 'left',
+  },
+  receiptHeading: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  receiptRow: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  receiptInput: {
+    height: '2.75rem',
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    paddingBlock: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  receiptSent: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-success)',
+  },
+  receiptNote: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  receiptError: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-error)',
+  },
+});
 
 /**
  * The POS payment modal (T7.3). Opens from the cart's "Charge" button and walks
@@ -164,10 +549,7 @@ export function PosPayment({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/50 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <div {...stylex.props(styles.overlay)} onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -175,22 +557,18 @@ export function PosPayment({
         aria-label={t('title')}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        className="flex w-full max-w-md flex-col gap-4 rounded-card border border-ink-200 bg-white p-5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.5)] focus:outline-none dark:border-white/10 dark:bg-ink-900 dark:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] dark:backdrop-blur-xl"
+        {...stylex.props(styles.dialog)}
       >
         {completed ? (
           <PaymentSuccess sale={completed} onFinish={finish} />
         ) : (
           <>
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white">
-                {t('title')}
-              </h2>
-              <span className="font-mono text-2xl font-bold tabular-nums text-ink-900 dark:text-white">
-                {formatPrice(total, currency)}
-              </span>
+            <div {...stylex.props(styles.titleRow)}>
+              <h2 {...stylex.props(styles.title)}>{t('title')}</h2>
+              <span {...stylex.props(styles.titleTotal)}>{formatPrice(total, currency)}</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div {...stylex.props(styles.methodGrid)}>
               {METHODS.map(({ method: value, labelKey, hintKey }) => {
                 const disabled = value === 'member_account' && member === null;
                 const selected = method === value;
@@ -201,32 +579,25 @@ export function PosPayment({
                     disabled={disabled}
                     aria-pressed={selected}
                     onClick={() => setPaymentMethod(value)}
-                    className={`flex flex-col items-center gap-1 rounded-card border p-3 text-center transition ${
-                      selected
-                        ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-400 dark:border-brand-500/60 dark:bg-brand-500/15 dark:ring-brand-500/40'
-                        : 'border-ink-200 hover:border-ink-300 hover:bg-ink-50 dark:border-white/10 dark:hover:border-white/20 dark:hover:bg-white/[0.04]'
-                    } ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
+                    {...stylex.props(
+                      styles.methodBtn,
+                      selected ? styles.methodBtnSelected : styles.methodBtnIdle,
+                    )}
                   >
-                    <span className="text-sm font-semibold text-ink-900 dark:text-white">
-                      {t(labelKey)}
-                    </span>
-                    <span className="text-[11px] leading-tight text-ink-500 dark:text-ink-400">
-                      {t(hintKey)}
-                    </span>
+                    <span {...stylex.props(styles.methodLabel)}>{t(labelKey)}</span>
+                    <span {...stylex.props(styles.methodHint)}>{t(hintKey)}</span>
                   </button>
                 );
               })}
             </div>
 
             {method === 'member_account' && member !== null ? (
-              <p className="rounded-card bg-brand-50 px-3 py-2 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-                {t('chargedTo', { name: member.name })}
-              </p>
+              <p {...stylex.props(styles.chargedTo)}>{t('chargedTo', { name: member.name })}</p>
             ) : null}
 
             {method === 'cash' ? (
-              <div className="flex flex-col gap-3 border-t border-ink-100 pt-3 dark:border-white/10">
-                <label className="flex items-center justify-between gap-2 text-sm font-medium text-ink-700 dark:text-ink-200">
+              <div {...stylex.props(styles.cashSection)}>
+                <label {...stylex.props(styles.cashLabel)}>
                   <span>{t('cashReceived')}</span>
                   <input
                     type="number"
@@ -237,30 +608,28 @@ export function PosPayment({
                     onChange={(event) => setCashTendered(inputToMinor(event.target.value) ?? 0)}
                     placeholder="0.00"
                     aria-label={t('cashReceived')}
-                    className="w-32 rounded-field border border-ink-200 bg-white px-2 py-1 text-right text-base text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                    {...stylex.props(styles.cashInput)}
                   />
                 </label>
 
-                <div className="flex flex-wrap gap-2">
+                <div {...stylex.props(styles.quickRow)}>
                   {quickTenders.map((amount) => (
                     <button
                       key={amount}
                       type="button"
                       onClick={() => setCashTendered(amount)}
-                      className="rounded-btn border border-ink-200 px-3 py-1 text-sm text-ink-700 hover:border-brand-400 hover:bg-brand-50 dark:border-white/10 dark:text-ink-200 dark:hover:border-brand-500/60 dark:hover:bg-brand-500/10"
+                      {...stylex.props(styles.quickBtn)}
                     >
                       {amount === total ? t('exact') : formatPrice(amount, currency)}
                     </button>
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between text-base">
-                  <span className="font-medium text-ink-600 dark:text-ink-300">
+                <div {...stylex.props(styles.changeRow)}>
+                  <span {...stylex.props(styles.changeLabel)}>
                     {cashShort ? t('stillOwed') : t('changeDue')}
                   </span>
-                  <span
-                    className={`font-mono font-bold tabular-nums ${cashShort ? 'text-danger-600 dark:text-danger-400' : 'text-ink-900 dark:text-white'}`}
-                  >
+                  <span {...stylex.props(styles.changeValue, cashShort && styles.changeValueShort)}>
                     {formatPrice(cashShort ? total - cashTendered : changeDue, currency)}
                   </span>
                 </div>
@@ -268,17 +637,16 @@ export function PosPayment({
             ) : null}
 
             {saveError !== null ? (
-              <Card
-                role="alert"
-                className="flex items-center gap-2 p-3 text-sm text-danger-700 dark:text-danger-300"
-              >
-                <Icon name="info" className="h-4 w-4 shrink-0" />
-                <span>{t('recordError', { error: saveError })}</span>
+              <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+                <Icon name="info" {...stylex.props(styles.errorIcon)} />
+                <span {...stylex.props(styles.errorText)}>
+                  {t('recordError', { error: saveError })}
+                </span>
               </Card>
             ) : null}
 
-            <div className="flex gap-2 pt-1">
-              <Btn v="outline" size="md" onClick={onClose} className="flex-1">
+            <div {...stylex.props(styles.footer)}>
+              <Btn v="outline" size="md" onClick={onClose} {...stylex.props(styles.flex1)}>
                 {t('cancel')}
               </Btn>
               <Btn
@@ -286,7 +654,7 @@ export function PosPayment({
                 size="md"
                 onClick={() => void complete()}
                 disabled={!canComplete}
-                className="flex-[2]"
+                {...stylex.props(styles.flex2)}
               >
                 {saving ? t('recording') : t('complete')}
               </Btn>
@@ -312,37 +680,33 @@ function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () 
     : t('success.summary', { count: sale.itemCount, method: methodLabel });
 
   return (
-    <div className="flex flex-col gap-4 text-center">
-      <div className="flex flex-col items-center gap-1">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success-100 text-success-600 dark:bg-success-500/15 dark:text-success-300">
-          <Icon name="check" className="h-6 w-6" sw={2.5} />
+    <div {...stylex.props(styles.successRoot)}>
+      <div {...stylex.props(styles.successHead)}>
+        <div {...stylex.props(styles.successDisc)}>
+          <Icon name="check" {...stylex.props(styles.successDiscIcon)} sw={2.5} />
         </div>
-        <h2 className="font-display text-lg font-extrabold tracking-tight text-ink-900 dark:text-white">
-          {t('success.title')}
-        </h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">{summary}</p>
+        <h2 {...stylex.props(styles.successTitle)}>{t('success.title')}</h2>
+        <p {...stylex.props(styles.successSummary)}>{summary}</p>
       </div>
 
-      <dl className="flex flex-col gap-2 rounded-card border border-ink-200 p-3 text-sm dark:border-white/10">
-        <div className="flex items-center justify-between">
-          <dt className="text-ink-500 dark:text-ink-400">{t('success.totalPaid')}</dt>
-          <dd className="font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
+      <dl {...stylex.props(styles.successDl)}>
+        <div {...stylex.props(styles.successRow)}>
+          <dt {...stylex.props(styles.successDt)}>{t('success.totalPaid')}</dt>
+          <dd {...stylex.props(styles.successDdSemibold)}>
             {formatPrice(sale.total, sale.currency)}
           </dd>
         </div>
         {sale.method === 'cash' ? (
           <>
-            <div className="flex items-center justify-between">
-              <dt className="text-ink-500 dark:text-ink-400">{t('success.cashReceived')}</dt>
-              <dd className="font-mono tabular-nums text-ink-900 dark:text-white">
+            <div {...stylex.props(styles.successRow)}>
+              <dt {...stylex.props(styles.successDt)}>{t('success.cashReceived')}</dt>
+              <dd {...stylex.props(styles.successDd)}>
                 {formatPrice(sale.tendered, sale.currency)}
               </dd>
             </div>
-            <div className="flex items-center justify-between text-base">
-              <dt className="font-medium text-ink-600 dark:text-ink-300">
-                {t('success.changeDue')}
-              </dt>
-              <dd className="font-mono font-bold tabular-nums text-ink-900 dark:text-white">
+            <div {...stylex.props(styles.successRowLg)}>
+              <dt {...stylex.props(styles.successDtStrong)}>{t('success.changeDue')}</dt>
+              <dd {...stylex.props(styles.successDdBold)}>
                 {formatPrice(sale.change, sale.currency)}
               </dd>
             </div>
@@ -395,9 +759,9 @@ function ReceiptSender({ sale }: { sale: CompletedSale }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 border-t border-ink-100 pt-3 text-left dark:border-white/10">
-      <span className="text-sm font-medium text-ink-700 dark:text-ink-200">{t('heading')}</span>
-      <div className="flex gap-2">
+    <div {...stylex.props(styles.receipt)}>
+      <span {...stylex.props(styles.receiptHeading)}>{t('heading')}</span>
+      <div {...stylex.props(styles.receiptRow)}>
         <input
           type="email"
           value={email}
@@ -409,22 +773,20 @@ function ReceiptSender({ sale }: { sale: CompletedSale }) {
           }}
           placeholder={t('placeholder')}
           aria-label={t('label')}
-          className="h-11 flex-1 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.receiptInput)}
         />
         <Btn v="outline" size="md" onClick={() => void send()} disabled={!canSend}>
           {status.kind === 'sending' ? t('sending') : t('send')}
         </Btn>
       </div>
       {status.kind === 'sent' ? (
-        <p className="text-xs text-success-700 dark:text-success-300">
-          {t('sent', { email: trimmed })}
-        </p>
+        <p {...stylex.props(styles.receiptSent)}>{t('sent', { email: trimmed })}</p>
       ) : null}
       {status.kind === 'unconfigured' ? (
-        <p className="text-xs text-ink-500 dark:text-ink-400">{t('unconfigured')}</p>
+        <p {...stylex.props(styles.receiptNote)}>{t('unconfigured')}</p>
       ) : null}
       {status.kind === 'error' ? (
-        <p className="text-xs text-danger-600 dark:text-danger-400">{status.message}</p>
+        <p {...stylex.props(styles.receiptError)}>{status.message}</p>
       ) : null}
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/products/format-price';
 import { Btn } from '@/components/ui';
 import {
@@ -11,6 +12,266 @@ import {
   selectTotal,
   usePosCart,
 } from '@/stores/pos-cart-store';
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    height: '100%',
+    flexDirection: 'column',
+  },
+  head: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: '0.5rem',
+  },
+  heading: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  clearBtn: {
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    cursor: 'pointer',
+  },
+  scrollArea: {
+    minHeight: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    overflowY: 'auto',
+  },
+  empty: {
+    margin: 0,
+    paddingBlock: '2.5rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  lineList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+  },
+  line: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    padding: '0.75rem',
+  },
+  lineHead: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  lineInfo: {
+    minWidth: 0,
+  },
+  lineName: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  lineEach: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  removeBtn: {
+    flexShrink: 0,
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-error)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    cursor: 'pointer',
+  },
+  lineControls: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  stepper: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+  },
+  stepBtn: {
+    borderWidth: 0,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    paddingInline: '0.75rem',
+    paddingBlock: '0.25rem',
+    fontSize: '1.125rem',
+    lineHeight: 1,
+    color: 'var(--color-text-secondary)',
+    cursor: 'pointer',
+  },
+  qtyInput: {
+    width: '3rem',
+    borderBlockWidth: 0,
+    borderInlineWidth: '1px',
+    borderInlineStyle: 'solid',
+    borderInlineColor: 'var(--color-border)',
+    backgroundColor: 'transparent',
+    paddingBlock: '0.25rem',
+    paddingInline: 0,
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  discountLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  discountInput: {
+    width: '5rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
+    textAlign: 'right',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  lineTotal: {
+    marginLeft: 'auto',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+
+  // CartSummary.
+  summary: {
+    marginTop: '0.75rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '0.75rem',
+  },
+  cartDiscountLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  cartDiscountInput: {
+    width: '6rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
+    textAlign: 'right',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  summaryRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  totalRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  amount: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  chargeBtn: {
+    marginTop: '0.25rem',
+    width: '100%',
+  },
+});
 
 /** The cart's working currency — the first line's currency, or USD when empty. */
 function useCartCurrency(): string {
@@ -35,38 +296,29 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
   const clear = usePosCart((state) => state.clear);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between pb-2">
-        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.head)}>
+        <h2 {...stylex.props(styles.heading)}>
           {itemCount > 0 ? t('headingCount', { count: itemCount }) : t('heading')}
         </h2>
         {items.length > 0 ? (
-          <button
-            type="button"
-            onClick={clear}
-            className="rounded-btn px-2 py-1 text-xs font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-700 dark:text-ink-400 dark:hover:bg-white/10 dark:hover:text-ink-200"
-          >
+          <button type="button" onClick={clear} {...stylex.props(styles.clearBtn)}>
             {t('clear')}
           </button>
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div {...stylex.props(styles.scrollArea)}>
         {items.length === 0 ? (
-          <p className="py-10 text-center text-sm text-ink-400">{t('empty')}</p>
+          <p {...stylex.props(styles.empty)}>{t('empty')}</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul {...stylex.props(styles.lineList)}>
             {items.map((item) => (
-              <li
-                key={item.productId}
-                className="flex flex-col gap-2 rounded-card border border-ink-200 p-3 dark:border-white/10"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-ink-900 dark:text-white">
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
+              <li key={item.productId} {...stylex.props(styles.line)}>
+                <div {...stylex.props(styles.lineHead)}>
+                  <div {...stylex.props(styles.lineInfo)}>
+                    <p {...stylex.props(styles.lineName)}>{item.name}</p>
+                    <p {...stylex.props(styles.lineEach)}>
                       {t('each', { price: formatPrice(item.unitPrice, item.currency) })}
                     </p>
                   </div>
@@ -74,19 +326,19 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
                     type="button"
                     onClick={() => removeItem(item.productId)}
                     aria-label={t('removeItem', { name: item.name })}
-                    className="shrink-0 rounded-btn px-2 py-1 text-xs font-medium text-ink-500 hover:bg-ink-100 hover:text-danger-600 dark:text-ink-400 dark:hover:bg-white/10 dark:hover:text-danger-400"
+                    {...stylex.props(styles.removeBtn)}
                   >
                     {t('remove')}
                   </button>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="inline-flex items-center rounded-btn border border-ink-200 dark:border-white/10">
+                <div {...stylex.props(styles.lineControls)}>
+                  <div {...stylex.props(styles.stepper)}>
                     <button
                       type="button"
                       onClick={() => setQty(item.productId, item.qty - 1)}
                       aria-label={t('decrease', { name: item.name })}
-                      className="px-3 py-1 text-lg leading-none text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/10"
+                      {...stylex.props(styles.stepBtn)}
                     >
                       −
                     </button>
@@ -98,19 +350,19 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
                         setQty(item.productId, Math.trunc(Number(event.target.value)))
                       }
                       aria-label={t('quantity', { name: item.name })}
-                      className="w-12 border-x border-ink-200 bg-transparent py-1 text-center text-sm text-ink-900 focus:outline-none dark:border-white/10 dark:text-white"
+                      {...stylex.props(styles.qtyInput)}
                     />
                     <button
                       type="button"
                       onClick={() => setQty(item.productId, item.qty + 1)}
                       aria-label={t('increase', { name: item.name })}
-                      className="px-3 py-1 text-lg leading-none text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/10"
+                      {...stylex.props(styles.stepBtn)}
                     >
                       +
                     </button>
                   </div>
 
-                  <label className="flex items-center gap-1 text-xs text-ink-500 dark:text-ink-400">
+                  <label {...stylex.props(styles.discountLabel)}>
                     {t('discountShort')}
                     <input
                       type="number"
@@ -122,11 +374,11 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
                       }
                       placeholder="0.00"
                       aria-label={t('lineDiscountLabel', { name: item.name })}
-                      className="w-20 rounded-field border border-ink-200 bg-white px-2 py-1 text-right text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                      {...stylex.props(styles.discountInput)}
                     />
                   </label>
 
-                  <span className="ml-auto font-mono text-sm font-semibold text-ink-900 dark:text-white">
+                  <span {...stylex.props(styles.lineTotal)}>
                     {formatPrice(lineTotal(item), item.currency)}
                   </span>
                 </div>
@@ -151,8 +403,8 @@ function CartSummary({ currency, onCharge }: { currency: string; onCharge: () =>
   const setCartDiscount = usePosCart((state) => state.setCartDiscount);
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-ink-100 pt-3 dark:border-white/10">
-      <label className="flex items-center justify-between gap-2 text-sm text-ink-600 dark:text-ink-300">
+    <div {...stylex.props(styles.summary)}>
+      <label {...stylex.props(styles.cartDiscountLabel)}>
         <span>{t('cartDiscount')}</span>
         <input
           type="number"
@@ -162,24 +414,30 @@ function CartSummary({ currency, onCharge }: { currency: string; onCharge: () =>
           onChange={(event) => setCartDiscount(inputToMinor(event.target.value) ?? 0)}
           placeholder="0.00"
           aria-label={t('cartDiscountLabel')}
-          className="w-24 rounded-field border border-ink-200 bg-white px-2 py-1 text-right text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.cartDiscountInput)}
         />
       </label>
 
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
+      <div {...stylex.props(styles.summaryRow)}>
         <span>{t('subtotal')}</span>
-        <span className="font-mono tabular-nums">{formatPrice(subtotal, currency)}</span>
+        <span {...stylex.props(styles.amount)}>{formatPrice(subtotal, currency)}</span>
       </div>
-      <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
+      <div {...stylex.props(styles.summaryRow)}>
         <span>{t('discounts')}</span>
-        <span className="font-mono tabular-nums">−{formatPrice(discountTotal, currency)}</span>
+        <span {...stylex.props(styles.amount)}>−{formatPrice(discountTotal, currency)}</span>
       </div>
-      <div className="flex items-center justify-between text-lg font-bold text-ink-900 dark:text-white">
+      <div {...stylex.props(styles.totalRow)}>
         <span>{t('total')}</span>
-        <span className="font-mono tabular-nums">{formatPrice(total, currency)}</span>
+        <span {...stylex.props(styles.amount)}>{formatPrice(total, currency)}</span>
       </div>
 
-      <Btn v="primary" size="lg" onClick={onCharge} disabled={total <= 0} className="mt-1 w-full">
+      <Btn
+        v="primary"
+        size="lg"
+        onClick={onCharge}
+        disabled={total <= 0}
+        {...stylex.props(styles.chargeBtn)}
+      >
         {t('charge', { total: formatPrice(total, currency) })}
       </Btn>
     </div>

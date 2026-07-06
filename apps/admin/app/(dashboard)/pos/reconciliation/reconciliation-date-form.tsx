@@ -2,6 +2,54 @@
 
 import { useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import * as stylex from '@stylexjs/stylex';
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: '0.75rem',
+  },
+  field: {
+    width: {
+      default: 'auto',
+      '@media (min-width: 640px)': '13rem',
+    },
+  },
+  label: {
+    display: 'block',
+    marginBottom: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  input: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    paddingBlock: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+  },
+  pending: {
+    paddingBottom: '0.5rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /**
  * The business-day picker for the reconciliation report. The selected `date` is the
@@ -25,12 +73,9 @@ export function ReconciliationDateForm({ date }: { date: string }) {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="flex items-end gap-3">
-      <div className="sm:w-52">
-        <label
-          htmlFor="reconciliation-date"
-          className="mb-1 block text-xs font-medium text-ink-500 dark:text-ink-400"
-        >
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.field)}>
+        <label htmlFor="reconciliation-date" {...stylex.props(styles.label)}>
           Business day
         </label>
         <input
@@ -39,10 +84,10 @@ export function ReconciliationDateForm({ date }: { date: string }) {
           value={date}
           max={today}
           onChange={(event) => commit(event.target.value)}
-          className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          {...stylex.props(styles.input)}
         />
       </div>
-      {isPending ? <span className="pb-2 text-xs text-ink-400">Loading…</span> : null}
+      {isPending ? <span {...stylex.props(styles.pending)}>Loading…</span> : null}
     </div>
   );
 }

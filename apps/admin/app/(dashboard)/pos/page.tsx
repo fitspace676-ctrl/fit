@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 import { PosBoard } from '@/components/pos/pos-board';
 
 export const metadata: Metadata = {
@@ -15,6 +17,93 @@ export const metadata: Metadata = {
 // The POS reflects the live catalogue and the staff session token, so it must
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
+
+const styles = stylex.create({
+  forbiddenPage: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    padding: '1.5rem',
+  },
+  forbiddenTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: {
+      default: '1.5rem',
+      '@media (min-width: 640px)': '1.875rem',
+    },
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  page: {
+    display: 'flex',
+    height: '100vh',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1rem',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: {
+      default: '1.25rem',
+      '@media (min-width: 640px)': '1.5rem',
+    },
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  headerMeta: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '1rem',
+  },
+  shortcuts: {
+    margin: 0,
+    display: {
+      default: 'none',
+      '@media (min-width: 640px)': 'block',
+    },
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  endOfDayLink: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-accent)',
+    },
+    textDecoration: 'none',
+  },
+});
 
 /**
  * The point-of-sale workspace (T7.2). The `/pos` route already requires staff
@@ -35,34 +124,24 @@ export default async function PosPage() {
 
   if (!canSell) {
     return (
-      <div className="flex flex-col gap-3 p-6">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          {t('title')}
-        </h1>
-        <Card
-          role="alert"
-          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
-        >
-          <Icon name="info" className="h-5 w-5 shrink-0" />
-          <span>{t('forbidden')}</span>
+      <div {...stylex.props(styles.forbiddenPage)}>
+        <h1 {...stylex.props(styles.forbiddenTitle)}>{t('title')}</h1>
+        <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <span {...stylex.props(styles.errorText)}>{t('forbidden')}</span>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen flex-col gap-4 p-4">
-      <header className="flex items-baseline justify-between gap-4">
-        <h1 className="font-display text-xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-2xl">
-          {t('title')}
-        </h1>
-        <div className="flex items-baseline gap-4">
-          <p className="hidden text-xs text-ink-400 sm:block">{t('shortcuts')}</p>
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+        <div {...stylex.props(styles.headerMeta)}>
+          <p {...stylex.props(styles.shortcuts)}>{t('shortcuts')}</p>
           {canReconcile ? (
-            <Link
-              href="/pos/reconciliation"
-              className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-            >
+            <Link href="/pos/reconciliation" {...stylex.props(styles.endOfDayLink)}>
               {t('endOfDay')}
             </Link>
           ) : null}

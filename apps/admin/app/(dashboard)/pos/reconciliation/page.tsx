@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import * as stylex from '@stylexjs/stylex';
 import {
   businessDateSchema,
   Permission,
@@ -9,7 +10,8 @@ import {
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCashReconciliation } from '@/lib/api';
 import { formatPrice } from '@/app/(dashboard)/products/format-price';
-import { Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 import { ReconciliationDateForm } from './reconciliation-date-form';
 import { CashCountForm } from './cash-count-form';
 
@@ -38,6 +40,150 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+const styles = stylex.create({
+  forbiddenPage: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    padding: '1.5rem',
+  },
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+    padding: '1.5rem',
+  },
+  header: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: {
+      default: '1.5rem',
+      '@media (min-width: 640px)': '1.875rem',
+    },
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: {
+    fontSize: '0.875rem',
+    color: 'var(--color-error)',
+  },
+  report: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  tableCard: {
+    overflowX: 'auto',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '0.875rem',
+  },
+  headRow: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  th: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    color: 'var(--color-text-secondary)',
+  },
+  right: {
+    textAlign: 'right',
+  },
+  bodyRow: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  cashRow: {
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  methodCell: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  countCell: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    textAlign: 'right',
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  totalCell: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    textAlign: 'right',
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  tfoot: {
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  footLabelCell: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  footValueCell: {
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    textAlign: 'right',
+    fontFamily: 'var(--font-family-code)',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  generatedAt: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
+
 /**
  * The end-of-day cash reconciliation report (T7.5). Server-renders the day's
  * captured takings grouped by settlement method from `GET /orders/reconciliation`,
@@ -59,16 +205,13 @@ export default async function ReconciliationPage({
 
   if (!canView) {
     return (
-      <div className="flex flex-col gap-3 p-6">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Cash reconciliation
-        </h1>
-        <Card
-          role="alert"
-          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
-        >
-          <Icon name="info" className="h-5 w-5 shrink-0" />
-          <span>You don’t have permission to view the cash reconciliation report.</span>
+      <div {...stylex.props(styles.forbiddenPage)}>
+        <h1 {...stylex.props(styles.title)}>Cash reconciliation</h1>
+        <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <span {...stylex.props(styles.errorText)}>
+            You don’t have permission to view the cash reconciliation report.
+          </span>
         </Card>
       </div>
     );
@@ -92,12 +235,10 @@ export default async function ReconciliationPage({
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
-          Cash reconciliation
-        </h1>
-        <p className="max-w-2xl text-sm text-ink-500 dark:text-ink-400">
+    <div {...stylex.props(styles.page)}>
+      <header {...stylex.props(styles.header)}>
+        <h1 {...stylex.props(styles.title)}>Cash reconciliation</h1>
+        <p {...stylex.props(styles.subtitle)}>
           The day’s takings grouped by how they were settled. Count the cash drawer and balance it
           against the expected cash below.
         </p>
@@ -106,55 +247,40 @@ export default async function ReconciliationPage({
       <ReconciliationDateForm date={date} />
 
       {error !== null ? (
-        <Card
-          role="alert"
-          className="flex items-center gap-3 p-4 text-sm text-danger-700 dark:text-danger-300"
-        >
-          <Icon name="info" className="h-5 w-5 shrink-0" />
-          <span>{error}</span>
+        <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <span {...stylex.props(styles.errorText)}>{error}</span>
         </Card>
       ) : report !== null ? (
-        <div className="flex flex-col gap-6">
-          <Card className="overflow-x-auto">
-            <table className="w-full text-sm">
+        <div {...stylex.props(styles.report)}>
+          <Card variant="default" padding={0} xstyle={styles.tableCard}>
+            <table {...stylex.props(styles.table)}>
               <thead>
-                <tr className="border-b border-ink-100 dark:border-white/10">
-                  <th className="px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    Method
-                  </th>
-                  <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    Sales
-                  </th>
-                  <th className="px-4 py-3 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-ink-400">
-                    Total
-                  </th>
+                <tr {...stylex.props(styles.headRow)}>
+                  <th {...stylex.props(styles.th)}>Method</th>
+                  <th {...stylex.props(styles.th, styles.right)}>Sales</th>
+                  <th {...stylex.props(styles.th, styles.right)}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {report.methods.map((row) => (
                   <tr
                     key={row.method}
-                    className={`border-b border-ink-50 dark:border-white/5 ${row.method === 'cash' ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''}`}
+                    {...stylex.props(styles.bodyRow, row.method === 'cash' && styles.cashRow)}
                   >
-                    <td className="px-4 py-3 font-medium text-ink-900 dark:text-white">
-                      {METHOD_LABELS[row.method]}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-600 dark:text-ink-300">
-                      {row.count}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-900 dark:text-white">
+                    <td {...stylex.props(styles.methodCell)}>{METHOD_LABELS[row.method]}</td>
+                    <td {...stylex.props(styles.countCell)}>{row.count}</td>
+                    <td {...stylex.props(styles.totalCell)}>
                       {formatPrice(row.total, report.currency)}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="border-t border-ink-100 bg-ink-50 dark:border-white/10 dark:bg-white/5">
+              <tfoot {...stylex.props(styles.tfoot)}>
                 <tr>
-                  <td className="px-4 py-3 font-semibold text-ink-900 dark:text-white">Total</td>
-                  <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
-                    {report.salesCount}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-ink-900 dark:text-white">
+                  <td {...stylex.props(styles.footLabelCell)}>Total</td>
+                  <td {...stylex.props(styles.footValueCell)}>{report.salesCount}</td>
+                  <td {...stylex.props(styles.footValueCell)}>
                     {formatPrice(report.grossTotal, report.currency)}
                   </td>
                 </tr>
@@ -164,7 +290,7 @@ export default async function ReconciliationPage({
 
           <CashCountForm expectedCash={report.expectedCash} currency={report.currency} />
 
-          <p className="text-xs text-ink-400">
+          <p {...stylex.props(styles.generatedAt)}>
             Generated {new Date(report.generatedAt).toLocaleString()}.
           </p>
         </div>

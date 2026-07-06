@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
 import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
 import {
   lookupPosMembersAction,
   resolvePosMemberByQrAction,
   type PosMemberRow,
 } from '@/app/(dashboard)/pos/actions';
-import { Card, Icon } from '@/components/ui';
+import { Card } from '@astryxdesign/core/Card';
+import { Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke fires a new member lookup. */
 const LOOKUP_DEBOUNCE_MS = 250;
@@ -20,6 +22,239 @@ interface BarcodeDetectorCtor {
   new (options?: { formats?: string[] }): BarcodeDetectorLike;
   getSupportedFormats?: () => Promise<string[]>;
 }
+
+const styles = stylex.create({
+  selectedChip: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'color-mix(in srgb, var(--color-accent) 30%, transparent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+  },
+  infoCol: {
+    minWidth: 0,
+  },
+  selectedName: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  selectedContact: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  removeBtn: {
+    flexShrink: 0,
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-surface)',
+    },
+    cursor: 'pointer',
+  },
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  searchRow: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  searchWrap: {
+    position: 'relative',
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
+  searchInput: {
+    height: '2.75rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    paddingBlock: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    boxShadow: {
+      default: 'none',
+      ':focus': '0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent)',
+    },
+    '::placeholder': {
+      color: 'var(--color-text-secondary)',
+    },
+  },
+  scanBtn: {
+    display: 'inline-flex',
+    height: '2.75rem',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-accent)',
+    },
+    backgroundColor: 'transparent',
+    paddingInline: '0.875rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: {
+      default: 'var(--color-text-primary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+    cursor: 'pointer',
+  },
+  scanIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
+  walkIn: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  alertCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  alertIcon: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  alertText: {
+    fontSize: '0.75rem',
+    color: 'var(--color-error)',
+  },
+  warningCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-warning)',
+    backgroundColor: 'var(--color-warning-muted)',
+  },
+  warningIcon: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-warning)',
+  },
+  warningText: {
+    fontSize: '0.75rem',
+    color: 'var(--color-warning)',
+  },
+  videoFrame: {
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+  },
+  video: {
+    height: '10rem',
+    width: '100%',
+    backgroundColor: '#000',
+    objectFit: 'cover',
+  },
+  resultList: {
+    maxHeight: '14rem',
+    overflowY: 'auto',
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+  },
+  resultItem: {
+    borderTopWidth: {
+      default: '1px',
+      ':first-child': '0',
+    },
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+  },
+  resultBtn: {
+    display: 'flex',
+    width: '100%',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '0.125rem',
+    borderWidth: 0,
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  resultName: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  resultContact: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
 
 /**
  * Member lookup + QR scan (top of the right column). A debounced search over the
@@ -157,20 +392,14 @@ export function MemberLookup({
 
   if (selectedMember) {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-card border border-brand-200 bg-brand-50 px-3 py-2 dark:border-brand-500/30 dark:bg-brand-500/10">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-ink-900 dark:text-white">
-            {selectedMember.name}
-          </p>
-          <p className="truncate text-xs text-ink-500 dark:text-ink-400">
+      <div {...stylex.props(styles.selectedChip)}>
+        <div {...stylex.props(styles.infoCol)}>
+          <p {...stylex.props(styles.selectedName)}>{selectedMember.name}</p>
+          <p {...stylex.props(styles.selectedContact)}>
             {selectedMember.phone ?? selectedMember.email}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => onSelect(null)}
-          className="shrink-0 rounded-btn px-2 py-1 text-xs font-medium text-ink-600 hover:bg-white dark:text-ink-300 dark:hover:bg-white/10"
-        >
+        <button type="button" onClick={() => onSelect(null)} {...stylex.props(styles.removeBtn)}>
           {t('remove')}
         </button>
       </div>
@@ -178,10 +407,10 @@ export function MemberLookup({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <label htmlFor="pos-member-search" className="sr-only">
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.searchRow)}>
+        <div {...stylex.props(styles.searchWrap)}>
+          <label htmlFor="pos-member-search" {...stylex.props(styles.srOnly)}>
             {t('searchLabel')}
           </label>
           <input
@@ -190,59 +419,52 @@ export function MemberLookup({
             type="search"
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={t('searchPlaceholder')}
-            className="h-11 w-full rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+            {...stylex.props(styles.searchInput)}
           />
         </div>
         <button
           type="button"
           onClick={() => (scanState === 'scanning' ? stopScan() : void startScan())}
-          className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-btn border border-ink-200 px-3.5 text-sm font-medium text-ink-700 hover:border-brand-400 hover:text-brand-700 dark:border-white/10 dark:text-ink-200 dark:hover:border-brand-500/60 dark:hover:text-brand-300"
+          {...stylex.props(styles.scanBtn)}
         >
-          <Icon name="qr" className="h-4 w-4" sw={2} />
+          <Icon name="qr" {...stylex.props(styles.scanIcon)} sw={2} />
           {scanState === 'scanning' ? t('stopScan') : t('scan')}
         </button>
       </div>
 
-      <p className="text-xs text-ink-400">{t('walkIn')}</p>
+      <p {...stylex.props(styles.walkIn)}>{t('walkIn')}</p>
 
       {error ? (
-        <Card
-          role="alert"
-          className="flex items-center gap-2 p-3 text-xs text-danger-700 dark:text-danger-300"
-        >
-          <Icon name="info" className="h-4 w-4 shrink-0" />
-          <span>{error}</span>
+        <Card variant="default" padding={0} role="alert" xstyle={styles.alertCard}>
+          <Icon name="info" {...stylex.props(styles.alertIcon)} />
+          <span {...stylex.props(styles.alertText)}>{error}</span>
         </Card>
       ) : null}
 
       {scanState === 'unsupported' ? (
-        <Card className="flex items-center gap-2 p-3 text-xs text-warning-800 dark:text-warning-200">
-          <Icon name="info" className="h-4 w-4 shrink-0" />
-          <span>{t('scanUnsupported')}</span>
+        <Card variant="default" padding={0} xstyle={styles.warningCard}>
+          <Icon name="info" {...stylex.props(styles.warningIcon)} />
+          <span {...stylex.props(styles.warningText)}>{t('scanUnsupported')}</span>
         </Card>
       ) : null}
 
       {scanState === 'scanning' ? (
-        <div className="overflow-hidden rounded-card border border-ink-200 dark:border-white/10">
-          <video ref={videoRef} className="h-40 w-full bg-black object-cover" muted playsInline />
+        <div {...stylex.props(styles.videoFrame)}>
+          <video ref={videoRef} {...stylex.props(styles.video)} muted playsInline />
         </div>
       ) : null}
 
       {results.length > 0 ? (
-        <ul className="max-h-56 overflow-y-auto rounded-card border border-ink-200 dark:border-white/10">
+        <ul {...stylex.props(styles.resultList)}>
           {results.map((member) => (
-            <li key={member.id}>
+            <li key={member.id} {...stylex.props(styles.resultItem)}>
               <button
                 type="button"
                 onClick={() => pick(member)}
-                className="flex w-full flex-col items-start gap-0.5 border-b border-ink-100 px-3 py-2 text-left last:border-b-0 hover:bg-ink-50 dark:border-white/5 dark:hover:bg-white/[0.04]"
+                {...stylex.props(styles.resultBtn)}
               >
-                <span className="text-sm font-medium text-ink-900 dark:text-white">
-                  {member.name}
-                </span>
-                <span className="text-xs text-ink-500 dark:text-ink-400">
-                  {member.phone ?? member.email}
-                </span>
+                <span {...stylex.props(styles.resultName)}>{member.name}</span>
+                <span {...stylex.props(styles.resultContact)}>{member.phone ?? member.email}</span>
               </button>
             </li>
           ))}
