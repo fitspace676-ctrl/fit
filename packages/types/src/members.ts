@@ -41,6 +41,22 @@ export const sortDirSchema = z.enum(['asc', 'desc']);
 export type SortDir = z.infer<typeof sortDirSchema>;
 
 /**
+ * A member's gender on their profile — mirrors the Prisma `Gender` enum. Kept
+ * deliberately small (the gym serves a single region and staff pick from a short
+ * list); `null` when not recorded.
+ */
+export const genderSchema = z.enum(['MALE', 'FEMALE', 'OTHER']);
+
+/** A member's recorded gender — {@link genderSchema}. */
+export type Gender = z.infer<typeof genderSchema>;
+
+/** Lifecycle of a member follow-up task — mirrors the Prisma `MemberTaskStatus` enum. */
+export const memberTaskStatusSchema = z.enum(['PENDING', 'DONE']);
+
+/** A task's completion state — {@link memberTaskStatusSchema}. */
+export type MemberTaskStatus = z.infer<typeof memberTaskStatusSchema>;
+
+/**
  * Query for `GET /members`. Pagination is **mandatory server-side** (the roster
  * must scale to 10k+ members, never loaded into memory): `page` is 1-based and
  * `limit` is capped at 100. `search` matches name/email; `status` and `planId`
@@ -116,6 +132,8 @@ export interface MemberRow {
   nextBillingAt: string | null;
   /** How the NEXT-BILLING cell should read (`due` date / `paused` / `overdue` / `none`). */
   billingState: MemberBillingState;
+  /** Colour-keyed labels applied by staff (`GymMember.tags`), for the roster's TAGS cell. */
+  tags: string[];
 }
 
 /** One plan in the roster's gym-wide "plan mix" bar. Mirrors `DashboardPlanSlice`. */
@@ -285,12 +303,87 @@ export interface MemberCurrentPlan {
 }
 
 /**
+ * One staff note on a member's detail page — free-text internal notes, newest
+ * first. Real rows from the `MemberNote` model (T4.x); never fabricated.
+ */
+export interface MemberNoteEntry {
+  id: string;
+  /** Display name of the staff member who wrote the note. */
+  author: string;
+  /** The note body. */
+  body: string;
+  /** ISO instant the note was created. */
+  createdAt: string;
+}
+
+/**
+ * One follow-up task on a member's detail page — a to-do a staff member logged
+ * against the member (call back, chase payment, …). Real `MemberTask` rows.
+ */
+export interface MemberTaskEntry {
+  id: string;
+  /** Short task headline. */
+  title: string;
+  /** ISO date the task is due, or `null` when open-ended. */
+  dueDate: string | null;
+  /** Who the task is assigned to (free text: a team or a person), or `null`. */
+  assignee: string | null;
+  /** Whether the task is still pending or done — {@link memberTaskStatusSchema}. */
+  status: MemberTaskStatus;
+  /** ISO instant the task was created. */
+  createdAt: string;
+}
+
+/**
+ * One entry of a member's access log — a single `CheckIn` row (our model records
+ * arrivals only, no check-out), newest first.
+ */
+export interface MemberAccessLogEntry {
+  id: string;
+  /** ISO instant of the check-in. */
+  at: string;
+  /** How the member checked in — `"QR"` / `"MANUAL"` (the `CheckInMethod` enum). */
+  method: string;
+  /** The location/branch id the check-in was recorded at, or `null`. */
+  location: string | null;
+}
+
+/** One line item of a member POS purchase — an `OrderItem` label + quantity. */
+export interface MemberPurchaseItem {
+  /** The item's display label as snapshotted on the order. */
+  label: string;
+  /** Quantity purchased. */
+  qty: number;
+}
+
+/**
+ * One point-of-sale purchase on a member's detail page — an `Order` linked to the
+ * member (`Order.memberId`) with its captured `Payment`, newest first.
+ */
+export interface MemberPurchase {
+  id: string;
+  /** ISO instant the order was placed. */
+  at: string;
+  /** The order's line items (label + qty). */
+  items: MemberPurchaseItem[];
+  /** Order total in minor currency units (tetri). */
+  total: number;
+  /** ISO-4217 currency code of {@link total}. */
+  currency: string;
+  /** Payment method (`"CARD"` / `"CASH"` / …), or `null` when unpaid. */
+  method: string | null;
+  /** The location/branch id the sale was made at, or `null`. */
+  location: string | null;
+}
+
+/**
  * One member as the detail page needs it — the same row the table renders, plus
  * the "formacore" KPIs (`lifetimeValue` / `totalVisits` / `nextBilling`), the
  * live `currentPlan`, the `recentActivity` timeline, the `attendance8w` series,
- * and the tabbed history. Every figure is a real tenant-scoped query. `tags` is
- * always empty and `notes` always `''` — the schema has NO member-tags or
- * member-notes model, so these are honest empty states, never fabricated (see
+ * the tabbed history (subscriptions / bookings / payments / invoices / POS
+ * purchases / access log), the profile extras (DOB, gender, address, emergency
+ * contact, medical notes), and the member's `tags`, staff `notes` and follow-up
+ * `tasks`. Every figure is a real tenant-scoped query — never fabricated (see
  * `members.service.ts`).
  */
 export interface MemberDetail extends MemberRow {
@@ -313,17 +406,26 @@ export interface MemberDetail extends MemberRow {
   payments: MemberPayment[];
   /** The member's numbered invoices (billing documents), newest first (T5.10). */
   invoices: MemberInvoice[];
-  /**
-   * Member tags. ALWAYS empty: the Prisma schema has no member-tag / label model,
-   * so there is nothing to read. The detail page renders a disabled "Add" chip
-   * rather than fabricate tags. Wire slot kept for when a tags model lands.
-   */
-  tags: string[];
-  /**
-   * Free-text staff notes. ALWAYS `''`: the schema has no member-notes model, so
-   * the Notes tab renders a "No notes yet" empty state. Not fabricated.
-   */
-  notes: string;
+  /** The member's POS purchases (orders + captured payment), newest first. */
+  purchases: MemberPurchase[];
+  /** The member's access log (check-ins), newest first. */
+  accessLog: MemberAccessLogEntry[];
+  /** ISO date of birth, or `null` when not recorded. */
+  dateOfBirth: string | null;
+  /** Recorded gender — {@link genderSchema}, or `null`. */
+  gender: Gender | null;
+  /** Postal / home address, or `null`. */
+  address: string | null;
+  /** Emergency contact's name, or `null`. */
+  emergencyContactName: string | null;
+  /** Emergency contact's phone, or `null`. */
+  emergencyContactPhone: string | null;
+  /** Free-text medical notes (allergies, conditions), or `null`. */
+  medicalNotes: string | null;
+  /** Free-text staff notes, newest first (real `MemberNote` rows). */
+  notes: MemberNoteEntry[];
+  /** Follow-up tasks logged against the member, newest first. */
+  tasks: MemberTaskEntry[];
 }
 
 /**
@@ -348,6 +450,35 @@ const memberPhoneSchema = z
   .transform((value) => (value ? value : undefined));
 
 /**
+ * A nullable, editable free-text profile field shared by the create/update
+ * bodies. Trimmed and length-bounded; when **omitted** it stays `undefined` (the
+ * service leaves the column untouched), when sent **empty** it becomes `null`
+ * (clears the column) — mirroring the reference's full-profile edit semantics.
+ */
+const editableText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value.length > 0 ? value : null));
+
+/**
+ * The profile-extra fields shared by create + update (T4.x): date of birth,
+ * gender, address, emergency contact, medical notes and tags. Every field is
+ * optional so a minimal create still validates; `null`/empty clears on edit.
+ */
+const memberProfileShape = {
+  dateOfBirth: editableText(40),
+  gender: genderSchema.nullish(),
+  address: editableText(200),
+  emergencyContactName: editableText(120),
+  emergencyContactPhone: editableText(32),
+  medicalNotes: editableText(2000),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+} as const;
+
+/**
  * Body for `POST /members` — create a member (T4.3). `name` and `email` identify
  * the person (the email is the cross-gym `User` identity; a member who already
  * exists as a user elsewhere is linked rather than duplicated). `phone` is
@@ -360,6 +491,13 @@ export const createMemberSchema = z.object({
   email: z.string().trim().toLowerCase().email('A valid email is required').max(200),
   phone: memberPhoneSchema,
   status: memberStatusSchema.default('ACTIVE'),
+  ...memberProfileShape,
+  /** Optional catalogue plan to enrol the new member on (creates a live subscription). */
+  planId: z.string().min(1).optional(),
+  /** ISO start date for the enrolment above (required alongside `planId`). */
+  startDate: editableText(40),
+  /** Preferred payment method recorded on the profile (`"CASH"` / `"CARD"` / …). */
+  paymentMethod: editableText(40),
 });
 
 /** Validated `POST /members` body — {@link createMemberSchema}. */
@@ -379,10 +517,43 @@ export const updateMemberSchema = z.object({
     .trim()
     .max(32)
     .transform((value) => (value ? value : null)),
+  ...memberProfileShape,
 });
 
 /** Validated `PATCH /members/:id` body — {@link updateMemberSchema}. */
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
+
+/**
+ * Body for `POST /members/:id/notes` — add a staff note to a member. The author is
+ * taken from the session server-side (never trusted from the client).
+ */
+export const createMemberNoteSchema = z.object({
+  body: z.string().trim().min(1, 'Note is required').max(2000),
+});
+
+/** Validated `POST /members/:id/notes` body — {@link createMemberNoteSchema}. */
+export type CreateMemberNoteInput = z.infer<typeof createMemberNoteSchema>;
+
+/**
+ * Body for `POST /members/:id/tasks` — log a follow-up task against a member.
+ * `dueDate` / `assignee` are optional; a bare `title` is enough.
+ */
+export const createMemberTaskSchema = z.object({
+  title: z.string().trim().min(1, 'Task title is required').max(200),
+  dueDate: editableText(40),
+  assignee: editableText(120),
+});
+
+/** Validated `POST /members/:id/tasks` body — {@link createMemberTaskSchema}. */
+export type CreateMemberTaskInput = z.infer<typeof createMemberTaskSchema>;
+
+/** Body for `PATCH /members/:id/tasks/:taskId` — flip a task between pending and done. */
+export const updateMemberTaskSchema = z.object({
+  status: memberTaskStatusSchema,
+});
+
+/** Validated `PATCH /members/:id/tasks/:taskId` body — {@link updateMemberTaskSchema}. */
+export type UpdateMemberTaskInput = z.infer<typeof updateMemberTaskSchema>;
 
 /**
  * Successful `POST /members` response (`201 Created`) — the newly created member

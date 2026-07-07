@@ -15,9 +15,12 @@ import { z } from 'zod';
 import {
   Permission,
   bulkExportMembersSchema,
+  createMemberNoteSchema,
   createMemberSchema,
+  createMemberTaskSchema,
   listMembersQuerySchema,
   updateMemberSchema,
+  updateMemberTaskSchema,
   type BulkExportMembersResponse,
   type CreateMemberResponse,
   type GetMemberResponse,
@@ -127,6 +130,44 @@ export class MembersController {
   @RequirePermissions(Permission.MemberWrite)
   async reactivate(@Param('id') id: string): Promise<SetMemberStatusResponse> {
     return this.members.reactivateMember(id);
+  }
+
+  /**
+   * `POST /members/:id/notes` — add a staff note to a member (T4.x). The author is
+   * resolved from the session server-side. `404`s an unknown / cross-tenant id.
+   * Returns the fresh member detail.
+   */
+  @Post(':id/notes')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.MemberWrite)
+  async addNote(@Param('id') id: string, @Body() body: unknown): Promise<GetMemberResponse> {
+    return this.members.addNote(id, parse(createMemberNoteSchema, body));
+  }
+
+  /**
+   * `POST /members/:id/tasks` — log a follow-up task against a member (T4.x).
+   * `404`s an unknown / cross-tenant id. Returns the fresh member detail.
+   */
+  @Post(':id/tasks')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.MemberWrite)
+  async addTask(@Param('id') id: string, @Body() body: unknown): Promise<GetMemberResponse> {
+    return this.members.addTask(id, parse(createMemberTaskSchema, body));
+  }
+
+  /**
+   * `PATCH /members/:id/tasks/:taskId` — flip a member task between pending and
+   * done (T4.x). `404`s an unknown member or task. Returns the fresh member detail.
+   */
+  @Patch(':id/tasks/:taskId')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MemberWrite)
+  async setTaskStatus(
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() body: unknown,
+  ): Promise<GetMemberResponse> {
+    return this.members.setTaskStatus(id, taskId, parse(updateMemberTaskSchema, body));
   }
 }
 

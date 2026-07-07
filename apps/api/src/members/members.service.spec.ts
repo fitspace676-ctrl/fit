@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { GymMemberStatus, Role } from '@fit/db';
 import type { CreateMemberInput, ListMembersQuery } from '@fit/types';
 import { MembersService } from './members.service';
@@ -16,6 +16,13 @@ interface MemberRecord {
   userId: string;
   status: GymMemberStatus;
   joinedAt: Date;
+  dateOfBirth: Date | null;
+  gender: 'MALE' | 'FEMALE' | 'OTHER' | null;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  medicalNotes: string | null;
+  tags: string[];
   user: { name: string | null; email: string; phone: string | null };
   subscriptions: Array<{
     id: string;
@@ -50,6 +57,18 @@ function setup(overrides?: {
   userFindUnique?: { id: string } | null;
   userCreate?: { id: string };
   gymMemberCreate?: { id: string };
+  plan?: {
+    id: string;
+    priceAmount: number;
+    currency: string;
+    interval: 'MONTH' | 'YEAR';
+    status: string;
+  } | null;
+  checkIns?: unknown[];
+  orders?: unknown[];
+  notes?: unknown[];
+  tasks?: unknown[];
+  taskFindFirst?: { id: string } | null;
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<MemberRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -86,17 +105,46 @@ function setup(overrides?: {
   const subscriptionFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
     Promise.resolve([]),
   );
+  const subscriptionCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'sub-new' }),
+  );
   const subscriptionPlanFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
     Promise.resolve([]),
+  );
+  const subscriptionPlanFindFirst = vi.fn<(args: unknown) => Promise<unknown>>(() =>
+    Promise.resolve(overrides?.plan ?? null),
   );
   const paymentAggregate = vi.fn<(args: unknown) => Promise<{ _sum: { amount: number | null } }>>(
     () => Promise.resolve({ _sum: { amount: null } }),
   );
   const paymentFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
   const checkInCount = vi.fn<(args: unknown) => Promise<number>>(() => Promise.resolve(0));
-  const checkInFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
+  const checkInFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
+    Promise.resolve(overrides?.checkIns ?? []),
+  );
   const bookingFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
   const invoiceFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() => Promise.resolve([]));
+  const orderFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
+    Promise.resolve(overrides?.orders ?? []),
+  );
+  const memberNoteFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
+    Promise.resolve(overrides?.notes ?? []),
+  );
+  const memberNoteCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'note-new' }),
+  );
+  const memberTaskFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>(() =>
+    Promise.resolve(overrides?.tasks ?? []),
+  );
+  const memberTaskCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'task-new' }),
+  );
+  const memberTaskFindFirst = vi.fn<(args: unknown) => Promise<{ id: string } | null>>(() =>
+    Promise.resolve(overrides?.taskFindFirst ?? null),
+  );
+  const memberTaskUpdate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'task-1' }),
+  );
 
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
@@ -108,12 +156,24 @@ function setup(overrides?: {
       update: gymMemberUpdate,
       groupBy: gymMemberGroupBy,
     },
-    subscription: { groupBy: subscriptionGroupBy, findMany: subscriptionFindMany },
-    subscriptionPlan: { findMany: subscriptionPlanFindMany },
+    subscription: {
+      groupBy: subscriptionGroupBy,
+      findMany: subscriptionFindMany,
+      create: subscriptionCreate,
+    },
+    subscriptionPlan: { findMany: subscriptionPlanFindMany, findFirst: subscriptionPlanFindFirst },
     payment: { aggregate: paymentAggregate, findMany: paymentFindMany },
     checkIn: { count: checkInCount, findMany: checkInFindMany },
     booking: { findMany: bookingFindMany },
     invoice: { findMany: invoiceFindMany },
+    order: { findMany: orderFindMany },
+    memberNote: { findMany: memberNoteFindMany, create: memberNoteCreate },
+    memberTask: {
+      findMany: memberTaskFindMany,
+      create: memberTaskCreate,
+      findFirst: memberTaskFindFirst,
+      update: memberTaskUpdate,
+    },
   };
   // Interactive transaction: run the callback against the same scoped client.
   client.$transaction = vi.fn((cb: (tx: typeof client) => unknown) => cb(client));
@@ -131,6 +191,12 @@ function setup(overrides?: {
     userFindUnique,
     userCreate,
     userUpdate,
+    subscriptionCreate,
+    subscriptionPlanFindFirst,
+    memberNoteCreate,
+    memberTaskCreate,
+    memberTaskFindFirst,
+    memberTaskUpdate,
   };
 }
 
@@ -155,6 +221,13 @@ const row = (over?: Partial<MemberRecord>): MemberRecord => ({
   userId: 'u-1',
   status: GymMemberStatus.ACTIVE,
   joinedAt: new Date('2026-01-15T00:00:00.000Z'),
+  dateOfBirth: null,
+  gender: null,
+  address: null,
+  emergencyContactName: null,
+  emergencyContactPhone: null,
+  medicalNotes: null,
+  tags: [],
   user: { name: 'Nino Beridze', email: 'nino@example.com', phone: null },
   subscriptions: [],
   checkIns: [],
@@ -376,8 +449,11 @@ describe('MembersService', () => {
         subscriptions: [],
         bookings: [],
         payments: [],
+        purchases: [],
+        accessLog: [],
         tags: [],
-        notes: '',
+        notes: [],
+        tasks: [],
       });
       // The attendance chart always frames a full 8 weeks.
       expect(result.attendance8w).toHaveLength(8);
@@ -523,6 +599,179 @@ describe('MembersService', () => {
 
       await expect(service.deactivateMember('missing')).rejects.toBeInstanceOf(NotFoundException);
       expect(gymMemberUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getMember — new detail sections', () => {
+    it('maps profile extras, access log, purchases, notes and tasks from the joins', async () => {
+      const { service } = setup({
+        findFirst: row({
+          gender: 'FEMALE',
+          address: '12 Rustaveli Ave',
+          emergencyContactName: 'Data',
+          emergencyContactPhone: '555',
+          medicalNotes: 'None',
+          tags: ['VIP', 'New'],
+          dateOfBirth: new Date('1994-03-02T00:00:00.000Z'),
+        }),
+        checkIns: [{ id: 'ci-1', checkedInAt: new Date('2026-06-20T09:30:00.000Z') }],
+        orders: [
+          {
+            id: 'o-1',
+            createdAt: new Date('2026-06-19T10:00:00.000Z'),
+            total: 1500,
+            currency: 'GEL',
+            locationId: 'loc-1',
+            items: [{ label: 'Protein Bar', qty: 2 }],
+            payment: { method: 'CASH' },
+          },
+        ],
+        notes: [
+          {
+            id: 'n-1',
+            authorName: 'Admin',
+            body: 'Called back',
+            createdAt: new Date('2026-06-18T00:00:00.000Z'),
+          },
+        ],
+        tasks: [
+          {
+            id: 't-1',
+            title: 'Follow up',
+            dueDate: new Date('2026-07-01T00:00:00.000Z'),
+            assignee: 'Front Desk',
+            status: 'PENDING',
+            createdAt: new Date('2026-06-17T00:00:00.000Z'),
+          },
+        ],
+      });
+
+      const result = await service.getMember('gm-1');
+
+      expect(result).toMatchObject({
+        gender: 'FEMALE',
+        address: '12 Rustaveli Ave',
+        emergencyContactName: 'Data',
+        emergencyContactPhone: '555',
+        medicalNotes: 'None',
+        tags: ['VIP', 'New'],
+        dateOfBirth: '1994-03-02T00:00:00.000Z',
+        accessLog: [{ id: 'ci-1', at: '2026-06-20T09:30:00.000Z', location: null }],
+        purchases: [
+          {
+            id: 'o-1',
+            total: 1500,
+            currency: 'GEL',
+            method: 'CASH',
+            location: 'loc-1',
+            items: [{ label: 'Protein Bar', qty: 2 }],
+          },
+        ],
+        notes: [{ id: 'n-1', author: 'Admin', body: 'Called back' }],
+        tasks: [{ id: 't-1', title: 'Follow up', assignee: 'Front Desk', status: 'PENDING' }],
+      });
+    });
+  });
+
+  describe('createMember — plan enrolment', () => {
+    it('creates an ACTIVE subscription with a computed period when a plan + start date are given', async () => {
+      const { service, subscriptionCreate } = setup({
+        userFindUnique: null,
+        userCreate: { id: 'u-new' },
+        gymMemberCreate: { id: 'gm-new' },
+        findFirst: row({ id: 'gm-new', userId: 'u-new' }),
+        plan: {
+          id: 'plan-1',
+          priceAmount: 4500,
+          currency: 'GEL',
+          interval: 'MONTH',
+          status: 'ACTIVE',
+        },
+      });
+
+      await service.createMember(createInput({ planId: 'plan-1', startDate: '2026-07-01' }));
+
+      const data = subscriptionCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+      expect(data.data).toMatchObject({
+        planId: 'plan-1',
+        memberId: 'gm-new',
+        status: 'ACTIVE',
+        priceAmount: 4500,
+        currency: 'GEL',
+        interval: 'MONTH',
+      });
+      // Month plan → period end one month after the start.
+      expect((data.data.currentPeriodEnd as Date).toISOString()).toBe('2026-08-01T00:00:00.000Z');
+    });
+
+    it('rejects an inactive plan with a 400 and does not create a subscription', async () => {
+      const { service, subscriptionCreate } = setup({
+        userFindUnique: null,
+        gymMemberCreate: { id: 'gm-new' },
+        findFirst: row({ id: 'gm-new' }),
+        plan: {
+          id: 'plan-x',
+          priceAmount: 1,
+          currency: 'GEL',
+          interval: 'MONTH',
+          status: 'ARCHIVED',
+        },
+      });
+
+      await expect(
+        service.createMember(createInput({ planId: 'plan-x', startDate: '2026-07-01' })),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(subscriptionCreate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('addNote / addTask / setTaskStatus', () => {
+    it('adds a note (author falls back to "Staff" with no session user) and returns the detail', async () => {
+      const { service, memberNoteCreate } = setup({ findFirst: row() });
+
+      const result = await service.addNote('gm-1', { body: 'Called back' });
+
+      expect(memberNoteCreate.mock.calls[0]?.[0]).toMatchObject({
+        data: { memberId: 'gm-1', authorName: 'Staff', body: 'Called back' },
+      });
+      expect(result.id).toBe('gm-1');
+    });
+
+    it('adds a task with a coerced due date', async () => {
+      const { service, memberTaskCreate } = setup({ findFirst: row() });
+
+      await service.addTask('gm-1', {
+        title: 'Follow up',
+        dueDate: '2026-07-10',
+        assignee: 'Sales',
+      });
+
+      const data = memberTaskCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+      expect(data.data).toMatchObject({ memberId: 'gm-1', title: 'Follow up', assignee: 'Sales' });
+      expect((data.data.dueDate as Date).toISOString()).toBe('2026-07-10T00:00:00.000Z');
+    });
+
+    it('toggles a task that belongs to the member', async () => {
+      const { service, memberTaskUpdate } = setup({
+        findFirst: row(),
+        taskFindFirst: { id: 't-1' },
+      });
+
+      await service.setTaskStatus('gm-1', 't-1', { status: 'DONE' });
+
+      expect(memberTaskUpdate.mock.calls[0]?.[0]).toMatchObject({
+        where: { id: 't-1' },
+        data: { status: 'DONE' },
+      });
+    });
+
+    it('throws 404 when the task does not belong to the member', async () => {
+      const { service, memberTaskUpdate } = setup({ findFirst: row(), taskFindFirst: null });
+
+      await expect(
+        service.setTaskStatus('gm-1', 'missing', { status: 'DONE' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(memberTaskUpdate).not.toHaveBeenCalled();
     });
   });
 

@@ -20,7 +20,9 @@ import type {
   AdminAnalyticsResponse,
   AnalyticsRange,
   CreateMemberInput,
+  CreateMemberNoteInput,
   CreateMemberResponse,
+  CreateMemberTaskInput,
   CreateTrainerData,
   CreateTrainerResponse,
   ListActivityQuery,
@@ -90,6 +92,7 @@ import type {
   UpdateLocationData,
   UpdateLocationResponse,
   UpdateMemberInput,
+  UpdateMemberTaskInput,
   UpdateMemberResponse,
   UpdateProductData,
   UpdateProductResponse,
@@ -257,6 +260,52 @@ export async function reactivateMember(id: string): Promise<SetMemberStatusRespo
     cache: 'no-store',
   });
   return unwrap<SetMemberStatusResponse>(res);
+}
+
+/** `POST /members/:id/notes` — add a staff note; returns the fresh member detail. */
+export async function createMemberNote(
+  id: string,
+  input: CreateMemberNoteInput,
+): Promise<GetMemberResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}/notes`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetMemberResponse>(res);
+}
+
+/** `POST /members/:id/tasks` — log a follow-up task; returns the fresh member detail. */
+export async function createMemberTask(
+  id: string,
+  input: CreateMemberTaskInput,
+): Promise<GetMemberResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetMemberResponse>(res);
+}
+
+/** `PATCH /members/:id/tasks/:taskId` — toggle a task's status; returns the detail. */
+export async function updateMemberTask(
+  id: string,
+  taskId: string,
+  input: UpdateMemberTaskInput,
+): Promise<GetMemberResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/members/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<GetMemberResponse>(res);
 }
 
 // ── Trainers (T4.4) ─────────────────────────────────────────────────────────

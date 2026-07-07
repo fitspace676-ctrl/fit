@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -10,9 +10,14 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { ToggleButton } from '@astryxdesign/core/ToggleButton';
 import { Stack } from '@astryxdesign/core/Stack';
 import { Text } from '@astryxdesign/core/Text';
-import type { MemberStatus } from '@fit/types';
+import type { Gender, MemberStatus } from '@fit/types';
 import { Btn, Icon } from '@/components/ui';
-import { createMemberAction, updateMemberAction } from './actions';
+import {
+  createMemberAction,
+  listActivePlanOptionsAction,
+  updateMemberAction,
+  type PlanOption,
+} from './actions';
 
 const styles = stylex.create({
   form: {
@@ -35,6 +40,14 @@ const styles = stylex.create({
   statusToggle: {
     width: '100%',
     justifyContent: 'flex-start',
+  },
+  grid2: {
+    display: 'grid',
+    gap: '0.75rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 480px)': 'repeat(2, minmax(0, 1fr))',
+    },
   },
   fieldGroup: {
     display: 'flex',
@@ -72,6 +85,25 @@ const styles = stylex.create({
       ':disabled': 'var(--color-text-disabled)',
     },
     outline: 'none',
+  },
+  textarea: {
+    minHeight: '5rem',
+    width: '100%',
+    padding: '0.625rem 0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    fontSize: '0.875rem',
+    fontFamily: 'var(--font-family-body)',
+    lineHeight: 1.5,
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    resize: 'vertical',
   },
   hint: {
     margin: 0,
@@ -135,24 +167,80 @@ const styles = stylex.create({
   },
 });
 
+/** The editable profile fields a member's create/edit form seeds from + submits. */
+export interface MemberFormInitial {
+  name: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  gender: string;
+  address: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  medicalNotes: string;
+  /** Comma-separated tag string (e.g. `"VIP, Corporate"`). */
+  tags: string;
+}
+
 type Props =
   | { mode: 'create'; onSuccess?: () => void; onCancel?: () => void }
   | {
       mode: 'edit';
       memberId: string;
-      initial: { name: string; email: string; phone: string };
+      initial: MemberFormInitial;
       onSuccess?: () => void;
       onCancel?: () => void;
     };
 
+/** Split a comma-separated tag string into a clean, de-duplicated, capped array. */
+function parseTags(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split(',')) {
+    const tag = part.trim();
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+/** A native labelled field (select / date / text) matching the form's styling. */
+function LabeledField({
+  label,
+  htmlFor,
+  optional,
+  hint,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  optional?: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div {...stylex.props(styles.fieldGroup)}>
+      <label htmlFor={htmlFor} {...stylex.props(styles.label)}>
+        {label}
+        {optional ? <span {...stylex.props(styles.labelOptional)}> · {optional}</span> : null}
+      </label>
+      {children}
+      {hint ? <p {...stylex.props(styles.hint)}>{hint}</p> : null}
+    </div>
+  );
+}
+
 /**
- * The create / edit member form (T4.3). One component serves both flows: in
- * `create` mode it collects name + email (+ optional phone, initial status) and
- * calls {@link createMemberAction}; in `edit` mode the email is shown read-only
- * (it is the immutable auth identity) and it calls {@link updateMemberAction}.
- * On success it navigates to the member's detail page; the discriminated
- * {@link ActionResult} surfaces any API error inline without throwing across the
- * Server Action boundary.
+ * The create / edit member form (T4.3, extended T4.x). One component serves both
+ * flows: `create` collects the full profile (contact, personal, emergency contact,
+ * medical notes, tags) plus an optional membership plan enrolment + initial status;
+ * `edit` shows the email read-only (immutable auth identity) and omits the plan /
+ * status controls. On success it navigates to the member's detail page (or closes
+ * the drawer). The discriminated {@link ActionResult} surfaces API errors inline.
  */
 export function MemberForm(props: Props) {
   const t = useTranslations('admin.members');
@@ -161,18 +249,64 @@ export function MemberForm(props: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const isEdit = props.mode === 'edit';
-  const [name, setName] = useState(isEdit ? props.initial.name : '');
-  const [email, setEmail] = useState(isEdit ? props.initial.email : '');
-  const [phone, setPhone] = useState(isEdit ? props.initial.phone : '');
+  const seed = isEdit ? props.initial : null;
+  const [name, setName] = useState(seed?.name ?? '');
+  const [email, setEmail] = useState(seed?.email ?? '');
+  const [phone, setPhone] = useState(seed?.phone ?? '');
+  const [dateOfBirth, setDateOfBirth] = useState(seed?.dateOfBirth ?? '');
+  const [gender, setGender] = useState(seed?.gender ?? '');
+  const [address, setAddress] = useState(seed?.address ?? '');
+  const [emergencyName, setEmergencyName] = useState(seed?.emergencyContactName ?? '');
+  const [emergencyPhone, setEmergencyPhone] = useState(seed?.emergencyContactPhone ?? '');
+  const [medicalNotes, setMedicalNotes] = useState(seed?.medicalNotes ?? '');
+  const [tags, setTags] = useState(seed?.tags ?? '');
   const [status, setStatus] = useState<MemberStatus>('ACTIVE');
+
+  // Create-only membership enrolment.
+  const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
+  const [planId, setPlanId] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+
+  useEffect(() => {
+    if (isEdit) return;
+    let active = true;
+    void listActivePlanOptionsAction().then((opts) => {
+      if (active) setPlanOptions(opts);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isEdit]);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setError(null);
+
+    // Shared profile fields; empty strings clear on the API (see `memberProfileShape`).
+    const profile = {
+      dateOfBirth,
+      gender: gender ? (gender as Gender) : null,
+      address,
+      emergencyContactName: emergencyName,
+      emergencyContactPhone: emergencyPhone,
+      medicalNotes,
+      tags: parseTags(tags),
+    };
+
     startTransition(async () => {
       const result = isEdit
-        ? await updateMemberAction(props.memberId, { name, phone })
-        : await createMemberAction({ name, email, phone, status });
+        ? await updateMemberAction(props.memberId, { name, phone, ...profile })
+        : await createMemberAction({
+            name,
+            email,
+            phone,
+            status,
+            ...profile,
+            planId: planId || undefined,
+            startDate: startDate || undefined,
+            paymentMethod: paymentMethod || undefined,
+          });
       if (result.ok) {
         if (props.onSuccess) {
           props.onSuccess();
@@ -191,6 +325,7 @@ export function MemberForm(props: Props) {
 
   return (
     <form onSubmit={onSubmit} {...stylex.props(styles.form, props.onCancel && styles.formInDrawer)}>
+      {/* Contact + personal information. */}
       <Card variant="default" padding={4} xstyle={styles.formSection}>
         <Stack gap={4}>
           <Text type="label" weight="semibold" color="secondary" display="block">
@@ -235,15 +370,148 @@ export function MemberForm(props: Props) {
             onChange={setPhone}
             startIcon={<Icon name="message" {...stylex.props(styles.sectionIcon)} />}
           />
+
+          <div {...stylex.props(styles.grid2)}>
+            <LabeledField
+              label={t('form.dateOfBirth')}
+              htmlFor="dateOfBirth"
+              optional={t('form.optional')}
+            >
+              <input
+                id="dateOfBirth"
+                name="dateOfBirth"
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                {...stylex.props(styles.field)}
+              />
+            </LabeledField>
+            <LabeledField label={t('form.gender')} htmlFor="gender" optional={t('form.optional')}>
+              <select
+                id="gender"
+                name="gender"
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                {...stylex.props(styles.field)}
+              >
+                <option value="">{t('form.genderUnset')}</option>
+                <option value="MALE">{t('gender.MALE')}</option>
+                <option value="FEMALE">{t('gender.FEMALE')}</option>
+                <option value="OTHER">{t('gender.OTHER')}</option>
+              </select>
+            </LabeledField>
+          </div>
+
+          <LabeledField label={t('form.address')} htmlFor="address" optional={t('form.optional')}>
+            <input
+              id="address"
+              name="address"
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              {...stylex.props(styles.field)}
+            />
+          </LabeledField>
         </Stack>
       </Card>
 
+      {/* Emergency contact. */}
+      <Card variant="default" padding={4} xstyle={styles.formSection}>
+        <Stack gap={3}>
+          <Text type="label" weight="semibold" color="secondary" display="block">
+            {t('form.emergencySection')}
+          </Text>
+          <div {...stylex.props(styles.grid2)}>
+            <LabeledField
+              label={t('form.emergencyName')}
+              htmlFor="emergencyName"
+              optional={t('form.optional')}
+            >
+              <input
+                id="emergencyName"
+                name="emergencyName"
+                type="text"
+                value={emergencyName}
+                onChange={(e) => setEmergencyName(e.target.value)}
+                {...stylex.props(styles.field)}
+              />
+            </LabeledField>
+            <LabeledField
+              label={t('form.emergencyPhone')}
+              htmlFor="emergencyPhone"
+              optional={t('form.optional')}
+            >
+              <input
+                id="emergencyPhone"
+                name="emergencyPhone"
+                type="text"
+                value={emergencyPhone}
+                onChange={(e) => setEmergencyPhone(e.target.value)}
+                {...stylex.props(styles.field)}
+              />
+            </LabeledField>
+          </div>
+        </Stack>
+      </Card>
+
+      {/* Membership plan enrolment (create only). */}
       {!isEdit ? (
         <Card variant="default" padding={4} xstyle={styles.formSection}>
           <Stack gap={3}>
             <Text type="label" weight="semibold" color="secondary" display="block">
               {t('form.membershipSection')}
             </Text>
+            <div {...stylex.props(styles.grid2)}>
+              <LabeledField label={t('form.plan')} htmlFor="planId" optional={t('form.optional')}>
+                <select
+                  id="planId"
+                  name="planId"
+                  value={planId}
+                  onChange={(e) => setPlanId(e.target.value)}
+                  {...stylex.props(styles.field)}
+                >
+                  <option value="">{t('form.planNone')}</option>
+                  {planOptions.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.name}
+                    </option>
+                  ))}
+                </select>
+              </LabeledField>
+              <LabeledField
+                label={t('form.startDate')}
+                htmlFor="startDate"
+                optional={t('form.optional')}
+              >
+                <input
+                  id="startDate"
+                  name="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  {...stylex.props(styles.field)}
+                />
+              </LabeledField>
+            </div>
+            <LabeledField
+              label={t('form.paymentMethod')}
+              htmlFor="paymentMethod"
+              optional={t('form.optional')}
+            >
+              <select
+                id="paymentMethod"
+                name="paymentMethod"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                {...stylex.props(styles.field)}
+              >
+                <option value="">{t('form.paymentUnset')}</option>
+                <option value="CASH">{t('form.paymentCash')}</option>
+                <option value="CARD">{t('form.paymentCard')}</option>
+                <option value="BANK_TRANSFER">{t('form.paymentBankTransfer')}</option>
+              </select>
+            </LabeledField>
+
             <Text type="supporting" color="secondary" display="block">
               {t('form.status')}
             </Text>
@@ -259,6 +527,45 @@ export function MemberForm(props: Props) {
           </Stack>
         </Card>
       ) : null}
+
+      {/* Medical notes + tags. */}
+      <Card variant="default" padding={4} xstyle={styles.formSection}>
+        <Stack gap={3}>
+          <Text type="label" weight="semibold" color="secondary" display="block">
+            {t('form.medicalSection')}
+          </Text>
+          <LabeledField
+            label={t('form.medicalSection')}
+            htmlFor="medicalNotes"
+            optional={t('form.optional')}
+          >
+            <textarea
+              id="medicalNotes"
+              name="medicalNotes"
+              rows={3}
+              placeholder={t('form.medicalPlaceholder')}
+              value={medicalNotes}
+              onChange={(e) => setMedicalNotes(e.target.value)}
+              {...stylex.props(styles.textarea)}
+            />
+          </LabeledField>
+          <LabeledField
+            label={t('form.tags')}
+            htmlFor="tags"
+            optional={t('form.optional')}
+            hint={t('form.tagsHint')}
+          >
+            <input
+              id="tags"
+              name="tags"
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              {...stylex.props(styles.field)}
+            />
+          </LabeledField>
+        </Stack>
+      </Card>
 
       <div {...stylex.props(styles.footer, props.onCancel && styles.drawerFooter)}>
         {error ? (

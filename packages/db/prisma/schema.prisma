@@ -37,6 +37,23 @@ enum GymMemberStatus {
   SUSPENDED
 }
 
+/// A member's recorded gender on their staff-managed profile (T4.x). Kept small —
+/// the gym serves a single region and staff pick from a short list; the column is
+/// nullable when not recorded. Mirrors `genderSchema` in `@fit/types`.
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+/// Completion state of a member follow-up task (T4.x) — a to-do a staff member
+/// logged against a member (call back, chase payment, …). Mirrors
+/// `memberTaskStatusSchema` in `@fit/types`.
+enum MemberTaskStatus {
+  PENDING
+  DONE
+}
+
 /// How a member's gym check-in (reception arrival) was recorded (T4.12). `QR` is
 /// a scanned member code at the reception kiosk; `MANUAL` is a receptionist
 /// looking the member up and checking them in by hand. Mirrors the Prisma enum
@@ -346,6 +363,8 @@ model Gym {
   subscriptions           Subscription[]
   creditPacks             CreditPack[]
   memberGoals             MemberGoal[]
+  memberNotes             MemberNote[]
+  memberTasks             MemberTask[]
   checkIns                CheckIn[]
   invoices                Invoice[]
   invoiceSequences        InvoiceSequence[]
@@ -512,6 +531,17 @@ model GymMember {
   status   GymMemberStatus @default(ACTIVE)
   joinedAt DateTime        @default(now())
 
+  // Staff-managed profile extras (T4.x). Held on the gym membership (not the
+  // cross-gym `User`) so each gym keeps its own record of a person; all nullable
+  // and optional. `tags` are colour-keyed labels the roster + detail render.
+  dateOfBirth           DateTime?
+  gender                Gender?
+  address               String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  medicalNotes          String?
+  tags                  String[]  @default([])
+
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
   bookings      Booking[]
@@ -522,6 +552,8 @@ model GymMember {
   goals         MemberGoal[]
   checkIns      CheckIn[]
   invoices      Invoice[]
+  notes         MemberNote[]
+  tasks         MemberTask[]
 
   @@unique([userId, gymId])
   // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
@@ -556,6 +588,50 @@ model MemberGoal {
   @@index([gymId])
   @@index([memberId])
   @@map("member_goals")
+}
+
+/// A free-text staff note on a member (T4.x), shown on the member detail's
+/// Notes & Tasks tab, newest first. Tenant-scoped by `gymId`; owned by the member
+/// (deleted with them). `authorName` is snapshotted at write time so a note keeps
+/// its attribution even if the staff user later changes; `authorId` links back to
+/// the writing `User` when known.
+model MemberNote {
+  id         String   @id @default(cuid())
+  gymId      String
+  memberId   String
+  authorId   String?
+  authorName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  gym    Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member GymMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@index([memberId, createdAt])
+  @@map("member_notes")
+}
+
+/// A follow-up task logged against a member (T4.x) — call back, chase payment,
+/// etc. — shown on the Notes & Tasks tab. Tenant-scoped by `gymId`; owned by the
+/// member. `dueDate` / `assignee` are optional; `status` toggles PENDING↔DONE.
+model MemberTask {
+  id        String           @id @default(cuid())
+  gymId     String
+  memberId  String
+  title     String
+  dueDate   DateTime?
+  assignee  String?
+  status    MemberTaskStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  gym    Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member GymMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@index([memberId, status])
+  @@map("member_tasks")
 }
 
 /// A member's reception check-in — one live arrival at the gym (T4.12). Recorded

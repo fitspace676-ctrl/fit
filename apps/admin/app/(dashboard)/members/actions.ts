@@ -4,15 +4,21 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,
+  createMemberNoteSchema,
   createMemberSchema,
+  createMemberTaskSchema,
   freezeSubscriptionSchema,
   purchaseCreditPackSchema,
   roleHasPermission,
   updateMemberSchema,
+  updateMemberTaskSchema,
   type BulkExportMembersInput,
   type CreateMemberInput,
+  type CreateMemberNoteInput,
+  type CreateMemberTaskInput,
   type FreezeSubscriptionInput,
   type MemberDetail,
+  type MemberTaskStatus,
   type UpdateMemberInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
@@ -20,13 +26,26 @@ import {
   ApiError,
   bulkExportMembers,
   createMember,
+  createMemberNote,
+  createMemberTask,
   deactivateMember,
+  fetchSubscriptionPlans,
   freezeMemberSubscription,
   grantMemberCreditPack,
   reactivateMember,
   unfreezeMemberSubscription,
   updateMember,
+  updateMemberTask,
 } from '@/lib/api';
+
+/** A membership plan option for the Add-Member form's plan selector. */
+export interface PlanOption {
+  id: string;
+  name: string;
+  priceAmount: number;
+  currency: string;
+  interval: 'MONTH' | 'YEAR';
+}
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -235,6 +254,107 @@ export async function grantMemberCreditPackAction(
     revalidatePath('/members');
     revalidatePath(`/members/${memberId}`);
     return { ok: true, data: { creditPackId } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * List the gym's active membership plans for the Add-Member form's plan selector.
+ * Gated by `MemberWrite` (the form is a write surface). Returns a compact option
+ * list; on any failure it degrades to an empty list so the form still works
+ * without plan enrolment.
+ */
+export async function listActivePlanOptionsAction(): Promise<PlanOption[]> {
+  if (!(await requireMemberWrite())) {
+    return [];
+  }
+  try {
+    const { data } = await fetchSubscriptionPlans({ status: 'ACTIVE', limit: 100 });
+    return data.map((plan) => ({
+      id: plan.id,
+      name: plan.name,
+      priceAmount: plan.priceAmount,
+      currency: plan.currency,
+      interval: plan.interval,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Add a staff note to a member (T4.x). Enforces `MemberWrite`, re-validates the
+ * body with the same Zod schema the API uses, then refreshes the member's detail
+ * page so the new note appears. The author is resolved API-side from the session.
+ */
+export async function addMemberNoteAction(
+  memberId: string,
+  input: CreateMemberNoteInput,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.members');
+  if (!(await requireMemberWrite())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = createMemberNoteSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    await createMemberNote(memberId, parsed.data);
+    revalidatePath(`/members/${memberId}`);
+    return { ok: true, data: { id: memberId } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Log a follow-up task against a member (T4.x). Enforces `MemberWrite`,
+ * re-validates the body, and refreshes the member's detail page on success.
+ */
+export async function addMemberTaskAction(
+  memberId: string,
+  input: CreateMemberTaskInput,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.members');
+  if (!(await requireMemberWrite())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = createMemberTaskSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    await createMemberTask(memberId, parsed.data);
+    revalidatePath(`/members/${memberId}`);
+    return { ok: true, data: { id: memberId } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Toggle a member task between pending and done (T4.x). Enforces `MemberWrite` and
+ * refreshes the member's detail page so the task list reflects the new state.
+ */
+export async function toggleMemberTaskAction(
+  memberId: string,
+  taskId: string,
+  status: MemberTaskStatus,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.members');
+  if (!(await requireMemberWrite())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = updateMemberTaskSchema.safeParse({ status });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    await updateMemberTask(memberId, taskId, parsed.data);
+    revalidatePath(`/members/${memberId}`);
+    return { ok: true, data: { id: taskId } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }

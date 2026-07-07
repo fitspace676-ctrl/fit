@@ -172,7 +172,19 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
       <MemberForm
         mode="edit"
         memberId={id}
-        initial={{ name: member.name, email: member.email, phone: member.phone ?? '' }}
+        initial={{
+          name: member.name,
+          email: member.email,
+          phone: member.phone ?? '',
+          // The date input needs a `YYYY-MM-DD` value, so trim the ISO instant.
+          dateOfBirth: member.dateOfBirth ? member.dateOfBirth.slice(0, 10) : '',
+          gender: member.gender ?? '',
+          address: member.address ?? '',
+          emergencyContactName: member.emergencyContactName ?? '',
+          emergencyContactPhone: member.emergencyContactPhone ?? '',
+          medicalNotes: member.medicalNotes ?? '',
+          tags: member.tags.join(', '),
+        }}
       />
     </div>
   );

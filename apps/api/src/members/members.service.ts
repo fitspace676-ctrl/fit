@@ -1,32 +1,47 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   DEFAULT_FREEZE_DAYS_PER_PERIOD,
+  Gender,
   GymMemberStatus,
   PaymentStatus,
   Prisma,
   Role,
+  SubscriptionInterval,
+  SubscriptionPlanStatus,
   SubscriptionStatus,
 } from '@fit/db';
 import type {
   BulkExportMembersInput,
   BulkExportMembersResponse,
   CreateMemberInput,
+  CreateMemberNoteInput,
   CreateMemberResponse,
+  CreateMemberTaskInput,
   GetMemberResponse,
   ListMembersQuery,
   ListMembersResponse,
+  MemberAccessLogEntry,
   MemberActivity,
   MemberAttendanceWeek,
   MemberBillingState,
   MemberCurrentPlan,
   MemberDetail,
+  MemberNoteEntry,
   MemberPlan,
   MemberPlanMix,
+  MemberPurchase,
   MemberRow,
   MemberTabCounts,
+  MemberTaskEntry,
   SetMemberStatusResponse,
   UpdateMemberInput,
+  UpdateMemberTaskInput,
   UpdateMemberResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -83,6 +98,13 @@ const MEMBER_SELECT = {
   id: true,
   status: true,
   joinedAt: true,
+  dateOfBirth: true,
+  gender: true,
+  address: true,
+  emergencyContactName: true,
+  emergencyContactPhone: true,
+  medicalNotes: true,
+  tags: true,
   user: { select: { name: true, email: true, phone: true } },
   subscriptions: {
     where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
@@ -118,10 +140,11 @@ type LiveSubscription = MemberRecord['subscriptions'][number];
  * detail adds `lifetimeValue` (SUM captured `Payment`), `totalVisits` (`CheckIn`
  * count), `currentPlan` (live subscription + days-remaining), `recentActivity`
  * (merged recent check-ins / bookings / payments), and `attendance8w` (per-week
- * check-ins). **`tags` and `notes` have NO backing model in the Prisma schema**
- * (a whole-schema search finds no member-tag / member-note model), so they are
- * returned as `[]` / `''` honest empty states — never fabricated. If a tags/notes
- * model lands later, wire it in here; the wire contract already carries the slots.
+ * check-ins). The detail also carries the member's `purchases` (POS `Order`s),
+ * `accessLog` (`CheckIn`s), the profile extras (DOB / gender / address /
+ * emergency contact / medical notes), and the member's `tags`, staff `notes`
+ * (`MemberNote`) and follow-up `tasks` (`MemberTask`). Every figure is a REAL
+ * tenant-scoped query — never fabricated.
  */
 @Injectable()
 export class MembersService {
@@ -197,7 +220,7 @@ export class MembersService {
    * cross-gym identity); edit it afterwards via {@link updateMember} if needed.
    */
   async createMember(input: CreateMemberInput): Promise<CreateMemberResponse> {
-    const { name, email, phone, status } = input;
+    const { name, email, phone, status, planId, startDate } = input;
 
     const created = await this.prisma.client.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({ where: { email }, select: { id: true } });
@@ -222,15 +245,106 @@ export class MembersService {
       // `gymId` is read from the request's tenant context. The tenant extension
       // also stamps it on create, so this is belt-and-braces — and it satisfies
       // the create input's static type (which always requires `gymId`).
-      return tx.gymMember.create({
-        data: { userId, gymId: this.tenant.gymId, role: Role.MEMBER, status },
+      const member = await tx.gymMember.create({
+        data: {
+          userId,
+          gymId: this.tenant.gymId,
+          role: Role.MEMBER,
+          status,
+          ...this.profileWriteData(input),
+        },
         select: { id: true },
       });
+
+      // Optional plan enrolment (parity with the reference Add-Member form): a
+      // staff-recorded ACTIVE subscription snapshotting the catalogue plan's
+      // price/interval, no payment taken. A brand-new member holds no live
+      // subscription, so the partial-unique "one live sub per member" is safe.
+      if (planId) {
+        const plan = await tx.subscriptionPlan.findFirst({
+          where: { id: planId },
+          select: { id: true, priceAmount: true, currency: true, interval: true, status: true },
+        });
+        if (!plan) {
+          throw new BadRequestException({
+            message: 'Selected membership plan was not found',
+            code: 'PLAN_NOT_FOUND',
+          });
+        }
+        if (plan.status !== SubscriptionPlanStatus.ACTIVE) {
+          throw new BadRequestException({
+            message: 'Selected membership plan is not active',
+            code: 'PLAN_INACTIVE',
+          });
+        }
+        const start = startDate ? new Date(startDate) : new Date();
+        await tx.subscription.create({
+          data: {
+            gymId: this.tenant.gymId,
+            planId: plan.id,
+            memberId: member.id,
+            status: SubscriptionStatus.ACTIVE,
+            priceAmount: plan.priceAmount,
+            currency: plan.currency,
+            interval: plan.interval,
+            currentPeriodStart: start,
+            currentPeriodEnd: this.addInterval(start, plan.interval),
+          },
+        });
+      }
+
+      return member;
     });
 
     // Re-read through the full detail path so a brand-new member's response
     // carries every "formacore" field (empty history, zero KPIs) consistently.
     return this.getMember(created.id);
+  }
+
+  /**
+   * Advance a date by one billing period — a year for `YEAR` plans, else a month.
+   * Used to seed a new enrolment's `currentPeriodEnd` from its start.
+   */
+  private addInterval(from: Date, interval: SubscriptionInterval): Date {
+    const end = new Date(from);
+    if (interval === SubscriptionInterval.YEAR) {
+      end.setFullYear(end.getFullYear() + 1);
+    } else {
+      end.setMonth(end.getMonth() + 1);
+    }
+    return end;
+  }
+
+  /**
+   * The `GymMember` profile columns to write from a create/update body. A field
+   * that is **absent** (`undefined`) is omitted (left untouched); an **empty**
+   * field arrives as `null` from the schema and clears the column. `dateOfBirth`
+   * is coerced from its ISO string to a `Date`.
+   */
+  private profileWriteData(input: CreateMemberInput | UpdateMemberInput): {
+    dateOfBirth?: Date | null;
+    gender?: Gender | null;
+    address?: string | null;
+    emergencyContactName?: string | null;
+    emergencyContactPhone?: string | null;
+    medicalNotes?: string | null;
+    tags?: string[];
+  } {
+    const data: ReturnType<MembersService['profileWriteData']> = {};
+    if (input.dateOfBirth !== undefined) {
+      data.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+    }
+    if (input.gender !== undefined) data.gender = input.gender;
+    if (input.address !== undefined) data.address = input.address;
+    if (input.emergencyContactName !== undefined) {
+      data.emergencyContactName = input.emergencyContactName;
+    }
+    if (input.emergencyContactPhone !== undefined) {
+      data.emergencyContactPhone = input.emergencyContactPhone;
+    }
+    if (input.medicalNotes !== undefined) data.medicalNotes = input.medicalNotes;
+    if (input.tags !== undefined) data.tags = input.tags;
+    return data;
   }
 
   /**
@@ -243,11 +357,86 @@ export class MembersService {
   async updateMember(id: string, input: UpdateMemberInput): Promise<UpdateMemberResponse> {
     const member = await this.requireMember(id);
 
+    // `name` / `phone` live on the shared `User`; the profile extras live on the
+    // gym-scoped `GymMember`. Write both (the profile write is skipped when the
+    // body carries no profile fields).
     await this.prisma.client.user.update({
       where: { id: member.userId },
       data: { name: input.name, phone: input.phone },
     });
 
+    const profile = this.profileWriteData(input);
+    if (Object.keys(profile).length > 0) {
+      await this.prisma.client.gymMember.update({ where: { id }, data: profile });
+    }
+
+    return this.getMember(id);
+  }
+
+  /**
+   * Add a staff note to a member (T4.x). The author is resolved server-side from
+   * the request's session (never trusted from the client body): the writing
+   * staff `User`'s id + display name, snapshotted onto the note. 404s an unknown
+   * / cross-tenant member. Returns the fresh detail.
+   */
+  async addNote(id: string, input: CreateMemberNoteInput): Promise<GetMemberResponse> {
+    await this.requireMember(id);
+    const authorId = this.tenant.userId ?? null;
+    const author = authorId
+      ? await this.prisma.client.user.findUnique({
+          where: { id: authorId },
+          select: { name: true, email: true },
+        })
+      : null;
+    await this.prisma.client.memberNote.create({
+      data: {
+        gymId: this.tenant.gymId,
+        memberId: id,
+        authorId,
+        authorName: author?.name ?? author?.email ?? 'Staff',
+        body: input.body,
+      },
+    });
+    return this.getMember(id);
+  }
+
+  /** Log a follow-up task against a member (T4.x). 404s a bad id; returns the detail. */
+  async addTask(id: string, input: CreateMemberTaskInput): Promise<GetMemberResponse> {
+    await this.requireMember(id);
+    await this.prisma.client.memberTask.create({
+      data: {
+        gymId: this.tenant.gymId,
+        memberId: id,
+        title: input.title,
+        dueDate: input.dueDate ? new Date(input.dueDate) : null,
+        assignee: input.assignee ?? null,
+      },
+    });
+    return this.getMember(id);
+  }
+
+  /**
+   * Toggle a member task between pending and done (T4.x). The task must belong to
+   * the member (and, by tenant scope, the gym); an unknown member or task is a
+   * `404`. Returns the fresh detail.
+   */
+  async setTaskStatus(
+    id: string,
+    taskId: string,
+    input: UpdateMemberTaskInput,
+  ): Promise<GetMemberResponse> {
+    await this.requireMember(id);
+    const task = await this.prisma.client.memberTask.findFirst({
+      where: { id: taskId, memberId: id },
+      select: { id: true },
+    });
+    if (!task) {
+      throw new NotFoundException({ message: 'Task not found', code: 'MEMBER_TASK_NOT_FOUND' });
+    }
+    await this.prisma.client.memberTask.update({
+      where: { id: taskId },
+      data: { status: input.status },
+    });
     return this.getMember(id);
   }
 
@@ -461,6 +650,7 @@ export class MembersService {
       lastVisitAt,
       nextBillingAt,
       billingState,
+      tags: row.tags,
     };
   }
 
@@ -547,6 +737,10 @@ export class MembersService {
       invoices,
       recentCheckIns,
       attendanceCheckIns,
+      accessLog,
+      purchases,
+      notes,
+      tasks,
     ] = await Promise.all([
       // Lifetime value: SUM of CAPTURED payments on the member's orders.
       db.payment.aggregate({
@@ -615,6 +809,47 @@ export class MembersService {
         orderBy: { checkedInAt: 'asc' },
         select: { checkedInAt: true },
       }),
+      // Access Log tab — the member's recent check-ins (arrivals), newest first.
+      db.checkIn.findMany({
+        where: { gymMemberId: memberId },
+        orderBy: { checkedInAt: 'desc' },
+        take: 30,
+        select: { id: true, checkedInAt: true, method: true, locationId: true },
+      }),
+      // Purchases tab — the member's POS orders (+ captured payment method), newest first.
+      db.order.findMany({
+        where: { memberId },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: {
+          id: true,
+          createdAt: true,
+          total: true,
+          currency: true,
+          locationId: true,
+          items: { select: { label: true, qty: true } },
+          payment: { select: { method: true } },
+        },
+      }),
+      // Notes & Tasks tab — staff notes, newest first.
+      db.memberNote.findMany({
+        where: { memberId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, authorName: true, body: true, createdAt: true },
+      }),
+      // Notes & Tasks tab — follow-up tasks, newest first.
+      db.memberTask.findMany({
+        where: { memberId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          dueDate: true,
+          assignee: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
     ]);
 
     const currency = payments[0]?.currency ?? sub?.currency ?? 'GEL';
@@ -645,6 +880,35 @@ export class MembersService {
       status: i.status,
       issuedAt: i.issuedAt.toISOString(),
     }));
+    const wirePurchases: MemberPurchase[] = purchases.map((o) => ({
+      id: o.id,
+      at: o.createdAt.toISOString(),
+      items: o.items.map((it) => ({ label: it.label, qty: it.qty })),
+      total: o.total,
+      currency: o.currency,
+      method: o.payment?.method ?? null,
+      location: o.locationId ?? null,
+    }));
+    const wireAccessLog: MemberAccessLogEntry[] = accessLog.map((c) => ({
+      id: c.id,
+      at: c.checkedInAt.toISOString(),
+      method: c.method,
+      location: c.locationId ?? null,
+    }));
+    const wireNotes: MemberNoteEntry[] = notes.map((n) => ({
+      id: n.id,
+      author: n.authorName,
+      body: n.body,
+      createdAt: n.createdAt.toISOString(),
+    }));
+    const wireTasks: MemberTaskEntry[] = tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+      assignee: t.assignee ?? null,
+      status: t.status,
+      createdAt: t.createdAt.toISOString(),
+    }));
 
     return {
       ...this.toRow(row),
@@ -659,10 +923,17 @@ export class MembersService {
       bookings: wireBookings,
       payments: wirePayments,
       invoices: wireInvoices,
-      // No member-tags / member-notes model exists in the Prisma schema — return
-      // honest empty states rather than fabricate. See the class docstring.
-      tags: [],
-      notes: '',
+      purchases: wirePurchases,
+      accessLog: wireAccessLog,
+      // Staff-managed profile extras (real `GymMember` columns; null when unset).
+      dateOfBirth: row.dateOfBirth ? row.dateOfBirth.toISOString() : null,
+      gender: row.gender,
+      address: row.address,
+      emergencyContactName: row.emergencyContactName,
+      emergencyContactPhone: row.emergencyContactPhone,
+      medicalNotes: row.medicalNotes,
+      notes: wireNotes,
+      tasks: wireTasks,
     };
   }
 

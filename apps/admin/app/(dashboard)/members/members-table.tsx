@@ -216,6 +216,26 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
+  tagCell: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.25rem',
+    maxWidth: '10rem',
+  },
+  tagChip: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.6875rem',
+    fontWeight: 500,
+    whiteSpace: 'nowrap',
+    color: 'var(--color-text-secondary)',
+  },
+  tagEmpty: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-disabled)',
+  },
   lastVisit: {
     fontFamily: 'var(--font-family-code)',
     fontVariantNumeric: 'tabular-nums',
@@ -639,6 +659,25 @@ export function MembersTable({
       key: 'nextBilling',
       header: t('list.columnNextBilling'),
       cell: (member) => <NextBillingCell row={member} t={t} locale={locale} />,
+    },
+    {
+      key: 'tags',
+      header: t('list.columnTags'),
+      cell: (member) =>
+        member.tags.length > 0 ? (
+          <div {...stylex.props(styles.tagCell)}>
+            {member.tags.slice(0, 2).map((tag) => (
+              <span key={tag} {...stylex.props(styles.tagChip)}>
+                {tag}
+              </span>
+            ))}
+            {member.tags.length > 2 ? (
+              <span {...stylex.props(styles.tagChip)}>+{member.tags.length - 2}</span>
+            ) : null}
+          </div>
+        ) : (
+          <span {...stylex.props(styles.tagEmpty)}>—</span>
+        ),
     },
     {
       key: 'actions',

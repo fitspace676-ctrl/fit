@@ -13,19 +13,45 @@ import {
   type MemberActivityKind,
   type MemberCurrentPlan,
   type MemberDetail,
+  type MemberNoteEntry,
+  type MemberTaskEntry,
 } from '@fit/types';
-import { Btn, Field, Icon, Input, Modal, Progress, useToast, type IconName } from '@/components/ui';
 import {
+  Btn,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  Progress,
+  Textarea,
+  useToast,
+  type IconName,
+} from '@/components/ui';
+import {
+  addMemberNoteAction,
+  addMemberTaskAction,
   freezeMemberSubscriptionAction,
   grantMemberCreditPackAction,
+  toggleMemberTaskAction,
   unfreezeMemberSubscriptionAction,
 } from '../actions';
 
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
 
-/** The detail page's tab keys, matching the reference order; labels come from `memberTabs.<key>`. */
-const TABS = ['overview', 'subscriptions', 'bookings', 'payments', 'invoices', 'notes'] as const;
+/**
+ * The detail page's tab keys — the reference's seven-tab member experience, ported
+ * onto our data. Labels come from `memberTabs.<key>`.
+ */
+const TABS = [
+  'overview',
+  'profile',
+  'membership',
+  'payments',
+  'purchases',
+  'access',
+  'notesTasks',
+] as const;
 type Tab = (typeof TABS)[number];
 
 /** Icon per activity kind. */
@@ -35,6 +61,8 @@ const ACTIVITY_ICON: Record<MemberActivityKind, IconName> = {
   payment: 'card',
   milestone: 'star',
 };
+
+const DAY_MS = 86_400_000;
 
 const styles = stylex.create({
   wrap: {
@@ -63,6 +91,7 @@ const styles = stylex.create({
     paddingBlock: '0.5rem',
     fontSize: '0.875rem',
     fontWeight: 500,
+    whiteSpace: 'nowrap',
     color: 'var(--color-text-secondary)',
   },
   tabActive: {
@@ -171,6 +200,55 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
+  // Overview stat cards.
+  statGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 640px)': 'repeat(3, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(6, minmax(0, 1fr))',
+    },
+  },
+  statCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    padding: '1rem',
+  },
+  statIcon: {
+    display: 'grid',
+    height: '2rem',
+    width: '2rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  statValue: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.375rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  statValueSm: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  statLabel: {
+    margin: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-secondary)',
+  },
   overviewGrid: {
     display: 'grid',
     gap: '1rem',
@@ -228,6 +306,41 @@ const styles = stylex.create({
     margin: 0,
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
+  },
+  // Profile field grid.
+  fieldGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    minWidth: 0,
+  },
+  fieldLabel: {
+    margin: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-secondary)',
+  },
+  fieldValue: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    overflowWrap: 'anywhere',
+  },
+  panelStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
   },
   activityList: {
     listStyle: 'none',
@@ -411,6 +524,111 @@ const styles = stylex.create({
     fontWeight: 500,
     color: 'var(--color-text-secondary)',
   },
+  medicalPanel: {
+    margin: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    padding: '0.875rem',
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    color: 'var(--color-text-primary)',
+    whiteSpace: 'pre-wrap',
+  },
+  // Notes & tasks.
+  addForm: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.625rem',
+  },
+  addFormRow: {
+    display: 'grid',
+    gap: '0.625rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+    },
+  },
+  addFormActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '0.5rem',
+  },
+  noteTile: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '0.875rem',
+  },
+  noteHead: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+  noteAuthor: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  noteBody: {
+    margin: 0,
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    color: 'var(--color-text-primary)',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+  },
+  taskRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.75rem',
+  },
+  taskCheck: {
+    marginTop: '0.125rem',
+    display: 'grid',
+    height: '1.25rem',
+    width: '1.25rem',
+    flexShrink: 0,
+    placeItems: 'center',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    background: 'none',
+    cursor: 'pointer',
+    color: 'var(--color-on-accent)',
+  },
+  taskCheckDone: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent)',
+  },
+  taskMain: {
+    minWidth: 0,
+    flex: 1,
+  },
+  taskTitle: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  taskTitleDone: {
+    textDecorationLine: 'line-through',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 /** Format minor currency units as a Georgian Lari amount. */
@@ -443,7 +661,12 @@ function formatDateTime(iso: string, locale: string): string {
       });
 }
 
-/** A centered empty-state line shown when a tab has no records yet. */
+/** A profile display value, falling back to an em dash when unset. */
+function dash(value: string | null | undefined): string {
+  return value && value.trim().length > 0 ? value : '—';
+}
+
+/** A centered empty-state line shown when a tab/section has no records yet. */
 function EmptyState({ children }: { children: string }) {
   return (
     <Card variant="default" padding={0} xstyle={styles.emptyCard}>
@@ -453,12 +676,23 @@ function EmptyState({ children }: { children: string }) {
   );
 }
 
+/** A read-only label/value pair in the Profile tab. */
+function FieldRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div {...stylex.props(styles.field)}>
+      <p {...stylex.props(styles.fieldLabel)}>{label}</p>
+      <p {...stylex.props(styles.fieldValue)}>{value}</p>
+    </div>
+  );
+}
+
 /**
- * The member detail page's tabbed history (Overview / Subscriptions / Bookings /
- * Payments / Notes). The data is fetched server-side and passed in; this component
- * owns only the active-tab selection. Every populated surface is a real,
- * tenant-scoped fact; empty collections render honest empty states. Tags + notes
- * have no backing model, so they show a disabled affordance / "No notes yet".
+ * The member detail page's tabbed experience, ported from the reference's seven
+ * tabs onto our data: Overview, Profile, Membership, Payments, Purchases, Access
+ * Log and Notes & Tasks. Data is fetched server-side and passed in; this component
+ * owns the active-tab selection and the interactive notes/tasks forms. Every
+ * populated surface is a real, tenant-scoped fact; empty collections render honest
+ * empty states.
  */
 export function MemberTabs({
   member,
@@ -496,8 +730,10 @@ export function MemberTabs({
       </div>
 
       <div role="tabpanel">
-        {active === 'overview' && (
-          <OverviewPanel
+        {active === 'overview' && <OverviewPanel member={member} t={t} locale={locale} />}
+        {active === 'profile' && <ProfilePanel member={member} t={t} locale={locale} />}
+        {active === 'membership' && (
+          <MembershipPanel
             member={member}
             canManageBilling={canManageBilling}
             creditPacks={creditPacks}
@@ -506,149 +742,87 @@ export function MemberTabs({
             locale={locale}
           />
         )}
-
-        {active === 'subscriptions' &&
-          (member.subscriptions.length === 0 ? (
-            <EmptyState>{t('detail.noSubscriptions')}</EmptyState>
-          ) : (
-            <ul {...stylex.props(styles.list)}>
-              {member.subscriptions.map((sub) => (
-                <li key={sub.id} {...stylex.props(styles.row)}>
-                  <div {...stylex.props(styles.rowMin)}>
-                    <p {...stylex.props(styles.rowTitle)}>{sub.planName}</p>
-                    <p {...stylex.props(styles.rowSub)}>
-                      {t('detail.subStarted', { date: formatDate(sub.startedAt, locale) })}
-                      {sub.renewsAt
-                        ? t('detail.subRenews', { date: formatDate(sub.renewsAt, locale) })
-                        : ''}
-                    </p>
-                  </div>
-                  <span {...stylex.props(styles.rowStatus)}>{sub.status}</span>
-                </li>
-              ))}
-            </ul>
-          ))}
-
-        {active === 'bookings' &&
-          (member.bookings.length === 0 ? (
-            <EmptyState>{t('detail.noBookings')}</EmptyState>
-          ) : (
-            <ul {...stylex.props(styles.list)}>
-              {member.bookings.map((booking) => (
-                <li key={booking.id} {...stylex.props(styles.row)}>
-                  <div {...stylex.props(styles.rowMin)}>
-                    <p {...stylex.props(styles.rowTitle)}>{booking.title}</p>
-                    <p {...stylex.props(styles.rowSub)}>
-                      {formatDateTime(booking.startsAt, locale)}
-                    </p>
-                  </div>
-                  <span {...stylex.props(styles.rowStatus)}>{booking.status}</span>
-                </li>
-              ))}
-            </ul>
-          ))}
-
-        {active === 'payments' &&
-          (member.payments.length === 0 ? (
-            <EmptyState>{t('detail.noPayments')}</EmptyState>
-          ) : (
-            <ul {...stylex.props(styles.list)}>
-              {member.payments.map((payment) => (
-                <li key={payment.id} {...stylex.props(styles.row)}>
-                  <div {...stylex.props(styles.rowMin)}>
-                    <p {...stylex.props(styles.rowTitleMono)}>
-                      {formatAmount(payment.amount, member.currency)}
-                    </p>
-                    <p {...stylex.props(styles.rowSub)}>{formatDate(payment.paidAt, locale)}</p>
-                  </div>
-                  <span {...stylex.props(styles.rowStatus)}>{payment.status}</span>
-                </li>
-              ))}
-            </ul>
-          ))}
-
-        {active === 'invoices' &&
-          (member.invoices.length === 0 ? (
-            <EmptyState>{t('detail.noInvoices')}</EmptyState>
-          ) : (
-            <ul {...stylex.props(styles.list)}>
-              {member.invoices.map((invoice) => (
-                <li key={invoice.id} {...stylex.props(styles.row)}>
-                  <div {...stylex.props(styles.rowMin)}>
-                    <p {...stylex.props(styles.rowTitleMono)}>
-                      {invoice.number} · {formatAmount(invoice.amount, invoice.currency)}
-                    </p>
-                    <p {...stylex.props(styles.rowSub)}>
-                      {formatDate(invoice.issuedAt, locale)} · {invoice.status}
-                    </p>
-                  </div>
-                  {/* Download proxy is a root-relative admin route handler, not a data
-                      action — a plain <a> so the browser handles the file download. */}
-                  <a
-                    href={`/invoices/${invoice.id}/pdf`}
-                    aria-label={t('detail.downloadInvoice')}
-                    {...stylex.props(styles.downloadLink)}
-                  >
-                    <Icon name="download" {...stylex.props(styles.smIcon)} /> {t('detail.download')}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ))}
-
-        {active === 'notes' && <EmptyState>{t('detail.noNotes')}</EmptyState>}
+        {active === 'payments' && <PaymentsPanel member={member} t={t} locale={locale} />}
+        {active === 'purchases' && <PurchasesPanel member={member} t={t} locale={locale} />}
+        {active === 'access' && <AccessLogPanel member={member} t={t} locale={locale} />}
+        {active === 'notesTasks' && <NotesTasksPanel member={member} t={t} locale={locale} />}
       </div>
     </div>
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Overview                                                           */
+/* ------------------------------------------------------------------ */
+
 /**
- * Overview — the "Recent activity" timeline + an "Attendance · last 8 weeks" bar
- * chart, with a side column carrying the "Current plan" panel and "Tags". The
- * timeline / attendance / plan are all real; Tags is an honest empty state (no
- * backing model) with a disabled "Add" affordance.
+ * Overview — a row of six key stats, then the "Recent activity" timeline +
+ * "Attendance · last 8 weeks" chart, with a side column carrying a read-only
+ * current-membership summary, tags, and quick recent-notes / upcoming-tasks lists.
  */
-function OverviewPanel({
-  member,
-  canManageBilling,
-  creditPacks,
-  creditCatalogue,
-  t,
-  locale,
+function OverviewPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  return (
+    <div {...stylex.props(styles.panelStack)}>
+      <StatCards member={member} t={t} locale={locale} />
+      <div {...stylex.props(styles.overviewGrid)}>
+        <div {...stylex.props(styles.overviewMain)}>
+          <ActivityCard activity={member.recentActivity} t={t} locale={locale} />
+          <AttendanceCard member={member} t={t} locale={locale} />
+        </div>
+        <div {...stylex.props(styles.overviewSide)}>
+          <MembershipSummaryCard member={member} t={t} locale={locale} />
+          <TagsCard tags={member.tags} t={t} />
+          <QuickNotesCard notes={member.notes} t={t} locale={locale} />
+          <QuickTasksCard tasks={member.tasks} t={t} locale={locale} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** One compact stat card — icon tile, headline value, label. */
+function StatCard({
+  icon,
+  value,
+  label,
+  small,
 }: {
-  member: MemberDetail;
-  canManageBilling: boolean;
-  creditPacks: CreditPackSummary[];
-  creditCatalogue: CreditPackCatalogueEntry[];
-  t: T;
-  locale: string;
+  icon: IconName;
+  value: string;
+  label: string;
+  small?: boolean;
 }) {
   return (
-    <div {...stylex.props(styles.overviewGrid)}>
-      <div {...stylex.props(styles.overviewMain)}>
-        <ActivityCard activity={member.recentActivity} t={t} locale={locale} />
-        <AttendanceCard member={member} t={t} locale={locale} />
-      </div>
+    <Card variant="default" padding={0} xstyle={styles.statCard}>
+      <span {...stylex.props(styles.statIcon)}>
+        <Icon name={icon} {...stylex.props(styles.smIcon)} />
+      </span>
+      <p {...stylex.props(small ? styles.statValueSm : styles.statValue)}>{value}</p>
+      <p {...stylex.props(styles.statLabel)}>{label}</p>
+    </Card>
+  );
+}
 
-      <div {...stylex.props(styles.overviewSide)}>
-        <CurrentPlanCard
-          plan={member.currentPlan}
-          memberId={member.id}
-          currency={member.currency}
-          canManageBilling={canManageBilling}
-          t={t}
-          locale={locale}
-        />
-        <CreditsCard
-          memberId={member.id}
-          packs={creditPacks}
-          catalogue={creditCatalogue}
-          canManageBilling={canManageBilling}
-          t={t}
-          locale={locale}
-        />
-        <TagsCard tags={member.tags} t={t} />
-      </div>
+/** The six overview stats — every figure a real, tenant-scoped count. */
+function StatCards({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  const now = new Date();
+  const visitsThisMonth = member.accessLog.filter((entry) => {
+    const at = new Date(entry.at);
+    return at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth();
+  }).length;
+  const eightWeekTotal = member.attendance8w.reduce((sum, week) => sum + week.count, 0);
+  const avgPerWeek = (eightWeekTotal / member.attendance8w.length || 0).toFixed(1);
+  const pendingTasks = member.tasks.filter((task) => task.status === 'PENDING').length;
+  const lastVisit = member.lastVisitAt ? formatDate(member.lastVisitAt, locale) : '—';
+
+  return (
+    <div {...stylex.props(styles.statGrid)}>
+      <StatCard icon="spark" value={String(visitsThisMonth)} label={t('stats.visitsThisMonth')} />
+      <StatCard icon="check" value={String(member.totalVisits)} label={t('stats.totalVisits')} />
+      <StatCard icon="clock" value={avgPerWeek} label={t('stats.avgPerWeek')} />
+      <StatCard icon="calendar" value={lastVisit} label={t('stats.lastVisit')} small />
+      <StatCard icon="target" value={String(pendingTasks)} label={t('stats.pendingTasks')} />
+      <StatCard icon="message" value={String(member.notes.length)} label={t('stats.totalNotes')} />
     </div>
   );
 }
@@ -731,6 +905,253 @@ function AttendanceCard({ member, t, locale }: { member: MemberDetail; t: T; loc
   );
 }
 
+/** A read-only current-membership summary for the Overview side column. */
+function MembershipSummaryCard({
+  member,
+  t,
+  locale,
+}: {
+  member: MemberDetail;
+  t: T;
+  locale: string;
+}) {
+  const plan = member.currentPlan;
+  return (
+    <Card variant="default" padding={0} xstyle={styles.cardTight}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.currentMembership')}</h3>
+      {plan ? (
+        <>
+          <div {...stylex.props(styles.planNameRow)}>
+            <span
+              aria-hidden
+              {...stylex.props(styles.planDot)}
+              style={{ backgroundColor: plan.color ?? '#6257E3' }}
+            />
+            <span {...stylex.props(styles.planName)}>{plan.name}</span>
+          </div>
+          <FieldRow
+            label={t('detail.price')}
+            value={`${formatAmount(plan.priceAmount, plan.currency)}`}
+          />
+          <FieldRow
+            label={t('detail.startDate')}
+            value={formatDate(plan.currentPeriodStart, locale)}
+          />
+          <FieldRow
+            label={t('detail.currentTerm')}
+            value={formatDate(plan.currentPeriodEnd, locale)}
+          />
+        </>
+      ) : (
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noLiveSubscription')}</p>
+      )}
+    </Card>
+  );
+}
+
+/** Quick "Recent notes" preview (first three) for the Overview. */
+function QuickNotesCard({ notes, t, locale }: { notes: MemberNoteEntry[]; t: T; locale: string }) {
+  return (
+    <Card variant="default" padding={0} xstyle={styles.cardTight}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.recentNotes')}</h3>
+      {notes.length === 0 ? (
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noNotes')}</p>
+      ) : (
+        notes.slice(0, 3).map((note) => (
+          <div key={note.id} {...stylex.props(styles.noteTile)}>
+            <div {...stylex.props(styles.noteHead)}>
+              <p {...stylex.props(styles.noteAuthor)}>{note.author}</p>
+              <span {...stylex.props(styles.metaMono)}>{formatDate(note.createdAt, locale)}</span>
+            </div>
+            <p {...stylex.props(styles.noteBody)}>{note.body}</p>
+          </div>
+        ))
+      )}
+    </Card>
+  );
+}
+
+/** Quick "Upcoming tasks" preview (first three pending) for the Overview. */
+function QuickTasksCard({ tasks, t, locale }: { tasks: MemberTaskEntry[]; t: T; locale: string }) {
+  const pending = tasks.filter((task) => task.status === 'PENDING').slice(0, 3);
+  return (
+    <Card variant="default" padding={0} xstyle={styles.cardTight}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.upcomingTasks')}</h3>
+      {pending.length === 0 ? (
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noTasks')}</p>
+      ) : (
+        <ul {...stylex.props(styles.list)}>
+          {pending.map((task) => (
+            <li key={task.id} {...stylex.props(styles.row)}>
+              <div {...stylex.props(styles.rowMin)}>
+                <p {...stylex.props(styles.rowTitle)}>{task.title}</p>
+                {task.dueDate ? (
+                  <p {...stylex.props(styles.rowSub)}>
+                    {t('detail.taskDue', { date: formatDate(task.dueDate, locale) })}
+                  </p>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Profile                                                            */
+/* ------------------------------------------------------------------ */
+
+/** Profile — read-only personal details, emergency contact and medical notes. */
+function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  const genderLabel = member.gender ? t(`gender.${member.gender}`) : '—';
+  return (
+    <div {...stylex.props(styles.panelStack)}>
+      <Card variant="default" padding={0} xstyle={styles.card}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.basicInformation')}</h3>
+        <div {...stylex.props(styles.fieldGrid)}>
+          <FieldRow label={t('detail.fullName')} value={dash(member.name)} />
+          <FieldRow label={t('detail.email')} value={dash(member.email)} />
+          <FieldRow label={t('detail.phone')} value={dash(member.phone)} />
+          <FieldRow
+            label={t('detail.dateOfBirth')}
+            value={member.dateOfBirth ? formatDate(member.dateOfBirth, locale) : '—'}
+          />
+          <FieldRow label={t('detail.gender')} value={genderLabel} />
+          <FieldRow label={t('detail.address')} value={dash(member.address)} />
+        </div>
+      </Card>
+
+      <Card variant="default" padding={0} xstyle={styles.card}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.emergencyContact')}</h3>
+        <div {...stylex.props(styles.fieldGrid)}>
+          <FieldRow label={t('detail.contactName')} value={dash(member.emergencyContactName)} />
+          <FieldRow label={t('detail.contactPhone')} value={dash(member.emergencyContactPhone)} />
+        </div>
+      </Card>
+
+      <Card variant="default" padding={0} xstyle={styles.cardTight}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.medicalNotes')}</h3>
+        {member.medicalNotes ? (
+          <p {...stylex.props(styles.medicalPanel)}>{member.medicalNotes}</p>
+        ) : (
+          <p {...stylex.props(styles.mutedText)}>{t('detail.noMedicalNotes')}</p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Membership                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Membership — the current plan (with freeze), credits, previous memberships and bookings. */
+function MembershipPanel({
+  member,
+  canManageBilling,
+  creditPacks,
+  creditCatalogue,
+  t,
+  locale,
+}: {
+  member: MemberDetail;
+  canManageBilling: boolean;
+  creditPacks: CreditPackSummary[];
+  creditCatalogue: CreditPackCatalogueEntry[];
+  t: T;
+  locale: string;
+}) {
+  return (
+    <div {...stylex.props(styles.overviewGrid)}>
+      <div {...stylex.props(styles.overviewMain)}>
+        <PreviousMembershipsCard member={member} t={t} locale={locale} />
+        <BookingsCard member={member} t={t} locale={locale} />
+      </div>
+      <div {...stylex.props(styles.overviewSide)}>
+        <CurrentPlanCard
+          plan={member.currentPlan}
+          memberId={member.id}
+          currency={member.currency}
+          canManageBilling={canManageBilling}
+          t={t}
+          locale={locale}
+        />
+        <CreditsCard
+          memberId={member.id}
+          packs={creditPacks}
+          catalogue={creditCatalogue}
+          canManageBilling={canManageBilling}
+          t={t}
+          locale={locale}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** The member's previous / historical memberships (subscriptions), newest first. */
+function PreviousMembershipsCard({
+  member,
+  t,
+  locale,
+}: {
+  member: MemberDetail;
+  t: T;
+  locale: string;
+}) {
+  return (
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.previousMemberships')}</h3>
+      {member.subscriptions.length === 0 ? (
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noSubscriptions')}</p>
+      ) : (
+        <ul {...stylex.props(styles.list)}>
+          {member.subscriptions.map((sub) => (
+            <li key={sub.id} {...stylex.props(styles.row)}>
+              <div {...stylex.props(styles.rowMin)}>
+                <p {...stylex.props(styles.rowTitle)}>{sub.planName}</p>
+                <p {...stylex.props(styles.rowSub)}>
+                  {t('detail.subStarted', { date: formatDate(sub.startedAt, locale) })}
+                  {sub.renewsAt
+                    ? t('detail.subRenews', { date: formatDate(sub.renewsAt, locale) })
+                    : ''}
+                </p>
+              </div>
+              <span {...stylex.props(styles.rowStatus)}>{sub.status}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/** The member's recent class bookings, newest first. */
+function BookingsCard({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  return (
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.classBookings')}</h3>
+      {member.bookings.length === 0 ? (
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noBookings')}</p>
+      ) : (
+        <ul {...stylex.props(styles.list)}>
+          {member.bookings.map((booking) => (
+            <li key={booking.id} {...stylex.props(styles.row)}>
+              <div {...stylex.props(styles.rowMin)}>
+                <p {...stylex.props(styles.rowTitle)}>{booking.title}</p>
+                <p {...stylex.props(styles.rowSub)}>{formatDateTime(booking.startsAt, locale)}</p>
+              </div>
+              <span {...stylex.props(styles.rowStatus)}>{booking.status}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 /** The "Current plan" panel — name / interval / price / renews + days-remaining + freeze. */
 function CurrentPlanCard({
   plan,
@@ -760,7 +1181,7 @@ function CurrentPlanCard({
     1,
     Math.round(
       (new Date(plan.currentPeriodEnd).getTime() - new Date(plan.currentPeriodStart).getTime()) /
-        86_400_000,
+        DAY_MS,
     ),
   );
   const pct = Math.max(0, Math.min(100, (plan.daysRemaining / periodDays) * 100));
@@ -1079,10 +1500,351 @@ function CreditsCard({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Payments / Purchases / Access Log                                 */
+/* ------------------------------------------------------------------ */
+
+/** Payments — captured payments + numbered invoices (with PDF download). */
+function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  return (
+    <div {...stylex.props(styles.panelStack)}>
+      <Card variant="default" padding={0} xstyle={styles.card}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.paymentHistory')}</h3>
+        {member.payments.length === 0 ? (
+          <p {...stylex.props(styles.mutedText)}>{t('detail.noPayments')}</p>
+        ) : (
+          <ul {...stylex.props(styles.list)}>
+            {member.payments.map((payment) => (
+              <li key={payment.id} {...stylex.props(styles.row)}>
+                <div {...stylex.props(styles.rowMin)}>
+                  <p {...stylex.props(styles.rowTitleMono)}>
+                    {formatAmount(payment.amount, member.currency)}
+                  </p>
+                  <p {...stylex.props(styles.rowSub)}>{formatDate(payment.paidAt, locale)}</p>
+                </div>
+                <span {...stylex.props(styles.rowStatus)}>{payment.status}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card variant="default" padding={0} xstyle={styles.card}>
+        <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.invoices')}</h3>
+        {member.invoices.length === 0 ? (
+          <p {...stylex.props(styles.mutedText)}>{t('detail.noInvoices')}</p>
+        ) : (
+          <ul {...stylex.props(styles.list)}>
+            {member.invoices.map((invoice) => (
+              <li key={invoice.id} {...stylex.props(styles.row)}>
+                <div {...stylex.props(styles.rowMin)}>
+                  <p {...stylex.props(styles.rowTitleMono)}>
+                    {invoice.number} · {formatAmount(invoice.amount, invoice.currency)}
+                  </p>
+                  <p {...stylex.props(styles.rowSub)}>
+                    {formatDate(invoice.issuedAt, locale)} · {invoice.status}
+                  </p>
+                </div>
+                {/* Download proxy is a root-relative admin route handler, not a data
+                    action — a plain <a> so the browser handles the file download. */}
+                <a
+                  href={`/invoices/${invoice.id}/pdf`}
+                  aria-label={t('detail.downloadInvoice')}
+                  {...stylex.props(styles.downloadLink)}
+                >
+                  <Icon name="download" {...stylex.props(styles.smIcon)} /> {t('detail.download')}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/** Purchases — the member's POS orders (items, total, method), newest first. */
+function PurchasesPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  if (member.purchases.length === 0) {
+    return <EmptyState>{t('detail.noPurchases')}</EmptyState>;
+  }
+  return (
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.purchaseHistory')}</h3>
+      <ul {...stylex.props(styles.list)}>
+        {member.purchases.map((purchase) => {
+          const items = purchase.items
+            .map((item) => (item.qty > 1 ? `${item.label} ×${item.qty}` : item.label))
+            .join(', ');
+          return (
+            <li key={purchase.id} {...stylex.props(styles.row)}>
+              <div {...stylex.props(styles.rowMin)}>
+                <p {...stylex.props(styles.rowTitleTrunc)}>{items || '—'}</p>
+                <p {...stylex.props(styles.rowSub)}>
+                  {formatDateTime(purchase.at, locale)}
+                  {purchase.method ? ` · ${purchase.method}` : ''}
+                </p>
+              </div>
+              <span {...stylex.props(styles.rowStatusMono)}>
+                {formatAmount(purchase.total, purchase.currency)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+/** Access Log — the member's check-ins (arrivals), newest first. */
+function AccessLogPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  if (member.accessLog.length === 0) {
+    return <EmptyState>{t('detail.noAccessLog')}</EmptyState>;
+  }
+  return (
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.accessLog')}</h3>
+      <ul {...stylex.props(styles.list)}>
+        {member.accessLog.map((entry) => (
+          <li key={entry.id} {...stylex.props(styles.row)}>
+            <div {...stylex.props(styles.rowMin)}>
+              <p {...stylex.props(styles.rowTitle)}>{t('detail.checkIn')}</p>
+              <p {...stylex.props(styles.rowSub)}>{formatDateTime(entry.at, locale)}</p>
+            </div>
+            <span {...stylex.props(styles.rowStatus)}>{entry.method}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Notes & Tasks                                                      */
+/* ------------------------------------------------------------------ */
+
 /**
- * Tags — the Prisma schema has NO member-tag / label model, so this is an honest
- * empty state: no chips are ever rendered today (nothing to read), and the "Add"
- * affordance is disabled until a tags model lands. Never fabricated.
+ * Notes & Tasks — interactive staff notes and follow-up tasks. `MemberWrite` staff
+ * can add a note, log a task, and toggle a task done; each mutation posts through
+ * the member server actions and refreshes the detail. Non-write staff see the lists
+ * read-only (the forms/toggles are hidden). Every row is a real record.
+ */
+function NotesTasksPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  return (
+    <div {...stylex.props(styles.overviewGrid)}>
+      <div {...stylex.props(styles.overviewMain)}>
+        <NotesCard memberId={member.id} notes={member.notes} t={t} locale={locale} />
+      </div>
+      <div {...stylex.props(styles.overviewSide)}>
+        <TasksCard memberId={member.id} tasks={member.tasks} t={t} locale={locale} />
+      </div>
+    </div>
+  );
+}
+
+/** Staff notes — an add-note form + the notes list, newest first. */
+function NotesCard({
+  memberId,
+  notes,
+  t,
+  locale,
+}: {
+  memberId: string;
+  notes: MemberNoteEntry[];
+  t: T;
+  locale: string;
+}) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [body, setBody] = useState('');
+
+  function submit(): void {
+    const trimmed = body.trim();
+    if (!trimmed) return;
+    startTransition(async () => {
+      const result = await addMemberNoteAction(memberId, { body: trimmed });
+      if (result.ok) {
+        setBody('');
+        toast(t('detail.noteAdded'), { tone: 'success', icon: 'check' });
+        router.refresh();
+      } else {
+        toast(result.error, { tone: 'danger', icon: 'info' });
+      }
+    });
+  }
+
+  return (
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.staffNotes')}</h3>
+
+      <div {...stylex.props(styles.addForm)}>
+        <Textarea
+          rows={3}
+          placeholder={t('detail.addNotePlaceholder')}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+        />
+        <div {...stylex.props(styles.addFormActions)}>
+          <Btn
+            v="primary"
+            size="sm"
+            icon="plus"
+            onClick={submit}
+            disabled={pending || !body.trim()}
+          >
+            {pending ? t('form.saving') : t('detail.addNote')}
+          </Btn>
+        </div>
+      </div>
+
+      {notes.length === 0 ? (
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noNotes')}</p>
+      ) : (
+        <div {...stylex.props(styles.panelStack)}>
+          {notes.map((note) => (
+            <div key={note.id} {...stylex.props(styles.noteTile)}>
+              <div {...stylex.props(styles.noteHead)}>
+                <p {...stylex.props(styles.noteAuthor)}>{note.author}</p>
+                <span {...stylex.props(styles.metaMono)}>
+                  {formatDateTime(note.createdAt, locale)}
+                </span>
+              </div>
+              <p {...stylex.props(styles.noteBody)}>{note.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Follow-up tasks — an add-task form + the task list with a done toggle. */
+function TasksCard({
+  memberId,
+  tasks,
+  t,
+  locale,
+}: {
+  memberId: string;
+  tasks: MemberTaskEntry[];
+  t: T;
+  locale: string;
+}) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [title, setTitle] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [assignee, setAssignee] = useState('');
+
+  function addTask(): void {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    startTransition(async () => {
+      const result = await addMemberTaskAction(memberId, {
+        title: trimmed,
+        dueDate: dueDate || undefined,
+        assignee: assignee.trim() || undefined,
+      });
+      if (result.ok) {
+        setTitle('');
+        setDueDate('');
+        setAssignee('');
+        toast(t('detail.taskAdded'), { tone: 'success', icon: 'check' });
+        router.refresh();
+      } else {
+        toast(result.error, { tone: 'danger', icon: 'info' });
+      }
+    });
+  }
+
+  function toggle(task: MemberTaskEntry): void {
+    startTransition(async () => {
+      const result = await toggleMemberTaskAction(
+        memberId,
+        task.id,
+        task.status === 'DONE' ? 'PENDING' : 'DONE',
+      );
+      if (!result.ok) {
+        toast(result.error, { tone: 'danger', icon: 'info' });
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.tasks')}</h3>
+
+      <div {...stylex.props(styles.addForm)}>
+        <Input
+          placeholder={t('detail.taskTitlePlaceholder')}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <div {...stylex.props(styles.addFormRow)}>
+          <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <Input
+            placeholder={t('detail.taskAssigneePlaceholder')}
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+          />
+        </div>
+        <div {...stylex.props(styles.addFormActions)}>
+          <Btn
+            v="primary"
+            size="sm"
+            icon="plus"
+            onClick={addTask}
+            disabled={pending || !title.trim()}
+          >
+            {pending ? t('form.saving') : t('detail.addTask')}
+          </Btn>
+        </div>
+      </div>
+
+      {tasks.length === 0 ? (
+        <p {...stylex.props(styles.mutedText)}>{t('detail.noTasks')}</p>
+      ) : (
+        <div {...stylex.props(styles.panelStack)}>
+          {tasks.map((task) => {
+            const done = task.status === 'DONE';
+            return (
+              <div key={task.id} {...stylex.props(styles.taskRow)}>
+                <button
+                  type="button"
+                  aria-label={done ? t('detail.taskMarkPending') : t('detail.taskMarkDone')}
+                  onClick={() => toggle(task)}
+                  disabled={pending}
+                  {...stylex.props(styles.taskCheck, done && styles.taskCheckDone)}
+                >
+                  {done ? <Icon name="check" {...stylex.props(styles.smIcon)} /> : null}
+                </button>
+                <div {...stylex.props(styles.taskMain)}>
+                  <p {...stylex.props(styles.taskTitle, done && styles.taskTitleDone)}>
+                    {task.title}
+                  </p>
+                  <p {...stylex.props(styles.rowSub)}>
+                    {task.dueDate
+                      ? t('detail.taskDue', { date: formatDate(task.dueDate, locale) })
+                      : t('detail.taskNoDue')}
+                    {task.assignee ? ` · ${task.assignee}` : ''}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Tags — colour-keyed labels applied by staff (`GymMember.tags`), shown as chips.
+ * Editing tags happens through the member Edit form; this is a read-only display.
  */
 function TagsCard({ tags, t }: { tags: string[]; t: T }) {
   return (
@@ -1099,9 +1861,6 @@ function TagsCard({ tags, t }: { tags: string[]; t: T }) {
       ) : (
         <p {...stylex.props(styles.mutedText)}>{t('detail.noTags')}</p>
       )}
-      <Btn v="outline" size="sm" icon="tag" disabled title={t('detail.tagsDisabledTitle')}>
-        {t('detail.add')}
-      </Btn>
     </Card>
   );
 }
