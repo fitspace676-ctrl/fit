@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutomationModule } from '../automation/automation.module';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
@@ -10,8 +11,12 @@ import { MembersService } from './members.service';
  * all come from the app-wide `TenantModule` / `RbacModule`. The routes are
  * session-bound and tenant-scoped, so they sit behind the default
  * `TenantMiddleware` with no `AppModule` exclusion.
+ *
+ * Imports {@link AutomationModule} for its exported executor so creating a member
+ * fires the `member_joined` automation trigger (T12.5) inline.
  */
 @Module({
+  imports: [AutomationModule],
   controllers: [MembersController],
   providers: [MembersService],
 })

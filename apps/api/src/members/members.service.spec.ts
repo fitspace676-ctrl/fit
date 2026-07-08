@@ -3,6 +3,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { GymMemberStatus, Role } from '@fit/db';
 import type { CreateMemberInput, ListMembersQuery } from '@fit/types';
 import { MembersService } from './members.service';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -180,9 +181,16 @@ function setup(overrides?: {
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  // Member creation fires the `member_joined` automation trigger (T12.5)
+  // best-effort; a no-op executor keeps these tests focused on member behaviour.
+  const automationDispatch = vi.fn(() => Promise.resolve(0));
+  const automation = {
+    dispatchForGym: automationDispatch,
+  } as unknown as AutomationExecutorService;
 
   return {
-    service: new MembersService(prisma, tenant),
+    service: new MembersService(prisma, tenant, automation),
+    automationDispatch,
     findMany,
     count,
     findFirst,
