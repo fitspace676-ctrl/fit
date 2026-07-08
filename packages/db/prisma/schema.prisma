@@ -370,6 +370,10 @@ model Gym {
   invoiceSequences        InvoiceSequence[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  leads                   Lead[]
+  opportunities           Opportunity[]
+  crmActivities           CrmActivity[]
+  crmTasks                CrmTask[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -409,6 +413,9 @@ model User {
   carts                   Cart[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  assignedLeads           Lead[]                   @relation("LeadAssignedTo")
+  assignedOpportunities   Opportunity[]            @relation("OpportunityAssignedTo")
+  crmActivities           CrmActivity[]
 
   @@map("users")
 }
@@ -554,6 +561,7 @@ model GymMember {
   invoices      Invoice[]
   notes         MemberNote[]
   tasks         MemberTask[]
+  opportunities Opportunity[]
 
   @@unique([userId, gymId])
   // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
@@ -729,6 +737,7 @@ model Location {
   gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
   classTemplates ClassTemplate[]
   orders         Order[]
+  leads          Lead[]
 
   @@index([gymId])
   @@map("locations")
@@ -1576,4 +1585,205 @@ model PlatformLead {
   @@index([createdAt])
   @@index([type, createdAt])
   @@map("platform_leads")
+}
+
+// ---------------------------------------------------------------------------
+// CRM (T12.2) — gym-scoped sales pipeline: leads, opportunities, activities,
+// tasks. Ported from the gym-admin prototype's /crm module; every model below
+// carries a `gymId` and is listed in the API's TENANT_SCOPED_MODELS so the
+// scoped Prisma client isolates it automatically.
+// ---------------------------------------------------------------------------
+
+/// Lifecycle of a sales lead (T12.2): a prospect moves NEW → CONTACTED → TRIAL
+/// and closes as CONVERTED (became a member — `wonReason` explains the win) or
+/// LOST (`lostReason` explains the drop). Mirrors `leadStatusSchema` in
+/// `@fit/types`.
+enum LeadStatus {
+  NEW
+  CONTACTED
+  TRIAL
+  CONVERTED
+  LOST
+}
+
+/// Where a lead came from (T12.2). A short fixed list the CRM filters and
+/// reports on. Mirrors `leadSourceSchema` in `@fit/types`.
+enum LeadSource {
+  WALK_IN
+  INSTAGRAM
+  REFERRAL
+  WEBSITE
+}
+
+/// Stage of an upsell opportunity on an existing member (T12.2): open stages
+/// INTERESTED → PROPOSAL_SENT → DECISION_PENDING, closing as WON (`wonReason`)
+/// or LOST (`lostReason`). Mirrors `opportunityStatusSchema` in `@fit/types`.
+enum OpportunityStatus {
+  INTERESTED
+  PROPOSAL_SENT
+  DECISION_PENDING
+  WON
+  LOST
+}
+
+/// What is being sold in an opportunity (T12.2). Mirrors
+/// `opportunityTypeSchema` in `@fit/types`.
+enum OpportunityType {
+  MEMBERSHIP_UPGRADE
+  PT_SESSIONS
+  SERVICE_PACKAGE
+  OTHER
+}
+
+/// Kind of CRM touchpoint logged against a lead or opportunity (T12.2).
+/// `TASK_COMPLETED` rows are written automatically when a `CrmTask` is marked
+/// done, so the timeline shows completed to-dos inline with calls/emails.
+/// Mirrors `crmActivityTypeSchema` in `@fit/types`.
+enum CrmActivityType {
+  CALL
+  EMAIL
+  WHATSAPP
+  MEETING
+  NOTE
+  TASK_COMPLETED
+}
+
+/// A sales lead — a prospect who is not yet a member (T12.2). Tenant-scoped by
+/// `gymId`. `assignedTo` is the staff `User` who owns the follow-up (kept on
+/// user delete via SetNull so the lead survives staff churn); `location` is the
+/// branch the prospect is interested in. `expectedValue` is the deal size in
+/// the currency's MINOR units (cents/tetri, matching `Product.priceAmount`);
+/// `probability` is a 0–100 percentage — together they feed the pipeline /
+/// revenue-forecast aggregations (expected = value × probability / 100 grouped
+/// by `expectedCloseDate` month). `wonReason` / `lostReason` are captured when
+/// the lead closes CONVERTED / LOST.
+model Lead {
+  id                String     @id @default(cuid())
+  gymId             String
+  firstName         String
+  lastName          String
+  phone             String     @default("")
+  email             String     @default("")
+  source            LeadSource
+  interest          String     @default("")
+  assignedToId      String?
+  status            LeadStatus @default(NEW)
+  locationId        String?
+  followUpDate      DateTime?
+  notes             String     @default("")
+  expectedValue     Int        @default(0)
+  expectedCloseDate DateTime?
+  probability       Int        @default(0)
+  lostReason        String?
+  wonReason         String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  gym        Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  assignedTo User?         @relation("LeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  location   Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  activities CrmActivity[]
+  tasks      CrmTask[]
+
+  // The leads board filters by status and lists newest-first; both are
+  // gymId-prefixed so they also cover plain tenant-scoped lookups.
+  @@index([gymId, status])
+  @@index([gymId, createdAt])
+  @@map("leads")
+}
+
+/// An upsell opportunity on an existing member (T12.2) — a PT-sessions pitch, a
+/// membership upgrade, etc. Tenant-scoped by `gymId`; `member` is the
+/// GymMember being sold to (an opportunity dies with the membership).
+/// `value` is the deal size in MINOR units and `probability` a 0–100
+/// percentage (see {@link Lead} for how the aggregations use them).
+/// `wonReason` / `lostReason` are captured by the explicit won/lost
+/// transitions.
+model Opportunity {
+  id                String            @id @default(cuid())
+  gymId             String
+  memberId          String
+  type              OpportunityType
+  description       String            @default("")
+  value             Int               @default(0)
+  probability       Int               @default(0)
+  status            OpportunityStatus @default(INTERESTED)
+  assignedToId      String?
+  expectedCloseDate DateTime?
+  notes             String            @default("")
+  lostReason        String?
+  wonReason         String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  gym        Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member     GymMember     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  assignedTo User?         @relation("OpportunityAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  activities CrmActivity[]
+  tasks      CrmTask[]
+
+  // The kanban groups by status; the forecast groups open deals by close month.
+  @@index([gymId, status])
+  @@index([gymId, expectedCloseDate])
+  @@index([memberId])
+  @@map("opportunities")
+}
+
+/// A CRM touchpoint (call, email, meeting, note…) logged against a lead or an
+/// opportunity (T12.2) — exactly one of `leadId` / `opportunityId` is set,
+/// enforced by the API's validation. Tenant-scoped by `gymId`; cascade-deleted
+/// with its parent. `staffName` is snapshotted at write time (like
+/// `MemberNote.authorName`) so the timeline keeps its attribution even if the
+/// staff user is later deleted; `staffUserId` links back when known.
+/// Append-only — an activity is never edited, so there is no `updatedAt`;
+/// `occurredAt` is when the touchpoint happened (defaults to now, backdatable).
+model CrmActivity {
+  id            String          @id @default(cuid())
+  gymId         String
+  leadId        String?
+  opportunityId String?
+  type          CrmActivityType
+  staffUserId   String?
+  staffName     String
+  notes         String          @default("")
+  occurredAt    DateTime        @default(now())
+  createdAt     DateTime        @default(now())
+
+  gym         Gym          @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  staff       User?        @relation(fields: [staffUserId], references: [id], onDelete: SetNull)
+
+  // The dashboard's recent-activities feed reads newest-first per gym; the
+  // per-record timelines read by parent.
+  @@index([gymId, occurredAt])
+  @@index([leadId])
+  @@index([opportunityId])
+  @@map("crm_activities")
+}
+
+/// A follow-up to-do on a lead or an opportunity (T12.2) — exactly one of
+/// `leadId` / `opportunityId` is set, enforced by the API's validation.
+/// Tenant-scoped by `gymId`; cascade-deleted with its parent. Marking a task
+/// `completed` also logs a `TASK_COMPLETED` {@link CrmActivity} on the same
+/// parent so the timeline reflects it.
+model CrmTask {
+  id            String    @id @default(cuid())
+  gymId         String
+  leadId        String?
+  opportunityId String?
+  title         String
+  completed     Boolean   @default(false)
+  dueDate       DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  gym         Gym          @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, completed])
+  @@index([leadId])
+  @@index([opportunityId])
+  @@map("crm_tasks")
 }

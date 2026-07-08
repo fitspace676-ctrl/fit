@@ -10,6 +10,7 @@ export * from './src/check-in';
 export * from './src/classes';
 export * from './src/classes-admin';
 export * from './src/credit-packs';
+export * from './src/crm';
 export * from './src/dashboard';
 export * from './src/gym-settings';
 export * from './src/gyms';
