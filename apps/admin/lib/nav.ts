@@ -44,6 +44,10 @@ export type NavIcon =
   | 'workouts'
   | 'billing'
   | 'staff'
+  | 'crm'
+  | 'automation'
+  | 'marketing'
+  | 'loyalty'
   | 'analytics'
   | 'reports'
   | 'activity'
@@ -98,6 +102,32 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: '/subscriptions',
     icon: 'billing',
     permission: Permission.BillingRead,
+  },
+  {
+    labelKey: 'nav.crm',
+    href: '/crm',
+    icon: 'crm',
+    permission: Permission.CrmRead,
+  },
+  {
+    labelKey: 'nav.automation',
+    href: '/automation',
+    icon: 'automation',
+    permission: Permission.AutomationRead,
+    minRole: 'MANAGER',
+  },
+  {
+    labelKey: 'nav.marketing',
+    href: '/marketing',
+    icon: 'marketing',
+    permission: Permission.MarketingRead,
+    minRole: 'MANAGER',
+  },
+  {
+    labelKey: 'nav.loyalty',
+    href: '/loyalty',
+    icon: 'loyalty',
+    permission: Permission.LoyaltyRead,
   },
   {
     labelKey: 'nav.analytics',
