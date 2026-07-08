@@ -5,6 +5,7 @@ import {
   automationActionConfigSchema,
   automationTriggerTypeSchema,
   createAutomationRuleSchema,
+  listAutomationRulesQuerySchema,
 } from './automation';
 
 describe('automation trigger catalog', () => {
@@ -69,5 +70,30 @@ describe('createAutomationRuleSchema', () => {
 describe('automationActionConfigSchema', () => {
   it('rejects an empty body', () => {
     expect(automationActionConfigSchema.safeParse({ body: '' }).success).toBe(false);
+  });
+});
+
+describe('listAutomationRulesQuerySchema', () => {
+  it('applies pagination + sort defaults for a bare query', () => {
+    const parsed = listAutomationRulesQuerySchema.parse({});
+    expect(parsed.page).toBe(1);
+    expect(parsed.limit).toBe(20);
+    expect(parsed.sort).toBe('createdAt');
+    expect(parsed.dir).toBe('desc');
+    expect(parsed.active).toBeUndefined();
+  });
+
+  it('coerces the active flag from the query string in both directions', () => {
+    // A URL always carries strings — `active=false` must mean inactive, not the
+    // `Boolean('false') === true` footgun of `z.coerce.boolean()`.
+    expect(listAutomationRulesQuerySchema.parse({ active: 'true' }).active).toBe(true);
+    expect(listAutomationRulesQuerySchema.parse({ active: 'false' }).active).toBe(false);
+    expect(listAutomationRulesQuerySchema.parse({ active: '1' }).active).toBe(true);
+    expect(listAutomationRulesQuerySchema.parse({ active: '0' }).active).toBe(false);
+    expect(listAutomationRulesQuerySchema.parse({ active: true }).active).toBe(true);
+  });
+
+  it('rejects a non-boolean active flag', () => {
+    expect(listAutomationRulesQuerySchema.safeParse({ active: 'maybe' }).success).toBe(false);
   });
 });

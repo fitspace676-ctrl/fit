@@ -2849,6 +2849,208 @@
         "notAuthorized": "Not authorized.",
         "invalid": "Invalid settings."
       }
+    },
+    "automation": {
+      "breadcrumb": {
+        "label": "Breadcrumb",
+        "automation": "Automation"
+      },
+      "shell": {
+        "title": "Automation",
+        "subtitle": "Create automated “when X happens, do Y” rules to engage members and streamline operations.",
+        "tablistLabel": "Automation sections"
+      },
+      "shellTabs": {
+        "rules": "Rules",
+        "templates": "Templates"
+      },
+      "tabs": {
+        "all": "All",
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "columns": {
+        "name": "Name",
+        "trigger": "Trigger",
+        "action": "Action",
+        "status": "Status",
+        "createdBy": "Created by",
+        "created": "Created"
+      },
+      "filters": {
+        "searchPlaceholder": "Search rules…",
+        "searchLabel": "Search automation rules"
+      },
+      "list": {
+        "tablistLabel": "Automation rules",
+        "addRule": "New automation",
+        "showing": "Showing {from}–{to} of {total}",
+        "previous": "Previous",
+        "next": "Next",
+        "delete": "Delete",
+        "deleteTitle": "Delete automation",
+        "deleteMessage": "Delete “{name}”? This removes the rule and its run history and cannot be undone.",
+        "editRule": "Edit {name}",
+        "saveTemplate": "Save {name} as template",
+        "deleteRule": "Delete {name}",
+        "toggleLabel": "Toggle {name}",
+        "activated": "Automation activated.",
+        "deactivated": "Automation deactivated.",
+        "deleted": "Automation deleted.",
+        "emptyTitle": "No automations yet",
+        "emptyHintWrite": "Create a rule to automatically message members, create tasks, and more when something happens.",
+        "emptyHintRead": "There are no automation rules to show.",
+        "systemAuthor": "System"
+      },
+      "form": {
+        "name": "Automation name",
+        "namePlaceholder": "e.g. Expiry reminder",
+        "trigger": "Trigger",
+        "triggerHint": "The event this automation reacts to.",
+        "triggerPlaceholder": "Select a trigger…",
+        "daysLabel": "Days",
+        "milestoneLabel": "Milestone",
+        "daysPlaceholder": "Number",
+        "timing": "Timing",
+        "timingHint": "When the action fires relative to the trigger event.",
+        "action": "Action",
+        "subject": "Email subject",
+        "subjectPlaceholder": "Subject line",
+        "taskTitle": "Task title",
+        "message": "Message",
+        "messageHint": "Insert merge fields below to personalise the message.",
+        "messagePlaceholder": "Enter your message…",
+        "mergeHint": "Click to insert a merge field:",
+        "active": "Active",
+        "activeHint": "Inactive rules never fire.",
+        "addTitle": "Create automation",
+        "editTitle": "Edit automation",
+        "addDescription": "Set up the trigger and action for your automation.",
+        "editDescription": "Update this automation’s trigger and action.",
+        "cancel": "Cancel",
+        "saving": "Saving…",
+        "addSubmit": "Create automation",
+        "editSubmit": "Save changes",
+        "created": "Automation created.",
+        "updated": "Automation updated."
+      },
+      "categories": {
+        "members": "Members",
+        "leads": "CRM / Leads",
+        "classes": "Classes",
+        "payments": "Payments",
+        "pos": "POS",
+        "staff": "Staff"
+      },
+      "triggers": {
+        "member_joined": "Member joined",
+        "membership_expiring": "Membership expiring",
+        "membership_expired": "Membership expired",
+        "membership_renewed": "Membership renewed",
+        "membership_frozen": "Membership frozen",
+        "membership_cancelled": "Membership cancelled",
+        "birthday": "Birthday",
+        "no_checkin": "No check-in for X days",
+        "checkin_milestone": "Check-in milestone reached",
+        "plan_upgraded": "Plan upgraded",
+        "plan_downgraded": "Plan downgraded",
+        "lead_created": "New lead created",
+        "lead_stage_changed": "Lead stage changed",
+        "lead_won": "Lead marked won",
+        "lead_lost": "Lead marked lost",
+        "lead_no_activity": "No activity on lead for X days",
+        "class_booked": "Class booked",
+        "class_cancelled_member": "Class cancelled by member",
+        "class_full": "Class full",
+        "attendance_marked": "Attendance marked",
+        "pt_session_booked": "PT session booked",
+        "pt_session_cancelled": "PT session cancelled",
+        "payment_received": "Payment received",
+        "payment_failed": "Payment failed",
+        "invoice_overdue": "Invoice overdue",
+        "refund_issued": "Refund issued",
+        "purchase_completed": "Purchase completed",
+        "product_stock_low": "Product stock low",
+        "task_assigned": "Task assigned",
+        "task_completed": "Task completed",
+        "timeoff_approved": "Time-off approved"
+      },
+      "actions": {
+        "push_notification": "Send push notification",
+        "email": "Send email",
+        "sms": "Send SMS",
+        "create_task": "Create task"
+      },
+      "timings": {
+        "7_days_before": "7 days before",
+        "4_days_before": "4 days before",
+        "2_days_before": "2 days before",
+        "day_of": "Day of",
+        "1_day_after": "1 day after",
+        "3_days_after": "3 days after"
+      },
+      "mergeGroups": {
+        "member": "Member",
+        "lead": "Lead",
+        "class": "Class",
+        "payment": "Payment",
+        "business": "Business"
+      },
+      "mergeVars": {
+        "memberFirstName": "First name",
+        "memberLastName": "Last name",
+        "memberEmail": "Email",
+        "memberPhone": "Phone",
+        "memberPlanName": "Plan name",
+        "memberExpiryDate": "Expiry date",
+        "memberCheckinCount": "Check-in count",
+        "memberPointsBalance": "Points balance",
+        "memberLocation": "Location",
+        "leadFirstName": "First name",
+        "leadLastName": "Last name",
+        "leadSource": "Source",
+        "leadStage": "Stage",
+        "leadAssignedTo": "Assigned to",
+        "leadLastContactDate": "Last contact date",
+        "className": "Class name",
+        "classDate": "Date",
+        "classTime": "Time",
+        "classTrainerName": "Trainer name",
+        "classLocation": "Location",
+        "paymentAmount": "Amount",
+        "paymentDueDate": "Due date",
+        "paymentPlanName": "Plan name",
+        "paymentInvoiceNumber": "Invoice number",
+        "businessName": "Business name",
+        "businessLocationName": "Location name",
+        "businessPhone": "Phone",
+        "businessAddress": "Address"
+      },
+      "templates": {
+        "saved": "Template saved.",
+        "saveTitle": "Save as template",
+        "saveDescription": "Save this automation as a reusable template.",
+        "saveSubmit": "Save template",
+        "nameLabel": "Template name",
+        "use": "Use template",
+        "emptyTitle": "No templates yet",
+        "emptyHint": "Save an automation as a template to reuse it as a starting point for new rules."
+      },
+      "errors": {
+        "notAuthorized": "You don’t have permission to manage automations.",
+        "invalidDetails": "Please check the automation details and try again.",
+        "ruleNotFound": "That automation no longer exists.",
+        "templateNotActivatable": "A template can’t be activated — create a rule from it first.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Something went wrong. Please try again.",
+        "loadRules": "Couldn’t load automations ({status}): {message}",
+        "loadTemplates": "Couldn’t load templates ({status}): {message}",
+        "apiUnreachable": "The API is unreachable. Please try again shortly."
+      }
     }
   }
 }
