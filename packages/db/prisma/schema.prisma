@@ -374,6 +374,8 @@ model Gym {
   opportunities           Opportunity[]
   crmActivities           CrmActivity[]
   crmTasks                CrmTask[]
+  automationRules         AutomationRule[]
+  automationRuns          AutomationRun[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -416,6 +418,7 @@ model User {
   assignedLeads           Lead[]                   @relation("LeadAssignedTo")
   assignedOpportunities   Opportunity[]            @relation("OpportunityAssignedTo")
   crmActivities           CrmActivity[]
+  automationRules         AutomationRule[]         @relation("AutomationRuleCreatedBy")
 
   @@map("users")
 }
@@ -1786,4 +1789,144 @@ model CrmTask {
   @@index([leadId])
   @@index([opportunityId])
   @@map("crm_tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Automation (T12.5) — gym-scoped "when X happens, do Y" rules. Ported from the
+// gym-admin prototype's /automation module. Every model below carries a `gymId`
+// and is listed in the API's TENANT_SCOPED_MODELS so the CRUD reads/writes
+// isolate automatically; the executor (event hooks + the time-based scanner)
+// runs cross-tenant off the unscoped client with an explicit `gymId`.
+// ---------------------------------------------------------------------------
+
+/// The event a rule reacts to (T12.5). The value strings are the exact wire
+/// contract the admin builder and the executor share, grouped by category in
+/// `@fit/types` (`AUTOMATION_TRIGGER_CATALOG`): Members, CRM/Leads, Classes,
+/// Payments, POS, Staff. Mirrors `automationTriggerTypeSchema`. Lowercase
+/// snake_case (not the usual UPPER_CASE) so the enum member name *is* the wire
+/// value — no mapping between DB, code and JSON.
+enum AutomationTriggerType {
+  // Members
+  member_joined
+  membership_expiring
+  membership_expired
+  membership_renewed
+  membership_frozen
+  membership_cancelled
+  birthday
+  no_checkin
+  checkin_milestone
+  plan_upgraded
+  plan_downgraded
+  // CRM / Leads
+  lead_created
+  lead_stage_changed
+  lead_won
+  lead_lost
+  lead_no_activity
+  // Classes
+  class_booked
+  class_cancelled_member
+  class_full
+  attendance_marked
+  pt_session_booked
+  pt_session_cancelled
+  // Payments
+  payment_received
+  payment_failed
+  invoice_overdue
+  refund_issued
+  // POS
+  purchase_completed
+  product_stock_low
+  // Staff
+  task_assigned
+  task_completed
+  timeoff_approved
+}
+
+/// What a rule does when it fires (T12.5). Mirrors `automationActionTypeSchema`;
+/// lowercase-snake for the same wire-parity reason as {@link AutomationTriggerType}.
+enum AutomationActionType {
+  email
+  sms
+  push_notification
+  create_task
+}
+
+/// Outcome of one {@link AutomationRun} (T12.5). A run is `QUEUED` when a match
+/// is recorded, then flips to `SUCCESS` once the (currently stubbed) action is
+/// dispatched, `FAILED` if dispatch threw, or `SKIPPED` when the rule matched
+/// but the guard chose not to act. Mirrors `automationRunStatusSchema`.
+enum AutomationRunStatus {
+  QUEUED
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+/// A gym's automation rule (T12.5): "when `triggerType` happens, do
+/// `actionType`". Tenant-scoped by `gymId`. `triggerConfig` is a small JSON bag
+/// — today just `{ days?: number }` for the count/day-window triggers
+/// (`membership_expiring`, `no_checkin`, `checkin_milestone`,
+/// `lead_no_activity`); `actionConfig` holds the message `{ subject?, body }`.
+/// `timingOffset` is one of the fixed advance/delay options
+/// (`7_days_before`…`3_days_after`, or `day_of`) — stored as text because those
+/// labels lead with a digit and so can't be Prisma enum identifiers; validated
+/// by `automationTimingOffsetSchema`. `isTemplate` rows are the reusable
+/// starting points the builder clones and never fire on their own; `createdBy`
+/// is the staff user who authored it (kept on user-delete via SetNull).
+model AutomationRule {
+  id            String                @id @default(cuid())
+  gymId         String
+  name          String
+  triggerType   AutomationTriggerType
+  triggerConfig Json                  @default("{}")
+  timingOffset  String                @default("day_of")
+  actionType    AutomationActionType
+  actionConfig  Json                  @default("{}")
+  active        Boolean               @default(true)
+  isTemplate    Boolean               @default(false)
+  createdById   String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  gym       Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  createdBy User?           @relation("AutomationRuleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  runs      AutomationRun[]
+
+  // The rules list reads newest-first per gym; the executor loads a gym's
+  // active rules for one trigger; the templates gallery filters by isTemplate.
+  @@index([gymId, createdAt])
+  @@index([gymId, active, triggerType])
+  @@index([gymId, isTemplate])
+  @@map("automation_rules")
+}
+
+/// One firing (or attempted firing) of an {@link AutomationRule} (T12.5) — the
+/// executor's append-only log. Tenant-scoped by `gymId`; cascade-deleted with
+/// its rule. `triggerType` is snapshotted so the log reads standalone even if
+/// the rule is later retargeted; `entityId` / `entityType` point at what caused
+/// it (a member id + `"member"`, a subscription id + `"subscription"`, …);
+/// `detail` is a short human line describing the (stubbed) action taken.
+model AutomationRun {
+  id          String                @id @default(cuid())
+  gymId       String
+  ruleId      String
+  triggerType AutomationTriggerType
+  status      AutomationRunStatus   @default(QUEUED)
+  entityId    String?
+  entityType  String?
+  detail      String                @default("")
+  ranAt       DateTime              @default(now())
+
+  gym  Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  // The activity log reads newest-first per gym or per rule; the scanner
+  // dedupes same-day reruns by (ruleId, entityId, ranAt).
+  @@index([gymId, ranAt])
+  @@index([ruleId, ranAt])
+  @@index([ruleId, entityId, ranAt])
+  @@map("automation_runs")
 }

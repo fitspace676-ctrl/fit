@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
+  AutomationTriggerType,
   DEFAULT_FREEZE_DAYS_PER_PERIOD,
   Gender,
   GymMemberStatus,
@@ -44,6 +45,7 @@ import type {
   UpdateMemberTaskInput,
   UpdateMemberResponse,
 } from '@fit/types';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -151,6 +153,7 @@ export class MembersService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /**
@@ -294,6 +297,14 @@ export class MembersService {
       }
 
       return member;
+    });
+
+    // Fire the `member_joined` automation trigger (T12.5) — best-effort and
+    // out-of-band: automation must never block or fail member creation, so the
+    // dispatch is not awaited and its (already-swallowed) errors are ignored.
+    void this.automation.dispatchForGym(this.tenant.gymId, AutomationTriggerType.member_joined, {
+      entityId: created.id,
+      entityType: 'member',
     });
 
     // Re-read through the full detail path so a brand-new member's response

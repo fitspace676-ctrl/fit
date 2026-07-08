@@ -4,6 +4,7 @@ export * from './src/admin';
 export * from './src/analytics';
 export * from './src/audit';
 export * from './src/auth';
+export * from './src/automation';
 export * from './src/bookings';
 export * from './src/cart';
 export * from './src/check-in';

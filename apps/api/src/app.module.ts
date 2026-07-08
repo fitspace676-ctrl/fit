@@ -7,6 +7,7 @@ import { ActivityModule } from './activity/activity.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { AutomationModule } from './automation/automation.module';
 import { BillingModule } from './billing/billing.module';
 import { CartModule } from './cart/cart.module';
 import { CartIdentityMiddleware } from './cart/cart-identity.middleware';
@@ -79,6 +80,11 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   (`/crm` — leads, upsell opportunities, activity timelines, follow-up
  *   tasks, and the pipeline / revenue-forecast aggregations; `CrmRead` /
  *   `CrmManage`).
+ * - {@link AutomationModule} serves the staff console's tenant-scoped Automation
+ *   (T12.5) (`/automation` — "when X happens, do Y" rules, reusable templates,
+ *   the builder catalog, and the executor's run log; `AutomationRead` /
+ *   `AutomationManage`). Its exported executor fires event-driven triggers inline
+ *   (e.g. `member_joined`) and runs a daily scanner for the time-based ones.
  * - {@link AnalyticsModule} serves the staff console's tenant-scoped analytics
  *   (`/admin/analytics?range=` — range-windowed revenue/attendance/churn KPIs,
  *   revenue series, channel/plan mix, top classes; `ReportView`).
@@ -164,6 +170,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     DashboardModule,
     CheckInModule,
     CrmModule,
+    AutomationModule,
     AnalyticsModule,
     ReportsModule,
     OpsModule,

@@ -256,6 +256,20 @@ export const envSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
 
+  // ── Automation executor (T12.5) ──
+  // Master switch for the time-based automation scanner — the daily cron that
+  // finds active `membership_expiring` rules and records a run per subscription
+  // whose paid period ends within the rule's look-ahead window. Off by default so
+  // it never runs in dev / CI / preview; a production deploy sets it true. A
+  // single Redis lock guards each daily window, so it is safe on every replica
+  // (only one wins). Event-driven triggers (e.g. `member_joined`) do not depend
+  // on this flag — they fire inline with the domain action regardless. `"true"`
+  // enables; anything else (incl. unset) leaves the scanner disabled.
+  AUTOMATION_EXECUTOR_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
   // ── Object storage (Cloudflare R2 — S3-compatible) ──
   // All optional: unset disables the signed-upload service (the endpoint then
   // returns 503) so the API still boots in CI / local dev without R2 creds.
