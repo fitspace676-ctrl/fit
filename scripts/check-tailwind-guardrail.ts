@@ -176,6 +176,13 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/app/(dashboard)/products',
   'apps/admin/app/(dashboard)/reports',
   'apps/admin/components/pos',
+  // T12.3 — the CRM workspace (Leads | Opportunities | Forecast shell): the
+  // leads roster on the Astryx DataTable/FilterChips/TableSearch kit, the
+  // add/edit lead form + won/lost close dialogs on the Modal kit, and the lead
+  // detail (info/KPI cards + overview/activity/notes/tasks tabs). Born on
+  // Astryx + brand-tokened StyleX — never had Tailwind — and guarded as a
+  // directory so it stays that way.
+  'apps/admin/app/(dashboard)/crm',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

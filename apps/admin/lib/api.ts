@@ -126,6 +126,18 @@ import type {
   ReportKey,
   ReportRange,
   ReportFormat,
+  ListLeadsQuery,
+  ListLeadsResponse,
+  GetLeadResponse,
+  CreateLeadInput,
+  UpdateLeadInput,
+  MarkWonInput,
+  MarkLostInput,
+  CreateCrmActivityInput,
+  CreateCrmActivityResponse,
+  CreateCrmTaskInput,
+  UpdateCrmTaskInput,
+  CrmTaskResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -1564,4 +1576,143 @@ export async function fetchInvoicePdf(id: string): Promise<Response> {
     headers: await authHeaders(),
     cache: 'no-store',
   });
+}
+
+// ── CRM — leads, activities, tasks (T12.3) ────────────────────────────────────
+
+/** Serialise a leads-list query, dropping empty values (same contract as the roster). */
+export function leadsQueryString(query: Partial<ListLeadsQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /crm/leads` — one filtered, server-paginated page plus per-status counts. */
+export async function fetchLeads(query: Partial<ListLeadsQuery> = {}): Promise<ListLeadsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/leads${leadsQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListLeadsResponse>(res);
+}
+
+/** `GET /crm/leads/:id` — one lead's detail (row + activity timeline + tasks). */
+export async function fetchLead(id: string): Promise<GetLeadResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetLeadResponse>(res);
+}
+
+/** `POST /crm/leads` — capture a lead; returns the new lead's detail. */
+export async function createLead(input: CreateLeadInput): Promise<GetLeadResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/leads`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetLeadResponse>(res);
+}
+
+/** `PATCH /crm/leads/:id` — edit a lead (open-stage `status` moves only). */
+export async function updateLead(id: string, input: UpdateLeadInput): Promise<GetLeadResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetLeadResponse>(res);
+}
+
+/** `POST /crm/leads/:id/convert` — close the lead CONVERTED, recording the win reason. */
+export async function convertLead(id: string, input: MarkWonInput): Promise<GetLeadResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}/convert`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetLeadResponse>(res);
+}
+
+/** `POST /crm/leads/:id/lose` — close the lead LOST, recording the required reason. */
+export async function loseLead(id: string, input: MarkLostInput): Promise<GetLeadResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}/lose`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetLeadResponse>(res);
+}
+
+/** `DELETE /crm/leads/:id` — remove a lead (its activities/tasks cascade). */
+export async function deleteLead(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
+/** `POST /crm/activities` — log a touchpoint against a lead or an opportunity. */
+export async function createCrmActivity(
+  input: CreateCrmActivityInput,
+): Promise<CreateCrmActivityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/activities`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateCrmActivityResponse>(res);
+}
+
+/** `POST /crm/tasks` — add a follow-up to-do to a lead or an opportunity. */
+export async function createCrmTask(input: CreateCrmTaskInput): Promise<CrmTaskResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CrmTaskResponse>(res);
+}
+
+/** `PATCH /crm/tasks/:id` — edit / complete a task (completion auto-logs an activity). */
+export async function updateCrmTask(
+  id: string,
+  input: UpdateCrmTaskInput,
+): Promise<CrmTaskResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/tasks/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CrmTaskResponse>(res);
+}
+
+/** `DELETE /crm/tasks/:id` — remove a task. */
+export async function deleteCrmTask(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/crm/tasks/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
 }
