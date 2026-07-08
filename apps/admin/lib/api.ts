@@ -146,6 +146,14 @@ import type {
   CrmPipelineResponse,
   CrmForecastResponse,
   RecentCrmActivitiesResponse,
+  ListAutomationRulesQuery,
+  ListAutomationRulesResponse,
+  ListAutomationTemplatesResponse,
+  AutomationCatalogResponse,
+  GetAutomationRuleResponse,
+  CreateAutomationRuleInput,
+  UpdateAutomationRuleInput,
+  SaveAsTemplateInput,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -1852,4 +1860,118 @@ export async function fetchRecentCrmActivities(limit = 20): Promise<RecentCrmAct
     cache: 'no-store',
   });
   return unwrap<RecentCrmActivitiesResponse>(res);
+}
+
+// ── Automation — rules, templates, catalog (T12.6) ────────────────────────────
+
+/** Serialise an automation-rules query, dropping empty values (same roster contract). */
+export function automationRulesQueryString(query: Partial<ListAutomationRulesQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /automation/catalog` — the trigger / action / timing catalogs the builder renders. */
+export async function fetchAutomationCatalog(): Promise<AutomationCatalogResponse> {
+  const res = await fetch(`${apiBaseUrl()}/automation/catalog`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AutomationCatalogResponse>(res);
+}
+
+/** `GET /automation/rules` — one filtered, server-paginated page of active (non-template) rules. */
+export async function fetchAutomationRules(
+  query: Partial<ListAutomationRulesQuery> = {},
+): Promise<ListAutomationRulesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/automation/rules${automationRulesQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAutomationRulesResponse>(res);
+}
+
+/** `GET /automation/templates` — every reusable template, newest first. */
+export async function fetchAutomationTemplates(): Promise<ListAutomationTemplatesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/automation/templates`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAutomationTemplatesResponse>(res);
+}
+
+/** `POST /automation/rules` — create a rule (active by default); returns its detail. */
+export async function createAutomationRule(
+  input: CreateAutomationRuleInput,
+): Promise<GetAutomationRuleResponse> {
+  const res = await fetch(`${apiBaseUrl()}/automation/rules`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetAutomationRuleResponse>(res);
+}
+
+/** `PATCH /automation/rules/:id` — edit a rule; returns the updated detail. */
+export async function updateAutomationRule(
+  id: string,
+  input: UpdateAutomationRuleInput,
+): Promise<GetAutomationRuleResponse> {
+  const res = await fetch(`${apiBaseUrl()}/automation/rules/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetAutomationRuleResponse>(res);
+}
+
+/** `POST /automation/rules/:id/toggle` — flip a rule's active state; returns the updated detail. */
+export async function toggleAutomationRule(
+  id: string,
+  active: boolean,
+): Promise<GetAutomationRuleResponse> {
+  const res = await fetch(`${apiBaseUrl()}/automation/rules/${encodeURIComponent(id)}/toggle`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ active }),
+    cache: 'no-store',
+  });
+  return unwrap<GetAutomationRuleResponse>(res);
+}
+
+/** `POST /automation/rules/:id/save-as-template` — save a rule as a reusable template. */
+export async function saveAutomationRuleAsTemplate(
+  id: string,
+  input: SaveAsTemplateInput,
+): Promise<GetAutomationRuleResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/automation/rules/${encodeURIComponent(id)}/save-as-template`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<GetAutomationRuleResponse>(res);
+}
+
+/** `DELETE /automation/rules/:id` — delete a rule and its runs. */
+export async function deleteAutomationRule(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/automation/rules/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
 }

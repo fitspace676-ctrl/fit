@@ -183,6 +183,13 @@ const MIGRATED_PATHS: readonly string[] = [
   // Astryx + brand-tokened StyleX — never had Tailwind — and guarded as a
   // directory so it stays that way.
   'apps/admin/app/(dashboard)/crm',
+  // T12.6 — the Automation workspace (Rules | Templates shell): the rules roster
+  // on the Astryx DataTable with a per-row active toggle and category/timing
+  // badges, the create/edit builder (grouped trigger picker, day/count input,
+  // timing/action selectors, message editor with an insertable merge-variable
+  // palette), save-as-template and the templates gallery. Born on Astryx +
+  // brand-tokened StyleX — never had Tailwind — and guarded so it stays that way.
+  'apps/admin/app/(dashboard)/automation',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

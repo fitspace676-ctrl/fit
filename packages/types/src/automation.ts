@@ -362,6 +362,16 @@ export interface AutomationRuleDetail extends AutomationRuleRow {
   runCount: number;
 }
 
+/**
+ * A boolean query flag that survives the URL round-trip. `z.coerce.boolean()`
+ * can't be used here: it runs JS `Boolean(...)`, so the string `'false'` becomes
+ * `true` and the inactive filter is impossible to express. This accepts a real
+ * boolean or the `'true'`/`'false'`/`'1'`/`'0'` strings a query string carries.
+ */
+const coercedBooleanFlag = z
+  .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
+  .transform((value) => value === true || value === 'true' || value === '1');
+
 /** Sortable columns of the rules list. */
 export const automationRuleSortSchema = z.enum(['createdAt', 'updatedAt', 'name']);
 
@@ -375,7 +385,7 @@ export const listAutomationRulesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(100).optional(),
   triggerType: automationTriggerTypeSchema.optional(),
-  active: z.coerce.boolean().optional(),
+  active: coercedBooleanFlag.optional(),
   sort: automationRuleSortSchema.default('createdAt'),
   dir: z.enum(['asc', 'desc']).default('desc'),
 });

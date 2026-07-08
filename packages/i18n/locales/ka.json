@@ -2849,6 +2849,208 @@
         "notAuthorized": "წვდომა აკრძალულია.",
         "invalid": "არასწორი პარამეტრები."
       }
+    },
+    "automation": {
+      "breadcrumb": {
+        "label": "ნავიგაცია",
+        "automation": "ავტომატიზაცია"
+      },
+      "shell": {
+        "title": "ავტომატიზაცია",
+        "subtitle": "შექმენით ავტომატური წესები „როცა X ხდება, გააკეთე Y“ — წევრებთან ურთიერთობისა და ოპერაციების გასამარტივებლად.",
+        "tablistLabel": "ავტომატიზაციის განყოფილებები"
+      },
+      "shellTabs": {
+        "rules": "წესები",
+        "templates": "შაბლონები"
+      },
+      "tabs": {
+        "all": "ყველა",
+        "active": "აქტიური",
+        "inactive": "არააქტიური"
+      },
+      "status": {
+        "active": "აქტიური",
+        "inactive": "არააქტიური"
+      },
+      "columns": {
+        "name": "დასახელება",
+        "trigger": "გამომწვევი",
+        "action": "ქმედება",
+        "status": "სტატუსი",
+        "createdBy": "შემქმნელი",
+        "created": "შექმნის თარიღი"
+      },
+      "filters": {
+        "searchPlaceholder": "წესების ძებნა…",
+        "searchLabel": "ავტომატიზაციის წესების ძებნა"
+      },
+      "list": {
+        "tablistLabel": "ავტომატიზაციის წესები",
+        "addRule": "ახალი ავტომატიზაცია",
+        "showing": "ნაჩვენებია {from}–{to} / {total}",
+        "previous": "წინა",
+        "next": "შემდეგი",
+        "delete": "წაშლა",
+        "deleteTitle": "ავტომატიზაციის წაშლა",
+        "deleteMessage": "წავშალოთ „{name}“? ეს წაშლის წესსა და მის ისტორიას და ვერ დაბრუნდება.",
+        "editRule": "რედაქტირება: {name}",
+        "saveTemplate": "შაბლონად შენახვა: {name}",
+        "deleteRule": "წაშლა: {name}",
+        "toggleLabel": "გადართვა: {name}",
+        "activated": "ავტომატიზაცია გააქტიურდა.",
+        "deactivated": "ავტომატიზაცია გაითიშა.",
+        "deleted": "ავტომატიზაცია წაიშალა.",
+        "emptyTitle": "ჯერ ავტომატიზაციები არ არის",
+        "emptyHintWrite": "შექმენით წესი, რომ მოვლენის დადგომისას ავტომატურად გაუგზავნოთ წევრებს შეტყობინება, შექმნათ დავალებები და სხვა.",
+        "emptyHintRead": "საჩვენებელი ავტომატიზაციის წესები არ არის.",
+        "systemAuthor": "სისტემა"
+      },
+      "form": {
+        "name": "ავტომატიზაციის სახელი",
+        "namePlaceholder": "მაგ., ვადის შეხსენება",
+        "trigger": "გამომწვევი",
+        "triggerHint": "მოვლენა, რომელზეც ეს ავტომატიზაცია რეაგირებს.",
+        "triggerPlaceholder": "აირჩიეთ გამომწვევი…",
+        "daysLabel": "დღეები",
+        "milestoneLabel": "ზღვარი",
+        "daysPlaceholder": "რაოდენობა",
+        "timing": "დროის შერჩევა",
+        "timingHint": "როდის ამოქმედდება ქმედება გამომწვევ მოვლენასთან მიმართებით.",
+        "action": "ქმედება",
+        "subject": "ელფოსტის თემა",
+        "subjectPlaceholder": "სათაურის ხაზი",
+        "taskTitle": "დავალების სახელი",
+        "message": "შეტყობინება",
+        "messageHint": "შეტყობინების პერსონალიზაციისთვის ჩასვით ქვემოთ მოცემული ცვლადები.",
+        "messagePlaceholder": "შეიყვანეთ შეტყობინება…",
+        "mergeHint": "ცვლადის ჩასასმელად დააჭირეთ:",
+        "active": "აქტიური",
+        "activeHint": "არააქტიური წესები არასდროს ამუშავდება.",
+        "addTitle": "ავტომატიზაციის შექმნა",
+        "editTitle": "ავტომატიზაციის რედაქტირება",
+        "addDescription": "დააყენეთ გამომწვევი და ქმედება თქვენი ავტომატიზაციისთვის.",
+        "editDescription": "განაახლეთ ამ ავტომატიზაციის გამომწვევი და ქმედება.",
+        "cancel": "გაუქმება",
+        "saving": "ინახება…",
+        "addSubmit": "ავტომატიზაციის შექმნა",
+        "editSubmit": "ცვლილებების შენახვა",
+        "created": "ავტომატიზაცია შეიქმნა.",
+        "updated": "ავტომატიზაცია განახლდა."
+      },
+      "categories": {
+        "members": "წევრები",
+        "leads": "CRM / ლიდები",
+        "classes": "გაკვეთილები",
+        "payments": "გადახდები",
+        "pos": "POS",
+        "staff": "პერსონალი"
+      },
+      "triggers": {
+        "member_joined": "წევრი დაემატა",
+        "membership_expiring": "წევრობის ვადა იწურება",
+        "membership_expired": "წევრობის ვადა ამოიწურა",
+        "membership_renewed": "წევრობა განახლდა",
+        "membership_frozen": "წევრობა გაიყინა",
+        "membership_cancelled": "წევრობა გაუქმდა",
+        "birthday": "დაბადების დღე",
+        "no_checkin": "X დღე ვიზიტის გარეშე",
+        "checkin_milestone": "ვიზიტების ზღვარი მიღწეულია",
+        "plan_upgraded": "გეგმა გაუმჯობესდა",
+        "plan_downgraded": "გეგმა დაქვეითდა",
+        "lead_created": "ახალი ლიდი შეიქმნა",
+        "lead_stage_changed": "ლიდის ეტაპი შეიცვალა",
+        "lead_won": "ლიდი მოგებულია",
+        "lead_lost": "ლიდი დაკარგულია",
+        "lead_no_activity": "X დღე ლიდზე აქტივობის გარეშე",
+        "class_booked": "გაკვეთილი დაჯავშნულია",
+        "class_cancelled_member": "წევრმა გააუქმა გაკვეთილი",
+        "class_full": "გაკვეთილი შევსებულია",
+        "attendance_marked": "დასწრება აღინიშნა",
+        "pt_session_booked": "PT სესია დაჯავშნულია",
+        "pt_session_cancelled": "PT სესია გაუქმდა",
+        "payment_received": "გადახდა მიღებულია",
+        "payment_failed": "გადახდა ჩაიშალა",
+        "invoice_overdue": "ინვოისს ვადა გაუვიდა",
+        "refund_issued": "თანხა დაბრუნდა",
+        "purchase_completed": "შესყიდვა დასრულდა",
+        "product_stock_low": "პროდუქტის მარაგი დაბალია",
+        "task_assigned": "დავალება მიენიჭა",
+        "task_completed": "დავალება დასრულდა",
+        "timeoff_approved": "შვებულება დამტკიცდა"
+      },
+      "actions": {
+        "push_notification": "Push-შეტყობინების გაგზავნა",
+        "email": "ელფოსტის გაგზავნა",
+        "sms": "SMS-ის გაგზავნა",
+        "create_task": "დავალების შექმნა"
+      },
+      "timings": {
+        "7_days_before": "7 დღით ადრე",
+        "4_days_before": "4 დღით ადრე",
+        "2_days_before": "2 დღით ადრე",
+        "day_of": "იმავე დღეს",
+        "1_day_after": "1 დღით გვიან",
+        "3_days_after": "3 დღით გვიან"
+      },
+      "mergeGroups": {
+        "member": "წევრი",
+        "lead": "ლიდი",
+        "class": "გაკვეთილი",
+        "payment": "გადახდა",
+        "business": "ბიზნესი"
+      },
+      "mergeVars": {
+        "memberFirstName": "სახელი",
+        "memberLastName": "გვარი",
+        "memberEmail": "ელფოსტა",
+        "memberPhone": "ტელეფონი",
+        "memberPlanName": "გეგმის სახელი",
+        "memberExpiryDate": "ვადის თარიღი",
+        "memberCheckinCount": "ვიზიტების რაოდენობა",
+        "memberPointsBalance": "ქულების ბალანსი",
+        "memberLocation": "ლოკაცია",
+        "leadFirstName": "სახელი",
+        "leadLastName": "გვარი",
+        "leadSource": "წყარო",
+        "leadStage": "ეტაპი",
+        "leadAssignedTo": "პასუხისმგებელი",
+        "leadLastContactDate": "ბოლო კონტაქტის თარიღი",
+        "className": "გაკვეთილის სახელი",
+        "classDate": "თარიღი",
+        "classTime": "დრო",
+        "classTrainerName": "ტრენერის სახელი",
+        "classLocation": "ლოკაცია",
+        "paymentAmount": "თანხა",
+        "paymentDueDate": "გადახდის ვადა",
+        "paymentPlanName": "გეგმის სახელი",
+        "paymentInvoiceNumber": "ინვოისის ნომერი",
+        "businessName": "ბიზნესის სახელი",
+        "businessLocationName": "ლოკაციის სახელი",
+        "businessPhone": "ტელეფონი",
+        "businessAddress": "მისამართი"
+      },
+      "templates": {
+        "saved": "შაბლონი შენახულია.",
+        "saveTitle": "შაბლონად შენახვა",
+        "saveDescription": "შეინახეთ ეს ავტომატიზაცია მრავალჯერადი შაბლონის სახით.",
+        "saveSubmit": "შაბლონის შენახვა",
+        "nameLabel": "შაბლონის სახელი",
+        "use": "შაბლონის გამოყენება",
+        "emptyTitle": "ჯერ შაბლონები არ არის",
+        "emptyHint": "შეინახეთ ავტომატიზაცია შაბლონად, რომ ის ახალი წესების საწყის წერტილად გამოიყენოთ."
+      },
+      "errors": {
+        "notAuthorized": "ავტომატიზაციების მართვის უფლება არ გაქვთ.",
+        "invalidDetails": "გთხოვთ, შეამოწმეთ ავტომატიზაციის დეტალები და სცადეთ თავიდან.",
+        "ruleNotFound": "ეს ავტომატიზაცია აღარ არსებობს.",
+        "templateNotActivatable": "შაბლონის გააქტიურება შეუძლებელია — ჯერ შექმენით მისგან წესი.",
+        "requestFailed": "მოთხოვნა ჩაიშალა ({status}): {message}",
+        "unexpected": "რაღაც ვერ განხორციელდა. სცადეთ თავიდან.",
+        "loadRules": "ავტომატიზაციები ვერ ჩაიტვირთა ({status}): {message}",
+        "loadTemplates": "შაბლონები ვერ ჩაიტვირთა ({status}): {message}",
+        "apiUnreachable": "API მიუწვდომელია. სცადეთ ცოტა ხანში."
+      }
     }
   }
 }
