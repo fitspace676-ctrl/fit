@@ -2052,10 +2052,7 @@
       "shell": {
         "title": "CRM",
         "subtitle": "ლიდები, შესაძლებლობები და შემოსავლის მილსადენი.",
-        "tablistLabel": "CRM სექციები",
-        "opportunitiesComingSoonTitle": "შესაძლებლობები მალე დაემატება",
-        "forecastComingSoonTitle": "შემოსავლის პროგნოზი მალე დაემატება",
-        "comingSoonHint": "ეს ჩანართი CRM-ის შემდეგ გამოშვებასთან ერთად გამოჩნდება. ლიდების ჩანართი სრულად მუშაობს."
+        "tablistLabel": "CRM სექციები"
       },
       "shellTabs": {
         "leads": "ლიდები",
@@ -2258,7 +2255,129 @@
         "leadNotFound": "ეს ლიდი აღარ არსებობს.",
         "taskNotFound": "ეს დავალება აღარ არსებობს.",
         "assigneeInvalid": "მინიჭებული თანამშრომელი ამ დარბაზის წევრი არ არის.",
-        "locationInvalid": "ეს ფილიალი ამ დარბაზს არ ეკუთვნის."
+        "locationInvalid": "ეს ფილიალი ამ დარბაზს არ ეკუთვნის.",
+        "opportunityNotFound": "ეს შესაძლებლობა აღარ არსებობს.",
+        "memberNotFound": "ეს წევრი არ არის ამ დარბაზის ნაწილი.",
+        "loadOpportunity": "ვერ ჩაიტვირთა ეს შესაძლებლობა ({status}): {message}",
+        "loadOpportunities": "ვერ ჩაიტვირთა შესაძლებლობები ({status}): {message}",
+        "loadForecast": "ვერ ჩაიტვირთა პროგნოზი ({status}): {message}"
+      },
+      "opportunityStatus": {
+        "INTERESTED": "დაინტერესებული",
+        "PROPOSAL_SENT": "შეთავაზება გაგზავნილია",
+        "DECISION_PENDING": "გადაწყვეტილების მოლოდინში",
+        "WON": "მოგებული",
+        "LOST": "წაგებული"
+      },
+      "opportunityType": {
+        "MEMBERSHIP_UPGRADE": "წევრობის განახლება",
+        "PT_SESSIONS": "პერსონალური ვარჯიში",
+        "SERVICE_PACKAGE": "სერვისის პაკეტი",
+        "OTHER": "სხვა"
+      },
+      "opportunityColumns": {
+        "member": "წევრი",
+        "type": "ტიპი",
+        "status": "სტატუსი",
+        "assignedTo": "მიმაგრებული",
+        "expectedClose": "მოსალოდნელი დახურვა",
+        "probability": "ალბათობა",
+        "value": "ღირებულება"
+      },
+      "opportunityFilters": {
+        "searchLabel": "მოძებნეთ შესაძლებლობები წევრის ან აღწერის მიხედვით",
+        "searchPlaceholder": "შესაძლებლობების ძიება…",
+        "typeLabel": "ტიპი",
+        "allTypes": "ყველა ტიპი"
+      },
+      "opportunityList": {
+        "tablistLabel": "შესაძლებლობები",
+        "add": "შესაძლებლობის დამატება",
+        "deleted": "შესაძლებლობა წაიშალა",
+        "weighted": "{amount} შეწონილი",
+        "markWon": "მონიშნეთ {name}-ის შესაძლებლობა მოგებულად",
+        "markLost": "მონიშნეთ {name}-ის შესაძლებლობა წაგებულად",
+        "edit": "{name}-ის შესაძლებლობის რედაქტირება",
+        "delete": "{name}-ის შესაძლებლობის წაშლა",
+        "deleteTitle": "წავშალოთ ეს შესაძლებლობა?",
+        "deleteMessage": "ეს სამუდამოდ წაშლის {name}-ის შესაძლებლობას მისი აქტივობის ისტორიითა და დავალებებით.",
+        "emptyTitle": "შესაძლებლობა ვერ მოიძებნა",
+        "emptyHintWrite": "შეცვალეთ ფილტრები ან გახსენით ახალი შესაძლებლობა არსებულ წევრზე.",
+        "emptyHintRead": "შეცვალეთ ფილტრები ან ძიება სასურველი შესაძლებლობის მოსაძებნად."
+      },
+      "opportunityForm": {
+        "addTitle": "ახალი შესაძლებლობის დამატება",
+        "addDescription": "გახსენით გაყიდვის შესაძლებლობა არსებულ წევრზე.",
+        "editTitle": "შესაძლებლობის რედაქტირება",
+        "editDescription": "განაახლეთ გარიგების დეტალები და ეტაპი.",
+        "member": "წევრი",
+        "memberHint": "წევრი, ვისთვისაც არის ეს გარიგება.",
+        "memberSearchPlaceholder": "მოძებნეთ წევრები სახელით…",
+        "noMembers": "ასარჩევი წევრი არ არის.",
+        "noMemberMatch": "თქვენს ძიებას წევრი არ ემთხვევა.",
+        "changeMember": "შეცვლა",
+        "type": "ტიპი",
+        "assignedTo": "მიმაგრება",
+        "description": "აღწერა",
+        "descriptionHint": "რა იყიდება.",
+        "descriptionPlaceholder": "მაგ. 5 პერსონალური ვარჯიშის განახლება",
+        "stage": "ეტაპი",
+        "stageHint": "მხოლოდ ღია ეტაპები — დახურეთ შესაძლებლობა მოგებულად / წაგებულად მონიშვნით.",
+        "value": "ღირებულება (₾)",
+        "probability": "ალბათობა (%)",
+        "expectedCloseDate": "მოსალოდნელი დახურვის თარიღი",
+        "addSubmit": "შესაძლებლობის დამატება",
+        "editSubmit": "ცვლილებების შენახვა",
+        "created": "შესაძლებლობა დაემატა",
+        "updated": "შესაძლებლობა განახლდა"
+      },
+      "opportunityDialogs": {
+        "wonTitle": "შესაძლებლობის მოგებულად მონიშვნა",
+        "wonDescription": "რატომ დაიხურა {name}-ის გარიგება? ეს დაგეხმარებათ გაიგოთ რა მუშაობს.",
+        "wonSubmit": "მოგებულად მონიშვნა",
+        "wonDone": "შესაძლებლობა მოინიშნა მოგებულად",
+        "lostTitle": "შესაძლებლობის წაგებულად მონიშვნა",
+        "lostDescription": "აირჩიეთ მიზეზი, რატომ წაგებულ იქნა {name}-ის გარიგება.",
+        "lostSubmit": "წაგებულად მონიშვნა",
+        "lostDone": "შესაძლებლობა მოინიშნა წაგებულად"
+      },
+      "opportunityDetail": {
+        "cardsLabel": "შესაძლებლობის მიმოხილვა",
+        "information": "შესაძლებლობის ინფორმაცია",
+        "dealValue": "გარიგების ღირებულება",
+        "totalValue": "სრული ღირებულება",
+        "weightedValue": "შეწონილი ღირებულება",
+        "timeline": "ვადები",
+        "noNotes": "ამ შესაძლებლობაზე შენიშვნები არ დაფიქსირებულა.",
+        "addNotePlaceholder": "დაწერეთ შენიშვნა ამ შესაძლებლობაზე…",
+        "activityTimelineHint": "ამ შესაძლებლობის ყველა შეხება და განახლება, უახლესი პირველი."
+      },
+      "forecast": {
+        "pipelineValue": "ღია მილსადენი",
+        "openDealsContext": "{leads} ღია ლიდი · {opportunities} ღია შესაძლებლობა",
+        "weightedValue": "შეწონილი მილსადენი",
+        "weightedContext": "ალბათობით შეწონილი ყველა ღია გარიგებაზე",
+        "winRate": "მოგების მაჩვენებელი",
+        "winRateContext": "მოგებები ყველა დახურულ ლიდსა და შესაძლებლობაზე",
+        "expectedTotal": "მოსალოდნელი შემოსავალი",
+        "expectedTotalContext": "{deals} დაგეგმილ გარიგებაზე",
+        "pipelineByStage": "მილსადენი ეტაპების მიხედვით",
+        "pipelineByStageHint": "ღია ლიდები და შესაძლებლობები ეტაპების მიხედვით, გარიგების სრული ღირებულებით.",
+        "pipelineEmpty": "მილსადენში ჯერ ღია ლიდი ან შესაძლებლობა არ არის.",
+        "kindLead": "ლიდი",
+        "kindOpportunity": "შესაძლებლობა",
+        "stageItems": "{count, plural, one {# ერთეული} other {# ერთეული}}",
+        "revenueForecast": "შემოსავლის პროგნოზი",
+        "revenueForecastHint": "მოსალოდნელი (ალბათობით შეწონილი) და პოტენციური შემოსავალი დახურვის თვის მიხედვით.",
+        "revenueEmpty": "პროგნოზისთვის ჯერ დაგეგმილი გარიგება არ არის.",
+        "barTitle": "{month}: {expected} მოსალოდნელი {potential}-დან",
+        "legendExpected": "მოსალოდნელი",
+        "legendPotential": "პოტენციური",
+        "unscheduled": "დახურვის თარიღის გარეშე",
+        "unscheduledValue": "{deals} გარიგება · {amount}",
+        "recentActivities": "ბოლო აქტივობები",
+        "recentActivitiesHint": "უახლესი შეხებები ლიდებსა და შესაძლებლობებზე.",
+        "recentEmpty": "აქტივობა ჯერ არ დაფიქსირებულა."
       }
     },
     "trainers": {
