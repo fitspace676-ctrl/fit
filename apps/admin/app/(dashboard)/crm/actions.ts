@@ -7,15 +7,19 @@ import {
   createCrmActivitySchema,
   createCrmTaskSchema,
   createLeadSchema,
+  createOpportunitySchema,
   markLostSchema,
   markWonSchema,
   roleHasPermission,
   updateCrmTaskSchema,
   updateLeadSchema,
+  updateOpportunitySchema,
   type CreateCrmActivityInput,
   type CreateCrmTaskInput,
   type CreateLeadInput,
+  type CreateOpportunityInput,
   type UpdateLeadInput,
+  type UpdateOpportunityInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import {
@@ -24,10 +28,15 @@ import {
   createCrmActivity,
   createCrmTask,
   createLead,
+  createOpportunity,
   deleteLead,
+  deleteOpportunity,
   loseLead,
+  loseOpportunity,
   updateCrmTask,
   updateLead,
+  updateOpportunity,
+  winOpportunity,
 } from '@/lib/api';
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
@@ -52,6 +61,12 @@ function toMessage(error: unknown, t: Translator): string {
   if (error instanceof ApiError) {
     if (error.message === 'LEAD_NOT_FOUND') {
       return t('errors.leadNotFound');
+    }
+    if (error.message === 'OPPORTUNITY_NOT_FOUND') {
+      return t('errors.opportunityNotFound');
+    }
+    if (error.message === 'MEMBER_NOT_FOUND') {
+      return t('errors.memberNotFound');
     }
     if (error.message === 'CRM_ASSIGNEE_INVALID') {
       return t('errors.assigneeInvalid');
@@ -252,6 +267,203 @@ export async function toggleLeadTaskAction(
   try {
     await updateCrmTask(taskId, parsed.data);
     refreshLead(leadId);
+    return { ok: true, data: { id: taskId } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Opportunities (T12.4)
+// ---------------------------------------------------------------------------
+
+/** Refresh the CRM workspace and (when known) the opportunity's detail page. */
+function refreshOpportunity(id?: string): void {
+  revalidatePath('/crm');
+  if (id) {
+    revalidatePath(`/crm/opportunities/${id}`);
+  }
+}
+
+/**
+ * Open an opportunity on an existing member. Re-validates with the same Zod
+ * schema the API uses, enforces `CrmManage`, then refreshes the workspace.
+ * Returns the new opportunity's `id` so the form can navigate to its detail.
+ */
+export async function createOpportunityAction(
+  input: CreateOpportunityInput,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.crm');
+  if (!(await requireCrmManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = createOpportunitySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const opportunity = await createOpportunity(parsed.data);
+    refreshOpportunity(opportunity.id);
+    return { ok: true, data: { id: opportunity.id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Edit an opportunity — deal fields plus open-stage `status` moves (INTERESTED /
+ * PROPOSAL_SENT / DECISION_PENDING). Closing as WON / LOST goes through
+ * {@link winOpportunityAction} / {@link loseOpportunityAction} so the reason is
+ * always captured with the close.
+ */
+export async function updateOpportunityAction(
+  id: string,
+  input: UpdateOpportunityInput,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.crm');
+  if (!(await requireCrmManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = updateOpportunitySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    await updateOpportunity(id, parsed.data);
+    refreshOpportunity(id);
+    return { ok: true, data: { id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Close an opportunity WON, recording the (optional) win reason. */
+export async function winOpportunityAction(
+  id: string,
+  reason: string,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.crm');
+  if (!(await requireCrmManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = markWonSchema.safeParse({ reason });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    await winOpportunity(id, parsed.data);
+    refreshOpportunity(id);
+    return { ok: true, data: { id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Close an opportunity LOST, recording the required loss reason. */
+export async function loseOpportunityAction(
+  id: string,
+  reason: string,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.crm');
+  if (!(await requireCrmManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = markLostSchema.safeParse({ reason });
+  if (!parsed.success) {
+    return { ok: false, error: t('dialogs.lostReasonRequired') };
+  }
+  try {
+    await loseOpportunity(id, parsed.data);
+    refreshOpportunity(id);
+    return { ok: true, data: { id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Delete an opportunity (its activities and tasks cascade with it). */
+export async function deleteOpportunityAction(id: string): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.crm');
+  if (!(await requireCrmManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  try {
+    await deleteOpportunity(id);
+    refreshOpportunity();
+    return { ok: true, data: { id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Log a touchpoint (call / email / WhatsApp / meeting / note) on an
+ * opportunity's timeline. The acting staff member is resolved from the session
+ * API-side.
+ */
+export async function logOpportunityActivityAction(
+  opportunityId: string,
+  input: Omit<CreateCrmActivityInput, 'leadId' | 'opportunityId'>,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.crm');
+  if (!(await requireCrmManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = createCrmActivitySchema.safeParse({ ...input, opportunityId });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const { activity } = await createCrmActivity(parsed.data);
+    refreshOpportunity(opportunityId);
+    return { ok: true, data: { id: activity.id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Add a follow-up task to an opportunity. */
+export async function createOpportunityTaskAction(
+  opportunityId: string,
+  input: Omit<CreateCrmTaskInput, 'leadId' | 'opportunityId'>,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.crm');
+  if (!(await requireCrmManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = createCrmTaskSchema.safeParse({ ...input, opportunityId });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const { task } = await createCrmTask(parsed.data);
+    refreshOpportunity(opportunityId);
+    return { ok: true, data: { id: task.id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Toggle an opportunity task between pending and completed. Completing it
+ * auto-logs a `TASK_COMPLETED` activity on the opportunity's timeline API-side.
+ */
+export async function toggleOpportunityTaskAction(
+  opportunityId: string,
+  taskId: string,
+  completed: boolean,
+): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.crm');
+  if (!(await requireCrmManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = updateCrmTaskSchema.safeParse({ completed });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    await updateCrmTask(taskId, parsed.data);
+    refreshOpportunity(opportunityId);
     return { ok: true, data: { id: taskId } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };

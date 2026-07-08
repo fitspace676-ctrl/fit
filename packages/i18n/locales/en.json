@@ -2052,10 +2052,7 @@
       "shell": {
         "title": "CRM",
         "subtitle": "Leads, opportunities, and the revenue pipeline.",
-        "tablistLabel": "CRM sections",
-        "opportunitiesComingSoonTitle": "Opportunities are on the way",
-        "forecastComingSoonTitle": "The revenue forecast is on the way",
-        "comingSoonHint": "This tab arrives with the next CRM release. The Leads tab is fully live."
+        "tablistLabel": "CRM sections"
       },
       "shellTabs": {
         "leads": "Leads",
@@ -2258,7 +2255,129 @@
         "leadNotFound": "That lead no longer exists.",
         "taskNotFound": "That task no longer exists.",
         "assigneeInvalid": "The assigned staff member isn't part of this gym.",
-        "locationInvalid": "That location doesn't belong to this gym."
+        "locationInvalid": "That location doesn't belong to this gym.",
+        "opportunityNotFound": "That opportunity no longer exists.",
+        "memberNotFound": "That member isn't part of this gym.",
+        "loadOpportunity": "Could not load this opportunity ({status}): {message}",
+        "loadOpportunities": "Could not load opportunities ({status}): {message}",
+        "loadForecast": "Could not load the forecast ({status}): {message}"
+      },
+      "opportunityStatus": {
+        "INTERESTED": "Interested",
+        "PROPOSAL_SENT": "Proposal sent",
+        "DECISION_PENDING": "Decision pending",
+        "WON": "Won",
+        "LOST": "Lost"
+      },
+      "opportunityType": {
+        "MEMBERSHIP_UPGRADE": "Membership upgrade",
+        "PT_SESSIONS": "PT sessions",
+        "SERVICE_PACKAGE": "Service package",
+        "OTHER": "Other"
+      },
+      "opportunityColumns": {
+        "member": "Member",
+        "type": "Type",
+        "status": "Status",
+        "assignedTo": "Assigned to",
+        "expectedClose": "Expected close",
+        "probability": "Probability",
+        "value": "Value"
+      },
+      "opportunityFilters": {
+        "searchLabel": "Search opportunities by member or description",
+        "searchPlaceholder": "Search opportunities…",
+        "typeLabel": "Type",
+        "allTypes": "All types"
+      },
+      "opportunityList": {
+        "tablistLabel": "Opportunities",
+        "add": "Add opportunity",
+        "deleted": "Opportunity deleted",
+        "weighted": "{amount} weighted",
+        "markWon": "Mark {name}'s opportunity as won",
+        "markLost": "Mark {name}'s opportunity as lost",
+        "edit": "Edit {name}'s opportunity",
+        "delete": "Delete {name}'s opportunity",
+        "deleteTitle": "Delete this opportunity?",
+        "deleteMessage": "This permanently removes {name}'s opportunity along with its activity history and tasks.",
+        "emptyTitle": "No opportunities match",
+        "emptyHintWrite": "Adjust the filters, or open a new opportunity on an existing member.",
+        "emptyHintRead": "Adjust the filters or search to find the opportunity you're looking for."
+      },
+      "opportunityForm": {
+        "addTitle": "Add new opportunity",
+        "addDescription": "Open an upsell opportunity on an existing member.",
+        "editTitle": "Edit opportunity",
+        "editDescription": "Update the deal details and pipeline stage.",
+        "member": "Member",
+        "memberHint": "The member this deal is for.",
+        "memberSearchPlaceholder": "Search members by name…",
+        "noMembers": "No members are available to select.",
+        "noMemberMatch": "No members match your search.",
+        "changeMember": "Change",
+        "type": "Type",
+        "assignedTo": "Assign to",
+        "description": "Description",
+        "descriptionHint": "What is being sold.",
+        "descriptionPlaceholder": "e.g. 5 PT sessions upgrade",
+        "stage": "Stage",
+        "stageHint": "Open stages only — close the opportunity with Mark won / Mark lost.",
+        "value": "Value (₾)",
+        "probability": "Probability (%)",
+        "expectedCloseDate": "Expected close date",
+        "addSubmit": "Add opportunity",
+        "editSubmit": "Save changes",
+        "created": "Opportunity added",
+        "updated": "Opportunity updated"
+      },
+      "opportunityDialogs": {
+        "wonTitle": "Mark opportunity as won",
+        "wonDescription": "Why did {name}'s deal close? This helps you understand what works.",
+        "wonSubmit": "Mark as won",
+        "wonDone": "Opportunity marked as won",
+        "lostTitle": "Mark opportunity as lost",
+        "lostDescription": "Select the reason {name}'s deal was lost.",
+        "lostSubmit": "Mark as lost",
+        "lostDone": "Opportunity marked as lost"
+      },
+      "opportunityDetail": {
+        "cardsLabel": "Opportunity summary",
+        "information": "Opportunity information",
+        "dealValue": "Deal value",
+        "totalValue": "Total value",
+        "weightedValue": "Weighted value",
+        "timeline": "Timeline",
+        "noNotes": "No notes were captured on this opportunity.",
+        "addNotePlaceholder": "Write a note about this opportunity…",
+        "activityTimelineHint": "All touchpoints and updates for this opportunity, newest first."
+      },
+      "forecast": {
+        "pipelineValue": "Open pipeline",
+        "openDealsContext": "{leads} open leads · {opportunities} open opportunities",
+        "weightedValue": "Weighted pipeline",
+        "weightedContext": "Probability-weighted across every open deal",
+        "winRate": "Win rate",
+        "winRateContext": "Wins over all closed leads + opportunities",
+        "expectedTotal": "Expected revenue",
+        "expectedTotalContext": "Across {deals} scheduled deals",
+        "pipelineByStage": "Pipeline by stage",
+        "pipelineByStageHint": "Open leads and opportunities by stage, with total deal value.",
+        "pipelineEmpty": "No open leads or opportunities in the pipeline yet.",
+        "kindLead": "Lead",
+        "kindOpportunity": "Opportunity",
+        "stageItems": "{count, plural, one {# item} other {# items}}",
+        "revenueForecast": "Revenue forecast",
+        "revenueForecastHint": "Expected (probability-weighted) vs potential revenue by expected close month.",
+        "revenueEmpty": "No scheduled deals to forecast yet.",
+        "barTitle": "{month}: {expected} expected of {potential} potential",
+        "legendExpected": "Expected",
+        "legendPotential": "Potential",
+        "unscheduled": "No close date",
+        "unscheduledValue": "{deals} deals · {amount}",
+        "recentActivities": "Recent activities",
+        "recentActivitiesHint": "The newest touchpoints across leads and opportunities.",
+        "recentEmpty": "No activity logged yet."
       }
     },
     "trainers": {

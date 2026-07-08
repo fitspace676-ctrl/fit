@@ -138,6 +138,14 @@ import type {
   CreateCrmTaskInput,
   UpdateCrmTaskInput,
   CrmTaskResponse,
+  ListOpportunitiesQuery,
+  ListOpportunitiesResponse,
+  GetOpportunityResponse,
+  CreateOpportunityInput,
+  UpdateOpportunityInput,
+  CrmPipelineResponse,
+  CrmForecastResponse,
+  RecentCrmActivitiesResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -1715,4 +1723,133 @@ export async function deleteCrmTask(id: string): Promise<void> {
   if (!res.ok) {
     await unwrap<never>(res);
   }
+}
+
+// ── CRM — opportunities, pipeline, forecast (T12.4) ───────────────────────────
+
+/** Serialise an opportunities-list query, dropping empty values (same contract as leads). */
+export function opportunitiesQueryString(query: Partial<ListOpportunitiesQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /crm/opportunities` — one filtered, server-paginated page plus per-status counts. */
+export async function fetchOpportunities(
+  query: Partial<ListOpportunitiesQuery> = {},
+): Promise<ListOpportunitiesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/opportunities${opportunitiesQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListOpportunitiesResponse>(res);
+}
+
+/** `GET /crm/opportunities/:id` — one opportunity's detail (row + timeline + tasks). */
+export async function fetchOpportunity(id: string): Promise<GetOpportunityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetOpportunityResponse>(res);
+}
+
+/** `POST /crm/opportunities` — open an opportunity; returns the new opportunity's detail. */
+export async function createOpportunity(
+  input: CreateOpportunityInput,
+): Promise<GetOpportunityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/opportunities`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetOpportunityResponse>(res);
+}
+
+/** `PATCH /crm/opportunities/:id` — edit an opportunity (open-stage `status` moves only). */
+export async function updateOpportunity(
+  id: string,
+  input: UpdateOpportunityInput,
+): Promise<GetOpportunityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetOpportunityResponse>(res);
+}
+
+/** `POST /crm/opportunities/:id/won` — close the opportunity WON, recording the win reason. */
+export async function winOpportunity(
+  id: string,
+  input: MarkWonInput,
+): Promise<GetOpportunityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}/won`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetOpportunityResponse>(res);
+}
+
+/** `POST /crm/opportunities/:id/lost` — close the opportunity LOST, recording the required reason. */
+export async function loseOpportunity(
+  id: string,
+  input: MarkLostInput,
+): Promise<GetOpportunityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}/lost`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetOpportunityResponse>(res);
+}
+
+/** `DELETE /crm/opportunities/:id` — remove an opportunity (its activities/tasks cascade). */
+export async function deleteOpportunity(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
+/** `GET /crm/pipeline` — the combined funnel: per-stage count/value/weighted + totals. */
+export async function fetchCrmPipeline(): Promise<CrmPipelineResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/pipeline`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<CrmPipelineResponse>(res);
+}
+
+/** `GET /crm/forecast` — expected/potential revenue of open deals, by expected-close month. */
+export async function fetchCrmForecast(): Promise<CrmForecastResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/forecast`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<CrmForecastResponse>(res);
+}
+
+/** `GET /crm/activities/recent` — the gym's newest touchpoints across leads + opportunities. */
+export async function fetchRecentCrmActivities(limit = 20): Promise<RecentCrmActivitiesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/crm/activities/recent?limit=${limit}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<RecentCrmActivitiesResponse>(res);
 }

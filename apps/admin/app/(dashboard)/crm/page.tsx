@@ -5,11 +5,23 @@ import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
   listLeadsQuerySchema,
+  listOpportunitiesQuerySchema,
   roleHasPermission,
   type ListLeadsQuery,
+  type ListOpportunitiesQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchLeads, fetchLocations, fetchStaff } from '@/lib/api';
+import {
+  ApiError,
+  fetchCrmForecast,
+  fetchCrmPipeline,
+  fetchLeads,
+  fetchLocations,
+  fetchMembers,
+  fetchOpportunities,
+  fetchRecentCrmActivities,
+  fetchStaff,
+} from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -19,6 +31,8 @@ import { Text } from '@astryxdesign/core/Text';
 import { Icon } from '@/components/ui';
 import { CrmTabs, type CrmTab } from './crm-tabs';
 import { LeadsView, type SelectOption } from './leads-view';
+import { OpportunitiesView } from './opportunities-view';
+import { ForecastView } from './forecast-view';
 
 export const metadata: Metadata = {
   title: 'CRM — Fit Admin',
@@ -56,40 +70,6 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-error)',
   },
-  comingSoonCard: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '0.75rem',
-    paddingBlock: '3rem',
-    paddingInline: '1.5rem',
-    textAlign: 'center',
-  },
-  comingSoonIcon: {
-    display: 'grid',
-    height: '3rem',
-    width: '3rem',
-    placeItems: 'center',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent-muted)',
-    color: 'var(--color-text-accent)',
-  },
-  comingSoonIconSvg: {
-    width: '1.5rem',
-    height: '1.5rem',
-  },
-  comingSoonTitle: {
-    margin: 0,
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    color: 'var(--color-text-primary)',
-  },
-  comingSoonHint: {
-    margin: 0,
-    maxWidth: '26rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
 });
 
 /** Next 15 hands `searchParams` as a promise of raw (string | string[]) values. */
@@ -101,14 +81,14 @@ function resolveTab(raw: SearchParams): CrmTab {
 }
 
 /**
- * The CRM workspace (T12.3) on Astryx + brand-tokened StyleX: a Leads |
- * Opportunities | Forecast shell where this task delivers the Leads tab — a
- * filtered, server-paginated roster of `GET /crm/leads` with status chips fed
- * by the gym-wide per-status counts, add/edit forms and the won/lost close
- * dialogs. Opportunities + Forecast land with T12.4 and render an honest
- * placeholder until then. URL search params are the single source of truth:
- * the client table writes `?tab=&search=&status=&source=…` and this server
- * page re-renders.
+ * The CRM workspace on Astryx + brand-tokened StyleX: a Leads | Opportunities |
+ * Forecast shell. Leads (T12.3) and Opportunities (T12.4) are filtered,
+ * server-paginated rosters of `GET /crm/leads` / `GET /crm/opportunities` with
+ * status chips fed by gym-wide per-status counts, add/edit forms and the
+ * won/lost close dialogs; Forecast (T12.4) renders the pipeline funnel, revenue
+ * forecast and recent-activity aggregations. URL search params are the single
+ * source of truth: the client tables write `?tab=&search=&status=…` and this
+ * server page re-renders.
  */
 export default async function CrmPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const t = await getTranslations('admin.crm');
@@ -185,20 +165,94 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
         </Card>
       );
     }
+  } else if (tab === 'opportunities') {
+    // The same schema the API validates with — coerces page/limit, applies
+    // defaults, and drops anything malformed (incl. the `tab` param).
+    const parsed = listOpportunitiesQuerySchema.safeParse(raw);
+    const query: ListOpportunitiesQuery = parsed.success
+      ? parsed.data
+      : listOpportunitiesQuerySchema.parse({});
+
+    // The Add-Opportunity form needs a member picker + a staff selector; each
+    // sits behind its own permission, is fetched only when the role holds it,
+    // and degrades to an empty list on any failure. Both are only needed by the
+    // write UI, so they are fetched only for `CrmManage` roles.
+    const canListStaff = role !== null && roleHasPermission(role, Permission.StaffManage);
+    const canListMembers = role !== null && roleHasPermission(role, Permission.MemberRead);
+    const [staffOptions, memberOptions] = await Promise.all([
+      canManage && canListStaff
+        ? fetchStaff()
+            .then((r) =>
+              r.staff.map((s): SelectOption => ({ id: s.userId, name: s.name || s.email })),
+            )
+            .catch(() => [] as SelectOption[])
+        : ([] as SelectOption[]),
+      canManage && canListMembers
+        ? fetchMembers({ limit: 100, sort: 'name', dir: 'asc' })
+            .then((r) => r.data.map((m): SelectOption => ({ id: m.id, name: m.name })))
+            .catch(() => [] as SelectOption[])
+        : ([] as SelectOption[]),
+    ]);
+
+    try {
+      const result = await fetchOpportunities(query);
+      content = (
+        <OpportunitiesView
+          opportunities={result.data}
+          total={result.total}
+          page={result.page}
+          limit={result.limit}
+          counts={result.counts}
+          sort={query.sort}
+          dir={query.dir}
+          search={query.search ?? ''}
+          status={query.status ?? ''}
+          type={query.type ?? ''}
+          assignedToId={query.assignedToId ?? ''}
+          memberOptions={memberOptions}
+          staffOptions={staffOptions}
+          canManage={canManage}
+        />
+      );
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? t('errors.loadOpportunities', { status: error.status, message: error.message })
+          : t('errors.apiUnreachable');
+      content = (
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
+            {message}
+          </p>
+        </Card>
+      );
+    }
   } else {
-    // Opportunities + Forecast are T12.4 — an honest placeholder, not a stub UI.
-    content = (
-      <Card variant="default" padding={0} xstyle={styles.comingSoonCard}>
-        <span {...stylex.props(styles.comingSoonIcon)}>
-          <Icon
-            name={tab === 'forecast' ? 'chart' : 'target'}
-            {...stylex.props(styles.comingSoonIconSvg)}
-          />
-        </span>
-        <p {...stylex.props(styles.comingSoonTitle)}>{t(`shell.${tab}ComingSoonTitle`)}</p>
-        <p {...stylex.props(styles.comingSoonHint)}>{t('shell.comingSoonHint')}</p>
-      </Card>
-    );
+    // Forecast tab — the pipeline funnel, revenue forecast and recent-activity
+    // aggregations. A failure of any of the three endpoints degrades the whole
+    // tab to an honest error card rather than a partial dashboard.
+    try {
+      const [pipeline, forecast, recent] = await Promise.all([
+        fetchCrmPipeline(),
+        fetchCrmForecast(),
+        fetchRecentCrmActivities(12),
+      ]);
+      content = <ForecastView pipeline={pipeline} forecast={forecast} recent={recent} />;
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? t('errors.loadForecast', { status: error.status, message: error.message })
+          : t('errors.apiUnreachable');
+      content = (
+        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <p role="alert" {...stylex.props(styles.errorText)}>
+            {message}
+          </p>
+        </Card>
+      );
+    }
   }
 
   return (
