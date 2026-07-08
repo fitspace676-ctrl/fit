@@ -12,6 +12,7 @@ import { CartModule } from './cart/cart.module';
 import { CartIdentityMiddleware } from './cart/cart-identity.middleware';
 import { CheckInModule } from './check-in/check-in.module';
 import { ClassesModule } from './classes/classes.module';
+import { CrmModule } from './crm/crm.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { GymsModule } from './gyms/gyms.module';
 import { HealthModule } from './health/health.module';
@@ -74,6 +75,10 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  * - {@link CheckInModule} serves the staff console's tenant-scoped reception
  *   (`/admin/check-ins` — record arrivals, today's live feed, KPI stats, and
  *   per-member eligibility; `MemberRead` / `MemberWrite`).
+ * - {@link CrmModule} serves the staff console's tenant-scoped CRM (T12.2)
+ *   (`/crm` — leads, upsell opportunities, activity timelines, follow-up
+ *   tasks, and the pipeline / revenue-forecast aggregations; `CrmRead` /
+ *   `CrmManage`).
  * - {@link AnalyticsModule} serves the staff console's tenant-scoped analytics
  *   (`/admin/analytics?range=` — range-windowed revenue/attendance/churn KPIs,
  *   revenue series, channel/plan mix, top classes; `ReportView`).
@@ -158,6 +163,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     AuditModule,
     DashboardModule,
     CheckInModule,
+    CrmModule,
     AnalyticsModule,
     ReportsModule,
     OpsModule,

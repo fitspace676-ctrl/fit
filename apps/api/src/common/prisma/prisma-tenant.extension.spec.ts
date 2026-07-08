@@ -170,5 +170,12 @@ describe('tenantExtension (load-bearing isolation)', () => {
     // can never read or write another gym's plans or memberships.
     expect(TENANT_SCOPED_MODELS.has('SubscriptionPlan')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('Subscription')).toBe(true);
+    // The CRM models carry a gymId (T12.2) and must be scoped so one gym's
+    // sales pipeline — leads, upsell opportunities, and their timelines — is
+    // never readable or writable from another gym's console.
+    expect(TENANT_SCOPED_MODELS.has('Lead')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('Opportunity')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('CrmActivity')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('CrmTask')).toBe(true);
   });
 });
