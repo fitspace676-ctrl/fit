@@ -2062,6 +2062,12 @@
         "opportunities": "შესაძლებლობები",
         "forecast": "პროგნოზი"
       },
+      "leadTabs": {
+        "overview": "მიმოხილვა",
+        "activity": "აქტივობა",
+        "notes": "ჩანაწერები",
+        "tasks": "დავალებები"
+      },
       "tabs": {
         "all": "ყველა"
       },

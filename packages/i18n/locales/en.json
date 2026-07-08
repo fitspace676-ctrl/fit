@@ -2062,6 +2062,12 @@
         "opportunities": "Opportunities",
         "forecast": "Forecast"
       },
+      "leadTabs": {
+        "overview": "Overview",
+        "activity": "Activity",
+        "notes": "Notes",
+        "tasks": "Tasks"
+      },
       "tabs": {
         "all": "All"
       },
