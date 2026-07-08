@@ -104,6 +104,7 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/(dashboard)/products`                     | T11.22 | ✅     |
 | `apps/admin/app/(dashboard)/reports`                      | T11.22 | ✅     |
 | `apps/admin/components/pos`                               | T11.22 | ✅     |
+| `apps/admin/app/(dashboard)/crm`                          | T12.3  | ✅     |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
