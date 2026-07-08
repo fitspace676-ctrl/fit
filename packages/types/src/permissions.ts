@@ -75,6 +75,22 @@ export enum Permission {
   WorkoutWrite = 'workout:write',
   /** View analytics and reports. */
   ReportView = 'report:view',
+  /** View CRM leads, opportunities, activities, and the pipeline. */
+  CrmRead = 'crm:read',
+  /** Create, update, or remove CRM leads, opportunities, and activities. */
+  CrmManage = 'crm:manage',
+  /** View automation rules and their run history. */
+  AutomationRead = 'automation:read',
+  /** Create, update, toggle, or remove automation rules. */
+  AutomationManage = 'automation:manage',
+  /** View marketing campaigns, promo codes, segments, and templates. */
+  MarketingRead = 'marketing:read',
+  /** Create, update, send, or remove marketing campaigns and promo codes. */
+  MarketingManage = 'marketing:manage',
+  /** View the loyalty program config, points ledger, rewards, and redemptions. */
+  LoyaltyRead = 'loyalty:read',
+  /** Configure the loyalty program and manage rewards and redemptions. */
+  LoyaltyManage = 'loyalty:manage',
   /** View the gym's audit log of privileged actions. */
   AuditRead = 'audit:read',
   /** Read and edit one's own profile (self-service; held by every gym member). */
@@ -118,6 +134,14 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
     Permission.ReportView,
+    Permission.CrmRead,
+    Permission.CrmManage,
+    Permission.AutomationRead,
+    Permission.AutomationManage,
+    Permission.MarketingRead,
+    Permission.MarketingManage,
+    Permission.LoyaltyRead,
+    Permission.LoyaltyManage,
     Permission.AuditRead,
     Permission.ProfileManage,
   ],
@@ -141,6 +165,14 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
     Permission.ReportView,
+    Permission.CrmRead,
+    Permission.CrmManage,
+    Permission.AutomationRead,
+    Permission.AutomationManage,
+    Permission.MarketingRead,
+    Permission.MarketingManage,
+    Permission.LoyaltyRead,
+    Permission.LoyaltyManage,
     Permission.AuditRead,
     Permission.ProfileManage,
   ],
@@ -153,6 +185,10 @@ export const ROLE_PERMISSIONS = {
     Permission.PackageRead,
     Permission.ClassRead,
     Permission.BillingRead,
+    // Front-desk staff work leads and redeem loyalty points, but never
+    // configure campaigns, automations, or the program itself.
+    Permission.CrmRead,
+    Permission.LoyaltyRead,
     Permission.ProfileManage,
   ],
   TRAINER: [

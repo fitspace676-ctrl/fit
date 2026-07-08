@@ -43,6 +43,7 @@ const NAV_GROUPS = [
   { labelKey: 'navGroups.people', hrefs: ['/members', '/trainers', '/staff'] },
   { labelKey: 'navGroups.operations', hrefs: ['/schedule', '/check-in', '/locations'] },
   { labelKey: 'navGroups.commerce', hrefs: ['/pos', '/products', '/orders', '/subscriptions'] },
+  { labelKey: 'navGroups.growth', hrefs: ['/crm', '/automation', '/marketing', '/loyalty'] },
   { labelKey: 'navGroups.insights', hrefs: ['/analytics', '/reports', '/activity'] },
   { labelKey: 'navGroups.system', hrefs: ['/settings'] },
 ] as const;
