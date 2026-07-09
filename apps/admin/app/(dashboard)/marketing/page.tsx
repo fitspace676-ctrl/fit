@@ -15,6 +15,7 @@ import {
   fetchMarketingCatalog,
   fetchMarketingSegments,
   fetchMessageTemplates,
+  fetchPromoCodes,
 } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
@@ -26,6 +27,8 @@ import { Icon } from '@/components/ui';
 import { MarketingTabs, type MarketingTab } from './marketing-tabs';
 import { CampaignsView } from './campaigns-view';
 import { TemplatesView } from './templates-view';
+import { PromoCodesView } from './promo-codes-view';
+import { AudienceView } from './audience-view';
 
 export const metadata: Metadata = {
   title: 'Marketing — Fit Admin',
@@ -57,36 +60,6 @@ const styles = stylex.create({
     color: 'var(--color-error)',
   },
   errorText: { margin: 0, fontSize: '0.875rem', color: 'var(--color-error)' },
-  placeholder: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '0.75rem',
-    textAlign: 'center',
-    paddingBlock: '3rem',
-  },
-  placeholderIcon: {
-    display: 'grid',
-    height: '3rem',
-    width: '3rem',
-    placeItems: 'center',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent-muted)',
-    color: 'var(--color-text-accent)',
-  },
-  placeholderIconSvg: { width: '1.5rem', height: '1.5rem' },
-  placeholderTitle: {
-    margin: 0,
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: 'var(--color-text-primary)',
-  },
-  placeholderHint: {
-    margin: 0,
-    maxWidth: '24rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
 });
 
 /** Next 15 hands `searchParams` as a promise of raw (string | string[]) values. */
@@ -103,13 +76,15 @@ function resolveTab(raw: SearchParams): MarketingTab {
 
 /**
  * The Marketing workspace on Astryx + brand-tokened StyleX: a Campaigns | Promo
- * Codes | Audience | Templates shell. This task (T12.8) delivers Campaigns — a
- * filtered, server-paginated roster of `GET /marketing/campaigns` with the
- * four-step create wizard (type → audience → content → schedule), duplicate,
- * save-as-template and delete — and Templates — the message-template gallery with
- * CRUD and "use in campaign". Promo Codes + Audience arrive in T12.9. URL search
- * params are the single source of truth: the client writes `?tab=&status=&…` and
- * this server page re-renders.
+ * Codes | Audience | Templates shell. Campaigns (T12.8) is a filtered,
+ * server-paginated roster of `GET /marketing/campaigns` with the four-step create
+ * wizard (type → audience → content → schedule), duplicate, save-as-template and
+ * delete; Templates (T12.8) is the message-template gallery with CRUD and "use in
+ * campaign". Promo Codes (T12.9) is the discount-code roster with CRUD + an
+ * active/inactive toggle, and Audience (T12.9) is the segment builder with a live
+ * matching-members preview and saved-segment management. URL search params are the
+ * single source of truth: the client writes `?tab=&status=&…` and this server page
+ * re-renders.
  */
 export default async function MarketingPage({
   searchParams,
@@ -141,20 +116,20 @@ export default async function MarketingPage({
       : t('errors.apiUnreachable');
 
   let content;
-  if (tab === 'promo' || tab === 'audience') {
-    // Delivered by T12.9 — the shell tab is present but its surface is not yet built.
-    content = (
-      <div {...stylex.props(styles.placeholder)}>
-        <span {...stylex.props(styles.placeholderIcon)}>
-          <Icon
-            name={tab === 'promo' ? 'ticket' : 'target'}
-            {...stylex.props(styles.placeholderIconSvg)}
-          />
-        </span>
-        <p {...stylex.props(styles.placeholderTitle)}>{t(`comingSoon.${tab}Title`)}</p>
-        <p {...stylex.props(styles.placeholderHint)}>{t(`comingSoon.${tab}Hint`)}</p>
-      </div>
-    );
+  if (tab === 'promo') {
+    try {
+      const promoCodes = await fetchPromoCodes();
+      content = <PromoCodesView promoCodes={promoCodes.data} canManage={canManage} />;
+    } catch (error) {
+      content = errorCard(loadError(error));
+    }
+  } else if (tab === 'audience') {
+    try {
+      const segments = await fetchMarketingSegments();
+      content = <AudienceView segments={segments.data} canManage={canManage} />;
+    } catch (error) {
+      content = errorCard(loadError(error));
+    }
   } else if (tab === 'templates') {
     try {
       const [templates, catalog, segments] = await Promise.all([
