@@ -3051,6 +3051,200 @@
         "loadTemplates": "შაბლონები ვერ ჩაიტვირთა ({status}): {message}",
         "apiUnreachable": "API მიუწვდომელია. სცადეთ ცოტა ხანში."
       }
+    },
+    "marketing": {
+      "breadcrumb": {
+        "label": "ნავიგაცია",
+        "marketing": "მარკეტინგი"
+      },
+      "shell": {
+        "title": "მარკეტინგი",
+        "subtitle": "დაუკავშირდით წევრებს კამპანიების, პრომო-კოდების, აუდიტორიის სეგმენტებისა და შაბლონების საშუალებით.",
+        "tablistLabel": "მარკეტინგის სექციები"
+      },
+      "shellTabs": {
+        "campaigns": "კამპანიები",
+        "promo": "პრომო-კოდები",
+        "audience": "აუდიტორია",
+        "templates": "შაბლონები"
+      },
+      "channels": {
+        "email": "ელფოსტა",
+        "sms": "SMS",
+        "push": "Push-შეტყობინება"
+      },
+      "channelHint": {
+        "email": "სრული შინაარსის ელფოსტა",
+        "sms": "ტექსტური შეტყობინებები (160 სიმბოლო)",
+        "push": "მობილური შეტყობინებები (100 სიმბოლო)"
+      },
+      "memberStatus": {
+        "ACTIVE": "აქტიური",
+        "INVITED": "მოწვეული",
+        "SUSPENDED": "შეჩერებული"
+      },
+      "status": {
+        "draft": "მონახაზი",
+        "scheduled": "დაგეგმილი",
+        "sent": "გაგზავნილი",
+        "paused": "შეჩერებული",
+        "active": "აქტიური"
+      },
+      "columns": {
+        "campaign": "კამპანია",
+        "channel": "არხი",
+        "audience": "აუდიტორია",
+        "status": "სტატუსი",
+        "when": "გაგზავნა / დაგეგმვა",
+        "created": "შექმნილია"
+      },
+      "list": {
+        "caption": "კამპანიები",
+        "statusFilterLabel": "კამპანიების ფილტრი სტატუსით",
+        "statusAll": "ყველა",
+        "searchPlaceholder": "კამპანიების ძებნა…",
+        "searchLabel": "კამპანიების ძებნა",
+        "channelFilterLabel": "კამპანიების ფილტრი არხით",
+        "channelAll": "ყველა არხი",
+        "newCampaign": "ახალი კამპანია",
+        "showing": "ნაჩვენებია {from}–{to} / {total}",
+        "previous": "წინა",
+        "next": "შემდეგი",
+        "edit": "რედაქტირება",
+        "editCampaign": "{name}-ის რედაქტირება",
+        "duplicate": "დუბლირება",
+        "duplicateCampaign": "{name}-ის დუბლირება",
+        "duplicated": "კამპანია დუბლირდა.",
+        "saveAsTemplate": "შაბლონად შენახვა",
+        "saveTemplateFor": "{name}-ის შაბლონად შენახვა",
+        "saveTemplateTitle": "შაბლონად შენახვა",
+        "saveTemplateDescription": "შეინახეთ ამ კამპანიის შეტყობინება მრავალჯერადი გამოყენების შაბლონად.",
+        "templateNameLabel": "შაბლონის სახელი",
+        "delete": "წაშლა",
+        "deleteCampaign": "{name}-ის წაშლა",
+        "deleteTitle": "კამპანიის წაშლა",
+        "deleteMessage": "წავშალოთ „{name}“? კამპანია სამუდამოდ წაიშლება.",
+        "deleted": "კამპანია წაიშალა.",
+        "copyName": "{name} (ასლი)",
+        "emptyTitle": "კამპანიები ჯერ არ არის",
+        "emptyHintWrite": "შექმენით კამპანია, რომ დაუკავშირდეთ წევრებს ელფოსტით, SMS-ით ან Push-შეტყობინებით.",
+        "emptyHintRead": "საჩვენებელი კამპანიები არ არის."
+      },
+      "wizard": {
+        "title": "კამპანიის შექმნა — ნაბიჯი {step} / {total}",
+        "stepDescription": {
+          "1": "დაასახელეთ კამპანია და აირჩიეთ არხი.",
+          "2": "აირჩიეთ ვინ მიიღებს ამ კამპანიას.",
+          "3": "დაწერეთ შეტყობინების შინაარსი.",
+          "4": "აირჩიეთ გაგზავნის დრო და გადახედეთ."
+        },
+        "nameLabel": "კამპანიის სახელი",
+        "namePlaceholder": "მაგ. საგაზაფხულო ფასდაკლების ანონსი",
+        "channelLabel": "არხი",
+        "cancel": "გაუქმება",
+        "back": "უკან",
+        "next": "შემდეგი",
+        "saving": "ინახება…",
+        "sendNow": "ახლავე გაგზავნა",
+        "schedule": "დაგეგმვა",
+        "saveAsTemplate": "შაბლონად შენახვა",
+        "sent": "კამპანია გაიგზავნა.",
+        "scheduled": "კამპანია დაიგეგმა."
+      },
+      "audience": {
+        "allTitle": "ყველა წევრი",
+        "allHint": "გაგზავნა მთელ აქტიურ ბაზაზე",
+        "segmentTitle": "შენახული სეგმენტი",
+        "segmentHint": "გამოიყენეთ წინასწარ აწყობილი სეგმენტი",
+        "noSegments": "შენახული სეგმენტები ჯერ არ არის. შექმენით აუდიტორიის ჩანართში.",
+        "customTitle": "მორგებული ფილტრები",
+        "customHint": "ააწყვეთ აუდიტორია წევრების ფილტრებით",
+        "statusLabel": "წევრობის სტატუსი",
+        "notVisitedLabel": "არ ესტუმრა (დღე)",
+        "visitedWithinLabel": "ესტუმრა ბოლო (დღე)",
+        "minClassLabel": "მინ. დასწრებული კლასები",
+        "minSpentLabel": "მინ. ჯამური ხარჯი",
+        "joinedAfterLabel": "გაწევრიანდა შემდეგ",
+        "joinedBeforeLabel": "გაწევრიანდა მდე",
+        "daysPlaceholder": "დღე",
+        "countPlaceholder": "რაოდენობა",
+        "amountPlaceholder": "თანხა",
+        "estimated": "სავარაუდო აუდიტორია",
+        "counting": "ითვლება…",
+        "memberCount": "{count} წევრი",
+        "refresh": "განახლება"
+      },
+      "content": {
+        "fromTemplate": "შაბლონიდან ჩასმა",
+        "fromTemplatePlaceholder": "აირჩიეთ შაბლონი…",
+        "subjectLabel": "თემა / სათაური",
+        "subjectPlaceholder": "შეიყვანეთ თემა",
+        "bodyLabel": "შეტყობინების შინაარსი",
+        "bodyPlaceholder": "დაწერეთ შეტყობინება…",
+        "mergeHint": "დააჭირეთ ცვლადის ჩასასმელად:"
+      },
+      "schedule": {
+        "nowTitle": "ახლავე გაგზავნა",
+        "nowHint": "დასრულებისთანავე დაუყოვნებლივ მიწოდება",
+        "laterTitle": "დაგეგმვა მოგვიანებით",
+        "laterHint": "აირჩიეთ გაგზავნის თარიღი და დრო",
+        "dateLabel": "თარიღი",
+        "timeLabel": "დრო",
+        "summaryTitle": "კამპანიის მიმოხილვა",
+        "summaryName": "სახელი",
+        "summaryChannel": "არხი",
+        "summaryAudience": "აუდიტორია",
+        "summarySubject": "თემა"
+      },
+      "templates": {
+        "heading": "შეტყობინების შაბლონები",
+        "subheading": "წინასწარ დაწერილი შაბლონები კამპანიების სწრაფად შესაქმნელად.",
+        "newTemplate": "ახალი შაბლონი",
+        "use": "კამპანიაში გამოყენება",
+        "edit": "რედაქტირება",
+        "editFor": "{name}-ის რედაქტირება",
+        "delete": "წაშლა",
+        "deleteFor": "{name}-ის წაშლა",
+        "addTitle": "შაბლონის შექმნა",
+        "editTitle": "შაბლონის რედაქტირება",
+        "addDescription": "შეინახეთ მრავალჯერადი შეტყობინება, რომელსაც ნებისმიერ კამპანიაში გამოიყენებთ.",
+        "editDescription": "განაახლეთ ეს შაბლონი.",
+        "addSubmit": "შაბლონის შექმნა",
+        "editSubmit": "ცვლილებების შენახვა",
+        "nameLabel": "შაბლონის სახელი",
+        "namePlaceholder": "მაგ. წევრობის განახლების შეხსენება",
+        "channelLabel": "არხი",
+        "categoryLabel": "კატეგორია",
+        "categoryHint": "არასავალდებულო ჯგუფის იარლიყი.",
+        "categoryPlaceholder": "მაგ. შენარჩუნება",
+        "created": "შაბლონი შეიქმნა.",
+        "updated": "შაბლონი განახლდა.",
+        "saved": "შაბლონად შენახულია.",
+        "deleted": "შაბლონი წაიშალა.",
+        "deleteTitle": "შაბლონის წაშლა",
+        "deleteMessage": "წავშალოთ „{name}“? მოქმედება შეუქცევადია.",
+        "emptyTitle": "შაბლონები ჯერ არ არის",
+        "emptyHintWrite": "შექმენით შაბლონი, რომ შეტყობინება კამპანიებში მრავალჯერ გამოიყენოთ.",
+        "emptyHintRead": "საჩვენებელი შაბლონები არ არის."
+      },
+      "comingSoon": {
+        "promoTitle": "პრომო-კოდები მალე დაემატება",
+        "promoHint": "აქ შეძლებთ ფასდაკლების კოდების შექმნასა და მართვას, როცა ეს სექცია ჩაირთვება.",
+        "audienceTitle": "აუდიტორიის კონსტრუქტორი მალე დაემატება",
+        "audienceHint": "აქ შეძლებთ წევრების სეგმენტების აწყობასა და შენახვას, როცა ეს სექცია ჩაირთვება."
+      },
+      "errors": {
+        "load": "მარკეტინგის ჩატვირთვა ვერ მოხერხდა (HTTP {status}: {message}).",
+        "apiUnreachable": "API მიუწვდომელია. შეამოწმეთ კავშირი და სცადეთ თავიდან.",
+        "requestFailed": "მოთხოვნა ვერ შესრულდა (HTTP {status}: {message}).",
+        "notAuthorized": "თქვენ არ გაქვთ მარკეტინგის მართვის უფლება.",
+        "invalidDetails": "ზოგიერთი მონაცემი არასწორია. გადახედეთ და სცადეთ თავიდან.",
+        "unexpected": "რაღაც შეცდომა მოხდა. სცადეთ თავიდან.",
+        "campaignNotFound": "ეს კამპანია აღარ არსებობს.",
+        "campaignAlreadySent": "ეს კამპანია უკვე გაგზავნილია და ვერ შეიცვლება.",
+        "templateNotFound": "ეს შაბლონი აღარ არსებობს.",
+        "segmentNotFound": "ეს სეგმენტი აღარ არსებობს."
+      }
     }
   }
 }
