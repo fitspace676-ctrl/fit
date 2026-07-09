@@ -154,6 +154,21 @@ import type {
   CreateAutomationRuleInput,
   UpdateAutomationRuleInput,
   SaveAsTemplateInput,
+  MarketingCatalogResponse,
+  ListAudienceSegmentsResponse,
+  AudiencePreviewResponse,
+  AudienceCriteria,
+  ListMessageTemplatesResponse,
+  MessageTemplateRow,
+  CreateMessageTemplateInput,
+  UpdateMessageTemplateInput,
+  ListCampaignsQuery,
+  ListCampaignsResponse,
+  GetCampaignResponse,
+  CreateCampaignInput,
+  UpdateCampaignInput,
+  ScheduleCampaignInput,
+  SaveCampaignAsTemplateInput,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -1967,6 +1982,201 @@ export async function saveAutomationRuleAsTemplate(
 /** `DELETE /automation/rules/:id` — delete a rule and its runs. */
 export async function deleteAutomationRule(id: string): Promise<void> {
   const res = await fetch(`${apiBaseUrl()}/automation/rules/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
+// ── Marketing — campaigns, templates, segments, catalog (T12.7 / T12.8) ────────
+
+/** Serialise a campaigns query, dropping empty values (same roster contract). */
+export function campaignsQueryString(query: Partial<ListCampaignsQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /marketing/catalog` — the channel + merge-field catalogs the composer renders. */
+export async function fetchMarketingCatalog(): Promise<MarketingCatalogResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/catalog`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<MarketingCatalogResponse>(res);
+}
+
+/** `GET /marketing/segments` — every saved audience segment, newest first. */
+export async function fetchMarketingSegments(): Promise<ListAudienceSegmentsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/segments`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAudienceSegmentsResponse>(res);
+}
+
+/** `POST /marketing/segments/preview` — resolve ad-hoc criteria to a count + sample. */
+export async function previewMarketingCriteria(
+  criteria: AudienceCriteria,
+): Promise<AudiencePreviewResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/segments/preview`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ criteria }),
+    cache: 'no-store',
+  });
+  return unwrap<AudiencePreviewResponse>(res);
+}
+
+/** `GET /marketing/segments/:id/preview` — resolve a saved segment to a count + sample. */
+export async function previewMarketingSegment(id: string): Promise<AudiencePreviewResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/segments/${encodeURIComponent(id)}/preview`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AudiencePreviewResponse>(res);
+}
+
+/** `GET /marketing/templates` — every message template, newest first. */
+export async function fetchMessageTemplates(): Promise<ListMessageTemplatesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/templates`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListMessageTemplatesResponse>(res);
+}
+
+/** `POST /marketing/templates` — create a message template; returns the row. */
+export async function createMessageTemplate(
+  input: CreateMessageTemplateInput,
+): Promise<MessageTemplateRow> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/templates`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<MessageTemplateRow>(res);
+}
+
+/** `PATCH /marketing/templates/:id` — edit a message template; returns the row. */
+export async function updateMessageTemplate(
+  id: string,
+  input: UpdateMessageTemplateInput,
+): Promise<MessageTemplateRow> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/templates/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<MessageTemplateRow>(res);
+}
+
+/** `DELETE /marketing/templates/:id` — delete a message template. */
+export async function deleteMessageTemplate(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/templates/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
+/** `GET /marketing/campaigns` — one filtered, server-paginated page of campaigns. */
+export async function fetchCampaigns(
+  query: Partial<ListCampaignsQuery> = {},
+): Promise<ListCampaignsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/campaigns${campaignsQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListCampaignsResponse>(res);
+}
+
+/** `POST /marketing/campaigns` — create a draft campaign; returns its detail. */
+export async function createCampaign(input: CreateCampaignInput): Promise<GetCampaignResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/campaigns`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetCampaignResponse>(res);
+}
+
+/** `PATCH /marketing/campaigns/:id` — edit a campaign (not once sent); returns detail. */
+export async function updateCampaign(
+  id: string,
+  input: UpdateCampaignInput,
+): Promise<GetCampaignResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/campaigns/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<GetCampaignResponse>(res);
+}
+
+/** `POST /marketing/campaigns/:id/send` — send now; returns the updated detail. */
+export async function sendCampaign(id: string): Promise<GetCampaignResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/campaigns/${encodeURIComponent(id)}/send`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetCampaignResponse>(res);
+}
+
+/** `POST /marketing/campaigns/:id/schedule` — schedule for a future `scheduledAt`. */
+export async function scheduleCampaign(
+  id: string,
+  input: ScheduleCampaignInput,
+): Promise<GetCampaignResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/marketing/campaigns/${encodeURIComponent(id)}/schedule`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<GetCampaignResponse>(res);
+}
+
+/** `POST /marketing/campaigns/:id/save-as-template` — save the message as a template. */
+export async function saveCampaignAsTemplate(
+  id: string,
+  input: SaveCampaignAsTemplateInput,
+): Promise<MessageTemplateRow> {
+  const res = await fetch(
+    `${apiBaseUrl()}/marketing/campaigns/${encodeURIComponent(id)}/save-as-template`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<MessageTemplateRow>(res);
+}
+
+/** `DELETE /marketing/campaigns/:id` — delete a campaign. */
+export async function deleteCampaign(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/campaigns/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: await authHeaders(),
     cache: 'no-store',

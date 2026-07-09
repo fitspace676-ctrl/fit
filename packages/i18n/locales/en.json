@@ -3051,6 +3051,200 @@
         "loadTemplates": "Couldn’t load templates ({status}): {message}",
         "apiUnreachable": "The API is unreachable. Please try again shortly."
       }
+    },
+    "marketing": {
+      "breadcrumb": {
+        "label": "Breadcrumb",
+        "marketing": "Marketing"
+      },
+      "shell": {
+        "title": "Marketing",
+        "subtitle": "Reach members with campaigns, promo codes, audience segments, and message templates.",
+        "tablistLabel": "Marketing sections"
+      },
+      "shellTabs": {
+        "campaigns": "Campaigns",
+        "promo": "Promo Codes",
+        "audience": "Audience",
+        "templates": "Templates"
+      },
+      "channels": {
+        "email": "Email",
+        "sms": "SMS",
+        "push": "Push notification"
+      },
+      "channelHint": {
+        "email": "Rich emails with full content",
+        "sms": "Text messages (160 chars)",
+        "push": "Mobile notifications (100 chars)"
+      },
+      "memberStatus": {
+        "ACTIVE": "Active",
+        "INVITED": "Invited",
+        "SUSPENDED": "Suspended"
+      },
+      "status": {
+        "draft": "Draft",
+        "scheduled": "Scheduled",
+        "sent": "Sent",
+        "paused": "Paused",
+        "active": "Active"
+      },
+      "columns": {
+        "campaign": "Campaign",
+        "channel": "Channel",
+        "audience": "Audience",
+        "status": "Status",
+        "when": "Sent / scheduled",
+        "created": "Created"
+      },
+      "list": {
+        "caption": "Campaigns",
+        "statusFilterLabel": "Filter campaigns by status",
+        "statusAll": "All",
+        "searchPlaceholder": "Search campaigns…",
+        "searchLabel": "Search campaigns",
+        "channelFilterLabel": "Filter campaigns by channel",
+        "channelAll": "All channels",
+        "newCampaign": "New campaign",
+        "showing": "Showing {from}–{to} of {total}",
+        "previous": "Previous",
+        "next": "Next",
+        "edit": "Edit",
+        "editCampaign": "Edit {name}",
+        "duplicate": "Duplicate",
+        "duplicateCampaign": "Duplicate {name}",
+        "duplicated": "Campaign duplicated.",
+        "saveAsTemplate": "Save as template",
+        "saveTemplateFor": "Save {name} as template",
+        "saveTemplateTitle": "Save as template",
+        "saveTemplateDescription": "Save this campaign’s message as a reusable template.",
+        "templateNameLabel": "Template name",
+        "delete": "Delete",
+        "deleteCampaign": "Delete {name}",
+        "deleteTitle": "Delete campaign",
+        "deleteMessage": "Delete “{name}”? This removes the campaign and cannot be undone.",
+        "deleted": "Campaign deleted.",
+        "copyName": "{name} (copy)",
+        "emptyTitle": "No campaigns yet",
+        "emptyHintWrite": "Create a campaign to reach your members by email, SMS, or push notification.",
+        "emptyHintRead": "There are no campaigns to show."
+      },
+      "wizard": {
+        "title": "Create campaign — Step {step} of {total}",
+        "stepDescription": {
+          "1": "Name your campaign and pick a channel.",
+          "2": "Choose who receives this campaign.",
+          "3": "Write your message content.",
+          "4": "Choose when to send and review."
+        },
+        "nameLabel": "Campaign name",
+        "namePlaceholder": "e.g. Spring sale announcement",
+        "channelLabel": "Channel",
+        "cancel": "Cancel",
+        "back": "Back",
+        "next": "Next",
+        "saving": "Saving…",
+        "sendNow": "Send now",
+        "schedule": "Schedule",
+        "saveAsTemplate": "Save as template",
+        "sent": "Campaign sent.",
+        "scheduled": "Campaign scheduled."
+      },
+      "audience": {
+        "allTitle": "All members",
+        "allHint": "Send to the whole active roster",
+        "segmentTitle": "Saved segment",
+        "segmentHint": "Use a pre-built audience segment",
+        "noSegments": "No saved segments yet. Create one in the Audience tab.",
+        "customTitle": "Custom filters",
+        "customHint": "Build an audience from member filters",
+        "statusLabel": "Membership status",
+        "notVisitedLabel": "No check-in for (days)",
+        "visitedWithinLabel": "Checked in within (days)",
+        "minClassLabel": "Min. classes attended",
+        "minSpentLabel": "Min. lifetime spend",
+        "joinedAfterLabel": "Joined after",
+        "joinedBeforeLabel": "Joined before",
+        "daysPlaceholder": "Days",
+        "countPlaceholder": "Count",
+        "amountPlaceholder": "Amount",
+        "estimated": "Estimated audience",
+        "counting": "Counting…",
+        "memberCount": "{count} members",
+        "refresh": "Refresh"
+      },
+      "content": {
+        "fromTemplate": "Insert from template",
+        "fromTemplatePlaceholder": "Choose a template…",
+        "subjectLabel": "Subject / title",
+        "subjectPlaceholder": "Enter a subject line",
+        "bodyLabel": "Message content",
+        "bodyPlaceholder": "Write your message…",
+        "mergeHint": "Click to insert a merge field:"
+      },
+      "schedule": {
+        "nowTitle": "Send now",
+        "nowHint": "Deliver immediately once you finish",
+        "laterTitle": "Schedule for later",
+        "laterHint": "Pick a date and time to send",
+        "dateLabel": "Date",
+        "timeLabel": "Time",
+        "summaryTitle": "Campaign summary",
+        "summaryName": "Name",
+        "summaryChannel": "Channel",
+        "summaryAudience": "Audience",
+        "summarySubject": "Subject"
+      },
+      "templates": {
+        "heading": "Message templates",
+        "subheading": "Pre-written templates to quickly create campaigns.",
+        "newTemplate": "New template",
+        "use": "Use in campaign",
+        "edit": "Edit",
+        "editFor": "Edit {name}",
+        "delete": "Delete",
+        "deleteFor": "Delete {name}",
+        "addTitle": "Create template",
+        "editTitle": "Edit template",
+        "addDescription": "Save a reusable message you can drop into any campaign.",
+        "editDescription": "Update this message template.",
+        "addSubmit": "Create template",
+        "editSubmit": "Save changes",
+        "nameLabel": "Template name",
+        "namePlaceholder": "e.g. Membership renewal reminder",
+        "channelLabel": "Channel",
+        "categoryLabel": "Category",
+        "categoryHint": "Optional label to group templates.",
+        "categoryPlaceholder": "e.g. Retention",
+        "created": "Template created.",
+        "updated": "Template updated.",
+        "saved": "Saved as template.",
+        "deleted": "Template deleted.",
+        "deleteTitle": "Delete template",
+        "deleteMessage": "Delete “{name}”? This cannot be undone.",
+        "emptyTitle": "No templates yet",
+        "emptyHintWrite": "Create a template to reuse a message across campaigns.",
+        "emptyHintRead": "There are no templates to show."
+      },
+      "comingSoon": {
+        "promoTitle": "Promo codes are coming soon",
+        "promoHint": "Create and manage discount codes here once this section ships.",
+        "audienceTitle": "Audience builder is coming soon",
+        "audienceHint": "Build and save reusable member segments here once this section ships."
+      },
+      "errors": {
+        "load": "Couldn’t load marketing (HTTP {status}: {message}).",
+        "apiUnreachable": "The API is unreachable. Check your connection and try again.",
+        "requestFailed": "Request failed (HTTP {status}: {message}).",
+        "notAuthorized": "You don’t have permission to manage marketing.",
+        "invalidDetails": "Some details are invalid. Please review and try again.",
+        "unexpected": "Something went wrong. Please try again.",
+        "campaignNotFound": "That campaign no longer exists.",
+        "campaignAlreadySent": "This campaign has already been sent and can’t be changed.",
+        "templateNotFound": "That template no longer exists.",
+        "segmentNotFound": "That audience segment no longer exists."
+      }
     }
   }
 }
