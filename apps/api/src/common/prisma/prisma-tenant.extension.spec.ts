@@ -177,5 +177,12 @@ describe('tenantExtension (load-bearing isolation)', () => {
     expect(TENANT_SCOPED_MODELS.has('Opportunity')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('CrmActivity')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('CrmTask')).toBe(true);
+
+    // The marketing surface — campaigns, promo codes, audience segments, and
+    // message templates (T12.7) — is likewise isolated per gym.
+    expect(TENANT_SCOPED_MODELS.has('Campaign')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('PromoCode')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('AudienceSegment')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('MessageTemplate')).toBe(true);
   });
 });

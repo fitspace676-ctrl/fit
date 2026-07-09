@@ -17,6 +17,7 @@ export * from './src/gym-settings';
 export * from './src/gyms';
 export * from './src/locations';
 export * from './src/locations-admin';
+export * from './src/marketing';
 export * from './src/me';
 export * from './src/members';
 export * from './src/notifications';
