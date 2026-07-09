@@ -20,6 +20,7 @@ import { HealthModule } from './health/health.module';
 import { LiveModule } from './live/live.module';
 import { LocationsModule } from './locations/locations.module';
 import { MailModule } from './mail/mail.module';
+import { MarketingModule } from './marketing/marketing.module';
 import { MembersModule } from './members/members.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OpsModule } from './ops/ops.module';
@@ -85,6 +86,11 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   the builder catalog, and the executor's run log; `AutomationRead` /
  *   `AutomationManage`). Its exported executor fires event-driven triggers inline
  *   (e.g. `member_joined`) and runs a daily scanner for the time-based ones.
+ * - {@link MarketingModule} serves the staff console's tenant-scoped Marketing
+ *   (T12.7) (`/marketing` — campaigns, promo codes, audience segments with a
+ *   live member-preview resolver, message templates, and the promo
+ *   validate/redeem path POS/checkout consumes; `MarketingRead` /
+ *   `MarketingManage`).
  * - {@link AnalyticsModule} serves the staff console's tenant-scoped analytics
  *   (`/admin/analytics?range=` — range-windowed revenue/attendance/churn KPIs,
  *   revenue series, channel/plan mix, top classes; `ReportView`).
@@ -171,6 +177,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     CheckInModule,
     CrmModule,
     AutomationModule,
+    MarketingModule,
     AnalyticsModule,
     ReportsModule,
     OpsModule,

@@ -39,6 +39,10 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'CrmTask',
   'AutomationRule',
   'AutomationRun',
+  'Campaign',
+  'PromoCode',
+  'AudienceSegment',
+  'MessageTemplate',
 ]);
 
 /** Read operations whose `where` is constrained to the current tenant. */

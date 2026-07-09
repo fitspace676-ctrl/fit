@@ -376,6 +376,10 @@ model Gym {
   crmTasks                CrmTask[]
   automationRules         AutomationRule[]
   automationRuns          AutomationRun[]
+  campaigns               Campaign[]
+  promoCodes              PromoCode[]
+  audienceSegments        AudienceSegment[]
+  messageTemplates        MessageTemplate[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -419,6 +423,7 @@ model User {
   assignedOpportunities   Opportunity[]            @relation("OpportunityAssignedTo")
   crmActivities           CrmActivity[]
   automationRules         AutomationRule[]         @relation("AutomationRuleCreatedBy")
+  campaigns               Campaign[]               @relation("CampaignCreatedBy")
 
   @@map("users")
 }
@@ -1929,4 +1934,168 @@ model AutomationRun {
   @@index([ruleId, ranAt])
   @@index([ruleId, entityId, ranAt])
   @@map("automation_runs")
+}
+
+// ---------------------------------------------------------------------------
+// Marketing (T12.7) — gym-scoped campaigns, promo codes, audience segments, and
+// message templates. Ported from the gym-admin prototype's /marketing module.
+// Every model below carries a `gymId` and is listed in the API's
+// TENANT_SCOPED_MODELS so the CRUD reads/writes isolate automatically.
+// ---------------------------------------------------------------------------
+
+/// The delivery channel a campaign or template targets (T12.7). Lowercase
+/// snake-case so the enum member name *is* the wire value the admin app and API
+/// share — no mapping between DB, code, and JSON. Mirrors `marketingChannelSchema`.
+enum MarketingChannel {
+  email
+  sms
+  push
+}
+
+/// A campaign's lifecycle state (T12.7). `draft` is the editable starting point;
+/// `scheduled` awaits its `scheduledAt`; `sent` is a completed one-shot blast;
+/// `active` / `paused` cover recurring/ongoing campaigns. Mirrors
+/// `campaignStatusSchema`.
+enum CampaignStatus {
+  draft
+  scheduled
+  sent
+  paused
+  active
+}
+
+/// When a campaign delivers (T12.7) — `now` fires on send, `scheduled` waits for
+/// `Campaign.scheduledAt`. Mirrors `campaignScheduleTypeSchema`.
+enum CampaignScheduleType {
+  now
+  scheduled
+}
+
+/// How a promo code discounts a purchase (T12.7). `percentage` is a whole-percent
+/// off (`discountValue` 1–100); `fixed` is an absolute amount off in the
+/// currency's MINOR units (cents/tetri, matching `Product.priceAmount`). Mirrors
+/// `promoDiscountTypeSchema`.
+enum PromoDiscountType {
+  percentage
+  fixed
+}
+
+/// Whether a promo code is currently honoured (T12.7). `inactive` codes never
+/// validate; an `active` code can still be rejected at redeem time for expiry or
+/// an exhausted usage limit. Mirrors `promoStatusSchema`.
+enum PromoStatus {
+  active
+  inactive
+}
+
+/// A gym's marketing campaign (T12.7): a one-shot or recurring message blast to a
+/// resolved audience. Tenant-scoped by `gymId`. The audience is either a saved
+/// {@link AudienceSegment} (`audienceSegmentId`) or an ad-hoc `inlineCriteria`
+/// JSON bag (same shape as a segment's `criteria`); `audienceSize` snapshots the
+/// resolved match count at schedule/send time and `sentCount` the number actually
+/// delivered by the (stubbed) dispatch. `subject` is the optional email subject;
+/// `body` the message template text. `createdBy` is the staff user who authored it
+/// (kept on user-delete via SetNull).
+model Campaign {
+  id                String               @id @default(cuid())
+  gymId             String
+  name              String
+  channel           MarketingChannel
+  audienceSegmentId String?
+  inlineCriteria    Json?
+  subject           String?
+  body              String               @default("")
+  scheduleType      CampaignScheduleType @default(now)
+  scheduledAt       DateTime?
+  status            CampaignStatus       @default(draft)
+  audienceSize      Int                  @default(0)
+  sentCount         Int                  @default(0)
+  sentAt            DateTime?
+  createdById       String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  gym       Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  segment   AudienceSegment? @relation(fields: [audienceSegmentId], references: [id], onDelete: SetNull)
+  createdBy User?            @relation("CampaignCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // The campaigns list reads newest-first per gym; the status tabs filter by it.
+  @@index([gymId, createdAt])
+  @@index([gymId, status])
+  @@index([audienceSegmentId])
+  @@map("campaigns")
+}
+
+/// A gym's discount code (T12.7), redeemable from POS/checkout. Tenant-scoped by
+/// `gymId`; `code` is unique per gym (case preserved, matched case-insensitively
+/// by the validate/redeem endpoints). `discountValue` is a whole percent (for
+/// `percentage`) or a MINOR-unit amount (for `fixed`); `minPurchase` is the
+/// optional MINOR-unit floor a cart must reach. `usageLimit` caps total
+/// redemptions (null = unlimited) and `usedCount` tracks them; `expiryDate` is
+/// the optional last day it validates. `status` is the manual on/off toggle.
+model PromoCode {
+  id            String            @id @default(cuid())
+  gymId         String
+  code          String
+  description   String            @default("")
+  discountType  PromoDiscountType
+  discountValue Int
+  minPurchase   Int?
+  usageLimit    Int?
+  usedCount     Int               @default(0)
+  expiryDate    DateTime?
+  status        PromoStatus       @default(active)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  // One code per gym; the list reads newest-first and filters by status.
+  @@unique([gymId, code])
+  @@index([gymId, createdAt])
+  @@index([gymId, status])
+  @@map("promo_codes")
+}
+
+/// A saved audience filter (T12.7) — a reusable set of `criteria` (membership
+/// plan, status, join-date window, last-visit recency, lifetime spend, class
+/// attendance) that resolves to a list of matching {@link GymMember}s. Tenant-
+/// scoped by `gymId`. `criteria` is a JSON bag validated by
+/// `audienceCriteriaSchema`; the segment-preview endpoint resolves it to a live
+/// match count + sample. Referenced by campaigns targeting the segment.
+model AudienceSegment {
+  id        String   @id @default(cuid())
+  gymId     String
+  name      String
+  criteria  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gym       Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@index([gymId, createdAt])
+  @@map("audience_segments")
+}
+
+/// A reusable message template (T12.7) — a named, categorised subject/body the
+/// campaign composer can drop in. Tenant-scoped by `gymId`. `channel` is the
+/// medium it's written for; `subject` the optional email subject; `body` the
+/// template text (supports `{{first_name}}`-style merge tokens); `category` a
+/// free-text grouping label.
+model MessageTemplate {
+  id        String           @id @default(cuid())
+  gymId     String
+  name      String
+  channel   MarketingChannel
+  subject   String?
+  body      String           @default("")
+  category  String           @default("")
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, createdAt])
+  @@map("message_templates")
 }
