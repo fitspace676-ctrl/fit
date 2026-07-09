@@ -5,7 +5,7 @@
 // map, and a couple of locale-aware formatters. Kept out of the client
 // components so the wizard, list, and template gallery render one vocabulary.
 
-import type { CampaignStatus, MarketingChannel } from '@fit/types';
+import type { CampaignStatus, MarketingChannel, PromoCodeRow, PromoStatus } from '@fit/types';
 import type { IconName } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 
@@ -86,4 +86,31 @@ export function minorToMajor(minor: number): number {
 /** Convert a whole major-unit amount to MINOR units for the audience criteria. */
 export function majorToMinor(major: number): number {
   return Math.round(major * 100);
+}
+
+/** The badge tone a promo code renders in per status (honoured vs paused). */
+export const PROMO_STATUS_TONES: Record<PromoStatus, Tone> = {
+  active: 'success',
+  inactive: 'ink',
+};
+
+/** Format a MINOR-unit amount as a whole-lari (₾) figure — the app's money format. */
+export function formatMoney(minor: number, locale: string): string {
+  return `₾${minorToMajor(minor).toLocaleString(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
+}
+
+/**
+ * A promo code's discount as staff read it: `20%` for a percentage code, a
+ * whole-lari amount (`₾15`) for a fixed one.
+ */
+export function formatDiscount(
+  promo: Pick<PromoCodeRow, 'discountType' | 'discountValue'>,
+  locale: string,
+): string {
+  return promo.discountType === 'percentage'
+    ? `${promo.discountValue}%`
+    : formatMoney(promo.discountValue, locale);
 }

@@ -156,8 +156,16 @@ import type {
   SaveAsTemplateInput,
   MarketingCatalogResponse,
   ListAudienceSegmentsResponse,
+  AudienceSegmentRow,
+  CreateAudienceSegmentInput,
+  UpdateAudienceSegmentInput,
   AudiencePreviewResponse,
   AudienceCriteria,
+  ListPromoCodesResponse,
+  PromoCodeRow,
+  CreatePromoCodeInput,
+  UpdatePromoCodeInput,
+  TogglePromoCodeInput,
   ListMessageTemplatesResponse,
   MessageTemplateRow,
   CreateMessageTemplateInput,
@@ -2046,6 +2054,45 @@ export async function previewMarketingSegment(id: string): Promise<AudiencePrevi
   return unwrap<AudiencePreviewResponse>(res);
 }
 
+/** `POST /marketing/segments` — save a named audience segment; returns the row. */
+export async function createMarketingSegment(
+  input: CreateAudienceSegmentInput,
+): Promise<AudienceSegmentRow> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/segments`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<AudienceSegmentRow>(res);
+}
+
+/** `PATCH /marketing/segments/:id` — edit a saved segment; returns the row. */
+export async function updateMarketingSegment(
+  id: string,
+  input: UpdateAudienceSegmentInput,
+): Promise<AudienceSegmentRow> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/segments/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<AudienceSegmentRow>(res);
+}
+
+/** `DELETE /marketing/segments/:id` — delete a saved segment. */
+export async function deleteMarketingSegment(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/segments/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
 /** `GET /marketing/templates` — every message template, newest first. */
 export async function fetchMessageTemplates(): Promise<ListMessageTemplatesResponse> {
   const res = await fetch(`${apiBaseUrl()}/marketing/templates`, {
@@ -2177,6 +2224,69 @@ export async function saveCampaignAsTemplate(
 /** `DELETE /marketing/campaigns/:id` — delete a campaign. */
 export async function deleteCampaign(id: string): Promise<void> {
   const res = await fetch(`${apiBaseUrl()}/marketing/campaigns/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
+/** `GET /marketing/promo-codes` — every promo code, newest first. */
+export async function fetchPromoCodes(): Promise<ListPromoCodesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListPromoCodesResponse>(res);
+}
+
+/** `POST /marketing/promo-codes` — create a promo code; returns the row. */
+export async function createPromoCode(input: CreatePromoCodeInput): Promise<PromoCodeRow> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<PromoCodeRow>(res);
+}
+
+/** `PATCH /marketing/promo-codes/:id` — edit a promo code; returns the row. */
+export async function updatePromoCode(
+  id: string,
+  input: UpdatePromoCodeInput,
+): Promise<PromoCodeRow> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<PromoCodeRow>(res);
+}
+
+/** `POST /marketing/promo-codes/:id/toggle` — flip a code active/inactive; returns the row. */
+export async function togglePromoCode(
+  id: string,
+  input: TogglePromoCodeInput,
+): Promise<PromoCodeRow> {
+  const res = await fetch(
+    `${apiBaseUrl()}/marketing/promo-codes/${encodeURIComponent(id)}/toggle`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<PromoCodeRow>(res);
+}
+
+/** `DELETE /marketing/promo-codes/:id` — delete a promo code. */
+export async function deletePromoCode(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: await authHeaders(),
     cache: 'no-store',

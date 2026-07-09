@@ -4,32 +4,51 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,
+  createAudienceSegmentSchema,
   createCampaignSchema,
   createMessageTemplateSchema,
+  createPromoCodeSchema,
   previewAudienceSchema,
   roleHasPermission,
   saveCampaignAsTemplateSchema,
+  togglePromoCodeSchema,
+  updateAudienceSegmentSchema,
   updateMessageTemplateSchema,
+  updatePromoCodeSchema,
   type AudienceCriteria,
   type AudiencePreviewResponse,
+  type AudienceSegmentRow,
+  type CreateAudienceSegmentInput,
   type CreateCampaignInput,
   type CreateMessageTemplateInput,
+  type CreatePromoCodeInput,
+  type PromoCodeRow,
+  type PromoStatus,
+  type UpdateAudienceSegmentInput,
   type UpdateMessageTemplateInput,
+  type UpdatePromoCodeInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
   createCampaign,
+  createMarketingSegment,
   createMessageTemplate,
+  createPromoCode,
   deleteCampaign,
+  deleteMarketingSegment,
   deleteMessageTemplate,
+  deletePromoCode,
   previewMarketingCriteria,
   previewMarketingSegment,
   saveCampaignAsTemplate,
   scheduleCampaign,
   sendCampaign,
+  togglePromoCode,
   updateCampaign,
+  updateMarketingSegment,
   updateMessageTemplate,
+  updatePromoCode,
 } from '@/lib/api';
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
@@ -67,6 +86,10 @@ function toMessage(error: unknown, t: Translator): string {
         return t('errors.templateNotFound');
       case 'SEGMENT_NOT_FOUND':
         return t('errors.segmentNotFound');
+      case 'PROMO_CODE_NOT_FOUND':
+        return t('errors.promoNotFound');
+      case 'PROMO_CODE_TAKEN':
+        return t('errors.promoTaken');
       default:
         return t('errors.requestFailed', { status: error.status, message: error.message });
     }
@@ -112,6 +135,148 @@ export async function previewSegmentAction(
   try {
     const preview = await previewMarketingSegment(id);
     return { ok: true, data: preview };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+// ── Audience segments (save / rename / delete) ────────────────────────────────
+
+/** Save the builder's current criteria as a named, reusable segment. */
+export async function createSegmentAction(
+  input: CreateAudienceSegmentInput,
+): Promise<ActionResult<AudienceSegmentRow>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = createAudienceSegmentSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const segment = await createMarketingSegment(parsed.data);
+    refresh();
+    return { ok: true, data: segment };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Edit a saved segment (rename and/or overwrite its criteria). */
+export async function updateSegmentAction(
+  id: string,
+  input: UpdateAudienceSegmentInput,
+): Promise<ActionResult<AudienceSegmentRow>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = updateAudienceSegmentSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const segment = await updateMarketingSegment(id, parsed.data);
+    refresh();
+    return { ok: true, data: segment };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Delete a saved segment. */
+export async function deleteSegmentAction(id: string): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  try {
+    await deleteMarketingSegment(id);
+    refresh();
+    return { ok: true, data: { id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+// ── Promo codes (CRUD + toggle) ───────────────────────────────────────────────
+
+/** Create a promo code; returns the new row. */
+export async function createPromoAction(
+  input: CreatePromoCodeInput,
+): Promise<ActionResult<PromoCodeRow>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = createPromoCodeSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const promo = await createPromoCode(parsed.data);
+    refresh();
+    return { ok: true, data: promo };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Edit a promo code — every field optional; returns the updated row. */
+export async function updatePromoAction(
+  id: string,
+  input: UpdatePromoCodeInput,
+): Promise<ActionResult<PromoCodeRow>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = updatePromoCodeSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const promo = await updatePromoCode(id, parsed.data);
+    refresh();
+    return { ok: true, data: promo };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Flip a promo code active/inactive; returns the updated row. */
+export async function togglePromoAction(
+  id: string,
+  status: PromoStatus,
+): Promise<ActionResult<PromoCodeRow>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = togglePromoCodeSchema.safeParse({ status });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const promo = await togglePromoCode(id, parsed.data);
+    refresh();
+    return { ok: true, data: promo };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/** Delete a promo code. */
+export async function deletePromoAction(id: string): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  try {
+    await deletePromoCode(id);
+    refresh();
+    return { ok: true, data: { id } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }
