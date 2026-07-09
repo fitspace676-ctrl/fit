@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 
@@ -9,10 +10,12 @@ import { OrdersService } from './orders.service';
  * {@link OrdersController} (`/orders`) sits behind the `TenantGuard` + global
  * `PermissionsGuard`. The tenant-scoped Prisma client + tenant context come from
  * the app-wide `TenantModule`; {@link EmailService} (Resend delivery) is imported
- * from {@link AuthModule}, which exports it.
+ * from {@link AuthModule}, which exports it. {@link LoyaltyModule} provides the
+ * exported {@link LoyaltyPointsService} so a member's paid POS sale awards loyalty
+ * points (T12.10) fire-and-forget.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, LoyaltyModule],
   controllers: [OrdersController],
   providers: [OrdersService],
 })

@@ -380,6 +380,10 @@ model Gym {
   promoCodes              PromoCode[]
   audienceSegments        AudienceSegment[]
   messageTemplates        MessageTemplate[]
+  loyaltyProgram          LoyaltyProgram?
+  loyaltyLedger           LoyaltyLedgerEntry[]
+  loyaltyRewards          LoyaltyReward[]
+  loyaltyRedemptions      LoyaltyRedemption[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -570,6 +574,8 @@ model GymMember {
   notes         MemberNote[]
   tasks         MemberTask[]
   opportunities Opportunity[]
+  loyaltyLedger      LoyaltyLedgerEntry[]
+  loyaltyRedemptions LoyaltyRedemption[]
 
   @@unique([userId, gymId])
   // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
@@ -2098,4 +2104,138 @@ model MessageTemplate {
 
   @@index([gymId, createdAt])
   @@map("message_templates")
+}
+
+// ---------------------------------------------------------------------------
+// Loyalty / points (T12.10)
+// ---------------------------------------------------------------------------
+
+/// Why a loyalty ledger entry was written (T12.10). `check_in` and `purchase`
+/// are the automatic earn hooks, `signup` the join bonus, `manual` a staff
+/// adjustment, and `redemption` the debit a reward redemption records. Mirrors
+/// `loyaltyReasonSchema`.
+enum LoyaltyReason {
+  check_in
+  purchase
+  manual
+  redemption
+  signup
+}
+
+/// The category a loyalty reward belongs to (T12.10) — powers the "Redemptions
+/// by reward type" report. Mirrors `loyaltyRewardTypeSchema`.
+enum LoyaltyRewardType {
+  pt_session
+  day_pass
+  guest_pass
+  merchandise
+  drink
+  discount
+  other
+}
+
+/// A redemption's fulfilment state (T12.10). `fulfilled` is the default (points
+/// already debited, reward granted); `pending` awaits a staff hand-off;
+/// `cancelled` has refunded the points via a compensating ledger entry. Mirrors
+/// `loyaltyRedemptionStatusSchema`.
+enum LoyaltyRedemptionStatus {
+  pending
+  fulfilled
+  cancelled
+}
+
+/// One gym's loyalty program configuration (T12.10) — a single row per gym
+/// (`gymId` unique). `enabled` gates every earn hook; the three integer rules
+/// drive accrual (`pointsPerCheckIn` per arrival, `pointsPerCurrencyUnit` per
+/// one MAJOR currency unit spent on a paid order, `signupBonus` once on join).
+/// `config` holds forward-compatible extras (e.g. tier thresholds) as JSON.
+model LoyaltyProgram {
+  id                    String   @id @default(cuid())
+  gymId                 String   @unique
+  enabled               Boolean  @default(false)
+  pointsPerCheckIn      Int      @default(0)
+  pointsPerCurrencyUnit Int      @default(0)
+  signupBonus           Int      @default(0)
+  config                Json     @default("{}")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@map("loyalty_programs")
+}
+
+/// An append-only points ledger entry (T12.10). Every accrual and debit writes
+/// one row; a member's balance is the `SUM(delta)` over their entries, and
+/// `balanceAfter` snapshots that running total at write time for display.
+/// `refId` links the entry back to its source (check-in / order / redemption id).
+model LoyaltyLedgerEntry {
+  id           String        @id @default(cuid())
+  gymId        String
+  memberId     String
+  delta        Int
+  reason       LoyaltyReason
+  refId        String?
+  balanceAfter Int
+  note         String?
+  createdAt    DateTime      @default(now())
+
+  gym    Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member GymMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  // Reports read issued-vs-redeemed per gym over time; the member ledger reads
+  // one member's history newest-first; the by-reason filter serves aggregations.
+  @@index([gymId, createdAt])
+  @@index([gymId, memberId, createdAt])
+  @@index([gymId, reason])
+  @@map("loyalty_ledger_entries")
+}
+
+/// A redeemable reward in a gym's catalogue (T12.10). `pointsCost` is the debit
+/// a redemption applies; `stock` is an optional remaining-count (null = unlimited)
+/// decremented on redeem; `active` hides retired rewards from the redeem picker.
+model LoyaltyReward {
+  id          String            @id @default(cuid())
+  gymId       String
+  name        String
+  description String            @default("")
+  pointsCost  Int
+  type        LoyaltyRewardType @default(other)
+  active      Boolean           @default(true)
+  stock       Int?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  gym         Gym                 @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  redemptions LoyaltyRedemption[]
+
+  @@index([gymId, createdAt])
+  @@index([gymId, active])
+  @@map("loyalty_rewards")
+}
+
+/// A member's redemption of a reward (T12.10). `rewardName` / `rewardType` are
+/// snapshotted so redemption history — and the "by reward type" report — survive
+/// a reward being renamed or deleted (the FK is `SetNull` on delete). Redeeming
+/// writes a paired `redemption` ledger entry for `-pointsSpent`.
+model LoyaltyRedemption {
+  id          String                  @id @default(cuid())
+  gymId       String
+  memberId    String
+  rewardId    String?
+  rewardName  String
+  rewardType  LoyaltyRewardType
+  pointsSpent Int
+  status      LoyaltyRedemptionStatus @default(fulfilled)
+  redeemedAt  DateTime                @default(now())
+
+  gym    Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member GymMember      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  reward LoyaltyReward? @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+
+  @@index([gymId, redeemedAt])
+  @@index([gymId, memberId, redeemedAt])
+  @@index([gymId, rewardType])
+  @@index([rewardId])
+  @@map("loyalty_redemptions")
 }

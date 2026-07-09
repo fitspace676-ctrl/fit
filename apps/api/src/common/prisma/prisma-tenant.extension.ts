@@ -43,6 +43,10 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'PromoCode',
   'AudienceSegment',
   'MessageTemplate',
+  'LoyaltyProgram',
+  'LoyaltyLedgerEntry',
+  'LoyaltyReward',
+  'LoyaltyRedemption',
 ]);
 
 /** Read operations whose `where` is constrained to the current tenant. */

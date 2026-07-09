@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AutomationModule } from '../automation/automation.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
@@ -13,10 +14,12 @@ import { MembersService } from './members.service';
  * `TenantMiddleware` with no `AppModule` exclusion.
  *
  * Imports {@link AutomationModule} for its exported executor so creating a member
- * fires the `member_joined` automation trigger (T12.5) inline.
+ * fires the `member_joined` automation trigger (T12.5) inline, and
+ * {@link LoyaltyModule} for its exported {@link LoyaltyPointsService} so a new
+ * member is granted the loyalty signup bonus (T12.10) fire-and-forget.
  */
 @Module({
-  imports: [AutomationModule],
+  imports: [AutomationModule, LoyaltyModule],
   controllers: [MembersController],
   providers: [MembersService],
 })

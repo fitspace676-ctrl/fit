@@ -48,6 +48,7 @@ import type {
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 
 /** A subscription is "live" (occupies the member's slot) in these states — including
  *  TRIAL, a free trial that still holds the slot before it converts (T5.6). */
@@ -154,6 +155,7 @@ export class MembersService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly automation: AutomationExecutorService,
+    private readonly loyalty: LoyaltyPointsService,
   ) {}
 
   /**
@@ -306,6 +308,11 @@ export class MembersService {
       entityId: created.id,
       entityType: 'member',
     });
+
+    // Award the loyalty signup bonus (T12.10) — same best-effort, fire-and-forget
+    // contract as the automation dispatch: it no-ops when the program is disabled
+    // and never blocks or fails member creation.
+    void this.loyalty.awardSignupBonus(this.tenant.gymId, created.id).catch(() => undefined);
 
     // Re-read through the full detail path so a brand-new member's response
     // carries every "formacore" field (empty history, zero KPIs) consistently.

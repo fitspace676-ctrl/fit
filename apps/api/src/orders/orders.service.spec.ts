@@ -8,7 +8,15 @@ import type { RecordPosSaleInput, SendReceiptInput } from '@fit/types';
 import type { EmailService } from '../auth/email.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { OrdersService, utcDayRange } from './orders.service';
+
+/** A no-op loyalty earn-hook stub — the sale flow calls it fire-and-forget. */
+function loyaltyStub(): LoyaltyPointsService {
+  return {
+    awardForPurchase: vi.fn<() => Promise<void>>().mockResolvedValue(),
+  } as unknown as LoyaltyPointsService;
+}
 
 const input: SendReceiptInput = {
   email: 'buyer@example.com',
@@ -57,7 +65,7 @@ function setup(over?: {
     },
   } as unknown as TenantPrismaService;
   return {
-    service: new OrdersService(email, tenant, prisma),
+    service: new OrdersService(email, tenant, prisma, loyaltyStub()),
     sendReceiptEmail,
     findUnique,
     orderCreate,
@@ -280,7 +288,7 @@ function adminSetup(over?: {
   } as unknown as TenantPrismaService;
 
   return {
-    service: new OrdersService(email, tenant, prisma),
+    service: new OrdersService(email, tenant, prisma, loyaltyStub()),
     orderFindMany,
     orderCount,
     orderFindFirst,

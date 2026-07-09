@@ -19,6 +19,7 @@ import { GymsModule } from './gyms/gyms.module';
 import { HealthModule } from './health/health.module';
 import { LiveModule } from './live/live.module';
 import { LocationsModule } from './locations/locations.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
 import { MailModule } from './mail/mail.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { MembersModule } from './members/members.module';
@@ -178,6 +179,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     CrmModule,
     AutomationModule,
     MarketingModule,
+    LoyaltyModule,
     AnalyticsModule,
     ReportsModule,
     OpsModule,

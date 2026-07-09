@@ -13,6 +13,7 @@ import type {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { ActivityStreamService } from '../live/activity-stream.service';
+import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 
 /**
  * The identity fields the arrivals feed / eligibility card select off a
@@ -64,6 +65,7 @@ export class CheckInService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly activityStream: ActivityStreamService,
+    private readonly loyalty: LoyaltyPointsService,
   ) {}
 
   /**
@@ -98,6 +100,13 @@ export class CheckInService {
     // the receptionist just recorded — the client's poll catches the row up.
     void this.activityStream
       .publish(this.tenant.gymId, this.toActivityEvent(created))
+      .catch(() => undefined);
+
+    // Award loyalty points for the arrival (T12.10), same best-effort contract as
+    // the live-stream publish: the service no-ops when the program is disabled and
+    // swallows its own errors, so a loyalty hiccup can never fail the check-in.
+    void this.loyalty
+      .awardForCheckIn(this.tenant.gymId, created.gymMemberId, created.id)
       .catch(() => undefined);
 
     return {

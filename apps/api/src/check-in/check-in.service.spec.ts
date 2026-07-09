@@ -5,6 +5,7 @@ import { CheckInService } from './check-in.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { ActivityStreamService } from '../live/activity-stream.service';
+import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 
 const GYM_ID = 'gym-1';
 
@@ -45,12 +46,16 @@ function setup() {
   const activityStream = {
     publish: vi.fn<(gymId: string, event: ActivityEvent) => Promise<void>>().mockResolvedValue(),
   };
+  const loyalty = {
+    awardForCheckIn: vi.fn<() => Promise<void>>().mockResolvedValue(),
+  };
   const service = new CheckInService(
     prisma,
     tenant,
     activityStream as unknown as ActivityStreamService,
+    loyalty as unknown as LoyaltyPointsService,
   );
-  return { service, checkIn, activityStream };
+  return { service, checkIn, activityStream, loyalty };
 }
 
 describe('CheckInService.recordCheckIn', () => {
