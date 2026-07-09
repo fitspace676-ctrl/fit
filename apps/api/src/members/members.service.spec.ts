@@ -4,6 +4,7 @@ import { GymMemberStatus, Role } from '@fit/db';
 import type { CreateMemberInput, ListMembersQuery } from '@fit/types';
 import { MembersService } from './members.service';
 import type { AutomationExecutorService } from '../automation/automation-executor.service';
+import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -187,10 +188,17 @@ function setup(overrides?: {
   const automation = {
     dispatchForGym: automationDispatch,
   } as unknown as AutomationExecutorService;
+  // Member creation also grants the loyalty signup bonus (T12.10) best-effort; a
+  // no-op earn hook keeps these tests focused on member behaviour.
+  const loyaltyAward = vi.fn(() => Promise.resolve());
+  const loyalty = {
+    awardSignupBonus: loyaltyAward,
+  } as unknown as LoyaltyPointsService;
 
   return {
-    service: new MembersService(prisma, tenant, automation),
+    service: new MembersService(prisma, tenant, automation, loyalty),
     automationDispatch,
+    loyaltyAward,
     findMany,
     count,
     findFirst,

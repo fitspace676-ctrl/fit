@@ -34,6 +34,7 @@ import {
 import { EmailService } from '../auth/email.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 
 /** Map the wire settlement method to the persisted Prisma enum. */
 const TO_DB_METHOD: Record<PaymentMethod, DbPaymentMethod> = {
@@ -66,6 +67,7 @@ export class OrdersService {
     private readonly email: EmailService,
     private readonly tenant: TenantContext,
     private readonly prisma: TenantPrismaService,
+    private readonly loyalty: LoyaltyPointsService,
   ) {}
 
   /**
@@ -113,7 +115,7 @@ export class OrdersService {
     // partial sale can never land. `gymId` is stamped by the tenant extension at
     // runtime and passed explicitly here to satisfy the create input's static type
     // (mirroring the other tenant-scoped writes).
-    return this.prisma.client.$transaction(async (tx) => {
+    const sale = await this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
           gymId,
@@ -158,6 +160,18 @@ export class OrdersService {
 
       return { orderId: order.id, paymentId: payment.id };
     });
+
+    // Award loyalty points for a member's paid sale (T12.10) once the sale has
+    // durably committed. Best-effort and out-of-band: the service no-ops when the
+    // program is disabled and swallows its own errors, so it can never fail or
+    // delay the sale the POS just recorded.
+    if (memberId) {
+      void this.loyalty
+        .awardForPurchase(gymId, memberId, sale.orderId, receipt.total)
+        .catch(() => undefined);
+    }
+
+    return sale;
   }
 
   /**
