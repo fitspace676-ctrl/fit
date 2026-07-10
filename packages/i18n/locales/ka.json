@@ -3372,6 +3372,12 @@
         "loadRules": "ავტომატიზაციები ვერ ჩაიტვირთა ({status}): {message}",
         "loadTemplates": "შაბლონები ვერ ჩაიტვირთა ({status}): {message}",
         "apiUnreachable": "API მიუწვდომელია. სცადეთ ცოტა ხანში."
+      },
+      "stats": {
+        "active": "აქტიური ავტომატიზაციები",
+        "totalRuns": "სულ გაშვება",
+        "messagesSent": "გაგზავნილი შეტყობინებები",
+        "last30": "გაგზავნილი (30 დღე)"
       }
     },
     "marketing": {

@@ -14,6 +14,7 @@ import {
   type AutomationRuleDetail,
   type AutomationRuleRow,
   type AutomationRunEntry,
+  type AutomationStats,
   type AutomationTimingOffset,
   type AutomationTriggerConfig,
   type CreateAutomationRuleInput,
@@ -129,6 +130,25 @@ export class AutomationService {
       page: query.page,
       limit: query.limit,
     };
+  }
+
+  /**
+   * Summary KPIs for the automation console header (parity with the reference).
+   * Counts the gym's non-template rules (total + active), every run ever, the
+   * delivered (SUCCESS) runs, and the deliveries within the trailing 30 days.
+   */
+  async getStats(): Promise<AutomationStats> {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [totalRules, activeRules, totalRuns, messagesSent, sentLast30Days] = await Promise.all([
+      this.prisma.client.automationRule.count({ where: { isTemplate: false } }),
+      this.prisma.client.automationRule.count({ where: { isTemplate: false, active: true } }),
+      this.prisma.client.automationRun.count(),
+      this.prisma.client.automationRun.count({ where: { status: 'SUCCESS' } }),
+      this.prisma.client.automationRun.count({
+        where: { status: 'SUCCESS', ranAt: { gte: since } },
+      }),
+    ]);
+    return { totalRules, activeRules, totalRuns, messagesSent, sentLast30Days };
   }
 
   /** Every reusable template, newest first. */

@@ -22,6 +22,7 @@ import {
   toggleAutomationRuleSchema,
   updateAutomationRuleSchema,
   type AutomationCatalogResponse,
+  type AutomationStats,
   type GetAutomationRuleResponse,
   type ListAutomationRulesResponse,
   type ListAutomationRunsResponse,
@@ -77,6 +78,14 @@ export class AutomationController {
   // -------------------------------------------------------------------------
   // Rules
   // -------------------------------------------------------------------------
+
+  /** `GET /automation/stats` — summary KPIs for the automation console header. */
+  @Get('stats')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.AutomationRead)
+  async getStats(): Promise<AutomationStats> {
+    return this.automation.getStats();
+  }
 
   /**
    * `GET /automation/rules?page&limit&search&triggerType&active&sort&dir` — one

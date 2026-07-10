@@ -3372,6 +3372,12 @@
         "loadRules": "Couldn’t load automations ({status}): {message}",
         "loadTemplates": "Couldn’t load templates ({status}): {message}",
         "apiUnreachable": "The API is unreachable. Please try again shortly."
+      },
+      "stats": {
+        "active": "Active automations",
+        "totalRuns": "Total runs",
+        "messagesSent": "Messages sent",
+        "last30": "Sent (30 days)"
       }
     },
     "marketing": {

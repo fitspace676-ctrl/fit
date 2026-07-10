@@ -9,7 +9,12 @@ import {
   type ListAutomationRulesQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchAutomationRules, fetchAutomationTemplates } from '@/lib/api';
+import {
+  ApiError,
+  fetchAutomationRules,
+  fetchAutomationStats,
+  fetchAutomationTemplates,
+} from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -18,6 +23,7 @@ import { Stack } from '@astryxdesign/core/Stack';
 import { Text } from '@astryxdesign/core/Text';
 import { Icon } from '@/components/ui';
 import { AutomationTabs, type AutomationTab } from './automation-tabs';
+import { AutomationStatsCards } from './automation-stats';
 import { AutomationView } from './automation-view';
 import { TemplatesView } from './templates-view';
 
@@ -90,6 +96,9 @@ export default async function AutomationPage({
   const session = await getServerSession();
   const role = session?.role ?? null;
   const canManage = role !== null && roleHasPermission(role, Permission.AutomationManage);
+
+  // Header KPI cards — fail-soft so a stats hiccup never blanks the workspace.
+  const stats = await fetchAutomationStats().catch(() => null);
 
   let content;
   if (tab === 'templates') {
@@ -170,6 +179,8 @@ export default async function AutomationPage({
           </Text>
         </Stack>
       </HStack>
+
+      {stats ? <AutomationStatsCards stats={stats} /> : null}
 
       <AutomationTabs active={tab} />
 

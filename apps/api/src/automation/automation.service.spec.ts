@@ -272,3 +272,22 @@ describe('AutomationService.listRuns', () => {
     expect(runFindMany.mock.calls[0]?.[0]?.orderBy).toEqual({ ranAt: 'desc' });
   });
 });
+
+describe('AutomationService.getStats', () => {
+  it('aggregates rule and run counts into the header KPIs', async () => {
+    const { service, ruleCount, runCount } = setup({ ruleCount: 5, runCount: 42 });
+    const stats = await service.getStats();
+    expect(stats).toEqual({
+      totalRules: 5,
+      activeRules: 5,
+      totalRuns: 42,
+      messagesSent: 42,
+      sentLast30Days: 42,
+    });
+    // Two rule counts (total + active) and three run counts (total + sent + 30d).
+    expect(ruleCount).toHaveBeenCalledTimes(2);
+    expect(runCount).toHaveBeenCalledTimes(3);
+    // The active-rules count filters on active:true.
+    expect(ruleCount.mock.calls[1]?.[0]?.where).toMatchObject({ active: true });
+  });
+});

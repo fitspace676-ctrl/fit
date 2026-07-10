@@ -407,6 +407,21 @@ export interface ListAutomationTemplatesResponse {
 }
 
 /**
+ * Response of `GET /automation/stats` — the summary KPIs the automation console's
+ * header cards render (parity with the reference admin). `totalRules` /
+ * `activeRules` count the gym's non-template rules; `totalRuns` is every run ever
+ * recorded; `messagesSent` is the successful (delivered) runs; `sentLast30Days`
+ * is those successes within the trailing 30 days.
+ */
+export interface AutomationStats {
+  totalRules: number;
+  activeRules: number;
+  totalRuns: number;
+  messagesSent: number;
+  sentLast30Days: number;
+}
+
+/**
  * The rule body shared by create and save-as-template. A `needsDays` trigger
  * (`membership_expiring`, `no_checkin`, `checkin_milestone`, `lead_no_activity`)
  * must carry `triggerConfig.days`; the refine rejects it otherwise so a

@@ -174,6 +174,7 @@ import type {
   ListAutomationRulesResponse,
   ListAutomationTemplatesResponse,
   AutomationCatalogResponse,
+  AutomationStats,
   GetAutomationRuleResponse,
   CreateAutomationRuleInput,
   UpdateAutomationRuleInput,
@@ -2257,6 +2258,15 @@ export async function fetchAutomationTemplates(): Promise<ListAutomationTemplate
     cache: 'no-store',
   });
   return unwrap<ListAutomationTemplatesResponse>(res);
+}
+
+/** `GET /automation/stats` — summary KPIs for the automation console header. */
+export async function fetchAutomationStats(): Promise<AutomationStats> {
+  const res = await fetch(`${apiBaseUrl()}/automation/stats`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AutomationStats>(res);
 }
 
 /** `POST /automation/rules` — create a rule (active by default); returns its detail. */
