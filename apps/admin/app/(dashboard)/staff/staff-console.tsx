@@ -4,7 +4,13 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
-import type { PendingInvite, StaffMember, StaffRole } from '@fit/types';
+import type {
+  ListStaffRolesResponse,
+  PendingInvite,
+  StaffMember,
+  StaffRole,
+  TimeOffRequestRow,
+} from '@fit/types';
 import {
   Btn,
   CountUp,
@@ -18,6 +24,23 @@ import { STAFF_ROLES } from './role-meta';
 import { StaffTable } from './staff-table';
 import { InvitesTable } from './invites-table';
 import { InviteModal } from './invite-modal';
+import { RolesPanel } from './roles-panel';
+import { NotesPanel } from './notes-panel';
+import { TasksPanel } from './tasks-panel';
+import { SchedulePanel } from './schedule-panel';
+import { SpecialtiesPanel } from './specialties-panel';
+import { TimeOffPanel } from './timeoff-panel';
+
+/** The staff-console top-level tabs. */
+type ConsoleTab =
+  | 'people'
+  | 'invitations'
+  | 'roles'
+  | 'notes'
+  | 'tasks'
+  | 'schedule'
+  | 'timeoff'
+  | 'specialties';
 
 const styles = stylex.create({
   stack: {
@@ -248,17 +271,24 @@ export function StaffConsole({
   invites,
   currentUserId,
   canManage,
+  roles,
+  timeOff,
 }: {
   staff: StaffMember[];
   invites: PendingInvite[];
   currentUserId: string | null;
   canManage: boolean;
+  roles: ListStaffRolesResponse;
+  timeOff: TimeOffRequestRow[];
 }) {
   const t = useTranslations('admin.staff');
-  const [tab, setTab] = useState<'people' | 'invitations'>('people');
+  const [tab, setTab] = useState<ConsoleTab>('people');
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<StaffRole | ''>('');
   const [inviteOpen, setInviteOpen] = useState(false);
+  // Shared across the per-staff depth tabs (Notes / Tasks / Calendar / Specialties)
+  // so switching tabs keeps the chosen member. Defaults to the first staff row.
+  const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id ?? '');
 
   const activeCount = useMemo(
     () => staff.filter((member) => member.status === 'ACTIVE').length,
@@ -346,7 +376,7 @@ export function StaffConsole({
       <Tabs
         aria-label={t('title')}
         value={tab}
-        onValueChange={(next) => setTab(next as 'people' | 'invitations')}
+        onValueChange={(next) => setTab(next as ConsoleTab)}
         items={[
           {
             value: 'people',
@@ -356,6 +386,15 @@ export function StaffConsole({
             value: 'invitations',
             label: <TabLabel label={t('tabs.invitations')} count={invites.length} />,
           },
+          { value: 'roles', label: t('tabs.roles') },
+          { value: 'notes', label: t('tabs.notes') },
+          { value: 'tasks', label: t('tabs.tasks') },
+          { value: 'schedule', label: t('tabs.schedule') },
+          {
+            value: 'timeoff',
+            label: <TabLabel label={t('tabs.timeoff')} count={timeOff.length} />,
+          },
+          { value: 'specialties', label: t('tabs.specialties') },
         ]}
       />
 
@@ -393,9 +432,39 @@ export function StaffConsole({
             noMatch={staff.length > 0 && visibleStaff.length === 0}
           />
         </>
-      ) : (
-        <InvitesTable invites={invites} canManage={canManage} />
-      )}
+      ) : null}
+
+      {tab === 'invitations' ? <InvitesTable invites={invites} canManage={canManage} /> : null}
+      {tab === 'roles' ? <RolesPanel roles={roles} /> : null}
+      {tab === 'notes' ? (
+        <NotesPanel
+          staff={staff}
+          selectedStaffId={selectedStaffId}
+          onSelectStaff={setSelectedStaffId}
+        />
+      ) : null}
+      {tab === 'tasks' ? (
+        <TasksPanel
+          staff={staff}
+          selectedStaffId={selectedStaffId}
+          onSelectStaff={setSelectedStaffId}
+        />
+      ) : null}
+      {tab === 'schedule' ? (
+        <SchedulePanel
+          staff={staff}
+          selectedStaffId={selectedStaffId}
+          onSelectStaff={setSelectedStaffId}
+        />
+      ) : null}
+      {tab === 'timeoff' ? <TimeOffPanel staff={staff} initialRequests={timeOff} /> : null}
+      {tab === 'specialties' ? (
+        <SpecialtiesPanel
+          staff={staff}
+          selectedStaffId={selectedStaffId}
+          onSelectStaff={setSelectedStaffId}
+        />
+      ) : null}
 
       {canManage ? <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} /> : null}
     </div>

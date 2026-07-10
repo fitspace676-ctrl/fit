@@ -2571,7 +2571,13 @@
       "you": "You",
       "tabs": {
         "people": "People",
-        "invitations": "Invitations"
+        "invitations": "Invitations",
+        "roles": "Roles",
+        "notes": "Notes",
+        "tasks": "Tasks",
+        "schedule": "Calendar",
+        "timeoff": "Time off",
+        "specialties": "Specialties"
       },
       "kpi": {
         "total": "Total staff",
@@ -2719,6 +2725,104 @@
         "invalidDetails": "Invalid invitation details",
         "invalidRole": "Invalid role",
         "unexpected": "Unexpected error"
+      },
+      "depth": {
+        "pickStaff": "Staff member",
+        "noStaff": "Select a staff member to continue.",
+        "saving": "Saving…",
+        "loading": "Loading…",
+        "cancel": "Cancel",
+        "roles": {
+          "intro": "The capabilities each staff role grants. This matrix is read-only — it mirrors exactly what the API enforces.",
+          "capability": "Capability",
+          "grantedAria": "Granted",
+          "deniedAria": "Not granted"
+        },
+        "notes": {
+          "title": "Staff notes",
+          "placeholder": "Write an internal note about this staff member…",
+          "add": "Add note",
+          "added": "Note added.",
+          "deleted": "Note deleted.",
+          "deleteAria": "Delete note",
+          "empty": "No notes yet."
+        },
+        "tasks": {
+          "title": "Assigned tasks",
+          "titlePlaceholder": "Task title",
+          "descPlaceholder": "Description (optional)",
+          "dueLabel": "Due date",
+          "add": "Add task",
+          "added": "Task added.",
+          "deleted": "Task deleted.",
+          "deleteAria": "Delete task",
+          "empty": "No tasks yet.",
+          "due": "Due {date}",
+          "noDue": "No due date",
+          "markDone": "Mark task done",
+          "markPending": "Mark task pending"
+        },
+        "specialties": {
+          "title": "Specialties",
+          "placeholder": "Add a specialty (e.g. Strength, Yoga)…",
+          "add": "Add",
+          "added": "Specialty added.",
+          "empty": "No specialties yet.",
+          "removeAria": "Remove {name}"
+        },
+        "schedule": {
+          "title": "Weekly schedule",
+          "days": {
+            "0": "Mon",
+            "1": "Tue",
+            "2": "Wed",
+            "3": "Thu",
+            "4": "Fri",
+            "5": "Sat",
+            "6": "Sun"
+          },
+          "dayEmpty": "—",
+          "removeAria": "Remove shift",
+          "dayLabel": "Day",
+          "startLabel": "Start",
+          "endLabel": "End",
+          "locationLabel": "Location",
+          "locationPlaceholder": "Optional",
+          "addShift": "Add shift",
+          "invalidRange": "End time must be after start time.",
+          "unsaved": "Unsaved changes",
+          "upToDate": "Schedule up to date",
+          "save": "Save schedule",
+          "saved": "Schedule saved."
+        },
+        "timeoff": {
+          "filters": {
+            "all": "All"
+          },
+          "status": {
+            "pending": "Pending",
+            "approved": "Approved",
+            "denied": "Denied"
+          },
+          "filterAria": "Filter by status",
+          "request": "Request time off",
+          "empty": "No time-off requests.",
+          "decidedBy": "{name} · {date}",
+          "approve": "Approve",
+          "deny": "Deny",
+          "approved": "Request approved.",
+          "denied": "Request denied.",
+          "withdrawn": "Request withdrawn.",
+          "withdrawAria": "Withdraw request",
+          "requested": "Time-off request submitted.",
+          "requestTitle": "Request time off",
+          "requestBody": "Log a time-off request for a staff member.",
+          "startLabel": "Start date",
+          "endLabel": "End date",
+          "reasonLabel": "Reason",
+          "reasonPlaceholder": "Optional note…",
+          "submit": "Submit request"
+        }
       }
     },
     "locations": {
