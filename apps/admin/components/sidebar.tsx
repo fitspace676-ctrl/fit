@@ -23,7 +23,7 @@ import { SideNav, SideNavSection, SideNavItem, SideNavHeading } from '@astryxdes
 import { Badge } from '@astryxdesign/core/Badge';
 import { Icon } from '@/components/ui';
 import { useSession } from '@/hooks/use-session';
-import { isNavItemActive, visibleNavItems } from '@/lib/nav';
+import { isNavItemActive, NAV_GROUPS, visibleNavItems } from '@/lib/nav';
 import type { ShellSystemState } from './admin-shell';
 import { NavIcon } from './nav-icon';
 
@@ -37,16 +37,6 @@ function appPath(pathname: string): string {
   }
   return pathname;
 }
-
-const NAV_GROUPS = [
-  { labelKey: 'navGroups.overview', hrefs: ['/'] },
-  { labelKey: 'navGroups.people', hrefs: ['/members', '/trainers', '/staff'] },
-  { labelKey: 'navGroups.operations', hrefs: ['/schedule', '/check-in', '/locations'] },
-  { labelKey: 'navGroups.commerce', hrefs: ['/pos', '/products', '/orders', '/subscriptions'] },
-  { labelKey: 'navGroups.growth', hrefs: ['/crm', '/automation', '/marketing', '/loyalty'] },
-  { labelKey: 'navGroups.insights', hrefs: ['/analytics', '/reports', '/activity'] },
-  { labelKey: 'navGroups.system', hrefs: ['/settings'] },
-] as const;
 
 const skeletonPulse = stylex.keyframes({
   '0%, 100%': { opacity: 0.45 },
@@ -377,9 +367,7 @@ export function Sidebar({ system }: SidebarProps) {
             containerRef={captureScrollEl}
           />
           {NAV_GROUPS.map((group) => {
-            const groupItems = items.filter((item) =>
-              (group.hrefs as readonly string[]).includes(item.href),
-            );
+            const groupItems = items.filter((item) => group.hrefs.includes(item.href));
             if (groupItems.length === 0) return null;
 
             return (

@@ -2091,6 +2091,7 @@
     "crm": {
       "breadcrumb": {
         "label": "ნავიგაცია",
+        "home": "FormaCore",
         "crm": "CRM"
       },
       "shell": {
@@ -2563,6 +2564,7 @@
     "staff": {
       "breadcrumb": {
         "label": "ნავიგაცია",
+        "home": "FormaCore",
         "staff": "პერსონალი"
       },
       "title": "პერსონალი",
@@ -2889,6 +2891,7 @@
     "settings": {
       "breadcrumb": {
         "label": "ნავიგაცია",
+        "home": "FormaCore",
         "settings": "პარამეტრები"
       },
       "title": "პარამეტრები",
@@ -3162,6 +3165,7 @@
     "automation": {
       "breadcrumb": {
         "label": "ნავიგაცია",
+        "home": "FormaCore",
         "automation": "ავტომატიზაცია"
       },
       "shell": {
@@ -3364,6 +3368,7 @@
     "marketing": {
       "breadcrumb": {
         "label": "ნავიგაცია",
+        "home": "FormaCore",
         "marketing": "მარკეტინგი"
       },
       "shell": {
@@ -3657,6 +3662,7 @@
     "loyalty": {
       "breadcrumb": {
         "label": "ნავიგაცია",
+        "home": "FormaCore",
         "loyalty": "ლოიალობა"
       },
       "shell": {

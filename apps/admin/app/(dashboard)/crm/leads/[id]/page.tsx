@@ -437,7 +437,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   return (
     <div {...stylex.props(styles.page)}>
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
+        <span>{t('breadcrumb.home')}</span>
         <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
         <Link href="/crm" {...stylex.props(styles.crumbLink)}>
           {t('breadcrumb.crm')}

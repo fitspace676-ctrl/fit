@@ -157,7 +157,7 @@ export default async function AutomationPage({
         separator={<Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />}
       >
         <BreadcrumbItem as={Link} href="/">
-          Iron Gym
+          {t('breadcrumb.home')}
         </BreadcrumbItem>
         <BreadcrumbItem isCurrent>{t('breadcrumb.automation')}</BreadcrumbItem>
       </Breadcrumbs>

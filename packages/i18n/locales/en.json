@@ -2091,6 +2091,7 @@
     "crm": {
       "breadcrumb": {
         "label": "Breadcrumb",
+        "home": "FormaCore",
         "crm": "CRM"
       },
       "shell": {
@@ -2563,6 +2564,7 @@
     "staff": {
       "breadcrumb": {
         "label": "Breadcrumb",
+        "home": "FormaCore",
         "staff": "Staff"
       },
       "title": "Staff",
@@ -2889,6 +2891,7 @@
     "settings": {
       "breadcrumb": {
         "label": "Breadcrumb",
+        "home": "FormaCore",
         "settings": "Settings"
       },
       "title": "Settings",
@@ -3162,6 +3165,7 @@
     "automation": {
       "breadcrumb": {
         "label": "Breadcrumb",
+        "home": "FormaCore",
         "automation": "Automation"
       },
       "shell": {
@@ -3364,6 +3368,7 @@
     "marketing": {
       "breadcrumb": {
         "label": "Breadcrumb",
+        "home": "FormaCore",
         "marketing": "Marketing"
       },
       "shell": {
@@ -3657,6 +3662,7 @@
     "loyalty": {
       "breadcrumb": {
         "label": "Breadcrumb",
+        "home": "FormaCore",
         "loyalty": "Loyalty"
       },
       "shell": {

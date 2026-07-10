@@ -159,6 +159,30 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
 ];
 
+/** A labelled cluster of nav destinations, rendered as one collapsible section. */
+export interface NavGroup {
+  /** i18n key (under the `admin` namespace) for the section heading. */
+  labelKey: string;
+  /** The {@link NavItem} hrefs that belong to this group, in display order. */
+  hrefs: readonly string[];
+}
+
+/**
+ * How the sidebar clusters {@link NAV_ITEMS} into collapsible sections, top to
+ * bottom. Every item's `href` must appear in exactly one group (guarded by test)
+ * so no destination is silently dropped from the rail. The `growth` group is the
+ * Phase 12 addition (CRM, Automation, Marketing, Loyalty).
+ */
+export const NAV_GROUPS: readonly NavGroup[] = [
+  { labelKey: 'navGroups.overview', hrefs: ['/'] },
+  { labelKey: 'navGroups.people', hrefs: ['/members', '/trainers', '/staff'] },
+  { labelKey: 'navGroups.operations', hrefs: ['/schedule', '/check-in', '/locations'] },
+  { labelKey: 'navGroups.commerce', hrefs: ['/pos', '/products', '/orders', '/subscriptions'] },
+  { labelKey: 'navGroups.growth', hrefs: ['/crm', '/automation', '/marketing', '/loyalty'] },
+  { labelKey: 'navGroups.insights', hrefs: ['/analytics', '/reports', '/activity'] },
+  { labelKey: 'navGroups.system', hrefs: ['/settings'] },
+];
+
 /**
  * The nav items a `role` may see. Returns an empty list for a `null` role (no
  * session resolved yet, or signed out) so the UI fails closed. `SUPER_ADMIN`

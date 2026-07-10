@@ -414,7 +414,7 @@ export default async function OpportunityDetailPage({
   return (
     <div {...stylex.props(styles.page)}>
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
+        <span>{t('breadcrumb.home')}</span>
         <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
         <Link href="/crm?tab=opportunities" {...stylex.props(styles.crumbLink)}>
           {t('breadcrumb.crm')}
