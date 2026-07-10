@@ -10,13 +10,22 @@ import {
   GYM_LOGO_MAX_WIDTH,
   HEX_COLOR_PATTERN,
   MAX_CANCELLATION_CUTOFF_HOURS,
+  MAX_PENALTY_AMOUNT,
   SUPPORTED_LANGUAGES,
   WEEKDAYS,
   gymLanguageSchema,
+  invoiceNumberFormatSchema,
   isValidTimeZone,
+  penaltyTypeSchema,
+  refundPolicyModeSchema,
+  waitlistModeSchema,
   type GymLanguage,
   type GymSettings,
+  type InvoiceNumberFormat,
+  type PenaltyType,
+  type RefundPolicyMode,
   type UpdateGymSettingsInput,
+  type WaitlistMode,
   type Weekday,
   type WeeklyHours,
 } from '@fit/types';
@@ -128,7 +137,7 @@ const styles = stylex.create({
     flexWrap: 'wrap',
     gap: '1.5rem',
   },
-  localeSection: {
+  subSection: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
     borderTopColor: 'var(--color-border)',
@@ -145,6 +154,14 @@ const styles = stylex.create({
   },
   localeGrid: {
     marginTop: '1rem',
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, 1fr)',
+    },
+  },
+  grid2: {
     display: 'grid',
     gap: '1rem',
     gridTemplateColumns: {
@@ -171,6 +188,42 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
   },
+  stack5col: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
+  },
+  // Switch rows
+  switchList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  switchRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-background-muted)',
+    padding: '0.875rem 1rem',
+    boxShadow: 'inset 0 0 0 1px var(--color-border)',
+  },
+  switchText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+    flex: 1,
+    minWidth: 0,
+  },
+  switchLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  switchDesc: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
   // Section rail
   railWrap: {
     height: 'fit-content',
@@ -193,14 +246,14 @@ const styles = stylex.create({
   },
   railBtn: {
     display: 'flex',
-    height: '2.75rem',
+    height: '2.5rem',
     alignItems: 'center',
     gap: '0.75rem',
     width: '100%',
     borderStyle: 'none',
     borderRadius: 'var(--radius-element)',
     paddingInline: '0.75rem',
-    fontSize: '0.875rem',
+    fontSize: '0.8125rem',
     fontWeight: 600,
     textAlign: 'left',
     cursor: 'pointer',
@@ -225,6 +278,7 @@ const styles = stylex.create({
   railIcon: {
     width: '1.125rem',
     height: '1.125rem',
+    flexShrink: 0,
   },
   railLabel: {
     flex: 1,
@@ -547,38 +601,152 @@ function withCurrent(base: string[], current: string): string[] {
 /** The settings form value shape — one flat mirror of `GymSettings` the form edits. */
 interface SettingsFormValues {
   brand: { name: string; logoUrl: string | null; primaryColor: string; secondaryColor: string };
+  business: { address: string; phone: string; email: string; website: string };
   locale: { language: GymLanguage; currency: string; timezone: string };
   hours: WeeklyHours;
   notifications: { fromName: string; fromEmail: string; replyTo: string };
-  booking: { cancellationCutoffHours: number };
+  booking: {
+    cancellationCutoffHours: number;
+    lateCancellationPenalty: number;
+    lateCancellationPenaltyType: PenaltyType;
+    bookingWindowDays: number;
+    maxBookingsPerDay: number;
+    maxBookingsPerWeek: number;
+    waitlistMode: WaitlistMode;
+  };
+  noShow: {
+    penalty: number;
+    penaltyType: PenaltyType;
+    penaltyDays: number;
+    autoCancelMinutes: number;
+  };
+  freeze: {
+    minFreezeDays: number;
+    maxFreezeDays: number;
+    maxFreezeDaysPerYear: number;
+    freezeFee: number;
+    requiresApproval: boolean;
+  };
+  guestPass: {
+    passesPerMonth: number;
+    price: number;
+    durationDays: number;
+    requiresWaiver: boolean;
+    mustBeAccompanied: boolean;
+    sameGuestCooldownDays: number;
+  };
+  trial: {
+    durationDays: number;
+    price: number;
+    includesClasses: boolean;
+    maxClassBookings: number;
+    requiresPaymentMethod: boolean;
+    conversionDiscountPercent: number;
+  };
+  membership: { gracePeriodDays: number };
+  payments: { acceptCash: boolean; acceptCard: boolean; acceptPrepaidCredits: boolean };
+  invoice: { prefix: string; startNumber: number; format: InvoiceNumberFormat };
+  tax: {
+    enabled: boolean;
+    membershipRate: number;
+    classRate: number;
+    productRate: number;
+    serviceRate: number;
+  };
+  refund: { mode: RefundPolicyMode; windowDays: number };
+  receipt: { emailEnabled: boolean; printEnabled: boolean };
+  autoRenewal: {
+    enabled: boolean;
+    retryAttempts: number;
+    retryIntervalDays: number;
+    renewalReminderDays: number;
+  };
 }
 
+/** Every boolean form path — the `name`s {@link SwitchRow} may bind to. */
+type BoolFieldName =
+  | 'freeze.requiresApproval'
+  | 'guestPass.requiresWaiver'
+  | 'guestPass.mustBeAccompanied'
+  | 'trial.includesClasses'
+  | 'trial.requiresPaymentMethod'
+  | 'payments.acceptCash'
+  | 'payments.acceptCard'
+  | 'payments.acceptPrepaidCredits'
+  | 'tax.enabled'
+  | 'receipt.emailEnabled'
+  | 'receipt.printEnabled'
+  | 'autoRenewal.enabled';
+
 /** The rail sections, in order — each maps onto a slice of the real settings contract. */
-type SectionKey = 'general' | 'hours' | 'booking' | 'notifications';
+type SectionKey =
+  | 'general'
+  | 'business'
+  | 'hours'
+  | 'booking'
+  | 'noShow'
+  | 'freeze'
+  | 'guestPass'
+  | 'trial'
+  | 'membership'
+  | 'payments'
+  | 'invoice'
+  | 'tax'
+  | 'refund'
+  | 'receipt'
+  | 'autoRenewal'
+  | 'notifications';
+
 const SECTIONS: { key: SectionKey; icon: IconName }[] = [
   { key: 'general', icon: 'home' },
+  { key: 'business', icon: 'phone' },
   { key: 'hours', icon: 'clock' },
   { key: 'booking', icon: 'calendar' },
+  { key: 'noShow', icon: 'eyeOff' },
+  { key: 'freeze', icon: 'moon' },
+  { key: 'guestPass', icon: 'ticket' },
+  { key: 'trial', icon: 'spark' },
+  { key: 'membership', icon: 'shield' },
+  { key: 'payments', icon: 'card' },
+  { key: 'invoice', icon: 'tag' },
+  { key: 'tax', icon: 'chart' },
+  { key: 'refund', icon: 'arrowLeft' },
+  { key: 'receipt', icon: 'mail' },
+  { key: 'autoRenewal', icon: 'bolt' },
   { key: 'notifications', icon: 'bell' },
 ];
 
 /** Which rail section holds the first validation error, so a failed save jumps there. */
 function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey | null {
   if (errors.brand || errors.locale) return 'general';
+  if (errors.business) return 'business';
   if (errors.hours) return 'hours';
   if (errors.booking) return 'booking';
+  if (errors.noShow) return 'noShow';
+  if (errors.freeze) return 'freeze';
+  if (errors.guestPass) return 'guestPass';
+  if (errors.trial) return 'trial';
+  if (errors.membership) return 'membership';
+  if (errors.payments) return 'payments';
+  if (errors.invoice) return 'invoice';
+  if (errors.tax) return 'tax';
+  if (errors.refund) return 'refund';
+  if (errors.receipt) return 'receipt';
+  if (errors.autoRenewal) return 'autoRenewal';
   if (errors.notifications) return 'notifications';
   return null;
 }
 
 /**
- * The gym settings form (T2.12), rebuilt to the formacore settings artboard on the
- * shared form kit (T1.7). A section rail (General · Business hours · Booking rules ·
- * Notifications) swaps between cards over one `useZodForm` instance, and a sticky
- * save bar surfaces the moment the form is dirty — Discard resets to the last-saved
- * truth, Save submits the whole `PATCH /gyms/settings`. Only sections backed by the
- * real settings contract are shown; the artboard's payments / integrations mock-ups
- * have no backend and are intentionally omitted.
+ * The gym settings form (T2.12 / T12.17), rebuilt to the formacore settings
+ * artboard on the shared form kit (T1.7) and extended to gym-admin parity. A
+ * section rail (General · Business · Business hours · Booking · No-show · Freeze ·
+ * Guest passes · Trials · Membership · Payments · Invoicing · Tax · Refunds ·
+ * Receipts · Auto-renewal · Notifications) swaps between cards over one
+ * `useZodForm` instance, and a sticky save bar surfaces the moment the form is
+ * dirty — Discard resets to the last-saved truth, Save submits the whole
+ * `PATCH /gyms/settings`. Every section is backed by the real settings contract
+ * (T12.16); nothing here is a mock.
  *
  * The logo is uploaded straight to R2 via a presigned `PUT` and persisted through
  * {@link finalizeGymLogoAction}; the returned URL is folded into the form so the
@@ -618,12 +786,28 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         message: t('errors.closeAfterOpen'),
         path: ['close'],
       });
+    // Shared numeric validator with translated bounds — the source of truth for
+    // every min/max lives in the `@fit/types` schemas; these mirror them so the
+    // form rejects the same values the API would, only with localised copy.
+    const num = (opts: { min: number; max: number; int?: boolean }) => {
+      const base = z.number({ invalid_type_error: t('errors.number') });
+      const bounded = opts.int ? base.int(t('errors.integer')) : base;
+      return bounded
+        .min(opts.min, t('errors.min', { min: opts.min }))
+        .max(opts.max, t('errors.max', { max: opts.max }));
+    };
     return z.object({
       brand: z.object({
         name: z.string().trim().min(1, t('errors.nameRequired')).max(100),
         logoUrl: z.string().url().nullable(),
         primaryColor: z.string().regex(HEX_COLOR_PATTERN, t('errors.color')),
         secondaryColor: z.string().regex(HEX_COLOR_PATTERN, t('errors.color')),
+      }),
+      business: z.object({
+        address: z.string().trim().max(200),
+        phone: z.string().trim().max(40),
+        email: emailOrEmpty,
+        website: z.string().trim().max(200),
       }),
       locale: z.object({
         language: gymLanguageSchema,
@@ -643,10 +827,77 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
           .min(0, t('errors.cutoffMin'))
           .max(
             MAX_CANCELLATION_CUTOFF_HOURS,
-            t('errors.cutoffMax', {
-              max: MAX_CANCELLATION_CUTOFF_HOURS,
-            }),
+            t('errors.cutoffMax', { max: MAX_CANCELLATION_CUTOFF_HOURS }),
           ),
+        lateCancellationPenalty: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
+        lateCancellationPenaltyType: penaltyTypeSchema,
+        bookingWindowDays: num({ min: 0, max: 365, int: true }),
+        maxBookingsPerDay: num({ min: 0, max: 100, int: true }),
+        maxBookingsPerWeek: num({ min: 0, max: 500, int: true }),
+        waitlistMode: waitlistModeSchema,
+      }),
+      noShow: z.object({
+        penalty: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
+        penaltyType: penaltyTypeSchema,
+        penaltyDays: num({ min: 0, max: 365, int: true }),
+        autoCancelMinutes: num({ min: 0, max: 240, int: true }),
+      }),
+      freeze: z.object({
+        minFreezeDays: num({ min: 0, max: 365, int: true }),
+        maxFreezeDays: num({ min: 0, max: 365, int: true }),
+        maxFreezeDaysPerYear: num({ min: 0, max: 365, int: true }),
+        freezeFee: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
+        requiresApproval: z.boolean(),
+      }),
+      guestPass: z.object({
+        passesPerMonth: num({ min: 0, max: 100, int: true }),
+        price: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
+        durationDays: num({ min: 1, max: 30, int: true }),
+        requiresWaiver: z.boolean(),
+        mustBeAccompanied: z.boolean(),
+        sameGuestCooldownDays: num({ min: 0, max: 365, int: true }),
+      }),
+      trial: z.object({
+        durationDays: num({ min: 0, max: 365, int: true }),
+        price: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
+        includesClasses: z.boolean(),
+        maxClassBookings: num({ min: 0, max: 100, int: true }),
+        requiresPaymentMethod: z.boolean(),
+        conversionDiscountPercent: num({ min: 0, max: 100 }),
+      }),
+      membership: z.object({
+        gracePeriodDays: num({ min: 0, max: 90, int: true }),
+      }),
+      payments: z.object({
+        acceptCash: z.boolean(),
+        acceptCard: z.boolean(),
+        acceptPrepaidCredits: z.boolean(),
+      }),
+      invoice: z.object({
+        prefix: z.string().trim().max(10),
+        startNumber: num({ min: 1, max: 1_000_000_000, int: true }),
+        format: invoiceNumberFormatSchema,
+      }),
+      tax: z.object({
+        enabled: z.boolean(),
+        membershipRate: num({ min: 0, max: 100 }),
+        classRate: num({ min: 0, max: 100 }),
+        productRate: num({ min: 0, max: 100 }),
+        serviceRate: num({ min: 0, max: 100 }),
+      }),
+      refund: z.object({
+        mode: refundPolicyModeSchema,
+        windowDays: num({ min: 0, max: 365, int: true }),
+      }),
+      receipt: z.object({
+        emailEnabled: z.boolean(),
+        printEnabled: z.boolean(),
+      }),
+      autoRenewal: z.object({
+        enabled: z.boolean(),
+        retryAttempts: num({ min: 0, max: 10, int: true }),
+        retryIntervalDays: num({ min: 0, max: 30, int: true }),
+        renewalReminderDays: num({ min: 0, max: 90, int: true }),
       }),
     });
   }, [t]);
@@ -670,6 +921,12 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         primaryColor: values.brand.primaryColor,
         secondaryColor: values.brand.secondaryColor,
       },
+      business: {
+        address: values.business.address.trim() || null,
+        phone: values.business.phone.trim() || null,
+        email: values.business.email.trim() || null,
+        website: values.business.website.trim() || null,
+      },
       locale: values.locale,
       hours: values.hours,
       notifications: {
@@ -678,6 +935,17 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         replyTo: values.notifications.replyTo.trim() || null,
       },
       booking: values.booking,
+      noShow: values.noShow,
+      freeze: values.freeze,
+      guestPass: values.guestPass,
+      trial: values.trial,
+      membership: values.membership,
+      payments: values.payments,
+      invoice: values.invoice,
+      tax: values.tax,
+      refund: values.refund,
+      receipt: values.receipt,
+      autoRenewal: values.autoRenewal,
     };
     const result = await updateGymSettingsAction(input);
     if (result.ok) {
@@ -725,7 +993,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                   <ColorField name="brand.primaryColor" label={t('general.primaryColor')} />
                   <ColorField name="brand.secondaryColor" label={t('general.secondaryColor')} />
                 </div>
-                <div {...stylex.props(styles.localeSection)}>
+                <div {...stylex.props(styles.subSection)}>
                   <p {...stylex.props(styles.legend)}>{t('general.localeLegend')}</p>
                   <div {...stylex.props(styles.localeGrid)}>
                     <SelectField name="locale.language" label={t('general.language')}>
@@ -760,6 +1028,38 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
             </SectionCard>
           ) : null}
 
+          {section === 'business' ? (
+            <SectionCard title={t('business.title')} description={t('business.subtitle')}>
+              <div {...stylex.props(styles.stack4)}>
+                <TextField
+                  name="business.address"
+                  label={t('business.addressLabel')}
+                  autoComplete="off"
+                />
+                <div {...stylex.props(styles.grid2)}>
+                  <TextField
+                    name="business.phone"
+                    type="tel"
+                    label={t('business.phoneLabel')}
+                    autoComplete="off"
+                  />
+                  <TextField
+                    name="business.email"
+                    type="email"
+                    label={t('business.emailLabel')}
+                    autoComplete="off"
+                  />
+                </div>
+                <TextField
+                  name="business.website"
+                  label={t('business.websiteLabel')}
+                  placeholder={t('business.websitePlaceholder')}
+                  autoComplete="off"
+                />
+              </div>
+            </SectionCard>
+          ) : null}
+
           {section === 'hours' ? (
             <SectionCard title={t('hours.title')} description={t('hours.subtitle')}>
               <div {...stylex.props(styles.stack2)}>
@@ -772,15 +1072,454 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
 
           {section === 'booking' ? (
             <SectionCard title={t('booking.title')} description={t('booking.subtitle')}>
+              <div {...stylex.props(styles.stack5col)}>
+                <NumberField
+                  name="booking.cancellationCutoffHours"
+                  label={t('booking.cutoffLabel')}
+                  min={0}
+                  max={MAX_CANCELLATION_CUTOFF_HOURS}
+                  step={1}
+                  hint={<BookingHint />}
+                  fieldClassName={stylex.props(styles.maxXs).className}
+                />
+                <div {...stylex.props(styles.grid2)}>
+                  <NumberField
+                    name="booking.lateCancellationPenalty"
+                    label={t('booking.lateCancellationPenaltyLabel')}
+                    min={0}
+                    max={MAX_PENALTY_AMOUNT}
+                    step="any"
+                  />
+                  <SelectField
+                    name="booking.lateCancellationPenaltyType"
+                    label={t('booking.penaltyTypeLabel')}
+                  >
+                    {penaltyTypeSchema.options.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {t(`penaltyType.${opt}`)}
+                      </option>
+                    ))}
+                  </SelectField>
+                </div>
+                <div {...stylex.props(styles.subSection)}>
+                  <p {...stylex.props(styles.legend)}>{t('booking.limitsLegend')}</p>
+                  <div {...stylex.props(styles.localeGrid)}>
+                    <NumberField
+                      name="booking.bookingWindowDays"
+                      label={t('booking.bookingWindowLabel')}
+                      hint={t('booking.bookingWindowHint')}
+                      min={0}
+                      max={365}
+                      step={1}
+                    />
+                    <SelectField name="booking.waitlistMode" label={t('booking.waitlistModeLabel')}>
+                      {waitlistModeSchema.options.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {t(`waitlistMode.${opt}`)}
+                        </option>
+                      ))}
+                    </SelectField>
+                    <NumberField
+                      name="booking.maxBookingsPerDay"
+                      label={t('booking.maxPerDayLabel')}
+                      hint={t('booking.zeroUnlimited')}
+                      min={0}
+                      max={100}
+                      step={1}
+                    />
+                    <NumberField
+                      name="booking.maxBookingsPerWeek"
+                      label={t('booking.maxPerWeekLabel')}
+                      hint={t('booking.zeroUnlimited')}
+                      min={0}
+                      max={500}
+                      step={1}
+                    />
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'noShow' ? (
+            <SectionCard title={t('noShow.title')} description={t('noShow.subtitle')}>
+              <div {...stylex.props(styles.stack5col)}>
+                <div {...stylex.props(styles.grid2)}>
+                  <NumberField
+                    name="noShow.penalty"
+                    label={t('noShow.penaltyLabel')}
+                    min={0}
+                    max={MAX_PENALTY_AMOUNT}
+                    step="any"
+                  />
+                  <SelectField name="noShow.penaltyType" label={t('noShow.penaltyTypeLabel')}>
+                    {penaltyTypeSchema.options.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {t(`penaltyType.${opt}`)}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <NumberField
+                    name="noShow.penaltyDays"
+                    label={t('noShow.penaltyDaysLabel')}
+                    hint={t('noShow.penaltyDaysHint')}
+                    min={0}
+                    max={365}
+                    step={1}
+                  />
+                  <NumberField
+                    name="noShow.autoCancelMinutes"
+                    label={t('noShow.autoCancelLabel')}
+                    hint={t('noShow.autoCancelHint')}
+                    min={0}
+                    max={240}
+                    step={1}
+                  />
+                </div>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'freeze' ? (
+            <SectionCard title={t('freeze.title')} description={t('freeze.subtitle')}>
+              <div {...stylex.props(styles.stack5col)}>
+                <div {...stylex.props(styles.localeGrid)}>
+                  <NumberField
+                    name="freeze.minFreezeDays"
+                    label={t('freeze.minLabel')}
+                    hint={t('freeze.zeroNoLimit')}
+                    min={0}
+                    max={365}
+                    step={1}
+                  />
+                  <NumberField
+                    name="freeze.maxFreezeDays"
+                    label={t('freeze.maxLabel')}
+                    hint={t('freeze.zeroNoLimit')}
+                    min={0}
+                    max={365}
+                    step={1}
+                  />
+                  <NumberField
+                    name="freeze.maxFreezeDaysPerYear"
+                    label={t('freeze.perYearLabel')}
+                    hint={t('freeze.zeroNoLimit')}
+                    min={0}
+                    max={365}
+                    step={1}
+                  />
+                  <NumberField
+                    name="freeze.freezeFee"
+                    label={t('freeze.feeLabel')}
+                    min={0}
+                    max={MAX_PENALTY_AMOUNT}
+                    step="any"
+                  />
+                </div>
+                <div {...stylex.props(styles.switchList)}>
+                  <SwitchRow
+                    name="freeze.requiresApproval"
+                    label={t('freeze.requiresApprovalLabel')}
+                    description={t('freeze.requiresApprovalDesc')}
+                  />
+                </div>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'guestPass' ? (
+            <SectionCard title={t('guestPass.title')} description={t('guestPass.subtitle')}>
+              <div {...stylex.props(styles.stack5col)}>
+                <div {...stylex.props(styles.localeGrid)}>
+                  <NumberField
+                    name="guestPass.passesPerMonth"
+                    label={t('guestPass.passesPerMonthLabel')}
+                    hint={t('guestPass.zeroDisables')}
+                    min={0}
+                    max={100}
+                    step={1}
+                  />
+                  <NumberField
+                    name="guestPass.price"
+                    label={t('guestPass.priceLabel')}
+                    min={0}
+                    max={MAX_PENALTY_AMOUNT}
+                    step="any"
+                  />
+                  <NumberField
+                    name="guestPass.durationDays"
+                    label={t('guestPass.durationLabel')}
+                    min={1}
+                    max={30}
+                    step={1}
+                  />
+                  <NumberField
+                    name="guestPass.sameGuestCooldownDays"
+                    label={t('guestPass.cooldownLabel')}
+                    hint={t('guestPass.cooldownHint')}
+                    min={0}
+                    max={365}
+                    step={1}
+                  />
+                </div>
+                <div {...stylex.props(styles.switchList)}>
+                  <SwitchRow
+                    name="guestPass.requiresWaiver"
+                    label={t('guestPass.requiresWaiverLabel')}
+                    description={t('guestPass.requiresWaiverDesc')}
+                  />
+                  <SwitchRow
+                    name="guestPass.mustBeAccompanied"
+                    label={t('guestPass.mustBeAccompaniedLabel')}
+                    description={t('guestPass.mustBeAccompaniedDesc')}
+                  />
+                </div>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'trial' ? (
+            <SectionCard title={t('trial.title')} description={t('trial.subtitle')}>
+              <div {...stylex.props(styles.stack5col)}>
+                <div {...stylex.props(styles.localeGrid)}>
+                  <NumberField
+                    name="trial.durationDays"
+                    label={t('trial.durationLabel')}
+                    hint={t('trial.zeroDisables')}
+                    min={0}
+                    max={365}
+                    step={1}
+                  />
+                  <NumberField
+                    name="trial.price"
+                    label={t('trial.priceLabel')}
+                    min={0}
+                    max={MAX_PENALTY_AMOUNT}
+                    step="any"
+                  />
+                  <NumberField
+                    name="trial.maxClassBookings"
+                    label={t('trial.maxClassBookingsLabel')}
+                    hint={t('trial.zeroUnlimited')}
+                    min={0}
+                    max={100}
+                    step={1}
+                  />
+                  <NumberField
+                    name="trial.conversionDiscountPercent"
+                    label={t('trial.conversionDiscountLabel')}
+                    min={0}
+                    max={100}
+                    step="any"
+                  />
+                </div>
+                <div {...stylex.props(styles.switchList)}>
+                  <SwitchRow
+                    name="trial.includesClasses"
+                    label={t('trial.includesClassesLabel')}
+                    description={t('trial.includesClassesDesc')}
+                  />
+                  <SwitchRow
+                    name="trial.requiresPaymentMethod"
+                    label={t('trial.requiresPaymentLabel')}
+                    description={t('trial.requiresPaymentDesc')}
+                  />
+                </div>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'membership' ? (
+            <SectionCard title={t('membership.title')} description={t('membership.subtitle')}>
               <NumberField
-                name="booking.cancellationCutoffHours"
-                label={t('booking.cutoffLabel')}
+                name="membership.gracePeriodDays"
+                label={t('membership.gracePeriodLabel')}
+                hint={t('membership.gracePeriodHint')}
                 min={0}
-                max={MAX_CANCELLATION_CUTOFF_HOURS}
+                max={90}
                 step={1}
-                hint={<BookingHint />}
                 fieldClassName={stylex.props(styles.maxXs).className}
               />
+            </SectionCard>
+          ) : null}
+
+          {section === 'payments' ? (
+            <SectionCard title={t('payments.title')} description={t('payments.subtitle')}>
+              <div {...stylex.props(styles.switchList)}>
+                <SwitchRow
+                  name="payments.acceptCash"
+                  label={t('payments.acceptCashLabel')}
+                  description={t('payments.acceptCashDesc')}
+                />
+                <SwitchRow
+                  name="payments.acceptCard"
+                  label={t('payments.acceptCardLabel')}
+                  description={t('payments.acceptCardDesc')}
+                />
+                <SwitchRow
+                  name="payments.acceptPrepaidCredits"
+                  label={t('payments.acceptPrepaidLabel')}
+                  description={t('payments.acceptPrepaidDesc')}
+                />
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'invoice' ? (
+            <SectionCard title={t('invoice.title')} description={t('invoice.subtitle')}>
+              <div {...stylex.props(styles.stack5col)}>
+                <div {...stylex.props(styles.grid2)}>
+                  <TextField
+                    name="invoice.prefix"
+                    label={t('invoice.prefixLabel')}
+                    autoComplete="off"
+                  />
+                  <NumberField
+                    name="invoice.startNumber"
+                    label={t('invoice.startNumberLabel')}
+                    min={1}
+                    max={1_000_000_000}
+                    step={1}
+                  />
+                </div>
+                <SelectField
+                  name="invoice.format"
+                  label={t('invoice.formatLabel')}
+                  hint={<InvoiceHint />}
+                  fieldClassName={stylex.props(styles.maxXs).className}
+                >
+                  {invoiceNumberFormatSchema.options.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {t(`invoiceFormat.${opt}`)}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'tax' ? (
+            <SectionCard title={t('tax.title')} description={t('tax.subtitle')}>
+              <div {...stylex.props(styles.stack5col)}>
+                <div {...stylex.props(styles.switchList)}>
+                  <SwitchRow
+                    name="tax.enabled"
+                    label={t('tax.enabledLabel')}
+                    description={t('tax.enabledDesc')}
+                  />
+                </div>
+                <div {...stylex.props(styles.subSection)}>
+                  <p {...stylex.props(styles.legend)}>{t('tax.ratesLegend')}</p>
+                  <div {...stylex.props(styles.localeGrid)}>
+                    <NumberField
+                      name="tax.membershipRate"
+                      label={t('tax.membershipRateLabel')}
+                      min={0}
+                      max={100}
+                      step="any"
+                    />
+                    <NumberField
+                      name="tax.classRate"
+                      label={t('tax.classRateLabel')}
+                      min={0}
+                      max={100}
+                      step="any"
+                    />
+                    <NumberField
+                      name="tax.productRate"
+                      label={t('tax.productRateLabel')}
+                      min={0}
+                      max={100}
+                      step="any"
+                    />
+                    <NumberField
+                      name="tax.serviceRate"
+                      label={t('tax.serviceRateLabel')}
+                      min={0}
+                      max={100}
+                      step="any"
+                    />
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'refund' ? (
+            <SectionCard title={t('refund.title')} description={t('refund.subtitle')}>
+              <div {...stylex.props(styles.grid2)}>
+                <SelectField name="refund.mode" label={t('refund.modeLabel')}>
+                  {refundPolicyModeSchema.options.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {t(`refundMode.${opt}`)}
+                    </option>
+                  ))}
+                </SelectField>
+                <NumberField
+                  name="refund.windowDays"
+                  label={t('refund.windowLabel')}
+                  hint={t('refund.windowHint')}
+                  min={0}
+                  max={365}
+                  step={1}
+                />
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'receipt' ? (
+            <SectionCard title={t('receipt.title')} description={t('receipt.subtitle')}>
+              <div {...stylex.props(styles.switchList)}>
+                <SwitchRow
+                  name="receipt.emailEnabled"
+                  label={t('receipt.emailEnabledLabel')}
+                  description={t('receipt.emailEnabledDesc')}
+                />
+                <SwitchRow
+                  name="receipt.printEnabled"
+                  label={t('receipt.printEnabledLabel')}
+                  description={t('receipt.printEnabledDesc')}
+                />
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'autoRenewal' ? (
+            <SectionCard title={t('autoRenewal.title')} description={t('autoRenewal.subtitle')}>
+              <div {...stylex.props(styles.stack5col)}>
+                <div {...stylex.props(styles.switchList)}>
+                  <SwitchRow
+                    name="autoRenewal.enabled"
+                    label={t('autoRenewal.enabledLabel')}
+                    description={t('autoRenewal.enabledDesc')}
+                  />
+                </div>
+                <div {...stylex.props(styles.localeGrid)}>
+                  <NumberField
+                    name="autoRenewal.retryAttempts"
+                    label={t('autoRenewal.retryAttemptsLabel')}
+                    min={0}
+                    max={10}
+                    step={1}
+                  />
+                  <NumberField
+                    name="autoRenewal.retryIntervalDays"
+                    label={t('autoRenewal.retryIntervalLabel')}
+                    min={0}
+                    max={30}
+                    step={1}
+                  />
+                  <NumberField
+                    name="autoRenewal.renewalReminderDays"
+                    label={t('autoRenewal.reminderLabel')}
+                    hint={t('autoRenewal.reminderHint')}
+                    min={0}
+                    max={90}
+                    step={1}
+                    fieldClassName={stylex.props(styles.spanTwo).className}
+                  />
+                </div>
+              </div>
             </SectionCard>
           ) : null}
 
@@ -827,6 +1566,12 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       primaryColor: settings.brand.primaryColor,
       secondaryColor: settings.brand.secondaryColor,
     },
+    business: {
+      address: settings.business.address ?? '',
+      phone: settings.business.phone ?? '',
+      email: settings.business.email ?? '',
+      website: settings.business.website ?? '',
+    },
     locale: {
       language: settings.locale.language,
       currency: settings.locale.currency,
@@ -838,7 +1583,73 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       fromEmail: settings.notifications.fromEmail ?? '',
       replyTo: settings.notifications.replyTo ?? '',
     },
-    booking: { cancellationCutoffHours: settings.booking.cancellationCutoffHours },
+    booking: {
+      cancellationCutoffHours: settings.booking.cancellationCutoffHours,
+      lateCancellationPenalty: settings.booking.lateCancellationPenalty,
+      lateCancellationPenaltyType: settings.booking.lateCancellationPenaltyType,
+      bookingWindowDays: settings.booking.bookingWindowDays,
+      maxBookingsPerDay: settings.booking.maxBookingsPerDay,
+      maxBookingsPerWeek: settings.booking.maxBookingsPerWeek,
+      waitlistMode: settings.booking.waitlistMode,
+    },
+    noShow: {
+      penalty: settings.noShow.penalty,
+      penaltyType: settings.noShow.penaltyType,
+      penaltyDays: settings.noShow.penaltyDays,
+      autoCancelMinutes: settings.noShow.autoCancelMinutes,
+    },
+    freeze: {
+      minFreezeDays: settings.freeze.minFreezeDays,
+      maxFreezeDays: settings.freeze.maxFreezeDays,
+      maxFreezeDaysPerYear: settings.freeze.maxFreezeDaysPerYear,
+      freezeFee: settings.freeze.freezeFee,
+      requiresApproval: settings.freeze.requiresApproval,
+    },
+    guestPass: {
+      passesPerMonth: settings.guestPass.passesPerMonth,
+      price: settings.guestPass.price,
+      durationDays: settings.guestPass.durationDays,
+      requiresWaiver: settings.guestPass.requiresWaiver,
+      mustBeAccompanied: settings.guestPass.mustBeAccompanied,
+      sameGuestCooldownDays: settings.guestPass.sameGuestCooldownDays,
+    },
+    trial: {
+      durationDays: settings.trial.durationDays,
+      price: settings.trial.price,
+      includesClasses: settings.trial.includesClasses,
+      maxClassBookings: settings.trial.maxClassBookings,
+      requiresPaymentMethod: settings.trial.requiresPaymentMethod,
+      conversionDiscountPercent: settings.trial.conversionDiscountPercent,
+    },
+    membership: { gracePeriodDays: settings.membership.gracePeriodDays },
+    payments: {
+      acceptCash: settings.payments.acceptCash,
+      acceptCard: settings.payments.acceptCard,
+      acceptPrepaidCredits: settings.payments.acceptPrepaidCredits,
+    },
+    invoice: {
+      prefix: settings.invoice.prefix,
+      startNumber: settings.invoice.startNumber,
+      format: settings.invoice.format,
+    },
+    tax: {
+      enabled: settings.tax.enabled,
+      membershipRate: settings.tax.membershipRate,
+      classRate: settings.tax.classRate,
+      productRate: settings.tax.productRate,
+      serviceRate: settings.tax.serviceRate,
+    },
+    refund: { mode: settings.refund.mode, windowDays: settings.refund.windowDays },
+    receipt: {
+      emailEnabled: settings.receipt.emailEnabled,
+      printEnabled: settings.receipt.printEnabled,
+    },
+    autoRenewal: {
+      enabled: settings.autoRenewal.enabled,
+      retryAttempts: settings.autoRenewal.retryAttempts,
+      retryIntervalDays: settings.autoRenewal.retryIntervalDays,
+      renewalReminderDays: settings.autoRenewal.renewalReminderDays,
+    },
   };
 }
 
@@ -895,6 +1706,37 @@ function SectionCard({
       <p {...stylex.props(styles.cardDesc)}>{description}</p>
       {children}
     </Card>
+  );
+}
+
+/**
+ * A labelled boolean toggle row: title + description on the left, an on/off
+ * {@link Switch} on the right, bound to the form by `name` through a `Controller`.
+ */
+function SwitchRow({
+  name,
+  label,
+  description,
+}: {
+  name: BoolFieldName;
+  label: string;
+  description?: string;
+}) {
+  const { control } = useFormContext<SettingsFormValues>();
+  return (
+    <div {...stylex.props(styles.switchRow)}>
+      <div {...stylex.props(styles.switchText)}>
+        <span {...stylex.props(styles.switchLabel)}>{label}</span>
+        {description ? <span {...stylex.props(styles.switchDesc)}>{description}</span> : null}
+      </div>
+      <Controller
+        control={control}
+        name={name}
+        render={({ field }) => (
+          <Switch checked={Boolean(field.value)} onChange={field.onChange} label={label} />
+        )}
+      />
+    </div>
   );
 }
 
@@ -1125,6 +1967,25 @@ function BookingHint() {
   const value = useWatch({ control, name: 'booking.cancellationCutoffHours' });
   if (!Number.isFinite(value) || value <= 0) return <>{t('booking.hintNone')}</>;
   return <>{t('booking.hintActive', { count: value })}</>;
+}
+
+/** A live sample invoice number, reflecting the chosen prefix + format. */
+function InvoiceHint() {
+  const t = useTranslations('admin.settings');
+  const { control } = useFormContext<SettingsFormValues>();
+  const prefix = useWatch({ control, name: 'invoice.prefix' });
+  const start = useWatch({ control, name: 'invoice.startNumber' });
+  const format = useWatch({ control, name: 'invoice.format' });
+  const seq = Number.isFinite(start) ? String(Math.trunc(start)).padStart(4, '0') : '0000';
+  const pfx = (prefix ?? '').trim() || 'INV';
+  const year = new Date().getFullYear();
+  const sample =
+    format === 'prefix-number'
+      ? `${pfx}-${seq}`
+      : format === 'year-number'
+        ? `${year}-${seq}`
+        : `${pfx}-${year}-${seq}`;
+  return <>{t('invoice.preview', { sample })}</>;
 }
 
 /** The sticky "unsaved changes" bar — appears on any edit, gone once saved/reset. */

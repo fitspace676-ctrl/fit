@@ -2897,7 +2897,19 @@
         "general": "General",
         "hours": "Business hours",
         "booking": "Booking rules",
-        "notifications": "Notifications"
+        "notifications": "Notifications",
+        "business": "Business info",
+        "noShow": "No-show policy",
+        "freeze": "Freeze policy",
+        "guestPass": "Guest passes",
+        "trial": "Trial memberships",
+        "membership": "Membership",
+        "payments": "Payment methods",
+        "invoice": "Invoicing",
+        "tax": "Tax",
+        "refund": "Refunds",
+        "receipt": "Receipts",
+        "autoRenewal": "Auto-renewal"
       },
       "language": {
         "en": "English",
@@ -2954,7 +2966,16 @@
         "subtitle": "How close to a class members can still cancel a confirmed spot.",
         "cutoffLabel": "Cancellation cutoff (hours before start)",
         "hintNone": "No cutoff — members can cancel right up to the class start.",
-        "hintActive": "Members can’t cancel a booked spot within {count, plural, one {# hour} other {# hours}} of the class. Leaving a waitlist is always allowed."
+        "hintActive": "Members can’t cancel a booked spot within {count, plural, one {# hour} other {# hours}} of the class. Leaving a waitlist is always allowed.",
+        "lateCancellationPenaltyLabel": "Late-cancellation penalty",
+        "penaltyTypeLabel": "Penalty type",
+        "limitsLegend": "Booking limits",
+        "bookingWindowLabel": "Booking window (days ahead)",
+        "bookingWindowHint": "How far ahead members can book a class.",
+        "waitlistModeLabel": "Waitlist promotion",
+        "maxPerDayLabel": "Max bookings per day",
+        "maxPerWeekLabel": "Max bookings per week",
+        "zeroUnlimited": "0 means unlimited."
       },
       "notifications": {
         "title": "Notifications",
@@ -2995,7 +3016,147 @@
         "requestFailed": "Request failed ({status}): {message}",
         "unexpected": "Unexpected error.",
         "notAuthorized": "Not authorized.",
-        "invalid": "Invalid settings."
+        "invalid": "Invalid settings.",
+        "number": "Enter a number.",
+        "integer": "Enter a whole number.",
+        "min": "Can’t be less than {min}.",
+        "max": "Can’t be more than {max}."
+      },
+      "business": {
+        "title": "Business information",
+        "subtitle": "Contact details shown on receipts, invoices, and the member portal.",
+        "addressLabel": "Address",
+        "phoneLabel": "Phone",
+        "emailLabel": "Contact email",
+        "websiteLabel": "Website",
+        "websitePlaceholder": "https://yourgym.com"
+      },
+      "noShow": {
+        "title": "No-show policy",
+        "subtitle": "What happens when a member misses a class they booked.",
+        "penaltyLabel": "No-show penalty",
+        "penaltyTypeLabel": "Penalty type",
+        "penaltyDaysLabel": "Penalty duration (days)",
+        "penaltyDaysHint": "How long the penalty applies. 0 disables it.",
+        "autoCancelLabel": "Auto-cancel after (minutes)",
+        "autoCancelHint": "Release an un-checked-in booking this long after the class starts. 0 never auto-cancels."
+      },
+      "freeze": {
+        "title": "Freeze policy",
+        "subtitle": "Rules for members pausing (freezing) their membership.",
+        "minLabel": "Minimum freeze (days)",
+        "maxLabel": "Maximum freeze (days)",
+        "perYearLabel": "Max freeze per year (days)",
+        "feeLabel": "Freeze fee",
+        "zeroNoLimit": "0 means no limit.",
+        "requiresApprovalLabel": "Requires staff approval",
+        "requiresApprovalDesc": "Member-requested freezes must be approved by staff first."
+      },
+      "guestPass": {
+        "title": "Guest pass rules",
+        "subtitle": "How members can bring guests to the gym.",
+        "passesPerMonthLabel": "Passes per member / month",
+        "zeroDisables": "0 disables this feature.",
+        "priceLabel": "Guest pass price",
+        "durationLabel": "Valid for (days)",
+        "cooldownLabel": "Same-guest cooldown (days)",
+        "cooldownHint": "Days before the same guest may return. 0 has no cooldown.",
+        "requiresWaiverLabel": "Requires a signed waiver",
+        "requiresWaiverDesc": "Guests must sign a liability waiver before entry.",
+        "mustBeAccompaniedLabel": "Must be accompanied",
+        "mustBeAccompaniedDesc": "The guest must be accompanied by the inviting member."
+      },
+      "trial": {
+        "title": "Trial membership rules",
+        "subtitle": "Terms for a member's introductory trial period.",
+        "durationLabel": "Trial length (days)",
+        "zeroDisables": "0 disables trials.",
+        "priceLabel": "Trial price",
+        "maxClassBookingsLabel": "Max class bookings",
+        "zeroUnlimited": "0 means unlimited.",
+        "conversionDiscountLabel": "Conversion discount (%)",
+        "includesClassesLabel": "Includes classes",
+        "includesClassesDesc": "Trial members can book classes.",
+        "requiresPaymentLabel": "Requires a payment method",
+        "requiresPaymentDesc": "Members must add a payment method to start a trial."
+      },
+      "membership": {
+        "title": "Membership",
+        "subtitle": "How a membership behaves after a failed renewal.",
+        "gracePeriodLabel": "Grace period (days)",
+        "gracePeriodHint": "Days a membership keeps working after a failed renewal before it lapses. 0 has no grace."
+      },
+      "payments": {
+        "title": "Payment methods",
+        "subtitle": "Which methods your POS and checkout accept.",
+        "acceptCashLabel": "Cash",
+        "acceptCashDesc": "Accept cash payments at the front desk.",
+        "acceptCardLabel": "Card",
+        "acceptCardDesc": "Accept card payments.",
+        "acceptPrepaidLabel": "Prepaid credits",
+        "acceptPrepaidDesc": "Let members pay from their prepaid credit balance."
+      },
+      "invoice": {
+        "title": "Invoice settings",
+        "subtitle": "How invoice numbers are composed.",
+        "prefixLabel": "Prefix",
+        "startNumberLabel": "Starting number",
+        "formatLabel": "Number format",
+        "preview": "Next invoice: {sample}"
+      },
+      "tax": {
+        "title": "Tax settings",
+        "subtitle": "Apply tax to charges, per category.",
+        "enabledLabel": "Charge tax",
+        "enabledDesc": "When off, no tax is applied regardless of the rates below.",
+        "ratesLegend": "Rates (%)",
+        "membershipRateLabel": "Memberships (%)",
+        "classRateLabel": "Classes (%)",
+        "productRateLabel": "Products (%)",
+        "serviceRateLabel": "Services (%)"
+      },
+      "refund": {
+        "title": "Refund policy",
+        "subtitle": "How a refund is calculated when a membership is cancelled mid-term.",
+        "modeLabel": "Refund method",
+        "windowLabel": "Refund window (days)",
+        "windowHint": "Days within which a refund may be requested. 0 has no limit."
+      },
+      "receipt": {
+        "title": "Receipt settings",
+        "subtitle": "How receipts are delivered to members.",
+        "emailEnabledLabel": "Email receipts",
+        "emailEnabledDesc": "Email a receipt after each payment.",
+        "printEnabledLabel": "Printed receipts",
+        "printEnabledDesc": "Offer a printed receipt at the front desk."
+      },
+      "autoRenewal": {
+        "title": "Auto-renewal",
+        "subtitle": "How recurring memberships renew and retry failed charges.",
+        "enabledLabel": "Auto-renew memberships",
+        "enabledDesc": "Automatically charge and renew memberships at the end of each term.",
+        "retryAttemptsLabel": "Retry attempts",
+        "retryIntervalLabel": "Retry interval (days)",
+        "reminderLabel": "Reminder before renewal (days)",
+        "reminderHint": "How many days before renewal a reminder is sent. 0 sends none."
+      },
+      "penaltyType": {
+        "fixed": "Fixed amount",
+        "percentage": "Percentage"
+      },
+      "waitlistMode": {
+        "auto": "Automatic",
+        "manual": "Manual (staff decides)"
+      },
+      "invoiceFormat": {
+        "prefix-number": "PREFIX-0000",
+        "prefix-year-number": "PREFIX-YEAR-0000",
+        "year-number": "YEAR-0000"
+      },
+      "refundMode": {
+        "full": "Full refund",
+        "prorated": "Prorated",
+        "none": "No refund"
       }
     },
     "automation": {
