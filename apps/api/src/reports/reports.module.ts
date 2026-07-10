@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { ReportDeliveryService } from './report-delivery.service';
+import { ReportDrilldownController } from './report-drilldown.controller';
+import { ReportDrilldownService } from './report-drilldown.service';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
@@ -18,7 +20,8 @@ import { ReportsService } from './reports.service';
  */
 @Module({
   imports: [AuthModule],
-  controllers: [ReportsController],
-  providers: [ReportsService, ReportDeliveryService],
+  controllers: [ReportsController, ReportDrilldownController],
+  providers: [ReportsService, ReportDeliveryService, ReportDrilldownService],
+  exports: [ReportDrilldownService],
 })
 export class ReportsModule {}

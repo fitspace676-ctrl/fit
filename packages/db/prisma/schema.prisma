@@ -384,6 +384,7 @@ model Gym {
   loyaltyLedger           LoyaltyLedgerEntry[]
   loyaltyRewards          LoyaltyReward[]
   loyaltyRedemptions      LoyaltyRedemption[]
+  dashboardPins           DashboardPin[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -428,6 +429,7 @@ model User {
   crmActivities           CrmActivity[]
   automationRules         AutomationRule[]         @relation("AutomationRuleCreatedBy")
   campaigns               Campaign[]               @relation("CampaignCreatedBy")
+  dashboardPins           DashboardPin[]
 
   @@map("users")
 }
@@ -2238,4 +2240,31 @@ model LoyaltyRedemption {
   @@index([gymId, rewardType])
   @@index([rewardId])
   @@map("loyalty_redemptions")
+}
+
+/// A staff member's pinned report widget (T12.12). Each row pins one section of a
+/// drill-down report (`metric` + `section`) to that user's admin dashboard, scoped
+/// to the gym they pinned it in. Deliberately kept OUT of the tenant Prisma
+/// extension's auto-scoped models (like {@link CheckIn}): the pins service pins the
+/// tenant explicitly (`gymId` from the request context) and additionally filters by
+/// the authenticated `userId`, since a pin is per-user, not gym-wide. The
+/// (gym, user, metric, section) tuple is unique so re-pinning the same widget is
+/// idempotent.
+model DashboardPin {
+  id        String   @id @default(cuid())
+  gymId     String
+  userId    String
+  /// The drill-down report the pinned widget belongs to (`revenue` / `members` /
+  /// `attendance`); validated against `reportMetricSchema` in `@fit/types`.
+  metric    String
+  /// The pinned section's stable id within that report (e.g. `revenue-over-time`).
+  section   String
+  createdAt DateTime @default(now())
+
+  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gymId, userId, metric, section])
+  @@index([gymId, userId])
+  @@map("dashboard_pins")
 }
