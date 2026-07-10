@@ -41,7 +41,14 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     shiftSlot: make(models?.shiftSlot),
     gymMember: make(models?.gymMember),
     user: make(models?.user),
-  } as unknown as Record<string, ReturnType<typeof make>> & {
+  } as unknown as {
+    staffNote: ReturnType<typeof make>;
+    staffTask: ReturnType<typeof make>;
+    timeOffRequest: ReturnType<typeof make>;
+    staffSpecialty: ReturnType<typeof make>;
+    shiftSlot: ReturnType<typeof make>;
+    gymMember: ReturnType<typeof make>;
+    user: ReturnType<typeof make>;
     $transaction: (cb: (tx: unknown) => unknown) => unknown;
   };
   client.$transaction = (cb: (tx: unknown) => unknown) => cb(client);
