@@ -2011,7 +2011,37 @@
         "membership": "Membership",
         "purchases": "Purchases",
         "access": "Access Log",
-        "notesTasks": "Notes & Tasks"
+        "notesTasks": "Notes & Tasks",
+        "loyalty": "Loyalty"
+      },
+      "loyalty": {
+        "heading": "Loyalty points",
+        "subheading": "The member’s points balance and recent activity.",
+        "balanceLabel": "Current balance",
+        "pointsValue": "{points} pts",
+        "adjust": "Adjust points",
+        "ledgerHeading": "Recent activity",
+        "emptyLedger": "No points activity yet.",
+        "readOnly": "You have read-only access to loyalty points.",
+        "reasons": {
+          "check_in": "Check-in",
+          "purchase": "Purchase",
+          "manual": "Manual adjustment",
+          "redemption": "Redemption",
+          "signup": "Sign-up bonus"
+        },
+        "balanceAfter": "Balance: {points}",
+        "adjustTitle": "Adjust points",
+        "adjustDescription": "Add or remove points for {name}. Use a negative amount to deduct.",
+        "deltaLabel": "Points adjustment",
+        "deltaHint": "Positive to add points, negative to deduct.",
+        "deltaPlaceholder": "e.g. 100 or -50",
+        "noteLabel": "Note (optional)",
+        "notePlaceholder": "Reason for this adjustment",
+        "adjustSubmit": "Apply adjustment",
+        "saving": "Applying…",
+        "adjusted": "Points adjusted.",
+        "cancel": "Cancel"
       },
       "errors": {
         "loadMembers": "Could not load members ({status}): {message}",
@@ -3343,6 +3373,142 @@
         "segmentNotFound": "That audience segment no longer exists.",
         "promoNotFound": "That promo code no longer exists.",
         "promoTaken": "A promo code with that code already exists."
+      }
+    },
+    "loyalty": {
+      "breadcrumb": {
+        "label": "Breadcrumb",
+        "loyalty": "Loyalty"
+      },
+      "shell": {
+        "title": "Loyalty",
+        "subtitle": "Configure the points program, manage the rewards catalogue, and review member redemptions.",
+        "tablistLabel": "Loyalty sections"
+      },
+      "shellTabs": {
+        "program": "Program",
+        "rewards": "Rewards",
+        "redemptions": "Redemptions"
+      },
+      "rewardTypes": {
+        "pt_session": "Free PT session",
+        "day_pass": "Day pass",
+        "guest_pass": "Guest pass",
+        "merchandise": "Merchandise",
+        "drink": "Smoothie / drink",
+        "discount": "Discount",
+        "other": "Other"
+      },
+      "program": {
+        "heading": "Points program",
+        "subheading": "Turn the loyalty program on or off and set how members earn points.",
+        "enableLabel": "Loyalty program",
+        "enableHint": "When on, members earn points from check-ins, purchases and sign-up.",
+        "pointsPerCheckInLabel": "Points per check-in",
+        "pointsPerCheckInHint": "Awarded each time a member checks in.",
+        "pointsPerCurrencyLabel": "Points per ₾1 spent",
+        "pointsPerCurrencyHint": "Awarded per whole lari spent on a paid order.",
+        "signupBonusLabel": "Sign-up bonus",
+        "signupBonusHint": "One-time points granted when a member joins.",
+        "save": "Save changes",
+        "saving": "Saving…",
+        "saved": "Program updated.",
+        "lastSaved": "Saved to this gym.",
+        "neverSaved": "Not configured yet.",
+        "readOnly": "You have read-only access to the loyalty program."
+      },
+      "rewards": {
+        "heading": "Rewards catalogue",
+        "subheading": "The rewards members can redeem their points for.",
+        "newReward": "New reward",
+        "columns": {
+          "name": "Reward",
+          "type": "Type",
+          "pointsCost": "Points",
+          "stock": "Stock",
+          "status": "Status"
+        },
+        "pointsValue": "{points} pts",
+        "unlimited": "Unlimited",
+        "active": "Active",
+        "inactive": "Inactive",
+        "activate": "Activate",
+        "deactivate": "Deactivate",
+        "activateFor": "Activate {name}",
+        "deactivateFor": "Deactivate {name}",
+        "edit": "Edit",
+        "editFor": "Edit {name}",
+        "delete": "Delete",
+        "deleteFor": "Delete {name}",
+        "caption": "Rewards catalogue",
+        "emptyTitle": "No rewards yet",
+        "emptyHintWrite": "Create your first reward so members have something to redeem their points for.",
+        "emptyHintRead": "No rewards have been added to the catalogue yet.",
+        "created": "Reward created.",
+        "updated": "Reward updated.",
+        "deleted": "Reward deleted.",
+        "activated": "Reward activated.",
+        "deactivated": "Reward deactivated.",
+        "deleteTitle": "Delete reward",
+        "deleteMessage": "Delete “{name}”? This can’t be undone.",
+        "cancel": "Cancel",
+        "addTitle": "New reward",
+        "editTitle": "Edit reward",
+        "addDescription": "Add a reward members can redeem with their points.",
+        "editDescription": "Update this reward’s details.",
+        "addSubmit": "Create reward",
+        "editSubmit": "Save changes",
+        "saving": "Saving…",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. Free protein smoothie",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "What the member gets when they redeem this reward",
+        "pointsCostLabel": "Points cost",
+        "pointsCostHint": "Points a member spends to redeem this reward.",
+        "pointsCostPlaceholder": "e.g. 500",
+        "typeLabel": "Type",
+        "stockLabel": "Stock",
+        "stockHint": "Leave blank for unlimited stock.",
+        "stockPlaceholder": "Unlimited",
+        "activeLabel": "Active",
+        "activeHint": "Inactive rewards are hidden from members and can’t be redeemed."
+      },
+      "redemptions": {
+        "heading": "Redemptions",
+        "subheading": "Rewards members have redeemed with their points.",
+        "columns": {
+          "member": "Member",
+          "reward": "Reward",
+          "points": "Points",
+          "status": "Status",
+          "date": "Date"
+        },
+        "pointsValue": "{points} pts",
+        "status": {
+          "pending": "Pending",
+          "fulfilled": "Fulfilled",
+          "cancelled": "Cancelled"
+        },
+        "statusAll": "All",
+        "statusFilterLabel": "Filter by status",
+        "typeFilterLabel": "Filter by reward type",
+        "typeAll": "All reward types",
+        "showing": "{from}–{to} of {total}",
+        "previous": "Previous",
+        "next": "Next",
+        "caption": "Redemptions",
+        "emptyTitle": "No redemptions yet",
+        "emptyHint": "Redemptions appear here once members start spending their points."
+      },
+      "errors": {
+        "load": "Couldn’t load loyalty (HTTP {status}: {message}).",
+        "apiUnreachable": "The API is unreachable. Check your connection and try again.",
+        "requestFailed": "Request failed (HTTP {status}: {message}).",
+        "notAuthorized": "You don’t have permission to manage loyalty.",
+        "invalidDetails": "Some details are invalid. Please review and try again.",
+        "unexpected": "Something went wrong. Please try again.",
+        "rewardNotFound": "That reward no longer exists.",
+        "memberNotFound": "That member no longer exists."
       }
     }
   }

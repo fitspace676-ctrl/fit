@@ -9,9 +9,16 @@ import {
   type CreditPackCatalogueEntry,
   type CreditPackSummary,
   type MemberDetail,
+  type MemberLoyaltyResponse,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
+import {
+  ApiError,
+  fetchCreditPackCatalogue,
+  fetchMember,
+  fetchMemberCreditPacks,
+  fetchMemberLoyalty,
+} from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Badge, Btn, Icon, type IconName, type Tone } from '@/components/ui';
 import { MemberActions } from './member-actions';
@@ -388,6 +395,18 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
     ]);
   }
 
+  // Loyalty balance + ledger (T12.11). Reading is a `LoyaltyRead` capability;
+  // adjusting is `LoyaltyManage`. Both are secondary to the member detail, so a
+  // failure degrades to no loyalty tab rather than failing the whole page.
+  const canReadLoyalty =
+    session !== null && roleHasPermission(session.role, Permission.LoyaltyRead);
+  const canManageLoyalty =
+    session !== null && roleHasPermission(session.role, Permission.LoyaltyManage);
+  let loyalty: MemberLoyaltyResponse | null = null;
+  if (canReadLoyalty) {
+    loyalty = await fetchMemberLoyalty(member.id).catch(() => null);
+  }
+
   return (
     <div {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.topRow)}>
@@ -478,6 +497,8 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
         canManageBilling={canManageBilling}
         creditPacks={creditPacks}
         creditCatalogue={creditCatalogue}
+        loyalty={loyalty}
+        canManageLoyalty={canManageLoyalty}
       />
     </div>
   );

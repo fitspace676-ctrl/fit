@@ -177,6 +177,18 @@ import type {
   UpdateCampaignInput,
   ScheduleCampaignInput,
   SaveCampaignAsTemplateInput,
+  LoyaltyCatalogResponse,
+  LoyaltyProgramResponse,
+  UpdateLoyaltyProgramInput,
+  ListLoyaltyRewardsResponse,
+  LoyaltyRewardRow,
+  CreateLoyaltyRewardInput,
+  UpdateLoyaltyRewardInput,
+  ListRedemptionsQuery,
+  ListRedemptionsResponse,
+  MemberLoyaltyResponse,
+  MemberBalanceResponse,
+  AdjustLoyaltyPointsInput,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -2294,4 +2306,135 @@ export async function deletePromoCode(id: string): Promise<void> {
   if (!res.ok) {
     await unwrap<never>(res);
   }
+}
+
+// ── Loyalty — program, rewards, redemptions, member balance/ledger (T12.10) ────
+
+/** Serialise a redemptions query, dropping empty values (same roster contract). */
+export function redemptionsQueryString(query: Partial<ListRedemptionsQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /loyalty/catalog` — reward-type + reason catalogs for the admin pickers. */
+export async function fetchLoyaltyCatalog(): Promise<LoyaltyCatalogResponse> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/catalog`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<LoyaltyCatalogResponse>(res);
+}
+
+/** `GET /loyalty/program` — the gym's loyalty program configuration. */
+export async function fetchLoyaltyProgram(): Promise<LoyaltyProgramResponse> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/program`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<LoyaltyProgramResponse>(res);
+}
+
+/** `PUT /loyalty/program` — update the program config; returns the saved config. */
+export async function updateLoyaltyProgram(
+  input: UpdateLoyaltyProgramInput,
+): Promise<LoyaltyProgramResponse> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/program`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<LoyaltyProgramResponse>(res);
+}
+
+/** `GET /loyalty/rewards` — the rewards catalogue. */
+export async function fetchLoyaltyRewards(): Promise<ListLoyaltyRewardsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/rewards`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListLoyaltyRewardsResponse>(res);
+}
+
+/** `POST /loyalty/rewards` — create a reward; returns the new row. */
+export async function createLoyaltyReward(
+  input: CreateLoyaltyRewardInput,
+): Promise<LoyaltyRewardRow> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/rewards`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<LoyaltyRewardRow>(res);
+}
+
+/** `PATCH /loyalty/rewards/:id` — edit a reward; returns the updated row. */
+export async function updateLoyaltyReward(
+  id: string,
+  input: UpdateLoyaltyRewardInput,
+): Promise<LoyaltyRewardRow> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/rewards/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<LoyaltyRewardRow>(res);
+}
+
+/** `DELETE /loyalty/rewards/:id` — delete a reward. */
+export async function deleteLoyaltyReward(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/rewards/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
+/** `GET /loyalty/redemptions` — one filtered, server-paginated page of redemptions. */
+export async function fetchRedemptions(
+  query: Partial<ListRedemptionsQuery> = {},
+): Promise<ListRedemptionsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/redemptions${redemptionsQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListRedemptionsResponse>(res);
+}
+
+/** `GET /loyalty/members/:memberId` — a member's balance plus recent ledger. */
+export async function fetchMemberLoyalty(memberId: string): Promise<MemberLoyaltyResponse> {
+  const res = await fetch(`${apiBaseUrl()}/loyalty/members/${encodeURIComponent(memberId)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<MemberLoyaltyResponse>(res);
+}
+
+/** `POST /loyalty/members/:memberId/adjust` — apply a signed points adjustment. */
+export async function adjustMemberPoints(
+  memberId: string,
+  input: AdjustLoyaltyPointsInput,
+): Promise<MemberBalanceResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/loyalty/members/${encodeURIComponent(memberId)}/adjust`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<MemberBalanceResponse>(res);
 }

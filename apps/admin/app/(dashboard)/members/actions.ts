@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,
+  adjustLoyaltyPointsSchema,
   createMemberNoteSchema,
   createMemberSchema,
   createMemberTaskSchema,
@@ -12,11 +13,13 @@ import {
   roleHasPermission,
   updateMemberSchema,
   updateMemberTaskSchema,
+  type AdjustLoyaltyPointsInput,
   type BulkExportMembersInput,
   type CreateMemberInput,
   type CreateMemberNoteInput,
   type CreateMemberTaskInput,
   type FreezeSubscriptionInput,
+  type MemberBalanceResponse,
   type MemberDetail,
   type MemberTaskStatus,
   type UpdateMemberInput,
@@ -24,6 +27,7 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  adjustMemberPoints,
   bulkExportMembers,
   createMember,
   createMemberNote,
@@ -68,6 +72,7 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 const requireMemberRead = () => sessionHas(Permission.MemberRead);
 const requireMemberWrite = () => sessionHas(Permission.MemberWrite);
 const requireBillingManage = () => sessionHas(Permission.BillingManage);
+const requireLoyaltyManage = () => sessionHas(Permission.LoyaltyManage);
 
 /** Map a thrown API error to a short, staff-facing message. */
 function toMessage(error: unknown, t: Translator): string {
@@ -374,6 +379,33 @@ export async function unfreezeMemberSubscriptionAction(
     revalidatePath('/members');
     revalidatePath(`/members/${memberId}`);
     return { ok: true, data: { newPeriodEnd } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Apply a manual loyalty-points adjustment to a member (T12.11). A signed,
+ * non-zero delta with an optional note. Gated by `LoyaltyManage` (distinct from
+ * the `MemberWrite` roster edit), it posts to `POST /loyalty/members/:id/adjust`
+ * and refreshes the member's detail page so the new balance + ledger entry show.
+ */
+export async function adjustMemberPointsAction(
+  memberId: string,
+  input: AdjustLoyaltyPointsInput,
+): Promise<ActionResult<MemberBalanceResponse>> {
+  const t = await getTranslations('admin.members');
+  if (!(await requireLoyaltyManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = adjustLoyaltyPointsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const balance = await adjustMemberPoints(memberId, parsed.data);
+    revalidatePath(`/members/${memberId}`);
+    return { ok: true, data: balance };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }

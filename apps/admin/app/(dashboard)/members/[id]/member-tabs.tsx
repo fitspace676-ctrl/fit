@@ -13,10 +13,12 @@ import {
   type MemberActivityKind,
   type MemberCurrentPlan,
   type MemberDetail,
+  type MemberLoyaltyResponse,
   type MemberNoteEntry,
   type MemberTaskEntry,
 } from '@fit/types';
 import {
+  Badge,
   Btn,
   Field,
   Icon,
@@ -30,6 +32,7 @@ import {
 import {
   addMemberNoteAction,
   addMemberTaskAction,
+  adjustMemberPointsAction,
   freezeMemberSubscriptionAction,
   grantMemberCreditPackAction,
   toggleMemberTaskAction,
@@ -50,6 +53,7 @@ const TABS = [
   'payments',
   'purchases',
   'access',
+  'loyalty',
   'notesTasks',
 ] as const;
 type Tab = (typeof TABS)[number];
@@ -699,11 +703,15 @@ export function MemberTabs({
   canManageBilling,
   creditPacks,
   creditCatalogue,
+  loyalty,
+  canManageLoyalty,
 }: {
   member: MemberDetail;
   canManageBilling: boolean;
   creditPacks: CreditPackSummary[];
   creditCatalogue: CreditPackCatalogueEntry[];
+  loyalty: MemberLoyaltyResponse | null;
+  canManageLoyalty: boolean;
 }) {
   const t = useTranslations('admin.members');
   const locale = useLocale();
@@ -745,6 +753,15 @@ export function MemberTabs({
         {active === 'payments' && <PaymentsPanel member={member} t={t} locale={locale} />}
         {active === 'purchases' && <PurchasesPanel member={member} t={t} locale={locale} />}
         {active === 'access' && <AccessLogPanel member={member} t={t} locale={locale} />}
+        {active === 'loyalty' && (
+          <LoyaltyPanel
+            member={member}
+            loyalty={loyalty}
+            canManage={canManageLoyalty}
+            t={t}
+            locale={locale}
+          />
+        )}
         {active === 'notesTasks' && <NotesTasksPanel member={member} t={t} locale={locale} />}
       </div>
     </div>
@@ -1616,6 +1633,288 @@ function AccessLogPanel({ member, t, locale }: { member: MemberDetail; t: T; loc
         ))}
       </ul>
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Loyalty                                                            */
+/* ------------------------------------------------------------------ */
+
+const loyaltyStyles = stylex.create({
+  balanceCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    borderRadius: 'var(--radius-surface)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '1.25rem',
+  },
+  balanceHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    flexWrap: 'wrap',
+  },
+  balanceCopy: { display: 'flex', flexDirection: 'column', gap: '0.25rem' },
+  balanceLabel: {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    color: 'var(--color-text-secondary)',
+  },
+  balanceValue: {
+    fontSize: '2rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  ledgerLabel: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  ledgerRowMain: { display: 'flex', flexDirection: 'column', gap: '0.125rem' },
+  ledgerNote: { fontSize: '0.8125rem', color: 'var(--color-text-secondary)' },
+  ledgerRight: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '0.125rem',
+  },
+  delta: { fontWeight: 600, fontVariantNumeric: 'tabular-nums' },
+  deltaPos: { color: 'var(--color-success)' },
+  deltaNeg: { color: 'var(--color-error)' },
+  balanceAfter: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  form: { display: 'flex', flexDirection: 'column', gap: '0.875rem' },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+    backgroundColor: 'var(--color-error-muted)',
+  },
+  errorIcon: {
+    marginTop: '0.125rem',
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-error)',
+  },
+  errorText: { margin: 0, fontSize: '0.875rem', color: 'var(--color-error)' },
+});
+
+/**
+ * Loyalty — the member's points balance and recent ledger, with a manual points
+ * adjustment behind `LoyaltyManage`. Reads come from `GET /loyalty/members/:id`
+ * (fetched by the page); the adjust dialog posts a signed delta through the
+ * member server action and refreshes the detail so the new balance + entry show.
+ * A member with no loyalty data (read failed or none yet) renders an honest
+ * empty state.
+ */
+function LoyaltyPanel({
+  member,
+  loyalty,
+  canManage,
+  t,
+  locale,
+}: {
+  member: MemberDetail;
+  loyalty: MemberLoyaltyResponse | null;
+  canManage: boolean;
+  t: T;
+  locale: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (loyalty === null) {
+    return <EmptyState>{t('loyalty.emptyLedger')}</EmptyState>;
+  }
+
+  const balanceText = t('loyalty.pointsValue', {
+    points: loyalty.balance.toLocaleString(locale),
+  });
+
+  return (
+    <div {...stylex.props(styles.panelStack)}>
+      <div {...stylex.props(loyaltyStyles.balanceCard)}>
+        <div {...stylex.props(loyaltyStyles.balanceHead)}>
+          <div {...stylex.props(loyaltyStyles.balanceCopy)}>
+            <span {...stylex.props(loyaltyStyles.balanceLabel)}>{t('loyalty.balanceLabel')}</span>
+            <span {...stylex.props(loyaltyStyles.balanceValue)}>{balanceText}</span>
+          </div>
+          {canManage ? (
+            <Btn v="outline" size="sm" icon="spark" onClick={() => setOpen(true)}>
+              {t('loyalty.adjust')}
+            </Btn>
+          ) : null}
+        </div>
+
+        <p {...stylex.props(loyaltyStyles.ledgerLabel)}>{t('loyalty.ledgerHeading')}</p>
+        {loyalty.entries.length === 0 ? (
+          <p {...stylex.props(styles.mutedText)}>{t('loyalty.emptyLedger')}</p>
+        ) : (
+          <ul {...stylex.props(styles.list)}>
+            {loyalty.entries.map((entry) => {
+              const positive = entry.delta >= 0;
+              const sign = positive ? '+' : '−';
+              const magnitude = Math.abs(entry.delta).toLocaleString(locale);
+              return (
+                <li key={entry.id} {...stylex.props(styles.row)}>
+                  <div {...stylex.props(loyaltyStyles.ledgerRowMain)}>
+                    <Badge tone={positive ? 'success' : 'ink'}>
+                      {t(`loyalty.reasons.${entry.reason}`)}
+                    </Badge>
+                    <span {...stylex.props(loyaltyStyles.ledgerNote)}>
+                      {entry.note ?? formatDateTime(entry.createdAt, locale)}
+                    </span>
+                  </div>
+                  <div {...stylex.props(loyaltyStyles.ledgerRight)}>
+                    <span
+                      {...stylex.props(
+                        loyaltyStyles.delta,
+                        positive ? loyaltyStyles.deltaPos : loyaltyStyles.deltaNeg,
+                      )}
+                    >
+                      {`${sign}${magnitude}`}
+                    </span>
+                    <span {...stylex.props(loyaltyStyles.balanceAfter)}>
+                      {t('loyalty.balanceAfter', {
+                        points: entry.balanceAfter.toLocaleString(locale),
+                      })}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {!canManage ? <p {...stylex.props(styles.mutedText)}>{t('loyalty.readOnly')}</p> : null}
+      </div>
+
+      {open ? (
+        <AdjustPointsModal
+          memberId={member.id}
+          memberName={member.name}
+          onClose={() => setOpen(false)}
+          t={t}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** A signed integer parsed from a string, or `undefined` when blank/invalid/zero. */
+function signedInt(value: string): number | undefined {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n !== 0 ? n : undefined;
+}
+
+/**
+ * The Adjust Points dialog (T12.11) — a signed, non-zero delta with an optional
+ * note. Posts through {@link adjustMemberPointsAction} (gated by `LoyaltyManage`)
+ * and, on success, refreshes the detail so the new balance + ledger entry show.
+ */
+function AdjustPointsModal({
+  memberId,
+  memberName,
+  onClose,
+  t,
+}: {
+  memberId: string;
+  memberName: string;
+  onClose: () => void;
+  t: T;
+}) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [delta, setDelta] = useState('');
+  const [note, setNote] = useState('');
+
+  const parsedDelta = signedInt(delta);
+  const canSubmit = parsedDelta !== undefined;
+
+  function submit(): void {
+    if (!canSubmit || pending) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await adjustMemberPointsAction(memberId, {
+        delta: parsedDelta,
+        ...(note.trim() ? { note: note.trim() } : {}),
+      });
+      if (result.ok) {
+        toast(t('loyalty.adjusted'), { tone: 'success', icon: 'check' });
+        onClose();
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
+  return (
+    <Modal
+      open
+      onClose={() => (pending ? undefined : onClose())}
+      title={t('loyalty.adjustTitle')}
+      description={t('loyalty.adjustDescription', { name: memberName })}
+      size="sm"
+      footer={
+        <>
+          <Btn v="outline" size="md" onClick={onClose} disabled={pending}>
+            {t('loyalty.cancel')}
+          </Btn>
+          <Btn v="primary" size="md" onClick={submit} disabled={pending || !canSubmit}>
+            {pending ? t('loyalty.saving') : t('loyalty.adjustSubmit')}
+          </Btn>
+        </>
+      }
+    >
+      <div {...stylex.props(loyaltyStyles.form)}>
+        {error ? (
+          <div {...stylex.props(loyaltyStyles.errorCard)}>
+            <Icon name="info" {...stylex.props(loyaltyStyles.errorIcon)} />
+            <p role="alert" {...stylex.props(loyaltyStyles.errorText)}>
+              {error}
+            </p>
+          </div>
+        ) : null}
+
+        <Field label={t('loyalty.deltaLabel')} hint={t('loyalty.deltaHint')}>
+          <Input
+            type="number"
+            value={delta}
+            onChange={(e) => setDelta(e.target.value)}
+            placeholder={t('loyalty.deltaPlaceholder')}
+            autoFocus
+          />
+        </Field>
+
+        <Field label={t('loyalty.noteLabel')}>
+          <Textarea
+            rows={2}
+            value={note}
+            maxLength={300}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t('loyalty.notePlaceholder')}
+          />
+        </Field>
+      </div>
+    </Modal>
   );
 }
 
