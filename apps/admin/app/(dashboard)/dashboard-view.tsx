@@ -17,7 +17,7 @@
 // FormaCore Aurora-glass primitives. The data flow below is unchanged; only the
 // presentation moved off Tailwind.
 
-import { useMemo, useTransition, type ReactNode } from 'react';
+import { useMemo, useState, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -33,10 +33,13 @@ import type {
   DashboardKpi,
   DashboardOverviewResponse,
   DashboardRange,
+  PinnedWidget,
 } from '@fit/types';
-import { CountUp, Icon, type IconName } from '@/components/ui';
+import { Btn, CountUp, Icon, type IconName } from '@/components/ui';
 import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 import { AreaChart, Donut, type AreaPoint } from './charts';
+import { ReportSectionCard } from './reports/report-sections';
+import { unpinReportAction } from './reports/actions';
 
 /** Translator for the `admin.dashboard` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -506,9 +509,43 @@ const styles = stylex.create({
   rangeControl: {
     flexShrink: 0,
   },
+  pinnedHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    marginBottom: '0.75rem',
+  },
+  errorText: {
+    margin: 0,
+    marginBottom: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+    paddingInline: '1rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.8125rem',
+    color: 'var(--color-error)',
+  },
+  pinnedGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(2, minmax(0, 1fr))',
+    },
+  },
 });
 
-export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
+export function DashboardView({
+  data,
+  pinnedWidgets = [],
+}: {
+  data: DashboardOverviewResponse;
+  pinnedWidgets?: PinnedWidget[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -554,6 +591,9 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
         </div>
       </section>
 
+      {/* Pinned report widgets (T12.12) — only rendered when the user has pinned any. */}
+      {pinnedWidgets.length > 0 && <PinnedReports widgets={pinnedWidgets} locale={locale} />}
+
       {/* Revenue + plan mix */}
       <section {...stylex.props(styles.gridThirds)}>
         <RevenueCard data={data} money={money} onSelectRange={selectRange} disabled={isPending} />
@@ -569,6 +609,72 @@ export function DashboardView({ data }: { data: DashboardOverviewResponse }) {
       {/* Recent check-ins */}
       <RecentCheckInsCard data={data} />
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Pinned report widgets (T12.12)                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The staff member's pinned drill-down report sections, rendered with the same
+ * {@link ReportSectionCard} the reports pages use. Each carries an unpin control
+ * wired to the report Server Action; on success the dashboard re-fetches so the
+ * removed widget disappears. Only mounted when there is at least one pin.
+ */
+function PinnedReports({ widgets, locale }: { widgets: PinnedWidget[]; locale: string }) {
+  const t = useTranslations('admin.dashboard');
+  const tr = useTranslations('admin.reports');
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function unpin(widget: PinnedWidget): void {
+    setError(null);
+    startTransition(async () => {
+      const result = await unpinReportAction(widget.id, widget.metric);
+      if (result.ok) {
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
+  return (
+    <section>
+      <div {...stylex.props(styles.pinnedHead)}>
+        <h2 {...stylex.props(styles.sectionLabel)}>{t('pinned.title')}</h2>
+      </div>
+      {error !== null && (
+        <p role="alert" {...stylex.props(styles.errorText)}>
+          {error}
+        </p>
+      )}
+      <div {...stylex.props(styles.pinnedGrid, isPending && styles.pending)}>
+        {widgets.map((widget) => (
+          <ReportSectionCard
+            key={widget.id}
+            section={widget.section}
+            currency={widget.currency}
+            locale={locale}
+            emptyLabel={tr('drilldown.emptySection')}
+            action={
+              <Btn
+                v="ink"
+                size="sm"
+                icon="pin"
+                disabled={isPending}
+                onClick={() => unpin(widget)}
+                title={tr('drilldown.unpin')}
+              >
+                {tr('drilldown.unpin')}
+              </Btn>
+            }
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 

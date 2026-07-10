@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations } from 'next-intl/server';
 import {
   DEFAULT_REPORT_RANGE,
   Permission,
+  REPORT_METRIC_CATALOG,
   reportKeySchema,
   reportRangeSchema,
   roleHasPermission,
@@ -63,6 +65,49 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-error)',
   },
+  sectionLabel: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  drilldownGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
+  drilldownCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '1.25rem',
+    textDecoration: 'none',
+    transitionProperty: 'border-color, box-shadow',
+    transitionDuration: '150ms',
+    ':hover': {
+      borderColor: 'var(--color-accent)',
+      boxShadow: '0 0 0 1px var(--color-accent)',
+    },
+  },
+  drilldownName: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
+  },
+  drilldownDesc: {
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 export const metadata: Metadata = {
@@ -107,11 +152,39 @@ export default async function ReportsPage({
       </header>
 
       {canViewReports ? (
-        <ReportsBody range={range} selected={selected} />
+        <>
+          <DrilldownCards heading={t('drilldown.heading')} />
+          <ReportsBody range={range} selected={selected} />
+        </>
       ) : (
         <p {...stylex.props(styles.notice)}>{t('noAccess')}</p>
       )}
     </div>
+  );
+}
+
+/**
+ * The drill-down report cards (T12.12) — one per metric in {@link REPORT_METRIC_CATALOG},
+ * each a link into `/reports/[metric]`. Kept above the CSV/XLSX catalogue so the
+ * chart-first reports lead; the nav item stays active for the nested routes.
+ */
+function DrilldownCards({ heading }: { heading: string }) {
+  return (
+    <section>
+      <h2 {...stylex.props(styles.sectionLabel)}>{heading}</h2>
+      <div {...stylex.props(styles.drilldownGrid)} style={{ marginTop: '0.75rem' }}>
+        {REPORT_METRIC_CATALOG.map((metric) => (
+          <Link
+            key={metric.metric}
+            href={`/reports/${metric.metric}`}
+            {...stylex.props(styles.drilldownCard)}
+          >
+            <span {...stylex.props(styles.drilldownName)}>{metric.name}</span>
+            <span {...stylex.props(styles.drilldownDesc)}>{metric.description}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 

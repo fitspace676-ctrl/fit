@@ -1273,6 +1273,9 @@
       "title": "Dashboard",
       "welcomeBody": "Welcome to the FormaCore admin console. Use the navigation to manage members, schedule, billing, and staff — you only see the areas your role can access.",
       "allSystemsLive": "All systems live",
+      "pinned": {
+        "title": "Pinned reports"
+      },
       "greeting": {
         "morning": "Good morning",
         "afternoon": "Good afternoon",
@@ -1395,7 +1398,18 @@
       "rowCount": "{count, plural, =0 {No rows} one {# row} other {# rows}}",
       "downloadCsv": "CSV",
       "downloadXlsx": "XLSX",
-      "emptyRows": "No data in this period yet."
+      "emptyRows": "No data in this period yet.",
+      "drilldown": {
+        "heading": "Drill-down reports",
+        "back": "Back to reports",
+        "pin": "Pin",
+        "pinned": "Pinned",
+        "unpin": "Unpin",
+        "emptySection": "No data in this range.",
+        "notAuthorized": "Your role does not have permission to pin reports.",
+        "pinInvalid": "That widget can't be pinned.",
+        "pinError": "Could not update the pin (error {status})."
+      }
     },
     "billingPlans": {
       "title": "Billing",

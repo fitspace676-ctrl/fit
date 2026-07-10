@@ -126,6 +126,12 @@ import type {
   ReportKey,
   ReportRange,
   ReportFormat,
+  ReportDrilldown,
+  ReportMetric,
+  DashboardPin,
+  DashboardPinsResponse,
+  DashboardWidgetsResponse,
+  CreateDashboardPin,
   ListLeadsQuery,
   ListLeadsResponse,
   GetLeadResponse,
@@ -1440,6 +1446,74 @@ export async function fetchReportExport(
       cache: 'no-store',
     },
   );
+}
+
+// ── Reports drill-down + Pin to Dashboard (T12.12) ────────────────────────────
+
+/**
+ * `GET /admin/reports/drilldown/:metric?range=` — one drill-down report (KPIs +
+ * typed sections) for on-screen rendering over `range` (defaults to the API's
+ * `30d`). Money cells are MINOR-unit integers; the view formats them. Gated
+ * `ReportView` API-side.
+ */
+export async function fetchReportDrilldown(
+  metric: ReportMetric,
+  range?: ReportRange,
+): Promise<ReportDrilldown> {
+  const qs = range ? `?range=${encodeURIComponent(range)}` : '';
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/reports/drilldown/${encodeURIComponent(metric)}${qs}`,
+    {
+      headers: await authHeaders(),
+      // The report reflects live tenant state — never serve a stale drill-down.
+      cache: 'no-store',
+    },
+  );
+  return unwrap<ReportDrilldown>(res);
+}
+
+/** `GET /admin/dashboard/pins` — the caller's pinned report widgets (bare pins). */
+export async function fetchDashboardPins(): Promise<DashboardPinsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/dashboard/pins`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<DashboardPinsResponse>(res);
+}
+
+/**
+ * `GET /admin/dashboard/pins/widgets` — the caller's pins resolved to their live
+ * report sections, for the dashboard to render the pinned widgets.
+ */
+export async function fetchDashboardWidgets(): Promise<DashboardWidgetsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/dashboard/pins/widgets`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<DashboardWidgetsResponse>(res);
+}
+
+/** `POST /admin/dashboard/pins` — pin one report section (idempotent). */
+export async function addDashboardPin(input: CreateDashboardPin): Promise<DashboardPin> {
+  const res = await fetch(`${apiBaseUrl()}/admin/dashboard/pins`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<DashboardPin>(res);
+}
+
+/** `DELETE /admin/dashboard/pins/:id` — unpin one of the caller's widgets. */
+export async function removeDashboardPin(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/admin/dashboard/pins/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok && res.status !== 204) {
+    await unwrap<void>(res);
+  }
 }
 
 /**

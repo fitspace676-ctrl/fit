@@ -11,7 +11,7 @@
 // resolve through `currentColor` off a StyleX `color` so `light-dark()` tracks the
 // active theme automatically.
 
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useId, useState, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 const styles = stylex.create({
@@ -262,6 +262,194 @@ export function OccupancyBar({ value, cap }: { value: number; cap: number }) {
       </div>
       <div {...stylex.props(styles.occTrack)}>
         <div {...stylex.props(styles.occFill, fill)} style={{ width: `${Math.min(100, pct)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  BarChart                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const barStyles = stylex.create({
+  wrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  row: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(6rem, 9rem) 1fr auto',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  label: {
+    overflow: 'hidden',
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  track: {
+    height: '0.625rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  fill: {
+    height: '100%',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    transitionProperty: 'width',
+    transitionDuration: '700ms',
+    transitionTimingFunction: 'ease-out',
+  },
+  value: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.8125rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  empty: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
+
+/** One bar of a {@link BarChart}: a category label and its value. */
+export interface BarDatum {
+  label: string;
+  value: number;
+}
+
+/**
+ * A compact, dependency-free horizontal bar chart on the Fit brand accent. Each
+ * category is a row — its label, a track+fill scaled to the series max, and the
+ * formatted value — so it reads for money, counts, and percentages alike via the
+ * optional `formatValue`. An empty series renders the caller's `emptyLabel` rather
+ * than a broken frame.
+ */
+export function BarChart({
+  data,
+  formatValue = (value) => String(value),
+  emptyLabel = 'No data in this range.',
+}: {
+  data: BarDatum[];
+  formatValue?: (value: number) => string;
+  emptyLabel?: string;
+}) {
+  if (data.length === 0) {
+    return <p {...stylex.props(barStyles.empty)}>{emptyLabel}</p>;
+  }
+  const max = Math.max(1, ...data.map((datum) => Math.abs(datum.value)));
+  return (
+    <div {...stylex.props(barStyles.wrap)}>
+      {data.map((datum) => (
+        <div key={datum.label} {...stylex.props(barStyles.row)}>
+          <span {...stylex.props(barStyles.label)} title={datum.label}>
+            {datum.label}
+          </span>
+          <span {...stylex.props(barStyles.track)}>
+            <span
+              {...stylex.props(barStyles.fill)}
+              style={{ width: `${Math.max(2, (Math.abs(datum.value) / max) * 100)}%` }}
+            />
+          </span>
+          <span {...stylex.props(barStyles.value)}>{formatValue(datum.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Heatmap                                                                     */
+/* -------------------------------------------------------------------------- */
+
+const heatStyles = stylex.create({
+  scroll: {
+    overflowX: 'auto',
+  },
+  grid: {
+    display: 'grid',
+    gap: '2px',
+    minWidth: 'max-content',
+  },
+  corner: {},
+  colLabel: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    textAlign: 'center',
+    color: 'var(--color-text-secondary)',
+  },
+  rowLabel: {
+    paddingInlineEnd: '0.5rem',
+    fontSize: '0.75rem',
+    lineHeight: '1rem',
+    textAlign: 'right',
+    color: 'var(--color-text-secondary)',
+  },
+  cell: {
+    width: '1rem',
+    height: '1rem',
+    borderRadius: '3px',
+    // Brand accent, tinted per-cell by opacity set inline off the value.
+    backgroundColor: 'var(--color-accent)',
+  },
+});
+
+/**
+ * A weekday × hour (or any rows × cols) peak-intensity heatmap on the brand accent.
+ * Each cell's opacity scales with its value against the grid max, so denser periods
+ * read darker; a zero cell is a faint track. Kept dependency-free (a CSS grid of
+ * tinted squares) and horizontally scrollable so a 24-column hour grid never blows
+ * out the card on narrow screens.
+ */
+export function Heatmap({
+  rowLabels,
+  colLabels,
+  cells,
+  ariaLabel = 'Heatmap',
+}: {
+  rowLabels: string[];
+  colLabels: string[];
+  cells: number[][];
+  ariaLabel?: string;
+}) {
+  const max = Math.max(1, ...cells.flat());
+  const cols = colLabels.length;
+  return (
+    <div {...stylex.props(heatStyles.scroll)}>
+      <div
+        role="img"
+        aria-label={ariaLabel}
+        {...stylex.props(heatStyles.grid)}
+        style={{ gridTemplateColumns: `auto repeat(${cols}, 1rem)` }}
+      >
+        <span {...stylex.props(heatStyles.corner)} />
+        {colLabels.map((label, index) => (
+          <span key={`col-${index}`} {...stylex.props(heatStyles.colLabel)}>
+            {label}
+          </span>
+        ))}
+        {rowLabels.map((rowLabel, rowIndex) => (
+          <Fragment key={`row-${rowIndex}`}>
+            <span {...stylex.props(heatStyles.rowLabel)}>{rowLabel}</span>
+            {colLabels.map((_, colIndex) => {
+              const value = cells[rowIndex]?.[colIndex] ?? 0;
+              const intensity = value === 0 ? 0.06 : 0.12 + (value / max) * 0.88;
+              return (
+                <span
+                  key={`cell-${rowIndex}-${colIndex}`}
+                  {...stylex.props(heatStyles.cell)}
+                  style={{ opacity: intensity }}
+                  title={`${rowLabel} ${colLabels[colIndex]}: ${value}`}
+                />
+              );
+            })}
+          </Fragment>
+        ))}
       </div>
     </div>
   );
