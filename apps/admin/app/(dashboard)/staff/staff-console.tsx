@@ -328,7 +328,7 @@ export function StaffConsole({
   return (
     <div {...stylex.props(styles.stack)}>
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
+        <span>{t('breadcrumb.home')}</span>
         <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
         <span {...stylex.props(styles.crumbCurrent)}>{t('breadcrumb.staff')}</span>
       </nav>

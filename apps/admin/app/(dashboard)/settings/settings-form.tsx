@@ -965,7 +965,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
       {...stylex.props(styles.form)}
     >
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
+        <span>{t('breadcrumb.home')}</span>
         <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
         <span {...stylex.props(styles.breadcrumbCurrent)}>{t('breadcrumb.settings')}</span>
       </nav>

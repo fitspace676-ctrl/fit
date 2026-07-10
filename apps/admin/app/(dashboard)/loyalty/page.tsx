@@ -151,7 +151,7 @@ export default async function LoyaltyPage({
         separator={<Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />}
       >
         <BreadcrumbItem as={Link} href="/">
-          Iron Gym
+          {t('breadcrumb.home')}
         </BreadcrumbItem>
         <BreadcrumbItem isCurrent>{t('breadcrumb.loyalty')}</BreadcrumbItem>
       </Breadcrumbs>

@@ -257,7 +257,7 @@ const styles = stylex.create({
   taskCheckDone: {
     borderColor: 'var(--color-success)',
     backgroundColor: 'var(--color-success)',
-    color: '#fff',
+    color: 'var(--color-on-accent)',
   },
   taskCheckIcon: {
     width: '0.75rem',

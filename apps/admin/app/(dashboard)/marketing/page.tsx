@@ -193,7 +193,7 @@ export default async function MarketingPage({
         separator={<Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />}
       >
         <BreadcrumbItem as={Link} href="/">
-          Iron Gym
+          {t('breadcrumb.home')}
         </BreadcrumbItem>
         <BreadcrumbItem isCurrent>{t('breadcrumb.marketing')}</BreadcrumbItem>
       </Breadcrumbs>

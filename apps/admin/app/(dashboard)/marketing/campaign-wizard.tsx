@@ -102,7 +102,7 @@ const styles = stylex.create({
   },
   stepDotActive: {
     backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-text-on-accent, #ffffff)',
+    color: 'var(--color-on-accent)',
   },
   stepLine: {
     height: '2px',

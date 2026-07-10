@@ -32,6 +32,11 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
   },
+  "pnpm": {
+    "overrides": {
+      "jiti": "2.7.0"
+    }
+  },
   "lint-staged": {
     "*.{ts,tsx,mts,cts}": [
       "eslint --max-warnings 0",

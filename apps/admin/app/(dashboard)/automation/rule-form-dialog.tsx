@@ -188,7 +188,7 @@ const styles = stylex.create({
     height: '1.125rem',
     width: '1.125rem',
     borderRadius: 'var(--radius-full)',
-    backgroundColor: '#ffffff',
+    backgroundColor: 'var(--color-on-accent)',
     transition: 'transform 150ms ease',
     transform: 'translateX(0)',
   },
