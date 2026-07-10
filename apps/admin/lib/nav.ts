@@ -70,38 +70,26 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: Permission.MemberRead,
   },
   {
-    labelKey: 'nav.trainers',
-    href: '/trainers',
-    icon: 'trainers',
-    permission: Permission.TrainerRead,
+    // Classes hub — Class Types · Schedule · PT Calendar · Bookings (sub-tabs).
+    labelKey: 'nav.classes',
+    href: '/classes',
+    icon: 'classes',
+    permission: Permission.ClassRead,
   },
+  {
+    // Payments hub — Plans · Invoices · Products · Transactions (sub-tabs).
+    labelKey: 'nav.payments',
+    href: '/payments',
+    icon: 'billing',
+    permission: Permission.BillingRead,
+  },
+  { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
   {
     labelKey: 'nav.staff',
     href: '/staff',
     icon: 'staff',
     permission: Permission.StaffManage,
     minRole: 'OWNER',
-  },
-  {
-    labelKey: 'nav.schedule',
-    href: '/schedule',
-    icon: 'classes',
-    permission: Permission.ClassRead,
-  },
-  {
-    labelKey: 'nav.checkIn',
-    href: '/check-in',
-    icon: 'checkin',
-    permission: Permission.MemberRead,
-  },
-  { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
-  { labelKey: 'nav.shop', href: '/products', icon: 'products', permission: Permission.ProductRead },
-  { labelKey: 'nav.orders', href: '/orders', icon: 'orders', permission: Permission.BillingRead },
-  {
-    labelKey: 'nav.billing',
-    href: '/subscriptions',
-    icon: 'billing',
-    permission: Permission.BillingRead,
   },
   {
     labelKey: 'nav.crm',
@@ -123,34 +111,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: Permission.MarketingRead,
     minRole: 'MANAGER',
   },
-  {
-    labelKey: 'nav.loyalty',
-    href: '/loyalty',
-    icon: 'loyalty',
-    permission: Permission.LoyaltyRead,
-  },
-  {
-    labelKey: 'nav.analytics',
-    href: '/analytics',
-    icon: 'analytics',
-    permission: Permission.ReportView,
-  },
   { labelKey: 'nav.reports', href: '/reports', icon: 'reports', permission: Permission.ReportView },
-  {
-    labelKey: 'nav.locations',
-    href: '/locations',
-    icon: 'locations',
-    permission: Permission.LocationRead,
-  },
-  {
-    // The audit-log viewer now lives as a tab of this screen (T3.10), so the
-    // Activity area is the single sidebar entry for both feeds.
-    labelKey: 'nav.activity',
-    href: '/activity',
-    icon: 'activity',
-    permission: Permission.ReportView,
-    minRole: 'MANAGER',
-  },
   {
     labelKey: 'nav.settings',
     href: '/settings',
@@ -170,16 +131,17 @@ export interface NavGroup {
 /**
  * How the sidebar clusters {@link NAV_ITEMS} into collapsible sections, top to
  * bottom. Every item's `href` must appear in exactly one group (guarded by test)
- * so no destination is silently dropped from the rail. The `growth` group is the
- * Phase 12 addition (CRM, Automation, Marketing, Loyalty).
+ * so no destination is silently dropped from the rail. The consolidated IA (fewer
+ * top-level destinations, with Classes and Payments each fanning out into their
+ * own hub sub-tabs) mirrors the reference admin while keeping our grouped rail.
  */
 export const NAV_GROUPS: readonly NavGroup[] = [
   { labelKey: 'navGroups.overview', hrefs: ['/'] },
-  { labelKey: 'navGroups.people', hrefs: ['/members', '/trainers', '/staff'] },
-  { labelKey: 'navGroups.operations', hrefs: ['/schedule', '/check-in', '/locations'] },
-  { labelKey: 'navGroups.commerce', hrefs: ['/pos', '/products', '/orders', '/subscriptions'] },
-  { labelKey: 'navGroups.growth', hrefs: ['/crm', '/automation', '/marketing', '/loyalty'] },
-  { labelKey: 'navGroups.insights', hrefs: ['/analytics', '/reports', '/activity'] },
+  { labelKey: 'navGroups.people', hrefs: ['/members', '/staff'] },
+  { labelKey: 'navGroups.operations', hrefs: ['/classes'] },
+  { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/pos'] },
+  { labelKey: 'navGroups.growth', hrefs: ['/crm', '/automation', '/marketing'] },
+  { labelKey: 'navGroups.insights', hrefs: ['/reports'] },
   { labelKey: 'navGroups.system', hrefs: ['/settings'] },
 ];
 

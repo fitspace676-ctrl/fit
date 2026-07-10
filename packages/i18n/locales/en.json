@@ -1249,7 +1249,9 @@
       "locations": "Locations",
       "activity": "Activity",
       "auditLog": "Audit log",
-      "settings": "Settings"
+      "settings": "Settings",
+      "payments": "Payments",
+      "classes": "Classes"
     },
     "navGroups": {
       "overview": "Overview",
@@ -2912,7 +2914,8 @@
         "tax": "Tax",
         "refund": "Refunds",
         "receipt": "Receipts",
-        "autoRenewal": "Auto-renewal"
+        "autoRenewal": "Auto-renewal",
+        "locations": "Locations"
       },
       "language": {
         "en": "English",
@@ -3160,6 +3163,12 @@
         "full": "Full refund",
         "prorated": "Prorated",
         "none": "No refund"
+      },
+      "locations": {
+        "title": "Locations",
+        "subtitle": "Your gym’s branches and their capacity.",
+        "description": "Manage each branch — its address, manager, capacity, and status — in the full locations manager.",
+        "cta": "Manage locations"
       }
     },
     "automation": {
@@ -3795,6 +3804,38 @@
         "rewardNotFound": "That reward no longer exists.",
         "memberNotFound": "That member no longer exists."
       }
+    },
+    "paymentsTabs": {
+      "plans": "Plans",
+      "invoices": "Invoices",
+      "products": "Products",
+      "transactions": "Transactions",
+      "ariaLabel": "Payments sections"
+    },
+    "classesTabs": {
+      "types": "Class Types",
+      "schedule": "Schedule",
+      "ptCalendar": "PT Calendar",
+      "bookings": "Bookings",
+      "ariaLabel": "Classes sections"
+    },
+    "invoicesHub": {
+      "title": "Invoices",
+      "subtitle": "Member invoices are generated per subscription and order.",
+      "description": "Invoices are generated for each subscription and order and are available as PDF downloads from each member’s payment history.",
+      "cta": "Go to members"
+    },
+    "ptHub": {
+      "title": "PT Calendar",
+      "subtitle": "Personal-training sessions live on the class schedule.",
+      "description": "Personal-training sessions are scheduled as classes with a personal category and an assigned trainer. Open the Schedule to view and book them on the weekly calendar.",
+      "cta": "Open schedule"
+    },
+    "bookingsHub": {
+      "title": "Bookings",
+      "subtitle": "Class bookings are managed from the schedule and each member’s record.",
+      "description": "Bookings are created when a member reserves a class occurrence. Open the Schedule to manage a class roster, or a member’s record to see their bookings and attendance.",
+      "cta": "Open schedule"
     }
   }
 }

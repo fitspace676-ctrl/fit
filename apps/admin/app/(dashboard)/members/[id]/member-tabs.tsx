@@ -1565,7 +1565,7 @@ function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
                 {/* Download proxy is a root-relative admin route handler, not a data
                     action — a plain <a> so the browser handles the file download. */}
                 <a
-                  href={`/invoices/${invoice.id}/pdf`}
+                  href={`/payments/invoices/${invoice.id}/pdf`}
                   aria-label={t('detail.downloadInvoice')}
                   {...stylex.props(styles.downloadLink)}
                 >

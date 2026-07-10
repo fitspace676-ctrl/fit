@@ -11,6 +11,7 @@ import { getServerSession } from '@/lib/session';
 import { ApiError, fetchClassTemplates } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
+import { ClassesTabs } from '@/components/classes-tabs';
 import { ClassTemplatesFilters } from './classes-filters';
 import { ClassTemplatesTable } from './classes-table';
 
@@ -168,6 +169,8 @@ export default async function ClassTemplatesPage({
           </Link>
         ) : null}
       </header>
+
+      <ClassesTabs />
 
       <ClassTemplatesFilters search={query.search ?? ''} status={query.status ?? ''} />
 

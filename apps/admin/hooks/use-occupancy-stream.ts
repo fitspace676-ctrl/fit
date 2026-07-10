@@ -3,7 +3,7 @@
 // @fit/admin — live class-occupancy stream (T8.10).
 //
 // The push replacement for the schedule's polling. `useOccupancyStream()` opens a
-// same-origin `EventSource` against the `/schedule/stream` proxy (which forwards
+// same-origin `EventSource` against the `/classes/schedule/stream` proxy (which forwards
 // the staff token to the API's `GET /admin/schedule/stream`) and, on each
 // `class.occupancy` snapshot, calls `router.refresh()` so the `force-dynamic`
 // schedule page re-fetches and the capacity bars move without a navigation — the
@@ -54,7 +54,7 @@ export function useOccupancyStream(enabled = true): void {
       if (source) {
         return;
       }
-      source = new EventSource('/schedule/stream');
+      source = new EventSource('/classes/schedule/stream');
       source.addEventListener(CLASS_OCCUPANCY_EVENT, scheduleRefresh);
     };
 

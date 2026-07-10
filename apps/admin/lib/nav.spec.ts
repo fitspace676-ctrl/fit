@@ -60,7 +60,7 @@ describe('sidebar nav ⇄ route guards', () => {
   });
 
   it('gates the Phase 12 Growth routes behind a minimum role', () => {
-    for (const href of ['/crm', '/automation', '/marketing', '/loyalty']) {
+    for (const href of ['/crm', '/automation', '/marketing']) {
       expect(
         requiredRoleForPath(href),
         `${href} is not role-gated in ROUTE_PERMISSIONS`,
@@ -71,16 +71,13 @@ describe('sidebar nav ⇄ route guards', () => {
   it('shows the Growth group to an OWNER and to a MANAGER', () => {
     for (const role of ['OWNER', 'MANAGER'] as Role[]) {
       const hrefs = visibleNavItems(role).map((item) => item.href);
-      expect(hrefs).toEqual(
-        expect.arrayContaining(['/crm', '/automation', '/marketing', '/loyalty']),
-      );
+      expect(hrefs).toEqual(expect.arrayContaining(['/crm', '/automation', '/marketing']));
     }
   });
 
-  it('hides Automation and Marketing from a RECEPTIONIST but keeps CRM + Loyalty', () => {
+  it('hides Automation and Marketing from a RECEPTIONIST but keeps CRM', () => {
     const hrefs = visibleNavItems('RECEPTIONIST').map((item) => item.href);
     expect(hrefs).toContain('/crm');
-    expect(hrefs).toContain('/loyalty');
     expect(hrefs).not.toContain('/automation');
     expect(hrefs).not.toContain('/marketing');
   });

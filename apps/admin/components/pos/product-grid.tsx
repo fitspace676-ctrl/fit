@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { formatPrice } from '@/app/(dashboard)/products/format-price';
+import { formatPrice } from '@/app/(dashboard)/payments/products/format-price';
 import { searchPosProductsAction, type PosProductRow } from '@/app/(dashboard)/pos/actions';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';

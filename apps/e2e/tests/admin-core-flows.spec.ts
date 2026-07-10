@@ -95,31 +95,16 @@ test.describe.serial('Admin core flows', () => {
     await expect(page.getByText(className).first()).toBeVisible();
   });
 
-  test('Check in the member', async ({ page }) => {
-    await page.goto('/check-in');
-    // Search by the unique email so the debounced lookup returns exactly one row.
-    await page.locator('#checkin-search').fill(member.email);
-
-    // Pick the member from the results dropdown.
-    const result = page.getByRole('button', { name: member.email });
-    await result.click();
-
-    // Record the arrival (the button stays enabled regardless of eligibility).
-    await page.getByRole('button', { name: 'Check in' }).click();
-
-    // The arrival is prepended to the live feed and the lookup resets.
-    await expect(page.getByText(member.name).first()).toBeVisible({ timeout: 20_000 });
-  });
-
   test('POS: create a product and record a card sale', async ({ page }) => {
     // The seed ships no products, so create one (ACTIVE, so POS can sell it).
-    await page.goto('/products/new');
+    // Products now live under the consolidated Payments hub.
+    await page.goto('/payments/products/new');
     await page.locator('#product-name').fill(product.name);
     await page.locator('#product-price').fill(product.price);
     await page.locator('#product-currency').fill(product.currency);
     await page.locator('#product-status').selectOption('ACTIVE');
     await page.getByRole('button', { name: 'Create product' }).click();
-    await page.waitForURL(/\/products\/(?!new$)[a-z0-9]+$/, { timeout: 20_000 });
+    await page.waitForURL(/\/payments\/products\/(?!new$)[a-z0-9]+$/, { timeout: 20_000 });
 
     // Ring it up at the point of sale.
     await page.goto('/pos');
@@ -138,14 +123,15 @@ test.describe.serial('Admin core flows', () => {
   });
 
   test('Refund the most recent order', async ({ page }) => {
-    await page.goto('/orders');
+    // Orders are the Transactions tab of the consolidated Payments hub.
+    await page.goto('/payments/transactions');
 
     // Open the newest POS-channel order — the sale just recorded. (Seeded demo
     // orders are all ONLINE and carry fixed "today" clock times that can sort
     // above a real-time row, so the plain top row isn't reliably our sale.)
     const posRow = page.locator('tbody tr', { hasText: 'POS' }).first();
     await posRow.getByRole('link').first().click();
-    await page.waitForURL(/\/orders\/(?!new$)[a-z0-9]+$/, { timeout: 20_000 });
+    await page.waitForURL(/\/payments\/transactions\/(?!new$)[a-z0-9]+$/, { timeout: 20_000 });
 
     // The card sale left a CAPTURED payment, so the refund control is present.
     await expect(page.getByRole('heading', { name: 'Issue a refund' })).toBeVisible();

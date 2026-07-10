@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { PaymentMethod, PosReceipt } from '@fit/types';
-import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/products/format-price';
+import {
+  formatPrice,
+  inputToMinor,
+  minorToInput,
+} from '@/app/(dashboard)/payments/products/format-price';
 import {
   emailReceiptAction,
   recordPosSaleAction,

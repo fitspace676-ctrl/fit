@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -38,6 +39,7 @@ import {
   SelectField,
   Switch,
   TextField,
+  buttonClasses,
   fieldErrorText,
   useFormContext,
   useToast,
@@ -682,6 +684,7 @@ type BoolFieldName =
 type SectionKey =
   | 'general'
   | 'business'
+  | 'locations'
   | 'hours'
   | 'booking'
   | 'noShow'
@@ -700,6 +703,7 @@ type SectionKey =
 const SECTIONS: { key: SectionKey; icon: IconName }[] = [
   { key: 'general', icon: 'home' },
   { key: 'business', icon: 'phone' },
+  { key: 'locations', icon: 'pin' },
   { key: 'hours', icon: 'clock' },
   { key: 'booking', icon: 'calendar' },
   { key: 'noShow', icon: 'eyeOff' },
@@ -1546,6 +1550,19 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                   placeholder={t('notifications.replyToPlaceholder')}
                   autoComplete="off"
                 />
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {section === 'locations' ? (
+            <SectionCard title={t('locations.title')} description={t('locations.subtitle')}>
+              <div {...stylex.props(styles.stack4)}>
+                <p {...stylex.props(styles.cardDesc)}>{t('locations.description')}</p>
+                <div>
+                  <Link href="/locations" className={buttonClasses('primary', 'sm')}>
+                    {t('locations.cta')}
+                  </Link>
+                </div>
               </div>
             </SectionCard>
           ) : null}
