@@ -138,13 +138,35 @@ export const gymNotificationsSchema = z.object({
 /** The gym's notification settings — {@link gymNotificationsSchema}. */
 export type GymNotifications = z.infer<typeof gymNotificationsSchema>;
 
+/** Penalty amount interpretation shared by the cancellation + no-show policies. */
+export const penaltyTypeSchema = z.enum(['fixed', 'percentage']);
+
+/** A penalty amount interpretation — a member of {@link penaltyTypeSchema}. */
+export type PenaltyType = z.infer<typeof penaltyTypeSchema>;
+
+/** Default penalty interpretation — a flat, fixed amount. */
+export const DEFAULT_PENALTY_TYPE: PenaltyType = 'fixed';
+
+/** How a freed waitlist seat is offered: auto-promoted, or held for staff. */
+export const waitlistModeSchema = z.enum(['auto', 'manual']);
+
+/** A waitlist-promotion mode — a member of {@link waitlistModeSchema}. */
+export type WaitlistMode = z.infer<typeof waitlistModeSchema>;
+
+/** Largest late/no-show/guest/trial money amount a gym can configure. */
+export const MAX_PENALTY_AMOUNT = 100_000;
+
 /**
- * Booking policy: how the class-booking flow (T5.4–T5.6) behaves for this gym.
- * `cancellationCutoffHours` is the window before an occurrence's start within
- * which a member may no longer release a confirmed seat (T5.6) — `0` disables it
- * (cancel allowed up to the start). Leaving a *waitlist* is always permitted
- * regardless, since it holds no seat. Defaults so a never-configured gym parses
- * to a complete, sensible (cutoff-free) policy.
+ * Booking + cancellation policy: how the class-booking flow (T5.4–T5.6) behaves
+ * for this gym. `cancellationCutoffHours` is the window before an occurrence's
+ * start within which a member may no longer release a confirmed seat (T5.6) — `0`
+ * disables it (cancel allowed up to the start); leaving a *waitlist* is always
+ * permitted regardless, since it holds no seat. The remaining fields deepen the
+ * policy for gym-admin parity (T12.16): the late-cancellation `lateCancellation*`
+ * penalty applied inside the cutoff, the `bookingWindowDays` a member may book
+ * ahead, per-day / per-week booking caps (`0` = unlimited), and how a freed
+ * waitlist seat is offered. Every field defaults so a never-configured gym parses
+ * to a complete, permissive (cutoff-free, uncapped) policy.
  */
 export const gymBookingSettingsSchema = z.object({
   cancellationCutoffHours: z
@@ -153,10 +175,204 @@ export const gymBookingSettingsSchema = z.object({
     .min(0)
     .max(MAX_CANCELLATION_CUTOFF_HOURS)
     .default(DEFAULT_CANCELLATION_CUTOFF_HOURS),
+  lateCancellationPenalty: z.number().min(0).max(MAX_PENALTY_AMOUNT).default(0),
+  lateCancellationPenaltyType: penaltyTypeSchema.default(DEFAULT_PENALTY_TYPE),
+  bookingWindowDays: z.number().int().min(0).max(365).default(14),
+  maxBookingsPerDay: z.number().int().min(0).max(100).default(0),
+  maxBookingsPerWeek: z.number().int().min(0).max(500).default(0),
+  waitlistMode: waitlistModeSchema.default('auto'),
 });
 
-/** The gym's booking policy — {@link gymBookingSettingsSchema}. */
+/** The gym's booking + cancellation policy — {@link gymBookingSettingsSchema}. */
 export type GymBookingSettings = z.infer<typeof gymBookingSettingsSchema>;
+
+/**
+ * Business information shown on receipts, invoices, and the member-portal contact
+ * surface. All nullable — an unset field simply isn't rendered. The gym's `name`
+ * is the canonical `Gym.name`, surfaced under `brand`, and is not duplicated here.
+ */
+export const gymBusinessSettingsSchema = z.object({
+  address: z.string().trim().max(200).nullable().default(null),
+  phone: z.string().trim().max(40).nullable().default(null),
+  email: z.string().email().nullable().default(null),
+  website: z.string().trim().max(200).nullable().default(null),
+});
+
+/** The gym's business information — {@link gymBusinessSettingsSchema}. */
+export type GymBusinessSettings = z.infer<typeof gymBusinessSettingsSchema>;
+
+/**
+ * No-show policy: the `penalty` for missing a booked class (interpreted by
+ * `penaltyType`), the `penaltyDays` it applies for, and the `autoCancelMinutes`
+ * grace after a class starts before an un-checked-in booking is released
+ * (`0` = never auto-cancel). Config only; defaults impose nothing.
+ */
+export const gymNoShowSettingsSchema = z.object({
+  penalty: z.number().min(0).max(MAX_PENALTY_AMOUNT).default(0),
+  penaltyType: penaltyTypeSchema.default(DEFAULT_PENALTY_TYPE),
+  penaltyDays: z.number().int().min(0).max(365).default(0),
+  autoCancelMinutes: z.number().int().min(0).max(240).default(0),
+});
+
+/** The gym's no-show policy — {@link gymNoShowSettingsSchema}. */
+export type GymNoShowSettings = z.infer<typeof gymNoShowSettingsSchema>;
+
+/**
+ * Membership freeze (pause) policy, read by the freeze flow (T5.x / T8.4) that
+ * enforces it: `minFreezeDays` / `maxFreezeDays` bound a single freeze's length
+ * (`0` on either means no per-freeze limit at that end), `maxFreezeDaysPerYear`
+ * bounds the annual total (`0` = no annual cap), `freezeFee` is charged per
+ * freeze, and `requiresApproval` gates member-initiated freezes on staff sign-off.
+ * Defaults are permissive so an unconfigured gym imposes no gym-level limit beyond
+ * the plan's own allowance.
+ */
+export const gymFreezeSettingsSchema = z.object({
+  minFreezeDays: z.number().int().min(0).max(365).default(0),
+  maxFreezeDays: z.number().int().min(0).max(365).default(0),
+  maxFreezeDaysPerYear: z.number().int().min(0).max(365).default(0),
+  freezeFee: z.number().min(0).max(MAX_PENALTY_AMOUNT).default(0),
+  requiresApproval: z.boolean().default(false),
+});
+
+/** The gym's freeze policy — {@link gymFreezeSettingsSchema}. */
+export type GymFreezeSettings = z.infer<typeof gymFreezeSettingsSchema>;
+
+/**
+ * Guest-pass rules: passes granted per member per month (`0` disables guest
+ * passes), the `price`, how many `durationDays` a pass is valid, waiver /
+ * accompaniment requirements, and a `sameGuestCooldownDays` before the same guest
+ * may return.
+ */
+export const gymGuestPassSettingsSchema = z.object({
+  passesPerMonth: z.number().int().min(0).max(100).default(0),
+  price: z.number().min(0).max(MAX_PENALTY_AMOUNT).default(0),
+  durationDays: z.number().int().min(1).max(30).default(1),
+  requiresWaiver: z.boolean().default(true),
+  mustBeAccompanied: z.boolean().default(true),
+  sameGuestCooldownDays: z.number().int().min(0).max(365).default(0),
+});
+
+/** The gym's guest-pass rules — {@link gymGuestPassSettingsSchema}. */
+export type GymGuestPassSettings = z.infer<typeof gymGuestPassSettingsSchema>;
+
+/**
+ * Trial-membership rules: `durationDays` (`0` disables trials), `price`, whether
+ * classes are `includesClasses` and how many `maxClassBookings` may be booked,
+ * whether a payment method is `requiresPaymentMethod` up front, and the
+ * `conversionDiscountPercent` off the first paid period on conversion.
+ */
+export const gymTrialSettingsSchema = z.object({
+  durationDays: z.number().int().min(0).max(365).default(0),
+  price: z.number().min(0).max(MAX_PENALTY_AMOUNT).default(0),
+  includesClasses: z.boolean().default(true),
+  maxClassBookings: z.number().int().min(0).max(100).default(0),
+  requiresPaymentMethod: z.boolean().default(false),
+  conversionDiscountPercent: z.number().min(0).max(100).default(0),
+});
+
+/** The gym's trial-membership rules — {@link gymTrialSettingsSchema}. */
+export type GymTrialSettings = z.infer<typeof gymTrialSettingsSchema>;
+
+/**
+ * Membership grace period: days past a failed renewal a membership keeps working
+ * before it lapses. `0` = no grace.
+ */
+export const gymMembershipSettingsSchema = z.object({
+  gracePeriodDays: z.number().int().min(0).max(90).default(0),
+});
+
+/** The gym's membership grace-period policy — {@link gymMembershipSettingsSchema}. */
+export type GymMembershipSettings = z.infer<typeof gymMembershipSettingsSchema>;
+
+/** Which payment methods the POS + checkout accept. */
+export const gymPaymentMethodsSchema = z.object({
+  acceptCash: z.boolean().default(true),
+  acceptCard: z.boolean().default(true),
+  acceptPrepaidCredits: z.boolean().default(true),
+});
+
+/** The gym's accepted payment methods — {@link gymPaymentMethodsSchema}. */
+export type GymPaymentMethods = z.infer<typeof gymPaymentMethodsSchema>;
+
+/** How invoice numbers are composed. */
+export const invoiceNumberFormatSchema = z.enum([
+  'prefix-number',
+  'prefix-year-number',
+  'year-number',
+]);
+
+/** An invoice-number composition — a member of {@link invoiceNumberFormatSchema}. */
+export type InvoiceNumberFormat = z.infer<typeof invoiceNumberFormatSchema>;
+
+/**
+ * Invoice numbering: the `prefix`, the first sequence `startNumber`, and the
+ * composed `format`.
+ */
+export const gymInvoiceSettingsSchema = z.object({
+  prefix: z.string().trim().max(10).default('INV'),
+  startNumber: z.number().int().min(1).max(1_000_000_000).default(1000),
+  format: invoiceNumberFormatSchema.default('prefix-year-number'),
+});
+
+/** The gym's invoice settings — {@link gymInvoiceSettingsSchema}. */
+export type GymInvoiceSettings = z.infer<typeof gymInvoiceSettingsSchema>;
+
+/**
+ * Tax settings: a master `enabled` switch and per-category rates (percent, `0`–`100`).
+ * All rates default to `0`; `enabled` = `false` means no tax is applied regardless.
+ */
+export const gymTaxSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  membershipRate: z.number().min(0).max(100).default(0),
+  classRate: z.number().min(0).max(100).default(0),
+  productRate: z.number().min(0).max(100).default(0),
+  serviceRate: z.number().min(0).max(100).default(0),
+});
+
+/** The gym's tax settings — {@link gymTaxSettingsSchema}. */
+export type GymTaxSettings = z.infer<typeof gymTaxSettingsSchema>;
+
+/** How a refund is calculated when a membership is cancelled mid-term. */
+export const refundPolicyModeSchema = z.enum(['full', 'prorated', 'none']);
+
+/** A refund calculation mode — a member of {@link refundPolicyModeSchema}. */
+export type RefundPolicyMode = z.infer<typeof refundPolicyModeSchema>;
+
+/**
+ * Refund policy: the calculation `mode` and the `windowDays` within which a refund
+ * may be requested (`0` = no window limit).
+ */
+export const gymRefundSettingsSchema = z.object({
+  mode: refundPolicyModeSchema.default('prorated'),
+  windowDays: z.number().int().min(0).max(365).default(0),
+});
+
+/** The gym's refund policy — {@link gymRefundSettingsSchema}. */
+export type GymRefundSettings = z.infer<typeof gymRefundSettingsSchema>;
+
+/** Receipt delivery channels. */
+export const gymReceiptSettingsSchema = z.object({
+  emailEnabled: z.boolean().default(true),
+  printEnabled: z.boolean().default(false),
+});
+
+/** The gym's receipt settings — {@link gymReceiptSettingsSchema}. */
+export type GymReceiptSettings = z.infer<typeof gymReceiptSettingsSchema>;
+
+/**
+ * Auto-renewal policy for recurring memberships (T5.4): the master `enabled`
+ * switch, the failed-charge `retryAttempts` and `retryIntervalDays` between them,
+ * and how many `renewalReminderDays` before renewal a reminder is sent.
+ */
+export const gymAutoRenewalSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  retryAttempts: z.number().int().min(0).max(10).default(3),
+  retryIntervalDays: z.number().int().min(0).max(30).default(3),
+  renewalReminderDays: z.number().int().min(0).max(90).default(7),
+});
+
+/** The gym's auto-renewal policy — {@link gymAutoRenewalSettingsSchema}. */
+export type GymAutoRenewalSettings = z.infer<typeof gymAutoRenewalSettingsSchema>;
 
 /**
  * The complete settings blob as stored in `Gym.settings`. Every section defaults,
@@ -166,10 +382,22 @@ export type GymBookingSettings = z.infer<typeof gymBookingSettingsSchema>;
  */
 export const gymSettingsStoredSchema = z.object({
   brand: gymBrandSettingsSchema.default({}),
+  business: gymBusinessSettingsSchema.default({}),
   locale: gymLocaleSchema.default({}),
   hours: weeklyHoursSchema.default({}),
   notifications: gymNotificationsSchema.default({}),
   booking: gymBookingSettingsSchema.default({}),
+  noShow: gymNoShowSettingsSchema.default({}),
+  freeze: gymFreezeSettingsSchema.default({}),
+  guestPass: gymGuestPassSettingsSchema.default({}),
+  trial: gymTrialSettingsSchema.default({}),
+  membership: gymMembershipSettingsSchema.default({}),
+  payments: gymPaymentMethodsSchema.default({}),
+  invoice: gymInvoiceSettingsSchema.default({}),
+  tax: gymTaxSettingsSchema.default({}),
+  refund: gymRefundSettingsSchema.default({}),
+  receipt: gymReceiptSettingsSchema.default({}),
+  autoRenewal: gymAutoRenewalSettingsSchema.default({}),
 });
 
 /** The stored settings blob — {@link gymSettingsStoredSchema}. */
@@ -187,10 +415,22 @@ export interface GymBrand extends GymBrandSettings {
  */
 export interface GymSettings {
   brand: GymBrand;
+  business: GymBusinessSettings;
   locale: GymLocale;
   hours: WeeklyHours;
   notifications: GymNotifications;
   booking: GymBookingSettings;
+  noShow: GymNoShowSettings;
+  freeze: GymFreezeSettings;
+  guestPass: GymGuestPassSettings;
+  trial: GymTrialSettings;
+  membership: GymMembershipSettings;
+  payments: GymPaymentMethods;
+  invoice: GymInvoiceSettings;
+  tax: GymTaxSettings;
+  refund: GymRefundSettings;
+  receipt: GymReceiptSettings;
+  autoRenewal: GymAutoRenewalSettings;
 }
 
 /** Successful `GET /gyms/settings` response. */
@@ -215,6 +455,7 @@ export const updateGymSettingsSchema = z
       })
       .strict()
       .optional(),
+    business: gymBusinessSettingsSchema.partial().strict().optional(),
     locale: z
       .object({
         language: gymLanguageSchema.optional(),
@@ -235,17 +476,18 @@ export const updateGymSettingsSchema = z
       })
       .strict()
       .optional(),
-    booking: z
-      .object({
-        cancellationCutoffHours: z
-          .number()
-          .int()
-          .min(0)
-          .max(MAX_CANCELLATION_CUTOFF_HOURS)
-          .optional(),
-      })
-      .strict()
-      .optional(),
+    booking: gymBookingSettingsSchema.partial().strict().optional(),
+    noShow: gymNoShowSettingsSchema.partial().strict().optional(),
+    freeze: gymFreezeSettingsSchema.partial().strict().optional(),
+    guestPass: gymGuestPassSettingsSchema.partial().strict().optional(),
+    trial: gymTrialSettingsSchema.partial().strict().optional(),
+    membership: gymMembershipSettingsSchema.partial().strict().optional(),
+    payments: gymPaymentMethodsSchema.partial().strict().optional(),
+    invoice: gymInvoiceSettingsSchema.partial().strict().optional(),
+    tax: gymTaxSettingsSchema.partial().strict().optional(),
+    refund: gymRefundSettingsSchema.partial().strict().optional(),
+    receipt: gymReceiptSettingsSchema.partial().strict().optional(),
+    autoRenewal: gymAutoRenewalSettingsSchema.partial().strict().optional(),
   })
   .strict();
 

@@ -4,14 +4,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import {
-  DEFAULT_CURRENCY,
-  DEFAULT_LANGUAGE,
-  DEFAULT_PRIMARY_COLOR,
-  DEFAULT_SECONDARY_COLOR,
-  DEFAULT_TIMEZONE,
-  weeklyHoursSchema,
-} from '@fit/types';
+import { gymSettingsStoredSchema, weeklyHoursSchema } from '@fit/types';
 import { GymSettingsService } from './gym-settings.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -58,22 +51,18 @@ describe('GymSettingsService', () => {
       const result = await service.getSettings();
 
       expect(findFirst.mock.calls[0]?.[0]).toMatchObject({ where: { id: 'gym-1' } });
+      // A bare gym parses to the full, defaulted settings blob, with the canonical
+      // gym name folded into brand — the schema is the single source of defaults.
+      const defaults = gymSettingsStoredSchema.parse({});
       expect(result).toEqual({
-        brand: {
-          name: 'Iron Gym',
-          logoUrl: null,
-          primaryColor: DEFAULT_PRIMARY_COLOR,
-          secondaryColor: DEFAULT_SECONDARY_COLOR,
-        },
-        locale: {
-          language: DEFAULT_LANGUAGE,
-          currency: DEFAULT_CURRENCY,
-          timezone: DEFAULT_TIMEZONE,
-        },
-        hours: weeklyHoursSchema.parse({}),
-        notifications: { fromEmail: null, fromName: null, replyTo: null },
-        booking: { cancellationCutoffHours: 0 },
+        ...defaults,
+        brand: { name: 'Iron Gym', ...defaults.brand },
       });
+      // Spot-check a few of the deeper policy groups are present + defaulted.
+      expect(result.booking).toMatchObject({ cancellationCutoffHours: 0, waitlistMode: 'auto' });
+      expect(result.freeze).toMatchObject({ minFreezeDays: 0, maxFreezeDays: 0 });
+      expect(result.tax.enabled).toBe(false);
+      expect(result.invoice.prefix).toBe('INV');
     });
 
     it('folds the canonical gym name into brand.name over any stored value', async () => {
