@@ -9,12 +9,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import {
   Permission,
   inviteStaffSchema,
+  listStaffQuerySchema,
   updateStaffRoleSchema,
   type InviteStaffResponse,
   type ListStaffResponse,
@@ -43,13 +45,15 @@ export class StaffController {
 
   /**
    * `GET /staff` — the gym's active staff plus its pending invitations. Both
-   * collections are small and unpaginated; an empty gym is a normal `200`.
+   * collections are small and unpaginated; an empty gym is a normal `200`. The
+   * optional `role` / `status` query narrows the staff roster (the staff-list
+   * tab's filters).
    */
   @Get()
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.StaffManage)
-  async list(): Promise<ListStaffResponse> {
-    return this.staff.listStaff();
+  async list(@Query() query: unknown): Promise<ListStaffResponse> {
+    return this.staff.listStaff(parse(listStaffQuerySchema, query));
   }
 
   /**

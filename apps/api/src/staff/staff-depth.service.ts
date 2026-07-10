@@ -1,0 +1,531 @@
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, Role } from '@fit/db';
+import {
+  staffRolePermissionMatrix,
+  type AddStaffSpecialtyInput,
+  type CreateStaffNoteInput,
+  type CreateStaffTaskInput,
+  type CreateTimeOffRequestInput,
+  type DecideTimeOffRequestInput,
+  type ListStaffNotesResponse,
+  type ListStaffRolesResponse,
+  type ListStaffSpecialtiesResponse,
+  type ListStaffTasksResponse,
+  type ListTimeOffQuery,
+  type ListTimeOffResponse,
+  type ShiftSlotRow,
+  type StaffNoteRow,
+  type StaffScheduleResponse,
+  type StaffSpecialtyRow,
+  type StaffTaskRow,
+  type TimeOffRequestRow,
+  type UpdateStaffScheduleInput,
+  type UpdateStaffTaskInput,
+} from '@fit/types';
+import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { TenantContext } from '../common/tenant/tenant.context';
+
+/** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
+const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.TRAINER];
+
+const NOTE_SELECT = {
+  id: true,
+  staffId: true,
+  authorName: true,
+  body: true,
+  createdAt: true,
+} satisfies Prisma.StaffNoteSelect;
+type NoteRecord = Prisma.StaffNoteGetPayload<{ select: typeof NOTE_SELECT }>;
+
+const TASK_SELECT = {
+  id: true,
+  staffId: true,
+  title: true,
+  description: true,
+  dueDate: true,
+  completed: true,
+  completedAt: true,
+  assignedByName: true,
+  createdAt: true,
+} satisfies Prisma.StaffTaskSelect;
+type TaskRecord = Prisma.StaffTaskGetPayload<{ select: typeof TASK_SELECT }>;
+
+const TIME_OFF_SELECT = {
+  id: true,
+  staffId: true,
+  startDate: true,
+  endDate: true,
+  reason: true,
+  status: true,
+  decidedByName: true,
+  decidedAt: true,
+  createdAt: true,
+  staff: { select: { user: { select: { name: true, email: true } } } },
+} satisfies Prisma.TimeOffRequestSelect;
+type TimeOffRecord = Prisma.TimeOffRequestGetPayload<{ select: typeof TIME_OFF_SELECT }>;
+
+const SPECIALTY_SELECT = {
+  id: true,
+  staffId: true,
+  name: true,
+} satisfies Prisma.StaffSpecialtySelect;
+type SpecialtyRecord = Prisma.StaffSpecialtyGetPayload<{ select: typeof SPECIALTY_SELECT }>;
+
+const SHIFT_SELECT = {
+  id: true,
+  staffId: true,
+  dayOfWeek: true,
+  startTime: true,
+  endTime: true,
+  location: true,
+} satisfies Prisma.ShiftSlotSelect;
+type ShiftRecord = Prisma.ShiftSlotGetPayload<{ select: typeof SHIFT_SELECT }>;
+
+/**
+ * Staff-console "depth" module (T12.14): the per-staff Notes, Tasks, Time-off,
+ * Specialties, and Weekly-schedule tabs, the gym-wide time-off approval queue,
+ * and the read-only Roles & Permissions matrix.
+ *
+ * Runs on the **tenant-scoped** {@link TenantPrismaService}: every query is
+ * auto-constrained to (and, on create, stamped with) the caller's gym by the
+ * Prisma tenant extension, so a handler never passes or trusts a `gymId` — and a
+ * cross-tenant id simply never resolves. A staff member is addressed by their
+ * {@link GymMember} membership id (`staffId`), the same handle the roster uses;
+ * {@link requireStaff} both 404s a bad id and rejects a plain `MEMBER`.
+ *
+ * "Who did this" attributions (`authorName`, `assignedByName`, `decidedByName`)
+ * are resolved server-side from the request's session and snapshotted onto the
+ * row, so they survive the actor later renaming or leaving — never trusted from
+ * the client body.
+ */
+@Injectable()
+export class StaffDepthService {
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly tenant: TenantContext,
+  ) {}
+
+  // -- Roles matrix ---------------------------------------------------------
+
+  /**
+   * The read-only Roles & Permissions matrix (`GET /staff/roles`) — each staff
+   * role paired with the permissions it grants. Derived from the single-source
+   * `ROLE_PERMISSIONS` map in `@fit/types` so the console renders exactly what
+   * the API authorizes on; no gym data is read.
+   */
+  listRoles(): ListStaffRolesResponse {
+    return { roles: staffRolePermissionMatrix() };
+  }
+
+  // -- Notes ----------------------------------------------------------------
+
+  /** A staff member's internal notes, newest first (`GET /staff/:staffId/notes`). */
+  async listNotes(staffId: string): Promise<ListStaffNotesResponse> {
+    await this.requireStaff(staffId);
+    const notes = await this.prisma.client.staffNote.findMany({
+      where: { staffId },
+      select: NOTE_SELECT,
+      orderBy: { createdAt: 'desc' },
+    });
+    return { notes: notes.map((row) => this.toNoteRow(row)) };
+  }
+
+  /** Log an internal note about a staff member (`POST /staff/:staffId/notes`). */
+  async addNote(staffId: string, input: CreateStaffNoteInput): Promise<StaffNoteRow> {
+    await this.requireStaff(staffId);
+    const author = await this.resolveActor();
+    const note = await this.prisma.client.staffNote.create({
+      data: {
+        gymId: this.tenant.gymId,
+        staffId,
+        authorId: author.id,
+        authorName: author.name,
+        body: input.body,
+      },
+      select: NOTE_SELECT,
+    });
+    return this.toNoteRow(note);
+  }
+
+  /** Delete a staff note (`DELETE /staff/notes/:noteId`). 404s an unknown id. */
+  async deleteNote(noteId: string): Promise<void> {
+    const deleted = await this.prisma.client.staffNote.deleteMany({ where: { id: noteId } });
+    if (deleted.count === 0) {
+      throw new NotFoundException({ message: 'Note not found', code: 'NOTE_NOT_FOUND' });
+    }
+  }
+
+  // -- Tasks ----------------------------------------------------------------
+
+  /** A staff member's assigned tasks (`GET /staff/:staffId/tasks`). */
+  async listTasks(staffId: string): Promise<ListStaffTasksResponse> {
+    await this.requireStaff(staffId);
+    const tasks = await this.prisma.client.staffTask.findMany({
+      where: { staffId },
+      select: TASK_SELECT,
+      orderBy: [{ completed: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
+    });
+    return { tasks: tasks.map((row) => this.toTaskRow(row)) };
+  }
+
+  /** Assign a task to a staff member (`POST /staff/:staffId/tasks`). */
+  async addTask(staffId: string, input: CreateStaffTaskInput): Promise<StaffTaskRow> {
+    await this.requireStaff(staffId);
+    const assigner = await this.resolveActor();
+    const task = await this.prisma.client.staffTask.create({
+      data: {
+        gymId: this.tenant.gymId,
+        staffId,
+        title: input.title,
+        description: input.description ?? null,
+        dueDate: input.dueDate ? new Date(input.dueDate) : null,
+        assignedById: assigner.id,
+        assignedByName: assigner.name,
+      },
+      select: TASK_SELECT,
+    });
+    return this.toTaskRow(task);
+  }
+
+  /**
+   * Edit a task or toggle its completion (`PATCH /staff/tasks/:taskId`). Toggling
+   * `completed` stamps (or clears) `completedAt`. 404s an unknown id.
+   */
+  async updateTask(taskId: string, input: UpdateStaffTaskInput): Promise<StaffTaskRow> {
+    await this.requireTask(taskId);
+
+    const data: Prisma.StaffTaskUpdateInput = {};
+    if (input.title !== undefined) data.title = input.title;
+    if (input.description !== undefined) data.description = input.description;
+    if (input.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
+    if (input.completed !== undefined) {
+      data.completed = input.completed;
+      data.completedAt = input.completed ? new Date() : null;
+    }
+
+    await this.prisma.client.staffTask.update({ where: { id: taskId }, data });
+    const updated = await this.prisma.client.staffTask.findFirst({
+      where: { id: taskId },
+      select: TASK_SELECT,
+    });
+    // Just updated under the scoped client, so it must still resolve.
+    if (!updated) {
+      throw new NotFoundException({ message: 'Task not found', code: 'TASK_NOT_FOUND' });
+    }
+    return this.toTaskRow(updated);
+  }
+
+  /** Delete a task (`DELETE /staff/tasks/:taskId`). 404s an unknown id. */
+  async deleteTask(taskId: string): Promise<void> {
+    const deleted = await this.prisma.client.staffTask.deleteMany({ where: { id: taskId } });
+    if (deleted.count === 0) {
+      throw new NotFoundException({ message: 'Task not found', code: 'TASK_NOT_FOUND' });
+    }
+  }
+
+  // -- Time off -------------------------------------------------------------
+
+  /**
+   * The gym-wide time-off queue (`GET /staff/time-off`), optionally filtered by
+   * `status` / `staffId` — the manager's approval inbox. Pending first, then by
+   * start date.
+   */
+  async listTimeOff(query: ListTimeOffQuery): Promise<ListTimeOffResponse> {
+    const requests = await this.prisma.client.timeOffRequest.findMany({
+      where: {
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.staffId ? { staffId: query.staffId } : {}),
+      },
+      select: TIME_OFF_SELECT,
+      orderBy: [{ status: 'asc' }, { startDate: 'asc' }],
+    });
+    return { requests: requests.map((row) => this.toTimeOffRow(row)) };
+  }
+
+  /** A single staff member's time-off requests (`GET /staff/:staffId/time-off`). */
+  async listStaffTimeOff(staffId: string): Promise<ListTimeOffResponse> {
+    await this.requireStaff(staffId);
+    const requests = await this.prisma.client.timeOffRequest.findMany({
+      where: { staffId },
+      select: TIME_OFF_SELECT,
+      orderBy: { startDate: 'desc' },
+    });
+    return { requests: requests.map((row) => this.toTimeOffRow(row)) };
+  }
+
+  /** File a time-off request for a staff member (`POST /staff/:staffId/time-off`). */
+  async createTimeOff(
+    staffId: string,
+    input: CreateTimeOffRequestInput,
+  ): Promise<TimeOffRequestRow> {
+    await this.requireStaff(staffId);
+    const request = await this.prisma.client.timeOffRequest.create({
+      data: {
+        gymId: this.tenant.gymId,
+        staffId,
+        startDate: new Date(input.startDate),
+        endDate: new Date(input.endDate),
+        reason: input.reason ?? '',
+      },
+      select: TIME_OFF_SELECT,
+    });
+    return this.toTimeOffRow(request);
+  }
+
+  /**
+   * Approve or deny a pending request (`PATCH /staff/time-off/:requestId/decision`).
+   * Only a `pending` request can be decided (`409 ALREADY_DECIDED` otherwise);
+   * the transition snapshots the deciding user + timestamp. 404s an unknown id.
+   */
+  async decideTimeOff(
+    requestId: string,
+    input: DecideTimeOffRequestInput,
+  ): Promise<TimeOffRequestRow> {
+    const existing = await this.prisma.client.timeOffRequest.findFirst({
+      where: { id: requestId },
+      select: { id: true, status: true },
+    });
+    if (!existing) {
+      throw new NotFoundException({
+        message: 'Time-off request not found',
+        code: 'TIME_OFF_NOT_FOUND',
+      });
+    }
+    if (existing.status !== 'pending') {
+      throw new ConflictException({
+        message: 'This request has already been decided',
+        code: 'ALREADY_DECIDED',
+      });
+    }
+
+    const decider = await this.resolveActor();
+    await this.prisma.client.timeOffRequest.update({
+      where: { id: requestId },
+      data: {
+        status: input.decision === 'approve' ? 'approved' : 'denied',
+        decidedById: decider.id,
+        decidedByName: decider.name,
+        decidedAt: new Date(),
+      },
+    });
+    const updated = await this.prisma.client.timeOffRequest.findFirst({
+      where: { id: requestId },
+      select: TIME_OFF_SELECT,
+    });
+    if (!updated) {
+      throw new NotFoundException({
+        message: 'Time-off request not found',
+        code: 'TIME_OFF_NOT_FOUND',
+      });
+    }
+    return this.toTimeOffRow(updated);
+  }
+
+  /** Withdraw a time-off request (`DELETE /staff/time-off/:requestId`). 404s a bad id. */
+  async deleteTimeOff(requestId: string): Promise<void> {
+    const deleted = await this.prisma.client.timeOffRequest.deleteMany({
+      where: { id: requestId },
+    });
+    if (deleted.count === 0) {
+      throw new NotFoundException({
+        message: 'Time-off request not found',
+        code: 'TIME_OFF_NOT_FOUND',
+      });
+    }
+  }
+
+  // -- Specialties ----------------------------------------------------------
+
+  /** A staff member's specialty tags (`GET /staff/:staffId/specialties`). */
+  async listSpecialties(staffId: string): Promise<ListStaffSpecialtiesResponse> {
+    await this.requireStaff(staffId);
+    const specialties = await this.prisma.client.staffSpecialty.findMany({
+      where: { staffId },
+      select: SPECIALTY_SELECT,
+      orderBy: { name: 'asc' },
+    });
+    return { specialties: specialties.map((row) => this.toSpecialtyRow(row)) };
+  }
+
+  /**
+   * Tag a staff member with a specialty (`POST /staff/:staffId/specialties`).
+   * `409 SPECIALTY_EXISTS` when the member already carries that tag (the
+   * `(gym, staff, name)` uniqueness).
+   */
+  async addSpecialty(staffId: string, input: AddStaffSpecialtyInput): Promise<StaffSpecialtyRow> {
+    await this.requireStaff(staffId);
+    const existing = await this.prisma.client.staffSpecialty.findFirst({
+      where: { staffId, name: input.name },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException({
+        message: 'That specialty is already assigned',
+        code: 'SPECIALTY_EXISTS',
+      });
+    }
+    const specialty = await this.prisma.client.staffSpecialty.create({
+      data: { gymId: this.tenant.gymId, staffId, name: input.name },
+      select: SPECIALTY_SELECT,
+    });
+    return this.toSpecialtyRow(specialty);
+  }
+
+  /** Remove a specialty tag (`DELETE /staff/specialties/:specialtyId`). 404s a bad id. */
+  async deleteSpecialty(specialtyId: string): Promise<void> {
+    const deleted = await this.prisma.client.staffSpecialty.deleteMany({
+      where: { id: specialtyId },
+    });
+    if (deleted.count === 0) {
+      throw new NotFoundException({
+        message: 'Specialty not found',
+        code: 'SPECIALTY_NOT_FOUND',
+      });
+    }
+  }
+
+  // -- Weekly schedule ------------------------------------------------------
+
+  /** A staff member's weekly schedule (`GET /staff/:staffId/schedule`). */
+  async getSchedule(staffId: string): Promise<StaffScheduleResponse> {
+    await this.requireStaff(staffId);
+    const shifts = await this.prisma.client.shiftSlot.findMany({
+      where: { staffId },
+      select: SHIFT_SELECT,
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+    });
+    return { shifts: shifts.map((row) => this.toShiftRow(row)) };
+  }
+
+  /**
+   * Replace a staff member's whole weekly schedule (`PUT /staff/:staffId/schedule`).
+   * A set-based editor: the sent list becomes the schedule, so the write clears
+   * the old shifts and re-inserts the new ones in one transaction (an empty list
+   * clears the schedule). Returns the fresh schedule.
+   */
+  async updateSchedule(
+    staffId: string,
+    input: UpdateStaffScheduleInput,
+  ): Promise<StaffScheduleResponse> {
+    await this.requireStaff(staffId);
+    const gymId = this.tenant.gymId;
+
+    await this.prisma.client.$transaction(async (tx) => {
+      await tx.shiftSlot.deleteMany({ where: { staffId } });
+      if (input.shifts.length > 0) {
+        await tx.shiftSlot.createMany({
+          data: input.shifts.map((shift) => ({
+            gymId,
+            staffId,
+            dayOfWeek: shift.dayOfWeek,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            location: shift.location ?? null,
+          })),
+        });
+      }
+    });
+
+    return this.getSchedule(staffId);
+  }
+
+  // -- Helpers --------------------------------------------------------------
+
+  /**
+   * Resolve a staff-role membership in the caller's gym or throw
+   * `404 STAFF_NOT_FOUND`. The scoped `where` constrains `gymId`, so a
+   * cross-tenant id never matches, and a plain `MEMBER` is rejected — these
+   * records only ever hang off staff.
+   */
+  private async requireStaff(staffId: string): Promise<void> {
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id: staffId, role: { in: STAFF_ROLES } },
+      select: { id: true },
+    });
+    if (!member) {
+      throw new NotFoundException({ message: 'Staff member not found', code: 'STAFF_NOT_FOUND' });
+    }
+  }
+
+  /** Resolve a task in the caller's gym or throw `404 TASK_NOT_FOUND`. */
+  private async requireTask(taskId: string): Promise<void> {
+    const task = await this.prisma.client.staffTask.findFirst({
+      where: { id: taskId },
+      select: { id: true },
+    });
+    if (!task) {
+      throw new NotFoundException({ message: 'Task not found', code: 'TASK_NOT_FOUND' });
+    }
+  }
+
+  /**
+   * The acting user's id + display name, read from the request session (never the
+   * body). Falls back to `'Staff'` when the name/email can't be resolved, mirroring
+   * the member-notes attribution.
+   */
+  private async resolveActor(): Promise<{ id: string | null; name: string }> {
+    const id = this.tenant.userId ?? null;
+    if (!id) {
+      return { id: null, name: 'Staff' };
+    }
+    const user = await this.prisma.client.user.findUnique({
+      where: { id },
+      select: { name: true, email: true },
+    });
+    return { id, name: user?.name ?? user?.email ?? 'Staff' };
+  }
+
+  private toNoteRow(row: NoteRecord): StaffNoteRow {
+    return {
+      id: row.id,
+      staffId: row.staffId,
+      author: row.authorName,
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  private toTaskRow(row: TaskRecord): StaffTaskRow {
+    return {
+      id: row.id,
+      staffId: row.staffId,
+      title: row.title,
+      description: row.description,
+      dueDate: row.dueDate ? row.dueDate.toISOString() : null,
+      completed: row.completed,
+      completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+      assignedBy: row.assignedByName,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  private toTimeOffRow(row: TimeOffRecord): TimeOffRequestRow {
+    return {
+      id: row.id,
+      staffId: row.staffId,
+      staffName: row.staff.user.name ?? row.staff.user.email,
+      startDate: row.startDate.toISOString(),
+      endDate: row.endDate.toISOString(),
+      reason: row.reason,
+      status: row.status,
+      decidedBy: row.decidedByName,
+      decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  private toSpecialtyRow(row: SpecialtyRecord): StaffSpecialtyRow {
+    return { id: row.id, staffId: row.staffId, name: row.name };
+  }
+
+  private toShiftRow(row: ShiftRecord): ShiftSlotRow {
+    return {
+      id: row.id,
+      staffId: row.staffId,
+      dayOfWeek: row.dayOfWeek,
+      startTime: row.startTime,
+      endTime: row.endTime,
+      location: row.location,
+    };
+  }
+}

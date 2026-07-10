@@ -385,6 +385,11 @@ model Gym {
   loyaltyRewards          LoyaltyReward[]
   loyaltyRedemptions      LoyaltyRedemption[]
   dashboardPins           DashboardPin[]
+  staffNotes              StaffNote[]
+  staffTasks              StaffTask[]
+  timeOffRequests         TimeOffRequest[]
+  staffSpecialties        StaffSpecialty[]
+  shiftSlots              ShiftSlot[]
 
   @@index([ownerId])
   @@map("gyms")
@@ -578,6 +583,11 @@ model GymMember {
   opportunities Opportunity[]
   loyaltyLedger      LoyaltyLedgerEntry[]
   loyaltyRedemptions LoyaltyRedemption[]
+  staffNotes         StaffNote[]
+  staffTasks         StaffTask[]
+  timeOffRequests    TimeOffRequest[]
+  staffSpecialties   StaffSpecialty[]
+  shiftSlots         ShiftSlot[]
 
   @@unique([userId, gymId])
   // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
@@ -2267,4 +2277,124 @@ model DashboardPin {
   @@unique([gymId, userId, metric, section])
   @@index([gymId, userId])
   @@map("dashboard_pins")
+}
+
+/// A time-off request's lifecycle (T12.14). Starts `pending`; a manager
+/// transitions it to `approved` or `denied`. Mirrors `timeOffStatusSchema` in
+/// `@fit/types`.
+enum TimeOffStatus {
+  pending
+  approved
+  denied
+}
+
+/// An internal note logged against a staff member (T12.14) — the Staff detail
+/// "Notes" tab. Distinct from {@link MemberNote} (which is about customers): this
+/// is HR-style commentary about a colleague. Tenant-scoped by `gymId`; `staffId`
+/// is the {@link GymMember} the note is about. `authorName` is snapshotted so the
+/// attribution survives the author later changing their name or leaving;
+/// `authorId` links back to the writing `User` when known.
+model StaffNote {
+  id         String   @id @default(cuid())
+  gymId      String
+  staffId    String
+  authorId   String?
+  authorName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  gym   Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, staffId, createdAt])
+  @@map("staff_notes")
+}
+
+/// A task assigned to a staff member (T12.14) — the Staff detail "Tasks" tab.
+/// `dueDate` is optional; `completed` toggles and stamps `completedAt`.
+/// `assignedByName` is snapshotted like {@link StaffNote}'s author.
+model StaffTask {
+  id             String    @id @default(cuid())
+  gymId          String
+  staffId        String
+  title          String
+  description    String?
+  dueDate        DateTime?
+  completed      Boolean   @default(false)
+  completedAt    DateTime?
+  assignedById   String?
+  assignedByName String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  gym   Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, staffId, completed])
+  @@index([gymId, dueDate])
+  @@map("staff_tasks")
+}
+
+/// A staff member's time-off request (T12.14) — the Staff detail "Calendar" tab
+/// and the gym-wide approval queue. `status` starts `pending`; approving/denying
+/// snapshots the deciding `User` (`decidedBy*`) and `decidedAt`. `reason` is
+/// optional (defaults empty).
+model TimeOffRequest {
+  id            String        @id @default(cuid())
+  gymId         String
+  staffId       String
+  startDate     DateTime
+  endDate       DateTime
+  reason        String        @default("")
+  status        TimeOffStatus @default(pending)
+  decidedById   String?
+  decidedByName String?
+  decidedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  gym   Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, status])
+  @@index([gymId, staffId, startDate])
+  @@map("time_off_requests")
+}
+
+/// A specialty tag on a staff member (T12.14) — e.g. "Strength Training",
+/// "Yoga". A staff member holds several; the pair `(gymId, staffId, name)` is
+/// unique so the same tag can't be added twice.
+model StaffSpecialty {
+  id      String @id @default(cuid())
+  gymId   String
+  staffId String
+  name    String
+
+  gym   Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([gymId, staffId, name])
+  @@index([gymId, staffId])
+  @@map("staff_specialties")
+}
+
+/// One shift in a staff member's weekly schedule (T12.14) — the Staff detail
+/// "Calendar" tab's weekly grid. A member's full schedule is their set of
+/// `ShiftSlot` rows. `dayOfWeek` is 0 (Monday) … 6 (Sunday); `startTime` /
+/// `endTime` are "HH:mm" 24-hour strings; `location` is an optional branch name.
+model ShiftSlot {
+  id        String   @id @default(cuid())
+  gymId     String
+  staffId   String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  location  String?
+  createdAt DateTime @default(now())
+
+  gym   Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, staffId, dayOfWeek])
+  @@map("shift_slots")
 }

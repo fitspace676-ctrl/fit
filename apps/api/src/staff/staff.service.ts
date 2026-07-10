@@ -9,6 +9,7 @@ import { Prisma, Role } from '@fit/db';
 import type {
   InviteStaffInput,
   InviteStaffResponse,
+  ListStaffQuery,
   ListStaffResponse,
   PendingInvite,
   StaffMember,
@@ -87,11 +88,20 @@ export class StaffService {
    * staff page renders. Neither is paginated: a gym's staff (and outstanding
    * invites) is a small, bounded set. An invite past its `expiresAt` is still
    * listed (flagged `expired`) so staff can revoke or re-send it.
+   *
+   * The optional `filter` narrows the staff roster by `role` and/or `status` (the
+   * staff-list tab's filters) — a `role` is still constrained to the staff roles,
+   * so filtering never leaks a plain `MEMBER`. The pending-invite list is left
+   * unfiltered (it has no membership status, and its own role could differ from a
+   * role filter without being a useful "staff" match).
    */
-  async listStaff(): Promise<ListStaffResponse> {
+  async listStaff(filter: ListStaffQuery = {}): Promise<ListStaffResponse> {
     const [staff, invites] = await Promise.all([
       this.prisma.client.gymMember.findMany({
-        where: { role: { in: STAFF_ROLES } },
+        where: {
+          role: filter.role ? (filter.role as Role) : { in: STAFF_ROLES },
+          ...(filter.status ? { status: filter.status } : {}),
+        },
         select: STAFF_SELECT,
         orderBy: { joinedAt: 'asc' },
       }),
