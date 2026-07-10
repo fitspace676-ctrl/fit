@@ -7,6 +7,13 @@ import {
   requiredRoleForPath,
   verifyAccessToken,
 } from '@/lib/auth-session';
+import {
+  REFRESH_TOKEN_COOKIE,
+  isNavigationRequest,
+  refreshTokens,
+  sessionCookies,
+  type RefreshedTokens,
+} from '@/lib/session-refresh';
 
 /**
  * Admin auth + role gate.
@@ -59,6 +66,16 @@ function redirectTo(req: NextRequest, path: string): NextResponse {
   return NextResponse.redirect(new URL(path, origin));
 }
 
+/** Attach a refreshed session's cookies to an outgoing response before returning it. */
+function withRefreshed(res: NextResponse, refreshed: RefreshedTokens | null): NextResponse {
+  if (refreshed) {
+    for (const cookie of sessionCookies(refreshed)) {
+      res.cookies.set(cookie.name, cookie.value, cookie.options);
+    }
+  }
+  return res;
+}
+
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname, search } = req.nextUrl;
   if (isPublicPath(pathname)) {
@@ -67,7 +84,22 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   const token = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   const secret = process.env.JWT_SECRET;
-  const session = token && secret ? await verifyAccessToken(token, secret) : null;
+  let session = token && secret ? await verifyAccessToken(token, secret) : null;
+
+  // On an expired/missing access token, silently mint a new session from the
+  // refresh cookie — but only on a genuine navigation, so the API's single-use
+  // rotation never races itself into a family revocation (the logout symptom).
+  let refreshed: RefreshedTokens | null = null;
+  if (!session && secret && isNavigationRequest(req)) {
+    const refreshToken = req.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
+    if (refreshToken) {
+      const pair = await refreshTokens(refreshToken);
+      if (pair) {
+        session = await verifyAccessToken(pair.accessToken, secret);
+        if (session) refreshed = pair;
+      }
+    }
+  }
 
   // 1. Unauthenticated → the web app's sign-in at the subdomain root (outside
   //    this app's basePath), then come back to the full console path via `from`.
@@ -78,16 +110,16 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   // 2. Authenticated but not staff → forbidden (an in-app page, so basePath-prefixed).
   if (!isStaff(session.role)) {
-    return redirectTo(req, `${BASE_PATH}/403`);
+    return withRefreshed(redirectTo(req, `${BASE_PATH}/403`), refreshed);
   }
 
   // 3. Staff but lacking the role this area requires → forbidden.
   const required = requiredRoleForPath(pathname);
   if (required && !hasRoleAtLeast(session.role, required)) {
-    return redirectTo(req, `${BASE_PATH}/403`);
+    return withRefreshed(redirectTo(req, `${BASE_PATH}/403`), refreshed);
   }
 
-  return NextResponse.next();
+  return withRefreshed(NextResponse.next(), refreshed);
 }
 
 export const config = {

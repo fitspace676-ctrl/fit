@@ -1,7 +1,14 @@
 import createMiddleware from 'next-intl/middleware';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { ACCESS_TOKEN_COOKIE, verifyAccessToken } from '@/lib/auth-session';
+import { ACCESS_TOKEN_COOKIE, verifyAccessToken, type Session } from '@/lib/auth-session';
+import {
+  REFRESH_TOKEN_COOKIE,
+  isNavigationRequest,
+  refreshTokens,
+  setSessionCookies,
+  type RefreshedTokens,
+} from '@/lib/session-refresh';
 import { isLocale, type Locale } from '@fit/i18n';
 import { routing } from '@/src/i18n/routing';
 
@@ -46,25 +53,57 @@ function splitLocale(pathname: string): { locale: Locale; rest: string } {
 }
 
 function isPublicPath(pathname: string): boolean {
-  if (pathname === '/') {
-    return true;
-  }
+  // `/` is handled explicitly (login / role dashboard), not as a public page.
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
+/** Where a signed-in session belongs: staff → the admin console, members → home. */
+function dashboardPath(session: Session, locale: Locale): string {
+  return session.role !== 'MEMBER' ? '/admin' : `/${locale}/home`;
+}
+
+/** Attach any freshly-refreshed cookies to an outgoing response before returning it. */
+function withRefreshed(res: NextResponse, refreshed: RefreshedTokens | null): NextResponse {
+  if (refreshed) setSessionCookies(res, refreshed);
+  return res;
 }
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname, search } = req.nextUrl;
   const { locale, rest } = splitLocale(pathname);
 
-  // Public routes (and the locale-prefix redirect for `/`) are handled purely
-  // by the i18n middleware — no session required.
-  if (isPublicPath(rest)) {
-    return handleI18nRouting(req);
+  // Resolve the session from the access-token cookie. If it's missing/expired,
+  // silently mint a fresh one from the refresh cookie — but only on a genuine
+  // navigation, so the API's single-use rotation never races itself into a
+  // family revocation (which would log the user out).
+  const secret = process.env.JWT_SECRET;
+  const token = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  let session = token && secret ? await verifyAccessToken(token, secret) : null;
+  let refreshed: RefreshedTokens | null = null;
+  if (!session && secret && isNavigationRequest(req)) {
+    const refreshToken = req.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
+    if (refreshToken) {
+      const pair = await refreshTokens(refreshToken);
+      if (pair) {
+        session = await verifyAccessToken(pair.accessToken, secret);
+        if (session) refreshed = pair;
+      }
+    }
   }
 
-  const token = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
-  const secret = process.env.JWT_SECRET;
-  const session = token && secret ? await verifyAccessToken(token, secret) : null;
+  // Root: open the login page directly (no marketing landing), or send a
+  // signed-in user straight to the dashboard their role belongs in.
+  if (rest === '/') {
+    const target = req.nextUrl.clone();
+    target.search = '';
+    target.pathname = session ? dashboardPath(session, locale) : `/${locale}/login`;
+    return withRefreshed(NextResponse.redirect(target), refreshed);
+  }
+
+  // Public routes render without a session (but still carry a refreshed cookie).
+  if (isPublicPath(rest)) {
+    return withRefreshed(handleI18nRouting(req), refreshed);
+  }
 
   if (!session) {
     const loginUrl = req.nextUrl.clone();
@@ -74,7 +113,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(loginUrl);
   }
 
-  return handleI18nRouting(req);
+  return withRefreshed(handleI18nRouting(req), refreshed);
 }
 
 export const config = {
