@@ -32,16 +32,30 @@ export type ReportDrilldownRange = AnalyticsRange;
 export const DEFAULT_REPORT_DRILLDOWN_RANGE: ReportDrilldownRange = DEFAULT_ANALYTICS_RANGE;
 
 /**
- * The drill-down report metrics delivered in T12.12. Stable, URL-safe slugs used
- * as the `/reports/[metric]` path segment and the `:metric` API path segment:
+ * The drill-down report metrics. Stable, URL-safe slugs used as the
+ * `/reports/[metric]` path segment and the `:metric` API path segment:
  *   • `revenue`    — captured takings: over time, by plan, by location, monthly.
  *   • `members`    — new members over time, active vs expired, churn, monthly.
  *   • `attendance` — check-ins over time, peak-hours heatmap, daily breakdown.
+ *   • `classes`    — most popular classes, attendance split, cancellation trend, detail.
+ *   • `staff`      — classes taught / attendance rate / sessions booked per trainer, detail.
+ *   • `pos`        — daily sales, sales by method, product breakdown, end-of-day summaries.
+ *   • `crm`        — leads by source, conversion funnel, pipeline value trend, source detail.
+ *   • `loyalty`    — points issued over time, issued vs redeemed, by reward type, recent.
  *
- * T12.13 extends this tuple (classes / staff / pos / crm / loyalty) on the same
- * section framework, so the enum is the single place new drill-downs register.
+ * The first three shipped in T12.12; T12.13 adds the last five on the same section
+ * framework, so the enum is the single place a new drill-down registers.
  */
-export const REPORT_METRICS = ['revenue', 'members', 'attendance'] as const;
+export const REPORT_METRICS = [
+  'revenue',
+  'members',
+  'attendance',
+  'classes',
+  'staff',
+  'pos',
+  'crm',
+  'loyalty',
+] as const;
 
 /** A drill-down report metric — {@link REPORT_METRICS}. */
 export const reportMetricSchema = z.enum(REPORT_METRICS);
@@ -89,6 +103,61 @@ export const REPORT_METRIC_DEFINITIONS: Record<ReportMetric, ReportMetricDefinit
     name: 'Attendance',
     description: 'Check-ins over time, peak-hours heatmap, and the daily breakdown.',
     sections: ['checkins-over-time', 'peak-hours', 'attendance-daily'],
+  },
+  classes: {
+    metric: 'classes',
+    name: 'Classes',
+    description:
+      'Most popular classes, the attended / no-show / cancelled split, the cancellation-rate trend, and per-class performance.',
+    sections: [
+      'most-popular-classes',
+      'attendance-distribution',
+      'cancellation-rate-trend',
+      'class-performance',
+    ],
+  },
+  staff: {
+    metric: 'staff',
+    name: 'Staff',
+    description:
+      'Classes taught, attendance rate, and sessions booked per trainer, plus a per-trainer performance table.',
+    sections: [
+      'classes-taught-per-trainer',
+      'attendance-rate-per-trainer',
+      'sessions-booked-per-trainer',
+      'staff-performance',
+    ],
+  },
+  pos: {
+    metric: 'pos',
+    name: 'Point of sale',
+    description:
+      'Daily sales, takings by payment method, the product sales breakdown, and end-of-day summaries.',
+    sections: ['daily-sales', 'sales-by-method', 'product-sales', 'end-of-day'],
+  },
+  crm: {
+    metric: 'crm',
+    name: 'CRM',
+    description:
+      'Leads by source, the conversion funnel, weighted pipeline value over time, and lead-source performance.',
+    sections: [
+      'leads-by-source',
+      'conversion-funnel',
+      'pipeline-value-over-time',
+      'lead-source-performance',
+    ],
+  },
+  loyalty: {
+    metric: 'loyalty',
+    name: 'Loyalty',
+    description:
+      'Points issued over time, issued vs redeemed, redemptions by reward type, and the most recent redemptions.',
+    sections: [
+      'points-issued-over-time',
+      'points-issued-vs-redeemed',
+      'redemptions-by-reward-type',
+      'recent-redemptions',
+    ],
   },
 };
 
