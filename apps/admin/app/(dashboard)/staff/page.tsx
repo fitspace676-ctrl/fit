@@ -4,7 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchStaff } from '@/lib/api';
+import { ApiError, fetchStaff, fetchStaffRoles, fetchTimeOff } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { StaffConsole } from './staff-console';
 
@@ -96,13 +96,19 @@ export default async function StaffPage() {
   const canManage = session !== null && roleHasPermission(session.role, Permission.StaffManage);
 
   try {
-    const { staff, invites } = await fetchStaff();
+    const [{ staff, invites }, roles, timeOff] = await Promise.all([
+      fetchStaff(),
+      fetchStaffRoles(),
+      fetchTimeOff(),
+    ]);
     return (
       <StaffConsole
         staff={staff}
         invites={invites}
         currentUserId={session?.userId ?? null}
         canManage={canManage}
+        roles={roles}
+        timeOff={timeOff.requests}
       />
     );
   } catch (error) {

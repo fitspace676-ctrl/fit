@@ -85,6 +85,24 @@ import type {
   ListStaffResponse,
   UpdateStaffRoleInput,
   UpdateStaffRoleResponse,
+  ListStaffRolesResponse,
+  ListStaffNotesResponse,
+  StaffNoteRow,
+  CreateStaffNoteInput,
+  ListStaffTasksResponse,
+  StaffTaskRow,
+  CreateStaffTaskInput,
+  UpdateStaffTaskInput,
+  ListTimeOffResponse,
+  TimeOffRequestRow,
+  CreateTimeOffRequestInput,
+  DecideTimeOffRequestInput,
+  ListTimeOffQuery,
+  ListStaffSpecialtiesResponse,
+  StaffSpecialtyRow,
+  AddStaffSpecialtyInput,
+  StaffScheduleResponse,
+  UpdateStaffScheduleInput,
   SetLocationStatusResponse,
   SetMemberStatusResponse,
   SetProductStatusResponse,
@@ -1050,6 +1068,232 @@ export async function removeStaff(memberId: string): Promise<void> {
   if (!res.ok) {
     await unwrap<void>(res);
   }
+}
+
+// ── Staff depth: roles / notes / tasks / time-off / specialties / schedule (T12.14) ──
+
+/** `GET /staff/roles` — the read-only roles & permissions matrix. */
+export async function fetchStaffRoles(): Promise<ListStaffRolesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/roles`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListStaffRolesResponse>(res);
+}
+
+/** `GET /staff/:staffId/notes` — a staff member's internal notes, newest first. */
+export async function fetchStaffNotes(staffId: string): Promise<ListStaffNotesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/notes`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListStaffNotesResponse>(res);
+}
+
+/** `POST /staff/:staffId/notes` — log a note about a staff member. */
+export async function createStaffNote(
+  staffId: string,
+  input: CreateStaffNoteInput,
+): Promise<StaffNoteRow> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/notes`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<StaffNoteRow>(res);
+}
+
+/** `DELETE /staff/notes/:noteId` — delete a staff note. */
+export async function deleteStaffNote(noteId: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/staff/notes/${encodeURIComponent(noteId)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<void>(res);
+  }
+}
+
+/** `GET /staff/:staffId/tasks` — a staff member's assigned tasks. */
+export async function fetchStaffTasks(staffId: string): Promise<ListStaffTasksResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/tasks`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListStaffTasksResponse>(res);
+}
+
+/** `POST /staff/:staffId/tasks` — assign a task to a staff member. */
+export async function createStaffTask(
+  staffId: string,
+  input: CreateStaffTaskInput,
+): Promise<StaffTaskRow> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<StaffTaskRow>(res);
+}
+
+/** `PATCH /staff/tasks/:taskId` — edit a task or toggle its completion. */
+export async function updateStaffTask(
+  taskId: string,
+  input: UpdateStaffTaskInput,
+): Promise<StaffTaskRow> {
+  const res = await fetch(`${apiBaseUrl()}/staff/tasks/${encodeURIComponent(taskId)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<StaffTaskRow>(res);
+}
+
+/** `DELETE /staff/tasks/:taskId` — delete an assigned task. */
+export async function deleteStaffTask(taskId: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/staff/tasks/${encodeURIComponent(taskId)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<void>(res);
+  }
+}
+
+/** `GET /staff/time-off` — the gym-wide time-off queue, optionally filtered. */
+export async function fetchTimeOff(
+  query: Partial<ListTimeOffQuery> = {},
+): Promise<ListTimeOffResponse> {
+  const params = new URLSearchParams();
+  if (query.status) {
+    params.set('status', query.status);
+  }
+  if (query.staffId) {
+    params.set('staffId', query.staffId);
+  }
+  const qs = params.toString();
+  const res = await fetch(`${apiBaseUrl()}/staff/time-off${qs ? `?${qs}` : ''}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListTimeOffResponse>(res);
+}
+
+/** `GET /staff/:staffId/time-off` — one staff member's time-off requests. */
+export async function fetchStaffTimeOff(staffId: string): Promise<ListTimeOffResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/time-off`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListTimeOffResponse>(res);
+}
+
+/** `POST /staff/:staffId/time-off` — request time off for a staff member. */
+export async function createTimeOff(
+  staffId: string,
+  input: CreateTimeOffRequestInput,
+): Promise<TimeOffRequestRow> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/time-off`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<TimeOffRequestRow>(res);
+}
+
+/** `PATCH /staff/time-off/:requestId/decision` — approve or deny a request. */
+export async function decideTimeOff(
+  requestId: string,
+  input: DecideTimeOffRequestInput,
+): Promise<TimeOffRequestRow> {
+  const res = await fetch(
+    `${apiBaseUrl()}/staff/time-off/${encodeURIComponent(requestId)}/decision`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<TimeOffRequestRow>(res);
+}
+
+/** `DELETE /staff/time-off/:requestId` — withdraw a time-off request. */
+export async function deleteTimeOff(requestId: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/staff/time-off/${encodeURIComponent(requestId)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<void>(res);
+  }
+}
+
+/** `GET /staff/:staffId/specialties` — a staff member's specialty tags. */
+export async function fetchStaffSpecialties(
+  staffId: string,
+): Promise<ListStaffSpecialtiesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/specialties`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListStaffSpecialtiesResponse>(res);
+}
+
+/** `POST /staff/:staffId/specialties` — tag a staff member with a specialty. */
+export async function addStaffSpecialty(
+  staffId: string,
+  input: AddStaffSpecialtyInput,
+): Promise<StaffSpecialtyRow> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/specialties`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<StaffSpecialtyRow>(res);
+}
+
+/** `DELETE /staff/specialties/:specialtyId` — remove a specialty tag. */
+export async function deleteStaffSpecialty(specialtyId: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/staff/specialties/${encodeURIComponent(specialtyId)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<void>(res);
+  }
+}
+
+/** `GET /staff/:staffId/schedule` — a staff member's weekly shift schedule. */
+export async function fetchStaffSchedule(staffId: string): Promise<StaffScheduleResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/schedule`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<StaffScheduleResponse>(res);
+}
+
+/** `PUT /staff/:staffId/schedule` — replace a staff member's whole weekly schedule. */
+export async function updateStaffSchedule(
+  staffId: string,
+  input: UpdateStaffScheduleInput,
+): Promise<StaffScheduleResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(staffId)}/schedule`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<StaffScheduleResponse>(res);
 }
 
 // ── Gym settings (T4.8) ─────────────────────────────────────────────────────
