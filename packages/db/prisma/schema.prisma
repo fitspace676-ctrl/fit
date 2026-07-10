@@ -145,6 +145,17 @@ enum ClassTemplateStatus {
   PAUSED
 }
 
+/// How a class template is priced to members (parity with the reference admin's
+/// class-type pricing). `FREE` is open to any active member; `INCLUDED` is
+/// covered by the subscription plans listed in `includedPlanIds`; `PAID` charges
+/// `priceMinor` per session. Personal-training templates additionally carry the
+/// `pt30/45/60Minor` per-duration rates.
+enum ClassPricingRule {
+  FREE
+  INCLUDED
+  PAID
+}
+
 /// Lifecycle of a single materialised class occurrence (T5.1). `SCHEDULED` is a
 /// bookable future occurrence; `CANCELED` was called off (its seats released);
 /// `COMPLETED` is in the past and attendance-tracked. The instance-generation
@@ -915,6 +926,13 @@ model ClassTemplate {
   rrule           String
   color           String              @default("#2563eb")
   status          ClassTemplateStatus @default(ACTIVE)
+  pricingRule     ClassPricingRule    @default(FREE)
+  priceMinor      Int?
+  includedPlanIds String[]            @default([])
+  minAttendance   Int?
+  pt30Minor       Int?
+  pt45Minor       Int?
+  pt60Minor       Int?
   validFrom       DateTime
   validUntil      DateTime?
   createdAt       DateTime            @default(now())

@@ -6,24 +6,33 @@
 // session token), degrading to empty lists if a roster call fails so the form
 // still renders without its optional defaults.
 
-import { fetchLocations, fetchTrainers } from '@/lib/api';
+import { fetchLocations, fetchSubscriptionPlans, fetchTrainers } from '@/lib/api';
 import type { RelationOption } from './class-template-form';
 
 /** Pull enough of each roster to cover a realistic gym without paging. */
 const OPTION_LIMIT = 100;
 
-/** Load the gym's active trainers + locations as form options, parallel + fail-soft. */
+/**
+ * Load the gym's active trainers + locations + membership plans as form options,
+ * parallel + fail-soft. Plans back the "included in these plans" multi-select the
+ * class-type pricing rule offers; a failed roster call degrades to an empty list
+ * so the form still renders.
+ */
 export async function loadRelationOptions(): Promise<{
   trainers: RelationOption[];
   locations: RelationOption[];
+  plans: RelationOption[];
 }> {
-  const [trainers, locations] = await Promise.all([
+  const [trainers, locations, plans] = await Promise.all([
     fetchTrainers({ status: 'ACTIVE', limit: OPTION_LIMIT })
       .then((res) => res.data.map((t) => ({ id: t.id, name: t.name })))
       .catch(() => [] as RelationOption[]),
     fetchLocations({ status: 'ACTIVE', limit: OPTION_LIMIT })
       .then((res) => res.data.map((l) => ({ id: l.id, name: l.name })))
       .catch(() => [] as RelationOption[]),
+    fetchSubscriptionPlans({ limit: OPTION_LIMIT, sort: 'name', dir: 'asc' })
+      .then((res) => res.data.map((p) => ({ id: p.id, name: p.name })))
+      .catch(() => [] as RelationOption[]),
   ]);
-  return { trainers, locations };
+  return { trainers, locations, plans };
 }

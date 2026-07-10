@@ -31,6 +31,33 @@ export const classTemplateStatusSchema = z.enum(['ACTIVE', 'PAUSED']);
 /** A class template's lifecycle state — {@link classTemplateStatusSchema}. */
 export type ClassTemplateStatus = z.infer<typeof classTemplateStatusSchema>;
 
+/**
+ * How a class template is priced to members, mirroring the Prisma
+ * `ClassPricingRule` enum. `FREE` is open to any active member; `INCLUDED` is
+ * covered by the subscription plans in `includedPlanIds`; `PAID` charges
+ * `priceMinor` per session. Personal-training templates additionally carry the
+ * per-duration `pt30/45/60Minor` rates.
+ */
+export const classPricingRuleSchema = z.enum(['FREE', 'INCLUDED', 'PAID']);
+
+/** How a class template is priced — {@link classPricingRuleSchema}. */
+export type ClassPricingRule = z.infer<typeof classPricingRuleSchema>;
+
+/**
+ * A nullable minor-unit money field the admin form submits as a string. An empty
+ * string / null / undefined normalises to `null` ("unset"); anything else is
+ * coerced to a non-negative integer number of minor units (tetri/cents).
+ */
+const nullableMinorField = z.preprocess(
+  (value) => (value === '' || value === null || value === undefined ? null : value),
+  z.coerce
+    .number()
+    .int('Amount must be a whole number of minor units')
+    .min(0, 'Amount cannot be negative')
+    .max(100_000_000)
+    .nullable(),
+);
+
 // ── Recurrence (the visual RRULE editor's model) ─────────────────────────────
 
 /**
@@ -343,6 +370,13 @@ export interface AdminClassTemplateRow {
   trainerName: string | null;
   locationName: string | null;
   status: ClassTemplateStatus;
+  pricingRule: ClassPricingRule;
+  priceMinor: number | null;
+  includedPlanIds: string[];
+  minAttendance: number | null;
+  pt30Minor: number | null;
+  pt45Minor: number | null;
+  pt60Minor: number | null;
   validFrom: string;
   validUntil: string | null;
   createdAt: string;
@@ -429,6 +463,18 @@ const classTemplateProfileFields = {
     .trim()
     .regex(/^#[0-9a-fA-F]{6}$/, 'Color must be a hex value like #2563eb')
     .default('#2563eb'),
+  pricingRule: classPricingRuleSchema.default('FREE'),
+  priceMinor: nullableMinorField.default(null),
+  includedPlanIds: z.array(z.string().trim().min(1)).max(100).default([]),
+  minAttendance: z
+    .preprocess(
+      (value) => (value === '' || value === null || value === undefined ? null : value),
+      z.coerce.number().int().min(0).max(100_000).nullable(),
+    )
+    .default(null),
+  pt30Minor: nullableMinorField.default(null),
+  pt45Minor: nullableMinorField.default(null),
+  pt60Minor: nullableMinorField.default(null),
   validFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be a YYYY-MM-DD date'),
   validUntil: z
     .string()
@@ -436,6 +482,35 @@ const classTemplateProfileFields = {
     .nullable()
     .default(null),
 };
+
+/**
+ * Shared pricing guard: a `PAID` template needs a per-session `priceMinor`, and an
+ * `INCLUDED` template needs at least one plan in `includedPlanIds`. `FREE` clears
+ * both. Keeps the wire from carrying a pricing rule the UI can't act on.
+ */
+function refinePricing(
+  value: {
+    pricingRule: ClassPricingRule;
+    priceMinor: number | null;
+    includedPlanIds: string[];
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.pricingRule === 'PAID' && (value.priceMinor === null || value.priceMinor <= 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'A paid class needs a price above zero',
+      path: ['priceMinor'],
+    });
+  }
+  if (value.pricingRule === 'INCLUDED' && value.includedPlanIds.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Pick at least one plan this class is included in',
+      path: ['includedPlanIds'],
+    });
+  }
+}
 
 /** Shared `validUntil >= validFrom` guard applied to both write bodies. */
 function refineValidWindow(
@@ -463,7 +538,8 @@ export const createClassTemplateSchema = z
     ...classTemplateProfileFields,
     status: classTemplateStatusSchema.default('ACTIVE'),
   })
-  .superRefine(refineValidWindow);
+  .superRefine(refineValidWindow)
+  .superRefine(refinePricing);
 
 /** Validated `POST /admin/classes` body — {@link createClassTemplateSchema}. */
 export type CreateClassTemplateInput = z.input<typeof createClassTemplateSchema>;
@@ -478,7 +554,8 @@ export type CreateClassTemplateData = z.infer<typeof createClassTemplateSchema>;
  */
 export const updateClassTemplateSchema = z
   .object(classTemplateProfileFields)
-  .superRefine(refineValidWindow);
+  .superRefine(refineValidWindow)
+  .superRefine(refinePricing);
 
 /** Validated `PATCH /admin/classes/:id` body — {@link updateClassTemplateSchema}. */
 export type UpdateClassTemplateInput = z.input<typeof updateClassTemplateSchema>;

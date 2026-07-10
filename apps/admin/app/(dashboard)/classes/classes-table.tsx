@@ -12,7 +12,7 @@ import type {
   SortDir,
 } from '@fit/types';
 import { Badge, Btn, DataTable, nextSortDir, type Column } from '@/components/ui';
-import { STATUS_STYLES, formatDate, formatDuration } from './format';
+import { STATUS_STYLES, formatDate, formatDuration, formatPricing } from './format';
 
 const styles = stylex.create({
   stack: {
@@ -193,6 +193,11 @@ export function ClassTemplatesTable({
       cell: (template) => (
         <span {...stylex.props(styles.cellText)}>{formatDuration(template.durationMinutes)}</span>
       ),
+    },
+    {
+      key: 'pricing',
+      header: 'Pricing',
+      cell: (template) => <span {...stylex.props(styles.cellText)}>{formatPricing(template)}</span>,
     },
     {
       key: 'status',

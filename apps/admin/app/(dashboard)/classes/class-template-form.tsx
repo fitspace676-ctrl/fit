@@ -9,6 +9,7 @@ import {
   buildRRule,
   parseRRule,
   recurrenceSchema,
+  type ClassPricingRule,
   type ClassTemplateStatus,
   type Recurrence,
 } from '@fit/types';
@@ -154,6 +155,48 @@ const styles = stylex.create({
     textDecoration: 'none',
     color: 'var(--color-text-secondary)',
   },
+  pricingBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+  },
+  hint: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  planList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  planChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-body)',
+    color: 'var(--color-text-secondary)',
+    fontSize: '0.8125rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  planChipActive: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
 });
 
 /** The default recurrence a new template starts on — a weekly Monday class. */
@@ -175,6 +218,13 @@ type Initial = {
   durationMinutes: number;
   rrule: string;
   color: string;
+  pricingRule: ClassPricingRule;
+  priceMinor: number | null;
+  includedPlanIds: string[];
+  minAttendance: number | null;
+  pt30Minor: number | null;
+  pt45Minor: number | null;
+  pt60Minor: number | null;
   validFrom: string;
   validUntil: string | null;
 };
@@ -182,6 +232,7 @@ type Initial = {
 type Props = {
   trainers: RelationOption[];
   locations: RelationOption[];
+  plans: RelationOption[];
 } & (
   | { mode: 'create' }
   | {
@@ -194,6 +245,20 @@ type Props = {
 /** Today's date as `YYYY-MM-DD`, the default validity start for a new template. */
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** A stored minor-unit amount (or null) → the major-unit string the input shows. */
+function minorToMajor(minor: number | null): string {
+  return minor === null ? '' : (minor / 100).toString();
+}
+
+/** A major-unit input string → minor units, or null when blank/invalid. */
+function majorToMinor(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  const major = Number(trimmed);
+  if (!Number.isFinite(major)) return null;
+  return Math.round(major * 100);
 }
 
 /**
@@ -231,6 +296,13 @@ export function ClassTemplateForm(props: Props) {
         durationMinutes: 60,
         rrule: buildRRule(DEFAULT_RECURRENCE),
         color: '#2563eb',
+        pricingRule: 'FREE',
+        priceMinor: null,
+        includedPlanIds: [],
+        minAttendance: null,
+        pt30Minor: null,
+        pt45Minor: null,
+        pt60Minor: null,
         validFrom: todayIso(),
         validUntil: null,
       };
@@ -247,10 +319,26 @@ export function ClassTemplateForm(props: Props) {
   const [validFrom, setValidFrom] = useState(initial.validFrom);
   const [validUntil, setValidUntil] = useState(initial.validUntil ?? '');
   const [status, setStatus] = useState<ClassTemplateStatus>('ACTIVE');
+  // Pricing (parity with the reference class-type pricing). Money fields are held
+  // as major-unit strings for a friendly input and converted to minor on submit.
+  const [pricingRule, setPricingRule] = useState<ClassPricingRule>(initial.pricingRule);
+  const [price, setPrice] = useState(minorToMajor(initial.priceMinor));
+  const [includedPlanIds, setIncludedPlanIds] = useState<string[]>(initial.includedPlanIds);
+  const [minAttendance, setMinAttendance] = useState(
+    initial.minAttendance === null ? '' : String(initial.minAttendance),
+  );
+  const [pt30, setPt30] = useState(minorToMajor(initial.pt30Minor));
+  const [pt45, setPt45] = useState(minorToMajor(initial.pt45Minor));
+  const [pt60, setPt60] = useState(minorToMajor(initial.pt60Minor));
   // Seed the recurrence from the stored rrule (edit), falling back to the default.
   const [recurrence, setRecurrence] = useState<Recurrence>(
     () => parseRRule(initial.rrule) ?? DEFAULT_RECURRENCE,
   );
+
+  const togglePlan = (planId: string): void =>
+    setIncludedPlanIds((current) =>
+      current.includes(planId) ? current.filter((id) => id !== planId) : [...current, planId],
+    );
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -274,6 +362,13 @@ export function ClassTemplateForm(props: Props) {
       durationMinutes: Number(durationMinutes),
       rrule: buildRRule(parsedRecurrence.data),
       color,
+      pricingRule,
+      priceMinor: pricingRule === 'PAID' ? majorToMinor(price) : null,
+      includedPlanIds: pricingRule === 'INCLUDED' ? includedPlanIds : [],
+      minAttendance: minAttendance.trim() === '' ? null : Number(minAttendance),
+      pt30Minor: majorToMinor(pt30),
+      pt45Minor: majorToMinor(pt45),
+      pt60Minor: majorToMinor(pt60),
       validFrom,
       validUntil: validUntil === '' ? null : validUntil,
     };
@@ -489,6 +584,150 @@ export function ClassTemplateForm(props: Props) {
           placeholder="e.g. Studio A"
           {...stylex.props(styles.field)}
         />
+      </div>
+
+      {/* Pricing — how members pay for this class (parity with the reference). */}
+      <div {...stylex.props(styles.pricingBox)}>
+        <div {...stylex.props(styles.row)}>
+          <div {...stylex.props(styles.colFlex)}>
+            <label htmlFor="class-pricing-rule" {...stylex.props(styles.label)}>
+              Pricing
+            </label>
+            <select
+              id="class-pricing-rule"
+              name="pricingRule"
+              value={pricingRule}
+              onChange={(event) => setPricingRule(event.target.value as ClassPricingRule)}
+              {...stylex.props(styles.field)}
+            >
+              <option value="FREE">Free for members</option>
+              <option value="INCLUDED">Included in selected plans</option>
+              <option value="PAID">Paid per session</option>
+            </select>
+          </div>
+          <div {...stylex.props(styles.colFlex)}>
+            <label htmlFor="class-min-attendance" {...stylex.props(styles.label)}>
+              Min attendance <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+            </label>
+            <input
+              id="class-min-attendance"
+              name="minAttendance"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={minAttendance}
+              onChange={(event) => setMinAttendance(event.target.value)}
+              placeholder="e.g. 3"
+              {...stylex.props(styles.field)}
+            />
+          </div>
+        </div>
+
+        {pricingRule === 'PAID' ? (
+          <div {...stylex.props(styles.fieldGroup)}>
+            <label htmlFor="class-price" {...stylex.props(styles.label)}>
+              Price per session
+            </label>
+            <input
+              id="class-price"
+              name="price"
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              value={price}
+              onChange={(event) => setPrice(event.target.value)}
+              placeholder="e.g. 15.00"
+              {...stylex.props(styles.field)}
+            />
+          </div>
+        ) : null}
+
+        {pricingRule === 'INCLUDED' ? (
+          <div {...stylex.props(styles.fieldGroup)}>
+            <span {...stylex.props(styles.label)}>Included in plans</span>
+            {props.plans.length === 0 ? (
+              <p {...stylex.props(styles.hint)}>No membership plans yet — create one first.</p>
+            ) : (
+              <div {...stylex.props(styles.planList)}>
+                {props.plans.map((plan) => {
+                  const active = includedPlanIds.includes(plan.id);
+                  return (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => togglePlan(plan.id)}
+                      {...stylex.props(styles.planChip, active && styles.planChipActive)}
+                    >
+                      {active ? <Icon name="check" sw={2.5} className="h-3.5 w-3.5" /> : null}
+                      {plan.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <div {...stylex.props(styles.fieldGroup)}>
+          <span {...stylex.props(styles.label)}>
+            Personal-training rates <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+          </span>
+          <div {...stylex.props(styles.row)}>
+            <div {...stylex.props(styles.colFlex)}>
+              <label htmlFor="class-pt30" {...stylex.props(styles.hint)}>
+                30 min
+              </label>
+              <input
+                id="class-pt30"
+                name="pt30"
+                type="number"
+                min={0}
+                step="0.01"
+                inputMode="decimal"
+                value={pt30}
+                onChange={(event) => setPt30(event.target.value)}
+                placeholder="0.00"
+                {...stylex.props(styles.field)}
+              />
+            </div>
+            <div {...stylex.props(styles.colFlex)}>
+              <label htmlFor="class-pt45" {...stylex.props(styles.hint)}>
+                45 min
+              </label>
+              <input
+                id="class-pt45"
+                name="pt45"
+                type="number"
+                min={0}
+                step="0.01"
+                inputMode="decimal"
+                value={pt45}
+                onChange={(event) => setPt45(event.target.value)}
+                placeholder="0.00"
+                {...stylex.props(styles.field)}
+              />
+            </div>
+            <div {...stylex.props(styles.colFlex)}>
+              <label htmlFor="class-pt60" {...stylex.props(styles.hint)}>
+                60 min
+              </label>
+              <input
+                id="class-pt60"
+                name="pt60"
+                type="number"
+                min={0}
+                step="0.01"
+                inputMode="decimal"
+                value={pt60}
+                onChange={(event) => setPt60(event.target.value)}
+                placeholder="0.00"
+                {...stylex.props(styles.field)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {!isEdit ? (

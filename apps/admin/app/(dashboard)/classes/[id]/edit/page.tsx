@@ -129,7 +129,7 @@ export default async function EditClassTemplatePage({
     );
   }
 
-  const { trainers, locations } = await loadRelationOptions();
+  const { trainers, locations, plans } = await loadRelationOptions();
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -151,6 +151,7 @@ export default async function EditClassTemplatePage({
         templateId={id}
         trainers={trainers}
         locations={locations}
+        plans={plans}
         initial={{
           title: template.title,
           description: template.description,
@@ -162,6 +163,13 @@ export default async function EditClassTemplatePage({
           durationMinutes: template.durationMinutes,
           rrule: template.rrule,
           color: template.color,
+          pricingRule: template.pricingRule,
+          priceMinor: template.priceMinor,
+          includedPlanIds: template.includedPlanIds,
+          minAttendance: template.minAttendance,
+          pt30Minor: template.pt30Minor,
+          pt45Minor: template.pt45Minor,
+          pt60Minor: template.pt60Minor,
           validFrom: template.validFrom,
           validUntil: template.validUntil,
         }}

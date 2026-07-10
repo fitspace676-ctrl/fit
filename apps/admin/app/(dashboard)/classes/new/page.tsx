@@ -70,7 +70,7 @@ export default async function NewClassTemplatePage() {
     redirect('/403');
   }
 
-  const { trainers, locations } = await loadRelationOptions();
+  const { trainers, locations, plans } = await loadRelationOptions();
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -87,7 +87,7 @@ export default async function NewClassTemplatePage() {
         </p>
       </header>
 
-      <ClassTemplateForm mode="create" trainers={trainers} locations={locations} />
+      <ClassTemplateForm mode="create" trainers={trainers} locations={locations} plans={plans} />
     </div>
   );
 }

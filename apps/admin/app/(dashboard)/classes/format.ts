@@ -5,7 +5,12 @@
 // the recurrence editor and the status select offer — so the admin surfaces never
 // drift on the display format.
 
-import type { ClassTemplateStatus, RecurrenceFreq, RecurrenceWeekday } from '@fit/types';
+import type {
+  AdminClassTemplateRow,
+  ClassTemplateStatus,
+  RecurrenceFreq,
+  RecurrenceWeekday,
+} from '@fit/types';
 import type { Tone } from '@/components/ui';
 
 /** Visual treatment per template status — success active, warning paused. */
@@ -40,6 +45,27 @@ export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
+/**
+ * A compact pricing label for the roster: "Free", "Included (N)" with the plan
+ * count, or "Paid · 15.00" with the per-session price in major units. Mirrors the
+ * reference admin's Pricing column.
+ */
+export function formatPricing(
+  template: Pick<AdminClassTemplateRow, 'pricingRule' | 'priceMinor' | 'includedPlanIds'>,
+): string {
+  switch (template.pricingRule) {
+    case 'INCLUDED':
+      return `Included (${template.includedPlanIds.length})`;
+    case 'PAID':
+      return template.priceMinor === null
+        ? 'Paid'
+        : `Paid · ${(template.priceMinor / 100).toFixed(2)}`;
+    case 'FREE':
+    default:
+      return 'Free';
+  }
 }
 
 /** The selectable recurrence frequencies and their human labels, in display order. */
