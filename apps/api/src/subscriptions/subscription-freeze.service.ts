@@ -16,6 +16,7 @@ import {
   resumeExtensionDays,
 } from '@fit/db';
 import {
+  gymSettingsStoredSchema,
   type FreezeSubscriptionData,
   type FreezeSubscriptionResponse,
   type UnfreezeSubscriptionResponse,
@@ -126,8 +127,35 @@ export class SubscriptionFreezeService {
 
       // Legality first: the state machine owns which states may be paused. A
       // PAST_DUE / CANCELED / EXPIRED subscription cannot freeze, so reject before
-      // touching the allowance.
+      // touching any policy.
       const nextStatus = this.transition(subscription.status, 'FREEZE');
+
+      // Gym-level freeze policy (T12.16): a single freeze must fall within the
+      // gym's configured min/max length. Both bounds are opt-in — `0` means "no
+      // limit at that end" — so an unconfigured gym imposes nothing here and the
+      // plan's own allowance (below) remains the only cap. The gym is pinned to the
+      // caller's tenant, so the policy read is always the caller's own.
+      const gym = await tx.gym.findFirst({
+        where: { id: this.tenant.gymId },
+        select: { settings: true },
+      });
+      const { minFreezeDays, maxFreezeDays } = gymSettingsStoredSchema.parse(
+        gym?.settings ?? {},
+      ).freeze;
+      if (minFreezeDays > 0 && input.durationDays < minFreezeDays) {
+        throw new UnprocessableEntityException({
+          message: `A freeze must be at least ${minFreezeDays} day(s)`,
+          code: 'BELOW_MIN_FREEZE_DAYS',
+          minFreezeDays,
+        });
+      }
+      if (maxFreezeDays > 0 && input.durationDays > maxFreezeDays) {
+        throw new UnprocessableEntityException({
+          message: `A freeze may be at most ${maxFreezeDays} day(s)`,
+          code: 'EXCEEDS_MAX_FREEZE_DAYS',
+          maxFreezeDays,
+        });
+      }
 
       const freezeDaysPerPeriod =
         subscription.plan?.freezeDaysPerPeriod ?? DEFAULT_FREEZE_DAYS_PER_PERIOD;

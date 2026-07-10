@@ -37,6 +37,7 @@ const subscription = (over?: Partial<SubscriptionRecord>): SubscriptionRecord =>
 function setup(overrides?: {
   member?: { id: string } | null;
   subscription?: SubscriptionRecord | null;
+  gymSettings?: unknown;
 }) {
   const memberFindFirst = vi.fn(() =>
     Promise.resolve(overrides?.member === undefined ? { id: 'member-1' } : overrides.member),
@@ -49,10 +50,12 @@ function setup(overrides?: {
   const subscriptionUpdate = vi.fn((args: { data: Record<string, unknown> }) =>
     Promise.resolve(args),
   );
+  const gymFindFirst = vi.fn(() => Promise.resolve({ settings: overrides?.gymSettings ?? null }));
 
   const client: Record<string, unknown> = {
     gymMember: { findFirst: memberFindFirst },
     subscription: { findFirst: subscriptionFindFirst, update: subscriptionUpdate },
+    gym: { findFirst: gymFindFirst },
     // Interactive transaction: run the callback against the same scoped client.
     $transaction: (cb: (tx: unknown) => unknown) => cb(client),
   };
@@ -65,6 +68,7 @@ function setup(overrides?: {
     memberFindFirst,
     subscriptionFindFirst,
     subscriptionUpdate,
+    gymFindFirst,
   };
 }
 
@@ -117,6 +121,44 @@ describe('SubscriptionFreezeService.freeze', () => {
       remainingDays: 4,
     });
     expect(subscriptionUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a freeze shorter than the gym's minimum (422 BELOW_MIN_FREEZE_DAYS)", async () => {
+    const { service, subscriptionUpdate } = setup({
+      gymSettings: { freeze: { minFreezeDays: 7 } },
+    });
+
+    const error = await rejection(service.freeze('sub-1', freezeInput({ durationDays: 3 })));
+
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect(error.getResponse()).toMatchObject({ code: 'BELOW_MIN_FREEZE_DAYS', minFreezeDays: 7 });
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a freeze longer than the gym's maximum (422 EXCEEDS_MAX_FREEZE_DAYS)", async () => {
+    const { service, subscriptionUpdate } = setup({
+      subscription: subscription({ plan: { freezeDaysPerPeriod: 90 } }),
+      gymSettings: { freeze: { maxFreezeDays: 14 } },
+    });
+
+    const error = await rejection(service.freeze('sub-1', freezeInput({ durationDays: 30 })));
+
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect(error.getResponse()).toMatchObject({
+      code: 'EXCEEDS_MAX_FREEZE_DAYS',
+      maxFreezeDays: 14,
+    });
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('allows a freeze within the gym min/max window', async () => {
+    const { service, subscriptionUpdate } = setup({
+      gymSettings: { freeze: { minFreezeDays: 5, maxFreezeDays: 30 } },
+    });
+
+    await service.freeze('sub-1', freezeInput({ durationDays: 10 }));
+
+    expect(subscriptionUpdate).toHaveBeenCalled();
   });
 
   it('rejects re-freezing an already-frozen subscription (409 ALREADY_FROZEN)', async () => {

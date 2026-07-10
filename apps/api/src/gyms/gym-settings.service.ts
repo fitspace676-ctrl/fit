@@ -65,10 +65,22 @@ export class GymSettingsService {
     const { name: brandName, ...brandPatch } = input.brand ?? {};
     const next: GymSettingsStored = {
       brand: { ...current.brand, ...brandPatch },
+      business: { ...current.business, ...input.business },
       locale: { ...current.locale, ...input.locale },
       hours: input.hours ?? current.hours,
       notifications: { ...current.notifications, ...input.notifications },
       booking: { ...current.booking, ...input.booking },
+      noShow: { ...current.noShow, ...input.noShow },
+      freeze: { ...current.freeze, ...input.freeze },
+      guestPass: { ...current.guestPass, ...input.guestPass },
+      trial: { ...current.trial, ...input.trial },
+      membership: { ...current.membership, ...input.membership },
+      payments: { ...current.payments, ...input.payments },
+      invoice: { ...current.invoice, ...input.invoice },
+      tax: { ...current.tax, ...input.tax },
+      refund: { ...current.refund, ...input.refund },
+      receipt: { ...current.receipt, ...input.receipt },
+      autoRenewal: { ...current.autoRenewal, ...input.autoRenewal },
     };
     const nextName = brandName ?? gym.name;
 
@@ -135,10 +147,22 @@ export class GymSettingsService {
     const stored = gymSettingsStoredSchema.parse(raw ?? {});
     return {
       brand: { name, ...stored.brand },
+      business: stored.business,
       locale: stored.locale,
       hours: stored.hours,
       notifications: stored.notifications,
       booking: stored.booking,
+      noShow: stored.noShow,
+      freeze: stored.freeze,
+      guestPass: stored.guestPass,
+      trial: stored.trial,
+      membership: stored.membership,
+      payments: stored.payments,
+      invoice: stored.invoice,
+      tax: stored.tax,
+      refund: stored.refund,
+      receipt: stored.receipt,
+      autoRenewal: stored.autoRenewal,
     };
   }
 }
