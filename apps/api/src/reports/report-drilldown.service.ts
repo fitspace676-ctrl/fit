@@ -1,9 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentStatus, Role, SubscriptionStatus } from '@fit/db';
+import {
+  BookingStatus,
+  LeadSource,
+  LeadStatus,
+  LoyaltyRedemptionStatus,
+  LoyaltyRewardType,
+  OpportunityStatus,
+  PaymentMethod,
+  PaymentStatus,
+  ReviewStatus,
+  Role,
+  SubscriptionStatus,
+} from '@fit/db';
 import {
   REPORT_METRIC_DEFINITIONS,
+  type ReportBreakdownItem,
   type ReportDrilldown,
   type ReportDrilldownQuery,
+  type ReportDrilldownRow,
   type ReportKpi,
   type ReportMetric,
   type ReportSection,
@@ -35,12 +49,90 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 const RETAIL_LABEL = 'Retail';
 /** Label for revenue on orders with no linked location. */
 const NO_LOCATION_LABEL = 'No location';
+/** Bucket for class occurrences / bookings whose trainer was removed or never set. */
+const UNASSIGNED_TRAINER_LABEL = 'Unassigned';
+
+/** Booking outcomes that held a confirmed seat (attended or not) — the "booked" count. */
+const CONFIRMED_BOOKING_STATUSES: readonly BookingStatus[] = [
+  BookingStatus.BOOKED,
+  BookingStatus.ATTENDED,
+  BookingStatus.NO_SHOW,
+];
+
+/** Human labels for the POS payment methods, in the end-of-day reconciliation order. */
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  [PaymentMethod.CASH]: 'Cash',
+  [PaymentMethod.CARD]: 'Card',
+  [PaymentMethod.MEMBER_ACCOUNT]: 'Member account',
+};
+
+/** Human labels for lead sources, driving the CRM by-source aggregations. */
+const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
+  [LeadSource.WALK_IN]: 'Walk-in',
+  [LeadSource.INSTAGRAM]: 'Instagram',
+  [LeadSource.REFERRAL]: 'Referral',
+  [LeadSource.WEBSITE]: 'Website',
+};
+
+/** Lead lifecycle stages in funnel order (top of funnel → closed), for the CRM funnel. */
+const LEAD_FUNNEL: readonly { status: LeadStatus; label: string }[] = [
+  { status: LeadStatus.NEW, label: 'New' },
+  { status: LeadStatus.CONTACTED, label: 'Contacted' },
+  { status: LeadStatus.TRIAL, label: 'Trial' },
+  { status: LeadStatus.CONVERTED, label: 'Converted' },
+  { status: LeadStatus.LOST, label: 'Lost' },
+];
+
+/** Lead statuses that are still open pipeline (not yet converted or lost). */
+const OPEN_LEAD_STATUSES: readonly LeadStatus[] = [
+  LeadStatus.NEW,
+  LeadStatus.CONTACTED,
+  LeadStatus.TRIAL,
+];
+
+/** Human labels for loyalty reward types, driving the by-reward-type breakdown. */
+const REWARD_TYPE_LABELS: Record<LoyaltyRewardType, string> = {
+  [LoyaltyRewardType.pt_session]: 'PT session',
+  [LoyaltyRewardType.day_pass]: 'Day pass',
+  [LoyaltyRewardType.guest_pass]: 'Guest pass',
+  [LoyaltyRewardType.merchandise]: 'Merchandise',
+  [LoyaltyRewardType.drink]: 'Drink',
+  [LoyaltyRewardType.discount]: 'Discount',
+  [LoyaltyRewardType.other]: 'Other',
+};
 
 /** What a metric resolves to before it is wrapped as a {@link ReportDrilldown}. */
 interface ComputedDrilldown {
   currency: string;
   kpis: ReportKpi[];
   sections: ReportSection[];
+}
+
+/** Per-class running aggregate for the classes report. */
+interface ClassAgg {
+  sessions: number;
+  capacity: number;
+  booked: number;
+  attended: number;
+  noShow: number;
+  canceled: number;
+}
+
+/** Per-trainer running aggregate for the staff report. */
+interface TrainerAgg {
+  classes: number;
+  booked: number;
+  attended: number;
+  noShow: number;
+  ratingSum: number;
+  ratingCount: number;
+}
+
+/** Per-source running aggregate for the CRM lead-source performance table. */
+interface LeadSourceAgg {
+  leads: number;
+  converted: number;
+  wonValue: number;
 }
 
 /**
@@ -106,6 +198,16 @@ export class ReportDrilldownService {
         return this.members(win);
       case 'attendance':
         return this.attendance(win);
+      case 'classes':
+        return this.classes(win);
+      case 'staff':
+        return this.staff(win);
+      case 'pos':
+        return this.pos(win);
+      case 'crm':
+        return this.crm(win);
+      case 'loyalty':
+        return this.loyalty(win);
     }
   }
 
@@ -502,6 +604,737 @@ export class ReportDrilldownService {
     return { currency: DEFAULT_CURRENCY, kpis, sections };
   }
 
+  /* ---------------------------------------------------------------------- */
+  /*  Classes                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Class programming health over the window, from {@link ClassInstance}
+   * occurrences that *start* inside it and the {@link Booking} rows against them.
+   * Surfaces the most-booked classes, the attended / no-show / cancelled split, the
+   * cancellation-rate trend, and a per-class performance table (sessions, fill rate,
+   * attendance rate). Every figure is a real count over rows in the window; a class
+   * with no occurrences in the window simply does not appear.
+   */
+  private async classes(win: ReportWindow): Promise<ComputedDrilldown> {
+    const [instances, bookings] = await Promise.all([
+      this.prisma.client.classInstance.findMany({
+        where: { startsAt: { gte: win.start, lt: win.end } },
+        select: {
+          capacityOverride: true,
+          bookedCount: true,
+          template: { select: { title: true, capacity: true } },
+        },
+      }),
+      this.prisma.client.booking.findMany({
+        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        select: {
+          status: true,
+          classInstance: {
+            select: { startsAt: true, template: { select: { title: true } } },
+          },
+        },
+      }),
+    ]);
+
+    const perClass = new Map<string, ClassAgg>();
+    const classAgg = (title: string): ClassAgg => {
+      let agg = perClass.get(title);
+      if (!agg) {
+        agg = { sessions: 0, capacity: 0, booked: 0, attended: 0, noShow: 0, canceled: 0 };
+        perClass.set(title, agg);
+      }
+      return agg;
+    };
+
+    for (const instance of instances) {
+      const agg = classAgg(instance.template.title);
+      agg.sessions += 1;
+      agg.capacity += instance.capacityOverride ?? instance.template.capacity;
+      agg.booked += instance.bookedCount;
+    }
+
+    const cancelTrend = emptyBuckets(win);
+    const totalTrend = emptyBuckets(win);
+    let attended = 0;
+    let noShow = 0;
+    let canceled = 0;
+    for (const booking of bookings) {
+      const agg = classAgg(booking.classInstance.template.title);
+      if (booking.status === BookingStatus.ATTENDED) {
+        agg.attended += 1;
+        attended += 1;
+      } else if (booking.status === BookingStatus.NO_SHOW) {
+        agg.noShow += 1;
+        noShow += 1;
+      } else if (booking.status === BookingStatus.CANCELED) {
+        agg.canceled += 1;
+        canceled += 1;
+      }
+
+      const key = bucketKey(booking.classInstance.startsAt, win.bucket);
+      if (totalTrend.has(key)) {
+        totalTrend.set(key, (totalTrend.get(key) ?? 0) + 1);
+        if (booking.status === BookingStatus.CANCELED) {
+          cancelTrend.set(key, (cancelTrend.get(key) ?? 0) + 1);
+        }
+      }
+    }
+
+    const totalBooked = [...perClass.values()].reduce((sum, agg) => sum + agg.booked, 0);
+    const attendanceBase = attended + noShow;
+
+    const kpis: ReportKpi[] = [
+      { id: 'classes-held', label: 'Classes held', value: instances.length, unit: 'count' },
+      { id: 'total-booked', label: 'Seats booked', value: totalBooked, unit: 'count' },
+      {
+        id: 'attendance-rate',
+        label: 'Attendance rate',
+        value: attendanceBase === 0 ? 0 : rate(attended, attendanceBase),
+        unit: 'percent',
+      },
+      {
+        id: 'cancellation-rate',
+        label: 'Cancellation rate',
+        value: bookings.length === 0 ? 0 : rate(canceled, bookings.length),
+        unit: 'percent',
+      },
+    ];
+
+    const popularity = new Map<string, number>();
+    for (const [title, agg] of perClass) {
+      popularity.set(title, agg.booked);
+    }
+
+    const sections: ReportSection[] = [
+      {
+        kind: 'breakdown',
+        id: 'most-popular-classes',
+        title: 'Most popular classes',
+        unit: 'count',
+        items: sortedBreakdown(popularity),
+      },
+      {
+        kind: 'split',
+        id: 'attendance-distribution',
+        title: 'Attendance distribution',
+        unit: 'count',
+        slices: [
+          { label: 'Attended', value: attended, tone: 'positive' },
+          { label: 'No-show', value: noShow, tone: 'negative' },
+          { label: 'Cancelled', value: canceled, tone: 'neutral' },
+        ],
+      },
+      {
+        kind: 'series',
+        id: 'cancellation-rate-trend',
+        title: 'Cancellation rate trend',
+        unit: 'percent',
+        points: [...cancelTrend.entries()].map(([label, cancelledCount]) => {
+          const total = totalTrend.get(label) ?? 0;
+          return { label, value: total === 0 ? 0 : rate(cancelledCount, total) };
+        }),
+      },
+      {
+        kind: 'table',
+        id: 'class-performance',
+        title: 'Class performance',
+        columns: [
+          { key: 'class', label: 'Class', type: 'text' },
+          { key: 'sessions', label: 'Sessions', type: 'number' },
+          { key: 'booked', label: 'Booked', type: 'number' },
+          { key: 'attended', label: 'Attended', type: 'number' },
+          { key: 'noShow', label: 'No-show', type: 'number' },
+          { key: 'fillRate', label: 'Fill rate', type: 'percent' },
+          { key: 'attendanceRate', label: 'Attendance', type: 'percent' },
+        ],
+        rows: [...perClass.entries()]
+          .sort(([, a], [, b]) => b.booked - a.booked)
+          .map(([title, agg]): ReportDrilldownRow => {
+            const base = agg.attended + agg.noShow;
+            return {
+              class: title,
+              sessions: agg.sessions,
+              booked: agg.booked,
+              attended: agg.attended,
+              noShow: agg.noShow,
+              fillRate: agg.capacity === 0 ? 0 : rate(agg.booked, agg.capacity),
+              attendanceRate: base === 0 ? 0 : rate(agg.attended, base),
+            };
+          }),
+      },
+    ];
+
+    return { currency: DEFAULT_CURRENCY, kpis, sections };
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Staff                                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Trainer delivery over the window. Attributes each {@link ClassInstance} (and its
+   * {@link Booking} outcomes) to the instance's template trainer, and folds in the
+   * VISIBLE {@link Review} ratings written in the window. Surfaces classes taught,
+   * attendance rate, and seats booked per trainer, plus a performance table. A class
+   * whose trainer was removed (or never set) is grouped under "Unassigned" rather
+   * than dropped, so the totals still reconcile with the classes report.
+   */
+  private async staff(win: ReportWindow): Promise<ComputedDrilldown> {
+    const [instances, bookings, reviews] = await Promise.all([
+      this.prisma.client.classInstance.findMany({
+        where: { startsAt: { gte: win.start, lt: win.end } },
+        select: {
+          template: { select: { trainer: { select: { name: true } } } },
+        },
+      }),
+      this.prisma.client.booking.findMany({
+        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        select: {
+          status: true,
+          classInstance: {
+            select: { template: { select: { trainer: { select: { name: true } } } } },
+          },
+        },
+      }),
+      this.prisma.client.review.findMany({
+        where: { status: ReviewStatus.VISIBLE, createdAt: { gte: win.start, lt: win.end } },
+        select: { trainer: { select: { name: true } }, rating: true },
+      }),
+    ]);
+
+    const perTrainer = new Map<string, TrainerAgg>();
+    const trainerAgg = (name: string): TrainerAgg => {
+      let agg = perTrainer.get(name);
+      if (!agg) {
+        agg = { classes: 0, booked: 0, attended: 0, noShow: 0, ratingSum: 0, ratingCount: 0 };
+        perTrainer.set(name, agg);
+      }
+      return agg;
+    };
+
+    for (const instance of instances) {
+      trainerAgg(instance.template.trainer?.name ?? UNASSIGNED_TRAINER_LABEL).classes += 1;
+    }
+    for (const booking of bookings) {
+      const agg = trainerAgg(
+        booking.classInstance.template.trainer?.name ?? UNASSIGNED_TRAINER_LABEL,
+      );
+      if ((CONFIRMED_BOOKING_STATUSES as BookingStatus[]).includes(booking.status)) {
+        agg.booked += 1;
+      }
+      if (booking.status === BookingStatus.ATTENDED) {
+        agg.attended += 1;
+      } else if (booking.status === BookingStatus.NO_SHOW) {
+        agg.noShow += 1;
+      }
+    }
+    for (const review of reviews) {
+      if (!review.trainer) {
+        continue;
+      }
+      const agg = trainerAgg(review.trainer.name);
+      agg.ratingSum += review.rating;
+      agg.ratingCount += 1;
+    }
+
+    const classesTaught = new Map<string, number>();
+    const attendanceRate = new Map<string, number>();
+    const sessionsBooked = new Map<string, number>();
+    let totalAttended = 0;
+    let totalNoShow = 0;
+    for (const [name, agg] of perTrainer) {
+      classesTaught.set(name, agg.classes);
+      sessionsBooked.set(name, agg.booked);
+      const base = agg.attended + agg.noShow;
+      if (base > 0) {
+        attendanceRate.set(name, rate(agg.attended, base));
+      }
+      totalAttended += agg.attended;
+      totalNoShow += agg.noShow;
+    }
+
+    const trainersActive = [...perTrainer.values()].filter((agg) => agg.classes > 0).length;
+    const attendanceBase = totalAttended + totalNoShow;
+    const totalBooked = [...perTrainer.values()].reduce((sum, agg) => sum + agg.booked, 0);
+
+    const kpis: ReportKpi[] = [
+      { id: 'trainers', label: 'Active trainers', value: trainersActive, unit: 'count' },
+      { id: 'classes-held', label: 'Classes held', value: instances.length, unit: 'count' },
+      { id: 'total-booked', label: 'Seats booked', value: totalBooked, unit: 'count' },
+      {
+        id: 'attendance-rate',
+        label: 'Attendance rate',
+        value: attendanceBase === 0 ? 0 : rate(totalAttended, attendanceBase),
+        unit: 'percent',
+      },
+    ];
+
+    const sections: ReportSection[] = [
+      {
+        kind: 'breakdown',
+        id: 'classes-taught-per-trainer',
+        title: 'Classes taught per trainer',
+        unit: 'count',
+        items: sortedBreakdown(classesTaught),
+      },
+      {
+        kind: 'breakdown',
+        id: 'attendance-rate-per-trainer',
+        title: 'Attendance rate per trainer',
+        unit: 'percent',
+        items: sortedBreakdown(attendanceRate),
+      },
+      {
+        kind: 'breakdown',
+        id: 'sessions-booked-per-trainer',
+        title: 'Sessions booked per trainer',
+        unit: 'count',
+        items: sortedBreakdown(sessionsBooked),
+      },
+      {
+        kind: 'table',
+        id: 'staff-performance',
+        title: 'Staff performance',
+        columns: [
+          { key: 'trainer', label: 'Trainer', type: 'text' },
+          { key: 'classes', label: 'Classes', type: 'number' },
+          { key: 'booked', label: 'Booked', type: 'number' },
+          { key: 'attended', label: 'Attended', type: 'number' },
+          { key: 'noShow', label: 'No-show', type: 'number' },
+          { key: 'attendanceRate', label: 'Attendance', type: 'percent' },
+          { key: 'rating', label: 'Avg rating', type: 'number' },
+        ],
+        rows: [...perTrainer.entries()]
+          .sort(([, a], [, b]) => b.classes - a.classes)
+          .map(([name, agg]): ReportDrilldownRow => {
+            const base = agg.attended + agg.noShow;
+            return {
+              trainer: name,
+              classes: agg.classes,
+              booked: agg.booked,
+              attended: agg.attended,
+              noShow: agg.noShow,
+              attendanceRate: base === 0 ? 0 : rate(agg.attended, base),
+              rating:
+                agg.ratingCount === 0 ? 0 : Math.round((agg.ratingSum / agg.ratingCount) * 10) / 10,
+            };
+          }),
+      },
+    ];
+
+    return { currency: DEFAULT_CURRENCY, kpis, sections };
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Point of sale                                                          */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Point-of-sale takings over the window, from captured {@link Payment} rows joined
+   * to their {@link Order}'s line items. "Net" is `amount − refundedAmount` in MINOR
+   * units throughout. Surfaces daily sales, takings by payment method, the product
+   * sales breakdown (positive line items grouped by label), and the end-of-day
+   * summary table.
+   */
+  private async pos(win: ReportWindow): Promise<ComputedDrilldown> {
+    const payments = await this.prisma.client.payment.findMany({
+      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      select: {
+        amount: true,
+        refundedAmount: true,
+        currency: true,
+        method: true,
+        createdAt: true,
+        order: { select: { items: { select: { label: true, amount: true } } } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const currency = payments[payments.length - 1]?.currency ?? (await this.resolveCurrency());
+
+    const overTime = emptyBuckets(win);
+    const byMethod = new Map<string, number>();
+    const byProduct = new Map<string, number>();
+    const daily = new Map<string, { transactions: number; gross: number; refunded: number }>();
+    let gross = 0;
+    let refunded = 0;
+
+    for (const payment of payments) {
+      const net = payment.amount - payment.refundedAmount;
+      gross += payment.amount;
+      refunded += payment.refundedAmount;
+
+      const key = bucketKey(payment.createdAt, win.bucket);
+      if (overTime.has(key)) {
+        overTime.set(key, (overTime.get(key) ?? 0) + net);
+      }
+
+      const methodLabel = PAYMENT_METHOD_LABELS[payment.method];
+      byMethod.set(methodLabel, (byMethod.get(methodLabel) ?? 0) + net);
+
+      for (const item of payment.order.items) {
+        if (item.amount > 0) {
+          byProduct.set(item.label, (byProduct.get(item.label) ?? 0) + item.amount);
+        }
+      }
+
+      const dayKey = isoDate(payment.createdAt);
+      const day = daily.get(dayKey) ?? { transactions: 0, gross: 0, refunded: 0 };
+      day.transactions += 1;
+      day.gross += payment.amount;
+      day.refunded += payment.refundedAmount;
+      daily.set(dayKey, day);
+    }
+
+    const transactions = payments.length;
+    const net = gross - refunded;
+    const kpis: ReportKpi[] = [
+      { id: 'gross-sales', label: 'Gross sales', value: gross, unit: 'money' },
+      { id: 'net-sales', label: 'Net sales', value: net, unit: 'money' },
+      { id: 'transactions', label: 'Transactions', value: transactions, unit: 'count' },
+      {
+        id: 'avg-sale',
+        label: 'Avg sale',
+        value: transactions === 0 ? 0 : Math.round(net / transactions),
+        unit: 'money',
+      },
+    ];
+
+    const sections: ReportSection[] = [
+      {
+        kind: 'series',
+        id: 'daily-sales',
+        title: 'Daily sales',
+        unit: 'money',
+        points: [...overTime.entries()].map(([label, value]) => ({ label, value })),
+      },
+      {
+        kind: 'breakdown',
+        id: 'sales-by-method',
+        title: 'Sales by payment method',
+        unit: 'money',
+        items: sortedBreakdown(byMethod),
+      },
+      {
+        kind: 'breakdown',
+        id: 'product-sales',
+        title: 'Product sales breakdown',
+        unit: 'money',
+        items: sortedBreakdown(byProduct),
+      },
+      {
+        kind: 'table',
+        id: 'end-of-day',
+        title: 'End-of-day summaries',
+        columns: [
+          { key: 'date', label: 'Date', type: 'date' },
+          { key: 'transactions', label: 'Transactions', type: 'number' },
+          { key: 'gross', label: 'Gross', type: 'money' },
+          { key: 'refunded', label: 'Refunded', type: 'money' },
+          { key: 'net', label: 'Net', type: 'money' },
+        ],
+        rows: [...daily.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(
+            ([date, day]): ReportDrilldownRow => ({
+              date,
+              transactions: day.transactions,
+              gross: day.gross,
+              refunded: day.refunded,
+              net: day.gross - day.refunded,
+            }),
+          ),
+      },
+    ];
+
+    return { currency, kpis, sections };
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  CRM                                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Sales-pipeline health from the CRM {@link Lead} / {@link Opportunity} rows
+   * (T12.2). Leads *created* in the window drive the by-source breakdown, the
+   * conversion funnel, and the source-performance table; the weighted pipeline value
+   * (`value × probability / 100`) of deals created in the window drives the trend,
+   * while the headline pipeline KPI is the whole gym's live open pipeline. Deal
+   * sizes are MINOR-unit integers, so the money figures format against the gym's
+   * reporting currency.
+   */
+  private async crm(win: ReportWindow): Promise<ComputedDrilldown> {
+    const [leads, opportunities, currency] = await Promise.all([
+      this.prisma.client.lead.findMany({
+        select: {
+          source: true,
+          status: true,
+          expectedValue: true,
+          probability: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.client.opportunity.findMany({
+        select: { status: true, value: true, probability: true, createdAt: true },
+      }),
+      this.resolveCurrency(),
+    ]);
+
+    const inWindow = leads.filter(
+      (lead) => lead.createdAt >= win.start && lead.createdAt < win.end,
+    );
+
+    // Leads by source + funnel + per-source performance, over leads created in-window.
+    const bySource = new Map<string, number>();
+    const funnelCounts = new Map<LeadStatus, number>();
+    const perSource = new Map<string, LeadSourceAgg>();
+    for (const lead of inWindow) {
+      const sourceLabel = LEAD_SOURCE_LABELS[lead.source];
+      bySource.set(sourceLabel, (bySource.get(sourceLabel) ?? 0) + 1);
+      funnelCounts.set(lead.status, (funnelCounts.get(lead.status) ?? 0) + 1);
+
+      let agg = perSource.get(sourceLabel);
+      if (!agg) {
+        agg = { leads: 0, converted: 0, wonValue: 0 };
+        perSource.set(sourceLabel, agg);
+      }
+      agg.leads += 1;
+      if (lead.status === LeadStatus.CONVERTED) {
+        agg.converted += 1;
+        agg.wonValue += lead.expectedValue;
+      }
+    }
+
+    // Weighted pipeline value of open deals created per bucket (leads + opportunities).
+    const pipelineTrend = emptyBuckets(win);
+    const addWeighted = (
+      createdAt: Date,
+      isOpen: boolean,
+      value: number,
+      probability: number,
+    ): void => {
+      if (!isOpen) {
+        return;
+      }
+      const key = bucketKey(createdAt, win.bucket);
+      if (pipelineTrend.has(key)) {
+        pipelineTrend.set(key, (pipelineTrend.get(key) ?? 0) + weighted(value, probability));
+      }
+    };
+    for (const lead of inWindow) {
+      addWeighted(
+        lead.createdAt,
+        (OPEN_LEAD_STATUSES as LeadStatus[]).includes(lead.status),
+        lead.expectedValue,
+        lead.probability,
+      );
+    }
+    for (const opp of opportunities) {
+      if (opp.createdAt < win.start || opp.createdAt >= win.end) {
+        continue;
+      }
+      addWeighted(opp.createdAt, isOpenOpportunity(opp.status), opp.value, opp.probability);
+    }
+
+    // Live open pipeline across the whole gym (not just the window) for the KPI.
+    let openPipeline = 0;
+    for (const lead of leads) {
+      if ((OPEN_LEAD_STATUSES as LeadStatus[]).includes(lead.status)) {
+        openPipeline += weighted(lead.expectedValue, lead.probability);
+      }
+    }
+    for (const opp of opportunities) {
+      if (isOpenOpportunity(opp.status)) {
+        openPipeline += weighted(opp.value, opp.probability);
+      }
+    }
+
+    const newLeads = inWindow.length;
+    const converted = inWindow.filter((lead) => lead.status === LeadStatus.CONVERTED).length;
+
+    const kpis: ReportKpi[] = [
+      { id: 'new-leads', label: 'New leads', value: newLeads, unit: 'count' },
+      { id: 'converted', label: 'Converted', value: converted, unit: 'count' },
+      {
+        id: 'conversion-rate',
+        label: 'Conversion rate',
+        value: newLeads === 0 ? 0 : rate(converted, newLeads),
+        unit: 'percent',
+      },
+      { id: 'open-pipeline', label: 'Open pipeline', value: openPipeline, unit: 'money' },
+    ];
+
+    const funnelItems: ReportBreakdownItem[] = LEAD_FUNNEL.map(({ status, label }) => ({
+      label,
+      value: funnelCounts.get(status) ?? 0,
+    })).filter((item) => item.value !== 0);
+
+    const sections: ReportSection[] = [
+      {
+        kind: 'breakdown',
+        id: 'leads-by-source',
+        title: 'Leads by source',
+        unit: 'count',
+        items: sortedBreakdown(bySource),
+      },
+      {
+        kind: 'breakdown',
+        id: 'conversion-funnel',
+        title: 'Conversion funnel',
+        unit: 'count',
+        items: funnelItems,
+      },
+      {
+        kind: 'series',
+        id: 'pipeline-value-over-time',
+        title: 'Pipeline value over time',
+        unit: 'money',
+        points: [...pipelineTrend.entries()].map(([label, value]) => ({ label, value })),
+      },
+      {
+        kind: 'table',
+        id: 'lead-source-performance',
+        title: 'Lead source performance',
+        columns: [
+          { key: 'source', label: 'Source', type: 'text' },
+          { key: 'leads', label: 'Leads', type: 'number' },
+          { key: 'converted', label: 'Converted', type: 'number' },
+          { key: 'conversionRate', label: 'Conversion', type: 'percent' },
+          { key: 'wonValue', label: 'Won value', type: 'money' },
+        ],
+        rows: [...perSource.entries()]
+          .sort(([, a], [, b]) => b.leads - a.leads)
+          .map(
+            ([source, agg]): ReportDrilldownRow => ({
+              source,
+              leads: agg.leads,
+              converted: agg.converted,
+              conversionRate: agg.leads === 0 ? 0 : rate(agg.converted, agg.leads),
+              wonValue: agg.wonValue,
+            }),
+          ),
+      },
+    ];
+
+    return { currency, kpis, sections };
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Loyalty                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Loyalty-program activity over the window (T12.10), from the append-only
+   * {@link LoyaltyLedgerEntry} points ledger and the {@link LoyaltyRedemption} rows.
+   * Points issued over time and the issued-vs-redeemed split come from the ledger's
+   * signed deltas; redemptions-by-type and the recent-redemptions table come from the
+   * redemption rows (cancelled redemptions, whose points were refunded, are excluded
+   * from the aggregates but still listed).
+   */
+  private async loyalty(win: ReportWindow): Promise<ComputedDrilldown> {
+    const [ledger, redemptions] = await Promise.all([
+      this.prisma.client.loyaltyLedgerEntry.findMany({
+        where: { createdAt: { gte: win.start, lt: win.end } },
+        select: { delta: true, createdAt: true },
+      }),
+      this.prisma.client.loyaltyRedemption.findMany({
+        where: { redeemedAt: { gte: win.start, lt: win.end } },
+        select: {
+          rewardName: true,
+          rewardType: true,
+          pointsSpent: true,
+          status: true,
+          redeemedAt: true,
+        },
+        orderBy: { redeemedAt: 'desc' },
+      }),
+    ]);
+
+    const issuedOverTime = emptyBuckets(win);
+    let issued = 0;
+    let redeemed = 0;
+    for (const entry of ledger) {
+      if (entry.delta > 0) {
+        issued += entry.delta;
+        const key = bucketKey(entry.createdAt, win.bucket);
+        if (issuedOverTime.has(key)) {
+          issuedOverTime.set(key, (issuedOverTime.get(key) ?? 0) + entry.delta);
+        }
+      } else if (entry.delta < 0) {
+        redeemed += -entry.delta;
+      }
+    }
+
+    const byRewardType = new Map<string, number>();
+    let redemptionCount = 0;
+    for (const redemption of redemptions) {
+      if (redemption.status === LoyaltyRedemptionStatus.cancelled) {
+        continue;
+      }
+      redemptionCount += 1;
+      const label = REWARD_TYPE_LABELS[redemption.rewardType];
+      byRewardType.set(label, (byRewardType.get(label) ?? 0) + 1);
+    }
+
+    const kpis: ReportKpi[] = [
+      { id: 'points-issued', label: 'Points issued', value: issued, unit: 'count' },
+      { id: 'points-redeemed', label: 'Points redeemed', value: redeemed, unit: 'count' },
+      { id: 'net-points', label: 'Net points', value: issued - redeemed, unit: 'count' },
+      { id: 'redemptions', label: 'Redemptions', value: redemptionCount, unit: 'count' },
+    ];
+
+    const sections: ReportSection[] = [
+      {
+        kind: 'series',
+        id: 'points-issued-over-time',
+        title: 'Points issued over time',
+        unit: 'count',
+        points: [...issuedOverTime.entries()].map(([label, value]) => ({ label, value })),
+      },
+      {
+        kind: 'split',
+        id: 'points-issued-vs-redeemed',
+        title: 'Points issued vs redeemed',
+        unit: 'count',
+        slices: [
+          { label: 'Issued', value: issued, tone: 'positive' },
+          { label: 'Redeemed', value: redeemed, tone: 'negative' },
+        ],
+      },
+      {
+        kind: 'breakdown',
+        id: 'redemptions-by-reward-type',
+        title: 'Redemptions by reward type',
+        unit: 'count',
+        items: sortedBreakdown(byRewardType),
+      },
+      {
+        kind: 'table',
+        id: 'recent-redemptions',
+        title: 'Recent redemptions',
+        columns: [
+          { key: 'date', label: 'Date', type: 'date' },
+          { key: 'reward', label: 'Reward', type: 'text' },
+          { key: 'type', label: 'Type', type: 'text' },
+          { key: 'points', label: 'Points', type: 'number' },
+          { key: 'status', label: 'Status', type: 'text' },
+        ],
+        rows: redemptions.slice(0, 20).map(
+          (redemption): ReportDrilldownRow => ({
+            date: isoDate(redemption.redeemedAt),
+            reward: redemption.rewardName,
+            type: REWARD_TYPE_LABELS[redemption.rewardType],
+            points: redemption.pointsSpent,
+            status: capitalize(redemption.status),
+          }),
+        ),
+      },
+    ];
+
+    return { currency: DEFAULT_CURRENCY, kpis, sections };
+  }
+
   /**
    * The gym's reporting currency — the most recent captured payment's currency,
    * falling back to the schema default when the gym has taken none, mirroring
@@ -556,4 +1389,23 @@ function sortedBreakdown(totals: Map<string, number>): { label: string; value: n
     .map(([label, value]) => ({ label, value }))
     .filter((item) => item.value !== 0)
     .sort((a, b) => b.value - a.value);
+}
+
+/** A deal's probability-weighted expected value, in MINOR units (`value × p / 100`). */
+function weighted(value: number, probability: number): number {
+  return Math.round((value * probability) / 100);
+}
+
+/** Whether an opportunity is still open pipeline (not yet WON or LOST). */
+function isOpenOpportunity(status: OpportunityStatus): boolean {
+  return (
+    status === OpportunityStatus.INTERESTED ||
+    status === OpportunityStatus.PROPOSAL_SENT ||
+    status === OpportunityStatus.DECISION_PENDING
+  );
+}
+
+/** Capitalise a lowercase enum value for display (e.g. `fulfilled` → `Fulfilled`). */
+function capitalize(value: string): string {
+  return value.length === 0 ? value : value[0]!.toUpperCase() + value.slice(1);
 }
