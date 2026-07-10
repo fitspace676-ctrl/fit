@@ -68,6 +68,21 @@ export const updateStaffRoleSchema = z.object({
 export type UpdateStaffRoleInput = z.infer<typeof updateStaffRoleSchema>;
 
 /**
+ * Query for `GET /staff` — optionally narrow the roster by `role` and/or
+ * `status` (the staff-list tab's filters). Both are optional; omitting them
+ * returns every staff member, as before. A `role` is constrained to an
+ * assignable staff role and `status` to a staff lifecycle state, so an
+ * unexpected value is a `400` rather than a silent empty roster.
+ */
+export const listStaffQuerySchema = z.object({
+  role: staffRoleSchema.optional(),
+  status: staffStatusSchema.optional(),
+});
+
+/** Validated `GET /staff` query — {@link listStaffQuerySchema}. */
+export type ListStaffQuery = z.infer<typeof listStaffQuerySchema>;
+
+/**
  * One active staff member as the roster table renders it — a denormalised
  * `GymMember` + `User`. `id` is the membership id (the handle the re-role / remove
  * routes take); `userId` is the underlying account (so the UI can flag "this is

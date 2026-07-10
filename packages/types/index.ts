@@ -38,6 +38,7 @@ export * from './src/reports-drilldown';
 export * from './src/reviews';
 export * from './src/schedule-admin';
 export * from './src/staff';
+export * from './src/staff-depth';
 export * from './src/subscriptions';
 export * from './src/subscriptions-admin';
 export * from './src/trainer-availability';

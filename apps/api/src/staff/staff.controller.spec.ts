@@ -46,8 +46,20 @@ describe('StaffController', () => {
 
   it('GET /staff delegates to the service', async () => {
     const { controller, listStaff } = setup();
-    await expect(controller.list()).resolves.toEqual({ staff: [staffMember], invites: [] });
+    await expect(controller.list({})).resolves.toEqual({ staff: [staffMember], invites: [] });
     expect(listStaff).toHaveBeenCalledOnce();
+  });
+
+  it('GET /staff forwards validated role/status filters', async () => {
+    const { controller, listStaff } = setup();
+    await controller.list({ role: 'TRAINER', status: 'ACTIVE' });
+    expect(listStaff).toHaveBeenLastCalledWith({ role: 'TRAINER', status: 'ACTIVE' });
+  });
+
+  it('GET /staff rejects an invalid filter with 400', async () => {
+    const { controller, listStaff } = setup();
+    await expect(controller.list({ role: 'MEMBER' })).rejects.toBeInstanceOf(BadRequestException);
+    expect(listStaff).not.toHaveBeenCalled();
   });
 
   describe('POST /staff/invite', () => {
