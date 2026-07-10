@@ -139,6 +139,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           name: product.name,
           description: product.description,
           priceAmount: product.priceAmount,
+          costAmount: product.costAmount,
           currency: product.currency,
           images: product.images,
           variants: product.variants,

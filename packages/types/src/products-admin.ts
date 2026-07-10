@@ -122,6 +122,8 @@ export interface AdminProductRow {
   id: string;
   name: string;
   priceAmount: number;
+  /** Unit cost in `currency`'s minor units, or `null` when untracked. Drives margin. */
+  costAmount: number | null;
   currency: string;
   imageUrl: string | null;
   variantCount: number;
@@ -199,6 +201,16 @@ const productProfileFields = {
     .int('Price must be a whole number of minor units')
     .nonnegative('Price cannot be negative')
     .default(0),
+  costAmount: z
+    .preprocess(
+      (value) => (value === '' || value === null || value === undefined ? null : value),
+      z.coerce
+        .number()
+        .int('Cost must be a whole number of minor units')
+        .nonnegative('Cost cannot be negative')
+        .nullable(),
+    )
+    .default(null),
   currency: z
     .string()
     .trim()

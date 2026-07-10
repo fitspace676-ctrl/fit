@@ -13,6 +13,7 @@ const detail = (over?: Partial<GetAdminProductResponse>): GetAdminProductRespons
   id: 'p-1',
   name: 'Branded Tee',
   priceAmount: 2999,
+  costAmount: null,
   currency: 'USD',
   imageUrl: null,
   variantCount: 0,

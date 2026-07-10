@@ -33,6 +33,18 @@ export function minorToInput(amountMinor: number | null): string {
 }
 
 /**
+ * The profit margin as a whole-number percentage from a base price and unit cost
+ * (both in minor units), or `null` when cost is untracked or the price is zero.
+ * `(price - cost) / price`, rounded — the reference product editor's readout.
+ */
+export function marginPercent(priceMinor: number, costMinor: number | null): number | null {
+  if (costMinor === null || priceMinor <= 0) {
+    return null;
+  }
+  return Math.round(((priceMinor - costMinor) / priceMinor) * 100);
+}
+
+/**
  * Parse a major-unit input string (e.g. `29.99`) to an integer minor-unit amount
  * (`2999`). A blank or unparseable string yields `null`, so callers can treat
  * "left empty" distinctly (a variant inheriting the base price) from "set to 0".

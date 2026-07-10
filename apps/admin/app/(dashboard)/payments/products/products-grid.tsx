@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { AdminProductRow, ProductStatus } from '@fit/types';
 import { Card } from '@astryxdesign/core/Card';
 import { Badge, Btn, Icon, type Tone } from '@/components/ui';
-import { formatPrice } from './format-price';
+import { formatPrice, marginPercent } from './format-price';
 import { StockBadge, stockLevel } from './stock-badge';
 
 /** Visual treatment per product status — success active, ink inactive. */
@@ -255,6 +255,11 @@ export function ProductsGrid({
                           : 'No variants'}
                       </span>
                     </div>
+                    {marginPercent(product.priceAmount, product.costAmount) !== null ? (
+                      <span {...stylex.props(styles.variantCount)}>
+                        {marginPercent(product.priceAmount, product.costAmount)}% margin
+                      </span>
+                    ) : null}
                     <div>
                       <StockBadge row={product} />
                     </div>

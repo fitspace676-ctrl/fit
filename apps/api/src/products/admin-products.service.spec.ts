@@ -23,6 +23,7 @@ interface ProductRecord {
   name: string;
   description: string;
   priceAmount: number;
+  costAmount: number | null;
   currency: string;
   images: string[];
   variants: unknown;
@@ -47,6 +48,7 @@ const row = (over?: Partial<ProductRecord>): ProductRecord => ({
   name: 'Branded Tee',
   description: 'A soft cotton training tee.',
   priceAmount: 2999,
+  costAmount: null,
   currency: 'USD',
   images: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'],
   variants: VARIANTS,
@@ -98,6 +100,7 @@ const createInput = (over?: Partial<CreateProductData>): CreateProductData => ({
   name: 'Branded Tee',
   description: 'A soft cotton training tee.',
   priceAmount: 2999,
+  costAmount: null,
   currency: 'USD',
   images: ['https://cdn.example.com/a.jpg'],
   variants: VARIANTS,
@@ -109,6 +112,7 @@ const updateInput = (over?: Partial<UpdateProductData>): UpdateProductData => ({
   name: 'Branded Tee',
   description: 'Updated copy.',
   priceAmount: 3499,
+  costAmount: null,
   currency: 'EUR',
   images: ['https://cdn.example.com/c.jpg'],
   variants: VARIANTS,
@@ -130,6 +134,7 @@ describe('AdminProductsService', () => {
             id: 'p-1',
             name: 'Branded Tee',
             priceAmount: 2999,
+            costAmount: null,
             currency: 'USD',
             imageUrl: 'https://cdn.example.com/a.jpg',
             variantCount: 2,
@@ -295,6 +300,7 @@ describe('AdminProductsService', () => {
         id: 'p-1',
         name: 'Branded Tee',
         priceAmount: 2999,
+        costAmount: null,
         currency: 'USD',
         imageUrl: 'https://cdn.example.com/a.jpg',
         variantCount: 2,
@@ -334,6 +340,7 @@ describe('AdminProductsService', () => {
         gymId: 'gym-1',
         name: 'New Tee',
         priceAmount: 2999,
+        costAmount: null,
         currency: 'USD',
         status: 'INACTIVE',
         images: ['https://cdn.example.com/a.jpg'],

@@ -217,6 +217,15 @@ const styles = stylex.create({
     flexWrap: 'wrap',
     gap: '1rem',
   },
+  labelOptional: {
+    fontWeight: 400,
+    color: 'var(--color-text-secondary)',
+  },
+  marginHint: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
   priceGroup: {
     display: 'flex',
     flexGrow: 1,
@@ -352,6 +361,7 @@ type Initial = {
   name: string;
   description: string;
   priceAmount: number;
+  costAmount: number | null;
   currency: string;
   images: string[];
   variants: ProductVariant[];
@@ -405,11 +415,22 @@ export function ProductForm(props: Props) {
   const isEdit = props.mode === 'edit';
   const initial: Initial = isEdit
     ? props.initial
-    : { name: '', description: '', priceAmount: 0, currency: 'USD', images: [], variants: [] };
+    : {
+        name: '',
+        description: '',
+        priceAmount: 0,
+        costAmount: null,
+        currency: 'USD',
+        images: [],
+        variants: [],
+      };
 
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [price, setPrice] = useState(initial.priceAmount ? minorToInput(initial.priceAmount) : '');
+  const [cost, setCost] = useState(
+    initial.costAmount === null ? '' : minorToInput(initial.costAmount),
+  );
   const [currency, setCurrency] = useState(initial.currency);
   const [images, setImages] = useState<string[]>(initial.images);
   const [variants, setVariants] = useState<VariantDraft[]>(initial.variants.map(toDraft));
@@ -522,6 +543,7 @@ export function ProductForm(props: Props) {
       name,
       description,
       priceAmount: inputToMinor(price) ?? 0,
+      costAmount: cost.trim() === '' ? null : inputToMinor(cost),
       currency,
       images,
       variants: cleanedVariants,
@@ -543,6 +565,15 @@ export function ProductForm(props: Props) {
   const cancelHref = isEdit ? `/payments/products/${props.productId}` : '/payments/products';
   const atImageLimit = images.length >= MAX_PRODUCT_IMAGES;
   const atVariantLimit = variants.length >= MAX_PRODUCT_VARIANTS;
+
+  // Live profit margin from the entered base price + cost, shown as the operator
+  // types (parity with the reference product editor's margin readout).
+  const priceMinor = inputToMinor(price);
+  const costMinor = cost.trim() === '' ? null : inputToMinor(cost);
+  const marginPct =
+    priceMinor && priceMinor > 0 && costMinor !== null
+      ? Math.round(((priceMinor - costMinor) / priceMinor) * 100)
+      : null;
 
   return (
     <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
@@ -656,6 +687,23 @@ export function ProductForm(props: Props) {
             {...stylex.props(styles.input)}
           />
         </div>
+        <div {...stylex.props(styles.priceGroup)}>
+          <label htmlFor="product-cost" {...stylex.props(styles.label)}>
+            Cost <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+          </label>
+          <input
+            id="product-cost"
+            name="cost"
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={cost}
+            onChange={(event) => setCost(event.target.value)}
+            placeholder="0.00"
+            {...stylex.props(styles.input)}
+          />
+        </div>
         <div {...stylex.props(styles.currencyGroup)}>
           <label htmlFor="product-currency" {...stylex.props(styles.label)}>
             Currency
@@ -673,6 +721,10 @@ export function ProductForm(props: Props) {
           />
         </div>
       </div>
+
+      {marginPct !== null ? (
+        <p {...stylex.props(styles.marginHint)}>Profit margin: {marginPct}%</p>
+      ) : null}
 
       {/* Variants. */}
       <fieldset {...stylex.props(styles.fieldset)}>
