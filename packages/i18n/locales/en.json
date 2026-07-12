@@ -1346,6 +1346,13 @@
         "empty": "No check-ins today yet.",
         "noPlan": "No plan"
       },
+      "recentMembers": {
+        "title": "Recent members",
+        "empty": "No members yet.",
+        "noPlan": "No plan",
+        "expires": "Expires {date}",
+        "status": { "active": "Active", "invited": "Invited", "suspended": "Suspended" }
+      },
       "relative": {
         "justNow": "just now",
         "minutes": "{mins}m ago",

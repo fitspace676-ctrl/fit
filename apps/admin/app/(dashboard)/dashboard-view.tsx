@@ -655,6 +655,9 @@ export function DashboardView({
 
       {/* Recent check-ins */}
       <RecentCheckInsCard data={data} />
+
+      {/* Recent members (gym-admin parity) */}
+      <RecentMembersCard data={data} />
     </div>
   );
 }
@@ -1152,6 +1155,48 @@ function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
   );
 }
 
+/**
+ * The "recent members" card (gym-admin parity) — the latest joiners with their plan,
+ * status badge, and membership expiry. Mirrors the recent-check-ins row layout; the
+ * name links into the member's profile route.
+ */
+function RecentMembersCard({ data }: { data: DashboardOverviewResponse }) {
+  const t = useTranslations('admin.dashboard');
+  const locale = useLocale();
+  const rows = data.recentMembers;
+  return (
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHead)}>
+        <h2 {...stylex.props(styles.sectionLabel)}>{t('recentMembers.title')}</h2>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState>{t('recentMembers.empty')}</EmptyState>
+      ) : (
+        <ul {...stylex.props(styles.checkInGrid)}>
+          {rows.map((row) => (
+            <li key={row.id} {...stylex.props(styles.checkInRow)}>
+              <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
+              <span {...stylex.props(styles.alertMain)}>
+                <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
+                <span {...stylex.props(styles.alertDetail)}>
+                  {row.planName ?? t('recentMembers.noPlan')}
+                  {row.expiresAt
+                    ? ` · ${t('recentMembers.expires', { date: formatDate(locale, row.expiresAt) })}`
+                    : ''}
+                </span>
+              </span>
+              <Badge
+                variant={memberStatusVariant(row.status)}
+                label={t(`recentMembers.status.${row.status.toLowerCase()}`)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Empty state + formatters                                                  */
 /* -------------------------------------------------------------------------- */
@@ -1162,6 +1207,23 @@ function EmptyState({ children }: { children: ReactNode }) {
 
 function formatTime(locale: string, iso: string): string {
   return new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Locale-formatted short date for the recent-members "expires" line. */
+function formatDate(locale: string, iso: string): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso));
+}
+
+/** Map a `GymMemberStatus` string to an Astryx Badge variant. */
+function memberStatusVariant(status: string): 'success' | 'error' | 'neutral' {
+  switch (status) {
+    case 'ACTIVE':
+      return 'success';
+    case 'SUSPENDED':
+      return 'error';
+    default:
+      return 'neutral';
+  }
 }
 
 function initials(name: string): string {

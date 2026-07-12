@@ -1346,6 +1346,13 @@
         "empty": "დღეს შემოსვლები ჯერ არ არის.",
         "noPlan": "პაკეტის გარეშე"
       },
+      "recentMembers": {
+        "title": "ბოლო წევრები",
+        "empty": "წევრები ჯერ არ არის.",
+        "noPlan": "გეგმის გარეშე",
+        "expires": "იწურება {date}",
+        "status": { "active": "აქტიური", "invited": "მოწვეული", "suspended": "შეჩერებული" }
+      },
       "relative": {
         "justNow": "ახლახან",
         "minutes": "{mins}წთ წინ",
