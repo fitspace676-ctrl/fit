@@ -133,6 +133,47 @@ export const dashboardKpisSchema = z.object({
 });
 export type DashboardKpis = z.infer<typeof dashboardKpisSchema>;
 
+/**
+ * The six "stat card" figures the gym-admin reference dashboard surfaces alongside
+ * the three primary KPIs. `revenueThisMonth` carries a real month-over-month delta;
+ * the rest are live counts (no historical baseline exists, so they show a static
+ * descriptive hint rather than a fabricated trend).
+ */
+export const dashboardSecondaryKpisSchema = z.object({
+  /** Active `MEMBER`-role members (status ACTIVE). */
+  activeMembers: z.number().int().nonnegative(),
+  /** Captured revenue this calendar month (MINOR units), delta vs. last month. */
+  revenueThisMonth: dashboardKpiSchema,
+  /** Subscriptions currently `PAST_DUE` (dunning) — the honest "overdue" figure. */
+  overduePayments: z.number().int().nonnegative(),
+  /** Class occurrences scheduled today. */
+  classesToday: z.number().int().nonnegative(),
+  /** Live subscriptions whose current period ends within 7 days. */
+  expiringSoon: z.number().int().nonnegative(),
+  /** Live subscriptions whose current period ends within this calendar month. */
+  renewalsDue: z.number().int().nonnegative(),
+});
+export type DashboardSecondaryKpis = z.infer<typeof dashboardSecondaryKpisSchema>;
+
+/** One row of the "recent members" table: the latest joiners with plan + status + expiry. */
+export const dashboardRecentMemberSchema = z.object({
+  /** The `GymMember` id, for row links into the members routes. */
+  id: z.string(),
+  /** Display name (falls back to email when unnamed). */
+  name: z.string(),
+  /** The member's email. */
+  email: z.string(),
+  /** Current live subscription plan name, or `null`. */
+  planName: z.string().nullable(),
+  /** `GymMemberStatus` (ACTIVE / INVITED / SUSPENDED). */
+  status: z.string(),
+  /** When they joined, ISO-8601. */
+  joinedAt: z.string(),
+  /** Current subscription period end (the "expiry"), ISO-8601, or `null`. */
+  expiresAt: z.string().nullable(),
+});
+export type DashboardRecentMember = z.infer<typeof dashboardRecentMemberSchema>;
+
 /** The revenue area chart's series + its window total (all in MINOR units). */
 export const dashboardRevenueSchema = z.object({
   /** The resolved window the series was bucketed over. */
@@ -232,6 +273,8 @@ export const dashboardOverviewResponseSchema = z.object({
   inGymNow: dashboardInGymNowSchema,
   /** Today's three headline KPI cards. */
   kpis: dashboardKpisSchema,
+  /** The six gym-admin "stat card" secondary KPIs. */
+  secondaryKpis: dashboardSecondaryKpisSchema,
   /** The range-windowed revenue area chart series + total. */
   revenue: dashboardRevenueSchema,
   /** The live plan-mix breakdown. */
@@ -242,5 +285,7 @@ export const dashboardOverviewResponseSchema = z.object({
   alerts: z.array(dashboardAlertSchema),
   /** The live recent-check-ins feed (top ~6, newest first). */
   recentCheckIns: z.array(dashboardCheckInSchema),
+  /** The latest joiners for the "recent members" table (top ~6, newest first). */
+  recentMembers: z.array(dashboardRecentMemberSchema),
 });
 export type DashboardOverviewResponse = z.infer<typeof dashboardOverviewResponseSchema>;
