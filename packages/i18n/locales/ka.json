@@ -1300,6 +1300,17 @@
         "newMembers7d": "ახალი წევრები · 7დღ",
         "noPriorData": "წინა მონაცემები არ არის"
       },
+      "secondaryKpi": {
+        "activeMembers": "აქტიური წევრები",
+        "revenueThisMonth": "ამ თვის შემოსავალი",
+        "overduePayments": "ვადაგადაცილებული გადახდები",
+        "classesToday": "დღევანდელი კლასები",
+        "expiringSoon": "მალე იწურება",
+        "renewalsDue": "განახლების ვადა",
+        "classesTodayHint": "დღეს დაგეგმილი",
+        "expiringSoonHint": "7 დღეში",
+        "renewalsDueHint": "ამ თვეში"
+      },
       "revenue": {
         "title": "შემოსავალი",
         "caption": "{range} · სულ {total}",

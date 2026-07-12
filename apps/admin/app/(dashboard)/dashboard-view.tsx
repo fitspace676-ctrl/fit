@@ -537,6 +537,15 @@ const styles = stylex.create({
       '@media (min-width: 1024px)': 'repeat(2, minmax(0, 1fr))',
     },
   },
+  secondaryKpiGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
 });
 
 export function DashboardView({
@@ -589,6 +598,44 @@ export function DashboardView({
           <KpiCard label={t('kpi.checkInsToday')} icon="check" kpi={data.kpis.checkInsToday} />
           <KpiCard label={t('kpi.newMembers7d')} icon="users" kpi={data.kpis.newMembers7d} />
         </div>
+      </section>
+
+      {/* Secondary stat KPIs (gym-admin parity) */}
+      <section {...stylex.props(styles.secondaryKpiGrid)}>
+        <StatKpiCard
+          label={t('secondaryKpi.activeMembers')}
+          icon="users"
+          value={data.secondaryKpis.activeMembers}
+        />
+        <KpiCard
+          label={t('secondaryKpi.revenueThisMonth')}
+          icon="card"
+          kpi={data.secondaryKpis.revenueThisMonth}
+          format={(v) => money.format(v / 100)}
+        />
+        <StatKpiCard
+          label={t('secondaryKpi.overduePayments')}
+          icon="bell"
+          value={data.secondaryKpis.overduePayments}
+        />
+        <StatKpiCard
+          label={t('secondaryKpi.classesToday')}
+          icon="calendar"
+          value={data.secondaryKpis.classesToday}
+          hint={t('secondaryKpi.classesTodayHint')}
+        />
+        <StatKpiCard
+          label={t('secondaryKpi.expiringSoon')}
+          icon="clock"
+          value={data.secondaryKpis.expiringSoon}
+          hint={t('secondaryKpi.expiringSoonHint')}
+        />
+        <StatKpiCard
+          label={t('secondaryKpi.renewalsDue')}
+          icon="arrow"
+          value={data.secondaryKpis.renewalsDue}
+          hint={t('secondaryKpi.renewalsDueHint')}
+        />
       </section>
 
       {/* Pinned report widgets (T12.12) — only rendered when the user has pinned any. */}
@@ -778,6 +825,44 @@ function KpiCard({
         <Stack gap={1}>
           <Text type="display-3" weight="bold" hasTabularNumbers display="block">
             {format ? format(kpi.value) : <CountUp to={Math.round(kpi.value)} />}
+          </Text>
+          <Text type="supporting" color="secondary" weight="semibold" display="block">
+            {label}
+          </Text>
+        </Stack>
+      </Stack>
+    </Card>
+  );
+}
+
+/**
+ * A secondary "stat card" — like {@link KpiCard} but for a live count with no
+ * period-over-period baseline: it shows a static descriptive `hint` (a label, not a
+ * fabricated trend) where the delta chip would sit, or nothing when `hint` is omitted.
+ */
+function StatKpiCard({
+  label,
+  icon,
+  value,
+  hint,
+}: {
+  label: string;
+  icon: IconName;
+  value: number;
+  hint?: string;
+}) {
+  return (
+    <Card variant="default" padding={5} xstyle={styles.kpiCard}>
+      <Stack height="100%" justify="between" gap={5}>
+        <HStack justify="between" align="center">
+          <span {...stylex.props(styles.iconTile)}>
+            <Icon name={icon} {...stylex.props(styles.icon)} />
+          </span>
+          {hint ? <span {...stylex.props(styles.deltaMuted)}>{hint}</span> : null}
+        </HStack>
+        <Stack gap={1}>
+          <Text type="display-3" weight="bold" hasTabularNumbers display="block">
+            <CountUp to={Math.round(value)} />
           </Text>
           <Text type="supporting" color="secondary" weight="semibold" display="block">
             {label}

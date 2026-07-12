@@ -1300,6 +1300,17 @@
         "newMembers7d": "New members · 7d",
         "noPriorData": "no prior data"
       },
+      "secondaryKpi": {
+        "activeMembers": "Active members",
+        "revenueThisMonth": "Revenue this month",
+        "overduePayments": "Overdue payments",
+        "classesToday": "Classes today",
+        "expiringSoon": "Expiring soon",
+        "renewalsDue": "Renewals due",
+        "classesTodayHint": "Scheduled today",
+        "expiringSoonHint": "Within 7 days",
+        "renewalsDueHint": "This month"
+      },
       "revenue": {
         "title": "Revenue",
         "caption": "{range} · total {total}",
