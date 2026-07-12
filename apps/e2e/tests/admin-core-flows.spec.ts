@@ -42,9 +42,9 @@ test.describe.serial('Admin core flows', () => {
 
   test('Member CRUD — Create', async ({ page }) => {
     await page.goto('/members/new');
-    await page.locator('#member-name').fill(member.name);
-    await page.locator('#member-email').fill(member.email);
-    await page.locator('#member-phone').fill(member.phone);
+    await page.locator('input[name="name"]').fill(member.name);
+    await page.locator('input[name="email"]').fill(member.email);
+    await page.locator('input[name="phone"]').fill(member.phone);
     await page.getByRole('button', { name: 'Create member' }).click();
 
     // On success the form routes to the new member's detail page. The lookahead
@@ -65,7 +65,7 @@ test.describe.serial('Admin core flows', () => {
   test('Member CRUD — Update', async ({ page }) => {
     const newPhone = '+995555020202';
     await page.goto(`/members/${memberId}/edit`);
-    await page.locator('#member-phone').fill(newPhone);
+    await page.locator('input[name="phone"]').fill(newPhone);
     await page.getByRole('button', { name: 'Save changes' }).click();
 
     // On success the form routes back to the detail page showing the new phone.
