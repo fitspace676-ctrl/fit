@@ -513,6 +513,9 @@ export function MembersTable({
   dir,
   search,
   status,
+  planId,
+  tag,
+  availableTags,
   canWrite,
 }: {
   members: MemberRow[];
@@ -525,6 +528,9 @@ export function MembersTable({
   dir: SortDir;
   search: string;
   status: string;
+  planId: string;
+  tag: string;
+  availableTags: string[];
   canWrite: boolean;
 }) {
   const t = useTranslations('admin.members');
@@ -727,7 +733,14 @@ export function MembersTable({
       />
 
       {/* Search + Filter row. */}
-      <MembersFilters search={search} status={status} />
+      <MembersFilters
+        search={search}
+        status={status}
+        planId={planId}
+        tag={tag}
+        plans={planMix.plans}
+        availableTags={availableTags}
+      />
 
       {/* Selection + export toolbar. */}
       <div {...stylex.props(styles.toolbar)}>

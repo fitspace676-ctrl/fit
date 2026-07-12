@@ -70,6 +70,7 @@ export const listMembersQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
   status: memberStatusSchema.optional(),
   planId: z.string().min(1).optional(),
+  tag: z.string().min(1).optional(),
   sort: memberSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
 });
@@ -196,6 +197,8 @@ export interface ListMembersResponse {
   planMix: MemberPlanMix;
   /** Gym-wide member counts per segment (independent of the page's filters). */
   counts: MemberTabCounts;
+  /** The gym's distinct member tags, sorted — the Tag filter's options. */
+  availableTags: string[];
 }
 
 /** One subscription on a member's detail page — the member's `Subscription` rows. */
