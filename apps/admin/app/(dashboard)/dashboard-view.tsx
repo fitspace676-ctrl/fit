@@ -537,6 +537,15 @@ const styles = stylex.create({
       '@media (min-width: 1024px)': 'repeat(2, minmax(0, 1fr))',
     },
   },
+  secondaryKpiGrid: {
+    display: 'grid',
+    gap: '1rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+    },
+  },
 });
 
 export function DashboardView({
@@ -591,6 +600,44 @@ export function DashboardView({
         </div>
       </section>
 
+      {/* Secondary stat KPIs (gym-admin parity) */}
+      <section {...stylex.props(styles.secondaryKpiGrid)}>
+        <StatKpiCard
+          label={t('secondaryKpi.activeMembers')}
+          icon="users"
+          value={data.secondaryKpis.activeMembers}
+        />
+        <KpiCard
+          label={t('secondaryKpi.revenueThisMonth')}
+          icon="card"
+          kpi={data.secondaryKpis.revenueThisMonth}
+          format={(v) => money.format(v / 100)}
+        />
+        <StatKpiCard
+          label={t('secondaryKpi.overduePayments')}
+          icon="bell"
+          value={data.secondaryKpis.overduePayments}
+        />
+        <StatKpiCard
+          label={t('secondaryKpi.classesToday')}
+          icon="calendar"
+          value={data.secondaryKpis.classesToday}
+          hint={t('secondaryKpi.classesTodayHint')}
+        />
+        <StatKpiCard
+          label={t('secondaryKpi.expiringSoon')}
+          icon="clock"
+          value={data.secondaryKpis.expiringSoon}
+          hint={t('secondaryKpi.expiringSoonHint')}
+        />
+        <StatKpiCard
+          label={t('secondaryKpi.renewalsDue')}
+          icon="arrow"
+          value={data.secondaryKpis.renewalsDue}
+          hint={t('secondaryKpi.renewalsDueHint')}
+        />
+      </section>
+
       {/* Pinned report widgets (T12.12) — only rendered when the user has pinned any. */}
       {pinnedWidgets.length > 0 && <PinnedReports widgets={pinnedWidgets} locale={locale} />}
 
@@ -608,6 +655,9 @@ export function DashboardView({
 
       {/* Recent check-ins */}
       <RecentCheckInsCard data={data} />
+
+      {/* Recent members (gym-admin parity) */}
+      <RecentMembersCard data={data} />
     </div>
   );
 }
@@ -778,6 +828,44 @@ function KpiCard({
         <Stack gap={1}>
           <Text type="display-3" weight="bold" hasTabularNumbers display="block">
             {format ? format(kpi.value) : <CountUp to={Math.round(kpi.value)} />}
+          </Text>
+          <Text type="supporting" color="secondary" weight="semibold" display="block">
+            {label}
+          </Text>
+        </Stack>
+      </Stack>
+    </Card>
+  );
+}
+
+/**
+ * A secondary "stat card" — like {@link KpiCard} but for a live count with no
+ * period-over-period baseline: it shows a static descriptive `hint` (a label, not a
+ * fabricated trend) where the delta chip would sit, or nothing when `hint` is omitted.
+ */
+function StatKpiCard({
+  label,
+  icon,
+  value,
+  hint,
+}: {
+  label: string;
+  icon: IconName;
+  value: number;
+  hint?: string;
+}) {
+  return (
+    <Card variant="default" padding={5} xstyle={styles.kpiCard}>
+      <Stack height="100%" justify="between" gap={5}>
+        <HStack justify="between" align="center">
+          <span {...stylex.props(styles.iconTile)}>
+            <Icon name={icon} {...stylex.props(styles.icon)} />
+          </span>
+          {hint ? <span {...stylex.props(styles.deltaMuted)}>{hint}</span> : null}
+        </HStack>
+        <Stack gap={1}>
+          <Text type="display-3" weight="bold" hasTabularNumbers display="block">
+            <CountUp to={Math.round(value)} />
           </Text>
           <Text type="supporting" color="secondary" weight="semibold" display="block">
             {label}
@@ -1067,6 +1155,49 @@ function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
   );
 }
 
+/**
+ * The "recent members" card (gym-admin parity) — the latest joiners with their plan,
+ * status badge, and membership expiry. Mirrors the recent-check-ins row layout. The
+ * payload carries each member's `id` for a future row link into the member's profile
+ * route; wiring that link is deferred to a later part of the migration.
+ */
+function RecentMembersCard({ data }: { data: DashboardOverviewResponse }) {
+  const t = useTranslations('admin.dashboard');
+  const locale = useLocale();
+  const rows = data.recentMembers;
+  return (
+    <Card variant="default" padding={0} xstyle={styles.card}>
+      <div {...stylex.props(styles.cardHead)}>
+        <h2 {...stylex.props(styles.sectionLabel)}>{t('recentMembers.title')}</h2>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState>{t('recentMembers.empty')}</EmptyState>
+      ) : (
+        <ul {...stylex.props(styles.checkInGrid)}>
+          {rows.map((row) => (
+            <li key={row.id} {...stylex.props(styles.checkInRow)}>
+              <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
+              <span {...stylex.props(styles.alertMain)}>
+                <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
+                <span {...stylex.props(styles.alertDetail)}>
+                  {row.planName ?? t('recentMembers.noPlan')}
+                  {row.expiresAt
+                    ? ` · ${t('recentMembers.expires', { date: formatDate(locale, row.expiresAt) })}`
+                    : ''}
+                </span>
+              </span>
+              <Badge
+                variant={memberStatusVariant(row.status)}
+                label={t(`recentMembers.status.${row.status.toLowerCase()}`)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Empty state + formatters                                                  */
 /* -------------------------------------------------------------------------- */
@@ -1077,6 +1208,23 @@ function EmptyState({ children }: { children: ReactNode }) {
 
 function formatTime(locale: string, iso: string): string {
   return new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Locale-formatted short date for the recent-members "expires" line. */
+function formatDate(locale: string, iso: string): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso));
+}
+
+/** Map a `GymMemberStatus` string to an Astryx Badge variant. */
+function memberStatusVariant(status: string): 'success' | 'error' | 'neutral' {
+  switch (status) {
+    case 'ACTIVE':
+      return 'success';
+    case 'SUSPENDED':
+      return 'error';
+    default:
+      return 'neutral';
+  }
 }
 
 function initials(name: string): string {

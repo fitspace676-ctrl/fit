@@ -21,8 +21,10 @@ import {
   type DashboardPlanMix,
   type DashboardPlanSlice,
   type DashboardRange,
+  type DashboardRecentMember,
   type DashboardRevenue,
   type DashboardScheduleRow,
+  type DashboardSecondaryKpis,
   type DashboardStatsResponse,
   type DashboardViewer,
 } from '@fit/types';
@@ -31,6 +33,14 @@ import { TenantContext } from '../common/tenant/tenant.context';
 
 /** Milliseconds in a day, for window math. */
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Subscription states that count as a live membership (mirrors the state machine). */
+const LIVE_SUBSCRIPTION_STATUSES = [
+  SubscriptionStatus.TRIAL,
+  SubscriptionStatus.ACTIVE,
+  SubscriptionStatus.PAST_DUE,
+  SubscriptionStatus.FROZEN,
+] as const;
 
 /**
  * Read side of the staff-console dashboard (T4.10 + the FormaCore control-room
@@ -102,6 +112,8 @@ export class DashboardService {
       gymName,
       inGymNow,
       kpis,
+      secondaryKpis,
+      recentMembers,
       revenue,
       planMix,
       todaysSchedule,
@@ -113,6 +125,8 @@ export class DashboardService {
       this.resolveGymName(),
       this.inGymNow(),
       this.kpis(),
+      this.secondaryKpis(),
+      this.recentMembers(),
       this.revenue(range),
       this.planMix(),
       this.todaysSchedule(),
@@ -126,6 +140,8 @@ export class DashboardService {
       gymName,
       inGymNow,
       kpis,
+      secondaryKpis,
+      recentMembers,
       revenue,
       planMix,
       todaysSchedule,
@@ -335,6 +351,72 @@ export class DashboardService {
     };
 
     return { todaysRevenue, checkInsToday: checkIns, newMembers7d: newMembers };
+  }
+
+  /**
+   * The six secondary "stat card" KPIs the gym-admin reference surfaces. All real,
+   * tenant-scoped, issued concurrently:
+   *   • activeMembers    — COUNT `MEMBER` with status ACTIVE.
+   *   • revenueThisMonth — SUM captured `Payment.amount` this calendar month, delta
+   *                        vs. last month.
+   *   • overduePayments  — COUNT subscriptions in PAST_DUE (the dunning backlog).
+   *   • classesToday     — COUNT today's class occurrences.
+   *   • expiringSoon     — COUNT live subscriptions ending within 7 days.
+   *   • renewalsDue      — COUNT live subscriptions ending within this calendar month.
+   */
+  private async secondaryKpis(): Promise<DashboardSecondaryKpis> {
+    const db = this.prisma.client;
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const lastMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const nextMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+    const todayStart = startOfToday();
+    const todayEnd = new Date(todayStart.getTime() + DAY_MS);
+    const in7Days = new Date(now.getTime() + 7 * DAY_MS);
+    const live = [...LIVE_SUBSCRIPTION_STATUSES];
+
+    const [
+      activeMembers,
+      revenueThisMonthAgg,
+      revenueLastMonthAgg,
+      overduePayments,
+      classesToday,
+      expiringSoon,
+      renewalsDue,
+    ] = await Promise.all([
+      db.gymMember.count({ where: { role: Role.MEMBER, status: GymMemberStatus.ACTIVE } }),
+      db.payment.aggregate({
+        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: monthStart } },
+        _sum: { amount: true },
+      }),
+      db.payment.aggregate({
+        where: {
+          status: PaymentStatus.CAPTURED,
+          createdAt: { gte: lastMonthStart, lt: monthStart },
+        },
+        _sum: { amount: true },
+      }),
+      db.subscription.count({ where: { status: SubscriptionStatus.PAST_DUE } }),
+      db.classInstance.count({ where: { startsAt: { gte: todayStart, lt: todayEnd } } }),
+      db.subscription.count({
+        where: { status: { in: live }, currentPeriodEnd: { gte: now, lte: in7Days } },
+      }),
+      db.subscription.count({
+        where: { status: { in: live }, currentPeriodEnd: { gte: monthStart, lt: nextMonthStart } },
+      }),
+    ]);
+
+    const revThis = revenueThisMonthAgg._sum.amount ?? 0;
+    const revLast = revenueLastMonthAgg._sum.amount ?? 0;
+
+    return {
+      activeMembers,
+      revenueThisMonth: { value: revThis, deltaPct: pctDelta(revThis, revLast) },
+      overduePayments,
+      classesToday,
+      expiringSoon,
+      renewalsDue,
+    };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -599,6 +681,41 @@ export class DashboardService {
       checkedInAt: row.checkedInAt.toISOString(),
     }));
   }
+
+  /**
+   * The latest joiners for the "recent members" table — top 6 `MEMBER`-role members
+   * by `joinedAt`, each with their current live subscription's plan name + period end
+   * (the "expiry"). All real, tenant-scoped via the Prisma extension.
+   */
+  private async recentMembers(): Promise<DashboardRecentMember[]> {
+    const rows = await this.prisma.client.gymMember.findMany({
+      where: { role: Role.MEMBER },
+      orderBy: { joinedAt: 'desc' },
+      take: 6,
+      select: {
+        id: true,
+        status: true,
+        joinedAt: true,
+        user: { select: { name: true, email: true } },
+        subscriptions: {
+          where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+          orderBy: { currentPeriodEnd: 'desc' },
+          take: 1,
+          select: { currentPeriodEnd: true, plan: { select: { name: true } } },
+        },
+      },
+    });
+
+    return rows.map((m) => ({
+      id: m.id,
+      name: m.user.name ?? m.user.email,
+      email: m.user.email,
+      planName: m.subscriptions[0]?.plan?.name ?? null,
+      status: m.status,
+      joinedAt: m.joinedAt.toISOString(),
+      expiresAt: m.subscriptions[0]?.currentPeriodEnd?.toISOString() ?? null,
+    }));
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -668,6 +785,11 @@ function isoDate(at: Date): string {
 function startOfToday(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** Start of the current calendar month in the server's zone. */
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 /**

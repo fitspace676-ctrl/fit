@@ -1300,6 +1300,17 @@
         "newMembers7d": "New members · 7d",
         "noPriorData": "no prior data"
       },
+      "secondaryKpi": {
+        "activeMembers": "Active members",
+        "revenueThisMonth": "Revenue this month",
+        "overduePayments": "Overdue payments",
+        "classesToday": "Classes today",
+        "expiringSoon": "Expiring soon",
+        "renewalsDue": "Renewals due",
+        "classesTodayHint": "Scheduled today",
+        "expiringSoonHint": "Within 7 days",
+        "renewalsDueHint": "This month"
+      },
       "revenue": {
         "title": "Revenue",
         "caption": "{range} · total {total}",
@@ -1334,6 +1345,13 @@
         "title": "Recent check-ins",
         "empty": "No check-ins today yet.",
         "noPlan": "No plan"
+      },
+      "recentMembers": {
+        "title": "Recent members",
+        "empty": "No members yet.",
+        "noPlan": "No plan",
+        "expires": "Expires {date}",
+        "status": { "active": "Active", "invited": "Invited", "suspended": "Suspended" }
       },
       "relative": {
         "justNow": "just now",

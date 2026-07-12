@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GymMemberStatus, LocationStatus, ProductStatus, Role, TrainerStatus } from '@fit/db';
+import {
+  GymMemberStatus,
+  LocationStatus,
+  ProductStatus,
+  Role,
+  TrainerStatus,
+  PaymentStatus,
+  SubscriptionStatus,
+} from '@fit/db';
+import type { DashboardRecentMember, DashboardSecondaryKpis } from '@fit/types';
 import { DashboardService } from './dashboard.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -107,6 +116,109 @@ describe('DashboardService', () => {
       expect(trainer.mock.calls[1]?.[0]).toBeUndefined();
       expect(location.mock.calls[1]?.[0]).toBeUndefined();
       expect(product.mock.calls[1]?.[0]).toBeUndefined();
+    });
+  });
+
+  describe('secondaryKpis', () => {
+    function setupSecondary() {
+      const gymMemberCount = vi.fn().mockResolvedValueOnce(120); // activeMembers
+      const paymentAggregate = vi
+        .fn()
+        .mockResolvedValueOnce({ _sum: { amount: 500000 } }) // this month
+        .mockResolvedValueOnce({ _sum: { amount: 400000 } }); // last month
+      const subscriptionCount = vi
+        .fn()
+        .mockResolvedValueOnce(7) // overdue (PAST_DUE)
+        .mockResolvedValueOnce(15) // expiring soon
+        .mockResolvedValueOnce(30); // renewals due
+      const classInstanceCount = vi.fn().mockResolvedValueOnce(9); // classes today
+
+      const client = {
+        gymMember: { count: gymMemberCount },
+        payment: { aggregate: paymentAggregate },
+        subscription: { count: subscriptionCount },
+        classInstance: { count: classInstanceCount },
+      };
+      const prisma = { client } as unknown as TenantPrismaService;
+      const tenant = { gymId: 'gym_test' } as TenantContext;
+      const service = new DashboardService(prisma, tenant);
+      return { service, subscriptionCount, paymentAggregate };
+    }
+
+    it('projects the six figures with a real month-over-month revenue delta', async () => {
+      const { service } = setupSecondary();
+      const result: DashboardSecondaryKpis = await (
+        service as unknown as { secondaryKpis(): Promise<DashboardSecondaryKpis> }
+      ).secondaryKpis();
+
+      expect(result).toEqual({
+        activeMembers: 120,
+        revenueThisMonth: { value: 500000, deltaPct: 25 },
+        overduePayments: 7,
+        classesToday: 9,
+        expiringSoon: 15,
+        renewalsDue: 30,
+      });
+    });
+
+    it('counts overdue as PAST_DUE subscriptions', async () => {
+      const { service, subscriptionCount } = setupSecondary();
+      await (
+        service as unknown as { secondaryKpis(): Promise<DashboardSecondaryKpis> }
+      ).secondaryKpis();
+      expect(subscriptionCount.mock.calls[0]?.[0]).toEqual({
+        where: { status: SubscriptionStatus.PAST_DUE },
+      });
+    });
+
+    it('sums this-month revenue from CAPTURED payments only', async () => {
+      const { service, paymentAggregate } = setupSecondary();
+      await (
+        service as unknown as { secondaryKpis(): Promise<DashboardSecondaryKpis> }
+      ).secondaryKpis();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      expect(paymentAggregate.mock.calls[0]?.[0].where.status).toBe(PaymentStatus.CAPTURED);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      expect(paymentAggregate.mock.calls[0]?.[0]._sum).toEqual({ amount: true });
+    });
+  });
+
+  describe('recentMembers', () => {
+    it('maps the latest joiners, falling back to email when unnamed', async () => {
+      const findMany = vi.fn().mockResolvedValueOnce([
+        {
+          id: 'gm_1',
+          status: 'ACTIVE',
+          joinedAt: new Date('2026-07-01T10:00:00.000Z'),
+          user: { name: null, email: 'sarah.j@email.com' },
+          subscriptions: [
+            {
+              currentPeriodEnd: new Date('2026-12-15T00:00:00.000Z'),
+              plan: { name: 'Premium Annual' },
+            },
+          ],
+        },
+      ]);
+      const client = { gymMember: { findMany } };
+      const prisma = { client } as unknown as TenantPrismaService;
+      const tenant = { gymId: 'gym_test' } as TenantContext;
+      const service = new DashboardService(prisma, tenant);
+
+      const result: DashboardRecentMember[] = await (
+        service as unknown as { recentMembers(): Promise<DashboardRecentMember[]> }
+      ).recentMembers();
+
+      expect(result).toEqual([
+        {
+          id: 'gm_1',
+          name: 'sarah.j@email.com',
+          email: 'sarah.j@email.com',
+          planName: 'Premium Annual',
+          status: 'ACTIVE',
+          joinedAt: '2026-07-01T10:00:00.000Z',
+          expiresAt: '2026-12-15T00:00:00.000Z',
+        },
+      ]);
     });
   });
 });
