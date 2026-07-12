@@ -1157,8 +1157,9 @@ function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
 
 /**
  * The "recent members" card (gym-admin parity) — the latest joiners with their plan,
- * status badge, and membership expiry. Mirrors the recent-check-ins row layout; the
- * name links into the member's profile route.
+ * status badge, and membership expiry. Mirrors the recent-check-ins row layout. The
+ * payload carries each member's `id` for a future row link into the member's profile
+ * route; wiring that link is deferred to a later part of the migration.
  */
 function RecentMembersCard({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
