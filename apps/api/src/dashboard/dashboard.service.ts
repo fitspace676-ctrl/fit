@@ -21,6 +21,7 @@ import {
   type DashboardPlanMix,
   type DashboardPlanSlice,
   type DashboardRange,
+  type DashboardRecentMember,
   type DashboardRevenue,
   type DashboardScheduleRow,
   type DashboardSecondaryKpis,
@@ -112,6 +113,7 @@ export class DashboardService {
       inGymNow,
       kpis,
       secondaryKpis,
+      recentMembers,
       revenue,
       planMix,
       todaysSchedule,
@@ -124,6 +126,7 @@ export class DashboardService {
       this.inGymNow(),
       this.kpis(),
       this.secondaryKpis(),
+      this.recentMembers(),
       this.revenue(range),
       this.planMix(),
       this.todaysSchedule(),
@@ -138,12 +141,12 @@ export class DashboardService {
       inGymNow,
       kpis,
       secondaryKpis,
+      recentMembers,
       revenue,
       planMix,
       todaysSchedule,
       alerts,
       recentCheckIns,
-      recentMembers: [], // TODO: T3 (recent members table)
     };
   }
 
@@ -676,6 +679,41 @@ export class DashboardService {
       planName: row.member.subscriptions[0]?.plan?.name ?? null,
       method: row.method,
       checkedInAt: row.checkedInAt.toISOString(),
+    }));
+  }
+
+  /**
+   * The latest joiners for the "recent members" table — top 6 `MEMBER`-role members
+   * by `joinedAt`, each with their current live subscription's plan name + period end
+   * (the "expiry"). All real, tenant-scoped via the Prisma extension.
+   */
+  private async recentMembers(): Promise<DashboardRecentMember[]> {
+    const rows = await this.prisma.client.gymMember.findMany({
+      where: { role: Role.MEMBER },
+      orderBy: { joinedAt: 'desc' },
+      take: 6,
+      select: {
+        id: true,
+        status: true,
+        joinedAt: true,
+        user: { select: { name: true, email: true } },
+        subscriptions: {
+          where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+          orderBy: { currentPeriodEnd: 'desc' },
+          take: 1,
+          select: { currentPeriodEnd: true, plan: { select: { name: true } } },
+        },
+      },
+    });
+
+    return rows.map((m) => ({
+      id: m.id,
+      name: m.user.name ?? m.user.email,
+      email: m.user.email,
+      planName: m.subscriptions[0]?.plan?.name ?? null,
+      status: m.status,
+      joinedAt: m.joinedAt.toISOString(),
+      expiresAt: m.subscriptions[0]?.currentPeriodEnd?.toISOString() ?? null,
     }));
   }
 }
