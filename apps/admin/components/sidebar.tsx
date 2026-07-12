@@ -19,7 +19,7 @@ import * as stylex from '@stylexjs/stylex';
 import NextLink from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { SideNav, SideNavSection, SideNavItem, SideNavHeading } from '@astryxdesign/core/SideNav';
+import { SideNav, SideNavSection, SideNavItem } from '@astryxdesign/core/SideNav';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Icon } from '@/components/ui';
 import { useSession } from '@/hooks/use-session';
@@ -50,25 +50,13 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-container)',
     backgroundColor: 'var(--color-background-surface)',
   },
-  brandHeading: {
+  brandLink: {
+    display: 'flex',
+    alignItems: 'center',
     minHeight: '2.5rem',
     paddingInline: '0.5rem',
+    paddingBlock: '0.25rem',
     borderRadius: 'var(--radius-element)',
-  },
-  brandTile: {
-    display: 'grid',
-    placeItems: 'center',
-    width: '2rem',
-    height: '2rem',
-    borderRadius: 'var(--radius-element)',
-    color: 'var(--color-on-accent)',
-    backgroundImage:
-      'linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 55%, #ec4899))',
-    boxShadow: '0 8px 24px -10px color-mix(in srgb, var(--color-accent) 80%, transparent)',
-  },
-  brandIcon: {
-    width: '1.125rem',
-    height: '1.125rem',
   },
   // Zero-height sticky rails pinned to the top / bottom of the scroll viewport;
   // they host the scroll-affordance buttons without taking any layout space.
@@ -340,17 +328,21 @@ export function Sidebar({ system }: SidebarProps) {
     <SideNav
       xstyle={styles.panel}
       header={
-        <SideNavHeading
-          as={NextLink}
-          heading={t('common.brand')}
-          headingHref="/"
-          xstyle={styles.brandHeading}
-          icon={
-            <span {...stylex.props(styles.brandTile)}>
-              <Icon name="bolt" sw={2.4} {...stylex.props(styles.brandIcon)} />
-            </span>
-          }
-        />
+        <NextLink href="/" aria-label={t('common.brand')} {...stylex.props(styles.brandLink)}>
+          {/* Plain <img> (not next/image): with the app's basePath the image
+              optimizer drops the `/admin` prefix and 404s, so reference the
+              public asset directly under BASE_PATH. */}
+          <img
+            src={`${BASE_PATH}/logodark.png`}
+            alt={t('common.brand')}
+            className="admin-logo admin-logo-dark"
+          />
+          <img
+            src={`${BASE_PATH}/logolight.png`}
+            alt={t('common.brand')}
+            className="admin-logo admin-logo-light"
+          />
+        </NextLink>
       }
     >
       {isLoading ? (

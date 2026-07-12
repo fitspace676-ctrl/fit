@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { LeadRow, LeadSource, LeadStatus, UpdateLeadInput } from '@fit/types';
-import { Btn, Field, Icon, Input, Modal, Select, Textarea, useToast } from '@/components/ui';
+import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
 import { createLeadAction, updateLeadAction } from './actions';
 import { OPEN_LEAD_STATUSES, fromDateInputValue, isOpenLead, toDateInputValue } from './lead-meta';
 import type { SelectOption } from './leads-view';
@@ -47,6 +47,18 @@ const styles = stylex.create({
     margin: 0,
     fontSize: '0.875rem',
     color: 'var(--color-error)',
+  },
+  description: {
+    margin: 0,
+    marginTop: '-0.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  footerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '0.625rem',
   },
 });
 
@@ -133,6 +145,15 @@ export function LeadFormDialog(props: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() => seedForm(lead));
+  // Exit animation: flip `closing` to play the drawer's slide-out, then drop the
+  // dialog once it has finished (~0.26s) so it animates away instead of vanishing.
+  const [closing, setClosing] = useState(false);
+
+  function handleClose(): void {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 260);
+  }
 
   const canSubmit = form.firstName.trim().length > 0 && form.lastName.trim().length > 0;
   // Stage moves are only meaningful while the lead is open; a closed lead's
@@ -176,7 +197,7 @@ export function LeadFormDialog(props: Props) {
           tone: 'success',
           icon: 'check',
         });
-        onClose();
+        handleClose();
         router.refresh();
       } else {
         setError(result.error);
@@ -185,28 +206,39 @@ export function LeadFormDialog(props: Props) {
   }
 
   return (
-    <Modal
+    <Drawer
       open
-      onClose={onClose}
+      onClose={handleClose}
+      closing={closing}
+      side="right"
       title={mode === 'create' ? t('form.addTitle') : t('form.editTitle')}
-      description={mode === 'create' ? t('form.addDescription') : t('form.editDescription')}
-      size="lg"
+      className="max-w-xl"
       footer={
-        <>
-          <Btn v="outline" size="md" onClick={onClose} disabled={pending}>
+        <div {...stylex.props(styles.footerRow)}>
+          <Btn v="outline" size="md" onClick={handleClose} disabled={pending}>
             {t('form.cancel')}
           </Btn>
-          <Btn v="primary" size="md" onClick={submit} disabled={pending || !canSubmit}>
+          <Btn
+            v="primary"
+            size="md"
+            onClick={submit}
+            disabled={pending || !canSubmit}
+            className="btn-brand"
+          >
             {pending
               ? t('form.saving')
               : mode === 'create'
                 ? t('form.addSubmit')
                 : t('form.editSubmit')}
           </Btn>
-        </>
+        </div>
       }
     >
       <div {...stylex.props(styles.form)}>
+        <p {...stylex.props(styles.description)}>
+          {mode === 'create' ? t('form.addDescription') : t('form.editDescription')}
+        </p>
+
         {error ? (
           <div {...stylex.props(styles.errorCard)}>
             <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -370,6 +402,6 @@ export function LeadFormDialog(props: Props) {
           />
         </Field>
       </div>
-    </Modal>
+    </Drawer>
   );
 }

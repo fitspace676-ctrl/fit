@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { MarketingCatalogResponse, MarketingChannel, MessageTemplateRow } from '@fit/types';
-import { Btn, Field, Icon, Input, Modal, Select, Textarea, useToast } from '@/components/ui';
+import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
 import { createTemplateAction, updateTemplateAction } from './actions';
 import { CHANNEL_BODY_LIMITS, CHANNEL_ORDER, CHANNEL_SUBJECT_LIMITS } from './marketing-meta';
 
@@ -55,6 +55,18 @@ const styles = stylex.create({
     color: 'var(--color-error)',
   },
   errorText: { margin: 0, fontSize: '0.875rem', color: 'var(--color-error)' },
+  description: {
+    margin: 0,
+    marginTop: '-0.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  footerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '0.625rem',
+  },
 });
 
 interface FormState {
@@ -96,6 +108,14 @@ export function TemplateFormDialog({
   }));
 
   const editId = mode === 'edit' ? seed?.id : undefined;
+  const [closing, setClosing] = useState(false);
+
+  function handleClose(): void {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 260);
+  }
+
   const bodyLimit = CHANNEL_BODY_LIMITS[form.channel];
   const subjectLimit = CHANNEL_SUBJECT_LIMITS[form.channel];
   const canSubmit = form.name.trim().length > 0 && form.body.trim().length > 0;
@@ -139,7 +159,7 @@ export function TemplateFormDialog({
           tone: 'success',
           icon: 'check',
         });
-        onClose();
+        handleClose();
         router.refresh();
       } else {
         setError(result.error);
@@ -148,30 +168,39 @@ export function TemplateFormDialog({
   }
 
   return (
-    <Modal
+    <Drawer
       open
-      onClose={onClose}
+      onClose={handleClose}
+      closing={closing}
+      side="right"
       title={mode === 'create' ? t('templates.addTitle') : t('templates.editTitle')}
-      description={
-        mode === 'create' ? t('templates.addDescription') : t('templates.editDescription')
-      }
-      size="lg"
+      className="max-w-xl"
       footer={
-        <>
-          <Btn v="outline" size="md" onClick={onClose} disabled={pending}>
+        <div {...stylex.props(styles.footerRow)}>
+          <Btn v="outline" size="md" onClick={handleClose} disabled={pending}>
             {t('wizard.cancel')}
           </Btn>
-          <Btn v="primary" size="md" onClick={submit} disabled={pending || !canSubmit}>
+          <Btn
+            v="primary"
+            size="md"
+            onClick={submit}
+            disabled={pending || !canSubmit}
+            className="btn-brand"
+          >
             {pending
               ? t('wizard.saving')
               : mode === 'create'
                 ? t('templates.addSubmit')
                 : t('templates.editSubmit')}
           </Btn>
-        </>
+        </div>
       }
     >
       <div {...stylex.props(styles.form)}>
+        <p {...stylex.props(styles.description)}>
+          {mode === 'create' ? t('templates.addDescription') : t('templates.editDescription')}
+        </p>
+
         {error ? (
           <div {...stylex.props(styles.errorCard)}>
             <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -255,6 +284,6 @@ export function TemplateFormDialog({
           </div>
         </div>
       </div>
-    </Modal>
+    </Drawer>
   );
 }

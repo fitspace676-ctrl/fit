@@ -71,3 +71,163 @@ input[type='password'] {
   height: 0;
   display: none; /* WebKit (Chrome/Safari/Edge) */
 }
+
+/*
+ * Overlay entrance motion for the @fit/ui-web Drawer / Modal primitives.
+ *
+ * These keyframes + `.animate-*` classes are ALSO declared in the shared Tailwind
+ * preset (@fit/config/tailwind), but Tailwind only re-reads that preset on a full
+ * dev-server restart — a plain CSS edit here is picked up by HMR, so the drawer
+ * animates immediately without one. Same rule either way; the duplicate is inert.
+ */
+@keyframes drawer-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drawer-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes drawer-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes drawer-out-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+.animate-drawer-in-right {
+  animation: drawer-in-right 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.animate-drawer-in-left {
+  animation: drawer-in-left 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.animate-drawer-out-right {
+  animation: drawer-out-right 0.26s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+.animate-drawer-out-left {
+  animation: drawer-out-left 0.26s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+.animate-overlay-fade-in {
+  animation: overlay-fade-in 0.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-drawer-in-right,
+  .animate-drawer-in-left,
+  .animate-drawer-out-right,
+  .animate-drawer-out-left,
+  .animate-overlay-fade-in {
+    animation: none;
+  }
+}
+
+/*
+ * Brand-indigo primary button (the Fit brand color, --color-accent #6257E3).
+ * Astryx's `primary` variant renders its own blue; this opt-in class recolors a
+ * specific button to the brand without touching the whole design system. Astryx
+ * StyleX rules carry very high specificity, so `!important` is required (mirrors
+ * the password-field fix above).
+ */
+.btn-brand,
+.btn-brand:not(#\#):not(#\#) {
+  background-color: #6257e3 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+}
+.btn-brand:hover {
+  background-color: #5044d2 !important;
+}
+
+/*
+ * Drawer ✕ close button — Astryx's icon-ghost button renders nearly invisible on
+ * the dark drawer surface, so force a visible pill (subtle surface + white glyph).
+ * `!important` clears Astryx's high-specificity StyleX rules (as above).
+ */
+.drawer-close,
+.drawer-close:not(#\#):not(#\#) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border-radius: 9999px !important;
+}
+.drawer-close:hover {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+/*
+ * Sidebar brand logo (logodark.png / logolight.png). Sized to the header width;
+ * theme-aware swap — the light-inked logo on the light UI, the white-inked logo
+ * on the dark UI (the console's default). `.dark` is the class the theme toggle
+ * stamps on <html>.
+ */
+.admin-logo {
+  width: 9.25rem;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+.admin-logo-dark {
+  display: none;
+}
+.admin-logo-light {
+  display: block;
+}
+.dark .admin-logo-dark {
+  display: block;
+}
+.dark .admin-logo-light {
+  display: none;
+}
+
+/*
+ * Number inputs — the native up/down spinner renders as a stray white box on the
+ * dark fields (see the Expected value field). Drop it; the input stays a normal
+ * number field (type still enforces numeric entry + arrow-key stepping).
+ */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/*
+ * Date inputs — the native calendar-picker glyph paints near-black on the dark
+ * field, so it's effectively invisible. In dark mode invert it to a light glyph
+ * and give it a hover lift so it reads as an affordance.
+ */
+.dark input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.5;
+  cursor: pointer;
+}
+.dark input[type='date']::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.85;
+}

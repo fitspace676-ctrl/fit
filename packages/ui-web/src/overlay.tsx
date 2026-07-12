@@ -33,9 +33,9 @@ import { Btn } from './button';
 /*  Class recipes (pure — unit tested)                                          */
 /* -------------------------------------------------------------------------- */
 
-/** The dim + blur backdrop behind every overlay. */
+/** The dim + blur backdrop behind every overlay. Fades in on mount. */
 export const OVERLAY_BACKDROP =
-  'absolute inset-0 bg-ink-950/50 backdrop-blur-sm transition-opacity';
+  'absolute inset-0 bg-ink-950/50 backdrop-blur-sm transition-opacity animate-overlay-fade-in motion-reduce:animate-none';
 
 /** The scrim wrapper that fills the viewport and stacks above the app chrome. */
 export const OVERLAY_ROOT = 'fixed inset-0 z-50';
@@ -70,8 +70,11 @@ const MODAL_WIDTHS: Record<ModalSize, string> = {
   lg: 'max-w-lg',
 };
 
+// Surface tone tracks the Astryx brand theme (dark #1b1b1b — the console's warm
+// popover dark), not the legacy cool-black ink-950, so overlays sit in the same
+// palette as the console behind them instead of reading as a different style.
 const PANEL_SURFACE =
-  'border border-ink-200 bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.4)] dark:border-white/10 dark:bg-ink-950';
+  'border border-ink-200 bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.4)] dark:border-white/10 dark:bg-[#1b1b1b]';
 
 /** Compose the centred modal panel classes for a given size. */
 export function modalPanelClasses(size: ModalSize = 'md', className = ''): string {
@@ -80,10 +83,17 @@ export function modalPanelClasses(size: ModalSize = 'md', className = ''): strin
 
 export type DrawerSide = 'right' | 'left';
 
-/** Compose the side-sheet panel classes for a given side. */
+/** Compose the side-sheet panel classes for a given side. Positioning only; the
+ * {@link Drawer} layers the enter/exit slide animation on top per its state. */
 export function drawerPanelClasses(side: DrawerSide = 'right', className = ''): string {
   const anchor = side === 'right' ? 'right-0 border-l' : 'left-0 border-r';
   return `absolute inset-y-0 ${anchor} flex w-full max-w-md flex-col overflow-y-auto ${PANEL_SURFACE} ${className}`.trim();
+}
+
+/** The slide animation utility for a drawer, by side and direction. */
+export function drawerAnimationClass(side: DrawerSide, closing: boolean): string {
+  if (closing) return side === 'right' ? 'animate-drawer-out-right' : 'animate-drawer-out-left';
+  return side === 'right' ? 'animate-drawer-in-right' : 'animate-drawer-in-left';
 }
 
 /* -------------------------------------------------------------------------- */
@@ -383,6 +393,10 @@ export interface DrawerProps {
   /** Accessible label when `hideHeader` is set (no visible title to wire up). */
   label?: string;
   side?: DrawerSide;
+  /** When true, play the exit slide (out to `side`) instead of the enter slide.
+   * The caller keeps the drawer mounted for the animation's duration (~0.28s)
+   * before dropping it, so the panel animates away instead of vanishing. */
+  closing?: boolean;
   /** Hide the built-in header (title + close) to fully control the layout. */
   hideHeader?: boolean;
   /** A thin accent bar colour rendered at the top edge (e.g. a class colour). */
@@ -405,6 +419,7 @@ export function Drawer({
   title,
   label,
   side = 'right',
+  closing = false,
   hideHeader = false,
   accent,
   disableBackdropClose = false,
@@ -429,7 +444,12 @@ export function Drawer({
       labelledBy={titleId}
       disableBackdropClose={disableBackdropClose}
     >
-      <aside className={drawerPanelClasses(side, className)}>
+      <aside
+        className={drawerPanelClasses(
+          side,
+          `${drawerAnimationClass(side, closing)} motion-reduce:animate-none ${className}`.trim(),
+        )}
+      >
         {accent && (
           <span aria-hidden className="h-1 shrink-0" style={{ backgroundColor: accent }} />
         )}
@@ -446,7 +466,14 @@ export function Drawer({
             ) : (
               <span />
             )}
-            <Btn v="ghost" size="icon" icon="x" aria-label="Close" onClick={close} />
+            <Btn
+              v="ghost"
+              size="icon"
+              icon="x"
+              aria-label="Close"
+              onClick={close}
+              className="drawer-close"
+            />
           </div>
         )}
 

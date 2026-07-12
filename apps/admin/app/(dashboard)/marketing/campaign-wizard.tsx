@@ -13,7 +13,17 @@ import {
   type MemberStatus,
   type MessageTemplateRow,
 } from '@fit/types';
-import { Badge, Btn, Field, Icon, Input, Modal, Select, Textarea, useToast } from '@/components/ui';
+import {
+  Badge,
+  Btn,
+  Drawer,
+  Field,
+  Icon,
+  Input,
+  Select,
+  Textarea,
+  useToast,
+} from '@/components/ui';
 import {
   previewCriteriaAction,
   previewSegmentAction,
@@ -365,6 +375,19 @@ const styles = stylex.create({
     display: 'flex',
     gap: '0.5rem',
   },
+  footerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.625rem',
+    width: '100%',
+  },
+  description: {
+    margin: 0,
+    marginTop: '-0.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 const STEP_COUNT = 4;
@@ -452,6 +475,13 @@ export function CampaignWizard({
   const [previewing, setPreviewing] = useState(false);
 
   const editId = mode === 'edit' ? initial?.id : undefined;
+  const [closing, setClosing] = useState(false);
+
+  function handleClose(): void {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 260);
+  }
   const bodyLimit = CHANNEL_BODY_LIMITS[form.channel];
   const subjectLimit = CHANNEL_SUBJECT_LIMITS[form.channel];
 
@@ -578,7 +608,7 @@ export function CampaignWizard({
           tone: 'success',
           icon: 'check',
         });
-        onClose();
+        handleClose();
         router.refresh();
       } else {
         setError(result.error);
@@ -620,19 +650,20 @@ export function CampaignWizard({
   const canSaveTemplate = step === 4 && form.body.trim().length > 0;
 
   return (
-    <Modal
+    <Drawer
       open
-      onClose={onClose}
+      onClose={handleClose}
+      closing={closing}
+      side="right"
       title={t('wizard.title', { step, total: STEP_COUNT })}
-      description={stepDescription}
-      size="lg"
+      className="max-w-xl"
       footer={
-        <>
+        <div {...stylex.props(styles.footerRow)}>
           <Btn
             v="outline"
             size="md"
             icon="chevronLeft"
-            onClick={() => (step > 1 ? setStep(step - 1) : onClose())}
+            onClick={() => (step > 1 ? setStep(step - 1) : handleClose())}
             disabled={pending}
           >
             {step === 1 ? t('wizard.cancel') : t('wizard.back')}
@@ -650,6 +681,7 @@ export function CampaignWizard({
                 iconRight="chevronRight"
                 onClick={() => setStep(step + 1)}
                 disabled={!stepValid}
+                className="btn-brand"
               >
                 {t('wizard.next')}
               </Btn>
@@ -660,6 +692,7 @@ export function CampaignWizard({
                 icon={form.scheduleType === 'now' ? 'spark' : 'clock'}
                 onClick={finish}
                 disabled={pending || !stepValid}
+                className="btn-brand"
               >
                 {pending
                   ? t('wizard.saving')
@@ -669,10 +702,12 @@ export function CampaignWizard({
               </Btn>
             )}
           </div>
-        </>
+        </div>
       }
     >
       <div {...stylex.props(styles.wrap)}>
+        <p {...stylex.props(styles.description)}>{stepDescription}</p>
+
         {/* Step indicator. */}
         <div {...stylex.props(styles.steps)}>
           {Array.from({ length: STEP_COUNT }, (_, i) => i + 1).map((n) => (
@@ -1049,6 +1084,6 @@ export function CampaignWizard({
           </div>
         ) : null}
       </div>
-    </Modal>
+    </Drawer>
   );
 }

@@ -44,6 +44,39 @@ export const fitTheme = {
   spacing: {
     gutter: '1.5rem',
   },
+  // Overlay entrance motion — shared so the Drawer/Modal primitives in
+  // @fit/ui-web animate consistently across every surface. The drawer slides in
+  // from its anchored edge; the backdrop fades. Easing is the iOS-sheet curve
+  // (fast out, gentle settle). Consumers guard with `motion-reduce:animate-none`.
+  keyframes: {
+    'drawer-in-right': {
+      from: { transform: 'translateX(100%)' },
+      to: { transform: 'translateX(0)' },
+    },
+    'drawer-in-left': {
+      from: { transform: 'translateX(-100%)' },
+      to: { transform: 'translateX(0)' },
+    },
+    'drawer-out-right': {
+      from: { transform: 'translateX(0)' },
+      to: { transform: 'translateX(100%)' },
+    },
+    'drawer-out-left': {
+      from: { transform: 'translateX(0)' },
+      to: { transform: 'translateX(-100%)' },
+    },
+    'overlay-fade-in': {
+      from: { opacity: '0' },
+      to: { opacity: '1' },
+    },
+  },
+  animation: {
+    'drawer-in-right': 'drawer-in-right 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+    'drawer-in-left': 'drawer-in-left 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+    'drawer-out-right': 'drawer-out-right 0.26s cubic-bezier(0.4, 0, 1, 1) forwards',
+    'drawer-out-left': 'drawer-out-left 0.26s cubic-bezier(0.4, 0, 1, 1) forwards',
+    'overlay-fade-in': 'overlay-fade-in 0.2s ease-out',
+  },
 };
 
 /** A ready-to-spread Tailwind config fragment. */

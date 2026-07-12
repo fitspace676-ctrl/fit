@@ -10,7 +10,7 @@ import type {
   PromoDiscountType,
   UpdatePromoCodeInput,
 } from '@fit/types';
-import { Btn, Field, Icon, Input, Modal, Select, Textarea, useToast } from '@/components/ui';
+import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
 import { createPromoAction, updatePromoAction } from './actions';
 import { majorToMinor, minorToMajor } from './marketing-meta';
 
@@ -41,6 +41,18 @@ const styles = stylex.create({
     color: 'var(--color-error)',
   },
   errorText: { margin: 0, fontSize: '0.875rem', color: 'var(--color-error)' },
+  description: {
+    margin: 0,
+    marginTop: '-0.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  footerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '0.625rem',
+  },
 });
 
 /** The dialog's string-based form state — the browser hands numbers over as strings. */
@@ -110,6 +122,14 @@ export function PromoFormDialog({
   const [form, setForm] = useState<FormState>(() => seedState(seed));
 
   const editId = mode === 'edit' ? seed?.id : undefined;
+  const [closing, setClosing] = useState(false);
+
+  function handleClose(): void {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 260);
+  }
+
   const isPercentage = form.discountType === 'percentage';
   const canSubmit = form.code.trim().length > 0 && posInt(form.discountValue) !== undefined;
 
@@ -152,7 +172,7 @@ export function PromoFormDialog({
           tone: 'success',
           icon: 'check',
         });
-        onClose();
+        handleClose();
         router.refresh();
       } else {
         setError(result.error);
@@ -161,28 +181,39 @@ export function PromoFormDialog({
   }
 
   return (
-    <Modal
+    <Drawer
       open
-      onClose={onClose}
+      onClose={handleClose}
+      closing={closing}
+      side="right"
       title={mode === 'create' ? t('promo.addTitle') : t('promo.editTitle')}
-      description={mode === 'create' ? t('promo.addDescription') : t('promo.editDescription')}
-      size="lg"
+      className="max-w-xl"
       footer={
-        <>
-          <Btn v="outline" size="md" onClick={onClose} disabled={pending}>
+        <div {...stylex.props(styles.footerRow)}>
+          <Btn v="outline" size="md" onClick={handleClose} disabled={pending}>
             {t('wizard.cancel')}
           </Btn>
-          <Btn v="primary" size="md" onClick={submit} disabled={pending || !canSubmit}>
+          <Btn
+            v="primary"
+            size="md"
+            onClick={submit}
+            disabled={pending || !canSubmit}
+            className="btn-brand"
+          >
             {pending
               ? t('wizard.saving')
               : mode === 'create'
                 ? t('promo.addSubmit')
                 : t('promo.editSubmit')}
           </Btn>
-        </>
+        </div>
       }
     >
       <div {...stylex.props(styles.form)}>
+        <p {...stylex.props(styles.description)}>
+          {mode === 'create' ? t('promo.addDescription') : t('promo.editDescription')}
+        </p>
+
         {error ? (
           <div {...stylex.props(styles.errorCard)}>
             <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -278,6 +309,6 @@ export function PromoFormDialog({
           </Field>
         </div>
       </div>
-    </Modal>
+    </Drawer>
   );
 }
