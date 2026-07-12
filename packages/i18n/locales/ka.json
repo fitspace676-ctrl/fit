@@ -1868,7 +1868,11 @@
         "filter": "ფილტრი",
         "filterActive": "ფილტრი · 1",
         "statusLabel": "სტატუსი",
-        "allStatuses": "ყველა სტატუსი"
+        "allStatuses": "ყველა სტატუსი",
+        "planLabel": "გეგმა",
+        "allPlans": "ყველა გეგმა",
+        "tagLabel": "თეგი",
+        "allTags": "ყველა თეგი"
       },
       "form": {
         "contactSection": "საკონტაქტო ინფორმაცია",
