@@ -169,7 +169,7 @@ export class MembersService {
     const where = this.buildWhere(query);
     const skip = (query.page - 1) * query.limit;
 
-    const [rows, total, planMix, counts] = await Promise.all([
+    const [rows, total, planMix, counts, availableTags] = await Promise.all([
       this.prisma.client.gymMember.findMany({
         where,
         select: MEMBER_SELECT,
@@ -180,6 +180,7 @@ export class MembersService {
       this.prisma.client.gymMember.count({ where }),
       this.planMix(),
       this.tabCounts(),
+      this.availableTags(),
     ]);
 
     return {
@@ -189,6 +190,7 @@ export class MembersService {
       limit: query.limit,
       planMix,
       counts,
+      availableTags,
     };
   }
 
@@ -597,8 +599,8 @@ export class MembersService {
   /**
    * The tenant-scoped `where` for the roster: always the gym's `MEMBER`-role
    * memberships (the extension adds `gymId`), narrowed by an optional `status`, a
-   * case-insensitive `search` across the member's name + email, and an optional
-   * live-subscription `planId`.
+   * case-insensitive `search` across the member's name + email, an optional
+   * live-subscription `planId`, and an optional `tag` filter.
    */
   private buildWhere(query: ListMembersQuery): Prisma.GymMemberWhereInput {
     const where: Prisma.GymMemberWhereInput = { role: Role.MEMBER };
@@ -624,7 +626,25 @@ export class MembersService {
       };
     }
 
+    // Narrow to members carrying the given tag (scalar-list membership).
+    if (query.tag) {
+      where.tags = { has: query.tag };
+    }
+
     return where;
+  }
+
+  /**
+   * The gym's distinct member tags, sorted — the roster Tag filter's options.
+   * A gym-scoped raw `unnest` DISTINCT so the whole tag set is resolved in the
+   * database (never the roster loaded into memory). Raw SQL bypasses the tenant
+   * extension, so the gym is pinned explicitly via {@link TenantContext.gymId}.
+   */
+  private async availableTags(): Promise<string[]> {
+    const rows = await this.prisma.client.$queryRaw<Array<{ tag: string }>>(
+      Prisma.sql`SELECT DISTINCT unnest("tags") AS tag FROM gym_members WHERE "gymId" = ${this.tenant.gymId} AND "role"::text = 'MEMBER' ORDER BY tag ASC`,
+    );
+    return rows.map((row) => row.tag);
   }
 
   /**

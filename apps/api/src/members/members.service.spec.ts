@@ -71,6 +71,7 @@ function setup(overrides?: {
   notes?: unknown[];
   tasks?: unknown[];
   taskFindFirst?: { id: string } | null;
+  availableTagRows?: { tag: string }[];
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<MemberRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -179,6 +180,10 @@ function setup(overrides?: {
   };
   // Interactive transaction: run the callback against the same scoped client.
   client.$transaction = vi.fn((cb: (tx: typeof client) => unknown) => cb(client));
+  const queryRaw = vi.fn<(...args: unknown[]) => Promise<{ tag: string }[]>>(() =>
+    Promise.resolve(overrides?.availableTagRows ?? []),
+  );
+  client.$queryRaw = queryRaw;
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
@@ -431,6 +436,26 @@ describe('MembersService', () => {
       // lastVisitAt has no scalar column → stable joinedAt fallback.
       await service.listMembers(query({ sort: 'lastVisitAt', dir: 'desc' }));
       expect(findMany.mock.calls[2]?.[0]?.orderBy).toEqual({ joinedAt: 'desc' });
+    });
+
+    it('narrows by tag with a scalar-list `has` filter', async () => {
+      const { service, findMany } = setup();
+      await service.listMembers({ ...query(), tag: 'VIP' });
+      const where = (findMany.mock.calls[0]?.[0] as { where: { tags?: unknown } }).where;
+      expect(where.tags).toEqual({ has: 'VIP' });
+    });
+
+    it('returns the gym distinct tags as availableTags', async () => {
+      const { service } = setup({ availableTagRows: [{ tag: 'At Risk' }, { tag: 'VIP' }] });
+      const result = await service.listMembers(query());
+      expect(result.availableTags).toEqual(['At Risk', 'VIP']);
+    });
+
+    it('omits the tag filter when none is given', async () => {
+      const { service, findMany } = setup();
+      await service.listMembers(query());
+      const where = (findMany.mock.calls[0]?.[0] as { where: { tags?: unknown } }).where;
+      expect(where.tags).toBeUndefined();
     });
   });
 
