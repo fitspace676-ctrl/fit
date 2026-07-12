@@ -1850,7 +1850,11 @@
         "filter": "Filter",
         "filterActive": "Filter · 1",
         "statusLabel": "Status",
-        "allStatuses": "All statuses"
+        "allStatuses": "All statuses",
+        "planLabel": "Plan",
+        "allPlans": "All plans",
+        "tagLabel": "Tag",
+        "allTags": "All tags"
       },
       "form": {
         "contactSection": "Contact details",

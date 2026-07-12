@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { MemberStatus } from '@fit/types';
+import type { MemberStatus, MemberPlanSlice } from '@fit/types';
 import { Btn, FilterBar, TableSearch } from '@/components/ui';
 
 /** The status options offered by the Filter panel, in roster-priority order; labels come from `status.<value>`. */
@@ -66,7 +66,21 @@ const styles = stylex.create({
  * page 1 on any change so the pager never lands past the end of a freshly-narrowed
  * result set. Navigation runs in a transition so the input stays responsive.
  */
-export function MembersFilters({ search, status }: { search: string; status: string }) {
+export function MembersFilters({
+  search,
+  status,
+  planId,
+  tag,
+  plans,
+  availableTags,
+}: {
+  search: string;
+  status: string;
+  planId: string;
+  tag: string;
+  plans: MemberPlanSlice[];
+  availableTags: string[];
+}) {
   const t = useTranslations('admin.members');
   const router = useRouter();
   const pathname = usePathname();
@@ -99,13 +113,13 @@ export function MembersFilters({ search, status }: { search: string; status: str
         />
 
         <Btn
-          v={status || filtersOpen ? 'primary' : 'outline'}
+          v={status || planId || tag || filtersOpen ? 'primary' : 'outline'}
           size="md"
           icon="filter"
           aria-expanded={filtersOpen}
           onClick={() => setFiltersOpen((open) => !open)}
         >
-          {status ? t('filters.filterActive') : t('filters.filter')}
+          {status || planId || tag ? t('filters.filterActive') : t('filters.filter')}
         </Btn>
       </FilterBar>
 
@@ -124,6 +138,42 @@ export function MembersFilters({ search, status }: { search: string; status: str
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {t(`status.${option.value}`)}
+              </option>
+            ))}
+          </select>
+
+          <label htmlFor="member-plan" {...stylex.props(styles.label)}>
+            {t('filters.planLabel')}
+          </label>
+          <select
+            id="member-plan"
+            value={planId}
+            onChange={(event) => commit('planId', event.target.value)}
+            {...stylex.props(styles.select)}
+          >
+            <option value="">{t('filters.allPlans')}</option>
+            {plans
+              .filter((plan) => plan.planId !== null)
+              .map((plan) => (
+                <option key={plan.planId} value={plan.planId as string}>
+                  {plan.name}
+                </option>
+              ))}
+          </select>
+
+          <label htmlFor="member-tag" {...stylex.props(styles.label)}>
+            {t('filters.tagLabel')}
+          </label>
+          <select
+            id="member-tag"
+            value={tag}
+            onChange={(event) => commit('tag', event.target.value)}
+            {...stylex.props(styles.select)}
+          >
+            <option value="">{t('filters.allTags')}</option>
+            {availableTags.map((value) => (
+              <option key={value} value={value}>
+                {value}
               </option>
             ))}
           </select>
