@@ -65,9 +65,21 @@ service/controller change** — only new Zod schema fields, which the existing
 generic merge persists automatically. This mirrors the T12.17 depth-settings
 pattern (business / policies / payments / tax / invoicing / auto-renewal).
 
+### Grace-period removal
+
+The existing Membership settings hold a single `gracePeriodDays` field. It is
+**stored-but-unused** — no API/backend/renewal logic reads it (only the types and
+the settings form reference it). It is **removed entirely**: the
+`gymMembershipSettingsSchema` section, its `membership` key in the stored/update
+schemas and the `GymSettings` interface, the `GymMembershipSettings` type, and its
+form field/values/schema/i18n. The `membership` **rail section stays** but its
+content becomes the member-intake card below. Stored `membership` JSON on existing
+gyms is simply ignored on parse (the key is dropped).
+
 ### Layer 1 — `@fit/types/gym-settings.ts`
 
-Add a new section schema and wire it into the two composite schemas:
+Remove the grace-period section and add the member-intake section, wiring it into
+the two composite schemas + the `GymSettings` interface:
 
 ```ts
 export const gymMemberIntakeSettingsSchema = z.object({
@@ -87,24 +99,27 @@ export const gymMemberIntakeSettingsSchema = z.object({
 export type GymMemberIntakeSettings = z.infer<typeof gymMemberIntakeSettingsSchema>;
 ```
 
-- `gymSettingsStoredSchema`: add `memberIntake: gymMemberIntakeSettingsSchema.default({})`.
-- `updateGymSettingsSchema`: add `memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional()`.
+- `gymSettingsStoredSchema`: remove `membership`; add `memberIntake: gymMemberIntakeSettingsSchema.default({})`.
+- `updateGymSettingsSchema`: remove `membership`; add `memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional()`.
+- `GymSettings` interface: remove `membership: GymMembershipSettings`; add `memberIntake: GymMemberIntakeSettings`.
+- Delete `gymMembershipSettingsSchema` and `GymMembershipSettings`.
 
 A `gym-settings.spec.ts` case asserts the section defaults and that a partial
 update merges without clobbering other sections.
 
 ### Layer 2 — Settings → Membership UI (`settings-form.tsx`)
 
-Under the existing Membership grace-period card, add a second card **"Add-member
+**Replace** the Membership grace-period card with a single card **"Add-member
 form"** with one labelled switch per field (12 switches, in the field-table
-order). Bind the switches into the form's existing values object and the existing
-`updateGymSettingsAction` save flow (which already sends a partial settings
-patch — `memberIntake` is added to the patch it builds). No new save mechanism.
+order). The `membership` rail section stays; only its content changes. Bind the
+switches into the form's values object and the existing `updateGymSettingsAction`
+save flow (which sends a partial settings patch — `memberIntake` replaces the old
+`membership` in the patch it builds). No new save mechanism.
 
-The `name` and `email` switches show the required-field warning when off. The
-section stays under the `membership` `SectionKey` (the user asked for it in the
-Membership section); it is a second card within that section's panel, not a new
-rail entry.
+The `name` and `email` switches show the required-field warning when off. Remove
+the old `membership.gracePeriodDays` from `SettingsFormValues`, the form schema,
+`toFormValues`, the submit payload, and `sectionForErrors` (which now maps
+`errors.memberIntake` → `'membership'`).
 
 ### Layer 3 — Add-Member drawer (`members/page.tsx` + `member-form.tsx`)
 
