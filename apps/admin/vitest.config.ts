@@ -6,7 +6,7 @@ export default defineConfig({
     // The admin specs cover pure model/logic modules (nav, auth-session) — no
     // DOM, so Node is enough and keeps the run fast.
     environment: 'node',
-    include: ['lib/**/*.spec.ts'],
+    include: ['lib/**/*.spec.ts', 'app/**/*.spec.ts'],
     exclude: ['node_modules/**', '.next/**'],
   },
 });
