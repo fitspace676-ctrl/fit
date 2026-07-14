@@ -3,8 +3,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, roleHasPermission } from '@fit/types';
+import { Permission, gymMemberIntakeSettingsSchema, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { fetchGymSettings } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { MemberForm } from '../member-form';
 
@@ -89,6 +90,12 @@ export default async function NewMemberPage() {
 
   const t = await getTranslations('admin.members');
 
+  // The form's field visibility is config-driven (Settings → Membership); fall back to
+  // schema defaults if the settings fetch fails so the form still renders.
+  const memberIntake = await fetchGymSettings()
+    .then((s) => s.memberIntake)
+    .catch(() => gymMemberIntakeSettingsSchema.parse({}));
+
   return (
     <div {...stylex.props(styles.page)}>
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
@@ -111,7 +118,7 @@ export default async function NewMemberPage() {
         <p {...stylex.props(styles.subtitle)}>{t('newPage.subtitle')}</p>
       </header>
 
-      <MemberForm mode="create" />
+      <MemberForm mode="create" intake={memberIntake} />
     </div>
   );
 }

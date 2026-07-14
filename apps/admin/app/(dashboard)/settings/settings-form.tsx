@@ -645,7 +645,20 @@ interface SettingsFormValues {
     requiresPaymentMethod: boolean;
     conversionDiscountPercent: number;
   };
-  membership: { gracePeriodDays: number };
+  memberIntake: {
+    name: boolean;
+    surname: boolean;
+    email: boolean;
+    phone: boolean;
+    gender: boolean;
+    dateOfBirth: boolean;
+    address: boolean;
+    emergencyContact: boolean;
+    membershipPlan: boolean;
+    paymentMethod: boolean;
+    medicalNotes: boolean;
+    tags: boolean;
+  };
   payments: { acceptCash: boolean; acceptCard: boolean; acceptPrepaidCredits: boolean };
   invoice: { prefix: string; startNumber: number; format: InvoiceNumberFormat };
   tax: {
@@ -678,7 +691,19 @@ type BoolFieldName =
   | 'tax.enabled'
   | 'receipt.emailEnabled'
   | 'receipt.printEnabled'
-  | 'autoRenewal.enabled';
+  | 'autoRenewal.enabled'
+  | 'memberIntake.name'
+  | 'memberIntake.surname'
+  | 'memberIntake.email'
+  | 'memberIntake.phone'
+  | 'memberIntake.gender'
+  | 'memberIntake.dateOfBirth'
+  | 'memberIntake.address'
+  | 'memberIntake.emergencyContact'
+  | 'memberIntake.membershipPlan'
+  | 'memberIntake.paymentMethod'
+  | 'memberIntake.medicalNotes'
+  | 'memberIntake.tags';
 
 /** The rail sections, in order — each maps onto a slice of the real settings contract. */
 type SectionKey =
@@ -730,7 +755,7 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
   if (errors.freeze) return 'freeze';
   if (errors.guestPass) return 'guestPass';
   if (errors.trial) return 'trial';
-  if (errors.membership) return 'membership';
+  if (errors.memberIntake) return 'membership';
   if (errors.payments) return 'payments';
   if (errors.invoice) return 'invoice';
   if (errors.tax) return 'tax';
@@ -869,8 +894,19 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         requiresPaymentMethod: z.boolean(),
         conversionDiscountPercent: num({ min: 0, max: 100 }),
       }),
-      membership: z.object({
-        gracePeriodDays: num({ min: 0, max: 90, int: true }),
+      memberIntake: z.object({
+        name: z.boolean(),
+        surname: z.boolean(),
+        email: z.boolean(),
+        phone: z.boolean(),
+        gender: z.boolean(),
+        dateOfBirth: z.boolean(),
+        address: z.boolean(),
+        emergencyContact: z.boolean(),
+        membershipPlan: z.boolean(),
+        paymentMethod: z.boolean(),
+        medicalNotes: z.boolean(),
+        tags: z.boolean(),
       }),
       payments: z.object({
         acceptCash: z.boolean(),
@@ -943,7 +979,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
       freeze: values.freeze,
       guestPass: values.guestPass,
       trial: values.trial,
-      membership: values.membership,
+      memberIntake: values.memberIntake,
       payments: values.payments,
       invoice: values.invoice,
       tax: values.tax,
@@ -1335,15 +1371,35 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
 
           {section === 'membership' ? (
             <SectionCard title={t('membership.title')} description={t('membership.subtitle')}>
-              <NumberField
-                name="membership.gracePeriodDays"
-                label={t('membership.gracePeriodLabel')}
-                hint={t('membership.gracePeriodHint')}
-                min={0}
-                max={90}
-                step={1}
-                fieldClassName={stylex.props(styles.maxXs).className}
-              />
+              <div {...stylex.props(styles.switchList)}>
+                {(
+                  [
+                    'name',
+                    'surname',
+                    'email',
+                    'phone',
+                    'gender',
+                    'dateOfBirth',
+                    'address',
+                    'emergencyContact',
+                    'membershipPlan',
+                    'paymentMethod',
+                    'medicalNotes',
+                    'tags',
+                  ] as const
+                ).map((field) => (
+                  <SwitchRow
+                    key={field}
+                    name={`memberIntake.${field}`}
+                    label={t(`membership.fields.${field}`)}
+                    description={
+                      field === 'name' || field === 'email'
+                        ? t('membership.requiredWarning')
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
             </SectionCard>
           ) : null}
 
@@ -1638,7 +1694,20 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       requiresPaymentMethod: settings.trial.requiresPaymentMethod,
       conversionDiscountPercent: settings.trial.conversionDiscountPercent,
     },
-    membership: { gracePeriodDays: settings.membership.gracePeriodDays },
+    memberIntake: {
+      name: settings.memberIntake.name,
+      surname: settings.memberIntake.surname,
+      email: settings.memberIntake.email,
+      phone: settings.memberIntake.phone,
+      gender: settings.memberIntake.gender,
+      dateOfBirth: settings.memberIntake.dateOfBirth,
+      address: settings.memberIntake.address,
+      emergencyContact: settings.memberIntake.emergencyContact,
+      membershipPlan: settings.memberIntake.membershipPlan,
+      paymentMethod: settings.memberIntake.paymentMethod,
+      medicalNotes: settings.memberIntake.medicalNotes,
+      tags: settings.memberIntake.tags,
+    },
     payments: {
       acceptCash: settings.payments.acceptCash,
       acceptCard: settings.payments.acceptCard,

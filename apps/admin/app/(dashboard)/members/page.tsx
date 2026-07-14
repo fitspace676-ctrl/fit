@@ -4,12 +4,13 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
+  gymMemberIntakeSettingsSchema,
   listMembersQuerySchema,
   roleHasPermission,
   type ListMembersQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchMembers } from '@/lib/api';
+import { ApiError, fetchGymSettings, fetchMembers } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -128,6 +129,17 @@ export default async function MembersPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
 
+  // The Add-Member drawer's field visibility is config-driven (Settings → Membership).
+  // Only the drawer (rendered below when `canWrite`) consumes it, so skip the round-trip
+  // for read-only staff; when it does fetch, kick it off here (before `await fetchMembers`)
+  // so it overlaps with the members fetch instead of adding a serial hop. Fall back to
+  // schema defaults if the settings fetch fails so the drawer still renders.
+  const memberIntakePromise = canWrite
+    ? fetchGymSettings()
+        .then((s) => s.memberIntake)
+        .catch(() => gymMemberIntakeSettingsSchema.parse({}))
+    : null;
+
   let subtitle = t('list.subtitle');
   let content;
   try {
@@ -167,6 +179,8 @@ export default async function MembersPage({
     );
   }
 
+  const memberIntake = memberIntakePromise ? await memberIntakePromise : null;
+
   return (
     <Stack gap={6}>
       <Breadcrumbs
@@ -187,7 +201,7 @@ export default async function MembersPage({
             {subtitle}
           </Text>
         </Stack>
-        {canWrite ? <AddMemberDrawer /> : null}
+        {canWrite && memberIntake ? <AddMemberDrawer intake={memberIntake} /> : null}
       </HStack>
 
       {content}

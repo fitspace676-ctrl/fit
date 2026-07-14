@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node -r @swc-node/register src/main.ts",
-    "dev": "tsx watch src/main.ts",
+    "dev": "node --watch --env-file=.env.local -r @swc-node/register src/main.ts",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",

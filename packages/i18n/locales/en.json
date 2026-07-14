@@ -1878,6 +1878,7 @@
         "contactSection": "Contact details",
         "membershipSection": "Membership",
         "name": "Name",
+        "surname": "Surname",
         "email": "Email",
         "emailReadonlyHint": "Email is the member’s sign-in identity and can’t be changed here.",
         "phone": "Phone",
@@ -1899,7 +1900,6 @@
         "emergencyPhone": "Contact phone",
         "plan": "Membership plan",
         "planNone": "No plan",
-        "startDate": "Start date",
         "paymentMethod": "Payment method",
         "paymentUnset": "Not set",
         "paymentCash": "Cash",
@@ -3109,10 +3109,23 @@
         "requiresPaymentDesc": "Members must add a payment method to start a trial."
       },
       "membership": {
-        "title": "Membership",
-        "subtitle": "How a membership behaves after a failed renewal.",
-        "gracePeriodLabel": "Grace period (days)",
-        "gracePeriodHint": "Days a membership keeps working after a failed renewal before it lapses. 0 has no grace."
+        "title": "Add-member form",
+        "subtitle": "Choose which inputs staff see when adding a new member.",
+        "requiredWarning": "Members can't be created without this field.",
+        "fields": {
+          "name": "Name",
+          "surname": "Surname",
+          "email": "Email",
+          "phone": "Phone",
+          "gender": "Gender",
+          "dateOfBirth": "Date of birth",
+          "address": "Address",
+          "emergencyContact": "Emergency contact",
+          "membershipPlan": "Membership plan",
+          "paymentMethod": "Payment method",
+          "medicalNotes": "Medical notes",
+          "tags": "Tags"
+        }
       },
       "payments": {
         "title": "Payment methods",
