@@ -1,21 +1,22 @@
 import { Module } from '@nestjs/common';
+import { AgentChatController } from './agent-chat.controller';
 import { AgentSessionsController } from './agent-sessions.controller';
 import { AgentSessionsService } from './agent-sessions.service';
 
 /**
- * Agent — server-side persistence for the admin console's AI-agent chat
- * sessions (`/agent/sessions` — list, get, upsert, delete; T12.22), replacing
- * the prior `localStorage`-only storage. Per-gym and per-user scoped; the
- * tenant-scoped Prisma client, guards, and tenant context all come from the
- * app-wide `TenantModule` / `RbacModule`, so this module needs no imports.
+ * Agent — the admin console's AI-agent backend:
+ * - `POST /agent/chat` runs the Claude/Gemini + Fit MCP loop (provider keys live
+ *   in the API env, not the frontend) and streams the reply as NDJSON. Its
+ *   runtime lives in `src/agent/runtime/` (SWC at runtime; type-checked via
+ *   `tsconfig.agent.json`, kept out of the API's main `tsc` — see the controller).
+ * - `/agent/sessions` persists a staff member's chat sessions (list/get/upsert/
+ *   delete; T12.22), per-gym and per-user scoped.
  *
- * The AI-agent chat *runtime* (Claude/Gemini + Fit MCP loop) does NOT live here:
- * the NestJS API's classic module resolution can't type-check the provider SDKs,
- * so the loop runs in the dedicated `@fit/mcp-server` backend service, which
- * holds the provider keys. See apps/mcp-server.
+ * The tenant-scoped Prisma client, guards, and tenant context all come from the
+ * app-wide `TenantModule` / `RbacModule`, so this module needs no imports.
  */
 @Module({
-  controllers: [AgentSessionsController],
+  controllers: [AgentChatController, AgentSessionsController],
   providers: [AgentSessionsService],
 })
 export class AgentModule {}

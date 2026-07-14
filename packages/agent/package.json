@@ -1,21 +1,26 @@
 {
-  "name": "@fit/mcp-server",
+  "name": "@fit/agent",
   "version": "0.0.0",
   "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
   "scripts": {
-    "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts",
+    "build": "echo '[@fit/agent] build: nothing to do yet'",
     "lint": "eslint . --max-warnings 0",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "@fit/mcp": "workspace:*",
+    "@google/genai": "^2.11.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^3.24.1"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@fit/config": "workspace:*",
-    "tsx": "^4.19.2"
+    "@fit/config": "workspace:*"
   }
 }

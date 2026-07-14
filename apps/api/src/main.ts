@@ -8,6 +8,7 @@ import { env } from './config/env';
 import './instrument';
 
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { isOriginAllowed } from './common/cors/allowed-origin';
@@ -39,10 +40,14 @@ function corsOrigins(): string[] {
 }
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
 
   // Route Nest's own logs through pino.
   app.useLogger(app.get(Logger));
+
+  // Raise the JSON body limit so the AI-agent chat can carry base64 file
+  // attachments (spreadsheets, PDFs, images) — the default ~100kb is too small.
+  app.useBodyParser('json', { limit: '25mb' });
 
   const allowList = corsOrigins();
   app.enableCors({

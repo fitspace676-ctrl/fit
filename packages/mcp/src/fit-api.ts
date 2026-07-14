@@ -7,9 +7,17 @@
 // session and auto-scope the query to their gym — the agent can never exceed
 // what the operator themselves may read or edit.
 
-/** Base URL of the @fit/api backend (same default as the console client). */
+/**
+ * Base URL of the @fit/api backend the MCP tools call. `FIT_API_URL` wins;
+ * otherwise, when the agent runs inside the API process (Railway), the tools call
+ * the API on its own port via loopback (`PORT`) — so no extra config is needed.
+ */
 function apiBaseUrl(): string {
-  return process.env.FIT_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+  return (
+    process.env.FIT_API_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    `http://localhost:${process.env.PORT ?? 3000}`
+  );
 }
 
 export interface FitApiClient {
