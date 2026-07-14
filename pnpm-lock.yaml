@@ -56,6 +56,9 @@ importers:
       '@fit/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@fit/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
       '@fit/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -256,6 +259,25 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  apps/mcp-server:
+    dependencies:
+      '@fit/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@fit/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
 
   apps/mobile:
     dependencies:
@@ -632,6 +654,19 @@ importers:
       vitest:
         specifier: ^3.0.0
         version: 3.2.6(@types/node@22.19.19)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  packages/mcp:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@fit/config':
+        specifier: workspace:*
+        version: link:../config
 
   packages/types:
     dependencies:
@@ -10654,9 +10689,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

@@ -14,7 +14,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { createFitMcpServer } from './mcp-server';
+import { createFitMcpServer } from '@fit/mcp';
 import { createDriver, type AgentModel } from './models';
 import { normalizeAttachments } from './attachments';
 import type { AgentAttachment, AgentHistoryMessage, AgentTool, AgentToolResult } from './driver';

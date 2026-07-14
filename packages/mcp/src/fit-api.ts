@@ -53,7 +53,7 @@ export function createFitApiClient(token: string): FitApiClient {
   const auth = { authorization: `Bearer ${token}` };
   return {
     async get(path) {
-      return unwrap(await fetch(`${base}${path}`, { headers: auth, cache: 'no-store' }));
+      return unwrap(await fetch(`${base}${path}`, { headers: auth }));
     },
     async post(path, body) {
       return unwrap(
@@ -61,7 +61,6 @@ export function createFitApiClient(token: string): FitApiClient {
           method: 'POST',
           headers: body === undefined ? auth : { 'content-type': 'application/json', ...auth },
           body: body === undefined ? undefined : JSON.stringify(body),
-          cache: 'no-store',
         }),
       );
     },
@@ -71,7 +70,6 @@ export function createFitApiClient(token: string): FitApiClient {
           method: 'PATCH',
           headers: { 'content-type': 'application/json', ...auth },
           body: JSON.stringify(body),
-          cache: 'no-store',
         }),
       );
     },
@@ -81,14 +79,11 @@ export function createFitApiClient(token: string): FitApiClient {
           method: 'PUT',
           headers: { 'content-type': 'application/json', ...auth },
           body: JSON.stringify(body),
-          cache: 'no-store',
         }),
       );
     },
     async del(path) {
-      return unwrap(
-        await fetch(`${base}${path}`, { method: 'DELETE', headers: auth, cache: 'no-store' }),
-      );
+      return unwrap(await fetch(`${base}${path}`, { method: 'DELETE', headers: auth }));
     },
   };
 }
