@@ -111,3 +111,21 @@ export function toStructured(output: string): Record<string, unknown> {
     return { result: output };
   }
 }
+
+/**
+ * One NDJSON event the agent streams to the chat UI. This is the wire protocol
+ * shared with the admin client's parser (components/agent/types.ts) — keep the
+ * two shapes in sync.
+ */
+export type AgentStreamEvent =
+  | { t: 'delta'; v: string }
+  | {
+      t: 'tool';
+      id: string;
+      name: string;
+      status: 'pending' | 'running' | 'complete' | 'error';
+      target?: string;
+      errorMessage?: string;
+    }
+  | { t: 'error'; message: string }
+  | { t: 'done' };

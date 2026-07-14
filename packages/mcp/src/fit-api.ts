@@ -9,7 +9,7 @@
 
 /** Base URL of the @fit/api backend (same default as the console client). */
 function apiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+  return process.env.FIT_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 }
 
 export interface FitApiClient {

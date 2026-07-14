@@ -17,8 +17,13 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createFitMcpServer } from '@fit/mcp';
 import { createDriver, type AgentModel } from './models';
 import { normalizeAttachments } from './attachments';
-import type { AgentAttachment, AgentHistoryMessage, AgentTool, AgentToolResult } from './driver';
-import type { AgentStreamEvent } from '@/components/agent/types';
+import type {
+  AgentAttachment,
+  AgentHistoryMessage,
+  AgentStreamEvent,
+  AgentTool,
+  AgentToolResult,
+} from './driver';
 
 /** Hard ceiling on tool-call rounds so a loop can never burn tokens unbounded. */
 const MAX_ROUNDS = 8;

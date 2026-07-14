@@ -19,6 +19,9 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { createFitMcpServer } from '@fit/mcp';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { runAgent } from './runtime/run-agent';
+import { resolveModel } from './runtime/models';
+import type { AgentStreamEvent } from './runtime/driver';
 
 const PORT = Number(process.env.PORT ?? 3005);
 
@@ -53,6 +56,62 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+interface ChatBody {
+  messages?: ChatTurn[];
+  attachments?: { name: string; mimeType: string; data: string }[];
+  model?: string;
+}
+
+/**
+ * `POST /agent/chat` — run the Claude/Gemini + Fit MCP loop for the admin console
+ * and stream the reply as NDJSON. Bearer auth: the operator's fit access token is
+ * handed to the MCP tools, so every read/write is scoped to that operator.
+ */
+async function handleAgentChat(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method !== 'POST') {
+    json(res, 405, { error: 'method_not_allowed' });
+    return;
+  }
+  const token = bearer(req);
+  if (!token) {
+    res.setHeader('WWW-Authenticate', 'Bearer');
+    json(res, 401, { error: 'missing_bearer_token' });
+    return;
+  }
+  let body: ChatBody;
+  try {
+    const parsed = (await readJson(req)) as ChatBody | null;
+    body = parsed ?? {};
+  } catch {
+    json(res, 400, { error: 'invalid_json' });
+    return;
+  }
+
+  const model = resolveModel(body.model);
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const attachments = Array.isArray(body.attachments) ? body.attachments : undefined;
+
+  res.writeHead(200, {
+    'content-type': 'application/x-ndjson; charset=utf-8',
+    'cache-control': 'no-cache, no-transform',
+  });
+  const emit = (event: AgentStreamEvent): void => {
+    res.write(`${JSON.stringify(event)}\n`);
+  };
+  try {
+    if (model) await runAgent(messages, token, model, emit, attachments);
+    else emit({ t: 'error', message: 'agent_not_configured' });
+  } catch (err) {
+    emit({ t: 'error', message: err instanceof Error ? err.message : 'agent_failed' });
+  } finally {
+    res.end();
+  }
+}
+
 const server = createServer((req, res) => {
   void (async () => {
     cors(res);
@@ -66,6 +125,12 @@ const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0];
     if (path === '/' || path === '/health') {
       json(res, 200, { ok: true, service: 'fit-mcp', transport: 'streamable-http' });
+      return;
+    }
+    // The admin console's AI-agent loop runs here (backend, keys in this service's
+    // env) and the admin proxies to it.
+    if (path === '/agent/chat') {
+      await handleAgentChat(req, res);
       return;
     }
     if (path !== '/mcp') {
