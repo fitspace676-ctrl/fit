@@ -396,6 +396,7 @@ model Gym {
   loyaltyRewards          LoyaltyReward[]
   loyaltyRedemptions      LoyaltyRedemption[]
   dashboardPins           DashboardPin[]
+  agentChatSessions       AgentChatSession[]
   staffNotes              StaffNote[]
   staffTasks              StaffTask[]
   timeOffRequests         TimeOffRequest[]
@@ -446,6 +447,7 @@ model User {
   automationRules         AutomationRule[]         @relation("AutomationRuleCreatedBy")
   campaigns               Campaign[]               @relation("CampaignCreatedBy")
   dashboardPins           DashboardPin[]
+  agentChatSessions       AgentChatSession[]
 
   @@map("users")
 }
@@ -2416,4 +2418,28 @@ model ShiftSlot {
 
   @@index([gymId, staffId, dayOfWeek])
   @@map("shift_slots")
+}
+
+/// A saved AI-agent chat session for the admin console (T12.22) — previously kept
+/// in the browser's `localStorage`, now persisted server-side and scoped per gym
+/// per user, so a staff member's chat history follows them across devices and
+/// stays private to their own account. `id` is client-generated (a short string
+/// minted by the admin UI, e.g. `s-abc-123`), not a server `cuid()` — the client
+/// upserts by that id, so it is a plain `String @id` with no default. `messages`
+/// is the opaque chat transcript (an array of role/content turns); the API stores
+/// it as-is without validating its inner shape, leaving that to the admin client.
+model AgentChatSession {
+  id        String   @id
+  gymId     String
+  userId    String
+  title     String   @db.VarChar(200)
+  messages  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, userId, updatedAt])
+  @@map("agent_chat_sessions")
 }

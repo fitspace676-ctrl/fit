@@ -13,6 +13,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { SkipLink, ToastProvider } from '@/components/ui';
+import { AgentChat } from './agent/agent-chat';
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
 
@@ -77,6 +78,8 @@ export function AdminShell({
           </div>
           <div {...stylex.props(styles.page)}>{children}</div>
         </div>
+        {/* Right-edge AI copilot — floats above every console page. */}
+        <AgentChat />
       </AppShell>
     </ToastProvider>
   );

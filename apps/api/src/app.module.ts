@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { ActivityModule } from './activity/activity.module';
+import { AgentModule } from './agent/agent.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -107,6 +108,9 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   (`/admin/activity` — a paginated, filterable newest-first merge of the gym's
  *   signups, bookings, check-ins, sales, and subscription enrolments derived from
  *   existing tables; `ReportView`).
+ * - {@link AgentModule} serves the admin console's tenant + per-user-scoped
+ *   AI-agent chat session persistence (`/agent/sessions` — list, get, upsert,
+ *   delete; `ProfileManage`, T12.22), replacing browser `localStorage`.
  * - {@link LiveModule} provides the app-wide `ActivityStreamService` — the
  *   Redis-backed pub/sub seam behind the live activity stream
  *   (`GET /admin/activity/stream`, SSE): reception check-ins publish to it and the
@@ -184,6 +188,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     ReportsModule,
     OpsModule,
     ActivityModule,
+    AgentModule,
     GymsModule,
     SuperAdminModule,
     PlatformModule,
