@@ -1,9 +1,6 @@
 {
   "extends": "@fit/config/tsconfig.base.json",
   "compilerOptions": {
-    // NestJS relies on legacy parameter/property decorators and the metadata
-    // they emit for dependency injection. The shared base targets bundlers, so
-    // these decorator + CommonJS settings are layered on for the API service.
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "verbatimModuleSyntax": false,

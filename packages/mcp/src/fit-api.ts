@@ -7,9 +7,17 @@
 // session and auto-scope the query to their gym — the agent can never exceed
 // what the operator themselves may read or edit.
 
-/** Base URL of the @fit/api backend (same default as the console client). */
+/**
+ * Base URL of the @fit/api backend the MCP tools call. `FIT_API_URL` wins;
+ * otherwise, when the agent runs inside the API process (Railway), the tools call
+ * the API on its own port via loopback (`PORT`) — so no extra config is needed.
+ */
 function apiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+  return (
+    process.env.FIT_API_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    `http://localhost:${process.env.PORT ?? 3000}`
+  );
 }
 
 export interface FitApiClient {
@@ -53,7 +61,7 @@ export function createFitApiClient(token: string): FitApiClient {
   const auth = { authorization: `Bearer ${token}` };
   return {
     async get(path) {
-      return unwrap(await fetch(`${base}${path}`, { headers: auth, cache: 'no-store' }));
+      return unwrap(await fetch(`${base}${path}`, { headers: auth }));
     },
     async post(path, body) {
       return unwrap(
@@ -61,7 +69,6 @@ export function createFitApiClient(token: string): FitApiClient {
           method: 'POST',
           headers: body === undefined ? auth : { 'content-type': 'application/json', ...auth },
           body: body === undefined ? undefined : JSON.stringify(body),
-          cache: 'no-store',
         }),
       );
     },
@@ -71,7 +78,6 @@ export function createFitApiClient(token: string): FitApiClient {
           method: 'PATCH',
           headers: { 'content-type': 'application/json', ...auth },
           body: JSON.stringify(body),
-          cache: 'no-store',
         }),
       );
     },
@@ -81,14 +87,11 @@ export function createFitApiClient(token: string): FitApiClient {
           method: 'PUT',
           headers: { 'content-type': 'application/json', ...auth },
           body: JSON.stringify(body),
-          cache: 'no-store',
         }),
       );
     },
     async del(path) {
-      return unwrap(
-        await fetch(`${base}${path}`, { method: 'DELETE', headers: auth, cache: 'no-store' }),
-      );
+      return unwrap(await fetch(`${base}${path}`, { method: 'DELETE', headers: auth }));
     },
   };
 }

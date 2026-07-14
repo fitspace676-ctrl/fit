@@ -1,0 +1,26 @@
+{
+  "name": "@fit/agent",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "build": "echo '[@fit/agent] build: nothing to do yet'",
+    "lint": "eslint . --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
+    "@fit/mcp": "workspace:*",
+    "@google/genai": "^2.11.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@fit/config": "workspace:*"
+  }
+}
