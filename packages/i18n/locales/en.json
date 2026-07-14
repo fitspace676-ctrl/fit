@@ -1351,7 +1351,11 @@
         "empty": "No members yet.",
         "noPlan": "No plan",
         "expires": "Expires {date}",
-        "status": { "active": "Active", "invited": "Invited", "suspended": "Suspended" }
+        "status": {
+          "active": "Active",
+          "invited": "Invited",
+          "suspended": "Suspended"
+        }
       },
       "relative": {
         "justNow": "just now",
@@ -3877,6 +3881,28 @@
       "subtitle": "Class bookings are managed from the schedule and each member’s record.",
       "description": "Bookings are created when a member reserves a class occurrence. Open the Schedule to manage a class roster, or a member’s record to see their bookings and attendance.",
       "cta": "Open schedule"
+    },
+    "agent": {
+      "launcher": "AI Agent",
+      "open": "Open AI agent",
+      "close": "Close",
+      "title": "AI Agent",
+      "subtitle": "Your admin copilot",
+      "reset": "Clear conversation",
+      "placeholder": "Ask anything, or ask me to make a change…",
+      "error": "Something went wrong. Please try again.",
+      "emptyTitle": "How can I help?",
+      "emptyHint": "Ask about members, classes, or payments — or tell me to update something in the admin.",
+      "model": "Model",
+      "attach": "Attach files",
+      "removeAttachment": "Remove",
+      "attachLimit": "Up to {max} files (max 5 MB each).",
+      "history": "History",
+      "newChat": "New chat",
+      "noSessions": "No saved sessions yet.",
+      "deleteSession": "Delete session",
+      "untitled": "Untitled chat",
+      "dropHere": "Drop files to attach"
     }
   }
 }
