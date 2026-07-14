@@ -1900,7 +1900,6 @@
         "emergencyPhone": "Contact phone",
         "plan": "Membership plan",
         "planNone": "No plan",
-        "startDate": "Start date",
         "paymentMethod": "Payment method",
         "paymentUnset": "Not set",
         "paymentCash": "Cash",

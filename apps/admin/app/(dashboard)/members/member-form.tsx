@@ -363,6 +363,7 @@ export function MemberForm(props: Props) {
               label={t('form.surname')}
               htmlName="surname"
               type="text"
+              isOptional
               size="lg"
               width="100%"
               value={surname}
