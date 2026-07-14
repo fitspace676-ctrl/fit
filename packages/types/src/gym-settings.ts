@@ -274,15 +274,29 @@ export const gymTrialSettingsSchema = z.object({
 export type GymTrialSettings = z.infer<typeof gymTrialSettingsSchema>;
 
 /**
- * Membership grace period: days past a failed renewal a membership keeps working
- * before it lapses. `0` = no grace.
+ * Which inputs the admin-console Add-Member drawer shows. Every field is a
+ * visibility toggle; `name`/`email` are required by `createMemberSchema` so they
+ * default on (the Settings UI warns when they are turned off). `surname` is a
+ * UI-only split joined onto `name`; `startDate` is intentionally absent (removed
+ * from the drawer — the API defaults enrolment to today).
  */
-export const gymMembershipSettingsSchema = z.object({
-  gracePeriodDays: z.number().int().min(0).max(90).default(0),
+export const gymMemberIntakeSettingsSchema = z.object({
+  name: z.boolean().default(true),
+  surname: z.boolean().default(false),
+  email: z.boolean().default(true),
+  phone: z.boolean().default(true),
+  gender: z.boolean().default(false),
+  dateOfBirth: z.boolean().default(false),
+  address: z.boolean().default(false),
+  emergencyContact: z.boolean().default(false),
+  membershipPlan: z.boolean().default(true),
+  paymentMethod: z.boolean().default(false),
+  medicalNotes: z.boolean().default(false),
+  tags: z.boolean().default(false),
 });
 
-/** The gym's membership grace-period policy — {@link gymMembershipSettingsSchema}. */
-export type GymMembershipSettings = z.infer<typeof gymMembershipSettingsSchema>;
+/** The Add-Member drawer field-visibility config — {@link gymMemberIntakeSettingsSchema}. */
+export type GymMemberIntakeSettings = z.infer<typeof gymMemberIntakeSettingsSchema>;
 
 /** Which payment methods the POS + checkout accept. */
 export const gymPaymentMethodsSchema = z.object({
@@ -391,7 +405,7 @@ export const gymSettingsStoredSchema = z.object({
   freeze: gymFreezeSettingsSchema.default({}),
   guestPass: gymGuestPassSettingsSchema.default({}),
   trial: gymTrialSettingsSchema.default({}),
-  membership: gymMembershipSettingsSchema.default({}),
+  memberIntake: gymMemberIntakeSettingsSchema.default({}),
   payments: gymPaymentMethodsSchema.default({}),
   invoice: gymInvoiceSettingsSchema.default({}),
   tax: gymTaxSettingsSchema.default({}),
@@ -424,7 +438,7 @@ export interface GymSettings {
   freeze: GymFreezeSettings;
   guestPass: GymGuestPassSettings;
   trial: GymTrialSettings;
-  membership: GymMembershipSettings;
+  memberIntake: GymMemberIntakeSettings;
   payments: GymPaymentMethods;
   invoice: GymInvoiceSettings;
   tax: GymTaxSettings;
@@ -481,7 +495,7 @@ export const updateGymSettingsSchema = z
     freeze: gymFreezeSettingsSchema.partial().strict().optional(),
     guestPass: gymGuestPassSettingsSchema.partial().strict().optional(),
     trial: gymTrialSettingsSchema.partial().strict().optional(),
-    membership: gymMembershipSettingsSchema.partial().strict().optional(),
+    memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional(),
     payments: gymPaymentMethodsSchema.partial().strict().optional(),
     invoice: gymInvoiceSettingsSchema.partial().strict().optional(),
     tax: gymTaxSettingsSchema.partial().strict().optional(),
