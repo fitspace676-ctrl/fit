@@ -4,12 +4,13 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
+  gymMemberIntakeSettingsSchema,
   listMembersQuerySchema,
   roleHasPermission,
   type ListMembersQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchMembers } from '@/lib/api';
+import { ApiError, fetchGymSettings, fetchMembers } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -128,6 +129,12 @@ export default async function MembersPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
 
+  // The Add-Member drawer's field visibility is config-driven (Settings → Membership);
+  // fall back to schema defaults if the settings fetch fails so the drawer still renders.
+  const memberIntake = await fetchGymSettings()
+    .then((s) => s.memberIntake)
+    .catch(() => gymMemberIntakeSettingsSchema.parse({}));
+
   let subtitle = t('list.subtitle');
   let content;
   try {
@@ -187,7 +194,7 @@ export default async function MembersPage({
             {subtitle}
           </Text>
         </Stack>
-        {canWrite ? <AddMemberDrawer /> : null}
+        {canWrite ? <AddMemberDrawer intake={memberIntake} /> : null}
       </HStack>
 
       {content}

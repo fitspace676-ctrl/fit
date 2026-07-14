@@ -1878,6 +1878,7 @@
         "contactSection": "Contact details",
         "membershipSection": "Membership",
         "name": "Name",
+        "surname": "Surname",
         "email": "Email",
         "emailReadonlyHint": "Email is the member’s sign-in identity and can’t be changed here.",
         "phone": "Phone",

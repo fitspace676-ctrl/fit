@@ -7,6 +7,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout } from '@astryxdesign/core/Layout';
 import { LayoutContent } from '@astryxdesign/core/Layout';
+import type { GymMemberIntakeSettings } from '@fit/types';
 import { Icon } from '@/components/ui';
 import { MemberForm } from './member-form';
 
@@ -32,7 +33,7 @@ const styles = stylex.create({
   },
 });
 
-export function AddMemberDrawer() {
+export function AddMemberDrawer({ intake }: { intake: GymMemberIntakeSettings }) {
   const t = useTranslations('admin.members');
   const [isOpen, setIsOpen] = useState(false);
 
@@ -70,6 +71,7 @@ export function AddMemberDrawer() {
             <LayoutContent padding={0} isScrollable xstyle={styles.content}>
               <MemberForm
                 mode="create"
+                intake={intake}
                 onSuccess={() => setIsOpen(false)}
                 onCancel={() => setIsOpen(false)}
               />

@@ -10,8 +10,9 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { ToggleButton } from '@astryxdesign/core/ToggleButton';
 import { Stack } from '@astryxdesign/core/Stack';
 import { Text } from '@astryxdesign/core/Text';
-import type { Gender, MemberStatus } from '@fit/types';
+import type { Gender, GymMemberIntakeSettings, MemberStatus } from '@fit/types';
 import { Btn, Icon } from '@/components/ui';
+import { composeName } from '@/lib/member-intake';
 import {
   createMemberAction,
   listActivePlanOptionsAction,
@@ -183,11 +184,17 @@ export interface MemberFormInitial {
 }
 
 type Props =
-  | { mode: 'create'; onSuccess?: () => void; onCancel?: () => void }
+  | {
+      mode: 'create';
+      intake?: GymMemberIntakeSettings;
+      onSuccess?: () => void;
+      onCancel?: () => void;
+    }
   | {
       mode: 'edit';
       memberId: string;
       initial: MemberFormInitial;
+      intake?: GymMemberIntakeSettings;
       onSuccess?: () => void;
       onCancel?: () => void;
     };
@@ -250,7 +257,13 @@ export function MemberForm(props: Props) {
 
   const isEdit = props.mode === 'edit';
   const seed = isEdit ? props.initial : null;
+
+  // In edit mode every field shows (config governs the create drawer only).
+  const show = (field: keyof GymMemberIntakeSettings): boolean =>
+    isEdit || props.intake?.[field] !== false;
+
   const [name, setName] = useState(seed?.name ?? '');
+  const [surname, setSurname] = useState('');
   const [email, setEmail] = useState(seed?.email ?? '');
   const [phone, setPhone] = useState(seed?.phone ?? '');
   const [dateOfBirth, setDateOfBirth] = useState(seed?.dateOfBirth ?? '');
@@ -265,7 +278,6 @@ export function MemberForm(props: Props) {
   // Create-only membership enrolment.
   const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
   const [planId, setPlanId] = useState('');
-  const [startDate, setStartDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
 
   useEffect(() => {
@@ -295,16 +307,16 @@ export function MemberForm(props: Props) {
     };
 
     startTransition(async () => {
+      const composedName = composeName(name, surname);
       const result = isEdit
-        ? await updateMemberAction(props.memberId, { name, phone, ...profile })
+        ? await updateMemberAction(props.memberId, { name: composedName, phone, ...profile })
         : await createMemberAction({
-            name,
+            name: composedName,
             email,
             phone,
             status,
             ...profile,
             planId: planId || undefined,
-            startDate: startDate || undefined,
             paymentMethod: paymentMethod || undefined,
           });
       if (result.ok) {
@@ -331,128 +343,161 @@ export function MemberForm(props: Props) {
           <Text type="label" weight="semibold" color="secondary" display="block">
             {t('form.contactSection')}
           </Text>
-          <TextInput
-            label={t('form.name')}
-            htmlName="name"
-            type="text"
-            isRequired
-            hasAutoFocus
-            size="lg"
-            width="100%"
-            value={name}
-            onChange={setName}
-            startIcon={<Icon name="user" {...stylex.props(styles.sectionIcon)} />}
-          />
+          {show('name') && (
+            <TextInput
+              label={t('form.name')}
+              htmlName="name"
+              type="text"
+              isRequired
+              hasAutoFocus
+              size="lg"
+              width="100%"
+              value={name}
+              onChange={setName}
+              startIcon={<Icon name="user" {...stylex.props(styles.sectionIcon)} />}
+            />
+          )}
 
-          <TextInput
-            label={t('form.email')}
-            htmlName="email"
-            type="email"
-            isRequired={!isEdit}
-            isDisabled={isEdit}
-            disabledMessage={isEdit ? t('form.emailReadonlyHint') : undefined}
-            description={isEdit ? t('form.emailReadonlyHint') : undefined}
-            size="lg"
-            width="100%"
-            value={email}
-            onChange={setEmail}
-            startIcon={<Icon name="message" {...stylex.props(styles.sectionIcon)} />}
-          />
+          {show('surname') && !isEdit ? (
+            <TextInput
+              label={t('form.surname')}
+              htmlName="surname"
+              type="text"
+              size="lg"
+              width="100%"
+              value={surname}
+              onChange={setSurname}
+              startIcon={<Icon name="user" {...stylex.props(styles.sectionIcon)} />}
+            />
+          ) : null}
 
-          <TextInput
-            label={t('form.phone')}
-            htmlName="phone"
-            type="text"
-            isOptional
-            size="lg"
-            width="100%"
-            value={phone}
-            onChange={setPhone}
-            startIcon={<Icon name="message" {...stylex.props(styles.sectionIcon)} />}
-          />
+          {show('email') && (
+            <TextInput
+              label={t('form.email')}
+              htmlName="email"
+              type="email"
+              isRequired={!isEdit}
+              isDisabled={isEdit}
+              disabledMessage={isEdit ? t('form.emailReadonlyHint') : undefined}
+              description={isEdit ? t('form.emailReadonlyHint') : undefined}
+              size="lg"
+              width="100%"
+              value={email}
+              onChange={setEmail}
+              startIcon={<Icon name="message" {...stylex.props(styles.sectionIcon)} />}
+            />
+          )}
 
-          <div {...stylex.props(styles.grid2)}>
-            <LabeledField
-              label={t('form.dateOfBirth')}
-              htmlFor="dateOfBirth"
-              optional={t('form.optional')}
-            >
+          {show('phone') && (
+            <TextInput
+              label={t('form.phone')}
+              htmlName="phone"
+              type="text"
+              isOptional
+              size="lg"
+              width="100%"
+              value={phone}
+              onChange={setPhone}
+              startIcon={<Icon name="message" {...stylex.props(styles.sectionIcon)} />}
+            />
+          )}
+
+          {show('dateOfBirth') || show('gender') ? (
+            <div {...stylex.props(styles.grid2)}>
+              {show('dateOfBirth') && (
+                <LabeledField
+                  label={t('form.dateOfBirth')}
+                  htmlFor="dateOfBirth"
+                  optional={t('form.optional')}
+                >
+                  <input
+                    id="dateOfBirth"
+                    name="dateOfBirth"
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    {...stylex.props(styles.field)}
+                  />
+                </LabeledField>
+              )}
+              {show('gender') && (
+                <LabeledField
+                  label={t('form.gender')}
+                  htmlFor="gender"
+                  optional={t('form.optional')}
+                >
+                  <select
+                    id="gender"
+                    name="gender"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    {...stylex.props(styles.field)}
+                  >
+                    <option value="">{t('form.genderUnset')}</option>
+                    <option value="MALE">{t('gender.MALE')}</option>
+                    <option value="FEMALE">{t('gender.FEMALE')}</option>
+                    <option value="OTHER">{t('gender.OTHER')}</option>
+                  </select>
+                </LabeledField>
+              )}
+            </div>
+          ) : null}
+
+          {show('address') && (
+            <LabeledField label={t('form.address')} htmlFor="address" optional={t('form.optional')}>
               <input
-                id="dateOfBirth"
-                name="dateOfBirth"
-                type="date"
-                value={dateOfBirth}
-                onChange={(e) => setDateOfBirth(e.target.value)}
+                id="address"
+                name="address"
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
                 {...stylex.props(styles.field)}
               />
             </LabeledField>
-            <LabeledField label={t('form.gender')} htmlFor="gender" optional={t('form.optional')}>
-              <select
-                id="gender"
-                name="gender"
-                value={gender}
-                onChange={(e) => setGender(e.target.value)}
-                {...stylex.props(styles.field)}
-              >
-                <option value="">{t('form.genderUnset')}</option>
-                <option value="MALE">{t('gender.MALE')}</option>
-                <option value="FEMALE">{t('gender.FEMALE')}</option>
-                <option value="OTHER">{t('gender.OTHER')}</option>
-              </select>
-            </LabeledField>
-          </div>
-
-          <LabeledField label={t('form.address')} htmlFor="address" optional={t('form.optional')}>
-            <input
-              id="address"
-              name="address"
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              {...stylex.props(styles.field)}
-            />
-          </LabeledField>
+          )}
         </Stack>
       </Card>
 
       {/* Emergency contact. */}
-      <Card variant="default" padding={4} xstyle={styles.formSection}>
-        <Stack gap={3}>
-          <Text type="label" weight="semibold" color="secondary" display="block">
-            {t('form.emergencySection')}
-          </Text>
-          <div {...stylex.props(styles.grid2)}>
-            <LabeledField
-              label={t('form.emergencyName')}
-              htmlFor="emergencyName"
-              optional={t('form.optional')}
-            >
-              <input
-                id="emergencyName"
-                name="emergencyName"
-                type="text"
-                value={emergencyName}
-                onChange={(e) => setEmergencyName(e.target.value)}
-                {...stylex.props(styles.field)}
-              />
-            </LabeledField>
-            <LabeledField
-              label={t('form.emergencyPhone')}
-              htmlFor="emergencyPhone"
-              optional={t('form.optional')}
-            >
-              <input
-                id="emergencyPhone"
-                name="emergencyPhone"
-                type="text"
-                value={emergencyPhone}
-                onChange={(e) => setEmergencyPhone(e.target.value)}
-                {...stylex.props(styles.field)}
-              />
-            </LabeledField>
-          </div>
-        </Stack>
-      </Card>
+      {show('emergencyContact') && (
+        <Card variant="default" padding={4} xstyle={styles.formSection}>
+          <Stack gap={3}>
+            <Text type="label" weight="semibold" color="secondary" display="block">
+              {t('form.emergencySection')}
+            </Text>
+            <div {...stylex.props(styles.grid2)}>
+              <LabeledField
+                label={t('form.emergencyName')}
+                htmlFor="emergencyName"
+                optional={t('form.optional')}
+              >
+                <input
+                  id="emergencyName"
+                  name="emergencyName"
+                  type="text"
+                  value={emergencyName}
+                  onChange={(e) => setEmergencyName(e.target.value)}
+                  {...stylex.props(styles.field)}
+                />
+              </LabeledField>
+              <LabeledField
+                label={t('form.emergencyPhone')}
+                htmlFor="emergencyPhone"
+                optional={t('form.optional')}
+              >
+                <input
+                  id="emergencyPhone"
+                  name="emergencyPhone"
+                  type="text"
+                  value={emergencyPhone}
+                  onChange={(e) => setEmergencyPhone(e.target.value)}
+                  {...stylex.props(styles.field)}
+                />
+              </LabeledField>
+            </div>
+          </Stack>
+        </Card>
+      )}
 
       {/* Membership plan enrolment (create only). */}
       {!isEdit ? (
@@ -461,7 +506,7 @@ export function MemberForm(props: Props) {
             <Text type="label" weight="semibold" color="secondary" display="block">
               {t('form.membershipSection')}
             </Text>
-            <div {...stylex.props(styles.grid2)}>
+            {show('membershipPlan') && (
               <LabeledField label={t('form.plan')} htmlFor="planId" optional={t('form.optional')}>
                 <select
                   id="planId"
@@ -478,39 +523,27 @@ export function MemberForm(props: Props) {
                   ))}
                 </select>
               </LabeledField>
+            )}
+            {show('paymentMethod') && (
               <LabeledField
-                label={t('form.startDate')}
-                htmlFor="startDate"
+                label={t('form.paymentMethod')}
+                htmlFor="paymentMethod"
                 optional={t('form.optional')}
               >
-                <input
-                  id="startDate"
-                  name="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                <select
+                  id="paymentMethod"
+                  name="paymentMethod"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
                   {...stylex.props(styles.field)}
-                />
+                >
+                  <option value="">{t('form.paymentUnset')}</option>
+                  <option value="CASH">{t('form.paymentCash')}</option>
+                  <option value="CARD">{t('form.paymentCard')}</option>
+                  <option value="BANK_TRANSFER">{t('form.paymentBankTransfer')}</option>
+                </select>
               </LabeledField>
-            </div>
-            <LabeledField
-              label={t('form.paymentMethod')}
-              htmlFor="paymentMethod"
-              optional={t('form.optional')}
-            >
-              <select
-                id="paymentMethod"
-                name="paymentMethod"
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                {...stylex.props(styles.field)}
-              >
-                <option value="">{t('form.paymentUnset')}</option>
-                <option value="CASH">{t('form.paymentCash')}</option>
-                <option value="CARD">{t('form.paymentCard')}</option>
-                <option value="BANK_TRANSFER">{t('form.paymentBankTransfer')}</option>
-              </select>
-            </LabeledField>
+            )}
 
             <Text type="supporting" color="secondary" display="block">
               {t('form.status')}
@@ -529,43 +562,49 @@ export function MemberForm(props: Props) {
       ) : null}
 
       {/* Medical notes + tags. */}
-      <Card variant="default" padding={4} xstyle={styles.formSection}>
-        <Stack gap={3}>
-          <Text type="label" weight="semibold" color="secondary" display="block">
-            {t('form.medicalSection')}
-          </Text>
-          <LabeledField
-            label={t('form.medicalSection')}
-            htmlFor="medicalNotes"
-            optional={t('form.optional')}
-          >
-            <textarea
-              id="medicalNotes"
-              name="medicalNotes"
-              rows={3}
-              placeholder={t('form.medicalPlaceholder')}
-              value={medicalNotes}
-              onChange={(e) => setMedicalNotes(e.target.value)}
-              {...stylex.props(styles.textarea)}
-            />
-          </LabeledField>
-          <LabeledField
-            label={t('form.tags')}
-            htmlFor="tags"
-            optional={t('form.optional')}
-            hint={t('form.tagsHint')}
-          >
-            <input
-              id="tags"
-              name="tags"
-              type="text"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              {...stylex.props(styles.field)}
-            />
-          </LabeledField>
-        </Stack>
-      </Card>
+      {show('medicalNotes') || show('tags') ? (
+        <Card variant="default" padding={4} xstyle={styles.formSection}>
+          <Stack gap={3}>
+            <Text type="label" weight="semibold" color="secondary" display="block">
+              {t('form.medicalSection')}
+            </Text>
+            {show('medicalNotes') && (
+              <LabeledField
+                label={t('form.medicalSection')}
+                htmlFor="medicalNotes"
+                optional={t('form.optional')}
+              >
+                <textarea
+                  id="medicalNotes"
+                  name="medicalNotes"
+                  rows={3}
+                  placeholder={t('form.medicalPlaceholder')}
+                  value={medicalNotes}
+                  onChange={(e) => setMedicalNotes(e.target.value)}
+                  {...stylex.props(styles.textarea)}
+                />
+              </LabeledField>
+            )}
+            {show('tags') && (
+              <LabeledField
+                label={t('form.tags')}
+                htmlFor="tags"
+                optional={t('form.optional')}
+                hint={t('form.tagsHint')}
+              >
+                <input
+                  id="tags"
+                  name="tags"
+                  type="text"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  {...stylex.props(styles.field)}
+                />
+              </LabeledField>
+            )}
+          </Stack>
+        </Card>
+      ) : null}
 
       <div {...stylex.props(styles.footer, props.onCancel && styles.drawerFooter)}>
         {error ? (
