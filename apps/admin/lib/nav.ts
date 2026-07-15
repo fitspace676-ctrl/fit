@@ -44,7 +44,6 @@ export type NavIcon =
   | 'workouts'
   | 'billing'
   | 'staff'
-  | 'crm'
   | 'automation'
   | 'marketing'
   | 'loyalty'
@@ -92,12 +91,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     minRole: 'OWNER',
   },
   {
-    labelKey: 'nav.crm',
-    href: '/crm',
-    icon: 'crm',
-    permission: Permission.CrmRead,
-  },
-  {
     labelKey: 'nav.automation',
     href: '/automation',
     icon: 'automation',
@@ -140,7 +133,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   { labelKey: 'navGroups.people', hrefs: ['/members', '/staff'] },
   { labelKey: 'navGroups.operations', hrefs: ['/classes'] },
   { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/pos'] },
-  { labelKey: 'navGroups.growth', hrefs: ['/crm', '/automation', '/marketing'] },
+  { labelKey: 'navGroups.growth', hrefs: ['/automation', '/marketing'] },
   { labelKey: 'navGroups.insights', hrefs: ['/reports'] },
   { labelKey: 'navGroups.system', hrefs: ['/settings'] },
 ];

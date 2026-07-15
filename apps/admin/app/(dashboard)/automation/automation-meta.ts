@@ -10,7 +10,6 @@ import type { Tone } from '@/components/ui';
 /** The category order the trigger picker groups triggers into. */
 export const TRIGGER_CATEGORY_ORDER: readonly AutomationTriggerCategory[] = [
   'Members',
-  'CRM/Leads',
   'Classes',
   'Payments',
   'POS',
@@ -20,7 +19,6 @@ export const TRIGGER_CATEGORY_ORDER: readonly AutomationTriggerCategory[] = [
 /** i18n key suffix for a trigger category (dots aren't valid message keys). */
 export const CATEGORY_KEY: Record<AutomationTriggerCategory, string> = {
   Members: 'members',
-  'CRM/Leads': 'leads',
   Classes: 'classes',
   Payments: 'payments',
   POS: 'pos',
@@ -30,7 +28,6 @@ export const CATEGORY_KEY: Record<AutomationTriggerCategory, string> = {
 /** Badge tone per category, so the list reads at a glance. */
 export const CATEGORY_TONES: Record<AutomationTriggerCategory, Tone> = {
   Members: 'accent',
-  'CRM/Leads': 'iris',
   Classes: 'success',
   Payments: 'warning',
   POS: 'ink',
@@ -98,17 +95,6 @@ export const MERGE_VARIABLE_GROUPS: readonly MergeVariableGroup[] = [
       { token: '{{member_checkin_count}}', key: 'memberCheckinCount' },
       { token: '{{member_points_balance}}', key: 'memberPointsBalance' },
       { token: '{{member_location}}', key: 'memberLocation' },
-    ],
-  },
-  {
-    category: 'lead',
-    variables: [
-      { token: '{{lead_first_name}}', key: 'leadFirstName' },
-      { token: '{{lead_last_name}}', key: 'leadLastName' },
-      { token: '{{lead_source}}', key: 'leadSource' },
-      { token: '{{lead_stage}}', key: 'leadStage' },
-      { token: '{{lead_assigned_to}}', key: 'leadAssignedTo' },
-      { token: '{{lead_last_contact_date}}', key: 'leadLastContactDate' },
     ],
   },
   {

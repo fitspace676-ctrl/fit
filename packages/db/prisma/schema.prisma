@@ -570,6 +570,15 @@ model GymMember {
   status   GymMemberStatus @default(ACTIVE)
   joinedAt DateTime        @default(now())
 
+  // Soft-delete "trash" (T-members-trash). When set, the membership was moved to
+  // trash: it is hidden from the roster, tab counts, plan mix, check-in, and the
+  // dashboard's live counts, but the row (and its history) survives so staff can
+  // restore it. A daily unscoped purge cron hard-deletes rows whose `deletedAt` is
+  // older than the 30-day retention window (cascading the member-owned children;
+  // `Order`/`Invoice` are `SetNull`, so financial history is preserved). `null`
+  // means a live member — the normal state.
+  deletedAt DateTime?
+
   // Staff-managed profile extras (T4.x). Held on the gym membership (not the
   // cross-gym `User`) so each gym keeps its own record of a person; all nullable
   // and optional. `tags` are colour-keyed labels the roster + detail render.
@@ -611,6 +620,9 @@ model GymMember {
   // tenant-scoped `gymId` lookups the old single-column index served.
   @@index([gymId, role, status])
   @@index([gymId, role, joinedAt])
+  // The trash view lists soft-deleted members and the purge cron scans them by
+  // `deletedAt`, both gym-scoped — this composite serves both without a table scan.
+  @@index([gymId, deletedAt])
   @@map("gym_members")
 }
 

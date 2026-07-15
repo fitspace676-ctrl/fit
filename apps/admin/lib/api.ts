@@ -17,12 +17,12 @@ import type {
   DashboardStatsResponse,
   DashboardOverviewResponse,
   DashboardRange,
+  DashboardPeriod,
   AdminAnalyticsResponse,
   AnalyticsRange,
   CreateMemberInput,
   CreateMemberNoteInput,
   CreateMemberResponse,
-  CreateMemberTaskInput,
   CreateTrainerData,
   CreateTrainerResponse,
   ListActivityQuery,
@@ -105,12 +105,13 @@ import type {
   UpdateStaffScheduleInput,
   SetLocationStatusResponse,
   SetMemberStatusResponse,
+  SendMemberEmailInput,
+  SendMemberEmailResponse,
   SetProductStatusResponse,
   SetTrainerStatusResponse,
   UpdateLocationData,
   UpdateLocationResponse,
   UpdateMemberInput,
-  UpdateMemberTaskInput,
   UpdateMemberResponse,
   UpdateProductData,
   UpdateProductResponse,
@@ -150,26 +151,6 @@ import type {
   DashboardPinsResponse,
   DashboardWidgetsResponse,
   CreateDashboardPin,
-  ListLeadsQuery,
-  ListLeadsResponse,
-  GetLeadResponse,
-  CreateLeadInput,
-  UpdateLeadInput,
-  MarkWonInput,
-  MarkLostInput,
-  CreateCrmActivityInput,
-  CreateCrmActivityResponse,
-  CreateCrmTaskInput,
-  UpdateCrmTaskInput,
-  CrmTaskResponse,
-  ListOpportunitiesQuery,
-  ListOpportunitiesResponse,
-  GetOpportunityResponse,
-  CreateOpportunityInput,
-  UpdateOpportunityInput,
-  CrmPipelineResponse,
-  CrmForecastResponse,
-  RecentCrmActivitiesResponse,
   ListAutomationRulesQuery,
   ListAutomationRulesResponse,
   ListAutomationTemplatesResponse,
@@ -211,9 +192,6 @@ import type {
   UpdateLoyaltyRewardInput,
   ListRedemptionsQuery,
   ListRedemptionsResponse,
-  MemberLoyaltyResponse,
-  MemberBalanceResponse,
-  AdjustLoyaltyPointsInput,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
@@ -350,6 +328,40 @@ export async function reactivateMember(id: string): Promise<SetMemberStatusRespo
   return unwrap<SetMemberStatusResponse>(res);
 }
 
+/** `POST /members/:id/trash` — move the member to trash (soft-delete); returns its detail. */
+export async function trashMember(id: string): Promise<SetMemberStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}/trash`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetMemberStatusResponse>(res);
+}
+
+/** `POST /members/:id/restore` — restore a trashed member to the live roster; returns its detail. */
+export async function restoreMember(id: string): Promise<SetMemberStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}/restore`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SetMemberStatusResponse>(res);
+}
+
+/** `POST /members/:id/email` — send a one-off staff email to the member. */
+export async function sendMemberEmail(
+  id: string,
+  input: SendMemberEmailInput,
+): Promise<SendMemberEmailResponse> {
+  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<SendMemberEmailResponse>(res);
+}
+
 /** `POST /members/:id/notes` — add a staff note; returns the fresh member detail. */
 export async function createMemberNote(
   id: string,
@@ -361,38 +373,6 @@ export async function createMemberNote(
     body: JSON.stringify(input),
     cache: 'no-store',
   });
-  return unwrap<GetMemberResponse>(res);
-}
-
-/** `POST /members/:id/tasks` — log a follow-up task; returns the fresh member detail. */
-export async function createMemberTask(
-  id: string,
-  input: CreateMemberTaskInput,
-): Promise<GetMemberResponse> {
-  const res = await fetch(`${apiBaseUrl()}/members/${encodeURIComponent(id)}/tasks`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetMemberResponse>(res);
-}
-
-/** `PATCH /members/:id/tasks/:taskId` — toggle a task's status; returns the detail. */
-export async function updateMemberTask(
-  id: string,
-  taskId: string,
-  input: UpdateMemberTaskInput,
-): Promise<GetMemberResponse> {
-  const res = await fetch(
-    `${apiBaseUrl()}/members/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}`,
-    {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-      body: JSON.stringify(input),
-      cache: 'no-store',
-    },
-  );
   return unwrap<GetMemberResponse>(res);
 }
 
@@ -1411,17 +1391,26 @@ export async function fetchDashboardStats(): Promise<DashboardStatsResponse> {
 }
 
 /**
- * `GET /dashboard/overview?range=` — the FormaCore control-room overview (live
- * occupancy, today's KPIs, the range-windowed revenue series, plan mix, today's
+ * `GET /dashboard/overview` — the FormaCore control-room overview (live occupancy,
+ * the period-bounded KPIs, the range-windowed revenue series, plan mix, today's
  * schedule, real-event alerts, recent check-ins) for the caller's own gym. Gated
- * `ReportView` API-side. `range` defaults to `7d` when omitted; the API
- * re-validates it with the same Zod schema.
+ * `ReportView` API-side. `range` shapes the revenue chart (default `7d`); `period`
+ * (+ `from`/`to` for `custom`) drives the KPI cards (default `today`). The API
+ * re-validates every field with the same Zod schema.
  */
-export async function fetchDashboardOverview(
-  range?: DashboardRange,
-): Promise<DashboardOverviewResponse> {
-  const qs = range ? `?range=${encodeURIComponent(range)}` : '';
-  const res = await fetch(`${apiBaseUrl()}/dashboard/overview${qs}`, {
+export async function fetchDashboardOverview(params?: {
+  range?: DashboardRange;
+  period?: DashboardPeriod;
+  from?: string;
+  to?: string;
+}): Promise<DashboardOverviewResponse> {
+  const qs = new URLSearchParams();
+  if (params?.range) qs.set('range', params.range);
+  if (params?.period) qs.set('period', params.period);
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  const query = qs.toString();
+  const res = await fetch(`${apiBaseUrl()}/dashboard/overview${query ? `?${query}` : ''}`, {
     headers: await authHeaders(),
     // The dashboard reflects live tenant state — never serve a stale snapshot.
     cache: 'no-store',
@@ -1948,274 +1937,6 @@ export async function fetchInvoicePdf(id: string): Promise<Response> {
   });
 }
 
-// ── CRM — leads, activities, tasks (T12.3) ────────────────────────────────────
-
-/** Serialise a leads-list query, dropping empty values (same contract as the roster). */
-export function leadsQueryString(query: Partial<ListLeadsQuery>): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || value === null || value === '') {
-      continue;
-    }
-    params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : '';
-}
-
-/** `GET /crm/leads` — one filtered, server-paginated page plus per-status counts. */
-export async function fetchLeads(query: Partial<ListLeadsQuery> = {}): Promise<ListLeadsResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/leads${leadsQueryString(query)}`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<ListLeadsResponse>(res);
-}
-
-/** `GET /crm/leads/:id` — one lead's detail (row + activity timeline + tasks). */
-export async function fetchLead(id: string): Promise<GetLeadResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<GetLeadResponse>(res);
-}
-
-/** `POST /crm/leads` — capture a lead; returns the new lead's detail. */
-export async function createLead(input: CreateLeadInput): Promise<GetLeadResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/leads`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetLeadResponse>(res);
-}
-
-/** `PATCH /crm/leads/:id` — edit a lead (open-stage `status` moves only). */
-export async function updateLead(id: string, input: UpdateLeadInput): Promise<GetLeadResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetLeadResponse>(res);
-}
-
-/** `POST /crm/leads/:id/convert` — close the lead CONVERTED, recording the win reason. */
-export async function convertLead(id: string, input: MarkWonInput): Promise<GetLeadResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}/convert`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetLeadResponse>(res);
-}
-
-/** `POST /crm/leads/:id/lose` — close the lead LOST, recording the required reason. */
-export async function loseLead(id: string, input: MarkLostInput): Promise<GetLeadResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}/lose`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetLeadResponse>(res);
-}
-
-/** `DELETE /crm/leads/:id` — remove a lead (its activities/tasks cascade). */
-export async function deleteLead(id: string): Promise<void> {
-  const res = await fetch(`${apiBaseUrl()}/crm/leads/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    await unwrap<never>(res);
-  }
-}
-
-/** `POST /crm/activities` — log a touchpoint against a lead or an opportunity. */
-export async function createCrmActivity(
-  input: CreateCrmActivityInput,
-): Promise<CreateCrmActivityResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/activities`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<CreateCrmActivityResponse>(res);
-}
-
-/** `POST /crm/tasks` — add a follow-up to-do to a lead or an opportunity. */
-export async function createCrmTask(input: CreateCrmTaskInput): Promise<CrmTaskResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/tasks`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<CrmTaskResponse>(res);
-}
-
-/** `PATCH /crm/tasks/:id` — edit / complete a task (completion auto-logs an activity). */
-export async function updateCrmTask(
-  id: string,
-  input: UpdateCrmTaskInput,
-): Promise<CrmTaskResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/tasks/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<CrmTaskResponse>(res);
-}
-
-/** `DELETE /crm/tasks/:id` — remove a task. */
-export async function deleteCrmTask(id: string): Promise<void> {
-  const res = await fetch(`${apiBaseUrl()}/crm/tasks/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    await unwrap<never>(res);
-  }
-}
-
-// ── CRM — opportunities, pipeline, forecast (T12.4) ───────────────────────────
-
-/** Serialise an opportunities-list query, dropping empty values (same contract as leads). */
-export function opportunitiesQueryString(query: Partial<ListOpportunitiesQuery>): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || value === null || value === '') {
-      continue;
-    }
-    params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : '';
-}
-
-/** `GET /crm/opportunities` — one filtered, server-paginated page plus per-status counts. */
-export async function fetchOpportunities(
-  query: Partial<ListOpportunitiesQuery> = {},
-): Promise<ListOpportunitiesResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/opportunities${opportunitiesQueryString(query)}`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<ListOpportunitiesResponse>(res);
-}
-
-/** `GET /crm/opportunities/:id` — one opportunity's detail (row + timeline + tasks). */
-export async function fetchOpportunity(id: string): Promise<GetOpportunityResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<GetOpportunityResponse>(res);
-}
-
-/** `POST /crm/opportunities` — open an opportunity; returns the new opportunity's detail. */
-export async function createOpportunity(
-  input: CreateOpportunityInput,
-): Promise<GetOpportunityResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/opportunities`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetOpportunityResponse>(res);
-}
-
-/** `PATCH /crm/opportunities/:id` — edit an opportunity (open-stage `status` moves only). */
-export async function updateOpportunity(
-  id: string,
-  input: UpdateOpportunityInput,
-): Promise<GetOpportunityResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetOpportunityResponse>(res);
-}
-
-/** `POST /crm/opportunities/:id/won` — close the opportunity WON, recording the win reason. */
-export async function winOpportunity(
-  id: string,
-  input: MarkWonInput,
-): Promise<GetOpportunityResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}/won`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetOpportunityResponse>(res);
-}
-
-/** `POST /crm/opportunities/:id/lost` — close the opportunity LOST, recording the required reason. */
-export async function loseOpportunity(
-  id: string,
-  input: MarkLostInput,
-): Promise<GetOpportunityResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}/lost`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<GetOpportunityResponse>(res);
-}
-
-/** `DELETE /crm/opportunities/:id` — remove an opportunity (its activities/tasks cascade). */
-export async function deleteOpportunity(id: string): Promise<void> {
-  const res = await fetch(`${apiBaseUrl()}/crm/opportunities/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    await unwrap<never>(res);
-  }
-}
-
-/** `GET /crm/pipeline` — the combined funnel: per-stage count/value/weighted + totals. */
-export async function fetchCrmPipeline(): Promise<CrmPipelineResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/pipeline`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<CrmPipelineResponse>(res);
-}
-
-/** `GET /crm/forecast` — expected/potential revenue of open deals, by expected-close month. */
-export async function fetchCrmForecast(): Promise<CrmForecastResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/forecast`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<CrmForecastResponse>(res);
-}
-
-/** `GET /crm/activities/recent` — the gym's newest touchpoints across leads + opportunities. */
-export async function fetchRecentCrmActivities(limit = 20): Promise<RecentCrmActivitiesResponse> {
-  const res = await fetch(`${apiBaseUrl()}/crm/activities/recent?limit=${limit}`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<RecentCrmActivitiesResponse>(res);
-}
-
 // ── Automation — rules, templates, catalog (T12.6) ────────────────────────────
 
 /** Serialise an automation-rules query, dropping empty values (same roster contract). */
@@ -2739,30 +2460,4 @@ export async function fetchRedemptions(
     cache: 'no-store',
   });
   return unwrap<ListRedemptionsResponse>(res);
-}
-
-/** `GET /loyalty/members/:memberId` — a member's balance plus recent ledger. */
-export async function fetchMemberLoyalty(memberId: string): Promise<MemberLoyaltyResponse> {
-  const res = await fetch(`${apiBaseUrl()}/loyalty/members/${encodeURIComponent(memberId)}`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<MemberLoyaltyResponse>(res);
-}
-
-/** `POST /loyalty/members/:memberId/adjust` — apply a signed points adjustment. */
-export async function adjustMemberPoints(
-  memberId: string,
-  input: AdjustLoyaltyPointsInput,
-): Promise<MemberBalanceResponse> {
-  const res = await fetch(
-    `${apiBaseUrl()}/loyalty/members/${encodeURIComponent(memberId)}/adjust`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-      body: JSON.stringify(input),
-      cache: 'no-store',
-    },
-  );
-  return unwrap<MemberBalanceResponse>(res);
 }

@@ -231,6 +231,18 @@ export const envSchema = z.object({
   // calendar into one tick.
   BOOKING_REMINDER_LEAD_MINUTES: z.coerce.number().int().positive().max(10080).default(120),
 
+  // ── Member trash purge (T-members-trash) ──
+  // Master switch for the daily cron that permanently deletes members soft-deleted
+  // (trashed) longer than the 30-day retention window. Off by default so it never
+  // hard-deletes in dev / CI / a preview environment; a production deploy sets it
+  // true. A single Redis lock guards each daily window, so it is safe to enable on
+  // every replica (only one wins). `"true"` enables; anything else (incl. unset)
+  // leaves it disabled.
+  MEMBER_PURGE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
   // ── Ops notifications (T8.8) ──
   // Master switch for the low-stock digest cron that emails each gym's
   // owners/managers a reorder heads-up when a product's on-hand stock has fallen to

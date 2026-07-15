@@ -37,17 +37,18 @@ export class DashboardController {
   }
 
   /**
-   * `GET /dashboard/overview?range=` — the FormaCore control-room overview: the
-   * live occupancy card, today's revenue / check-ins / new-member KPIs, a
-   * range-windowed revenue series (`7d` default, `30d`, `12w`), the live plan mix,
-   * today's class schedule, real-event alerts, and the recent-check-ins feed. All
-   * scoped to the caller's own gym; `range` is re-validated by the same Zod schema.
+   * `GET /dashboard/overview?range=&period=&from=&to=` — the FormaCore control-room
+   * overview: the live occupancy card, the period-bounded revenue / check-ins /
+   * new-member / classes KPIs (`period` = `today` default / `week` / `month` /
+   * `custom` with `from`/`to`), a range-windowed revenue series (`7d` default,
+   * `30d`, `12w`), the live plan mix, today's class schedule, real-event alerts, and
+   * the recent-check-ins feed. All scoped to the caller's own gym; the query is
+   * re-validated by the same Zod schema.
    */
   @Get('overview')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ReportView)
   async overview(@Query() query: unknown): Promise<DashboardOverviewResponse> {
-    const { range } = dashboardOverviewQuerySchema.parse(query);
-    return this.dashboard.getOverview(range);
+    return this.dashboard.getOverview(dashboardOverviewQuerySchema.parse(query));
   }
 }

@@ -5,6 +5,7 @@ import {
   createCampaignSchema,
   createPromoCodeSchema,
   createMessageTemplateSchema,
+  interpolateMergeFields,
   listCampaignsQuerySchema,
   marketingChannelSchema,
   updatePromoCodeSchema,
@@ -151,5 +152,47 @@ describe('listCampaignsQuerySchema', () => {
     expect(parsed.limit).toBe(10);
     expect(parsed.sort).toBe('createdAt');
     expect(parsed.dir).toBe('desc');
+  });
+});
+
+describe('interpolateMergeFields', () => {
+  it('replaces provided tokens with their values', () => {
+    const out = interpolateMergeFields('Hi {{first_name}} {{last_name}}!', {
+      first_name: 'Davit',
+      last_name: 'Kvaratskhelia',
+    });
+    expect(out).toBe('Hi Davit Kvaratskhelia!');
+  });
+
+  it('is case-insensitive and tolerates inner whitespace', () => {
+    expect(interpolateMergeFields('Hi {{ First_Name }}', { first_name: 'Davit' })).toBe('Hi Davit');
+  });
+
+  it('blanks a known catalog token with no provided value (never leaks raw braces)', () => {
+    expect(interpolateMergeFields('Plan: {{plan_name}}.', {})).toBe('Plan: .');
+  });
+
+  it('leaves an unknown token untouched (a visible typo for staff)', () => {
+    expect(interpolateMergeFields('Hi {{frist_name}}', { first_name: 'Davit' })).toBe(
+      'Hi {{frist_name}}',
+    );
+  });
+
+  it('replaces every occurrence of a repeated token', () => {
+    expect(interpolateMergeFields('{{first_name}} {{first_name}}', { first_name: 'Ana' })).toBe(
+      'Ana Ana',
+    );
+  });
+
+  it('with blankMissing:false leaves a known-but-unprovided token raw (client preview)', () => {
+    expect(
+      interpolateMergeFields(
+        'Hi {{first_name}} — {{business_name}}',
+        { first_name: 'Ana' },
+        {
+          blankMissing: false,
+        },
+      ),
+    ).toBe('Hi Ana — {{business_name}}');
   });
 });

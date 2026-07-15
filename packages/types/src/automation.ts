@@ -15,10 +15,9 @@ import { z } from 'zod';
 // Trigger catalog
 // ---------------------------------------------------------------------------
 
-/** The six groups the trigger picker is organised into. */
+/** The five groups the trigger picker is organised into. */
 export const automationTriggerCategorySchema = z.enum([
   'Members',
-  'CRM/Leads',
   'Classes',
   'Payments',
   'POS',
@@ -42,7 +41,9 @@ export const automationTriggerTypeSchema = z.enum([
   'checkin_milestone',
   'plan_upgraded',
   'plan_downgraded',
-  // CRM / Leads
+  // Retained to mirror the Prisma `AutomationTriggerType` enum (CRM was removed from
+  // the product, but its DB models stay); these are no longer offered in the trigger
+  // catalog, so staff can't select them.
   'lead_created',
   'lead_stage_changed',
   'lead_won',
@@ -141,23 +142,6 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
   },
   { value: 'plan_upgraded', label: 'Plan upgraded', category: 'Members', needsDays: false },
   { value: 'plan_downgraded', label: 'Plan downgraded', category: 'Members', needsDays: false },
-  // CRM / Leads
-  { value: 'lead_created', label: 'New lead created', category: 'CRM/Leads', needsDays: false },
-  {
-    value: 'lead_stage_changed',
-    label: 'Lead stage changed',
-    category: 'CRM/Leads',
-    needsDays: false,
-  },
-  { value: 'lead_won', label: 'Lead marked won', category: 'CRM/Leads', needsDays: false },
-  { value: 'lead_lost', label: 'Lead marked lost', category: 'CRM/Leads', needsDays: false },
-  {
-    value: 'lead_no_activity',
-    label: 'No activity on lead for X days',
-    category: 'CRM/Leads',
-    needsDays: true,
-    daysLabel: 'days',
-  },
   // Classes
   { value: 'class_booked', label: 'Class booked', category: 'Classes', needsDays: false },
   {
@@ -376,7 +360,7 @@ const coercedBooleanFlag = z
 export const automationRuleSortSchema = z.enum(['createdAt', 'updatedAt', 'name']);
 
 /**
- * Query for `GET /automation/rules`. Server-paginated like the CRM lists;
+ * Query for `GET /automation/rules`. Server-paginated;
  * `isTemplate` is always false here (templates have their own endpoint). `active`
  * / `triggerType` narrow the list, `search` matches the rule name.
  */
@@ -423,7 +407,7 @@ export interface AutomationStats {
 
 /**
  * The rule body shared by create and save-as-template. A `needsDays` trigger
- * (`membership_expiring`, `no_checkin`, `checkin_milestone`, `lead_no_activity`)
+ * (`membership_expiring`, `no_checkin`, `checkin_milestone`)
  * must carry `triggerConfig.days`; the refine rejects it otherwise so a
  * half-configured rule never persists.
  */

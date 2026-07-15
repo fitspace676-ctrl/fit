@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
   BookingStatus,
-  LeadSource,
-  LeadStatus,
   LoyaltyRedemptionStatus,
   LoyaltyRewardType,
-  OpportunityStatus,
   PaymentMethod,
   PaymentStatus,
   ReviewStatus,
@@ -14,7 +11,6 @@ import {
 } from '@fit/db';
 import {
   REPORT_METRIC_DEFINITIONS,
-  type ReportBreakdownItem,
   type ReportDrilldown,
   type ReportDrilldownQuery,
   type ReportDrilldownRow,
@@ -66,30 +62,6 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   [PaymentMethod.MEMBER_ACCOUNT]: 'Member account',
 };
 
-/** Human labels for lead sources, driving the CRM by-source aggregations. */
-const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
-  [LeadSource.WALK_IN]: 'Walk-in',
-  [LeadSource.INSTAGRAM]: 'Instagram',
-  [LeadSource.REFERRAL]: 'Referral',
-  [LeadSource.WEBSITE]: 'Website',
-};
-
-/** Lead lifecycle stages in funnel order (top of funnel → closed), for the CRM funnel. */
-const LEAD_FUNNEL: readonly { status: LeadStatus; label: string }[] = [
-  { status: LeadStatus.NEW, label: 'New' },
-  { status: LeadStatus.CONTACTED, label: 'Contacted' },
-  { status: LeadStatus.TRIAL, label: 'Trial' },
-  { status: LeadStatus.CONVERTED, label: 'Converted' },
-  { status: LeadStatus.LOST, label: 'Lost' },
-];
-
-/** Lead statuses that are still open pipeline (not yet converted or lost). */
-const OPEN_LEAD_STATUSES: readonly LeadStatus[] = [
-  LeadStatus.NEW,
-  LeadStatus.CONTACTED,
-  LeadStatus.TRIAL,
-];
-
 /** Human labels for loyalty reward types, driving the by-reward-type breakdown. */
 const REWARD_TYPE_LABELS: Record<LoyaltyRewardType, string> = {
   [LoyaltyRewardType.pt_session]: 'PT session',
@@ -126,13 +98,6 @@ interface TrainerAgg {
   noShow: number;
   ratingSum: number;
   ratingCount: number;
-}
-
-/** Per-source running aggregate for the CRM lead-source performance table. */
-interface LeadSourceAgg {
-  leads: number;
-  converted: number;
-  wonValue: number;
 }
 
 /**
@@ -204,8 +169,6 @@ export class ReportDrilldownService {
         return this.staff(win);
       case 'pos':
         return this.pos(win);
-      case 'crm':
-        return this.crm(win);
       case 'loyalty':
         return this.loyalty(win);
     }
@@ -1052,175 +1015,6 @@ export class ReportDrilldownService {
   }
 
   /* ---------------------------------------------------------------------- */
-  /*  CRM                                                                    */
-  /* ---------------------------------------------------------------------- */
-
-  /**
-   * Sales-pipeline health from the CRM {@link Lead} / {@link Opportunity} rows
-   * (T12.2). Leads *created* in the window drive the by-source breakdown, the
-   * conversion funnel, and the source-performance table; the weighted pipeline value
-   * (`value × probability / 100`) of deals created in the window drives the trend,
-   * while the headline pipeline KPI is the whole gym's live open pipeline. Deal
-   * sizes are MINOR-unit integers, so the money figures format against the gym's
-   * reporting currency.
-   */
-  private async crm(win: ReportWindow): Promise<ComputedDrilldown> {
-    const [leads, opportunities, currency] = await Promise.all([
-      this.prisma.client.lead.findMany({
-        select: {
-          source: true,
-          status: true,
-          expectedValue: true,
-          probability: true,
-          createdAt: true,
-        },
-      }),
-      this.prisma.client.opportunity.findMany({
-        select: { status: true, value: true, probability: true, createdAt: true },
-      }),
-      this.resolveCurrency(),
-    ]);
-
-    const inWindow = leads.filter(
-      (lead) => lead.createdAt >= win.start && lead.createdAt < win.end,
-    );
-
-    // Leads by source + funnel + per-source performance, over leads created in-window.
-    const bySource = new Map<string, number>();
-    const funnelCounts = new Map<LeadStatus, number>();
-    const perSource = new Map<string, LeadSourceAgg>();
-    for (const lead of inWindow) {
-      const sourceLabel = LEAD_SOURCE_LABELS[lead.source];
-      bySource.set(sourceLabel, (bySource.get(sourceLabel) ?? 0) + 1);
-      funnelCounts.set(lead.status, (funnelCounts.get(lead.status) ?? 0) + 1);
-
-      let agg = perSource.get(sourceLabel);
-      if (!agg) {
-        agg = { leads: 0, converted: 0, wonValue: 0 };
-        perSource.set(sourceLabel, agg);
-      }
-      agg.leads += 1;
-      if (lead.status === LeadStatus.CONVERTED) {
-        agg.converted += 1;
-        agg.wonValue += lead.expectedValue;
-      }
-    }
-
-    // Weighted pipeline value of open deals created per bucket (leads + opportunities).
-    const pipelineTrend = emptyBuckets(win);
-    const addWeighted = (
-      createdAt: Date,
-      isOpen: boolean,
-      value: number,
-      probability: number,
-    ): void => {
-      if (!isOpen) {
-        return;
-      }
-      const key = bucketKey(createdAt, win.bucket);
-      if (pipelineTrend.has(key)) {
-        pipelineTrend.set(key, (pipelineTrend.get(key) ?? 0) + weighted(value, probability));
-      }
-    };
-    for (const lead of inWindow) {
-      addWeighted(
-        lead.createdAt,
-        (OPEN_LEAD_STATUSES as LeadStatus[]).includes(lead.status),
-        lead.expectedValue,
-        lead.probability,
-      );
-    }
-    for (const opp of opportunities) {
-      if (opp.createdAt < win.start || opp.createdAt >= win.end) {
-        continue;
-      }
-      addWeighted(opp.createdAt, isOpenOpportunity(opp.status), opp.value, opp.probability);
-    }
-
-    // Live open pipeline across the whole gym (not just the window) for the KPI.
-    let openPipeline = 0;
-    for (const lead of leads) {
-      if ((OPEN_LEAD_STATUSES as LeadStatus[]).includes(lead.status)) {
-        openPipeline += weighted(lead.expectedValue, lead.probability);
-      }
-    }
-    for (const opp of opportunities) {
-      if (isOpenOpportunity(opp.status)) {
-        openPipeline += weighted(opp.value, opp.probability);
-      }
-    }
-
-    const newLeads = inWindow.length;
-    const converted = inWindow.filter((lead) => lead.status === LeadStatus.CONVERTED).length;
-
-    const kpis: ReportKpi[] = [
-      { id: 'new-leads', label: 'New leads', value: newLeads, unit: 'count' },
-      { id: 'converted', label: 'Converted', value: converted, unit: 'count' },
-      {
-        id: 'conversion-rate',
-        label: 'Conversion rate',
-        value: newLeads === 0 ? 0 : rate(converted, newLeads),
-        unit: 'percent',
-      },
-      { id: 'open-pipeline', label: 'Open pipeline', value: openPipeline, unit: 'money' },
-    ];
-
-    const funnelItems: ReportBreakdownItem[] = LEAD_FUNNEL.map(({ status, label }) => ({
-      label,
-      value: funnelCounts.get(status) ?? 0,
-    })).filter((item) => item.value !== 0);
-
-    const sections: ReportSection[] = [
-      {
-        kind: 'breakdown',
-        id: 'leads-by-source',
-        title: 'Leads by source',
-        unit: 'count',
-        items: sortedBreakdown(bySource),
-      },
-      {
-        kind: 'breakdown',
-        id: 'conversion-funnel',
-        title: 'Conversion funnel',
-        unit: 'count',
-        items: funnelItems,
-      },
-      {
-        kind: 'series',
-        id: 'pipeline-value-over-time',
-        title: 'Pipeline value over time',
-        unit: 'money',
-        points: [...pipelineTrend.entries()].map(([label, value]) => ({ label, value })),
-      },
-      {
-        kind: 'table',
-        id: 'lead-source-performance',
-        title: 'Lead source performance',
-        columns: [
-          { key: 'source', label: 'Source', type: 'text' },
-          { key: 'leads', label: 'Leads', type: 'number' },
-          { key: 'converted', label: 'Converted', type: 'number' },
-          { key: 'conversionRate', label: 'Conversion', type: 'percent' },
-          { key: 'wonValue', label: 'Won value', type: 'money' },
-        ],
-        rows: [...perSource.entries()]
-          .sort(([, a], [, b]) => b.leads - a.leads)
-          .map(
-            ([source, agg]): ReportDrilldownRow => ({
-              source,
-              leads: agg.leads,
-              converted: agg.converted,
-              conversionRate: agg.leads === 0 ? 0 : rate(agg.converted, agg.leads),
-              wonValue: agg.wonValue,
-            }),
-          ),
-      },
-    ];
-
-    return { currency, kpis, sections };
-  }
-
-  /* ---------------------------------------------------------------------- */
   /*  Loyalty                                                                */
   /* ---------------------------------------------------------------------- */
 
@@ -1389,20 +1183,6 @@ function sortedBreakdown(totals: Map<string, number>): { label: string; value: n
     .map(([label, value]) => ({ label, value }))
     .filter((item) => item.value !== 0)
     .sort((a, b) => b.value - a.value);
-}
-
-/** A deal's probability-weighted expected value, in MINOR units (`value × p / 100`). */
-function weighted(value: number, probability: number): number {
-  return Math.round((value * probability) / 100);
-}
-
-/** Whether an opportunity is still open pipeline (not yet WON or LOST). */
-function isOpenOpportunity(status: OpportunityStatus): boolean {
-  return (
-    status === OpportunityStatus.INTERESTED ||
-    status === OpportunityStatus.PROPOSAL_SENT ||
-    status === OpportunityStatus.DECISION_PENDING
-  );
 }
 
 /** Capitalise a lowercase enum value for display (e.g. `fulfilled` → `Fulfilled`). */

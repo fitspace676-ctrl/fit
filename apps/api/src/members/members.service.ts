@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
@@ -40,15 +41,21 @@ import type {
   MemberRow,
   MemberTabCounts,
   MemberTaskEntry,
+  MergeValues,
+  SendMemberEmailInput,
+  SendMemberEmailResponse,
   SetMemberStatusResponse,
   UpdateMemberInput,
   UpdateMemberTaskInput,
   UpdateMemberResponse,
 } from '@fit/types';
+import { interpolateMergeFields } from '@fit/types';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
+import { MailerService } from '../mail/mailer.service';
+import { renderBrandedEmail, escapeHtml } from '../mail/branded-email';
 
 /** A subscription is "live" (occupies the member's slot) in these states — including
  *  TRIAL, a free trial that still holds the slot before it converts (T5.6). */
@@ -101,6 +108,7 @@ const MEMBER_SELECT = {
   id: true,
   status: true,
   joinedAt: true,
+  deletedAt: true,
   dateOfBirth: true,
   gender: true,
   address: true,
@@ -156,6 +164,7 @@ export class MembersService {
     private readonly tenant: TenantContext,
     private readonly automation: AutomationExecutorService,
     private readonly loyalty: LoyaltyPointsService,
+    private readonly mailer: MailerService,
   ) {}
 
   /**
@@ -235,9 +244,19 @@ export class MembersService {
       if (existing) {
         const already = await tx.gymMember.findFirst({
           where: { userId: existing.id },
-          select: { id: true },
+          select: { id: true, deletedAt: true },
         });
         if (already) {
+          // A trashed prior membership occupies the `@@unique([userId, gymId])`
+          // slot — re-adding would collide, so steer staff to restore instead
+          // (the response carries the member id the client links to).
+          if (already.deletedAt) {
+            throw new ConflictException({
+              message: 'This person is in your gym’s trash — restore them instead of re-adding.',
+              code: 'MEMBER_TRASHED',
+              memberId: already.id,
+            });
+          }
           throw new ConflictException({
             message: 'This person is already a member of your gym',
             code: 'MEMBER_EXISTS',
@@ -487,14 +506,160 @@ export class MembersService {
   }
 
   /**
-   * Resolve a `MEMBER`-role membership in the caller's gym or throw a
-   * `404 MEMBER_NOT_FOUND`. The scoped `where` constrains `gymId`, so a
-   * cross-tenant id simply never matches — the guard for every write.
+   * Move a member to trash (soft-delete, T-members-trash) — stamp `deletedAt = now`
+   * so the member drops out of the roster, tab counts, plan mix, check-in, and the
+   * dashboard's live counts, while the row + history survive for restore. The purge
+   * cron hard-deletes it after the retention window. Idempotent-ish: an
+   * already-trashed member 404s from {@link requireMember} (it only resolves live
+   * members), so the caller sees a clean "not found among live members". Returns
+   * the trashed member's detail.
+   */
+  async softDeleteMember(id: string): Promise<SetMemberStatusResponse> {
+    await this.requireMember(id);
+    await this.prisma.client.gymMember.update({ where: { id }, data: { deletedAt: new Date() } });
+    return this.getMember(id);
+  }
+
+  /**
+   * Restore a trashed member (the inverse of {@link softDeleteMember}) — clear
+   * `deletedAt` so the member returns to the live roster with its prior `status`
+   * intact. Only a currently-trashed member resolves; a live or unknown id 404s.
+   * Returns the restored member's detail.
+   */
+  async restoreMember(id: string): Promise<SetMemberStatusResponse> {
+    await this.requireTrashedMember(id);
+    await this.prisma.client.gymMember.update({ where: { id }, data: { deletedAt: null } });
+    return this.getMember(id);
+  }
+
+  /**
+   * Send a one-off staff email to a member. Resolves the live member + recipient
+   * address, runs a final merge-field interpolation pass over the (already
+   * client-personalized, staff-editable) subject/body — a safety net that also
+   * personalizes a from-scratch message — wraps the body in the branded email shell,
+   * and dispatches via Resend ({@link MailerService}). It throws a clear
+   * `EMAIL_NOT_CONFIGURED` when no `RESEND_API_KEY` is set so staff never see a false
+   * success, and `EMAIL_SEND_FAILED` when the provider rejects the send. `MemberWrite`
+   * is enforced at the controller.
+   */
+  async sendMemberEmail(id: string, input: SendMemberEmailInput): Promise<SendMemberEmailResponse> {
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id, role: Role.MEMBER, deletedAt: null },
+      select: {
+        id: true,
+        user: { select: { name: true, email: true, phone: true } },
+        subscriptions: {
+          where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+          orderBy: { currentPeriodEnd: 'desc' },
+          take: 1,
+          select: { currentPeriodEnd: true, plan: { select: { name: true } } },
+        },
+      },
+    });
+    if (!member) {
+      throw new NotFoundException({ message: 'Member not found', code: 'MEMBER_NOT_FOUND' });
+    }
+
+    // Fail loud (not a silent "sent") when outbound mail is disabled — this is the
+    // dev/preview default until a `RESEND_API_KEY` is set.
+    if (!this.mailer.isConfigured) {
+      throw new ServiceUnavailableException({
+        message: 'Email delivery is not configured yet.',
+        code: 'EMAIL_NOT_CONFIGURED',
+      });
+    }
+
+    const gymName = await this.resolveGymName();
+    const values = this.memberMergeValues(member, gymName);
+    const subject = interpolateMergeFields(input.subject, values);
+    const body = interpolateMergeFields(input.body, values);
+
+    const html = renderBrandedEmail({
+      senderName: gymName,
+      heading: subject,
+      contentHtml: `<p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`,
+    });
+
+    const { sent } = await this.mailer.send({ to: member.user.email, subject, html, text: body });
+    if (!sent) {
+      throw new ServiceUnavailableException({
+        message: 'The email could not be sent. Please try again.',
+        code: 'EMAIL_SEND_FAILED',
+      });
+    }
+    return { sent: true };
+  }
+
+  /** The gym's display name, for the email "from" name + `{{business_name}}` merge. */
+  private async resolveGymName(): Promise<string> {
+    const gym = await this.prisma.client.gym.findFirst({
+      where: { id: this.tenant.gymId },
+      select: { name: true },
+    });
+    return gym?.name ?? 'Your gym';
+  }
+
+  /** Build the merge-field values for a member email from the resolved row + gym name. */
+  private memberMergeValues(
+    member: {
+      user: { name: string | null; email: string; phone: string | null };
+      subscriptions: { currentPeriodEnd: Date | null; plan: { name: string } | null }[];
+    },
+    gymName: string,
+  ): MergeValues {
+    const fullName = (member.user.name ?? '').trim();
+    const [firstName, ...rest] = fullName.length > 0 ? fullName.split(/\s+/) : [''];
+    const first = firstName ?? '';
+    const lastName = rest.join(' ');
+    const sub = member.subscriptions[0];
+    const phone = member.user.phone ?? '';
+    const planName = sub?.plan?.name ?? '';
+    const expiry = sub?.currentPeriodEnd ? sub.currentPeriodEnd.toISOString().slice(0, 10) : '';
+    return {
+      // Marketing tokens plus their `{{member_*}}` automation aliases, so a template
+      // from either store is personalized on the send-time safety pass.
+      first_name: first,
+      last_name: lastName,
+      email: member.user.email,
+      phone,
+      plan_name: planName,
+      expiry_date: expiry,
+      business_name: gymName,
+      member_first_name: first,
+      member_last_name: lastName,
+      member_email: member.user.email,
+      member_phone: phone,
+      member_plan_name: planName,
+      member_expiry_date: expiry,
+    };
+  }
+
+  /**
+   * Resolve a **live** (`deletedAt: null`) `MEMBER`-role membership in the caller's
+   * gym or throw a `404 MEMBER_NOT_FOUND`. The scoped `where` constrains `gymId`,
+   * so a cross-tenant id simply never matches — the guard for every write, and it
+   * deliberately excludes trashed members so nothing but restore can touch them.
    */
   private async requireMember(id: string): Promise<{ id: string; userId: string }> {
     const member = await this.prisma.client.gymMember.findFirst({
-      where: { id, role: Role.MEMBER },
+      where: { id, role: Role.MEMBER, deletedAt: null },
       select: { id: true, userId: true },
+    });
+    if (!member) {
+      throw new NotFoundException({ message: 'Member not found', code: 'MEMBER_NOT_FOUND' });
+    }
+    return member;
+  }
+
+  /**
+   * Resolve a currently-**trashed** (`deletedAt` set) `MEMBER`-role membership in
+   * the caller's gym or throw a `404 MEMBER_NOT_FOUND` — the guard for {@link
+   * restoreMember}, so restoring a live or unknown id is a clean 404.
+   */
+  private async requireTrashedMember(id: string): Promise<{ id: string }> {
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id, role: Role.MEMBER, deletedAt: { not: null } },
+      select: { id: true },
     });
     if (!member) {
       throw new NotFoundException({ message: 'Member not found', code: 'MEMBER_NOT_FOUND' });
@@ -530,7 +695,8 @@ export class MembersService {
     const db = this.prisma.client;
     const grouped = await db.subscription.groupBy({
       by: ['planId'],
-      where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+      // Exclude subscriptions owned by trashed members — the mix describes the live roster.
+      where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] }, member: { deletedAt: null } },
       _count: { _all: true },
     });
     if (grouped.length === 0) {
@@ -572,18 +738,22 @@ export class MembersService {
    */
   private async tabCounts(): Promise<MemberTabCounts> {
     const db = this.prisma.client;
-    const [byStatus, frozen] = await Promise.all([
+    // The status segments and the frozen/plan aggregates describe the live roster,
+    // so they exclude trashed members; `trash` counts the soft-deleted ones.
+    const [byStatus, frozen, trash] = await Promise.all([
       db.gymMember.groupBy({
         by: ['status'],
-        where: { role: Role.MEMBER },
+        where: { role: Role.MEMBER, deletedAt: null },
         _count: { _all: true },
       }),
       db.gymMember.count({
         where: {
           role: Role.MEMBER,
+          deletedAt: null,
           subscriptions: { some: { status: SubscriptionStatus.FROZEN } },
         },
       }),
+      db.gymMember.count({ where: { role: Role.MEMBER, deletedAt: { not: null } } }),
     ]);
 
     const countOf = (status: GymMemberStatus): number =>
@@ -593,7 +763,7 @@ export class MembersService {
     const trial = countOf(GymMemberStatus.INVITED);
     const expired = countOf(GymMemberStatus.SUSPENDED);
 
-    return { all: active + trial + expired, active, frozen, trial, expired };
+    return { all: active + trial + expired, active, frozen, trial, expired, trash };
   }
 
   /**
@@ -604,6 +774,14 @@ export class MembersService {
    */
   private buildWhere(query: ListMembersQuery): Prisma.GymMemberWhereInput {
     const where: Prisma.GymMemberWhereInput = { role: Role.MEMBER };
+
+    // The trash view lists only soft-deleted members (status segments don't apply);
+    // every other view lists live members and excludes the trashed.
+    if (query.view === 'trash') {
+      where.deletedAt = { not: null };
+      return where;
+    }
+    where.deletedAt = null;
 
     if (query.status) {
       where.status = query.status;
@@ -619,11 +797,21 @@ export class MembersService {
       };
     }
 
-    // Narrow to members holding a live subscription on the given plan.
+    // Subscription-derived narrows, each a distinct `some` predicate: the plan
+    // filter (a live subscription on the given plan) and the Frozen tab (any
+    // `FROZEN` subscription). Combined via `AND` so both hold independently — a
+    // single `where.subscriptions` would let the later one clobber the earlier.
+    const subFilters: Prisma.SubscriptionWhereInput[] = [];
     if (query.planId) {
-      where.subscriptions = {
-        some: { planId: query.planId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
-      };
+      subFilters.push({ planId: query.planId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } });
+    }
+    if (query.frozen) {
+      subFilters.push({ status: SubscriptionStatus.FROZEN });
+    }
+    if (subFilters.length === 1) {
+      where.subscriptions = { some: subFilters[0] };
+    } else if (subFilters.length > 1) {
+      where.AND = subFilters.map((some) => ({ subscriptions: { some } }));
     }
 
     // Narrow to members carrying the given tag (scalar-list membership).
@@ -689,6 +877,7 @@ export class MembersService {
       nextBillingAt,
       billingState,
       tags: row.tags,
+      deletedAt: row.deletedAt?.toISOString() ?? null,
     };
   }
 

@@ -7,6 +7,7 @@ import type { AutomationExecutorService } from '../automation/automation-executo
 import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { MailerService } from '../mail/mailer.service';
 
 /**
  * A membership row as the service's projection selects it (superset of every
@@ -18,6 +19,7 @@ interface MemberRecord {
   userId: string;
   status: GymMemberStatus;
   joinedAt: Date;
+  deletedAt: Date | null;
   dateOfBirth: Date | null;
   gender: 'MALE' | 'FEMALE' | 'OTHER' | null;
   address: string | null;
@@ -72,6 +74,7 @@ function setup(overrides?: {
   tasks?: unknown[];
   taskFindFirst?: { id: string } | null;
   availableTagRows?: { tag: string }[];
+  mailerConfigured?: boolean;
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<MemberRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -149,8 +152,13 @@ function setup(overrides?: {
     Promise.resolve({ id: 'task-1' }),
   );
 
+  const gymFindFirst = vi.fn<(args: unknown) => Promise<{ name: string } | null>>(() =>
+    Promise.resolve({ name: 'Iron Gym' }),
+  );
+
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
+    gym: { findFirst: gymFindFirst },
     gymMember: {
       findMany,
       count,
@@ -199,11 +207,22 @@ function setup(overrides?: {
   const loyalty = {
     awardSignupBonus: loyaltyAward,
   } as unknown as LoyaltyPointsService;
+  // Outbound mail (T-member-email). `isConfigured` gates the send; default a
+  // configured mailer that reports a successful dispatch.
+  const mailerSend = vi.fn<(message: unknown) => Promise<{ sent: boolean; id: string | null }>>(
+    () => Promise.resolve({ sent: true, id: 'email-1' }),
+  );
+  const mailer = {
+    isConfigured: overrides?.mailerConfigured ?? true,
+    send: mailerSend,
+  } as unknown as MailerService;
 
   return {
-    service: new MembersService(prisma, tenant, automation, loyalty),
+    service: new MembersService(prisma, tenant, automation, loyalty, mailer),
     automationDispatch,
     loyaltyAward,
+    mailerSend,
+    gymFindFirst,
     findMany,
     count,
     findFirst,
@@ -223,7 +242,15 @@ function setup(overrides?: {
 
 /** Build a full list query with defaults, overridable per test. */
 function query(overrides?: Partial<ListMembersQuery>): ListMembersQuery {
-  return { page: 1, limit: 20, sort: 'name', dir: 'asc', ...overrides };
+  return {
+    page: 1,
+    limit: 20,
+    sort: 'name',
+    dir: 'asc',
+    view: 'active',
+    frozen: false,
+    ...overrides,
+  };
 }
 
 /** Build a full create body with defaults, overridable per test. */
@@ -242,6 +269,7 @@ const row = (over?: Partial<MemberRecord>): MemberRecord => ({
   userId: 'u-1',
   status: GymMemberStatus.ACTIVE,
   joinedAt: new Date('2026-01-15T00:00:00.000Z'),
+  deletedAt: null,
   dateOfBirth: null,
   gender: null,
   address: null,
@@ -409,6 +437,31 @@ describe('MembersService', () => {
       expect(findMany.mock.calls[0]?.[0]?.where?.subscriptions).toMatchObject({
         some: { planId: 'plan-1' },
       });
+    });
+
+    it('narrows to members with a FROZEN subscription for the Frozen tab', async () => {
+      const { service, findMany } = setup();
+
+      await service.listMembers(query({ frozen: true }));
+
+      expect(findMany.mock.calls[0]?.[0]?.where?.subscriptions).toMatchObject({
+        some: { status: 'FROZEN' },
+      });
+    });
+
+    it('combines the plan and Frozen filters via AND so neither clobbers the other', async () => {
+      const { service, findMany } = setup();
+
+      await service.listMembers(query({ planId: 'plan-1', frozen: true }));
+
+      const where = findMany.mock.calls[0]?.[0]?.where as {
+        AND?: Array<{ subscriptions: { some: Record<string, unknown> } }>;
+        subscriptions?: unknown;
+      };
+      expect(where.subscriptions).toBeUndefined();
+      expect(where.AND).toHaveLength(2);
+      expect(where.AND?.[0]).toMatchObject({ subscriptions: { some: { planId: 'plan-1' } } });
+      expect(where.AND?.[1]).toEqual({ subscriptions: { some: { status: 'FROZEN' } } });
     });
 
     it('builds a case-insensitive name/email search', async () => {
@@ -643,6 +696,92 @@ describe('MembersService', () => {
     });
   });
 
+  describe('softDeleteMember / restoreMember (trash)', () => {
+    it('stamps deletedAt when trashing a live member', async () => {
+      const { service, findFirst, gymMemberUpdate } = setup({ findFirst: row() });
+
+      await service.softDeleteMember('gm-1');
+
+      // Guarded against LIVE members only (deletedAt: null in the require query).
+      expect(findFirst.mock.calls[0]?.[0]?.where).toMatchObject({
+        id: 'gm-1',
+        role: Role.MEMBER,
+        deletedAt: null,
+      });
+      const data = gymMemberUpdate.mock.calls[0]?.[0]?.data as { deletedAt: unknown };
+      expect(data.deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('throws 404 without trashing when the member is unknown / already trashed', async () => {
+      const { service, gymMemberUpdate } = setup({ findFirst: null });
+
+      await expect(service.softDeleteMember('missing')).rejects.toBeInstanceOf(NotFoundException);
+      expect(gymMemberUpdate).not.toHaveBeenCalled();
+    });
+
+    it('clears deletedAt when restoring a trashed member', async () => {
+      const { service, findFirst, gymMemberUpdate } = setup({
+        findFirst: row({ deletedAt: new Date('2026-07-01T00:00:00.000Z') }),
+      });
+
+      await service.restoreMember('gm-1');
+
+      // Restore only resolves a currently-TRASHED member (deletedAt is set).
+      expect(findFirst.mock.calls[0]?.[0]?.where).toMatchObject({
+        id: 'gm-1',
+        role: Role.MEMBER,
+        deletedAt: { not: null },
+      });
+      expect(gymMemberUpdate.mock.calls[0]?.[0]).toMatchObject({
+        where: { id: 'gm-1' },
+        data: { deletedAt: null },
+      });
+    });
+
+    it('throws 404 without restoring when the member is not in trash', async () => {
+      const { service, gymMemberUpdate } = setup({ findFirst: null });
+
+      await expect(service.restoreMember('gm-1')).rejects.toBeInstanceOf(NotFoundException);
+      expect(gymMemberUpdate).not.toHaveBeenCalled();
+    });
+
+    it('lists only soft-deleted members in the trash view', async () => {
+      const { service, findMany } = setup({ findMany: [], count: 0 });
+
+      await service.listMembers(query({ view: 'trash' }));
+
+      expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({
+        role: Role.MEMBER,
+        deletedAt: { not: null },
+      });
+    });
+
+    it('excludes trashed members from the default (active) view', async () => {
+      const { service, findMany } = setup({ findMany: [], count: 0 });
+
+      await service.listMembers(query());
+
+      expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({
+        role: Role.MEMBER,
+        deletedAt: null,
+      });
+    });
+  });
+
+  describe('createMember — trashed collision', () => {
+    it('throws 409 MEMBER_TRASHED (not MEMBER_EXISTS) when the person is in trash', async () => {
+      const { service, gymMemberCreate } = setup({
+        userFindUnique: { id: 'u-existing' },
+        findFirst: row({ id: 'gm-trashed', userId: 'u-existing', deletedAt: new Date() }),
+      });
+
+      await expect(service.createMember(createInput())).rejects.toMatchObject({
+        response: { code: 'MEMBER_TRASHED', memberId: 'gm-trashed' },
+      });
+      expect(gymMemberCreate).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getMember — new detail sections', () => {
     it('maps profile extras, access log, purchases, notes and tasks from the joins', async () => {
       const { service } = setup({
@@ -825,5 +964,67 @@ describe('MembersService', () => {
       expect(result.jobId).toEqual(expect.any(String));
       expect(result.jobId.length).toBeGreaterThan(0);
     });
+  });
+});
+
+describe('MembersService.sendMemberEmail', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  const emailMember = () =>
+    row({
+      user: { name: 'Davit Kvaratskhelia', email: 'davit@example.com', phone: '+995 555 10 20 30' },
+      subscriptions: [
+        {
+          id: 'sub-1',
+          planId: 'plan-1',
+          status: 'ACTIVE',
+          priceAmount: 7500,
+          currency: 'GEL',
+          interval: 'MONTH',
+          currentPeriodStart: new Date('2026-07-05T00:00:00.000Z'),
+          currentPeriodEnd: new Date('2026-08-05T00:00:00.000Z'),
+          plan: { name: 'Standard' },
+        },
+      ],
+    });
+
+  it('sends a branded email to the member, interpolating merge fields for this member', async () => {
+    const { service, mailerSend } = setup({ findFirst: emailMember() });
+
+    const result = await service.sendMemberEmail('gm-1', {
+      subject: 'Hi {{first_name}}',
+      body: 'Your {{plan_name}} plan renews on {{expiry_date}}.',
+    });
+
+    expect(result).toEqual({ sent: true });
+    expect(mailerSend).toHaveBeenCalledTimes(1);
+    const message = mailerSend.mock.calls[0]?.[0] as {
+      to: string;
+      subject: string;
+      text: string;
+      html: string;
+    };
+    expect(message.to).toBe('davit@example.com');
+    expect(message.subject).toBe('Hi Davit');
+    expect(message.text).toBe('Your Standard plan renews on 2026-08-05.');
+    expect(message.html).toContain('Standard');
+  });
+
+  it('404s an unknown / cross-tenant / trashed member and never sends', async () => {
+    const { service, mailerSend } = setup({ findFirst: null });
+
+    await expect(
+      service.sendMemberEmail('missing', { subject: 'Hi', body: 'There' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(mailerSend).not.toHaveBeenCalled();
+  });
+
+  it('fails loud (no false success) when outbound mail is not configured', async () => {
+    const { service, mailerSend } = setup({ findFirst: emailMember(), mailerConfigured: false });
+
+    await expect(
+      service.sendMemberEmail('gm-1', { subject: 'Hi', body: 'There' }),
+    ).rejects.toMatchObject({ response: { code: 'EMAIL_NOT_CONFIGURED' } });
+    expect(mailerSend).not.toHaveBeenCalled();
   });
 });

@@ -28,6 +28,14 @@ export const memberStatusSchema = z.enum(['ACTIVE', 'INVITED', 'SUSPENDED']);
 /** A member's lifecycle state — {@link memberStatusSchema}. */
 export type MemberStatus = z.infer<typeof memberStatusSchema>;
 
+/**
+ * How long a soft-deleted (trashed) member is retained before the purge cron
+ * permanently deletes it. Staff can restore any time within this window; after it
+ * the member and its cascade-owned history are gone. The UI computes the
+ * "purges in N days" countdown from `deletedAt + this`.
+ */
+export const MEMBER_TRASH_RETENTION_DAYS = 30;
+
 /** Sortable columns for the roster. Mirrors the `orderBy` keys the service maps. */
 export const memberSortSchema = z.enum(['name', 'status', 'joinedAt', 'lastVisitAt']);
 
@@ -73,6 +81,19 @@ export const listMembersQuerySchema = z.object({
   tag: z.string().min(1).optional(),
   sort: memberSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
+  // The "Frozen" tab: narrow to live members holding a `FROZEN` subscription. It is
+  // subscription-derived (no `GymMemberStatus`), so it rides its own flag rather than
+  // `status` — orthogonal to the status segments, like `view`. Arrives as the string
+  // `"true"`; absent → `false` (no frozen filter).
+  frozen: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
+  // Which slice of the roster: `active` (the default — live members, trashed
+  // excluded) or `trash` (only soft-deleted members, for the Trash tab). A `status`
+  // filter is ignored in the trash view. Kept separate from `status` so the
+  // trash tab is orthogonal to the status segments.
+  view: z.enum(['active', 'trash']).default('active'),
 });
 
 /** Validated `GET /members` query — {@link listMembersQuerySchema}. */
@@ -135,6 +156,12 @@ export interface MemberRow {
   billingState: MemberBillingState;
   /** Colour-keyed labels applied by staff (`GymMember.tags`), for the roster's TAGS cell. */
   tags: string[];
+  /**
+   * ISO instant the member was moved to trash (soft-deleted), or `null` for a live
+   * member. When set, the UI shows the trash banner + restore, and computes the
+   * "purges in N days" countdown from this instant + {@link MEMBER_TRASH_RETENTION_DAYS}.
+   */
+  deletedAt: string | null;
 }
 
 /** One plan in the roster's gym-wide "plan mix" bar. Mirrors `DashboardPlanSlice`. */
@@ -179,6 +206,8 @@ export interface MemberTabCounts {
   trial: number;
   /** `SUSPENDED` memberships (the reference's "Expired" segment). */
   expired: number;
+  /** Soft-deleted memberships awaiting purge — the Trash tab's count. */
+  trash: number;
 }
 
 /**
@@ -536,6 +565,40 @@ export const createMemberNoteSchema = z.object({
 
 /** Validated `POST /members/:id/notes` body — {@link createMemberNoteSchema}. */
 export type CreateMemberNoteInput = z.infer<typeof createMemberNoteSchema>;
+
+/**
+ * Body for `POST /members/:id/email` — a one-off staff email to the member. The
+ * client sends the final `subject` / `body` (already merge-interpolated for this
+ * member, and editable); the server runs a safety interpolation pass and delivers
+ * it. Plain-text body; the server wraps it in the branded email shell.
+ */
+export const sendMemberEmailSchema = z.object({
+  subject: z.string().trim().min(1, 'Subject is required').max(200),
+  body: z.string().trim().min(1, 'Message is required').max(5000),
+});
+
+/** Validated `POST /members/:id/email` body — {@link sendMemberEmailSchema}. */
+export type SendMemberEmailInput = z.infer<typeof sendMemberEmailSchema>;
+
+/**
+ * One selectable template in the member-email drawer, unified across the gym's two
+ * reusable stores: marketing message templates (`{{first_name}}`-style tokens) and
+ * automation email-action templates (`{{member_first_name}}`-style tokens). The
+ * drawer fills both token conventions from the member, so either kind personalizes.
+ */
+export interface EmailTemplateOption {
+  /** Source-prefixed id (e.g. `marketing:…` / `automation:…`) — unique across stores. */
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  source: 'marketing' | 'automation';
+}
+
+/** Successful `POST /members/:id/email` response — whether the email was dispatched. */
+export interface SendMemberEmailResponse {
+  sent: boolean;
+}
 
 /**
  * Body for `POST /members/:id/tasks` — log a follow-up task against a member.

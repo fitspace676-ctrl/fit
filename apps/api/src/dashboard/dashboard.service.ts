@@ -10,14 +10,16 @@ import {
   TrainerStatus,
 } from '@fit/db';
 import {
-  DEFAULT_DASHBOARD_RANGE,
+  DEFAULT_DASHBOARD_PERIOD,
   type DashboardAlert,
   type DashboardArea,
   type DashboardCheckIn,
   type DashboardInGymNow,
   type DashboardKpi,
   type DashboardKpis,
+  type DashboardOverviewQuery,
   type DashboardOverviewResponse,
+  type DashboardPeriod,
   type DashboardPlanMix,
   type DashboardPlanSlice,
   type DashboardRange,
@@ -78,8 +80,10 @@ export class DashboardService {
       productsActive,
       productsTotal,
     ] = await Promise.all([
-      db.gymMember.count({ where: { role: Role.MEMBER, status: GymMemberStatus.ACTIVE } }),
-      db.gymMember.count({ where: { role: Role.MEMBER } }),
+      db.gymMember.count({
+        where: { role: Role.MEMBER, status: GymMemberStatus.ACTIVE, deletedAt: null },
+      }),
+      db.gymMember.count({ where: { role: Role.MEMBER, deletedAt: null } }),
       db.trainer.count({ where: { status: TrainerStatus.ACTIVE } }),
       db.trainer.count(),
       db.location.count({ where: { status: LocationStatus.ACTIVE } }),
@@ -103,9 +107,12 @@ export class DashboardService {
    * class schedule, real-event alerts, and the recent-check-ins feed, all scoped
    * to the caller's gym. Independent aggregations are issued concurrently.
    */
-  async getOverview(
-    range: DashboardRange = DEFAULT_DASHBOARD_RANGE,
-  ): Promise<DashboardOverviewResponse> {
+  async getOverview(query: DashboardOverviewQuery): Promise<DashboardOverviewResponse> {
+    // The header filter's period resolves to a concrete window (+ the immediately
+    // preceding equal-length window for deltas); the period-bounded KPI cards read
+    // it, while the live surfaces (occupancy, schedule, check-ins) stay today-bound.
+    const win = resolvePeriodWindow(query, new Date());
+
     const [
       currency,
       viewer,
@@ -124,10 +131,10 @@ export class DashboardService {
       this.resolveViewer(),
       this.resolveGymName(),
       this.inGymNow(),
-      this.kpis(),
-      this.secondaryKpis(),
+      this.kpis(win),
+      this.secondaryKpis(win),
       this.recentMembers(),
-      this.revenue(range),
+      this.revenue(query.range),
       this.planMix(),
       this.todaysSchedule(),
       this.alerts(),
@@ -138,6 +145,7 @@ export class DashboardService {
       currency,
       viewer,
       gymName,
+      period: { period: win.period, from: win.fromISO, to: win.toISO },
       inGymNow,
       kpis,
       secondaryKpis,
@@ -287,67 +295,59 @@ export class DashboardService {
   /* ---------------------------------------------------------------------- */
 
   /**
-   * Today's three headline KPIs, each with a real period-over-period delta:
-   *   • todaysRevenue — SUM captured `Payment.amount` today vs. yesterday.
-   *   • checkInsToday — COUNT check-ins today vs. yesterday.
-   *   • newMembers7d  — COUNT `MEMBER` joined in the last 7 days vs. the prior 7.
+   * The three headline KPIs over the selected period {@link win}, each with a real
+   * delta vs. the immediately preceding equal-length window:
+   *   • todaysRevenue — SUM captured `Payment.amount` in the window.
+   *   • checkInsToday — COUNT check-ins in the window.
+   *   • newMembers7d  — COUNT `MEMBER` joined in the window.
+   * (The field names keep their original spelling for wire-compatibility; the
+   * client labels them by the resolved period.)
    */
-  private async kpis(): Promise<DashboardKpis> {
+  private async kpis(win: PeriodWindow): Promise<DashboardKpis> {
     const db = this.prisma.client;
-    const now = new Date();
-    const todayStart = startOfToday();
-    const yesterdayStart = new Date(todayStart.getTime() - DAY_MS);
-    const weekStart = new Date(now.getTime() - 7 * DAY_MS);
-    const priorWeekStart = new Date(now.getTime() - 14 * DAY_MS);
+    const gymId = this.tenant.gymId;
 
-    const [
-      revenueToday,
-      revenueYesterday,
-      checkInsToday,
-      checkInsYesterday,
-      newMembersNow,
-      newMembersPrior,
-    ] = await Promise.all([
-      db.payment.aggregate({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: todayStart } },
-        _sum: { amount: true },
-      }),
-      db.payment.aggregate({
-        where: {
-          status: PaymentStatus.CAPTURED,
-          createdAt: { gte: yesterdayStart, lt: todayStart },
-        },
-        _sum: { amount: true },
-      }),
-      db.checkIn.count({
-        where: { gymId: this.tenant.gymId, checkedInAt: { gte: todayStart } },
-      }),
-      db.checkIn.count({
-        where: {
-          gymId: this.tenant.gymId,
-          checkedInAt: { gte: yesterdayStart, lt: todayStart },
-        },
-      }),
-      db.gymMember.count({ where: { role: Role.MEMBER, joinedAt: { gte: weekStart } } }),
-      db.gymMember.count({
-        where: { role: Role.MEMBER, joinedAt: { gte: priorWeekStart, lt: weekStart } },
-      }),
-    ]);
+    const [revenueNow, revenuePrev, checkInsNow, checkInsPrev, newMembersNow, newMembersPrev] =
+      await Promise.all([
+        db.payment.aggregate({
+          where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+          _sum: { amount: true },
+        }),
+        db.payment.aggregate({
+          where: {
+            status: PaymentStatus.CAPTURED,
+            createdAt: { gte: win.prevStart, lt: win.prevEnd },
+          },
+          _sum: { amount: true },
+        }),
+        db.checkIn.count({
+          where: { gymId, checkedInAt: { gte: win.start, lt: win.end } },
+        }),
+        db.checkIn.count({
+          where: { gymId, checkedInAt: { gte: win.prevStart, lt: win.prevEnd } },
+        }),
+        db.gymMember.count({
+          where: { role: Role.MEMBER, joinedAt: { gte: win.start, lt: win.end } },
+        }),
+        db.gymMember.count({
+          where: { role: Role.MEMBER, joinedAt: { gte: win.prevStart, lt: win.prevEnd } },
+        }),
+      ]);
 
-    const revToday = revenueToday._sum.amount ?? 0;
-    const revYesterday = revenueYesterday._sum.amount ?? 0;
+    const revNow = revenueNow._sum.amount ?? 0;
+    const revPrev = revenuePrev._sum.amount ?? 0;
 
     const todaysRevenue: DashboardKpi = {
-      value: revToday,
-      deltaPct: pctDelta(revToday, revYesterday),
+      value: revNow,
+      deltaPct: pctDelta(revNow, revPrev),
     };
     const checkIns: DashboardKpi = {
-      value: checkInsToday,
-      deltaPct: pctDelta(checkInsToday, checkInsYesterday),
+      value: checkInsNow,
+      deltaPct: pctDelta(checkInsNow, checkInsPrev),
     };
     const newMembers: DashboardKpi = {
       value: newMembersNow,
-      deltaPct: pctDelta(newMembersNow, newMembersPrior),
+      deltaPct: pctDelta(newMembersNow, newMembersPrev),
     };
 
     return { todaysRevenue, checkInsToday: checkIns, newMembers7d: newMembers };
@@ -360,18 +360,20 @@ export class DashboardService {
    *   • revenueThisMonth — SUM captured `Payment.amount` this calendar month, delta
    *                        vs. last month.
    *   • overduePayments  — COUNT subscriptions in PAST_DUE (the dunning backlog).
-   *   • classesToday     — COUNT today's class occurrences.
+   *   • classesToday     — COUNT class occurrences within the selected period {@link win}.
    *   • expiringSoon     — COUNT live subscriptions ending within 7 days.
    *   • renewalsDue      — COUNT live subscriptions ending within this calendar month.
+   *
+   * Only `classesToday` follows the header period; the others are current-state /
+   * forward-looking figures that are meaningless to re-window into the past, so they
+   * stay pinned to "now" / "this month" regardless of the selected window.
    */
-  private async secondaryKpis(): Promise<DashboardSecondaryKpis> {
+  private async secondaryKpis(win: PeriodWindow): Promise<DashboardSecondaryKpis> {
     const db = this.prisma.client;
     const now = new Date();
     const monthStart = startOfMonth(now);
     const lastMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     const nextMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-    const todayStart = startOfToday();
-    const todayEnd = new Date(todayStart.getTime() + DAY_MS);
     const in7Days = new Date(now.getTime() + 7 * DAY_MS);
     const live = [...LIVE_SUBSCRIPTION_STATUSES];
 
@@ -397,7 +399,7 @@ export class DashboardService {
         _sum: { amount: true },
       }),
       db.subscription.count({ where: { status: SubscriptionStatus.PAST_DUE } }),
-      db.classInstance.count({ where: { startsAt: { gte: todayStart, lt: todayEnd } } }),
+      db.classInstance.count({ where: { startsAt: { gte: win.start, lt: win.end } } }),
       db.subscription.count({
         where: { status: { in: live }, currentPeriodEnd: { gte: now, lte: in7Days } },
       }),
@@ -790,6 +792,120 @@ function startOfToday(): Date {
 /** Start of the current calendar month in the server's zone. */
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Period window (the header date filter)                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A resolved period filter: the concrete `[start, end)` window the KPI cards
+ * aggregate over, the immediately preceding equal-length `[prevStart, prevEnd)`
+ * window their deltas compare against, and the inclusive `YYYY-MM-DD` calendar
+ * bounds (`fromISO`/`toISO`) echoed to the client for labels + the date picker.
+ * All bounds are in the server's local zone, matching {@link startOfToday}.
+ */
+export interface PeriodWindow {
+  period: DashboardPeriod;
+  /** Inclusive lower bound (local midnight). */
+  start: Date;
+  /** Exclusive upper bound. */
+  end: Date;
+  /** Previous equal-length window, inclusive lower bound. */
+  prevStart: Date;
+  /** Previous equal-length window, exclusive upper bound (equals {@link start}). */
+  prevEnd: Date;
+  /** First included day, `YYYY-MM-DD` (local). */
+  fromISO: string;
+  /** Last included day, `YYYY-MM-DD` (local). */
+  toISO: string;
+}
+
+/** Local-zone midnight starting the given date's calendar day. */
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** The date `n` calendar days after `d`'s local midnight (n may be negative). */
+function addDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
+/** Local-zone Monday starting the ISO week that contains `d`. */
+function startOfWeekMonday(d: Date): Date {
+  const day = startOfLocalDay(d);
+  const mondayOffset = (day.getDay() + 6) % 7; // 0=Sun → 6, 1=Mon → 0, …
+  return addDays(day, -mondayOffset);
+}
+
+/** Parse a `YYYY-MM-DD` calendar date as local midnight (invalid → today). */
+function parseLocalDate(iso: string, fallback: Date): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) {
+    return startOfLocalDay(fallback);
+  }
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+/** Format a local-zone date as its `YYYY-MM-DD` calendar day. */
+function localIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Resolve a dashboard query's period (+ optional custom `from`/`to`) into a
+ * concrete {@link PeriodWindow} relative to `now`. `today`/`week`/`month` snap to
+ * the server's calendar; `custom` reads the `YYYY-MM-DD` bounds (defaulting a
+ * missing side to today and swapping a reversed range so the window is always
+ * valid). Pure and deterministic given (`query`, `now`) — unit-tested directly.
+ */
+export function resolvePeriodWindow(
+  query: { period?: DashboardPeriod; from?: string; to?: string },
+  now: Date,
+): PeriodWindow {
+  const period = query.period ?? DEFAULT_DASHBOARD_PERIOD;
+  let start: Date;
+  let end: Date;
+
+  switch (period) {
+    case 'today':
+      start = startOfLocalDay(now);
+      end = addDays(start, 1);
+      break;
+    case 'week':
+      start = startOfWeekMonday(now);
+      end = addDays(start, 7);
+      break;
+    case 'month':
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      break;
+    case 'custom': {
+      // Each side defaults independently to today, so a one-sided custom range
+      // (only `from` or only `to`) reads as "from that day through today".
+      const a = query.from ? parseLocalDate(query.from, now) : startOfLocalDay(now);
+      const b = query.to ? parseLocalDate(query.to, now) : startOfLocalDay(now);
+      const lo = a <= b ? a : b;
+      const hi = a <= b ? b : a;
+      start = startOfLocalDay(lo);
+      end = addDays(startOfLocalDay(hi), 1);
+      break;
+    }
+  }
+
+  const durationMs = end.getTime() - start.getTime();
+  return {
+    period,
+    start,
+    end,
+    prevStart: new Date(start.getTime() - durationMs),
+    prevEnd: start,
+    fromISO: localIsoDate(start),
+    toISO: localIsoDate(addDays(end, -1)),
+  };
 }
 
 /**

@@ -28,10 +28,12 @@ import { Stack } from '@astryxdesign/core/Stack';
 import { Text } from '@astryxdesign/core/Text';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import { DateRangeInput, type DateRange } from '@astryxdesign/core/DateRangeInput';
 import type {
   DashboardAlert,
   DashboardKpi,
   DashboardOverviewResponse,
+  DashboardPeriod,
   DashboardRange,
   PinnedWidget,
 } from '@fit/types';
@@ -47,6 +49,14 @@ type T = ReturnType<typeof useTranslations>;
 /** The range values offered by the segmented control, in ascending span order. */
 const RANGE_VALUES = ['7d', '30d', '12w'] as const satisfies readonly DashboardRange[];
 
+/** The period values offered by the header date filter, in ascending span order. */
+const PERIOD_VALUES = [
+  'today',
+  'week',
+  'month',
+  'custom',
+] as const satisfies readonly DashboardPeriod[];
+
 /** i18n keys (under `admin.dashboard.weekdays`) indexed by JS day-of-week (0 = Sun). */
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
@@ -61,6 +71,38 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
+  },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headerText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    maxWidth: '42rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  headerControls: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
   },
   pending: {
     opacity: 0.7,
@@ -583,20 +625,82 @@ export function DashboardView({
     startTransition(() => router.replace(`${pathname}?${params.toString()}`));
   }
 
+  // The header period filter drives the period-bounded KPI cards (revenue /
+  // check-ins / new members / classes) by writing `?period=` (+ `from`/`to` for a
+  // custom range) so the server component re-fetches — the URL stays the source of
+  // truth, exactly like the revenue chart's `?range=`.
+  function selectPeriod(next: DashboardPeriod): void {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('period', next);
+    // Presets carry no explicit dates — drop any stale custom range.
+    if (next !== 'custom') {
+      params.delete('from');
+      params.delete('to');
+    }
+    startTransition(() => router.replace(`${pathname}?${params.toString()}`));
+  }
+
+  function selectCustomRange(range: DateRange | null): void {
+    if (!range) {
+      return;
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('period', 'custom');
+    params.set('from', range.start);
+    params.set('to', range.end);
+    startTransition(() => router.replace(`${pathname}?${params.toString()}`));
+  }
+
+  const periodRange: DateRange = {
+    start: data.period.from as DateRange['start'],
+    end: data.period.to as DateRange['end'],
+  };
+
   return (
     <div {...stylex.props(styles.page, isPending && styles.pending)}>
+      {/* Page header + period filter */}
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headerText)}>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
+        </div>
+        <div {...stylex.props(styles.headerControls)}>
+          <SegmentedControl
+            value={data.period.period}
+            onChange={(next) => selectPeriod(next as DashboardPeriod)}
+            label={t('period.aria')}
+            size="sm"
+            isDisabled={isPending}
+          >
+            {PERIOD_VALUES.map((value) => (
+              <SegmentedControlItem key={value} value={value} label={t(`period.${value}`)} />
+            ))}
+          </SegmentedControl>
+          <DateRangeInput
+            label={t('period.rangeLabel')}
+            isLabelHidden
+            value={periodRange}
+            onChange={selectCustomRange}
+            hasClear={false}
+            size="sm"
+            numberOfMonths={1}
+            isDisabled={isPending}
+          />
+        </div>
+      </header>
+
       {/* In the gym now + KPIs */}
       <section {...stylex.props(styles.gridThirds)}>
         <InGymNow data={data} />
         <div {...stylex.props(styles.kpiGroup)}>
           <KpiCard
-            label={t('kpi.todaysRevenue')}
+            label={t('kpi.revenue')}
             icon="card"
             kpi={data.kpis.todaysRevenue}
             format={(v) => money.format(v / 100)}
           />
-          <KpiCard label={t('kpi.checkInsToday')} icon="check" kpi={data.kpis.checkInsToday} />
-          <KpiCard label={t('kpi.newMembers7d')} icon="users" kpi={data.kpis.newMembers7d} />
+          <KpiCard label={t('kpi.checkIns')} icon="check" kpi={data.kpis.checkInsToday} />
+          <KpiCard label={t('kpi.newMembers')} icon="users" kpi={data.kpis.newMembers7d} />
         </div>
       </section>
 
@@ -619,10 +723,9 @@ export function DashboardView({
           value={data.secondaryKpis.overduePayments}
         />
         <StatKpiCard
-          label={t('secondaryKpi.classesToday')}
+          label={t('secondaryKpi.classes')}
           icon="calendar"
           value={data.secondaryKpis.classesToday}
-          hint={t('secondaryKpi.classesTodayHint')}
         />
         <StatKpiCard
           label={t('secondaryKpi.expiringSoon')}

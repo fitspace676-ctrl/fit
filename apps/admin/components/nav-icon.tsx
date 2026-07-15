@@ -24,7 +24,6 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   workouts: 'M6.5 6.5v11M17.5 6.5v11M4 9.5h2.5M17.5 9.5H20M6.5 12h11',
   billing: 'M3 7h18v10H3zM3 11h18M7 15h2',
   staff: 'M12 11a3 3 0 100-6 3 3 0 000 6zM5 20a7 7 0 0114 0',
-  crm: 'M3 5h18l-7 8v6l-4 2v-8L3 5z',
   automation: 'M13 3L5 13.5h5L10 21l8-10.5h-5L13 3z',
   marketing: 'M11 5L6 9H3v6h3l5 4V5zM15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13',
   loyalty:

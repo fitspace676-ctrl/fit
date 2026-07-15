@@ -75,8 +75,6 @@ export const PERMISSION_KEYS: Record<Permission, string> = {
   [Permission.WorkoutRead]: 'workoutRead',
   [Permission.WorkoutWrite]: 'workoutWrite',
   [Permission.ReportView]: 'reportView',
-  [Permission.CrmRead]: 'crmRead',
-  [Permission.CrmManage]: 'crmManage',
   [Permission.AutomationRead]: 'automationRead',
   [Permission.AutomationManage]: 'automationManage',
   [Permission.MarketingRead]: 'marketingRead',

@@ -9,7 +9,7 @@ import {
   SubscriptionStatus,
 } from '@fit/db';
 import type { DashboardRecentMember, DashboardSecondaryKpis } from '@fit/types';
-import { DashboardService } from './dashboard.service';
+import { DashboardService, resolvePeriodWindow, type PeriodWindow } from './dashboard.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -89,13 +89,14 @@ describe('DashboardService', () => {
 
       await service.getStats();
 
-      // First call: the active figure — MEMBER role + ACTIVE status.
+      // First call: the active figure — MEMBER role + ACTIVE status, live only.
       expect(gymMember.mock.calls[0]?.[0]?.where).toEqual({
         role: Role.MEMBER,
         status: GymMemberStatus.ACTIVE,
+        deletedAt: null,
       });
-      // Second call: the total — MEMBER role, all statuses.
-      expect(gymMember.mock.calls[1]?.[0]?.where).toEqual({ role: Role.MEMBER });
+      // Second call: the total — MEMBER role, all statuses, trashed excluded.
+      expect(gymMember.mock.calls[1]?.[0]?.where).toEqual({ role: Role.MEMBER, deletedAt: null });
     });
 
     it('filters the active count of each catalogue entity by its ACTIVE status', async () => {
@@ -148,8 +149,8 @@ describe('DashboardService', () => {
     it('projects the six figures with a real month-over-month revenue delta', async () => {
       const { service } = setupSecondary();
       const result: DashboardSecondaryKpis = await (
-        service as unknown as { secondaryKpis(): Promise<DashboardSecondaryKpis> }
-      ).secondaryKpis();
+        service as unknown as { secondaryKpis(win: PeriodWindow): Promise<DashboardSecondaryKpis> }
+      ).secondaryKpis(resolvePeriodWindow({ period: 'today' }, new Date()));
 
       expect(result).toEqual({
         activeMembers: 120,
@@ -164,8 +165,8 @@ describe('DashboardService', () => {
     it('counts overdue as PAST_DUE subscriptions', async () => {
       const { service, subscriptionCount } = setupSecondary();
       await (
-        service as unknown as { secondaryKpis(): Promise<DashboardSecondaryKpis> }
-      ).secondaryKpis();
+        service as unknown as { secondaryKpis(win: PeriodWindow): Promise<DashboardSecondaryKpis> }
+      ).secondaryKpis(resolvePeriodWindow({ period: 'today' }, new Date()));
       expect(subscriptionCount.mock.calls[0]?.[0]).toEqual({
         where: { status: SubscriptionStatus.PAST_DUE },
       });
@@ -174,8 +175,8 @@ describe('DashboardService', () => {
     it('sums this-month revenue from CAPTURED payments only', async () => {
       const { service, paymentAggregate } = setupSecondary();
       await (
-        service as unknown as { secondaryKpis(): Promise<DashboardSecondaryKpis> }
-      ).secondaryKpis();
+        service as unknown as { secondaryKpis(win: PeriodWindow): Promise<DashboardSecondaryKpis> }
+      ).secondaryKpis(resolvePeriodWindow({ period: 'today' }, new Date()));
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       expect(paymentAggregate.mock.calls[0]?.[0].where.status).toBe(PaymentStatus.CAPTURED);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -220,5 +221,75 @@ describe('DashboardService', () => {
         },
       ]);
     });
+  });
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Local `YYYY-MM-DD` for an assertion (mirrors the service's own formatter). */
+function iso(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+describe('resolvePeriodWindow', () => {
+  // A fixed mid-afternoon "now" (Wed 15 Jul 2026, local) so the cases are stable.
+  const now = new Date(2026, 6, 15, 13, 30, 0);
+
+  it('today → the single calendar day, delta vs. yesterday', () => {
+    const win = resolvePeriodWindow({ period: 'today' }, now);
+    expect(win.period).toBe('today');
+    expect(win.start).toEqual(new Date(2026, 6, 15));
+    expect(win.end).toEqual(new Date(2026, 6, 16));
+    expect(win.fromISO).toBe('2026-07-15');
+    expect(win.toISO).toBe('2026-07-15');
+    // Previous window is the immediately preceding equal-length (1 day) window.
+    expect(win.prevEnd).toEqual(win.start);
+    expect(win.prevStart).toEqual(new Date(2026, 6, 14));
+  });
+
+  it('week → a Monday-started 7-day window', () => {
+    const win = resolvePeriodWindow({ period: 'week' }, now);
+    expect(win.start.getDay()).toBe(1); // Monday
+    expect(win.end.getTime() - win.start.getTime()).toBe(7 * DAY_MS);
+    expect(win.fromISO).toBe(iso(win.start));
+    expect(win.toISO).toBe(iso(new Date(win.end.getTime() - DAY_MS)));
+    expect(win.prevStart.getTime()).toBe(win.start.getTime() - 7 * DAY_MS);
+  });
+
+  it('month → the whole calendar month, inclusive last day', () => {
+    const win = resolvePeriodWindow({ period: 'month' }, now);
+    expect(win.start).toEqual(new Date(2026, 6, 1));
+    expect(win.end).toEqual(new Date(2026, 7, 1));
+    expect(win.fromISO).toBe('2026-07-01');
+    expect(win.toISO).toBe('2026-07-31');
+  });
+
+  it('custom → inclusive from/to, end exclusive of the day after `to`', () => {
+    const win = resolvePeriodWindow(
+      { period: 'custom', from: '2026-07-03', to: '2026-07-10' },
+      now,
+    );
+    expect(win.start).toEqual(new Date(2026, 6, 3));
+    expect(win.end).toEqual(new Date(2026, 6, 11)); // day after the inclusive `to`
+    expect(win.fromISO).toBe('2026-07-03');
+    expect(win.toISO).toBe('2026-07-10');
+  });
+
+  it('custom with a reversed range swaps the bounds so the window is valid', () => {
+    const win = resolvePeriodWindow(
+      { period: 'custom', from: '2026-07-10', to: '2026-07-03' },
+      now,
+    );
+    expect(win.fromISO).toBe('2026-07-03');
+    expect(win.toISO).toBe('2026-07-10');
+    expect(win.start.getTime()).toBeLessThan(win.end.getTime());
+  });
+
+  it('custom with a missing side falls back to today for that side', () => {
+    const win = resolvePeriodWindow({ period: 'custom', from: '2026-07-13' }, now);
+    expect(win.fromISO).toBe('2026-07-13');
+    expect(win.toISO).toBe('2026-07-15'); // `to` defaults to today
   });
 });

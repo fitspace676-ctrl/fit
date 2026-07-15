@@ -15,15 +15,15 @@ describe('automation trigger catalog', () => {
     }
   });
 
-  it('covers all 31 triggers with unique values', () => {
+  it('covers all 26 triggers with unique values', () => {
     const values = AUTOMATION_TRIGGER_CATALOG.map((t) => t.value);
-    expect(values).toHaveLength(31);
-    expect(new Set(values).size).toBe(31);
+    expect(values).toHaveLength(26);
+    expect(new Set(values).size).toBe(26);
   });
 
   it('flags exactly the count/day-window triggers as needing days', () => {
     expect([...TRIGGERS_NEEDING_DAYS].sort()).toEqual(
-      ['checkin_milestone', 'lead_no_activity', 'membership_expiring', 'no_checkin'].sort(),
+      ['checkin_milestone', 'membership_expiring', 'no_checkin'].sort(),
     );
   });
 });
