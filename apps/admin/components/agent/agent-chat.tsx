@@ -417,6 +417,11 @@ export function AgentChat() {
   const [dragging, setDragging] = useState(false);
   // Nested elements fire dragenter/dragleave; count them so the overlay doesn't flicker.
   const dragDepth = useRef(0);
+  // Render client-only: this panel embeds rich client widgets (Astryx Chat) that
+  // aren't worth server-rendering and could hydration-mismatch. Skipping SSR keeps
+  // the mismatch off every admin page.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -562,6 +567,10 @@ export function AgentChat() {
   useEffect(() => {
     if (open) closeButtonRef.current?.focus();
   }, [open]);
+
+  // Client-only (see `mounted` above) — nothing renders on the server, so this
+  // panel can never cause a hydration mismatch on an admin page.
+  if (!mounted) return null;
 
   return (
     <>
