@@ -59,6 +59,44 @@ export const MARKETING_MERGE_FIELDS: readonly MarketingMergeField[] = [
 ];
 
 /**
+ * Merge values for {@link interpolateMergeFields}, keyed by the **bare** token name
+ * (the token without its braces — e.g. `first_name` for `{{first_name}}`).
+ */
+export type MergeValues = Record<string, string>;
+
+/** The bare names of every catalog token (`first_name`, `last_name`, …). */
+const KNOWN_MERGE_KEYS = new Set(
+  MARKETING_MERGE_FIELDS.map((field) => field.token.replace(/[{}]/g, '')),
+);
+
+/**
+ * Expand every `{{token}}` in `text`. A token present in `values` becomes its value;
+ * an unknown token is always left untouched (a likely typo staff can still see).
+ *
+ * A **known** catalog token with no provided value depends on `blankMissing`:
+ * - `true` (default) — blank it, so a raw `{{…}}` never reaches a recipient. This is
+ *   the server's send-time safety pass, which has the full value set.
+ * - `false` — leave it raw. This is the client's live preview, which only holds the
+ *   member-derived values; the tokens it can't fill stay visible and are filled by
+ *   the server pass on send, so preview and delivered mail agree.
+ */
+export function interpolateMergeFields(
+  text: string,
+  values: MergeValues,
+  options?: { blankMissing?: boolean },
+): string {
+  const blankMissing = options?.blankMissing ?? true;
+  return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, rawKey: string) => {
+    const key = rawKey.toLowerCase();
+    const value = values[key];
+    if (value !== undefined) {
+      return value;
+    }
+    return blankMissing && KNOWN_MERGE_KEYS.has(key) ? '' : match;
+  });
+}
+
+/**
  * Response of `GET /marketing/catalog` — the channel and merge-field catalogs the
  * campaign composer and template editor render their pickers from, served from
  * this one shared source so the UI never hard-codes a list that could drift.

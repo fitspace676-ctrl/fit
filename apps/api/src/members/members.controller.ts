@@ -19,12 +19,14 @@ import {
   createMemberSchema,
   createMemberTaskSchema,
   listMembersQuerySchema,
+  sendMemberEmailSchema,
   updateMemberSchema,
   updateMemberTaskSchema,
   type BulkExportMembersResponse,
   type CreateMemberResponse,
   type GetMemberResponse,
   type ListMembersResponse,
+  type SendMemberEmailResponse,
   type SetMemberStatusResponse,
   type UpdateMemberResponse,
 } from '@fit/types';
@@ -133,6 +135,32 @@ export class MembersController {
   }
 
   /**
+   * `POST /members/:id/trash` — move a member to trash (soft-delete). The member
+   * drops out of the roster and every live count but is recoverable via
+   * {@link restore} until the purge cron permanently deletes it after the 30-day
+   * retention window. A `404` for an unknown / cross-tenant / already-trashed id.
+   * Returns the trashed member's detail.
+   */
+  @Post(':id/trash')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MemberWrite)
+  async trash(@Param('id') id: string): Promise<SetMemberStatusResponse> {
+    return this.members.softDeleteMember(id);
+  }
+
+  /**
+   * `POST /members/:id/restore` — restore a trashed member (the inverse of
+   * {@link trash}), returning them to the live roster with their prior status. A
+   * `404` for a live / unknown / cross-tenant id. Returns the restored detail.
+   */
+  @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MemberWrite)
+  async restore(@Param('id') id: string): Promise<SetMemberStatusResponse> {
+    return this.members.restoreMember(id);
+  }
+
+  /**
    * `POST /members/:id/notes` — add a staff note to a member (T4.x). The author is
    * resolved from the session server-side. `404`s an unknown / cross-tenant id.
    * Returns the fresh member detail.
@@ -142,6 +170,21 @@ export class MembersController {
   @RequirePermissions(Permission.MemberWrite)
   async addNote(@Param('id') id: string, @Body() body: unknown): Promise<GetMemberResponse> {
     return this.members.addNote(id, parse(createMemberNoteSchema, body));
+  }
+
+  /**
+   * `POST /members/:id/email` — send a one-off staff email to the member. Validates
+   * `{ subject, body }`, `404`s an unknown / cross-tenant / trashed id, and `503`s
+   * (`EMAIL_NOT_CONFIGURED`) when outbound mail is disabled. Returns `{ sent }`.
+   */
+  @Post(':id/email')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MemberWrite)
+  async sendEmail(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<SendMemberEmailResponse> {
+    return this.members.sendMemberEmail(id, parse(sendMemberEmailSchema, body));
   }
 
   /**

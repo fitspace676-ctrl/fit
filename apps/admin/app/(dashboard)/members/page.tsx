@@ -158,6 +158,8 @@ export default async function MembersPage({
         dir={query.dir}
         search={query.search ?? ''}
         status={query.status ?? ''}
+        view={query.view}
+        frozen={query.frozen}
         planId={query.planId ?? ''}
         tag={query.tag ?? ''}
         availableTags={result.availableTags}

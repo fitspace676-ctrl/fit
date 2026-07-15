@@ -84,10 +84,8 @@ export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; minRole: Role }>
   { prefix: '/billing', minRole: 'OWNER' },
   { prefix: '/staff', minRole: 'OWNER' },
   { prefix: '/settings', minRole: 'MANAGER' },
-  // Growth area (T12.1). CRM reaches the front desk (RECEPTIONIST holds
-  // crm:read); Automation and Marketing are MANAGER+, mirroring the @fit/types
-  // matrix so visible links never bounce to /403.
-  { prefix: '/crm', minRole: 'RECEPTIONIST' },
+  // Growth area (T12.1). Automation and Marketing are MANAGER+, mirroring the
+  // @fit/types matrix so visible links never bounce to /403.
   { prefix: '/automation', minRole: 'MANAGER' },
   { prefix: '/marketing', minRole: 'MANAGER' },
 ];

@@ -75,10 +75,6 @@ export enum Permission {
   WorkoutWrite = 'workout:write',
   /** View analytics and reports. */
   ReportView = 'report:view',
-  /** View CRM leads, opportunities, activities, and the pipeline. */
-  CrmRead = 'crm:read',
-  /** Create, update, or remove CRM leads, opportunities, and activities. */
-  CrmManage = 'crm:manage',
   /** View automation rules and their run history. */
   AutomationRead = 'automation:read',
   /** Create, update, toggle, or remove automation rules. */
@@ -134,8 +130,6 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
     Permission.ReportView,
-    Permission.CrmRead,
-    Permission.CrmManage,
     Permission.AutomationRead,
     Permission.AutomationManage,
     Permission.MarketingRead,
@@ -165,8 +159,6 @@ export const ROLE_PERMISSIONS = {
     Permission.WorkoutRead,
     Permission.WorkoutWrite,
     Permission.ReportView,
-    Permission.CrmRead,
-    Permission.CrmManage,
     Permission.AutomationRead,
     Permission.AutomationManage,
     Permission.MarketingRead,
@@ -185,9 +177,8 @@ export const ROLE_PERMISSIONS = {
     Permission.PackageRead,
     Permission.ClassRead,
     Permission.BillingRead,
-    // Front-desk staff work leads and redeem loyalty points, but never
-    // configure campaigns, automations, or the program itself.
-    Permission.CrmRead,
+    // Front-desk staff redeem loyalty points, but never configure campaigns,
+    // automations, or the program itself.
     Permission.LoyaltyRead,
     Permission.ProfileManage,
   ],

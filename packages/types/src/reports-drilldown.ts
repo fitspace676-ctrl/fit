@@ -40,7 +40,6 @@ export const DEFAULT_REPORT_DRILLDOWN_RANGE: ReportDrilldownRange = DEFAULT_ANAL
  *   • `classes`    — most popular classes, attendance split, cancellation trend, detail.
  *   • `staff`      — classes taught / attendance rate / sessions booked per trainer, detail.
  *   • `pos`        — daily sales, sales by method, product breakdown, end-of-day summaries.
- *   • `crm`        — leads by source, conversion funnel, pipeline value trend, source detail.
  *   • `loyalty`    — points issued over time, issued vs redeemed, by reward type, recent.
  *
  * The first three shipped in T12.12; T12.13 adds the last five on the same section
@@ -53,7 +52,6 @@ export const REPORT_METRICS = [
   'classes',
   'staff',
   'pos',
-  'crm',
   'loyalty',
 ] as const;
 
@@ -134,18 +132,6 @@ export const REPORT_METRIC_DEFINITIONS: Record<ReportMetric, ReportMetricDefinit
     description:
       'Daily sales, takings by payment method, the product sales breakdown, and end-of-day summaries.',
     sections: ['daily-sales', 'sales-by-method', 'product-sales', 'end-of-day'],
-  },
-  crm: {
-    metric: 'crm',
-    name: 'CRM',
-    description:
-      'Leads by source, the conversion funnel, weighted pipeline value over time, and lead-source performance.',
-    sections: [
-      'leads-by-source',
-      'conversion-funnel',
-      'pipeline-value-over-time',
-      'lead-source-performance',
-    ],
   },
   loyalty: {
     metric: 'loyalty',

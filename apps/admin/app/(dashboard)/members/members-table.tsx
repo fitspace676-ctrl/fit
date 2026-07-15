@@ -19,16 +19,19 @@ import type {
 import {
   Badge,
   Btn,
+  ConfirmDialog,
   DataTable,
   FilterChips,
   Icon,
   nextSortDir,
+  useToast,
   type Column,
   type FilterChip,
   type Tone,
 } from '@/components/ui';
+import { MEMBER_TRASH_RETENTION_DAYS } from '@fit/types';
 import { MembersFilters } from './members-filters';
-import { bulkExportMembersAction } from './actions';
+import { bulkExportMembersAction, setMemberTrashedAction } from './actions';
 
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -44,10 +47,12 @@ const STATUS_TONES: Record<MemberStatus, Tone> = {
 const PLAN_FALLBACK = '#6257E3';
 
 /**
- * The roster's segmented tabs, mapped to the `status` URL param. "All" clears the
- * filter; the others pin a `GymMemberStatus`. Counts come from the gym-wide
- * response so each tab shows its total. "Frozen" is a subscription-derived count
- * with no `GymMemberStatus`, so selecting it clears the status filter (read-only).
+ * The roster's segmented tabs. Most map to the `status` URL param — "All" clears the
+ * filter, the others pin a `GymMemberStatus` — with counts from the gym-wide
+ * response so each shows its total. "Frozen" is a subscription-derived count with no
+ * `GymMemberStatus`, so selecting it clears the status filter (read-only). "Trash" is
+ * the odd one out: it switches the `view` param (not `status`) to list soft-deleted
+ * members, so it is handled specially in {@link MembersTable}'s tab logic.
  */
 const TABS: ReadonlyArray<{
   labelKey: string;
@@ -59,6 +64,7 @@ const TABS: ReadonlyArray<{
   { labelKey: 'frozen', value: 'frozen', countKey: 'frozen' },
   { labelKey: 'trial', value: 'INVITED', countKey: 'trial' },
   { labelKey: 'expired', value: 'SUSPENDED', countKey: 'expired' },
+  { labelKey: 'trash', value: 'trash', countKey: 'trash' },
 ];
 
 const styles = stylex.create({
@@ -300,6 +306,24 @@ const styles = stylex.create({
     fontSize: '1.125rem',
     lineHeight: 1,
   },
+  rowActions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '0.25rem',
+  },
+  rowActionBtn: {
+    borderWidth: 0,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    cursor: 'pointer',
+  },
+  rowActionIcon: {
+    width: '1rem',
+    height: '1rem',
+  },
   emptyWrap: {
     display: 'flex',
     flexDirection: 'column',
@@ -513,6 +537,8 @@ export function MembersTable({
   dir,
   search,
   status,
+  view,
+  frozen,
   planId,
   tag,
   availableTags,
@@ -528,17 +554,26 @@ export function MembersTable({
   dir: SortDir;
   search: string;
   status: string;
+  view: string;
+  frozen: boolean;
   planId: string;
   tag: string;
   availableTags: string[];
   canWrite: boolean;
 }) {
   const t = useTranslations('admin.members');
+  const { toast } = useToast();
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+
+  // Roster row trash/restore. `rowPending` guards the in-flight action; `confirmTrashId`
+  // is the member awaiting the destructive-trash confirm dialog (restore is direct).
+  const [rowPending, startRowAction] = useTransition();
+  const [confirmTrashId, setConfirmTrashId] = useState<string | null>(null);
+  const isTrashView = view === 'trash';
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, startExport] = useTransition();
@@ -562,11 +597,43 @@ export function MembersTable({
     return qs ? `${pathname}?${qs}` : pathname;
   }
 
-  /** Navigate to a status segment, always resetting to page 1. */
+  /** Navigate to a segment, always resetting to page 1. Each tab owns one filter
+   *  dimension and clears the others so the segments stay mutually exclusive:
+   *  "Trash" → `view`, "Frozen" → the `frozen` flag (subscription-derived, no
+   *  status), everything else → `status` (empty for "All"). */
   function selectTab(nextValue: string): void {
-    // "Frozen" is a read-only count with no status param — clear the filter.
-    const nextStatus = nextValue === 'frozen' ? '' : nextValue;
-    startTransition(() => router.replace(hrefWith({ status: nextStatus, page: '' })));
+    if (nextValue === 'trash') {
+      startTransition(() =>
+        router.replace(hrefWith({ view: 'trash', frozen: '', status: '', page: '' })),
+      );
+      return;
+    }
+    if (nextValue === 'frozen') {
+      startTransition(() =>
+        router.replace(hrefWith({ frozen: 'true', view: '', status: '', page: '' })),
+      );
+      return;
+    }
+    startTransition(() =>
+      router.replace(hrefWith({ status: nextValue, view: '', frozen: '', page: '' })),
+    );
+  }
+
+  /** Move a member to trash / restore from it; refreshes the roster and toasts. */
+  function setRowTrashed(id: string, trashed: boolean): void {
+    startRowAction(async () => {
+      const result = await setMemberTrashedAction(id, trashed);
+      if (result.ok) {
+        setConfirmTrashId(null);
+        toast(trashed ? t('trash.toastTrashed') : t('trash.toastRestored'), {
+          tone: 'success',
+          icon: 'check',
+        });
+        router.refresh();
+      } else {
+        toast(result.error, { tone: 'danger', icon: 'info' });
+      }
+    });
   }
 
   function toggleRow(id: string): void {
@@ -690,15 +757,39 @@ export function MembersTable({
       header: '',
       align: 'right',
       cell: (member) => (
-        <Link
-          href={`/members/${member.id}`}
-          aria-label={t('list.openMember', { name: member.name })}
-          {...stylex.props(styles.actionLink)}
-        >
-          <span aria-hidden {...stylex.props(styles.actionGlyph)}>
-            ⋯
-          </span>
-        </Link>
+        <div {...stylex.props(styles.rowActions)}>
+          {canWrite && isTrashView ? (
+            <Btn
+              v="outline"
+              size="sm"
+              icon="arrowLeft"
+              onClick={() => setRowTrashed(member.id, false)}
+              disabled={rowPending}
+            >
+              {t('trash.restore')}
+            </Btn>
+          ) : null}
+          {canWrite && !isTrashView ? (
+            <button
+              type="button"
+              aria-label={t('trash.moveToTrashOf', { name: member.name })}
+              onClick={() => setConfirmTrashId(member.id)}
+              disabled={rowPending}
+              {...stylex.props(styles.actionLink, styles.rowActionBtn)}
+            >
+              <Icon name="trash" sw={2} {...stylex.props(styles.rowActionIcon)} />
+            </button>
+          ) : null}
+          <Link
+            href={`/members/${member.id}`}
+            aria-label={t('list.openMember', { name: member.name })}
+            {...stylex.props(styles.actionLink)}
+          >
+            <span aria-hidden {...stylex.props(styles.actionGlyph)}>
+              ⋯
+            </span>
+          </Link>
+        </div>
       ),
     },
   ];
@@ -727,20 +818,23 @@ export function MembersTable({
       {/* Segmented tabs-with-counts. */}
       <FilterChips
         chips={chips}
-        active={status}
+        active={isTrashView ? 'trash' : frozen ? 'frozen' : status}
         onSelect={selectTab}
         ariaLabel={t('list.tablistLabel')}
       />
 
-      {/* Search + Filter row. */}
-      <MembersFilters
-        search={search}
-        status={status}
-        planId={planId}
-        tag={tag}
-        plans={planMix.plans}
-        availableTags={availableTags}
-      />
+      {/* Search + Filter row. Hidden in the trash view — the status/plan/tag filters
+          describe the live roster, not the soft-deleted list. */}
+      {isTrashView ? null : (
+        <MembersFilters
+          search={search}
+          status={status}
+          planId={planId}
+          tag={tag}
+          plans={planMix.plans}
+          availableTags={availableTags}
+        />
+      )}
 
       {/* Selection + export toolbar. */}
       <div {...stylex.props(styles.toolbar)}>
@@ -823,6 +917,23 @@ export function MembersTable({
           </Btn>
         </div>
       </div>
+
+      {/* Confirm dialog for the destructive roster-row "Move to trash" action. */}
+      <ConfirmDialog
+        open={confirmTrashId !== null}
+        onClose={() => setConfirmTrashId(null)}
+        onConfirm={() => {
+          if (confirmTrashId) {
+            setRowTrashed(confirmTrashId, true);
+          }
+        }}
+        title={t('trash.confirmTitle')}
+        message={t('trash.confirmMessage', { days: MEMBER_TRASH_RETENTION_DAYS })}
+        confirmLabel={t('trash.moveToTrash')}
+        cancelLabel={t('form.cancel')}
+        danger
+        busy={rowPending}
+      />
     </div>
   );
 }

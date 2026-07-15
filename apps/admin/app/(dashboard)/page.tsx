@@ -4,7 +4,10 @@ import {
   Permission,
   roleHasPermission,
   dashboardRangeSchema,
+  dashboardPeriodSchema,
+  dashboardDateSchema,
   type DashboardRange,
+  type DashboardPeriod,
 } from '@fit/types';
 import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
@@ -82,10 +85,13 @@ export default async function DashboardPage({
 
   const params = await searchParams;
   const range = parseRange(params.range);
+  const period = parsePeriod(params.period);
+  const from = parseDate(params.from);
+  const to = parseDate(params.to);
 
   let overview;
   try {
-    overview = await fetchDashboardOverview(range);
+    overview = await fetchDashboardOverview({ range, period, from, to });
   } catch (error) {
     const t = await getTranslations('admin.dashboard.error');
     const message =
@@ -130,4 +136,18 @@ function parseRange(raw: string | string[] | undefined): DashboardRange {
   const value = Array.isArray(raw) ? raw[0] : raw;
   const parsed = dashboardRangeSchema.safeParse(value);
   return parsed.success ? parsed.data : '7d';
+}
+
+/** Resolve the `?period=` query to a valid {@link DashboardPeriod}, defaulting to `today`. */
+function parsePeriod(raw: string | string[] | undefined): DashboardPeriod {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const parsed = dashboardPeriodSchema.safeParse(value);
+  return parsed.success ? parsed.data : 'today';
+}
+
+/** Resolve a `?from=`/`?to=` query to a `YYYY-MM-DD` date, or undefined when absent/invalid. */
+function parseDate(raw: string | string[] | undefined): string | undefined {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const parsed = dashboardDateSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }

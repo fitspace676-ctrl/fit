@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
-import type { MemberStatus } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
-import { setMemberActiveAction } from '../actions';
+import { MEMBER_TRASH_RETENTION_DAYS, type MemberStatus } from '@fit/types';
+import { Btn, ConfirmDialog, Icon, useToast } from '@/components/ui';
+import { setMemberActiveAction, setMemberTrashedAction } from '../actions';
 
 const styles = stylex.create({
   wrap: {
@@ -66,21 +66,38 @@ const styles = stylex.create({
 
 /**
  * The member detail page's write controls (T4.3), shown only to `MemberWrite`
- * staff (the server component gates rendering). An "Edit" link to the edit form
- * plus a deactivate / reactivate toggle: a suspended member can be reactivated,
- * any other status can be deactivated. The lifecycle call goes through
- * {@link setMemberActiveAction}; on success the router refreshes so the header
- * pill reflects the new status, and any error surfaces inline.
+ * staff (the server component gates rendering).
+ *
+ * A trashed member (soft-deleted, `deletedAt` set) collapses to a single
+ * **Restore** button — every live-member control is meaningless in trash. A live
+ * member gets the full set: an "Edit" link, a deactivate / reactivate toggle
+ * (a suspended member reactivates, any other status deactivates), and a
+ * **Move to trash** action behind a confirm dialog (destructive — it drops the
+ * member from the roster and every live count until the purge cron removes it).
+ * Lifecycle calls go through {@link setMemberActiveAction} /
+ * {@link setMemberTrashedAction}; on success the router refreshes so the header
+ * and trash banner reflect the new state.
  */
-export function MemberActions({ memberId, status }: { memberId: string; status: MemberStatus }) {
+export function MemberActions({
+  memberId,
+  status,
+  deletedAt,
+}: {
+  memberId: string;
+  status: MemberStatus;
+  deletedAt: string | null;
+}) {
   const t = useTranslations('admin.members');
+  const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmTrash, setConfirmTrash] = useState(false);
 
+  const isTrashed = deletedAt !== null;
   const isSuspended = status === 'SUSPENDED';
 
-  function toggle(): void {
+  function toggleActive(): void {
     setError(null);
     startTransition(async () => {
       const result = await setMemberActiveAction(memberId, isSuspended);
@@ -92,20 +109,65 @@ export function MemberActions({ memberId, status }: { memberId: string; status: 
     });
   }
 
+  function setTrashed(trashed: boolean): void {
+    setError(null);
+    startTransition(async () => {
+      const result = await setMemberTrashedAction(memberId, trashed);
+      if (result.ok) {
+        setConfirmTrash(false);
+        toast(trashed ? t('trash.toastTrashed') : t('trash.toastRestored'), {
+          tone: 'success',
+          icon: 'check',
+        });
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
   return (
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.row)}>
-        <Link href={`/members/${memberId}/edit`} {...stylex.props(styles.editLink)}>
-          <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
-          {t('actions.edit')}
-        </Link>
-        <Btn v={isSuspended ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>
-          {pending
-            ? t('form.saving')
-            : isSuspended
-              ? t('actions.reactivate')
-              : t('actions.deactivate')}
-        </Btn>
+        {isTrashed ? (
+          <Btn
+            v="primary"
+            size="sm"
+            icon="arrowLeft"
+            onClick={() => setTrashed(false)}
+            disabled={pending}
+          >
+            {pending ? t('form.saving') : t('trash.restore')}
+          </Btn>
+        ) : (
+          <>
+            <Link href={`/members/${memberId}/edit`} {...stylex.props(styles.editLink)}>
+              <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
+              {t('actions.edit')}
+            </Link>
+            <Btn
+              v={isSuspended ? 'primary' : 'outline'}
+              size="sm"
+              onClick={toggleActive}
+              disabled={pending}
+            >
+              {pending
+                ? t('form.saving')
+                : isSuspended
+                  ? t('actions.reactivate')
+                  : t('actions.deactivate')}
+            </Btn>
+            <Btn
+              v="ghost"
+              size="sm"
+              icon="trash"
+              onClick={() => setConfirmTrash(true)}
+              disabled={pending}
+            >
+              {t('trash.moveToTrash')}
+            </Btn>
+          </>
+        )}
       </div>
       {error ? (
         <Card variant="default" padding={0} xstyle={styles.errorCard}>
@@ -115,6 +177,18 @@ export function MemberActions({ memberId, status }: { memberId: string; status: 
           </p>
         </Card>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmTrash}
+        onClose={() => setConfirmTrash(false)}
+        onConfirm={() => setTrashed(true)}
+        title={t('trash.confirmTitle')}
+        message={t('trash.confirmMessage', { days: MEMBER_TRASH_RETENTION_DAYS })}
+        confirmLabel={t('trash.moveToTrash')}
+        cancelLabel={t('form.cancel')}
+        danger
+        busy={pending}
+      />
     </div>
   );
 }

@@ -97,22 +97,6 @@ function slimPlan(r: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
-/** Project a lead row to id/full name/status/source. */
-function slimLead(r: Record<string, unknown>): Record<string, unknown> {
-  return {
-    id: r.id,
-    name: `${r.firstName as string} ${r.lastName as string}`,
-    status: r.status,
-    source: r.source,
-  };
-}
-
-/** Project an opportunity row to id/member/status/value. */
-function slimOpportunity(r: Record<string, unknown>): Record<string, unknown> {
-  const member = r.member as Record<string, unknown> | undefined;
-  return { id: r.id, member: member?.name ?? null, status: r.status, value: r.value };
-}
-
 /** Project an order row to id/customer/status/total. */
 function slimOrder(r: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -151,7 +135,7 @@ export function createFitMcpServer(token: string): McpServer {
     {
       instructions:
         'Tools to read and manage a fitness gym: members, trainers, locations, classes, products, ' +
-        'package/subscription plans, staff, gym settings, CRM leads/opportunities, automation, ' +
+        'package/subscription plans, staff, gym settings, automation, ' +
         'marketing (segments/templates/promo codes/campaigns), loyalty, orders, check-ins, ' +
         'dashboard, and reports. IDs come from the list_* tools — never invent one. Confirm the ' +
         'target with a get_* before an edit when the user was vague. create_*/update_* tools take a ' +
@@ -720,163 +704,6 @@ export function createFitMcpServer(token: string): McpServer {
       inputSchema: { data: z.record(z.string(), z.unknown()) },
     },
     async ({ data }) => guard(() => api.patch('/gyms/settings', data)),
-  );
-
-  // ── CRM — leads ──────────────────────────────────────────────────────────────
-
-  server.registerTool(
-    'list_leads',
-    {
-      title: 'List CRM leads',
-      description: 'Search/filter the sales lead pipeline.',
-      inputSchema: {
-        search: z.string().optional(),
-        status: z.enum(['NEW', 'CONTACTED', 'TRIAL', 'CONVERTED', 'LOST']).optional(),
-        source: z.enum(['WALK_IN', 'INSTAGRAM', 'REFERRAL', 'WEBSITE']).optional(),
-        assignedToId: z.string().optional(),
-        locationId: z.string().optional(),
-        sort: z.enum(['name', 'createdAt', 'followUpDate', 'expectedCloseDate']).optional(),
-        dir: z.enum(['asc', 'desc']).optional(),
-        limit: z.number().int().min(1).max(100).optional(),
-        page: z.number().int().min(1).optional(),
-      },
-    },
-    async (args) => guard(async () => slimList(await api.get(`/crm/leads${qs(args)}`), slimLead)),
-  );
-
-  server.registerTool(
-    'get_lead',
-    {
-      title: 'Get lead',
-      description: "One lead's detail (row + activity timeline + tasks) by id.",
-      inputSchema: { id: z.string() },
-    },
-    async ({ id }) => guard(() => api.get(`/crm/leads/${encodeURIComponent(id)}`)),
-  );
-
-  server.registerTool(
-    'create_lead',
-    {
-      title: 'Create lead',
-      description:
-        'Capture a lead. Fields: firstName, lastName, phone?, email?, source (WALK_IN|INSTAGRAM|REFERRAL|WEBSITE), ' +
-        'interest?, assignedToId?, expectedValue?, probability?.',
-      inputSchema: { data: z.record(z.string(), z.unknown()) },
-    },
-    async ({ data }) => guard(() => api.post('/crm/leads', data)),
-  );
-
-  server.registerTool(
-    'update_lead',
-    {
-      title: 'Update lead',
-      description: 'Edit a lead, including open-stage status moves (NEW|CONTACTED|TRIAL).',
-      inputSchema: { id: z.string(), data: z.record(z.string(), z.unknown()) },
-    },
-    async ({ id, data }) => guard(() => api.patch(`/crm/leads/${encodeURIComponent(id)}`, data)),
-  );
-
-  server.registerTool(
-    'mark_lead_won',
-    {
-      title: 'Mark lead converted',
-      description: 'Close a lead as CONVERTED, optionally recording why.',
-      inputSchema: { id: z.string(), reason: z.string().optional() },
-    },
-    async ({ id, reason }) =>
-      guard(() => api.post(`/crm/leads/${encodeURIComponent(id)}/convert`, { reason })),
-  );
-
-  server.registerTool(
-    'mark_lead_lost',
-    {
-      title: 'Mark lead lost',
-      description: 'Close a lead as LOST, recording the required reason.',
-      inputSchema: { id: z.string(), reason: z.string() },
-    },
-    async ({ id, reason }) =>
-      guard(() => api.post(`/crm/leads/${encodeURIComponent(id)}/lose`, { reason })),
-  );
-
-  // ── CRM — opportunities ──────────────────────────────────────────────────────
-
-  server.registerTool(
-    'list_opportunities',
-    {
-      title: 'List CRM opportunities',
-      description: 'Search/filter the sales opportunity pipeline.',
-      inputSchema: {
-        search: z.string().optional(),
-        status: z
-          .enum(['INTERESTED', 'PROPOSAL_SENT', 'DECISION_PENDING', 'WON', 'LOST'])
-          .optional(),
-        type: z.enum(['MEMBERSHIP_UPGRADE', 'PT_SESSIONS', 'SERVICE_PACKAGE', 'OTHER']).optional(),
-        assignedToId: z.string().optional(),
-        memberId: z.string().optional(),
-        sort: z.enum(['createdAt', 'expectedCloseDate', 'value']).optional(),
-        dir: z.enum(['asc', 'desc']).optional(),
-        limit: z.number().int().min(1).max(100).optional(),
-        page: z.number().int().min(1).optional(),
-      },
-    },
-    async (args) =>
-      guard(async () => slimList(await api.get(`/crm/opportunities${qs(args)}`), slimOpportunity)),
-  );
-
-  server.registerTool(
-    'get_opportunity',
-    {
-      title: 'Get opportunity',
-      description: "One opportunity's detail (row + timeline + tasks) by id.",
-      inputSchema: { id: z.string() },
-    },
-    async ({ id }) => guard(() => api.get(`/crm/opportunities/${encodeURIComponent(id)}`)),
-  );
-
-  server.registerTool(
-    'create_opportunity',
-    {
-      title: 'Create opportunity',
-      description:
-        'Open an opportunity on a member. Fields: memberId, type (MEMBERSHIP_UPGRADE|PT_SESSIONS|SERVICE_PACKAGE|OTHER), ' +
-        'description?, value?, probability?, assignedToId?, expectedCloseDate?.',
-      inputSchema: { data: z.record(z.string(), z.unknown()) },
-    },
-    async ({ data }) => guard(() => api.post('/crm/opportunities', data)),
-  );
-
-  server.registerTool(
-    'update_opportunity',
-    {
-      title: 'Update opportunity',
-      description:
-        'Edit an opportunity, including open-stage status moves (INTERESTED|PROPOSAL_SENT|DECISION_PENDING).',
-      inputSchema: { id: z.string(), data: z.record(z.string(), z.unknown()) },
-    },
-    async ({ id, data }) =>
-      guard(() => api.patch(`/crm/opportunities/${encodeURIComponent(id)}`, data)),
-  );
-
-  server.registerTool(
-    'win_opportunity',
-    {
-      title: 'Mark opportunity won',
-      description: 'Close an opportunity as WON, optionally recording why.',
-      inputSchema: { id: z.string(), reason: z.string().optional() },
-    },
-    async ({ id, reason }) =>
-      guard(() => api.post(`/crm/opportunities/${encodeURIComponent(id)}/won`, { reason })),
-  );
-
-  server.registerTool(
-    'lose_opportunity',
-    {
-      title: 'Mark opportunity lost',
-      description: 'Close an opportunity as LOST, recording the required reason.',
-      inputSchema: { id: z.string(), reason: z.string() },
-    },
-    async ({ id, reason }) =>
-      guard(() => api.post(`/crm/opportunities/${encodeURIComponent(id)}/lost`, { reason })),
   );
 
   // ── Automation rules ─────────────────────────────────────────────────────────

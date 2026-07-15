@@ -4,25 +4,21 @@ import { notFound } from 'next/navigation';
 import { getLocale, getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import {
+  MEMBER_TRASH_RETENTION_DAYS,
   Permission,
   roleHasPermission,
   type CreditPackCatalogueEntry,
   type CreditPackSummary,
   type MemberDetail,
-  type MemberLoyaltyResponse,
+  type MergeValues,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import {
-  ApiError,
-  fetchCreditPackCatalogue,
-  fetchMember,
-  fetchMemberCreditPacks,
-  fetchMemberLoyalty,
-} from '@/lib/api';
+import { ApiError, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
-import { Badge, Btn, Icon, type IconName, type Tone } from '@/components/ui';
+import { Badge, Icon, type IconName, type Tone } from '@/components/ui';
 import { MemberActions } from './member-actions';
 import { MemberTabs } from './member-tabs';
+import { EmailMemberDrawer } from './email-member-drawer';
 
 /** Translator for the `admin.members` namespace (from `getTranslations`). */
 type T = Awaited<ReturnType<typeof getTranslations>>;
@@ -91,6 +87,28 @@ const styles = stylex.create({
   backIcon: {
     width: '1rem',
     height: '1rem',
+  },
+  trashBanner: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.625rem',
+    padding: '0.875rem 1rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-warning, var(--color-border))',
+    backgroundColor: 'var(--color-warning-muted, var(--color-background-muted))',
+  },
+  trashBannerIcon: {
+    marginTop: '0.0625rem',
+    width: '1.125rem',
+    height: '1.125rem',
+    flexShrink: 0,
+    color: 'var(--color-warning, var(--color-text-secondary))',
+  },
+  trashBannerText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
   },
   identityCard: {
     display: 'flex',
@@ -178,8 +196,7 @@ const styles = stylex.create({
     gap: '1rem',
     gridTemplateColumns: {
       default: '1fr',
-      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
-      '@media (min-width: 1024px)': 'repeat(4, minmax(0, 1fr))',
+      '@media (min-width: 640px)': 'repeat(3, minmax(0, 1fr))',
     },
   },
   kpiCard: {
@@ -300,6 +317,37 @@ function nextBillingKpi(member: MemberDetail, t: T, locale: string): string {
   }
 }
 
+/**
+ * Merge-field values for the member email drawer's live template preview. Covers the
+ * member-derived tokens the client can resolve; `{{business_name}}` (and any other
+ * unfilled token) is left for the server's send-time pass, which has the gym name.
+ */
+function emailMergeValues(member: MemberDetail, locale: string): MergeValues {
+  const fullName = member.name.trim();
+  const [firstName, ...rest] = fullName.length > 0 ? fullName.split(/\s+/) : [''];
+  const lastName = rest.join(' ');
+  const first = firstName ?? '';
+  const phone = member.phone ?? '';
+  const planName = member.plan?.name ?? '';
+  const expiry = member.nextBillingAt ? formatDate(member.nextBillingAt, locale) : '';
+  return {
+    // Marketing tokens (`{{first_name}}`) and the automation tokens
+    // (`{{member_first_name}}`) share these values so either template kind personalizes.
+    first_name: first,
+    last_name: lastName,
+    email: member.email,
+    phone,
+    plan_name: planName,
+    expiry_date: expiry,
+    member_first_name: first,
+    member_last_name: lastName,
+    member_email: member.email,
+    member_phone: phone,
+    member_plan_name: planName,
+    member_expiry_date: expiry,
+  };
+}
+
 /** One detail KPI card — icon tile, headline value, label, and sub-context. */
 function DetailKpi({
   label,
@@ -368,6 +416,21 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   const statusTone: Tone = STATUS_TONES[member.status] ?? 'ink';
   const statusLabel = member.status in STATUS_TONES ? t(`status.${member.status}`) : member.status;
 
+  // Trashed (soft-deleted) member: days remaining until the purge cron permanently
+  // deletes it, from `deletedAt + retention − now`, floored at 0 (an overdue row
+  // just hasn't been swept yet). Drives the trash banner + its countdown copy.
+  const daysUntilPurge = member.deletedAt
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(member.deletedAt).getTime() +
+            MEMBER_TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000 -
+            Date.now()) /
+            (24 * 60 * 60 * 1000),
+        ),
+      )
+    : null;
+
   // Write controls (edit + deactivate) are a `MemberWrite` capability — shown only
   // to staff who hold it, and re-checked by the actions and the API behind them.
   const session = await getServerSession();
@@ -395,18 +458,6 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
     ]);
   }
 
-  // Loyalty balance + ledger (T12.11). Reading is a `LoyaltyRead` capability;
-  // adjusting is `LoyaltyManage`. Both are secondary to the member detail, so a
-  // failure degrades to no loyalty tab rather than failing the whole page.
-  const canReadLoyalty =
-    session !== null && roleHasPermission(session.role, Permission.LoyaltyRead);
-  const canManageLoyalty =
-    session !== null && roleHasPermission(session.role, Permission.LoyaltyManage);
-  let loyalty: MemberLoyaltyResponse | null = null;
-  if (canReadLoyalty) {
-    loyalty = await fetchMemberLoyalty(member.id).catch(() => null);
-  }
-
   return (
     <div {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.topRow)}>
@@ -419,15 +470,31 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
           <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
           <span {...stylex.props(styles.crumbCurrent)}>{member.name}</span>
         </nav>
-        <Btn v="outline" size="sm" icon="message" disabled>
-          {t('detail.message')}
-        </Btn>
+        {canWrite ? (
+          <EmailMemberDrawer
+            memberId={member.id}
+            memberName={member.name}
+            memberEmail={member.email}
+            mergeValues={emailMergeValues(member, locale)}
+          />
+        ) : null}
       </div>
 
       <Link href="/members" {...stylex.props(styles.backLink)}>
         <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         {t('nav.backToMembers')}
       </Link>
+
+      {/* Trash banner — a trashed member is hidden from every live view; this is the
+          only place staff see it, with the purge countdown and (in the header) restore. */}
+      {daysUntilPurge !== null ? (
+        <Card variant="default" padding={0} xstyle={styles.trashBanner}>
+          <Icon name="trash" sw={2} {...stylex.props(styles.trashBannerIcon)} />
+          <p role="status" {...stylex.props(styles.trashBannerText)}>
+            {t('trash.bannerCountdown', { days: daysUntilPurge })}
+          </p>
+        </Card>
+      ) : null}
 
       {/* Identity header card. */}
       <Card variant="default" padding={0} xstyle={styles.identityCard}>
@@ -461,22 +528,18 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
             ) : null}
           </div>
         </div>
-        {canWrite ? <MemberActions memberId={member.id} status={member.status} /> : null}
+        {canWrite ? (
+          <MemberActions memberId={member.id} status={member.status} deletedAt={member.deletedAt} />
+        ) : null}
       </Card>
 
-      {/* Four live KPI cards. */}
+      {/* Three live KPI cards (total-visits lives in the Overview stat row). */}
       <section aria-label={t('detail.memberMetrics')} {...stylex.props(styles.kpiGrid)}>
         <DetailKpi
           label={t('detail.lifetimeValue')}
           value={formatAmount(member.lifetimeValue, member.currency)}
           context={t('detail.capturedPayments')}
           icon="card"
-        />
-        <DetailKpi
-          label={t('detail.totalVisits')}
-          value={String(member.totalVisits)}
-          context={t('detail.allTimeCheckins')}
-          icon="check"
         />
         <DetailKpi
           label={t('detail.memberSince')}
@@ -497,8 +560,6 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
         canManageBilling={canManageBilling}
         creditPacks={creditPacks}
         creditCatalogue={creditCatalogue}
-        loyalty={loyalty}
-        canManageLoyalty={canManageLoyalty}
       />
     </div>
   );

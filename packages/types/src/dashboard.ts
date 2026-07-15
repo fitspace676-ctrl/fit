@@ -68,11 +68,52 @@ export type DashboardRange = z.infer<typeof dashboardRangeSchema>;
 /** The default window when the query omits `range` — the reference's "7d". */
 export const DEFAULT_DASHBOARD_RANGE: DashboardRange = '7d';
 
-/** `GET /dashboard/overview?range=` query — coerced + validated by the same schema. */
+/**
+ * The reporting period the header filter applies to the period-bounded KPI cards
+ * (revenue / check-ins / new members / classes). `today` / `week` / `month` are
+ * resolved server-side against the gym's calendar; `custom` reads `from`/`to`.
+ * Independent of {@link dashboardRangeSchema}, which only shapes the revenue chart.
+ */
+export const dashboardPeriodSchema = z.enum(['today', 'week', 'month', 'custom']);
+export type DashboardPeriod = z.infer<typeof dashboardPeriodSchema>;
+
+/** The default period when the query omits `period` — "today" (the landing view). */
+export const DEFAULT_DASHBOARD_PERIOD: DashboardPeriod = 'today';
+
+/** A calendar date the dashboard carries on the wire, `YYYY-MM-DD` (no time/zone). */
+export const dashboardDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a YYYY-MM-DD date');
+
+/**
+ * `GET /dashboard/overview` query — `range` shapes the revenue chart; `period`
+ * (+ `from`/`to` when `period=custom`) drives the period-bounded KPI cards. Each
+ * field defaults so an empty query yields the landing dashboard (`7d` chart, today).
+ */
 export const dashboardOverviewQuerySchema = z.object({
-  range: dashboardRangeSchema.default(DEFAULT_DASHBOARD_RANGE),
+  // Every field degrades to its default on a bad/omitted value rather than 500-ing
+  // — a hand-edited `?period=…` URL should fall back to the landing view, not error.
+  range: dashboardRangeSchema.catch(DEFAULT_DASHBOARD_RANGE),
+  period: dashboardPeriodSchema.catch(DEFAULT_DASHBOARD_PERIOD),
+  from: dashboardDateSchema.optional().catch(undefined),
+  to: dashboardDateSchema.optional().catch(undefined),
 });
 export type DashboardOverviewQuery = z.infer<typeof dashboardOverviewQuerySchema>;
+
+/**
+ * The concrete window the server resolved the requested {@link DashboardPeriod}
+ * into, echoed back so the client can label the period-bounded cards and reflect
+ * the exact days in the date picker. `from`/`to` are inclusive calendar days
+ * (`YYYY-MM-DD`) in the gym's server zone; for `today` they are equal.
+ */
+export const dashboardResolvedPeriodSchema = z.object({
+  period: dashboardPeriodSchema,
+  /** First included day (inclusive), `YYYY-MM-DD`. */
+  from: dashboardDateSchema,
+  /** Last included day (inclusive), `YYYY-MM-DD`. */
+  to: dashboardDateSchema,
+});
+export type DashboardResolvedPeriod = z.infer<typeof dashboardResolvedPeriodSchema>;
 
 /**
  * The signed-in staff member the console chrome greets by name — resolved from the
@@ -122,13 +163,19 @@ export const dashboardKpiSchema = z.object({
 });
 export type DashboardKpi = z.infer<typeof dashboardKpiSchema>;
 
-/** The three headline KPI cards on the overview. */
+/**
+ * The three headline KPI cards on the overview. Each is computed over the selected
+ * {@link DashboardPeriod} window (echoed as `period` on the response), with the
+ * delta measured against the immediately preceding equal-length window. The field
+ * names keep their original "today"/"7d" spelling for wire-compatibility; the
+ * client labels them by the resolved period.
+ */
 export const dashboardKpisSchema = z.object({
-  /** Captured revenue today (MINOR units), delta vs. yesterday. */
+  /** Captured revenue in the selected period (MINOR units), delta vs. the prior window. */
   todaysRevenue: dashboardKpiSchema,
-  /** Check-ins recorded today, delta vs. yesterday. */
+  /** Check-ins recorded in the selected period, delta vs. the prior window. */
   checkInsToday: dashboardKpiSchema,
-  /** New `MEMBER`-role members joined in the last 7 days, delta vs. the prior 7. */
+  /** New `MEMBER`-role members joined in the selected period, delta vs. the prior window. */
   newMembers7d: dashboardKpiSchema,
 });
 export type DashboardKpis = z.infer<typeof dashboardKpisSchema>;
@@ -146,7 +193,7 @@ export const dashboardSecondaryKpisSchema = z.object({
   revenueThisMonth: dashboardKpiSchema,
   /** Subscriptions currently `PAST_DUE` (dunning) — the honest "overdue" figure. */
   overduePayments: z.number().int().nonnegative(),
-  /** Class occurrences scheduled today. */
+  /** Class occurrences scheduled within the selected period. */
   classesToday: z.number().int().nonnegative(),
   /** Live subscriptions whose current period ends within 7 days. */
   expiringSoon: z.number().int().nonnegative(),
@@ -269,6 +316,8 @@ export const dashboardOverviewResponseSchema = z.object({
   viewer: dashboardViewerSchema,
   /** The gym's display name (real, from the `Gym` row). */
   gymName: z.string(),
+  /** The concrete window the requested period resolved to (for labels + the picker). */
+  period: dashboardResolvedPeriodSchema,
   /** The live "in the gym now" occupancy card. */
   inGymNow: dashboardInGymNowSchema,
   /** Today's three headline KPI cards. */

@@ -4,42 +4,40 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,
-  adjustLoyaltyPointsSchema,
   createMemberNoteSchema,
   createMemberSchema,
-  createMemberTaskSchema,
   freezeSubscriptionSchema,
   purchaseCreditPackSchema,
   roleHasPermission,
+  sendMemberEmailSchema,
   updateMemberSchema,
-  updateMemberTaskSchema,
-  type AdjustLoyaltyPointsInput,
   type BulkExportMembersInput,
   type CreateMemberInput,
   type CreateMemberNoteInput,
-  type CreateMemberTaskInput,
+  type EmailTemplateOption,
   type FreezeSubscriptionInput,
-  type MemberBalanceResponse,
   type MemberDetail,
-  type MemberTaskStatus,
+  type SendMemberEmailInput,
   type UpdateMemberInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
-  adjustMemberPoints,
   bulkExportMembers,
   createMember,
   createMemberNote,
-  createMemberTask,
   deactivateMember,
+  fetchAutomationTemplates,
+  fetchMessageTemplates,
   fetchSubscriptionPlans,
   freezeMemberSubscription,
   grantMemberCreditPack,
   reactivateMember,
+  restoreMember,
+  sendMemberEmail,
+  trashMember,
   unfreezeMemberSubscription,
   updateMember,
-  updateMemberTask,
 } from '@/lib/api';
 
 /** A membership plan option for the Add-Member form's plan selector. */
@@ -72,7 +70,6 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 const requireMemberRead = () => sessionHas(Permission.MemberRead);
 const requireMemberWrite = () => sessionHas(Permission.MemberWrite);
 const requireBillingManage = () => sessionHas(Permission.BillingManage);
-const requireLoyaltyManage = () => sessionHas(Permission.LoyaltyManage);
 
 /** Map a thrown API error to a short, staff-facing message. */
 function toMessage(error: unknown, t: Translator): string {
@@ -104,6 +101,13 @@ function toMessage(error: unknown, t: Translator): string {
     // Credit-pack grant (T5.8).
     if (error.message === 'PACK_UNAVAILABLE') {
       return t('errors.packUnavailable');
+    }
+    // Member email (T-member-email).
+    if (error.message === 'EMAIL_NOT_CONFIGURED') {
+      return t('email.notConfigured');
+    }
+    if (error.message === 'EMAIL_SEND_FAILED') {
+      return t('email.sendFailed');
     }
     return t('errors.requestFailed', { status: error.status, message: error.message });
   }
@@ -201,6 +205,30 @@ export async function setMemberActiveAction(
     revalidatePath('/members');
     revalidatePath(`/members/${id}`);
     return { ok: true, data: { status: member.status } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Move a member to trash (soft-delete) or restore a trashed one — the two
+ * mirror-image transitions behind a boolean, matching {@link setMemberActiveAction}.
+ * Both enforce `MemberWrite` and refresh the roster + detail caches so the moved
+ * member drops out of (or returns to) the live views immediately.
+ */
+export async function setMemberTrashedAction(
+  id: string,
+  trashed: boolean,
+): Promise<ActionResult<{ deletedAt: string | null }>> {
+  const t = await getTranslations('admin.members');
+  if (!(await requireMemberWrite())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  try {
+    const member = trashed ? await trashMember(id) : await restoreMember(id);
+    revalidatePath('/members');
+    revalidatePath(`/members/${id}`);
+    return { ok: true, data: { deletedAt: member.deletedAt } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }
@@ -315,51 +343,69 @@ export async function addMemberNoteAction(
 }
 
 /**
- * Log a follow-up task against a member (T4.x). Enforces `MemberWrite`,
- * re-validates the body, and refreshes the member's detail page on success.
+ * The gym's reusable **email** templates for the member-email drawer's picker, unified
+ * from both stores: marketing message templates (`channel: 'email'`) and automation
+ * email-action templates (`actionType: 'email'`). Each store is fetched independently
+ * (`allSettled`) so one being unavailable — no access, or the fetch failing — never
+ * hides the other, and an empty list is a valid result (custom compose always works).
  */
-export async function addMemberTaskAction(
-  memberId: string,
-  input: CreateMemberTaskInput,
-): Promise<ActionResult<{ id: string }>> {
-  const t = await getTranslations('admin.members');
+export async function listEmailTemplatesAction(): Promise<EmailTemplateOption[]> {
   if (!(await requireMemberWrite())) {
-    return { ok: false, error: t('errors.notAuthorized') };
+    return [];
   }
-  const parsed = createMemberTaskSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  const [marketing, automation] = await Promise.allSettled([
+    fetchMessageTemplates(),
+    fetchAutomationTemplates(),
+  ]);
+
+  const options: EmailTemplateOption[] = [];
+  if (marketing.status === 'fulfilled') {
+    for (const template of marketing.value.data) {
+      if (template.channel !== 'email') continue;
+      options.push({
+        id: `marketing:${template.id}`,
+        name: template.name,
+        subject: template.subject ?? '',
+        body: template.body,
+        source: 'marketing',
+      });
+    }
   }
-  try {
-    await createMemberTask(memberId, parsed.data);
-    revalidatePath(`/members/${memberId}`);
-    return { ok: true, data: { id: memberId } };
-  } catch (error) {
-    return { ok: false, error: toMessage(error, t) };
+  if (automation.status === 'fulfilled') {
+    for (const rule of automation.value.data) {
+      if (rule.actionType !== 'email') continue;
+      options.push({
+        id: `automation:${rule.id}`,
+        name: rule.name,
+        subject: rule.actionConfig.subject ?? '',
+        body: rule.actionConfig.body,
+        source: 'automation',
+      });
+    }
   }
+  return options;
 }
 
 /**
- * Toggle a member task between pending and done (T4.x). Enforces `MemberWrite` and
- * refreshes the member's detail page so the task list reflects the new state.
+ * Send a one-off staff email to a member. Enforces `MemberWrite`, re-validates the
+ * `{ subject, body }` body, and maps a not-configured mailer to a clear staff message
+ * (never a false success). The client sends the final, already-personalized text.
  */
-export async function toggleMemberTaskAction(
+export async function sendMemberEmailAction(
   memberId: string,
-  taskId: string,
-  status: MemberTaskStatus,
-): Promise<ActionResult<{ id: string }>> {
+  input: SendMemberEmailInput,
+): Promise<ActionResult<{ sent: boolean }>> {
   const t = await getTranslations('admin.members');
   if (!(await requireMemberWrite())) {
     return { ok: false, error: t('errors.notAuthorized') };
   }
-  const parsed = updateMemberTaskSchema.safeParse({ status });
+  const parsed = sendMemberEmailSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
   }
   try {
-    await updateMemberTask(memberId, taskId, parsed.data);
-    revalidatePath(`/members/${memberId}`);
-    return { ok: true, data: { id: taskId } };
+    const { sent } = await sendMemberEmail(memberId, parsed.data);
+    return { ok: true, data: { sent } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }
@@ -379,33 +425,6 @@ export async function unfreezeMemberSubscriptionAction(
     revalidatePath('/members');
     revalidatePath(`/members/${memberId}`);
     return { ok: true, data: { newPeriodEnd } };
-  } catch (error) {
-    return { ok: false, error: toMessage(error, t) };
-  }
-}
-
-/**
- * Apply a manual loyalty-points adjustment to a member (T12.11). A signed,
- * non-zero delta with an optional note. Gated by `LoyaltyManage` (distinct from
- * the `MemberWrite` roster edit), it posts to `POST /loyalty/members/:id/adjust`
- * and refreshes the member's detail page so the new balance + ledger entry show.
- */
-export async function adjustMemberPointsAction(
-  memberId: string,
-  input: AdjustLoyaltyPointsInput,
-): Promise<ActionResult<MemberBalanceResponse>> {
-  const t = await getTranslations('admin.members');
-  if (!(await requireLoyaltyManage())) {
-    return { ok: false, error: t('errors.notAuthorized') };
-  }
-  const parsed = adjustLoyaltyPointsSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
-  }
-  try {
-    const balance = await adjustMemberPoints(memberId, parsed.data);
-    revalidatePath(`/members/${memberId}`);
-    return { ok: true, data: balance };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }

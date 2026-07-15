@@ -7,8 +7,8 @@
 //     guard in `ROUTE_PERMISSIONS`, or the user would click a visible link and
 //     be forbidden. This is the invariant the two gates (nav vs middleware) must
 //     never drift on.
-//   • Every new route is permission-gated — the Growth-area routes (CRM,
-//     Automation, Marketing, Loyalty) each resolve to a required role.
+//   • Every new route is permission-gated — the Growth-area routes (Automation,
+//     Marketing) each resolve to a required role.
 //   • Every nav label + group heading has an i18n key present in BOTH locales,
 //     so no locale renders a raw key.
 //   • Every nav destination belongs to exactly one sidebar group (no orphan
@@ -60,7 +60,7 @@ describe('sidebar nav ⇄ route guards', () => {
   });
 
   it('gates the Phase 12 Growth routes behind a minimum role', () => {
-    for (const href of ['/crm', '/automation', '/marketing']) {
+    for (const href of ['/automation', '/marketing']) {
       expect(
         requiredRoleForPath(href),
         `${href} is not role-gated in ROUTE_PERMISSIONS`,
@@ -71,13 +71,12 @@ describe('sidebar nav ⇄ route guards', () => {
   it('shows the Growth group to an OWNER and to a MANAGER', () => {
     for (const role of ['OWNER', 'MANAGER'] as Role[]) {
       const hrefs = visibleNavItems(role).map((item) => item.href);
-      expect(hrefs).toEqual(expect.arrayContaining(['/crm', '/automation', '/marketing']));
+      expect(hrefs).toEqual(expect.arrayContaining(['/automation', '/marketing']));
     }
   });
 
-  it('hides Automation and Marketing from a RECEPTIONIST but keeps CRM', () => {
+  it('hides the Growth routes from a RECEPTIONIST', () => {
     const hrefs = visibleNavItems('RECEPTIONIST').map((item) => item.href);
-    expect(hrefs).toContain('/crm');
     expect(hrefs).not.toContain('/automation');
     expect(hrefs).not.toContain('/marketing');
   });

@@ -1,11 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BookingStatus,
-  LeadSource,
-  LeadStatus,
   LoyaltyRedemptionStatus,
   LoyaltyRewardType,
-  OpportunityStatus,
   PaymentMethod,
   SubscriptionStatus,
 } from '@fit/db';
@@ -36,8 +33,6 @@ function setup() {
   const classInstanceFindMany = vi.fn().mockResolvedValue([]);
   const bookingFindMany = vi.fn().mockResolvedValue([]);
   const reviewFindMany = vi.fn().mockResolvedValue([]);
-  const leadFindMany = vi.fn().mockResolvedValue([]);
-  const opportunityFindMany = vi.fn().mockResolvedValue([]);
   const loyaltyLedgerEntryFindMany = vi.fn().mockResolvedValue([]);
   const loyaltyRedemptionFindMany = vi.fn().mockResolvedValue([]);
 
@@ -49,8 +44,6 @@ function setup() {
     classInstance: { findMany: classInstanceFindMany },
     booking: { findMany: bookingFindMany },
     review: { findMany: reviewFindMany },
-    lead: { findMany: leadFindMany },
-    opportunity: { findMany: opportunityFindMany },
     loyaltyLedgerEntry: { findMany: loyaltyLedgerEntryFindMany },
     loyaltyRedemption: { findMany: loyaltyRedemptionFindMany },
   };
@@ -68,8 +61,6 @@ function setup() {
     classInstanceFindMany,
     bookingFindMany,
     reviewFindMany,
-    leadFindMany,
-    opportunityFindMany,
     loyaltyLedgerEntryFindMany,
     loyaltyRedemptionFindMany,
   };
@@ -131,17 +122,6 @@ function posPayment(
     createdAt: new Date(createdAt),
     order: { items },
   };
-}
-
-/** A lead row as the CRM report's `select` projects it. */
-function lead(
-  source: LeadSource,
-  status: LeadStatus,
-  expectedValue: number,
-  probability: number,
-  createdAt: string,
-) {
-  return { source, status, expectedValue, probability, createdAt: new Date(createdAt) };
 }
 
 /** A redemption row as the loyalty report's `select` projects it. */
@@ -466,59 +446,6 @@ describe('ReportDrilldownService', () => {
       expect(eod.rows).toEqual([
         { date: '2026-05-20', transactions: 2, gross: 15000, refunded: 1000, net: 14000 },
       ]);
-    });
-  });
-
-  describe('crm', () => {
-    it('reports leads by source, the funnel, pipeline trend, and source performance', async () => {
-      const { service, leadFindMany, opportunityFindMany } = setup();
-      leadFindMany.mockResolvedValue([
-        lead(LeadSource.INSTAGRAM, LeadStatus.CONVERTED, 100000, 100, '2026-05-20T09:00:00.000Z'),
-        lead(LeadSource.INSTAGRAM, LeadStatus.NEW, 50000, 40, '2026-05-21T09:00:00.000Z'),
-        lead(LeadSource.REFERRAL, LeadStatus.LOST, 30000, 0, '2026-05-22T09:00:00.000Z'),
-      ]);
-      opportunityFindMany.mockResolvedValue([
-        {
-          status: OpportunityStatus.PROPOSAL_SENT,
-          value: 20000,
-          probability: 50,
-          createdAt: new Date('2026-05-23T09:00:00.000Z'),
-        },
-      ]);
-
-      const result = await service.run('crm', { range: '30d' });
-
-      const kpis = Object.fromEntries(result.kpis.map((k) => [k.id, k.value]));
-      expect(kpis['new-leads']).toBe(3);
-      expect(kpis['converted']).toBe(1);
-      expect(kpis['conversion-rate']).toBe(rate(1, 3));
-      // Open pipeline = NEW lead (50000×40%) + open opp (20000×50%) = 20000 + 10000.
-      expect(kpis['open-pipeline']).toBe(30000);
-
-      const bySource = result.sections.find(
-        (s) => s.id === 'leads-by-source',
-      ) as ReportBreakdownSection;
-      expect(bySource.items).toEqual([
-        { label: 'Instagram', value: 2 },
-        { label: 'Referral', value: 1 },
-      ]);
-
-      const funnel = result.sections.find(
-        (s) => s.id === 'conversion-funnel',
-      ) as ReportBreakdownSection;
-      // Preserves funnel order (New → Converted → Lost), dropping empty stages.
-      expect(funnel.items).toEqual([
-        { label: 'New', value: 1 },
-        { label: 'Converted', value: 1 },
-        { label: 'Lost', value: 1 },
-      ]);
-
-      const table = result.sections.find(
-        (s) => s.id === 'lead-source-performance',
-      ) as ReportTableSection;
-      const insta = table.rows.find((r) => r.source === 'Instagram');
-      expect(insta).toMatchObject({ leads: 2, converted: 1, wonValue: 100000 });
-      expect(insta?.conversionRate).toBe(rate(1, 2));
     });
   });
 
