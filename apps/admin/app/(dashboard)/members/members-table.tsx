@@ -222,26 +222,6 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
-  tagCell: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.25rem',
-    maxWidth: '10rem',
-  },
-  tagChip: {
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-background-muted)',
-    paddingInline: '0.5rem',
-    paddingBlock: '0.125rem',
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    whiteSpace: 'nowrap',
-    color: 'var(--color-text-secondary)',
-  },
-  tagEmpty: {
-    fontSize: '0.75rem',
-    color: 'var(--color-text-disabled)',
-  },
   lastVisit: {
     fontFamily: 'var(--font-family-code)',
     fontVariantNumeric: 'tabular-nums',
@@ -540,8 +520,6 @@ export function MembersTable({
   view,
   frozen,
   planId,
-  tag,
-  availableTags,
   canWrite,
 }: {
   members: MemberRow[];
@@ -557,8 +535,6 @@ export function MembersTable({
   view: string;
   frozen: boolean;
   planId: string;
-  tag: string;
-  availableTags: string[];
   canWrite: boolean;
 }) {
   const t = useTranslations('admin.members');
@@ -734,25 +710,6 @@ export function MembersTable({
       cell: (member) => <NextBillingCell row={member} t={t} locale={locale} />,
     },
     {
-      key: 'tags',
-      header: t('list.columnTags'),
-      cell: (member) =>
-        member.tags.length > 0 ? (
-          <div {...stylex.props(styles.tagCell)}>
-            {member.tags.slice(0, 2).map((tag) => (
-              <span key={tag} {...stylex.props(styles.tagChip)}>
-                {tag}
-              </span>
-            ))}
-            {member.tags.length > 2 ? (
-              <span {...stylex.props(styles.tagChip)}>+{member.tags.length - 2}</span>
-            ) : null}
-          </div>
-        ) : (
-          <span {...stylex.props(styles.tagEmpty)}>—</span>
-        ),
-    },
-    {
       key: 'actions',
       header: '',
       align: 'right',
@@ -823,17 +780,10 @@ export function MembersTable({
         ariaLabel={t('list.tablistLabel')}
       />
 
-      {/* Search + Filter row. Hidden in the trash view — the status/plan/tag filters
+      {/* Search + Filter row. Hidden in the trash view — the status/plan filters
           describe the live roster, not the soft-deleted list. */}
       {isTrashView ? null : (
-        <MembersFilters
-          search={search}
-          status={status}
-          planId={planId}
-          tag={tag}
-          plans={planMix.plans}
-          availableTags={availableTags}
-        />
+        <MembersFilters search={search} status={status} planId={planId} plans={planMix.plans} />
       )}
 
       {/* Selection + export toolbar. */}

@@ -292,7 +292,6 @@ export const gymMemberIntakeSettingsSchema = z.object({
   membershipPlan: z.boolean().default(true),
   paymentMethod: z.boolean().default(false),
   medicalNotes: z.boolean().default(false),
-  tags: z.boolean().default(false),
 });
 
 /** The Add-Member drawer field-visibility config — {@link gymMemberIntakeSettingsSchema}. */

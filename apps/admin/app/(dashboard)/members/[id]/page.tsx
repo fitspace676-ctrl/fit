@@ -176,21 +176,6 @@ const styles = stylex.create({
   metaMono: {
     fontFamily: 'var(--font-family-code)',
   },
-  tagChips: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.375rem',
-    marginTop: '0.125rem',
-  },
-  tagChip: {
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-background-muted)',
-    paddingInline: '0.625rem',
-    paddingBlock: '0.25rem',
-    fontSize: '0.75rem',
-    fontWeight: 500,
-    color: 'var(--color-text-secondary)',
-  },
   kpiGrid: {
     display: 'grid',
     gap: '1rem',
@@ -517,15 +502,6 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                 </>
               ) : null}
             </div>
-            {member.tags.length > 0 ? (
-              <div {...stylex.props(styles.tagChips)}>
-                {member.tags.map((tag) => (
-                  <span key={tag} {...stylex.props(styles.tagChip)}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
         </div>
         {canWrite ? (

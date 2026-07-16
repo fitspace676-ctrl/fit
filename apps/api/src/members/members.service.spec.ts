@@ -26,7 +26,6 @@ interface MemberRecord {
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
   medicalNotes: string | null;
-  tags: string[];
   user: { name: string | null; email: string; phone: string | null };
   subscriptions: Array<{
     id: string;
@@ -73,7 +72,6 @@ function setup(overrides?: {
   notes?: unknown[];
   tasks?: unknown[];
   taskFindFirst?: { id: string } | null;
-  availableTagRows?: { tag: string }[];
   mailerConfigured?: boolean;
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<MemberRecord[]>>(() =>
@@ -188,10 +186,6 @@ function setup(overrides?: {
   };
   // Interactive transaction: run the callback against the same scoped client.
   client.$transaction = vi.fn((cb: (tx: typeof client) => unknown) => cb(client));
-  const queryRaw = vi.fn<(...args: unknown[]) => Promise<{ tag: string }[]>>(() =>
-    Promise.resolve(overrides?.availableTagRows ?? []),
-  );
-  client.$queryRaw = queryRaw;
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
@@ -276,7 +270,6 @@ const row = (over?: Partial<MemberRecord>): MemberRecord => ({
   emergencyContactName: null,
   emergencyContactPhone: null,
   medicalNotes: null,
-  tags: [],
   user: { name: 'Nino Beridze', email: 'nino@example.com', phone: null },
   subscriptions: [],
   checkIns: [],
@@ -490,26 +483,6 @@ describe('MembersService', () => {
       await service.listMembers(query({ sort: 'lastVisitAt', dir: 'desc' }));
       expect(findMany.mock.calls[2]?.[0]?.orderBy).toEqual({ joinedAt: 'desc' });
     });
-
-    it('narrows by tag with a scalar-list `has` filter', async () => {
-      const { service, findMany } = setup();
-      await service.listMembers({ ...query(), tag: 'VIP' });
-      const where = (findMany.mock.calls[0]?.[0] as { where: { tags?: unknown } }).where;
-      expect(where.tags).toEqual({ has: 'VIP' });
-    });
-
-    it('returns the gym distinct tags as availableTags', async () => {
-      const { service } = setup({ availableTagRows: [{ tag: 'At Risk' }, { tag: 'VIP' }] });
-      const result = await service.listMembers(query());
-      expect(result.availableTags).toEqual(['At Risk', 'VIP']);
-    });
-
-    it('omits the tag filter when none is given', async () => {
-      const { service, findMany } = setup();
-      await service.listMembers(query());
-      const where = (findMany.mock.calls[0]?.[0] as { where: { tags?: unknown } }).where;
-      expect(where.tags).toBeUndefined();
-    });
   });
 
   describe('getMember', () => {
@@ -545,7 +518,6 @@ describe('MembersService', () => {
         payments: [],
         purchases: [],
         accessLog: [],
-        tags: [],
         notes: [],
         tasks: [],
       });
@@ -791,7 +763,6 @@ describe('MembersService', () => {
           emergencyContactName: 'Data',
           emergencyContactPhone: '555',
           medicalNotes: 'None',
-          tags: ['VIP', 'New'],
           dateOfBirth: new Date('1994-03-02T00:00:00.000Z'),
         }),
         checkIns: [{ id: 'ci-1', checkedInAt: new Date('2026-06-20T09:30:00.000Z') }],
@@ -834,7 +805,6 @@ describe('MembersService', () => {
         emergencyContactName: 'Data',
         emergencyContactPhone: '555',
         medicalNotes: 'None',
-        tags: ['VIP', 'New'],
         dateOfBirth: '1994-03-02T00:00:00.000Z',
         accessLog: [{ id: 'ci-1', at: '2026-06-20T09:30:00.000Z', location: null }],
         purchases: [

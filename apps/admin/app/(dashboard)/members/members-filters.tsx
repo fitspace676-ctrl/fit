@@ -70,16 +70,12 @@ export function MembersFilters({
   search,
   status,
   planId,
-  tag,
   plans,
-  availableTags,
 }: {
   search: string;
   status: string;
   planId: string;
-  tag: string;
   plans: MemberPlanSlice[];
-  availableTags: string[];
 }) {
   const t = useTranslations('admin.members');
   const router = useRouter();
@@ -113,13 +109,13 @@ export function MembersFilters({
         />
 
         <Btn
-          v={status || planId || tag || filtersOpen ? 'primary' : 'outline'}
+          v={status || planId || filtersOpen ? 'primary' : 'outline'}
           size="md"
           icon="filter"
           aria-expanded={filtersOpen}
           onClick={() => setFiltersOpen((open) => !open)}
         >
-          {status || planId || tag ? t('filters.filterActive') : t('filters.filter')}
+          {status || planId ? t('filters.filterActive') : t('filters.filter')}
         </Btn>
       </FilterBar>
 
@@ -159,23 +155,6 @@ export function MembersFilters({
                   {plan.name}
                 </option>
               ))}
-          </select>
-
-          <label htmlFor="member-tag" {...stylex.props(styles.label)}>
-            {t('filters.tagLabel')}
-          </label>
-          <select
-            id="member-tag"
-            value={tag}
-            onChange={(event) => commit('tag', event.target.value)}
-            {...stylex.props(styles.select)}
-          >
-            <option value="">{t('filters.allTags')}</option>
-            {availableTags.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
           </select>
         </div>
       ) : null}

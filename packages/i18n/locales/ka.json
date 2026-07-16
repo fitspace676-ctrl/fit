@@ -1842,8 +1842,7 @@
         "noPlan": "გეგმის გარეშე",
         "showing": "ნაჩვენებია {from}–{to} / {total} წევრი",
         "previous": "წინა",
-        "next": "შემდეგი",
-        "columnTags": "ტეგები"
+        "next": "შემდეგი"
       },
       "breadcrumb": {
         "label": "ნავიგაცია",
@@ -1915,9 +1914,7 @@
         "statusLabel": "სტატუსი",
         "allStatuses": "ყველა სტატუსი",
         "planLabel": "გეგმა",
-        "allPlans": "ყველა გეგმა",
-        "tagLabel": "თეგი",
-        "allTags": "ყველა თეგი"
+        "allPlans": "ყველა გეგმა"
       },
       "form": {
         "contactSection": "საკონტაქტო ინფორმაცია",
@@ -1952,9 +1949,6 @@
         "paymentBankTransfer": "საბანკო გადარიცხვა",
         "medicalSection": "სამედიცინო ჩანაწერები",
         "medicalPlaceholder": "ალერგიები, მდგომარეობები, ტრავმები…",
-        "tagsSection": "ტეგები",
-        "tags": "ტეგები",
-        "tagsHint": "მძიმით გამოყოფილი (მაგ. VIP, Corporate)",
         "optional": "არასავალდებულო"
       },
       "actions": {
@@ -2012,10 +2006,7 @@
         "daysLeft": "დარჩა {count, plural, one {# დღე} other {# დღე}}",
         "freeze": "გაყინვა",
         "addCredit": "კრედიტის დამატება",
-        "tags": "ტეგები",
-        "noTags": "ტეგები ჯერ არ არის.",
         "add": "დამატება",
-        "tagsDisabledTitle": "წევრის ტეგები ჯერ არ არის მოდელირებული",
         "freezeAllowance": "გაყინვა: {used}/{total} დღე გამოყენებულია ამ პერიოდში",
         "frozenUntil": "გაყინულია {date}-მდე",
         "resume": "განახლება",
@@ -2799,8 +2790,7 @@
           "emergencyContact": "საგანგებო კონტაქტი",
           "membershipPlan": "წევრობის გეგმა",
           "paymentMethod": "გადახდის მეთოდი",
-          "medicalNotes": "სამედიცინო ჩანაწერები",
-          "tags": "თეგები"
+          "medicalNotes": "სამედიცინო ჩანაწერები"
         }
       },
       "payments": {

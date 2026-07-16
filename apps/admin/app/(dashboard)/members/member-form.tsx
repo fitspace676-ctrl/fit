@@ -179,8 +179,6 @@ export interface MemberFormInitial {
   emergencyContactName: string;
   emergencyContactPhone: string;
   medicalNotes: string;
-  /** Comma-separated tag string (e.g. `"VIP, Corporate"`). */
-  tags: string;
 }
 
 type Props =
@@ -198,22 +196,6 @@ type Props =
       onSuccess?: () => void;
       onCancel?: () => void;
     };
-
-/** Split a comma-separated tag string into a clean, de-duplicated, capped array. */
-function parseTags(raw: string): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const part of raw.split(',')) {
-    const tag = part.trim();
-    if (!tag) continue;
-    const key = tag.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(tag);
-    if (out.length >= 20) break;
-  }
-  return out;
-}
 
 /** A native labelled field (select / date / text) matching the form's styling. */
 function LabeledField({
@@ -244,7 +226,7 @@ function LabeledField({
 /**
  * The create / edit member form (T4.3, extended T4.x). One component serves both
  * flows: `create` collects the full profile (contact, personal, emergency contact,
- * medical notes, tags) plus an optional membership plan enrolment + initial status;
+ * medical notes) plus an optional membership plan enrolment + initial status;
  * `edit` shows the email read-only (immutable auth identity) and omits the plan /
  * status controls. On success it navigates to the member's detail page (or closes
  * the drawer). The discriminated {@link ActionResult} surfaces API errors inline.
@@ -272,7 +254,6 @@ export function MemberForm(props: Props) {
   const [emergencyName, setEmergencyName] = useState(seed?.emergencyContactName ?? '');
   const [emergencyPhone, setEmergencyPhone] = useState(seed?.emergencyContactPhone ?? '');
   const [medicalNotes, setMedicalNotes] = useState(seed?.medicalNotes ?? '');
-  const [tags, setTags] = useState(seed?.tags ?? '');
   const [status, setStatus] = useState<MemberStatus>('ACTIVE');
 
   // Create-only membership enrolment.
@@ -303,7 +284,6 @@ export function MemberForm(props: Props) {
       emergencyContactName: emergencyName,
       emergencyContactPhone: emergencyPhone,
       medicalNotes,
-      tags: parseTags(tags),
     };
 
     startTransition(async () => {
@@ -562,8 +542,8 @@ export function MemberForm(props: Props) {
         </Card>
       ) : null}
 
-      {/* Medical notes + tags. */}
-      {show('medicalNotes') || show('tags') ? (
+      {/* Medical notes. */}
+      {show('medicalNotes') ? (
         <Card variant="default" padding={4} xstyle={styles.formSection}>
           <Stack gap={3}>
             <Text type="label" weight="semibold" color="secondary" display="block">
@@ -583,23 +563,6 @@ export function MemberForm(props: Props) {
                   value={medicalNotes}
                   onChange={(e) => setMedicalNotes(e.target.value)}
                   {...stylex.props(styles.textarea)}
-                />
-              </LabeledField>
-            )}
-            {show('tags') && (
-              <LabeledField
-                label={t('form.tags')}
-                htmlFor="tags"
-                optional={t('form.optional')}
-                hint={t('form.tagsHint')}
-              >
-                <input
-                  id="tags"
-                  name="tags"
-                  type="text"
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  {...stylex.props(styles.field)}
                 />
               </LabeledField>
             )}

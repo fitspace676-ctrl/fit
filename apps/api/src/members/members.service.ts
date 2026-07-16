@@ -115,7 +115,6 @@ const MEMBER_SELECT = {
   emergencyContactName: true,
   emergencyContactPhone: true,
   medicalNotes: true,
-  tags: true,
   user: { select: { name: true, email: true, phone: true } },
   subscriptions: {
     where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
@@ -153,7 +152,7 @@ type LiveSubscription = MemberRecord['subscriptions'][number];
  * (merged recent check-ins / bookings / payments), and `attendance8w` (per-week
  * check-ins). The detail also carries the member's `purchases` (POS `Order`s),
  * `accessLog` (`CheckIn`s), the profile extras (DOB / gender / address /
- * emergency contact / medical notes), and the member's `tags`, staff `notes`
+ * emergency contact / medical notes), and the member's staff `notes`
  * (`MemberNote`) and follow-up `tasks` (`MemberTask`). Every figure is a REAL
  * tenant-scoped query — never fabricated.
  */
@@ -178,7 +177,7 @@ export class MembersService {
     const where = this.buildWhere(query);
     const skip = (query.page - 1) * query.limit;
 
-    const [rows, total, planMix, counts, availableTags] = await Promise.all([
+    const [rows, total, planMix, counts] = await Promise.all([
       this.prisma.client.gymMember.findMany({
         where,
         select: MEMBER_SELECT,
@@ -189,7 +188,6 @@ export class MembersService {
       this.prisma.client.gymMember.count({ where }),
       this.planMix(),
       this.tabCounts(),
-      this.availableTags(),
     ]);
 
     return {
@@ -199,7 +197,6 @@ export class MembersService {
       limit: query.limit,
       planMix,
       counts,
-      availableTags,
     };
   }
 
@@ -367,7 +364,6 @@ export class MembersService {
     emergencyContactName?: string | null;
     emergencyContactPhone?: string | null;
     medicalNotes?: string | null;
-    tags?: string[];
   } {
     const data: ReturnType<MembersService['profileWriteData']> = {};
     if (input.dateOfBirth !== undefined) {
@@ -382,7 +378,6 @@ export class MembersService {
       data.emergencyContactPhone = input.emergencyContactPhone;
     }
     if (input.medicalNotes !== undefined) data.medicalNotes = input.medicalNotes;
-    if (input.tags !== undefined) data.tags = input.tags;
     return data;
   }
 
@@ -770,7 +765,7 @@ export class MembersService {
    * The tenant-scoped `where` for the roster: always the gym's `MEMBER`-role
    * memberships (the extension adds `gymId`), narrowed by an optional `status`, a
    * case-insensitive `search` across the member's name + email, an optional
-   * live-subscription `planId`, and an optional `tag` filter.
+   * and live-subscription `planId`.
    */
   private buildWhere(query: ListMembersQuery): Prisma.GymMemberWhereInput {
     const where: Prisma.GymMemberWhereInput = { role: Role.MEMBER };
@@ -814,25 +809,7 @@ export class MembersService {
       where.AND = subFilters.map((some) => ({ subscriptions: { some } }));
     }
 
-    // Narrow to members carrying the given tag (scalar-list membership).
-    if (query.tag) {
-      where.tags = { has: query.tag };
-    }
-
     return where;
-  }
-
-  /**
-   * The gym's distinct member tags, sorted — the roster Tag filter's options.
-   * A gym-scoped raw `unnest` DISTINCT so the whole tag set is resolved in the
-   * database (never the roster loaded into memory). Raw SQL bypasses the tenant
-   * extension, so the gym is pinned explicitly via {@link TenantContext.gymId}.
-   */
-  private async availableTags(): Promise<string[]> {
-    const rows = await this.prisma.client.$queryRaw<Array<{ tag: string }>>(
-      Prisma.sql`SELECT DISTINCT unnest("tags") AS tag FROM gym_members WHERE "gymId" = ${this.tenant.gymId} AND "role"::text = 'MEMBER' ORDER BY tag ASC`,
-    );
-    return rows.map((row) => row.tag);
   }
 
   /**
@@ -876,7 +853,6 @@ export class MembersService {
       lastVisitAt,
       nextBillingAt,
       billingState,
-      tags: row.tags,
       deletedAt: row.deletedAt?.toISOString() ?? null,
     };
   }
@@ -946,7 +922,7 @@ export class MembersService {
    * Assemble the full member detail from the row plus its real history: the
    * `lifetimeValue` (SUM captured payments on the member's orders), `totalVisits`
    * (CheckIn count), `currentPlan` (+ days-remaining), the `recentActivity` merge
-   * and the 8-week `attendance` series. `tags` / `notes` are honest empty states
+   * and the 8-week `attendance` series. `notes` are honest empty states
    * (no backing model). Every collection query is tenant-scoped by the extension.
    */
   private async buildDetail(row: MemberRecord): Promise<MemberDetail> {

@@ -1842,8 +1842,7 @@
         "noPlan": "No plan",
         "showing": "Showing {from}–{to} of {total} members",
         "previous": "Previous",
-        "next": "Next",
-        "columnTags": "Tags"
+        "next": "Next"
       },
       "breadcrumb": {
         "label": "Breadcrumb",
@@ -1915,9 +1914,7 @@
         "statusLabel": "Status",
         "allStatuses": "All statuses",
         "planLabel": "Plan",
-        "allPlans": "All plans",
-        "tagLabel": "Tag",
-        "allTags": "All tags"
+        "allPlans": "All plans"
       },
       "form": {
         "contactSection": "Contact details",
@@ -1952,9 +1949,6 @@
         "paymentBankTransfer": "Bank transfer",
         "medicalSection": "Medical notes",
         "medicalPlaceholder": "Allergies, conditions, injuries…",
-        "tagsSection": "Tags",
-        "tags": "Tags",
-        "tagsHint": "Comma-separated (e.g. VIP, Corporate)",
         "optional": "Optional"
       },
       "actions": {
@@ -2012,10 +2006,7 @@
         "daysLeft": "{count, plural, one {# day} other {# days}} left",
         "freeze": "Freeze",
         "addCredit": "Add credit",
-        "tags": "Tags",
-        "noTags": "No tags yet.",
         "add": "Add",
-        "tagsDisabledTitle": "Member tags aren’t modelled yet",
         "freezeAllowance": "Freeze: {used}/{total} days used this period",
         "frozenUntil": "Frozen until {date}",
         "resume": "Resume",
@@ -2799,8 +2790,7 @@
           "emergencyContact": "Emergency contact",
           "membershipPlan": "Membership plan",
           "paymentMethod": "Payment method",
-          "medicalNotes": "Medical notes",
-          "tags": "Tags"
+          "medicalNotes": "Medical notes"
         }
       },
       "payments": {

@@ -13,7 +13,6 @@ const FIELD_KEYS = [
   'membershipPlan',
   'paymentMethod',
   'medicalNotes',
-  'tags',
 ] as const;
 
 describe('member-intake settings i18n', () => {

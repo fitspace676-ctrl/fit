@@ -8,7 +8,11 @@ describe('modalPanelClasses', () => {
     expect(cls).toContain('rounded-card');
     expect(cls).toContain('max-w-md');
     expect(cls).toContain('bg-white');
-    expect(cls).toContain('dark:bg-ink-950');
+    // The dark surface is the Astryx brand's warm popover dark, deliberately not
+    // the legacy cool-black `ink-950` (see `PANEL_SURFACE`), so an overlay reads as
+    // the same palette as the console behind it.
+    expect(cls).toContain('dark:bg-[#1b1b1b]');
+    expect(cls).not.toContain('ink-950');
   });
 
   it('maps each size to its width token', () => {

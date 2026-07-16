@@ -541,20 +541,6 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
-  tagChips: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.375rem',
-  },
-  tagChip: {
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-background-muted)',
-    paddingInline: '0.625rem',
-    paddingBlock: '0.25rem',
-    fontSize: '0.75rem',
-    fontWeight: 500,
-    color: 'var(--color-text-secondary)',
-  },
   medicalPanel: {
     margin: 0,
     borderRadius: 'var(--radius-element)',
@@ -787,7 +773,7 @@ export function MemberTabs({
 /**
  * Overview — a row of key stats, then the "Recent activity" timeline and the full
  * staff Notes section, with a side column carrying a read-only current-membership
- * summary and tags.
+ * summary.
  */
 function OverviewPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
   return (

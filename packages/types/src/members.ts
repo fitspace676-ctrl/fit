@@ -78,7 +78,6 @@ export const listMembersQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
   status: memberStatusSchema.optional(),
   planId: z.string().min(1).optional(),
-  tag: z.string().min(1).optional(),
   sort: memberSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
   // The "Frozen" tab: narrow to live members holding a `FROZEN` subscription. It is
@@ -154,8 +153,6 @@ export interface MemberRow {
   nextBillingAt: string | null;
   /** How the NEXT-BILLING cell should read (`due` date / `paused` / `overdue` / `none`). */
   billingState: MemberBillingState;
-  /** Colour-keyed labels applied by staff (`GymMember.tags`), for the roster's TAGS cell. */
-  tags: string[];
   /**
    * ISO instant the member was moved to trash (soft-deleted), or `null` for a live
    * member. When set, the UI shows the trash banner + restore, and computes the
@@ -226,8 +223,6 @@ export interface ListMembersResponse {
   planMix: MemberPlanMix;
   /** Gym-wide member counts per segment (independent of the page's filters). */
   counts: MemberTabCounts;
-  /** The gym's distinct member tags, sorted — the Tag filter's options. */
-  availableTags: string[];
 }
 
 /** One subscription on a member's detail page — the member's `Subscription` rows. */
@@ -414,7 +409,7 @@ export interface MemberPurchase {
  * live `currentPlan`, the `recentActivity` timeline, the `attendance8w` series,
  * the tabbed history (subscriptions / bookings / payments / invoices / POS
  * purchases / access log), the profile extras (DOB, gender, address, emergency
- * contact, medical notes), and the member's `tags`, staff `notes` and follow-up
+ * contact, medical notes), and the member's staff `notes` and follow-up
  * `tasks`. Every figure is a real tenant-scoped query — never fabricated (see
  * `members.service.ts`).
  */
@@ -486,18 +481,23 @@ const memberPhoneSchema = z
  * bodies. Trimmed and length-bounded; when **omitted** it stays `undefined` (the
  * service leaves the column untouched), when sent **empty** it becomes `null`
  * (clears the column) — mirroring the reference's full-profile edit semantics.
+ *
+ * `null` is accepted on the way in as well as produced on the way out, because the
+ * console parses the form and then sends that *parsed* body to the API, which
+ * parses it again with this same schema. A schema whose output isn't valid input
+ * fails that second parse — so every emptied field must survive the round trip.
  */
 const editableText = (max: number) =>
   z
     .string()
     .trim()
     .max(max)
-    .optional()
-    .transform((value) => (value === undefined ? undefined : value.length > 0 ? value : null));
+    .nullish()
+    .transform((value) => (value === undefined ? undefined : value ? value : null));
 
 /**
  * The profile-extra fields shared by create + update (T4.x): date of birth,
- * gender, address, emergency contact, medical notes and tags. Every field is
+ * gender, address, emergency contact and medical notes. Every field is
  * optional so a minimal create still validates; `null`/empty clears on edit.
  */
 const memberProfileShape = {
@@ -507,7 +507,6 @@ const memberProfileShape = {
   emergencyContactName: editableText(120),
   emergencyContactPhone: editableText(32),
   medicalNotes: editableText(2000),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
 } as const;
 
 /**
@@ -544,10 +543,13 @@ export type CreateMemberInput = z.infer<typeof createMemberSchema>;
  */
 export const updateMemberSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),
+  // Required (a save always states the phone) but nullable, so a cleared phone
+  // survives the console→API round trip — see {@link editableText}.
   phone: z
     .string()
     .trim()
     .max(32)
+    .nullable()
     .transform((value) => (value ? value : null)),
   ...memberProfileShape,
 });

@@ -19,7 +19,6 @@ describe('gymMemberIntakeSettingsSchema', () => {
       membershipPlan: true,
       paymentMethod: false,
       medicalNotes: false,
-      tags: false,
     });
   });
 
