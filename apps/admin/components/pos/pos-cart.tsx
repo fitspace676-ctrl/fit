@@ -2,11 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import {
-  formatPrice,
-  inputToMinor,
-  minorToInput,
-} from '@/app/(dashboard)/payments/products/format-price';
+import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/shop/format-price';
 import { Btn } from '@/components/ui';
 import {
   lineTotal,

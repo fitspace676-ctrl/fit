@@ -29,6 +29,69 @@ export const productStatusSchema = z.enum(['ACTIVE', 'INACTIVE']);
 /** A product's lifecycle state — {@link productStatusSchema}. */
 export type ProductStatus = z.infer<typeof productStatusSchema>;
 
+// ── Categories ────────────────────────────────────────────────────────────────
+//
+// A category is a gym-curated shelf a product may sit on ("Protein", "Drinks").
+// Staff manage the list from the catalog; a product carries at most one, and
+// `null` — uncategorised — is always valid. Deleting a category never deletes its
+// products, it only un-shelves them (the Prisma relation is `SetNull`).
+
+/** The longest a category name may be — long enough to label a shelf, short enough to chip. */
+export const MAX_PRODUCT_CATEGORY_NAME = 60;
+
+/** One category as the picker, the filter, and the manager list render it. */
+export interface AdminProductCategory {
+  id: string;
+  name: string;
+  /** How many products currently sit on this shelf — the manager shows it before a delete. */
+  productCount: number;
+}
+
+/** Successful `GET /admin/product-categories` response — every category, by name. */
+export interface ListAdminProductCategoriesResponse {
+  data: AdminProductCategory[];
+}
+
+/**
+ * The one editable field of a category. Trimmed, non-empty, and unique per gym —
+ * a duplicate is a `409`, since `@@unique([gymId, name])` is what stops the same
+ * shelf existing twice under two spellings.
+ */
+const productCategoryFields = {
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Category name is required')
+    .max(
+      MAX_PRODUCT_CATEGORY_NAME,
+      `Name must be ${MAX_PRODUCT_CATEGORY_NAME} characters or fewer`,
+    ),
+};
+
+/** Body for `POST /admin/product-categories` — create a category. */
+export const createProductCategorySchema = z.object(productCategoryFields);
+
+/** Validated `POST /admin/product-categories` body — {@link createProductCategorySchema}. */
+export type CreateProductCategoryInput = z.input<typeof createProductCategorySchema>;
+
+/** Body for `PATCH /admin/product-categories/:id` — rename a category. */
+export const updateProductCategorySchema = z.object(productCategoryFields);
+
+/** Validated `PATCH /admin/product-categories/:id` body — {@link updateProductCategorySchema}. */
+export type UpdateProductCategoryInput = z.input<typeof updateProductCategorySchema>;
+
+/** Successful create / rename response — the category as the manager list renders it. */
+export type ProductCategoryResponse = AdminProductCategory;
+
+/**
+ * Successful `DELETE /admin/product-categories/:id` response. `unshelved` is how
+ * many products fell back to uncategorised, so the console can report the blast
+ * radius it warned about.
+ */
+export interface DeleteProductCategoryResponse {
+  unshelved: number;
+}
+
 /** Sortable columns for the product roster. Mirrors the `orderBy` keys the service maps. */
 export const productSortSchema = z.enum(['name', 'price', 'status', 'createdAt']);
 
@@ -99,9 +162,22 @@ export const listAdminProductsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(100).optional(),
   status: productStatusSchema.optional(),
+  /**
+   * Narrow to one category's shelf, or to {@link UNCATEGORISED_FILTER} for the
+   * products not yet filed under any — the view staff need while working through a
+   * freshly categorised catalogue. Omitted means every category.
+   */
+  categoryId: z.string().trim().min(1).optional(),
   sort: productSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
 });
+
+/**
+ * The `categoryId` filter value meaning "products with no category". A sentinel
+ * rather than a separate flag so the filter stays one round-trippable query param
+ * the select can bind to directly; no real cuid collides with it.
+ */
+export const UNCATEGORISED_FILTER = 'none';
 
 /** Validated `GET /admin/products` query — {@link listAdminProductsQuerySchema}. */
 export type ListAdminProductsQuery = z.infer<typeof listAdminProductsQuerySchema>;
@@ -130,6 +206,8 @@ export interface AdminProductRow {
   totalStock: number;
   lowestStock: number | null;
   status: ProductStatus;
+  /** The shelf this product sits on, or `null` when uncategorised. */
+  category: { id: string; name: string } | null;
   createdAt: string;
 }
 
@@ -222,6 +300,17 @@ const productProfileFields = {
     .max(MAX_PRODUCT_IMAGES, `A product can have at most ${MAX_PRODUCT_IMAGES} images`)
     .default([]),
   variants: productVariantsSchema,
+  /**
+   * The category to shelve this product under. `null` — the default — is
+   * uncategorised, and the form's empty select submits `''`, so both normalise to
+   * `null`. An id belonging to another gym is rejected by the service, not here.
+   */
+  categoryId: z
+    .preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.string().trim().min(1).nullable(),
+    )
+    .default(null),
 };
 
 /**

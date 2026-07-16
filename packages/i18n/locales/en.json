@@ -3512,7 +3512,6 @@
     "paymentsTabs": {
       "plans": "Plans",
       "invoices": "Invoices",
-      "products": "Products",
       "transactions": "Transactions",
       "ariaLabel": "Payments sections"
     },

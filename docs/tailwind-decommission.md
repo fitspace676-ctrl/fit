@@ -88,23 +88,35 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/(dashboard)/page.tsx`                     | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/dashboard-view.tsx`           | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/charts.tsx`                   | T11.18 | ✅     |
-| `apps/admin/app/(dashboard)/analytics`                    | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/members`                      | T11.19 | ✅     |
-| `apps/admin/app/(dashboard)/trainers`                     | T11.19 | ✅     |
-| `apps/admin/app/(dashboard)/check-in`                     | T11.20 | ✅     |
-| `apps/admin/app/(dashboard)/schedule`                     | T11.20 | ✅     |
 | `apps/admin/app/(dashboard)/classes`                      | T11.20 | ✅     |
-| `apps/admin/app/(dashboard)/activity`                     | T11.21 | ✅     |
-| `apps/admin/app/(dashboard)/audit-log`                    | T11.21 | ✅     |
 | `apps/admin/app/(dashboard)/staff`                        | T11.21 | ✅     |
 | `apps/admin/app/(dashboard)/locations`                    | T11.21 | ✅     |
 | `apps/admin/app/(dashboard)/settings`                     | T11.21 | ✅     |
-| `apps/admin/app/(dashboard)/orders`                       | T11.22 | ✅     |
+| `apps/admin/app/(dashboard)/payments/transactions`        | T11.22 | ✅     |
 | `apps/admin/app/(dashboard)/pos`                          | T11.22 | ✅     |
-| `apps/admin/app/(dashboard)/products`                     | T11.22 | ✅     |
+| `apps/admin/app/(dashboard)/shop`                         | T11.22 | ✅     |
 | `apps/admin/app/(dashboard)/reports`                      | T11.22 | ✅     |
 | `apps/admin/components/pos`                               | T11.22 | ✅     |
-| `apps/admin/app/(dashboard)/crm`                          | T12.3  | ✅     |
+
+### Rows retired by the IA consolidation
+
+The console's information architecture was reshaped after these screens migrated
+(`622a269`, plus the later CRM removal). Their Astryx work is not lost — where a
+screen moved, the destination above guards it — but the old paths are gone, so the
+manifest no longer lists them:
+
+| Was                                    | Task   | Now                                      |
+| -------------------------------------- | ------ | ---------------------------------------- |
+| `apps/admin/app/(dashboard)/analytics` | T11.18 | folded into the dashboard landing        |
+| `apps/admin/app/(dashboard)/trainers`  | T11.19 | removed — no reference equivalent        |
+| `apps/admin/app/(dashboard)/check-in`  | T11.20 | removed — no reference equivalent        |
+| `apps/admin/app/(dashboard)/schedule`  | T11.20 | `classes/schedule`, guarded by `classes` |
+| `apps/admin/app/(dashboard)/activity`  | T11.21 | removed — no reference equivalent        |
+| `apps/admin/app/(dashboard)/audit-log` | T11.21 | removed — no reference equivalent        |
+| `apps/admin/app/(dashboard)/orders`    | T11.22 | `payments/transactions`                  |
+| `apps/admin/app/(dashboard)/products`  | T11.22 | `shop` (via `payments/products`)         |
+| `apps/admin/app/(dashboard)/crm`       | T12.3  | removed with the CRM workspace           |
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:

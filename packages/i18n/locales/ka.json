@@ -3512,7 +3512,6 @@
     "paymentsTabs": {
       "plans": "გეგმები",
       "invoices": "ინვოისები",
-      "products": "პროდუქტები",
       "transactions": "ტრანზაქციები",
       "ariaLabel": "გადახდების სექციები"
     },

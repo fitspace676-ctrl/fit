@@ -7,6 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import {
   MAX_PRODUCT_IMAGES,
   MAX_PRODUCT_VARIANTS,
+  type AdminProductCategory,
   type ProductStatus,
   type ProductVariant,
 } from '@fit/types';
@@ -41,6 +42,17 @@ const styles = stylex.create({
     borderColor: 'var(--color-border)',
     backgroundColor: 'var(--color-background-surface)',
     padding: '1.25rem',
+  },
+  // In a drawer the host already supplies the surface, padding, and width, so the
+  // form drops its own card chrome and grows to fill the height (letting the footer
+  // stick to the bottom on short forms).
+  formInDrawer: {
+    minHeight: '100%',
+    maxWidth: 'none',
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    padding: 0,
   },
   galleryGroup: {
     display: 'flex',
@@ -336,6 +348,31 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.75rem',
   },
+  footer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  actionsInDrawer: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.75rem',
+    width: '100%',
+  },
+  // Keeps Save/Cancel reachable without scrolling to the end of a long product.
+  drawerFooter: {
+    position: 'sticky',
+    bottom: 0,
+    zIndex: 1,
+    marginTop: 'auto',
+    paddingBlockStart: '1rem',
+    paddingBlockEnd: '0.25rem',
+    backgroundColor: 'var(--color-background-body)',
+  },
+  actionButton: {
+    width: '100%',
+    height: '3rem',
+  },
   cancelLink: {
     fontSize: '0.875rem',
     fontWeight: 500,
@@ -365,15 +402,36 @@ type Initial = {
   currency: string;
   images: string[];
   variants: ProductVariant[];
+  categoryId: string | null;
 };
 
-type Props =
-  | { mode: 'create' }
+/**
+ * `onSuccess` / `onCancel` are the drawer contract (mirroring `MemberForm`): pass
+ * them and the form reports completion to its host instead of navigating, and lays
+ * itself out for a drawer (full-height, sticky footer, Cancel as a button rather
+ * than a link back to a page). Omit them and it behaves as a standalone page form.
+ */
+type Props = {
+  /**
+   * The gym's category shelves, fetched by the hosting page. Empty is normal — a
+   * gym that hasn't organised its catalogue — and the picker says so rather than
+   * rendering a select with nothing in it.
+   */
+  categories: AdminProductCategory[];
+} & (
+  | {
+      mode: 'create';
+      onSuccess?: () => void;
+      onCancel?: () => void;
+    }
   | {
       mode: 'edit';
       productId: string;
       initial: Initial;
-    };
+      onSuccess?: () => void;
+      onCancel?: () => void;
+    }
+);
 
 /** Map a stored variant to its editable draft (minor units → major-unit strings). */
 function toDraft(variant: ProductVariant): VariantDraft {
@@ -403,9 +461,10 @@ function blankVariant(): VariantDraft {
  *  • A variants editor — a dynamic list of `{ name, sku, price, stock }` rows; a
  *    blank price inherits the product's base price.
  *
- * On success it navigates to the product's detail page; the discriminated
- * `ActionResult` surfaces any API error inline without throwing across the Server
- * Action boundary.
+ * On success it navigates to the product's detail page — unless hosted in a drawer
+ * (see {@link Props}), where it hands control back to the host instead. The
+ * discriminated `ActionResult` surfaces any API error inline without throwing
+ * across the Server Action boundary.
  */
 export function ProductForm(props: Props) {
   const router = useRouter();
@@ -423,6 +482,7 @@ export function ProductForm(props: Props) {
         currency: 'USD',
         images: [],
         variants: [],
+        categoryId: null,
       };
 
   const [name, setName] = useState(initial.name);
@@ -435,6 +495,14 @@ export function ProductForm(props: Props) {
   const [images, setImages] = useState<string[]>(initial.images);
   const [variants, setVariants] = useState<VariantDraft[]>(initial.variants.map(toDraft));
   const [status, setStatus] = useState<ProductStatus>('ACTIVE');
+  // '' is the "No category" option; the submit maps it back to null. A product whose
+  // category was deleted while this form was open falls back to '' rather than
+  // submitting a dangling id.
+  const [categoryId, setCategoryId] = useState<string>(
+    initial.categoryId && props.categories.some((c) => c.id === initial.categoryId)
+      ? initial.categoryId
+      : '',
+  );
 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -547,6 +615,7 @@ export function ProductForm(props: Props) {
       currency,
       images,
       variants: cleanedVariants,
+      categoryId: categoryId === '' ? null : categoryId,
     };
 
     startTransition(async () => {
@@ -554,7 +623,11 @@ export function ProductForm(props: Props) {
         ? await updateProductAction(props.productId, profile)
         : await createProductAction({ ...profile, status });
       if (result.ok) {
-        router.push(`/payments/products/${result.data.id}`);
+        if (props.onSuccess) {
+          props.onSuccess();
+        } else {
+          router.push(`/shop/${result.data.id}`);
+        }
         router.refresh();
       } else {
         setError(result.error);
@@ -562,7 +635,7 @@ export function ProductForm(props: Props) {
     });
   }
 
-  const cancelHref = isEdit ? `/payments/products/${props.productId}` : '/payments/products';
+  const cancelHref = isEdit ? `/shop/${props.productId}` : '/shop';
   const atImageLimit = images.length >= MAX_PRODUCT_IMAGES;
   const atVariantLimit = variants.length >= MAX_PRODUCT_VARIANTS;
 
@@ -576,7 +649,7 @@ export function ProductForm(props: Props) {
       : null;
 
   return (
-    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
+    <form onSubmit={onSubmit} {...stylex.props(styles.form, props.onCancel && styles.formInDrawer)}>
       {/* Image gallery. */}
       <div {...stylex.props(styles.galleryGroup)}>
         <span {...stylex.props(styles.label)}>
@@ -801,6 +874,32 @@ export function ProductForm(props: Props) {
         </div>
       </fieldset>
 
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="product-category" {...stylex.props(styles.label)}>
+          Category <span {...stylex.props(styles.optional)}>(optional)</span>
+        </label>
+        <select
+          id="product-category"
+          name="categoryId"
+          value={categoryId}
+          onChange={(event) => setCategoryId(event.target.value)}
+          disabled={props.categories.length === 0}
+          {...stylex.props(styles.input)}
+        >
+          <option value="">No category</option>
+          {props.categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+        {props.categories.length === 0 ? (
+          <p {...stylex.props(styles.marginHint)}>
+            No categories yet — add one from the Categories panel on the catalog.
+          </p>
+        ) : null}
+      </div>
+
       {!isEdit ? (
         <div {...stylex.props(styles.fieldGroup)}>
           <label htmlFor="product-status" {...stylex.props(styles.label)}>
@@ -822,19 +921,40 @@ export function ProductForm(props: Props) {
         </div>
       ) : null}
 
-      {error ? (
-        <p role="alert" {...stylex.props(styles.errorBanner)}>
-          {error}
-        </p>
-      ) : null}
+      <div {...stylex.props(styles.footer, props.onCancel && styles.drawerFooter)}>
+        {error ? (
+          <p role="alert" {...stylex.props(styles.errorBanner)}>
+            {error}
+          </p>
+        ) : null}
 
-      <div {...stylex.props(styles.actions)}>
-        <Btn type="submit" v="primary" size="md" disabled={pending || uploading}>
-          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
-        </Btn>
-        <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
-          Cancel
-        </Link>
+        <div {...stylex.props(styles.actions, props.onCancel && styles.actionsInDrawer)}>
+          <Btn
+            type="submit"
+            v="primary"
+            size={props.onCancel ? 'lg' : 'md'}
+            disabled={pending || uploading}
+            {...stylex.props(props.onCancel && styles.actionButton)}
+          >
+            {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
+          </Btn>
+          {props.onCancel ? (
+            <Btn
+              type="button"
+              v="outline"
+              size="lg"
+              onClick={props.onCancel}
+              disabled={pending}
+              {...stylex.props(styles.actionButton)}
+            >
+              Cancel
+            </Btn>
+          ) : (
+            <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
+              Cancel
+            </Link>
+          )}
+        </div>
       </div>
     </form>
   );

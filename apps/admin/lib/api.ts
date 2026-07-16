@@ -49,6 +49,11 @@ import type {
   CreateProductData,
   CreateProductResponse,
   GetAdminProductResponse,
+  ListAdminProductCategoriesResponse,
+  CreateProductCategoryInput,
+  UpdateProductCategoryInput,
+  ProductCategoryResponse,
+  DeleteProductCategoryResponse,
   ListAdminPackagePlansQuery,
   ListAdminPackagePlansResponse,
   CreatePackagePlanData,
@@ -586,6 +591,55 @@ export async function fetchLowStockProducts(threshold?: number): Promise<ListLow
     cache: 'no-store',
   });
   return unwrap<ListLowStockResponse>(res);
+}
+
+/** `GET /admin/product-categories` — the gym's category shelves, by name. */
+export async function fetchProductCategories(): Promise<ListAdminProductCategoriesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/product-categories`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminProductCategoriesResponse>(res);
+}
+
+/** `POST /admin/product-categories` — create a category; `409` on a duplicate name. */
+export async function createProductCategory(
+  input: CreateProductCategoryInput,
+): Promise<ProductCategoryResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/product-categories`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<ProductCategoryResponse>(res);
+}
+
+/** `PATCH /admin/product-categories/:id` — rename a category. */
+export async function renameProductCategory(
+  id: string,
+  input: UpdateProductCategoryInput,
+): Promise<ProductCategoryResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/product-categories/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<ProductCategoryResponse>(res);
+}
+
+/**
+ * `DELETE /admin/product-categories/:id` — delete a category. Its products are not
+ * deleted; the response reports how many fell back to uncategorised.
+ */
+export async function deleteProductCategory(id: string): Promise<DeleteProductCategoryResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/product-categories/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<DeleteProductCategoryResponse>(res);
 }
 
 /** `GET /admin/products/:id` — one product's detail. */

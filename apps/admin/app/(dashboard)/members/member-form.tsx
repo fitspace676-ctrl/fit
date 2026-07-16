@@ -624,7 +624,7 @@ export function MemberForm(props: Props) {
             size={props.onCancel ? 'lg' : 'md'}
             icon="plus"
             disabled={pending}
-            {...(props.onCancel ? stylex.props(styles.actionButton) : {})}
+            {...stylex.props(props.onCancel && styles.actionButton)}
           >
             {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createMember')}
           </Btn>

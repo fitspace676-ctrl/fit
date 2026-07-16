@@ -34,6 +34,12 @@ describe('drawerPanelClasses', () => {
     expect(cls).toContain('inset-y-0');
   });
 
+  it('maps each size to its width token', () => {
+    expect(drawerPanelClasses('right', '', 'lg')).toContain('max-w-xl');
+    expect(drawerPanelClasses('right', '', 'lg')).not.toContain('max-w-md');
+    expect(drawerPanelClasses('right', '', 'md')).toContain('max-w-md');
+  });
+
   it('flips to the left edge with a right border', () => {
     const cls = drawerPanelClasses('left');
     expect(cls).toContain('left-0');

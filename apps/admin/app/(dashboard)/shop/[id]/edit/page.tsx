@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, roleHasPermission } from '@fit/types';
+import { Permission, roleHasPermission, type ListAdminProductCategoriesResponse } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchProduct } from '@/lib/api';
+import { ApiError, fetchProduct, fetchProductCategories } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ProductForm } from '../../product-form';
@@ -94,8 +94,14 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   }
 
   let product;
+  let categories: ListAdminProductCategoriesResponse = { data: [] };
   try {
-    product = await fetchProduct(id);
+    // The picker needs the gym's shelves alongside the product. A category-list
+    // failure shouldn't block editing, so it degrades to an empty picker below.
+    [product, categories] = await Promise.all([
+      fetchProduct(id),
+      fetchProductCategories().catch(() => ({ data: [] })),
+    ]);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       notFound();
@@ -106,7 +112,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.errorPage)}>
-        <Link href="/payments/products" {...stylex.props(styles.backLink)}>
+        <Link href="/shop" {...stylex.props(styles.backLink)}>
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to products
         </Link>
@@ -120,7 +126,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
 
   return (
     <div {...stylex.props(styles.page)}>
-      <Link href={`/payments/products/${id}`} {...stylex.props(styles.backLink)}>
+      <Link href={`/shop/${id}`} {...stylex.props(styles.backLink)}>
         <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         Back to product
       </Link>
@@ -135,6 +141,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
       <ProductForm
         mode="edit"
         productId={id}
+        categories={categories.data}
         initial={{
           name: product.name,
           description: product.description,
@@ -143,6 +150,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           currency: product.currency,
           images: product.images,
           variants: product.variants,
+          categoryId: product.category?.id ?? null,
         }}
       />
     </div>

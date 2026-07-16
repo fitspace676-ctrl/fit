@@ -94,7 +94,7 @@ export function ProductActions({
   return (
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.row)}>
-        <Link href={`/payments/products/${productId}/edit`} {...stylex.props(styles.editLink)}>
+        <Link href={`/shop/${productId}/edit`} {...stylex.props(styles.editLink)}>
           Edit
         </Link>
         <Btn v={isInactive ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>

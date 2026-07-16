@@ -227,7 +227,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.errorPage)}>
-        <Link href="/payments/products" {...stylex.props(styles.backLink)}>
+        <Link href="/shop" {...stylex.props(styles.backLink)}>
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to products
         </Link>
@@ -250,7 +250,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div {...stylex.props(styles.page)}>
-      <Link href="/payments/products" {...stylex.props(styles.backLink)}>
+      <Link href="/shop" {...stylex.props(styles.backLink)}>
         <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
         Back to products
       </Link>

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ProductStatus, Prisma } from '@fit/db';
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
+  UNCATEGORISED_FILTER,
   productVariantsSchema,
   type AdminProductDetail,
   type AdminProductRow,
@@ -37,6 +38,10 @@ const PRODUCT_SELECT = {
   images: true,
   variants: true,
   status: true,
+  categoryId: true,
+  // The category is the gym's own row (the relation can't cross tenants), and the
+  // grid renders its name, so join it rather than making the console resolve ids.
+  category: { select: { id: true, name: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ProductSelect;
@@ -216,6 +221,7 @@ export class AdminProductsService {
    * variants as JSON. Returns the new product's detail (`201`).
    */
   async createProduct(input: CreateProductData): Promise<CreateProductResponse> {
+    await this.requireCategory(input.categoryId);
     const row = await this.prisma.client.product.create({
       data: {
         gymId: this.tenant.gymId,
@@ -227,10 +233,35 @@ export class AdminProductsService {
         images: input.images,
         variants: input.variants as unknown as Prisma.InputJsonValue,
         status: input.status,
+        categoryId: input.categoryId,
       },
       select: PRODUCT_SELECT,
     });
     return this.toDetail(row);
+  }
+
+  /**
+   * Assert a `categoryId` names a category in the **caller's** gym before it is
+   * written to a product.
+   *
+   * The tenant extension constrains which *products* a query can reach, but it does
+   * not vet the values inside the payload — a raw foreign key only has to exist in
+   * `product_categories`, so without this check a crafted request could shelve a
+   * product under another gym's category. The lookup runs on the scoped client, so
+   * a foreign id reads as absent and lands as a `404`. `null` (uncategorised) is
+   * always valid and skips the round-trip.
+   */
+  private async requireCategory(categoryId: string | null): Promise<void> {
+    if (categoryId === null) {
+      return;
+    }
+    const category = await this.prisma.client.productCategory.findUnique({
+      where: { id: categoryId },
+      select: { id: true },
+    });
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
   }
 
   /**
@@ -241,6 +272,7 @@ export class AdminProductsService {
    */
   async updateProduct(id: string, input: UpdateProductData): Promise<UpdateProductResponse> {
     await this.requireProduct(id);
+    await this.requireCategory(input.categoryId);
     await this.prisma.client.product.update({
       where: { id },
       data: {
@@ -251,6 +283,7 @@ export class AdminProductsService {
         currency: input.currency,
         images: input.images,
         variants: input.variants as unknown as Prisma.InputJsonValue,
+        categoryId: input.categoryId,
       },
     });
     return this.getProduct(id);
@@ -307,6 +340,13 @@ export class AdminProductsService {
       where.status = query.status;
     }
 
+    // The sentinel means "not filed under any shelf"; anything else is a real id.
+    // A stale id (its category since deleted) simply matches nothing — an empty
+    // roster, not an error, since the filter is a view and not a mutation.
+    if (query.categoryId) {
+      where.categoryId = query.categoryId === UNCATEGORISED_FILTER ? null : query.categoryId;
+    }
+
     const search = query.search?.trim();
     if (search) {
       where.OR = [
@@ -358,6 +398,7 @@ export class AdminProductsService {
       totalStock: variants.reduce((sum, variant) => sum + variant.stock, 0),
       lowestStock: variants.length === 0 ? null : Math.min(...variants.map((v) => v.stock)),
       status: row.status,
+      category: row.category ? { id: row.category.id, name: row.category.name } : null,
       createdAt: row.createdAt.toISOString(),
     };
   }

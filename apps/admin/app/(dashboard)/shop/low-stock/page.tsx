@@ -309,7 +309,7 @@ type Tile = {
  * `?threshold=` search param (defaulting to the shared
  * {@link DEFAULT_LOW_STOCK_THRESHOLD}) into an alert list, plus a summary of how deep
  * the shortfall runs and a per-variant **stock adjustment** entry point. The
- * `/payments/products` area already requires staff (middleware) and the API enforces
+ * `/shop` area already requires staff (middleware) and the API enforces
  * `ProductRead`, so the only failure handled here is the API call itself. Adjusting a
  * variant's on-hand count is a `ProductWrite` capability, so the inline adjuster is
  * shown only to staff who hold it; everyone can still jump to a product to edit it.
@@ -354,7 +354,7 @@ export default async function LowStockPage({
             product to edit it in full.
           </p>
         </div>
-        <Link href="/payments/products" {...stylex.props(styles.outlineLink)}>
+        <Link href="/shop" {...stylex.props(styles.outlineLink)}>
           All products
         </Link>
       </header>
@@ -367,9 +367,7 @@ export default async function LowStockPage({
             <Link
               key={preset}
               href={
-                preset === DEFAULT_LOW_STOCK_THRESHOLD
-                  ? '/payments/products/low-stock'
-                  : `?threshold=${preset}`
+                preset === DEFAULT_LOW_STOCK_THRESHOLD ? '/shop/low-stock' : `?threshold=${preset}`
               }
               aria-current={active ? 'page' : undefined}
               {...stylex.props(active ? styles.presetPillActive : styles.presetPill)}
@@ -426,10 +424,7 @@ export default async function LowStockPage({
                   >
                     <td {...stylex.props(styles.productCell)}>
                       {index === 0 ? (
-                        <Link
-                          href={`/payments/products/${product.id}`}
-                          {...stylex.props(styles.productLink)}
-                        >
+                        <Link href={`/shop/${product.id}`} {...stylex.props(styles.productLink)}>
                           {product.name}
                         </Link>
                       ) : (

@@ -349,8 +349,8 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
       onClose={handleClose}
       closing={closing}
       side="right"
+      size="lg"
       title={mode === 'create' ? t('form.addTitle') : t('form.editTitle')}
-      className="max-w-xl"
       footer={
         <div {...stylex.props(styles.footerRow)}>
           <Btn v="outline" size="md" onClick={handleClose} disabled={pending}>

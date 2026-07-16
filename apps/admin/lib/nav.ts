@@ -76,11 +76,18 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: Permission.ClassRead,
   },
   {
-    // Payments hub — Plans · Invoices · Products · Transactions (sub-tabs).
+    // Payments hub — Plans · Invoices · Transactions (sub-tabs).
     labelKey: 'nav.payments',
     href: '/payments',
     icon: 'billing',
     permission: Permission.BillingRead,
+  },
+  {
+    // Shop — the retail catalog, its own top-level destination (was a Payments sub-tab).
+    labelKey: 'nav.shop',
+    href: '/shop',
+    icon: 'products',
+    permission: Permission.ProductRead,
   },
   { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
   {
@@ -132,7 +139,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   { labelKey: 'navGroups.overview', hrefs: ['/'] },
   { labelKey: 'navGroups.people', hrefs: ['/members', '/staff'] },
   { labelKey: 'navGroups.operations', hrefs: ['/classes'] },
-  { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/pos'] },
+  { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/shop', '/pos'] },
   { labelKey: 'navGroups.growth', hrefs: ['/automation', '/marketing'] },
   { labelKey: 'navGroups.insights', hrefs: ['/reports'] },
   { labelKey: 'navGroups.system', hrefs: ['/settings'] },

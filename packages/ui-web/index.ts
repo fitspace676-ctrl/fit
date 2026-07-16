@@ -98,6 +98,7 @@ export {
   type ConfirmDialogProps,
   type DrawerProps,
   type DrawerSide,
+  type DrawerSize,
 } from './src/overlay';
 export { ToastProvider, useToast, type ToastContextValue } from './src/toast';
 export {

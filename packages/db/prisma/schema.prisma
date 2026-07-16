@@ -360,6 +360,7 @@ model Gym {
   trainers                Trainer[]
   locations               Location[]
   products                Product[]
+  productCategories       ProductCategory[]
   packagePlans            PackagePlan[]
   staffInvites            StaffInvite[]
   classTemplates          ClassTemplate[]
@@ -805,6 +806,30 @@ model Location {
 /// uploaded via the storage signed-upload service. `variants` is a JSON array of
 /// `{ name, sku, priceAmount, stock }` objects — the editable source for the
 /// product's purchasable options, validated by `productVariantsSchema`.
+/// A shelf the gym files its retail {@link Product}s under — "Protein", "Drinks".
+///
+/// A gym-scoped, staff-curated list rather than free text on the product, so a
+/// rename lands everywhere at once and the same shelf can't exist twice under two
+/// spellings (`@@unique([gymId, name])` — the failure mode free text invites).
+///
+/// Deleting a category does NOT delete its products: the relation is `SetNull`, so
+/// they simply fall back to uncategorised. Categories are an organisational
+/// overlay, never the owner of the catalogue.
+model ProductCategory {
+  id        String   @id @default(cuid())
+  gymId     String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([gymId, name])
+  @@index([gymId])
+  @@map("product_categories")
+}
+
 model Product {
   id          String        @id @default(cuid())
   gymId       String
@@ -816,12 +841,17 @@ model Product {
   images      String[]      @default([])
   variants    Json          @default("[]")
   status      ProductStatus @default(ACTIVE)
+  /// Optional shelf — `null` is "uncategorised", the state every product starts in
+  /// and the state it returns to if its category is deleted.
+  categoryId  String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  gym      Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  category ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([gymId])
+  @@index([categoryId])
   @@map("products")
 }
 

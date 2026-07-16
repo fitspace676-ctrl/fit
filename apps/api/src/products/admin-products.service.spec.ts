@@ -4,6 +4,7 @@ import { ProductStatus } from '@fit/db';
 import {
   productVariantsSchema,
   type CreateProductData,
+  UNCATEGORISED_FILTER,
   type ListAdminProductsQuery,
   type ProductVariants,
   type UpdateProductData,
@@ -28,12 +29,13 @@ interface ProductRecord {
   images: string[];
   variants: unknown;
   status: ProductStatus;
+  category: { id: string; name: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 interface FindManyArgs {
-  where?: { status?: unknown; OR?: unknown };
+  where?: { status?: unknown; OR?: unknown; categoryId?: unknown };
   orderBy?: unknown;
   skip?: number;
   take?: number;
@@ -53,6 +55,7 @@ const row = (over?: Partial<ProductRecord>): ProductRecord => ({
   images: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'],
   variants: VARIANTS,
   status: ProductStatus.ACTIVE,
+  category: null,
   createdAt: new Date('2026-02-01T00:00:00.000Z'),
   updatedAt: new Date('2026-02-02T00:00:00.000Z'),
   ...over,
@@ -62,6 +65,8 @@ function setup(overrides?: {
   findMany?: ProductRecord[];
   count?: number;
   findFirst?: ProductRecord | null;
+  /** What a `productCategory.findUnique` resolves to — `null` models another gym's id. */
+  category?: { id: string } | null;
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<ProductRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -75,8 +80,13 @@ function setup(overrides?: {
   const create = vi.fn<(args: WhereArgs) => Promise<ProductRecord>>(() => Promise.resolve(row()));
   const update = vi.fn<(args: WhereArgs) => Promise<ProductRecord>>(() => Promise.resolve(row()));
 
+  const categoryFindUnique = vi.fn<(args: WhereArgs) => Promise<{ id: string } | null>>(() =>
+    Promise.resolve(overrides?.category === undefined ? { id: 'c-1' } : overrides.category),
+  );
+
   const client: Record<string, unknown> = {
     product: { findMany, count, findFirst, create, update },
+    productCategory: { findUnique: categoryFindUnique },
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -89,6 +99,7 @@ function setup(overrides?: {
     findFirst,
     create,
     update,
+    categoryFindUnique,
   };
 }
 
@@ -105,6 +116,7 @@ const createInput = (over?: Partial<CreateProductData>): CreateProductData => ({
   images: ['https://cdn.example.com/a.jpg'],
   variants: VARIANTS,
   status: 'ACTIVE',
+  categoryId: null,
   ...over,
 });
 
@@ -116,6 +128,7 @@ const updateInput = (over?: Partial<UpdateProductData>): UpdateProductData => ({
   currency: 'EUR',
   images: ['https://cdn.example.com/c.jpg'],
   variants: VARIANTS,
+  categoryId: null,
   ...over,
 });
 
@@ -141,6 +154,7 @@ describe('AdminProductsService', () => {
             totalStock: 14,
             lowestStock: 4,
             status: 'ACTIVE',
+            category: null,
             createdAt: '2026-02-01T00:00:00.000Z',
           },
         ],
@@ -155,6 +169,18 @@ describe('AdminProductsService', () => {
           lowStockThreshold: 5,
         },
       });
+    });
+
+    it('projects the joined category, and null for an unfiled product', async () => {
+      const { service } = setup({
+        findMany: [row({ category: { id: 'c-1', name: 'Protein' } }), row({ id: 'p-2' })],
+        count: 2,
+      });
+
+      const result = await service.listProducts(query());
+
+      expect(result.data[0]?.category).toEqual({ id: 'c-1', name: 'Protein' });
+      expect(result.data[1]?.category).toBeNull();
     });
 
     it('reports a null imageUrl, zero variantCount and untracked stock for an empty product', async () => {
@@ -207,6 +233,31 @@ describe('AdminProductsService', () => {
       await service.listProducts(query({ status: 'INACTIVE' }));
 
       expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({ status: 'INACTIVE' });
+    });
+
+    it('narrows to one category when a categoryId is given', async () => {
+      const { service, findMany } = setup();
+
+      await service.listProducts(query({ categoryId: 'c-1' }));
+
+      expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({ categoryId: 'c-1' });
+    });
+
+    it('narrows to the unfiled products for the uncategorised sentinel', async () => {
+      const { service, findMany } = setup();
+
+      await service.listProducts(query({ categoryId: UNCATEGORISED_FILTER }));
+
+      // The sentinel must become a NULL match, never a literal id lookup.
+      expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({ categoryId: null });
+    });
+
+    it('does not constrain by category when the filter is omitted', async () => {
+      const { service, findMany } = setup();
+
+      await service.listProducts(query());
+
+      expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('categoryId');
     });
 
     it('builds a case-insensitive name/description search', async () => {
@@ -307,6 +358,7 @@ describe('AdminProductsService', () => {
         totalStock: 14,
         lowestStock: 4,
         status: 'ACTIVE',
+        category: null,
         createdAt: '2026-02-01T00:00:00.000Z',
         description: 'A soft cotton training tee.',
         images: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'],
@@ -347,9 +399,59 @@ describe('AdminProductsService', () => {
         variants: VARIANTS,
       });
     });
+
+    it('shelves the product under a category in the caller gym', async () => {
+      const { service, create, categoryFindUnique } = setup({ category: { id: 'c-1' } });
+
+      await service.createProduct(createInput({ categoryId: 'c-1' }));
+
+      expect(categoryFindUnique.mock.calls[0]?.[0]?.where).toMatchObject({ id: 'c-1' });
+      expect(create.mock.calls[0]?.[0]?.data).toMatchObject({ categoryId: 'c-1' });
+    });
+
+    it('rejects a category outside the caller gym instead of writing the foreign key', async () => {
+      // The scoped client reads another gym's category as absent. Without this check
+      // the raw FK would still satisfy the database and shelve across tenants.
+      const { service, create } = setup({ category: null });
+
+      await expect(service.createProduct(createInput({ categoryId: 'other-gym' }))).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('skips the category lookup entirely when uncategorised', async () => {
+      const { service, create, categoryFindUnique } = setup();
+
+      await service.createProduct(createInput({ categoryId: null }));
+
+      expect(categoryFindUnique).not.toHaveBeenCalled();
+      expect(create.mock.calls[0]?.[0]?.data).toMatchObject({ categoryId: null });
+    });
   });
 
   describe('updateProduct', () => {
+    it('rejects a category outside the caller gym instead of writing the foreign key', async () => {
+      const { service, update } = setup({ findFirst: row(), category: null });
+
+      await expect(
+        service.updateProduct('p-1', updateInput({ categoryId: 'other-gym' })),
+      ).rejects.toThrow(NotFoundException);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('re-shelves the product, and un-shelves it on null', async () => {
+      const ctx = setup({ findFirst: row(), category: { id: 'c-2' } });
+
+      await ctx.service.updateProduct('p-1', updateInput({ categoryId: 'c-2' }));
+      expect(ctx.update.mock.calls[0]?.[0]?.data).toMatchObject({ categoryId: 'c-2' });
+
+      vi.clearAllMocks();
+      const bare = setup({ findFirst: row() });
+      await bare.service.updateProduct('p-1', updateInput({ categoryId: null }));
+      expect(bare.update.mock.calls[0]?.[0]?.data).toMatchObject({ categoryId: null });
+    });
+
     it('updates the profile fields (not status) and returns the detail', async () => {
       const { service, findFirst, update } = setup({ findFirst: row() });
 

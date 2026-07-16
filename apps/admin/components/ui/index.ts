@@ -33,6 +33,7 @@ export {
   type ConfirmDialogProps,
   type DrawerProps,
   type DrawerSide,
+  type DrawerSize,
 } from '@fit/ui-web';
 export {
   useZodForm,
