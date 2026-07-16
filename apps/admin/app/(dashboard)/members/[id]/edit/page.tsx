@@ -183,7 +183,6 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
           emergencyContactName: member.emergencyContactName ?? '',
           emergencyContactPhone: member.emergencyContactPhone ?? '',
           medicalNotes: member.medicalNotes ?? '',
-          tags: member.tags.join(', '),
         }}
       />
     </div>

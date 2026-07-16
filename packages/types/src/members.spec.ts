@@ -16,7 +16,6 @@ describe('createMemberSchema', () => {
     // Omitted profile fields stay undefined so the service leaves columns untouched.
     expect(parsed.dateOfBirth).toBeUndefined();
     expect(parsed.gender).toBeUndefined();
-    expect(parsed.tags).toBeUndefined();
   });
 
   it('carries profile extras + an optional plan enrolment', () => {
@@ -28,13 +27,11 @@ describe('createMemberSchema', () => {
       emergencyContactName: 'Data',
       emergencyContactPhone: '+995 555 00 00 00',
       medicalNotes: 'None',
-      tags: ['VIP', 'New'],
       planId: 'plan_1',
       startDate: '2026-07-01',
       paymentMethod: 'CASH',
     });
     expect(parsed.gender).toBe('FEMALE');
-    expect(parsed.tags).toEqual(['VIP', 'New']);
     expect(parsed.planId).toBe('plan_1');
     expect(parsed.startDate).toBe('2026-07-01');
   });
@@ -53,6 +50,34 @@ describe('updateMemberSchema', () => {
     expect(parsed.phone).toBeNull();
     expect(parsed.address).toBeNull();
     expect(parsed.medicalNotes).toBeUndefined();
+  });
+
+  // The admin parses the form, then sends the *parsed* body to the API, which
+  // parses it again with this same schema. So the schema's output has to be valid
+  // input — otherwise every edit that empties a field 400s on the second parse.
+  it('accepts its own output, so a parsed body survives the trip to the API', () => {
+    const fromForm = updateMemberSchema.parse({
+      name: 'Ana',
+      phone: '',
+      dateOfBirth: '',
+      address: '',
+      emergencyContactName: '',
+      emergencyContactPhone: '',
+      medicalNotes: '',
+    });
+
+    // What actually crosses the wire — `undefined` keys drop out of the JSON.
+    const overTheWire = JSON.parse(JSON.stringify(fromForm)) as unknown;
+
+    const atTheApi = updateMemberSchema.safeParse(overTheWire);
+    expect(atTheApi.success).toBe(true);
+  });
+
+  it('round-trips a cleared field as still-cleared rather than re-reading it as text', () => {
+    const once = updateMemberSchema.parse({ name: 'Ana', phone: '', address: '' });
+    const twice = updateMemberSchema.parse(JSON.parse(JSON.stringify(once)));
+    expect(twice.phone).toBeNull();
+    expect(twice.address).toBeNull();
   });
 });
 

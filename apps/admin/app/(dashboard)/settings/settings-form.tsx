@@ -657,7 +657,6 @@ interface SettingsFormValues {
     membershipPlan: boolean;
     paymentMethod: boolean;
     medicalNotes: boolean;
-    tags: boolean;
   };
   payments: { acceptCash: boolean; acceptCard: boolean; acceptPrepaidCredits: boolean };
   invoice: { prefix: string; startNumber: number; format: InvoiceNumberFormat };
@@ -702,8 +701,7 @@ type BoolFieldName =
   | 'memberIntake.emergencyContact'
   | 'memberIntake.membershipPlan'
   | 'memberIntake.paymentMethod'
-  | 'memberIntake.medicalNotes'
-  | 'memberIntake.tags';
+  | 'memberIntake.medicalNotes';
 
 /** The rail sections, in order — each maps onto a slice of the real settings contract. */
 type SectionKey =
@@ -906,7 +904,6 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         membershipPlan: z.boolean(),
         paymentMethod: z.boolean(),
         medicalNotes: z.boolean(),
-        tags: z.boolean(),
       }),
       payments: z.object({
         acceptCash: z.boolean(),
@@ -1385,7 +1382,6 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                     'membershipPlan',
                     'paymentMethod',
                     'medicalNotes',
-                    'tags',
                   ] as const
                 ).map((field) => (
                   <SwitchRow
@@ -1706,7 +1702,6 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       membershipPlan: settings.memberIntake.membershipPlan,
       paymentMethod: settings.memberIntake.paymentMethod,
       medicalNotes: settings.memberIntake.medicalNotes,
-      tags: settings.memberIntake.tags,
     },
     payments: {
       acceptCash: settings.payments.acceptCash,

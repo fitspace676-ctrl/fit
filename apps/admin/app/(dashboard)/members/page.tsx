@@ -161,8 +161,6 @@ export default async function MembersPage({
         view={query.view}
         frozen={query.frozen}
         planId={query.planId ?? ''}
-        tag={query.tag ?? ''}
-        availableTags={result.availableTags}
         canWrite={canWrite}
       />
     );
