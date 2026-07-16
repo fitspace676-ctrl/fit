@@ -3,22 +3,31 @@
 import { revalidatePath } from 'next/cache';
 import {
   Permission,
+  createProductCategorySchema,
   createProductSchema,
   productVariantSchema,
   roleHasPermission,
+  updateProductCategorySchema,
   updateProductSchema,
+  type AdminProductCategory,
+  type CreateProductCategoryInput,
   type CreateProductInput,
+  type DeleteProductCategoryResponse,
   type SetProductStatusResponse,
+  type UpdateProductCategoryInput,
   type UpdateProductInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
   createProduct,
+  createProductCategory,
   createUpload,
   deactivateProduct,
+  deleteProductCategory,
   fetchProduct,
   reactivateProduct,
+  renameProductCategory,
   updateProduct,
   type SignedUploadResponse,
 } from '@/lib/api';
@@ -28,7 +37,7 @@ export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; e
 
 /**
  * Re-assert a capability inside the action itself. The middleware gates the
- * `/payments/products` route, but a Server Action is its own POST endpoint, so re-checking
+ * `/shop` route, but a Server Action is its own POST endpoint, so re-checking
  * here is defence in depth (the API re-checks again behind its guards).
  */
 async function sessionHas(permission: Permission): Promise<boolean> {
@@ -43,6 +52,16 @@ function toMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.message === 'PRODUCT_NOT_FOUND') {
       return 'That product no longer exists.';
+    }
+    // `unwrap` surfaces the API's error *code*, not its prose, so these would
+    // otherwise read as "Request failed (409): CONFLICT". Matched on the code
+    // rather than the status: a missing *product* has its own code above, so
+    // a bare NOT_FOUND reaching here is the category the write named.
+    if (error.message === 'CONFLICT') {
+      return 'A category with that name already exists.';
+    }
+    if (error.message === 'NOT_FOUND') {
+      return 'That category no longer exists — refresh the page.';
     }
     if (error.status === 503) {
       return 'Image storage is not configured. Save the product without images, or try again later.';
@@ -69,8 +88,78 @@ export async function createProductAction(
   }
   try {
     const product = await createProduct(parsed.data);
-    revalidatePath('/payments/products');
+    revalidatePath('/shop');
     return { ok: true, data: { id: product.id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+// ── Categories ────────────────────────────────────────────────────────────────
+
+/**
+ * Create a category shelf. Enforces `ProductWrite` and re-validates with the API's
+ * own schema; a name already in use comes back as the `409` message, which the
+ * manager renders inline rather than treating as a failure of the form.
+ */
+export async function createProductCategoryAction(
+  input: CreateProductCategoryInput,
+): Promise<ActionResult<AdminProductCategory>> {
+  if (!(await requireProductWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const parsed = createProductCategorySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid category name' };
+  }
+  try {
+    const category = await createProductCategory(parsed.data);
+    revalidatePath('/shop');
+    return { ok: true, data: category };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Rename a category. Every product on the shelf follows, so only the roster needs
+ * refreshing — the products themselves are untouched.
+ */
+export async function renameProductCategoryAction(
+  id: string,
+  input: UpdateProductCategoryInput,
+): Promise<ActionResult<AdminProductCategory>> {
+  if (!(await requireProductWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const parsed = updateProductCategorySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid category name' };
+  }
+  try {
+    const category = await renameProductCategory(id, parsed.data);
+    revalidatePath('/shop');
+    return { ok: true, data: category };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Delete a category. Its products are **not** deleted — they fall back to
+ * uncategorised — and `unshelved` reports how many did, so the manager can confirm
+ * the blast radius it warned about.
+ */
+export async function deleteProductCategoryAction(
+  id: string,
+): Promise<ActionResult<DeleteProductCategoryResponse>> {
+  if (!(await requireProductWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const result = await deleteProductCategory(id);
+    revalidatePath('/shop');
+    return { ok: true, data: result };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }
@@ -93,8 +182,8 @@ export async function updateProductAction(
   }
   try {
     await updateProduct(id, parsed.data);
-    revalidatePath('/payments/products');
-    revalidatePath(`/payments/products/${id}`);
+    revalidatePath('/shop');
+    revalidatePath(`/shop/${id}`);
     return { ok: true, data: { id } };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
@@ -115,8 +204,8 @@ export async function setProductActiveAction(
   }
   try {
     const product = active ? await reactivateProduct(id) : await deactivateProduct(id);
-    revalidatePath('/payments/products');
-    revalidatePath(`/payments/products/${id}`);
+    revalidatePath('/shop');
+    revalidatePath(`/shop/${id}`);
     return { ok: true, data: { status: product.status } };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
@@ -209,9 +298,9 @@ export async function adjustVariantStockAction(
       return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid product details' };
     }
     await updateProduct(productId, parsed.data);
-    revalidatePath('/payments/products');
-    revalidatePath('/payments/products/low-stock');
-    revalidatePath(`/payments/products/${productId}`);
+    revalidatePath('/shop');
+    revalidatePath('/shop/low-stock');
+    revalidatePath(`/shop/${productId}`);
     return {
       ok: true,
       data: { stock: parsed.data.variants[variantIndex]?.stock ?? parsedStock.data },

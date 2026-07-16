@@ -29,7 +29,7 @@ export interface HubTab {
   /**
    * When set, the tab is active only on an exact path match (used for the hub
    * index tab so it doesn't stay lit on sibling tab routes that share its
-   * prefix — e.g. `/payments` vs `/payments/products`).
+   * prefix — e.g. `/payments` vs `/payments/invoices`).
    */
   exact?: boolean;
 }
@@ -51,7 +51,7 @@ function isActive(tab: HubTab, path: string): boolean {
 export function HubTabs({ items, ariaLabel }: { items: HubTab[]; ariaLabel: string }) {
   const path = appPath(usePathname());
 
-  // Longest matching href wins, so `/payments/products` beats the `/payments`
+  // Longest matching href wins, so `/payments/invoices` beats the `/payments`
   // index tab when both would otherwise match.
   let activeHref = '';
   for (const tab of items) {

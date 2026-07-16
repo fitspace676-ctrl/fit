@@ -83,11 +83,27 @@ export function modalPanelClasses(size: ModalSize = 'md', className = ''): strin
 
 export type DrawerSide = 'right' | 'left';
 
+export type DrawerSize = 'md' | 'lg';
+
+/**
+ * Panel widths. Callers pick a `size` rather than passing a `max-w-*` class, so
+ * screens already migrated off Tailwind (see `docs/tailwind-decommission.md`) can
+ * widen a drawer without authoring a utility class the CI guardrail rejects.
+ */
+const DRAWER_WIDTHS: Record<DrawerSize, string> = {
+  md: 'max-w-md',
+  lg: 'max-w-xl',
+};
+
 /** Compose the side-sheet panel classes for a given side. Positioning only; the
  * {@link Drawer} layers the enter/exit slide animation on top per its state. */
-export function drawerPanelClasses(side: DrawerSide = 'right', className = ''): string {
+export function drawerPanelClasses(
+  side: DrawerSide = 'right',
+  className = '',
+  size: DrawerSize = 'md',
+): string {
   const anchor = side === 'right' ? 'right-0 border-l' : 'left-0 border-r';
-  return `absolute inset-y-0 ${anchor} flex w-full max-w-md flex-col overflow-y-auto ${PANEL_SURFACE} ${className}`.trim();
+  return `absolute inset-y-0 ${anchor} flex w-full ${DRAWER_WIDTHS[size]} flex-col overflow-y-auto ${PANEL_SURFACE} ${className}`.trim();
 }
 
 /** The slide animation utility for a drawer, by side and direction. */
@@ -393,6 +409,8 @@ export interface DrawerProps {
   /** Accessible label when `hideHeader` is set (no visible title to wire up). */
   label?: string;
   side?: DrawerSide;
+  /** Panel width — `md` (the default) or the roomier `lg` for form-heavy sheets. */
+  size?: DrawerSize;
   /** When true, play the exit slide (out to `side`) instead of the enter slide.
    * The caller keeps the drawer mounted for the animation's duration (~0.28s)
    * before dropping it, so the panel animates away instead of vanishing. */
@@ -419,6 +437,7 @@ export function Drawer({
   title,
   label,
   side = 'right',
+  size = 'md',
   closing = false,
   hideHeader = false,
   accent,
@@ -448,6 +467,7 @@ export function Drawer({
         className={drawerPanelClasses(
           side,
           `${drawerAnimationClass(side, closing)} motion-reduce:animate-none ${className}`.trim(),
+          size,
         )}
       >
         {accent && (

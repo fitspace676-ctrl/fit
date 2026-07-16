@@ -246,8 +246,8 @@ export function EmailMemberDrawer({
           onClose={handleClose}
           closing={closing}
           side="right"
+          size="lg"
           title={t('email.title')}
-          className="max-w-xl"
           footer={
             <div {...stylex.props(styles.footer)}>
               <Btn v="ghost" size="md" onClick={handleClose} disabled={sending}>

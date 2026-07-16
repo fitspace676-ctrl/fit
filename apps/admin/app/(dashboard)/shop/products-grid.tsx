@@ -147,6 +147,20 @@ const styles = stylex.create({
     fontSize: '0.6875rem',
     color: 'var(--color-text-secondary)',
   },
+  categoryChip: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent-muted)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
   pagerRow: {
     display: 'flex',
     alignItems: 'center',
@@ -229,7 +243,7 @@ export function ProductsGrid({
           return (
             <li key={product.id}>
               <Card variant="default" padding={0} xstyle={cardStyle}>
-                <Link href={`/payments/products/${product.id}`} {...stylex.props(styles.cardLink)}>
+                <Link href={`/shop/${product.id}`} {...stylex.props(styles.cardLink)}>
                   <div {...stylex.props(styles.media)}>
                     {product.imageUrl ? (
                       <img src={product.imageUrl} alt="" {...stylex.props(styles.image)} />
@@ -259,6 +273,9 @@ export function ProductsGrid({
                       <span {...stylex.props(styles.variantCount)}>
                         {marginPercent(product.priceAmount, product.costAmount)}% margin
                       </span>
+                    ) : null}
+                    {product.category ? (
+                      <span {...stylex.props(styles.categoryChip)}>{product.category.name}</span>
                     ) : null}
                     <div>
                       <StockBadge row={product} />

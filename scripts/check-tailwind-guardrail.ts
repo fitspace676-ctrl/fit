@@ -120,69 +120,58 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/components/top-bar.tsx',
   'apps/admin/components/nav-icon.tsx',
   'apps/admin/components/locale-switcher.tsx',
-  // T11.18 — admin dashboard + analytics: the control-room landing (KPI stat
-  // tiles, live occupancy, revenue area chart, plan-mix, schedule, alerts, recent
-  // check-ins) and the analytics report (KPIs, revenue chart, channel-mix donut,
-  // plan-mix, top classes). Rebuilt on Astryx Card/Badge/SegmentedControl + a
-  // brand-tokened StyleX chart kit (`charts.tsx`) — no Tailwind, no Recharts. The
-  // dashboard landing is guarded file-by-file (the sibling `kpi-card.tsx` is a
-  // dead FormaCore leftover the T11.24 sweep removes, so it stays out of the
-  // manifest); the analytics route group is Astryx-only and guarded as a directory.
+  // T11.18 — admin dashboard: the control-room landing (KPI stat tiles, live
+  // occupancy, revenue area chart, plan-mix, schedule, alerts, recent check-ins).
+  // Rebuilt on Astryx Card/Badge/SegmentedControl + a brand-tokened StyleX chart
+  // kit (`charts.tsx`) — no Tailwind, no Recharts. Guarded file-by-file: the
+  // sibling `kpi-card.tsx` is a dead FormaCore leftover the T11.24 sweep removes,
+  // so it stays out of the manifest. The standalone analytics report this task also
+  // migrated was folded into the dashboard by the IA consolidation (622a269).
   'apps/admin/app/(dashboard)/page.tsx',
   'apps/admin/app/(dashboard)/dashboard-view.tsx',
   'apps/admin/app/(dashboard)/charts.tsx',
-  'apps/admin/app/(dashboard)/analytics',
-  // T11.19 — admin members + trainers (list + detail + create/edit): rosters
-  // rebuilt on the Astryx DataTable + FilterChips + TableSearch kit, plan-mix and
-  // profile/schedule cards on Astryx Card/Badge/Avatar, and the create/edit forms
-  // on the Astryx Form kit — all layout in brand-tokened StyleX, no Tailwind. Both
-  // route groups (list, `[id]` detail + tabs, `new`, `[id]/edit`) are now
-  // Astryx-only, so each is guarded as a directory.
+  // T11.19 — admin members (list + detail + create/edit): the roster rebuilt on the
+  // Astryx DataTable + FilterChips + TableSearch kit, plan-mix and profile/schedule
+  // cards on Astryx Card/Badge/Avatar, and the create/edit forms on the Astryx Form
+  // kit — all layout in brand-tokened StyleX, no Tailwind. The whole route group
+  // (list, `[id]` detail + tabs, `new`, `[id]/edit`) is Astryx-only, so it is
+  // guarded as a directory. The trainers roster this task also migrated was removed
+  // by the IA consolidation (622a269) — no reference equivalent.
   'apps/admin/app/(dashboard)/members',
-  'apps/admin/app/(dashboard)/trainers',
-  // T11.20 — admin check-in board (scanner viewport + debounced member lookup +
-  // eligibility card + live arrivals feed), the schedule week-calendar (day-column
-  // occurrence cards + occupancy bars + the class-instance Drawer with roster /
-  // capacity / quick-actions) and the class-templates surfaces (list on the Astryx
-  // DataTable kit, detail, create/edit form + recurrence editor). Rebuilt on Astryx
-  // Card/DataTable/Drawer/Badge/Button + brand-tokened StyleX, no Tailwind. Each
-  // route group is now Astryx-only, so each is guarded as a directory.
-  'apps/admin/app/(dashboard)/check-in',
-  'apps/admin/app/(dashboard)/schedule',
+  // T11.20 — the schedule week-calendar (day-column occurrence cards + occupancy
+  // bars + the class-instance Drawer with roster / capacity / quick-actions) and the
+  // class-templates surfaces (list on the Astryx DataTable kit, detail, create/edit
+  // form + recurrence editor). Rebuilt on Astryx Card/DataTable/Drawer/Badge/Button
+  // + brand-tokened StyleX, no Tailwind. The IA consolidation (622a269) moved the
+  // schedule under `classes/schedule`, so the one `classes` directory now guards
+  // both; the check-in board this task also migrated was removed by the same commit.
   'apps/admin/app/(dashboard)/classes',
-  // T11.21 — admin operational screens: the activity feed + audit-log (filterable
-  // event stream with type icons / relative times, tabbed with the audit trail),
-  // staff management (roster KPIs, staff + pending-invite tables, invite modal,
-  // role changes / removal), locations CRUD (board + detail + create/edit form
-  // with weekly-hours and amenities editors) and gym settings (brand / locale /
-  // business-hours / notification sender). Rebuilt on Astryx
-  // Card/DataTable/FilterChips/Badge/Form-kit + brand-tokened StyleX, no Tailwind.
-  // Each route group is now Astryx-only, so each is guarded as a directory.
-  'apps/admin/app/(dashboard)/activity',
-  'apps/admin/app/(dashboard)/audit-log',
+  // T11.21 — admin operational screens: staff management (roster KPIs, staff +
+  // pending-invite tables, invite modal, role changes / removal), locations CRUD
+  // (board + detail + create/edit form with weekly-hours and amenities editors) and
+  // gym settings (brand / locale / business-hours / notification sender). Rebuilt on
+  // Astryx Card/DataTable/FilterChips/Badge/Form-kit + brand-tokened StyleX, no
+  // Tailwind. Each route group is Astryx-only, so each is guarded as a directory.
+  // The activity feed + audit-log this task also migrated were removed by the IA
+  // consolidation (622a269) — no reference equivalent.
   'apps/admin/app/(dashboard)/staff',
   'apps/admin/app/(dashboard)/locations',
   'apps/admin/app/(dashboard)/settings',
-  // T11.22 — admin commerce screens: orders list + detail (status timeline +
+  // T11.22 — admin commerce screens: the orders list + detail (status timeline +
   // refund form), the POS workspace (product grid + cart pane + member lookup +
   // cash/card/member-account payment modal) with end-of-day reconciliation, the
   // product catalog (grid + filters + editor + low-stock adjuster) and the
   // reports hub (report cards, date presets, CSV/XLSX export). Rebuilt on Astryx
   // Card/DataTable/Badge/Modal/Form-kit + brand-tokened StyleX, no Tailwind.
-  // Each route group (and the POS component dir) is now Astryx-only, so each is
-  // guarded as a directory.
-  'apps/admin/app/(dashboard)/orders',
+  // Each route group (and the POS component dir) is Astryx-only, so each is
+  // guarded as a directory. Two have since moved: the IA consolidation (622a269)
+  // put orders under `payments/transactions`, and the catalog — routed through
+  // `payments/products` by that commit — now has its own top-level `shop`.
+  'apps/admin/app/(dashboard)/payments/transactions',
   'apps/admin/app/(dashboard)/pos',
-  'apps/admin/app/(dashboard)/products',
+  'apps/admin/app/(dashboard)/shop',
   'apps/admin/app/(dashboard)/reports',
   'apps/admin/components/pos',
-  // T12.3 — the CRM workspace (Leads | Opportunities | Forecast shell): the
-  // leads roster on the Astryx DataTable/FilterChips/TableSearch kit, the
-  // add/edit lead form + won/lost close dialogs on the Modal kit, and the lead
-  // detail (info/KPI cards + overview/activity/notes/tasks tabs). Born on
-  // Astryx + brand-tokened StyleX — never had Tailwind — and guarded as a
-  // directory so it stays that way.
-  'apps/admin/app/(dashboard)/crm',
   // T12.6 — the Automation workspace (Rules | Templates shell): the rules roster
   // on the Astryx DataTable with a per-row active toggle and category/timing
   // badges, the create/edit builder (grouped trigger picker, day/count input,

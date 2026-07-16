@@ -97,14 +97,22 @@ test.describe.serial('Admin core flows', () => {
 
   test('POS: create a product and record a card sale', async ({ page }) => {
     // The seed ships no products, so create one (ACTIVE, so POS can sell it).
-    // Products now live under the consolidated Payments hub.
-    await page.goto('/payments/products/new');
-    await page.locator('#product-name').fill(product.name);
-    await page.locator('#product-price').fill(product.price);
-    await page.locator('#product-currency').fill(product.currency);
-    await page.locator('#product-status').selectOption('ACTIVE');
-    await page.getByRole('button', { name: 'Create product' }).click();
-    await page.waitForURL(/\/payments\/products\/(?!new$)[a-z0-9]+$/, { timeout: 20_000 });
+    // The retail catalog lives on its own top-level Shop destination, and adding a
+    // product is a drawer over it rather than a page of its own.
+    await page.goto('/shop');
+    await page.getByRole('button', { name: 'New product' }).click();
+
+    const drawer = page.getByRole('dialog', { name: 'New product' });
+    await expect(drawer).toBeVisible();
+    await drawer.locator('#product-name').fill(product.name);
+    await drawer.locator('#product-price').fill(product.price);
+    await drawer.locator('#product-currency').fill(product.currency);
+    await drawer.locator('#product-status').selectOption('ACTIVE');
+    await drawer.getByRole('button', { name: 'Create product' }).click();
+
+    // The drawer closes and the catalog behind it refreshes with the new product.
+    await expect(drawer).toBeHidden({ timeout: 20_000 });
+    await expect(page.getByText(product.name).first()).toBeVisible({ timeout: 20_000 });
 
     // Ring it up at the point of sale.
     await page.goto('/pos');

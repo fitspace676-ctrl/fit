@@ -176,6 +176,10 @@ const styles = stylex.create({
     flexWrap: 'wrap',
     gap: '0.5rem',
   },
+  planChipIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+  },
   planChip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -660,7 +664,9 @@ export function ClassTemplateForm(props: Props) {
                       onClick={() => togglePlan(plan.id)}
                       {...stylex.props(styles.planChip, active && styles.planChipActive)}
                     >
-                      {active ? <Icon name="check" sw={2.5} className="h-3.5 w-3.5" /> : null}
+                      {active ? (
+                        <Icon name="check" sw={2.5} {...stylex.props(styles.planChipIcon)} />
+                      ) : null}
                       {plan.name}
                     </button>
                   );

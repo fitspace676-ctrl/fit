@@ -71,6 +71,20 @@ const nextConfig = {
   ...(adminBasePath ? { basePath: adminBasePath } : {}),
   env: { NEXT_PUBLIC_ADMIN_BASE_PATH: adminBasePath },
   images: { remotePatterns: r2RemotePatterns() },
+  // The retail catalog moved out of the Payments hub to its own top-level Shop
+  // destination. Permanently redirect the old `/payments/products*` paths (and any
+  // drill-down: detail, edit, new, low-stock) to their `/shop*` equivalents so
+  // existing bookmarks and links keep resolving. basePath is applied automatically.
+  // Creating a product is a drawer over the catalog (`AddProductDrawer`), not a
+  // page, so `/shop/new` no longer exists — send it (and the old Payments-hub path
+  // that now lands on it) to the catalog it opens over.
+  async redirects() {
+    return [
+      { source: '/shop/new', destination: '/shop', permanent: true },
+      { source: '/payments/products', destination: '/shop', permanent: true },
+      { source: '/payments/products/:path*', destination: '/shop/:path*', permanent: true },
+    ];
+  },
   // `next-intl` is imported across the console's client/server components;
   // `optimizePackageImports` rewrites its barrel imports to direct submodule
   // imports so each admin screen ships only what it uses, trimming the client

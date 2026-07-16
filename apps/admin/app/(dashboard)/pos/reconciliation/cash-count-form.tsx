@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { computeCashVariance } from '@fit/types';
-import { formatPrice, inputToMinor } from '@/app/(dashboard)/payments/products/format-price';
+import { formatPrice, inputToMinor } from '@/app/(dashboard)/shop/format-price';
 import { Card } from '@astryxdesign/core/Card';
 
 const styles = stylex.create({

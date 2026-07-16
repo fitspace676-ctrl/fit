@@ -8,14 +8,15 @@ import {
   type ListAdminProductsQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchProducts } from '@/lib/api';
+import { ApiError, fetchProductCategories, fetchProducts } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
-import { PaymentsTabs } from '@/components/payments-tabs';
 import { ProductsFilters } from './products-filters';
 import { ProductsStatusTabs } from './products-status-tabs';
 import { ProductsSummary } from './products-summary';
 import { ProductsGrid } from './products-grid';
+import { AddProductDrawer } from './add-product-drawer';
+import { CategoriesDrawer } from './categories-drawer';
 
 export const metadata: Metadata = {
   title: 'Shop — Fit Admin',
@@ -83,23 +84,6 @@ const styles = stylex.create({
     textDecoration: 'none',
     color: 'var(--color-text-primary)',
   },
-  primaryLink: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    height: '2.75rem',
-    paddingInline: '1.25rem',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    textDecoration: 'none',
-  },
-  addIcon: {
-    width: '1rem',
-    height: '1rem',
-  },
   errorCard: {
     display: 'flex',
     alignItems: 'center',
@@ -127,7 +111,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
  * Server-renders one filtered, server-paginated page of `GET /admin/products` from
  * the URL search params: the whole-set summary tiles (product / active / low-stock /
  * out-of-stock counts), a segmented status tab row, the search + sort bar, and the
- * product grid with a stock badge per card. The `/payments/products` route already requires
+ * product grid with a stock badge per card. The `/shop` route already requires
  * staff (middleware) and the API enforces `ProductRead`, so the only failure handled
  * here is the API call itself — the tiles / grid only render on success, while the
  * URL-derived tabs and filter bar stay visible either way.
@@ -143,9 +127,17 @@ export default async function ProductsPage({
     ? parsed.data
     : listAdminProductsQuerySchema.parse({});
 
-  // "New product" is a `ProductWrite` capability — shown only to staff who hold it.
+  // "New product" and category management are `ProductWrite` capabilities — shown
+  // only to staff who hold them.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ProductWrite);
+
+  // The shelves feed three things: the filter, the "New product" picker, and the
+  // manager. Fetched once here rather than by each. A failure degrades to no
+  // categories — the roster itself still renders, and its own error path owns that.
+  const categories = await fetchProductCategories()
+    .then((result) => result.data)
+    .catch(() => []);
 
   let summary = null;
   let content;
@@ -185,25 +177,25 @@ export default async function ProductsPage({
           </p>
         </div>
         <div {...stylex.props(styles.headActions)}>
-          <Link href="/payments/products/low-stock" {...stylex.props(styles.outlineLink)}>
+          <Link href="/shop/low-stock" {...stylex.props(styles.outlineLink)}>
             Low stock
           </Link>
-          {canWrite ? (
-            <Link href="/payments/products/new" {...stylex.props(styles.primaryLink)}>
-              <Icon name="plus" sw={2} {...stylex.props(styles.addIcon)} />
-              New product
-            </Link>
-          ) : null}
+          {canWrite ? <CategoriesDrawer categories={categories} /> : null}
+          {canWrite ? <AddProductDrawer categories={categories} /> : null}
         </div>
       </header>
-
-      <PaymentsTabs />
 
       {summary}
 
       <ProductsStatusTabs status={query.status ?? ''} />
 
-      <ProductsFilters search={query.search ?? ''} sort={query.sort} dir={query.dir} />
+      <ProductsFilters
+        search={query.search ?? ''}
+        sort={query.sort}
+        dir={query.dir}
+        categoryId={query.categoryId ?? ''}
+        categories={categories}
+      />
 
       {content}
     </div>

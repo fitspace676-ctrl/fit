@@ -9,7 +9,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCashReconciliation } from '@/lib/api';
-import { formatPrice } from '@/app/(dashboard)/payments/products/format-price';
+import { formatPrice } from '@/app/(dashboard)/shop/format-price';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ReconciliationDateForm } from './reconciliation-date-form';

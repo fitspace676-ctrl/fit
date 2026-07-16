@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import type { ProductSort, SortDir } from '@fit/types';
+import {
+  UNCATEGORISED_FILTER,
+  type AdminProductCategory,
+  type ProductSort,
+  type SortDir,
+} from '@fit/types';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
@@ -44,6 +49,12 @@ const styles = stylex.create({
     width: {
       default: '100%',
       '@media (min-width: 640px)': '14rem',
+    },
+  },
+  categoryWrap: {
+    width: {
+      default: '100%',
+      '@media (min-width: 640px)': '12rem',
     },
   },
   srOnly: {
@@ -89,10 +100,15 @@ export function ProductsFilters({
   search,
   sort,
   dir,
+  categoryId,
+  categories,
 }: {
   search: string;
   sort: ProductSort;
   dir: SortDir;
+  /** The active category filter — a category id, {@link UNCATEGORISED_FILTER}, or ''. */
+  categoryId: string;
+  categories: AdminProductCategory[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -140,6 +156,29 @@ export function ProductsFilters({
           {...stylex.props(styles.control)}
         />
       </div>
+
+      {/* Hidden entirely until the gym has shelves — an empty picker is just noise. */}
+      {categories.length > 0 ? (
+        <div {...stylex.props(styles.categoryWrap)}>
+          <label htmlFor="product-category-filter" {...stylex.props(styles.srOnly)}>
+            Filter products by category
+          </label>
+          <select
+            id="product-category-filter"
+            value={categoryId}
+            onChange={(event) => commit({ categoryId: event.target.value })}
+            {...stylex.props(styles.control)}
+          >
+            <option value="">All categories</option>
+            <option value={UNCATEGORISED_FILTER}>Uncategorised</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       <div {...stylex.props(styles.sortWrap)}>
         <label htmlFor="product-sort" {...stylex.props(styles.srOnly)}>

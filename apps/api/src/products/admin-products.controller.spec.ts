@@ -20,6 +20,7 @@ const detail = (over?: Partial<GetAdminProductResponse>): GetAdminProductRespons
   totalStock: 0,
   lowestStock: null,
   status: 'ACTIVE',
+  category: null,
   createdAt: '2026-02-01T00:00:00.000Z',
   description: '',
   images: [],
