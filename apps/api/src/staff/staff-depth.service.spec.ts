@@ -37,7 +37,6 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     staffNote: make(models?.staffNote),
     staffTask: make(models?.staffTask),
     timeOffRequest: make(models?.timeOffRequest),
-    staffSpecialty: make(models?.staffSpecialty),
     shiftSlot: make(models?.shiftSlot),
     gymMember: make(models?.gymMember),
     user: make(models?.user),
@@ -45,7 +44,6 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     staffNote: ReturnType<typeof make>;
     staffTask: ReturnType<typeof make>;
     timeOffRequest: ReturnType<typeof make>;
-    staffSpecialty: ReturnType<typeof make>;
     shiftSlot: ReturnType<typeof make>;
     gymMember: ReturnType<typeof make>;
     user: ReturnType<typeof make>;
@@ -248,25 +246,6 @@ describe('StaffDepthService.listTimeOff', () => {
   });
 });
 
-describe('StaffDepthService.addSpecialty', () => {
-  it('409s a duplicate specialty', async () => {
-    const { service } = setup(
-      withStaff({ staffSpecialty: { findFirst: vi.fn(() => Promise.resolve({ id: 's-1' })) } }),
-    );
-    await expect(service.addSpecialty('gm-1', { name: 'Yoga' })).rejects.toBeInstanceOf(
-      ConflictException,
-    );
-  });
-
-  it('creates a fresh specialty', async () => {
-    const { service, client } = setup(withStaff());
-    await service.addSpecialty('gm-1', { name: 'Yoga' });
-    expect(client.staffSpecialty.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { gymId: 'gym-1', staffId: 'gm-1', name: 'Yoga' } }),
-    );
-  });
-});
-
 describe('StaffDepthService.updateSchedule', () => {
   it('replaces the schedule: clears then re-inserts in a transaction', async () => {
     const { service, client } = setup(withStaff());
@@ -296,5 +275,73 @@ describe('StaffDepthService.updateSchedule', () => {
     await service.updateSchedule('gm-1', { shifts: [] });
     expect(client.shiftSlot.deleteMany).toHaveBeenCalledOnce();
     expect(client.shiftSlot.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('StaffDepthService.getWorkingToday', () => {
+  it('queries today (0=Mon..6=Sun) and denormalises name + role, newest start first', async () => {
+    // Local Wednesday → JS getDay() 3 → app weekday (3+6)%7 = 2.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 15, 12, 0, 0));
+    try {
+      const { service, client } = setup({
+        shiftSlot: {
+          findMany: vi.fn(() =>
+            Promise.resolve([
+              {
+                staffId: 'gm-9',
+                startTime: '09:00',
+                endTime: '17:00',
+                location: 'Branch 1',
+                staff: { role: 'TRAINER', user: { name: 'Nino Trainer', email: 'nino@x.com' } },
+              },
+            ]),
+          ),
+        },
+      });
+
+      const result = await service.getWorkingToday();
+
+      const where = client.shiftSlot.findMany.mock.calls[0]![0].where as {
+        dayOfWeek: number;
+        staff: { status: string };
+      };
+      expect(where.dayOfWeek).toBe(2);
+      expect(where.staff.status).toBe('ACTIVE');
+      expect(result.dayOfWeek).toBe(2);
+      expect(result.shifts).toEqual([
+        {
+          staffId: 'gm-9',
+          name: 'Nino Trainer',
+          role: 'TRAINER',
+          startTime: '09:00',
+          endTime: '17:00',
+          location: 'Branch 1',
+        },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back to the email when a staff member has no name', async () => {
+    const { service } = setup({
+      shiftSlot: {
+        findMany: vi.fn(() =>
+          Promise.resolve([
+            {
+              staffId: 'gm-3',
+              startTime: '08:00',
+              endTime: '12:00',
+              location: null,
+              staff: { role: 'RECEPTIONIST', user: { name: null, email: 'front@desk.io' } },
+            },
+          ]),
+        ),
+      },
+    });
+
+    const { shifts } = await service.getWorkingToday();
+    expect(shifts[0]!.name).toBe('front@desk.io');
   });
 });

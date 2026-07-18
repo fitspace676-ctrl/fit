@@ -16,7 +16,6 @@ import {
 import { z } from 'zod';
 import {
   Permission,
-  addStaffSpecialtySchema,
   createStaffNoteSchema,
   createStaffTaskSchema,
   createTimeOffRequestSchema,
@@ -26,14 +25,13 @@ import {
   updateStaffTaskSchema,
   type ListStaffNotesResponse,
   type ListStaffRolesResponse,
-  type ListStaffSpecialtiesResponse,
   type ListStaffTasksResponse,
   type ListTimeOffResponse,
   type StaffNoteRow,
   type StaffScheduleResponse,
-  type StaffSpecialtyRow,
   type StaffTaskRow,
   type TimeOffRequestRow,
+  type WorkingTodayResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -42,11 +40,11 @@ import { StaffDepthService } from './staff-depth.service';
 
 /**
  * Staff-console "depth" API (`/staff`, T12.14) — the per-staff Notes / Tasks /
- * Time-off / Specialties / Weekly-schedule tabs, the gym-wide time-off approval
- * queue, and the read-only Roles & Permissions matrix. A second controller on
- * the `/staff` prefix alongside {@link StaffController} (the roster + invites);
- * its routes never collide since each uses a distinct static segment
- * (`roles` / `notes` / `tasks` / `time-off` / `specialties`) or the two-segment
+ * Time-off / Weekly-schedule tabs, the gym-wide time-off approval queue, and the
+ * read-only Roles & Permissions matrix. A second controller on the `/staff`
+ * prefix alongside {@link StaffController} (the roster + invites); its routes
+ * never collide since each uses a distinct static segment
+ * (`roles` / `notes` / `tasks` / `time-off`) or the two-segment
  * `:staffId/<tab>` shape.
  *
  * Every route is tenant-scoped and gated on {@link Permission.StaffManage}
@@ -162,32 +160,6 @@ export class StaffDepthController {
     await this.staff.deleteTimeOff(requestId);
   }
 
-  // -- Specialties ----------------------------------------------------------
-
-  @Get(':staffId/specialties')
-  @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
-  async listSpecialties(@Param('staffId') staffId: string): Promise<ListStaffSpecialtiesResponse> {
-    return this.staff.listSpecialties(staffId);
-  }
-
-  @Post(':staffId/specialties')
-  @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.StaffManage)
-  async addSpecialty(
-    @Param('staffId') staffId: string,
-    @Body() body: unknown,
-  ): Promise<StaffSpecialtyRow> {
-    return this.staff.addSpecialty(staffId, parse(addStaffSpecialtySchema, body));
-  }
-
-  @Delete('specialties/:specialtyId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermissions(Permission.StaffManage)
-  async deleteSpecialty(@Param('specialtyId') specialtyId: string): Promise<void> {
-    await this.staff.deleteSpecialty(specialtyId);
-  }
-
   // -- Weekly schedule ------------------------------------------------------
 
   @Get(':staffId/schedule')
@@ -205,6 +177,20 @@ export class StaffDepthController {
     @Body() body: unknown,
   ): Promise<StaffScheduleResponse> {
     return this.staff.updateSchedule(staffId, parse(updateStaffScheduleSchema, body));
+  }
+
+  // -- Working today --------------------------------------------------------
+
+  /**
+   * `GET /staff/working-today` — the gym's staff on shift today, behind the
+   * "Who's Working Today" card. A static segment, so it never collides with the
+   * `:staffId/schedule` route above.
+   */
+  @Get('working-today')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.StaffManage)
+  async getWorkingToday(): Promise<WorkingTodayResponse> {
+    return this.staff.getWorkingToday();
   }
 }
 

@@ -1249,7 +1249,6 @@
       "activity": "Activity",
       "auditLog": "Audit log",
       "settings": "Settings",
-      "payments": "Payments",
       "classes": "Classes"
     },
     "navGroups": {
@@ -2260,19 +2259,46 @@
         "home": "FormaCore",
         "staff": "Staff"
       },
-      "title": "Staff",
-      "subtitle": "Manage the people who run your gym — roles, access and invitations.",
+      "title": "Staff Management",
+      "subtitle": "Manage your team and permissions.",
       "invite": "Invite staff",
+      "addStaff": "Add Staff",
+      "manageRoles": "Manage Roles",
       "you": "You",
       "tabs": {
+        "staffList": "Staff List",
+        "rolesPermissions": "Roles & Permissions",
         "people": "People",
         "invitations": "Invitations",
         "roles": "Roles",
         "notes": "Notes",
         "tasks": "Tasks",
         "schedule": "Calendar",
-        "timeoff": "Time off",
-        "specialties": "Specialties"
+        "timeoff": "Time off"
+      },
+      "workingToday": {
+        "title": "Who's Working Today",
+        "onShift": "{count, plural, one {# Staff On Shift} other {# Staff On Shift}}",
+        "empty": "No one is scheduled to work today."
+      },
+      "rolesPermissions": {
+        "intro": "Each role grants a fixed set of permissions. Select a role to see exactly what it can access.",
+        "openRole": "Open {role} role details",
+        "staffCount": "{count, plural, one {# staff member} other {# staff members}}",
+        "drawerTitle": "{role} permissions",
+        "grants": "Grants {count, plural, one {# permission} other {# permissions}}"
+      },
+      "roleDesc": {
+        "OWNER": "Full system access and control.",
+        "MANAGER": "Manage operations and staff; no Settings or role permissions.",
+        "RECEPTIONIST": "Front desk access to members, POS, bookings, and the basic dashboard.",
+        "TRAINER": "Training-focused access to classes and member profiles (view only)."
+      },
+      "manageRolesDrawer": {
+        "title": "Roles & permissions"
+      },
+      "values": {
+        "never": "Never"
       },
       "kpi": {
         "total": "Total staff",
@@ -2288,12 +2314,17 @@
         "searchLabel": "Search staff",
         "searchPlaceholder": "Search name or email…",
         "roleAria": "Filter by role",
-        "all": "All"
+        "all": "All",
+        "allRoles": "All roles"
       },
       "columns": {
         "member": "Member",
+        "firstName": "First Name",
+        "lastName": "Last Name",
         "role": "Role",
+        "location": "Location",
         "status": "Status",
+        "lastLogin": "Last Login",
         "joined": "Joined",
         "actions": "Actions"
       },
@@ -2332,6 +2363,50 @@
         "sending": "Sending…",
         "cancel": "Cancel",
         "success": "Invitation sent to {email}."
+      },
+      "addStaffDrawer": {
+        "title": "Add staff member",
+        "subtitle": "Saves a staff record to the directory only — no app login or invitation email is sent.",
+        "firstName": "First name",
+        "firstNamePlaceholder": "John",
+        "lastName": "Last name",
+        "lastNamePlaceholder": "Doe",
+        "role": "Role",
+        "rolePlaceholder": "Select a role",
+        "status": "Status",
+        "statuses": {
+          "ACTIVE": "Active",
+          "SUSPENDED": "Suspended"
+        },
+        "email": "Email",
+        "emailPlaceholder": "john@example.com",
+        "phone": "Phone",
+        "phonePlaceholder": "+995 555 000 000",
+        "locations": "Assigned locations",
+        "noLocations": "No locations yet. Add one under Locations first.",
+        "workingHours": "Working hours",
+        "startTime": "Start time",
+        "endTime": "End time",
+        "dayOff": "Day off",
+        "submit": "Add staff member",
+        "saving": "Adding…",
+        "cancel": "Cancel",
+        "errors": {
+          "firstNameRequired": "A first name is required.",
+          "roleRequired": "Please choose a role.",
+          "badHours": "A shift's end time must be after its start time."
+        }
+      },
+      "profileDrawer": {
+        "title": "Staff profile",
+        "editTitle": "Edit staff member",
+        "edit": "Edit",
+        "loading": "Loading…",
+        "save": "Save changes",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "close": "Close",
+        "joined": "Joined"
       },
       "roleCaps": {
         "OWNER": "full access to every part of the gym",
@@ -2454,14 +2529,6 @@
           "noDue": "No due date",
           "markDone": "Mark task done",
           "markPending": "Mark task pending"
-        },
-        "specialties": {
-          "title": "Specialties",
-          "placeholder": "Add a specialty (e.g. Strength, Yoga)…",
-          "add": "Add",
-          "added": "Specialty added.",
-          "empty": "No specialties yet.",
-          "removeAria": "Remove {name}"
         },
         "schedule": {
           "title": "Weekly schedule",

@@ -72,6 +72,9 @@ export const I = {
     'M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.4 5.2A9.3 9.3 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.4 4.2M6.1 6.1A16.8 16.8 0 0 0 2 12s3.5 7 10 7a9.3 9.3 0 0 0 3-.5',
   chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
   grid: 'M4 4h7v7H4V4ZM13 4h7v7h-7V4ZM4 13h7v7H4v-7ZM13 13h7v7h-7v-7Z',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+  briefcase:
+    'M4 8h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1ZM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18',
 } as const;
 
 export type IconName = keyof typeof I;

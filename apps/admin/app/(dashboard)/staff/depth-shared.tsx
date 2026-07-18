@@ -8,7 +8,7 @@ import { Icon, Select } from '@/components/ui';
 
 /**
  * Shared visual language + helpers for the Staff-console depth tabs (T12.15) —
- * Notes / Tasks / Calendar / Time-off / Specialties / Roles. Every surface uses
+ * Notes / Tasks / Calendar / Time-off / Roles. Every surface uses
  * OUR Fit tokens (accent `--color-accent`, `#6257E3`) and works in light + dark,
  * so the panels read as one system with the rest of the console.
  */
@@ -245,7 +245,7 @@ export function EmptyCard({ children }: { children: ReactNode }) {
 
 /**
  * The shared "which staff member?" picker for the per-staff depth tabs (Notes /
- * Tasks / Calendar / Specialties). Lists the gym's active staff; the selection is
+ * Tasks / Calendar). Lists the gym's active staff; the selection is
  * lifted to the console so switching tabs keeps the chosen member.
  */
 export function StaffPicker({

@@ -14,7 +14,10 @@ interface StaffRecord {
   role: Role;
   status: GymMemberStatus;
   joinedAt: Date;
-  user: { name: string | null; email: string };
+  firstName: string | null;
+  lastName: string | null;
+  assignedLocationIds: string[];
+  user: { name: string | null; email: string; phone: string | null };
 }
 
 const row = (over?: Partial<StaffRecord>): StaffRecord => ({
@@ -23,7 +26,10 @@ const row = (over?: Partial<StaffRecord>): StaffRecord => ({
   role: Role.MANAGER,
   status: GymMemberStatus.ACTIVE,
   joinedAt: new Date('2026-01-15T00:00:00.000Z'),
-  user: { name: 'Nino Beridze', email: 'nino@example.com' },
+  firstName: null,
+  lastName: null,
+  assignedLocationIds: [],
+  user: { name: 'Nino Beridze', email: 'nino@example.com', phone: null },
   ...over,
 });
 
@@ -70,6 +76,7 @@ function setup(overrides?: {
     },
     gym: { findUnique: gymFindUnique },
     user: { update: userUpdate },
+    location: { findMany: vi.fn(() => Promise.resolve([] as { id: string; name: string }[])) },
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -127,9 +134,14 @@ describe('StaffService', () => {
           id: 'gm-1',
           userId: 'u-1',
           name: 'Nino Beridze',
+          firstName: 'Nino',
+          lastName: 'Beridze',
           email: 'nino@example.com',
+          phone: null,
           role: 'OWNER',
           status: 'ACTIVE',
+          assignedLocationIds: [],
+          locations: [],
           joinedAt: '2026-01-15T00:00:00.000Z',
         },
       ]);

@@ -93,9 +93,22 @@ export interface StaffMember {
   id: string;
   userId: string;
   name: string;
+  /**
+   * Split name for the roster's First/Last columns. Real values for a directory
+   * staff member (stored on the membership); for an invited, `User`-backed member
+   * they're derived from `name` server-side so the columns are always populated.
+   */
+  firstName: string;
+  lastName: string;
   email: string;
+  /** Contact phone (from the linked `User`), or `null` when none is on file. */
+  phone: string | null;
   role: StaffRole;
   status: StaffStatus;
+  /** Ids of the gym locations this member is assigned to (the edit form's selection). */
+  assignedLocationIds: string[];
+  /** Names of the gym locations this member is assigned to (may be empty). */
+  locations: string[];
   joinedAt: string;
 }
 

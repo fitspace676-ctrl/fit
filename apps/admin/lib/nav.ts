@@ -76,8 +76,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: Permission.ClassRead,
   },
   {
-    // Payments hub — Plans · Invoices · Transactions (sub-tabs).
-    labelKey: 'nav.payments',
+    // Billing hub — Plans · Invoices · Transactions (sub-tabs).
+    labelKey: 'nav.billing',
     href: '/payments',
     icon: 'billing',
     permission: Permission.BillingRead,
