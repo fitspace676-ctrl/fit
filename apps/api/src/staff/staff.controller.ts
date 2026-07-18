@@ -15,11 +15,14 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  createStaffSchema,
   inviteStaffSchema,
   listStaffQuerySchema,
+  updateStaffProfileSchema,
   updateStaffRoleSchema,
   type InviteStaffResponse,
   type ListStaffResponse,
+  type StaffMember,
   type UpdateStaffRoleResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
@@ -54,6 +57,20 @@ export class StaffController {
   @RequirePermissions(Permission.StaffManage)
   async list(@Query() query: unknown): Promise<ListStaffResponse> {
     return this.staff.listStaff(parse(listStaffQuerySchema, query));
+  }
+
+  /**
+   * `POST /staff` — add a staff member straight to the directory: a login-less
+   * record (no invitation email, no password is set). The body is validated with
+   * {@link createStaffSchema} — only `firstName` + `role` are required; contact
+   * details, specialty tags, assigned locations and a weekly schedule are all
+   * optional. Returns the created staff member (`201`).
+   */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.StaffManage)
+  async create(@Body() body: unknown): Promise<StaffMember> {
+    return this.staff.createStaff(parse(createStaffSchema, body));
   }
 
   /**
@@ -92,6 +109,22 @@ export class StaffController {
     @Body() body: unknown,
   ): Promise<UpdateStaffRoleResponse> {
     return this.staff.updateRole(memberId, parse(updateStaffRoleSchema, body));
+  }
+
+  /**
+   * `PATCH /staff/:memberId/profile` — edit a directory staff member's profile
+   * (name, status, contact details, assigned locations, weekly schedule). A
+   * partial update; role changes go through the role route above. Returns the
+   * updated staff member (`200`), or `404 STAFF_NOT_FOUND` for an unknown id.
+   */
+  @Patch(':memberId/profile')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.StaffManage)
+  async updateProfile(
+    @Param('memberId') memberId: string,
+    @Body() body: unknown,
+  ): Promise<StaffMember> {
+    return this.staff.updateStaffProfile(memberId, parse(updateStaffProfileSchema, body));
   }
 
   /**

@@ -4,7 +4,13 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchStaff, fetchStaffRoles, fetchTimeOff } from '@/lib/api';
+import {
+  ApiError,
+  fetchLocations,
+  fetchStaff,
+  fetchStaffRoles,
+  fetchWorkingToday,
+} from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { StaffConsole } from './staff-console';
 
@@ -81,14 +87,16 @@ const styles = stylex.create({
 export const dynamic = 'force-dynamic';
 
 /**
- * The staff management page (T2.10), rebuilt to the formacore staff artboard. It
- * server-renders the gym's active staff and its pending invitations from
- * `GET /staff` and hands both to the client {@link StaffConsole}, which owns the
- * KPI cards, People / Invitations tabs, filtering, the shared roster table, and
- * the invite modal. The whole `/staff` route already requires an OWNER session
- * (middleware + the API's `StaffManage` guard), so the only failure handled here
- * is the API call itself; the signed-in user's id is passed through so the table
- * can flag their own row and stop them removing themselves.
+ * The staff management page, rebuilt to the reference staff artboard. It
+ * server-renders the gym's active staff (`GET /staff`), the read-only roles
+ * matrix (`GET /staff/roles`) and today's on-shift roster
+ * (`GET /staff/working-today`), then hands them to the client {@link StaffConsole}
+ * — which owns the "Who's Working Today" card, the Staff List / Roles &
+ * Permissions tabs, filtering, the roster table, the Manage Roles drawer, the
+ * Add Staff drawer and the invite modal. The whole `/staff` route already
+ * requires an OWNER session (middleware + the API's `StaffManage` guard), so the
+ * only failure handled here is the API call itself; the signed-in user's id is
+ * passed through so the table can flag their own row and stop them self-removing.
  */
 export default async function StaffPage() {
   const t = await getTranslations('admin.staff');
@@ -96,19 +104,20 @@ export default async function StaffPage() {
   const canManage = session !== null && roleHasPermission(session.role, Permission.StaffManage);
 
   try {
-    const [{ staff, invites }, roles, timeOff] = await Promise.all([
+    const [{ staff }, roles, workingToday, locations] = await Promise.all([
       fetchStaff(),
       fetchStaffRoles(),
-      fetchTimeOff(),
+      fetchWorkingToday(),
+      fetchLocations({ status: 'ACTIVE', limit: 100 }),
     ]);
     return (
       <StaffConsole
         staff={staff}
-        invites={invites}
         currentUserId={session?.userId ?? null}
         canManage={canManage}
         roles={roles}
-        timeOff={timeOff.requests}
+        workingToday={workingToday.shifts}
+        locations={locations.data.map((loc) => ({ id: loc.id, name: loc.name }))}
       />
     );
   } catch (error) {

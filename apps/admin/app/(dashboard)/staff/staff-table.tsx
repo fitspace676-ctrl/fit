@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { ROLE_PERMISSIONS, type Permission, type StaffMember, type StaffRole } from '@fit/types';
@@ -19,7 +19,6 @@ import {
 } from '@/components/ui';
 import {
   PERMISSION_KEYS,
-  ROLE_DOT,
   ROLE_TONES,
   STAFF_ROLES,
   STATUS_DOT,
@@ -28,8 +27,8 @@ import {
 } from './role-meta';
 import { removeStaffAction, updateStaffRoleAction } from './actions';
 
-/** Translator for the `admin.staff` namespace. */
-type T = ReturnType<typeof useTranslations>;
+/** Em dash for a column we don't yet carry data for (location…). */
+const DASH = '—';
 
 const styles = stylex.create({
   stack: {
@@ -57,10 +56,11 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-error)',
   },
-  memberCell: {
+  nameCell: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
+    minWidth: 0,
   },
   avatar: {
     display: 'grid',
@@ -74,60 +74,32 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-text-accent)',
   },
-  memberCol: {
+  nameCol: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
     minWidth: 0,
   },
-  nameRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  name: {
+  firstName: {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  lastName: {
     fontWeight: 500,
     color: 'var(--color-text-primary)',
   },
-  email: {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    fontSize: '0.75rem',
+  muted: {
     color: 'var(--color-text-secondary)',
-  },
-  roleCell: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  roleSelect: {
-    height: '2.25rem',
-    paddingInline: '0.625rem',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: 'var(--color-border)',
-      ':focus': 'var(--color-accent)',
-    },
-    backgroundColor: 'var(--color-background-surface)',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: 'var(--color-text-primary)',
-    outline: 'none',
-    opacity: {
-      default: 1,
-      ':disabled': 0.5,
-    },
   },
   badgeGap: {
     gap: '0.375rem',
   },
-  joined: {
-    fontFamily: 'var(--font-family-code)',
+  lastLogin: {
     fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-primary)',
+    color: 'var(--color-text-secondary)',
   },
   srOnly: {
     position: 'absolute',
@@ -140,7 +112,108 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
     borderWidth: 0,
   },
-  dangerBtn: {
+  // -- Row action menu (⋯) ---------------------------------------------------
+  menuAnchor: {
+    position: 'relative',
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+  menuTrigger: {
+    display: 'grid',
+    height: '2rem',
+    width: '2rem',
+    placeItems: 'center',
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    color: 'var(--color-icon-secondary)',
+    cursor: 'pointer',
+    opacity: {
+      default: 1,
+      ':disabled': 0.4,
+    },
+  },
+  menuTriggerIcon: {
+    width: '1.125rem',
+    height: '1.125rem',
+  },
+  menuBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 30,
+  },
+  menu: {
+    position: 'absolute',
+    right: 0,
+    top: '2.25rem',
+    zIndex: 40,
+    width: '12rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-popover)',
+    padding: '0.375rem',
+    boxShadow: 'var(--shadow-popover, 0 10px 30px rgba(9, 9, 11, 0.18))',
+  },
+  menuLabel: {
+    margin: 0,
+    paddingInline: '0.625rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-secondary)',
+  },
+  menuItem: {
+    display: 'flex',
+    height: '2.25rem',
+    width: '100%',
+    alignItems: 'center',
+    gap: '0.625rem',
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.625rem',
+    textAlign: 'left',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    color: 'var(--color-text-secondary)',
+    cursor: 'pointer',
+    opacity: {
+      default: 1,
+      ':disabled': 0.45,
+    },
+  },
+  menuItemActive: {
+    color: 'var(--color-text-primary)',
+    fontWeight: 600,
+  },
+  menuItemIcon: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+  },
+  menuItemCheck: {
+    marginLeft: 'auto',
+    width: '1rem',
+    height: '1rem',
+    color: 'var(--color-text-accent)',
+  },
+  menuDivider: {
+    height: '1px',
+    marginBlock: '0.375rem',
+    marginInline: '0.25rem',
+    backgroundColor: 'var(--color-border)',
+  },
+  menuDanger: {
     color: 'var(--color-error)',
     backgroundColor: {
       default: 'transparent',
@@ -176,6 +249,18 @@ function lostPermissions(from: StaffRole, to: StaffRole): Permission[] {
   return ROLE_PERMISSIONS[from].filter((perm) => !after.has(perm));
 }
 
+/**
+ * Split a single display name into a first name and a last name for the roster's
+ * two name columns. We only store one `name` field today, so this is a display
+ * heuristic — the first whitespace-delimited token is the first name, the rest is
+ * the last name (empty when the name is a single word). Real first/last fields
+ * are a later stage.
+ */
+function splitName(name: string): { first: string; last: string } {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return { first: parts[0] ?? '', last: parts.slice(1).join(' ') };
+}
+
 /** A pending role change awaiting confirmation in the downgrade modal. */
 interface PendingChange {
   member: StaffMember;
@@ -183,58 +268,39 @@ interface PendingChange {
   lost: Permission[];
 }
 
-/** Format an ISO instant as a short local date, or an em dash when absent/invalid. */
-function formatDate(iso: string, locale: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-/** The member cell — avatar initials, name (+ "You" flag), and email. */
-function MemberCell({ member, isSelf, t }: { member: StaffMember; isSelf: boolean; t: T }) {
-  return (
-    <div {...stylex.props(styles.memberCell)}>
-      <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
-      <div {...stylex.props(styles.memberCol)}>
-        <div {...stylex.props(styles.nameRow)}>
-          <span {...stylex.props(styles.name)}>{member.name}</span>
-          {isSelf ? <Badge tone="brand">{t('you')}</Badge> : null}
-        </div>
-        <div {...stylex.props(styles.email)}>{member.email}</div>
-      </div>
-    </div>
-  );
-}
-
 /**
- * The active-staff roster (T2.10), rebuilt on the shared formacore `DataTable`.
- * Server-rendered data, client-side interaction: each row shows the member,
- * an inline role <select>, a status badge, the join date, and a Remove action.
- * Re-roling to a lower-privilege role opens the shared `ConfirmDialog` spelling
- * out the capabilities that will be lost; an upgrade or sideways move applies
- * straight away. Removing a staff member always confirms first, since it revokes
- * their access immediately. Every mutation runs through a Server Action and the
- * page revalidates, so the table reflects the API's view rather than optimistic
- * local state. The signed-in owner's own row is flagged and can't be self-removed.
+ * The active-staff roster, rebuilt to the reference staff artboard: one row per
+ * staff member across First Name · Last Name · Role · Location · Status ·
+ * Last Login · Actions. Location and Last Login are shown as placeholders
+ * (`—` / "Never") until their backing data lands in a later stage.
+ *
+ * Server-rendered data, client-side interaction: the trailing ⋯ menu changes a
+ * member's role or removes them. Re-roling to a lower-privilege role opens the
+ * shared confirm modal spelling out the capabilities that will be lost; an upgrade
+ * or sideways move applies straight away. Removal always confirms first, since it
+ * revokes access immediately. Every mutation runs through a Server Action and the
+ * page revalidates. The signed-in owner's own row is flagged and can't self-remove.
  */
 export function StaffTable({
   staff,
   currentUserId,
   canManage,
   noMatch,
+  onSelectMember,
 }: {
   staff: StaffMember[];
   currentUserId: string | null;
   canManage: boolean;
   /** True when the roster is non-empty but the active search/filter hides every row. */
   noMatch: boolean;
+  /** Open a member's profile drawer — a row click anywhere outside the ⋯ menu. */
+  onSelectMember: (member: StaffMember) => void;
 }) {
   const t = useTranslations('admin.staff');
-  const locale = useLocale();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [confirmChange, setConfirmChange] = useState<PendingChange | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<StaffMember | null>(null);
 
@@ -252,6 +318,7 @@ export function StaffTable({
   }
 
   function onRoleSelect(member: StaffMember, nextRole: StaffRole): void {
+    setMenuFor(null);
     if (nextRole === member.role) {
       return;
     }
@@ -280,43 +347,43 @@ export function StaffTable({
 
   const columns: Column<StaffMember>[] = [
     {
-      key: 'member',
-      header: t('columns.member'),
-      cell: (member) => (
-        <MemberCell
-          member={member}
-          isSelf={currentUserId !== null && member.userId === currentUserId}
-          t={t}
-        />
-      ),
+      key: 'firstName',
+      header: t('columns.firstName'),
+      cell: (member) => {
+        const isSelf = currentUserId !== null && member.userId === currentUserId;
+        return (
+          <div {...stylex.props(styles.nameCell)}>
+            <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
+            <div {...stylex.props(styles.nameCol)}>
+              <span {...stylex.props(styles.firstName)}>{splitName(member.name).first}</span>
+              {isSelf ? <Badge tone="brand">{t('you')}</Badge> : null}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'lastName',
+      header: t('columns.lastName'),
+      cell: (member) => {
+        const last = splitName(member.name).last;
+        return last ? (
+          <span {...stylex.props(styles.lastName)}>{last}</span>
+        ) : (
+          <span {...stylex.props(styles.muted)}>{DASH}</span>
+        );
+      },
     },
     {
       key: 'role',
       header: t('columns.role'),
-      cell: (member) => {
-        const rowBusy = busyId === member.id && pending;
-        if (!canManage) {
-          return <Badge tone={ROLE_TONES[member.role]}>{roleLabel(member.role)}</Badge>;
-        }
-        return (
-          <div {...stylex.props(styles.roleCell)}>
-            <Dot c={ROLE_DOT[member.role]} />
-            <select
-              aria-label={t('rowMenu.changeRole')}
-              value={member.role}
-              disabled={rowBusy}
-              onChange={(event) => onRoleSelect(member, event.target.value as StaffRole)}
-              {...stylex.props(styles.roleSelect)}
-            >
-              {STAFF_ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {roleLabel(role)}
-                </option>
-              ))}
-            </select>
-          </div>
-        );
-      },
+      cell: (member) => <Badge tone={ROLE_TONES[member.role]}>{roleLabel(member.role)}</Badge>,
+    },
+    {
+      key: 'location',
+      header: t('columns.location'),
+      // Placeholder — staff↔location assignment lands in a later stage.
+      cell: () => <span {...stylex.props(styles.muted)}>{DASH}</span>,
     },
     {
       key: 'status',
@@ -332,11 +399,10 @@ export function StaffTable({
       ),
     },
     {
-      key: 'joined',
-      header: t('columns.joined'),
-      cell: (member) => (
-        <span {...stylex.props(styles.joined)}>{formatDate(member.joinedAt, locale)}</span>
-      ),
+      key: 'lastLogin',
+      header: t('columns.lastLogin'),
+      // Placeholder — last-login tracking isn't wired yet, so everyone reads "Never".
+      cell: () => <span {...stylex.props(styles.lastLogin)}>{t('values.never')}</span>,
     },
     {
       key: 'actions',
@@ -346,18 +412,69 @@ export function StaffTable({
         if (!canManage) return null;
         const isSelf = currentUserId !== null && member.userId === currentUserId;
         const rowBusy = busyId === member.id && pending;
+        const open = menuFor === member.id;
         return (
-          <Btn
-            v="ghost"
-            size="sm"
-            icon="trash"
-            disabled={rowBusy || isSelf}
-            title={isSelf ? t('rowMenu.cannotRemoveSelf') : undefined}
-            onClick={() => setConfirmRemove(member)}
-            className={stylex.props(styles.dangerBtn).className}
-          >
-            {t('rowMenu.remove')}
-          </Btn>
+          // Stop menu interactions from bubbling to the row's profile-open click.
+          <div {...stylex.props(styles.menuAnchor)} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              aria-label={t('rowMenu.open', { name: member.name })}
+              aria-haspopup="menu"
+              aria-expanded={open}
+              disabled={rowBusy}
+              onClick={() => setMenuFor(open ? null : member.id)}
+              {...stylex.props(styles.menuTrigger)}
+            >
+              <Icon name="more" {...stylex.props(styles.menuTriggerIcon)} />
+            </button>
+            {open ? (
+              <>
+                <div
+                  {...stylex.props(styles.menuBackdrop)}
+                  aria-hidden
+                  onClick={() => setMenuFor(null)}
+                />
+                <div role="menu" {...stylex.props(styles.menu)}>
+                  <p {...stylex.props(styles.menuLabel)}>{t('rowMenu.changeRole')}</p>
+                  {STAFF_ROLES.map((role) => {
+                    const active = role === member.role;
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        disabled={active}
+                        onClick={() => onRoleSelect(member, role)}
+                        {...stylex.props(styles.menuItem, active && styles.menuItemActive)}
+                      >
+                        <Icon name="shield" {...stylex.props(styles.menuItemIcon)} />
+                        {t('rowMenu.setRole', { role: roleLabel(role) })}
+                        {active ? (
+                          <Icon name="check" {...stylex.props(styles.menuItemCheck)} />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                  <div {...stylex.props(styles.menuDivider)} aria-hidden />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={isSelf}
+                    title={isSelf ? t('rowMenu.cannotRemoveSelf') : undefined}
+                    onClick={() => {
+                      setMenuFor(null);
+                      setConfirmRemove(member);
+                    }}
+                    {...stylex.props(styles.menuItem, styles.menuDanger)}
+                  >
+                    <Icon name="trash" {...stylex.props(styles.menuItemIcon)} />
+                    {t('rowMenu.remove')}
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
         );
       },
     },
@@ -378,6 +495,7 @@ export function StaffTable({
         columns={columns}
         rows={staff}
         rowKey={(member) => member.id}
+        onRowClick={onSelectMember}
         caption={t('table.caption')}
         empty={
           noMatch ? (

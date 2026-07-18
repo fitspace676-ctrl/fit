@@ -401,7 +401,6 @@ model Gym {
   staffNotes              StaffNote[]
   staffTasks              StaffTask[]
   timeOffRequests         TimeOffRequest[]
-  staffSpecialties        StaffSpecialty[]
   shiftSlots              ShiftSlot[]
 
   @@index([ownerId])
@@ -591,6 +590,17 @@ model GymMember {
   medicalNotes          String?
   tags                  String[]  @default([])
 
+  // Directory-staff identity (T-staff-directory). A staff member added straight
+  // to the directory is backed by a login-less `User` (no password, never
+  // invited); their split name lives here so the roster's First/Last columns are
+  // real (the `User` only carries a single `name`). `assignedLocationIds` are the
+  // gym `Location`s they work at (loose ids, filtered to live locations on read —
+  // same lightweight approach as `tags`). `email`/`phone` stay on the `User`.
+  // Null/empty for plain members and invited staff, whose name comes from `User`.
+  firstName           String?
+  lastName            String?
+  assignedLocationIds String[]  @default([])
+
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
   bookings      Booking[]
@@ -609,7 +619,6 @@ model GymMember {
   staffNotes         StaffNote[]
   staffTasks         StaffTask[]
   timeOffRequests    TimeOffRequest[]
-  staffSpecialties   StaffSpecialty[]
   shiftSlots         ShiftSlot[]
 
   @@unique([userId, gymId])
@@ -2422,23 +2431,6 @@ model TimeOffRequest {
   @@index([gymId, status])
   @@index([gymId, staffId, startDate])
   @@map("time_off_requests")
-}
-
-/// A specialty tag on a staff member (T12.14) — e.g. "Strength Training",
-/// "Yoga". A staff member holds several; the pair `(gymId, staffId, name)` is
-/// unique so the same tag can't be added twice.
-model StaffSpecialty {
-  id      String @id @default(cuid())
-  gymId   String
-  staffId String
-  name    String
-
-  gym   Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  staff GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  @@unique([gymId, staffId, name])
-  @@index([gymId, staffId])
-  @@map("staff_specialties")
 }
 
 /// One shift in a staff member's weekly schedule (T12.14) — the Staff detail

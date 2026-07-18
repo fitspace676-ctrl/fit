@@ -51,7 +51,6 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'StaffNote',
   'StaffTask',
   'TimeOffRequest',
-  'StaffSpecialty',
   'ShiftSlot',
 ]);
 

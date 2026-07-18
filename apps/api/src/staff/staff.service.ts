@@ -5,8 +5,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Role } from '@fit/db';
+import { randomUUID } from 'node:crypto';
+import { GymMemberStatus, Prisma, Role } from '@fit/db';
 import type {
+  CreateStaffInput,
   InviteStaffInput,
   InviteStaffResponse,
   ListStaffQuery,
@@ -14,6 +16,7 @@ import type {
   PendingInvite,
   StaffMember,
   StaffRole,
+  UpdateStaffProfileInput,
   UpdateStaffRoleInput,
   UpdateStaffRoleResponse,
 } from '@fit/types';
@@ -28,10 +31,19 @@ import { TenantContext } from '../common/tenant/tenant.context';
 const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.TRAINER];
 
 /**
+ * Host for the synthetic address given to a directory staff member added without
+ * an email. Never receives mail; blanked back to `''` on the wire so the console
+ * never shows it. `User.email` is required + unique, so a directory record still
+ * needs *some* address — a per-record UUID keeps it unique.
+ */
+const PLACEHOLDER_EMAIL_HOST = 'no-login.fit.local';
+
+/**
  * Shape the staff roster query selects off `GymMember`, joined to the
- * (cross-tenant) `User` for the person's identity. Kept narrow — staff
- * management never needs the PII the member endpoints also avoid
- * (`passwordHash`, OAuth subject ids).
+ * (cross-tenant) `User` for the person's identity, plus the directory-staff
+ * extras the roster now renders (split name, phone, assigned location ids).
+ * Kept narrow — staff management never needs the PII the member
+ * endpoints also avoid (`passwordHash`, OAuth subject ids).
  */
 const STAFF_SELECT = {
   id: true,
@@ -39,7 +51,10 @@ const STAFF_SELECT = {
   role: true,
   status: true,
   joinedAt: true,
-  user: { select: { name: true, email: true } },
+  firstName: true,
+  lastName: true,
+  assignedLocationIds: true,
+  user: { select: { name: true, email: true, phone: true } },
 } satisfies Prisma.GymMemberSelect;
 
 type StaffRecord = Prisma.GymMemberGetPayload<{ select: typeof STAFF_SELECT }>;
@@ -96,7 +111,7 @@ export class StaffService {
    * role filter without being a useful "staff" match).
    */
   async listStaff(filter: ListStaffQuery = {}): Promise<ListStaffResponse> {
-    const [staff, invites] = await Promise.all([
+    const [staff, invites, locationNames] = await Promise.all([
       this.prisma.client.gymMember.findMany({
         where: {
           role: filter.role ? (filter.role as Role) : { in: STAFF_ROLES },
@@ -110,12 +125,88 @@ export class StaffService {
         select: INVITE_SELECT,
         orderBy: { createdAt: 'desc' },
       }),
+      this.resolveLocationNames(),
     ]);
 
     return {
-      staff: staff.map((row) => this.toStaffMember(row)),
+      staff: staff.map((row) => this.toStaffMember(row, locationNames)),
       invites: invites.map((row) => this.toPendingInvite(row)),
     };
+  }
+
+  /**
+   * Add a staff member straight to the directory (`POST /staff`) — a login-less
+   * record: no invitation email is sent and no password is set, so they appear in
+   * the roster but can never sign in. Backed by a `User` with a null
+   * `passwordHash` (the console shows First/Last from the membership, so the
+   * `User` only needs a name for other surfaces); an omitted email gets a unique
+   * placeholder so the required+unique `User.email` still holds. A supplied email
+   * that already belongs to a user is a `409 EMAIL_IN_USE`. The selected
+   * specialties, assigned locations and weekly working hours are written in the
+   * same transaction. Returns the new staff member.
+   */
+  async createStaff(input: CreateStaffInput): Promise<StaffMember> {
+    const gymId = this.tenant.gymId;
+    const email = input.email?.trim() ? input.email.trim().toLowerCase() : null;
+
+    if (email) {
+      const clash = await this.prisma.client.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (clash) {
+        throw new ConflictException({
+          message: 'That email already belongs to a user',
+          code: 'EMAIL_IN_USE',
+        });
+      }
+    }
+
+    const displayName = [input.firstName, input.lastName]
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .join(' ');
+
+    const memberId = await this.prisma.client.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: email ?? `staff-${randomUUID()}@${PLACEHOLDER_EMAIL_HOST}`,
+          name: displayName || null,
+          phone: input.phone?.trim() ? input.phone.trim() : null,
+        },
+        select: { id: true },
+      });
+
+      const member = await tx.gymMember.create({
+        data: {
+          gymId,
+          userId: user.id,
+          role: input.role as Role,
+          status: input.status as GymMemberStatus,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim() || null,
+          assignedLocationIds: input.assignedLocationIds,
+        },
+        select: { id: true },
+      });
+
+      if (input.workingHours.length > 0) {
+        await tx.shiftSlot.createMany({
+          data: input.workingHours.map((shift) => ({
+            gymId,
+            staffId: member.id,
+            dayOfWeek: shift.dayOfWeek,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            location: shift.location ?? null,
+          })),
+        });
+      }
+
+      return member.id;
+    });
+
+    return this.projectStaff(memberId);
   }
 
   /**
@@ -215,15 +306,95 @@ export class StaffService {
       data: { role: input.role },
     });
 
-    const updated = await this.prisma.client.gymMember.findFirst({
-      where: { id: memberId },
-      select: STAFF_SELECT,
+    return this.projectStaff(memberId);
+  }
+
+  /**
+   * Edit a directory staff member's profile (`PATCH /staff/:memberId/profile`).
+   * A partial update — only the fields present in `input` change. `firstName` /
+   * `lastName` (and the mirrored `User.name`), `status`, contact `email` / `phone`
+   * and `assignedLocationIds` patch the member/user; a sent `workingHours`
+   * replaces the whole weekly schedule (set-based, matching the schedule editor).
+   * Role is changed via {@link updateRole}, not here. `404 STAFF_NOT_FOUND` for an
+   * unknown id; `409 EMAIL_IN_USE` when a new email already belongs to someone else.
+   */
+  async updateStaffProfile(memberId: string, input: UpdateStaffProfileInput): Promise<StaffMember> {
+    const existing = await this.prisma.client.gymMember.findFirst({
+      where: { id: memberId, role: { in: STAFF_ROLES } },
+      select: { id: true, userId: true, firstName: true, lastName: true },
     });
-    // The row was just updated under the scoped client, so it must still resolve.
-    if (!updated) {
+    if (!existing) {
       throw new NotFoundException({ message: 'Staff member not found', code: 'STAFF_NOT_FOUND' });
     }
-    return this.toStaffMember(updated);
+    const gymId = this.tenant.gymId;
+
+    // Only a non-empty address changes the email; an empty/absent value leaves it
+    // untouched (edit never rewrites a real address to a synthetic placeholder).
+    const email = input.email?.trim() ? input.email.trim().toLowerCase() : undefined;
+    if (email) {
+      const clash = await this.prisma.client.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (clash && clash.id !== existing.userId) {
+        throw new ConflictException({
+          message: 'That email already belongs to a user',
+          code: 'EMAIL_IN_USE',
+        });
+      }
+    }
+
+    await this.prisma.client.$transaction(async (tx) => {
+      const memberData: Prisma.GymMemberUpdateInput = {};
+      if (input.firstName !== undefined) memberData.firstName = input.firstName.trim();
+      if (input.lastName !== undefined) memberData.lastName = input.lastName.trim() || null;
+      if (input.status !== undefined) memberData.status = input.status;
+      if (input.assignedLocationIds !== undefined) {
+        memberData.assignedLocationIds = input.assignedLocationIds;
+      }
+      if (Object.keys(memberData).length > 0) {
+        await tx.gymMember.update({ where: { id: memberId }, data: memberData });
+      }
+
+      const userData: Prisma.UserUpdateInput = {};
+      // Re-mirror the combined `User.name` whenever either name part is edited.
+      if (input.firstName !== undefined || input.lastName !== undefined) {
+        const first =
+          input.firstName !== undefined ? input.firstName.trim() : (existing.firstName ?? '');
+        const last =
+          input.lastName !== undefined ? input.lastName.trim() : (existing.lastName ?? '');
+        userData.name =
+          [first, last]
+            .map((p) => p.trim())
+            .filter(Boolean)
+            .join(' ') || null;
+      }
+      if (email) userData.email = email;
+      if (input.phone !== undefined)
+        userData.phone = input.phone.trim() ? input.phone.trim() : null;
+      if (Object.keys(userData).length > 0) {
+        await tx.user.update({ where: { id: existing.userId }, data: userData });
+      }
+
+      // A sent schedule replaces the member's whole week (set-based editor).
+      if (input.workingHours !== undefined) {
+        await tx.shiftSlot.deleteMany({ where: { staffId: memberId } });
+        if (input.workingHours.length > 0) {
+          await tx.shiftSlot.createMany({
+            data: input.workingHours.map((shift) => ({
+              gymId,
+              staffId: memberId,
+              dayOfWeek: shift.dayOfWeek,
+              startTime: shift.startTime,
+              endTime: shift.endTime,
+              location: shift.location ?? null,
+            })),
+          });
+        }
+      }
+    });
+
+    return this.projectStaff(memberId);
   }
 
   /**
@@ -294,15 +465,52 @@ export class StaffService {
     });
   }
 
+  /** The gym's `Location` id → name map, for resolving `assignedLocationIds`. */
+  private async resolveLocationNames(): Promise<Map<string, string>> {
+    const locations = await this.prisma.client.location.findMany({
+      select: { id: true, name: true },
+    });
+    return new Map(locations.map((loc) => [loc.id, loc.name]));
+  }
+
+  /** Re-query one staff member and project it (with resolved location names). */
+  private async projectStaff(memberId: string): Promise<StaffMember> {
+    const [row, locationNames] = await Promise.all([
+      this.prisma.client.gymMember.findFirst({ where: { id: memberId }, select: STAFF_SELECT }),
+      this.resolveLocationNames(),
+    ]);
+    // The row was just created/updated under the scoped client, so it must resolve.
+    if (!row) {
+      throw new NotFoundException({ message: 'Staff member not found', code: 'STAFF_NOT_FOUND' });
+    }
+    return this.toStaffMember(row, locationNames);
+  }
+
   /** Project a queried membership row to the wire {@link StaffMember}. */
-  private toStaffMember(row: StaffRecord): StaffMember {
+  private toStaffMember(row: StaffRecord, locationNames: Map<string, string>): StaffMember {
+    const fullName = row.user.name ?? row.user.email;
+    // Directory staff carry a real split name; invited/User-backed staff are split
+    // from their single `User.name` so the First/Last columns are always populated.
+    const first = row.firstName ?? fullName.trim().split(/\s+/).filter(Boolean)[0] ?? '';
+    const last = row.firstName
+      ? (row.lastName ?? '')
+      : fullName.trim().split(/\s+/).filter(Boolean).slice(1).join(' ');
+    // Blank a synthetic placeholder address so the console never shows it.
+    const email = row.user.email.endsWith(`@${PLACEHOLDER_EMAIL_HOST}`) ? '' : row.user.email;
     return {
       id: row.id,
       userId: row.userId,
-      name: row.user.name ?? row.user.email,
-      email: row.user.email,
+      name: [first, last].filter(Boolean).join(' ') || fullName,
+      firstName: first,
+      lastName: last,
+      email,
+      phone: row.user.phone,
       role: row.role as StaffRole,
       status: row.status,
+      assignedLocationIds: row.assignedLocationIds,
+      locations: row.assignedLocationIds
+        .map((id) => locationNames.get(id))
+        .filter((name): name is string => Boolean(name)),
       joinedAt: row.joinedAt.toISOString(),
     };
   }
