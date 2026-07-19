@@ -43,6 +43,7 @@ interface FindManyArgs {
   where?: {
     startsAt?: { gte?: Date; lt?: Date };
     template?: { trainerId?: unknown; locationId?: unknown };
+    AND?: unknown[];
   };
   orderBy?: unknown;
   select?: unknown;

@@ -281,6 +281,7 @@ async function main() {
       name: 'Pilates',
       durationMinutes: 50,
       capacity: 18,
+      minAttendance: null,
       color: '#f59e0b',
     },
   ] as const;
