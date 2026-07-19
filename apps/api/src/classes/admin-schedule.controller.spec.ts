@@ -19,6 +19,7 @@ const TO = '2026-06-08T00:00:00.000Z';
 const detail = (over?: Partial<AdminClassInstanceDetail>): AdminClassInstanceDetail => ({
   id: 'ci-1',
   templateId: 'ct-1',
+  classTypeId: null,
   title: 'Morning Flow',
   category: 'Yoga',
   color: '#2563eb',

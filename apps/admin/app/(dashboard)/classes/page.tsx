@@ -1,24 +1,25 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
-  listAdminClassTemplatesQuerySchema,
+  listAdminClassTypesQuerySchema,
   roleHasPermission,
-  type ListAdminClassTemplatesQuery,
+  type ListAdminClassTypesQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchClassTemplates } from '@/lib/api';
+import { ApiError, fetchClassTypes } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
-import { ClassTemplatesFilters } from './classes-filters';
-import { ClassTemplatesTable } from './classes-table';
+import { ClassTypesFilters } from './classes-filters';
+import { ClassTypesTable } from './class-types-table';
+import { AddClassTypeDrawer } from './add-class-type-drawer';
+import { loadRelationOptions } from './options';
 
 export const metadata: Metadata = {
-  title: 'Classes — Fit Admin',
+  title: 'Class Types — Fit Admin',
   description:
-    'The gym’s recurring class templates: search, filter, sort, open a template, or add and edit classes with a visual recurrence editor, capacity, duration, and a trainer/location.',
+    'The gym’s reusable class types: search, filter, sort, or add a new kind of class (Boxing, CrossFit) with capacity, duration, pricing, and a colour — the catalogue the schedule places occurrences of.',
 };
 
 // The roster reflects live tenant state and the staff session token, so it must
@@ -57,23 +58,6 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
-  addBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    height: '2.75rem',
-    paddingInline: '1.25rem',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    textDecoration: 'none',
-  },
-  addIcon: {
-    width: '1rem',
-    height: '1rem',
-  },
   errorCard: {
     display: 'flex',
     alignItems: 'flex-start',
@@ -102,44 +86,49 @@ const styles = stylex.create({
 type SearchParams = Record<string, string | string[] | undefined>;
 
 /**
- * The class-templates roster (T5.2). Server-renders one filtered, server-paginated
- * page of `GET /admin/classes` from the URL search params and hands it to the
- * client table (sort links) and the client filters (search + status). The
- * `/classes` route already requires staff (middleware) and the API enforces
- * `ClassRead`, so the only failure handled here is the API call itself.
+ * The class-types roster (the Classes hub's first tab). Server-renders one
+ * filtered, server-paginated page of `GET /admin/class-types` from the URL search
+ * params and hands it to the client table (sort links) and the client filters
+ * (search + status). The `/classes` route already requires staff (middleware) and
+ * the API enforces `ClassRead`, so the only failure handled here is the API call.
  */
-export default async function ClassTemplatesPage({
+export default async function ClassTypesPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
   const raw = await searchParams;
-  const parsed = listAdminClassTemplatesQuerySchema.safeParse(raw);
-  const query: ListAdminClassTemplatesQuery = parsed.success
+  const parsed = listAdminClassTypesQuerySchema.safeParse(raw);
+  const query: ListAdminClassTypesQuery = parsed.success
     ? parsed.data
-    : listAdminClassTemplatesQuerySchema.parse({});
+    : listAdminClassTypesQuerySchema.parse({});
 
-  // "New class" is a `ClassWrite` capability — shown only to staff who hold it.
+  // "New class type" is a `ClassWrite` capability — shown only to staff who hold
+  // it. Its drawer form needs the gym's membership plans for the "included in
+  // these plans" pricing select, so load them only when the button shows.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
+  const relationOptions = canWrite ? await loadRelationOptions() : null;
 
   let content;
   try {
-    const result = await fetchClassTemplates(query);
+    const result = await fetchClassTypes(query);
     content = (
-      <ClassTemplatesTable
-        templates={result.data}
+      <ClassTypesTable
+        types={result.data}
         total={result.total}
         page={result.page}
         limit={result.limit}
         sort={query.sort}
         dir={query.dir}
+        plans={relationOptions?.plans ?? []}
+        canWrite={canWrite}
       />
     );
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load class templates (${error.status}): ${error.message}`
+        ? `Could not load class types (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
       <Card variant="default" padding={0} xstyle={styles.errorCard}>
@@ -157,22 +146,19 @@ export default async function ClassTemplatesPage({
         <div {...stylex.props(styles.headTitles)}>
           <h1 {...stylex.props(styles.title)}>Classes</h1>
           <p {...stylex.props(styles.subtitle)}>
-            Your gym’s recurring class templates. Search by title or category, filter by status,
-            sort any column, open a template, or add a new one with a visual recurrence editor,
-            capacity, duration, and a default trainer and location.
+            Your gym’s reusable class types. Search by name, filter by status, sort any column, or
+            add a new kind of class with capacity, duration, pricing, and a colour — the catalogue
+            the schedule then places occurrences of.
           </p>
         </div>
-        {canWrite ? (
-          <Link href="/classes/new" {...stylex.props(styles.addBtn)}>
-            <Icon name="plus" sw={2} {...stylex.props(styles.addIcon)} />
-            New class
-          </Link>
+        {canWrite && relationOptions ? (
+          <AddClassTypeDrawer plans={relationOptions.plans} />
         ) : null}
       </header>
 
       <ClassesTabs />
 
-      <ClassTemplatesFilters search={query.search ?? ''} status={query.status ?? ''} />
+      <ClassTypesFilters search={query.search ?? ''} status={query.status ?? ''} />
 
       {content}
     </div>

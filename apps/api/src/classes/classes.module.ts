@@ -11,10 +11,14 @@ import { BookingReminderService } from './booking-reminder.service';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { ClassOccupancyPublisher } from './class-occupancy.publisher';
+import { ClassTypesController } from './class-types.controller';
+import { ClassTypesService } from './class-types.service';
 import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
 import { MemberBookingsController } from './member-bookings.controller';
 import { MemberBookingsService } from './member-bookings.service';
+import { AdminPtSessionsController } from './pt-sessions.controller';
+import { PtSessionsService } from './pt-sessions.service';
 
 /**
  * Classes: the public class-discovery surface (`GET /class-instances`) plus the
@@ -66,7 +70,9 @@ import { MemberBookingsService } from './member-bookings.service';
   controllers: [
     ClassesController,
     AdminClassTemplatesController,
+    ClassTypesController,
     AdminScheduleController,
+    AdminPtSessionsController,
     BookingsController,
     AttendanceController,
     MemberBookingsController,
@@ -74,7 +80,9 @@ import { MemberBookingsService } from './member-bookings.service';
   providers: [
     ClassesService,
     AdminClassTemplatesService,
+    ClassTypesService,
     AdminScheduleService,
+    PtSessionsService,
     BookingsService,
     BookingReminderService,
     AttendanceService,

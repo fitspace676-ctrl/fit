@@ -203,9 +203,11 @@ export class ReportsService {
         status: true,
         classInstance: {
           select: {
+            trainer: { select: { name: true } },
             template: {
               select: { id: true, title: true, trainer: { select: { name: true } } },
             },
+            classType: { select: { id: true, name: true } },
           },
         },
       },
@@ -216,10 +218,13 @@ export class ReportsService {
       { title: string; trainer: string; attended: number; noShow: number }
     >();
     for (const booking of bookings) {
-      const template = booking.classInstance.template;
-      const entry = byClass.get(template.id) ?? {
-        title: template.title,
-        trainer: template.trainer?.name ?? UNASSIGNED_TRAINER,
+      const inst = booking.classInstance;
+      // Group by the template (a generated occurrence) or the type (one scheduled
+      // straight from a type); resolve the title / trainer from whichever backs it.
+      const key = inst.template?.id ?? inst.classType?.id ?? 'unknown';
+      const entry = byClass.get(key) ?? {
+        title: inst.template?.title ?? inst.classType?.name ?? 'Class',
+        trainer: inst.template?.trainer?.name ?? inst.trainer?.name ?? UNASSIGNED_TRAINER,
         attended: 0,
         noShow: 0,
       };
@@ -228,7 +233,7 @@ export class ReportsService {
       } else {
         entry.noShow += 1;
       }
-      byClass.set(template.id, entry);
+      byClass.set(key, entry);
     }
 
     return [...byClass.values()]
@@ -298,6 +303,8 @@ export class ReportsService {
         status: true,
         classInstance: {
           select: {
+            trainerId: true,
+            trainer: { select: { name: true } },
             template: {
               select: { trainerId: true, trainer: { select: { name: true } } },
             },
@@ -308,10 +315,12 @@ export class ReportsService {
 
     const byTrainer = new Map<string, { name: string; completed: number; noShow: number }>();
     for (const booking of bookings) {
-      const template = booking.classInstance.template;
-      const trainerKey = template.trainerId ?? UNASSIGNED_KEY;
+      const inst = booking.classInstance;
+      // The trainer is the template's (a generated occurrence) or the instance's
+      // own (one scheduled from a type).
+      const trainerKey = inst.template?.trainerId ?? inst.trainerId ?? UNASSIGNED_KEY;
       const entry = byTrainer.get(trainerKey) ?? {
-        name: template.trainer?.name ?? UNASSIGNED_TRAINER,
+        name: inst.template?.trainer?.name ?? inst.trainer?.name ?? UNASSIGNED_TRAINER,
         completed: 0,
         noShow: 0,
       };

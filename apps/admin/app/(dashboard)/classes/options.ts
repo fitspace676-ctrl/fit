@@ -6,24 +6,32 @@
 // session token), degrading to empty lists if a roster call fails so the form
 // still renders without its optional defaults.
 
-import { fetchLocations, fetchSubscriptionPlans, fetchTrainers } from '@/lib/api';
+import type { AdminClassTypeOption } from '@fit/types';
+import {
+  fetchClassTypeOptions,
+  fetchLocations,
+  fetchSubscriptionPlans,
+  fetchTrainers,
+} from '@/lib/api';
 import type { RelationOption } from './class-template-form';
 
 /** Pull enough of each roster to cover a realistic gym without paging. */
 const OPTION_LIMIT = 100;
 
 /**
- * Load the gym's active trainers + locations + membership plans as form options,
- * parallel + fail-soft. Plans back the "included in these plans" multi-select the
- * class-type pricing rule offers; a failed roster call degrades to an empty list
- * so the form still renders.
+ * Load the gym's active trainers + locations + membership plans + class types as
+ * form options, parallel + fail-soft. Plans back the "included in these plans"
+ * multi-select the class-type pricing rule offers; `classTypes` back the "New
+ * class" form's type selector (picking one prefills capacity / duration / colour).
+ * A failed roster call degrades to an empty list so the form still renders.
  */
 export async function loadRelationOptions(): Promise<{
   trainers: RelationOption[];
   locations: RelationOption[];
   plans: RelationOption[];
+  classTypes: AdminClassTypeOption[];
 }> {
-  const [trainers, locations, plans] = await Promise.all([
+  const [trainers, locations, plans, classTypes] = await Promise.all([
     fetchTrainers({ status: 'ACTIVE', limit: OPTION_LIMIT })
       .then((res) => res.data.map((t) => ({ id: t.id, name: t.name })))
       .catch(() => [] as RelationOption[]),
@@ -33,6 +41,7 @@ export async function loadRelationOptions(): Promise<{
     fetchSubscriptionPlans({ limit: OPTION_LIMIT, sort: 'name', dir: 'asc' })
       .then((res) => res.data.map((p) => ({ id: p.id, name: p.name })))
       .catch(() => [] as RelationOption[]),
+    fetchClassTypeOptions().catch(() => [] as AdminClassTypeOption[]),
   ]);
-  return { trainers, locations, plans };
+  return { trainers, locations, plans, classTypes };
 }

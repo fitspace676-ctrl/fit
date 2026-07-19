@@ -973,7 +973,11 @@ export class MembersService {
           id: true,
           status: true,
           classInstance: {
-            select: { startsAt: true, template: { select: { title: true } } },
+            select: {
+              startsAt: true,
+              template: { select: { title: true } },
+              classType: { select: { name: true } },
+            },
           },
         },
       }),
@@ -1065,7 +1069,7 @@ export class MembersService {
     }));
     const wireBookings = bookings.map((b) => ({
       id: b.id,
-      title: b.classInstance.template.title,
+      title: b.classInstance.template?.title ?? b.classInstance.classType?.name ?? 'Class',
       startsAt: b.classInstance.startsAt.toISOString(),
       status: b.status,
     }));

@@ -587,6 +587,7 @@ export class ReportDrilldownService {
           capacityOverride: true,
           bookedCount: true,
           template: { select: { title: true, capacity: true } },
+          classType: { select: { name: true, capacity: true } },
         },
       }),
       this.prisma.client.booking.findMany({
@@ -594,7 +595,11 @@ export class ReportDrilldownService {
         select: {
           status: true,
           classInstance: {
-            select: { startsAt: true, template: { select: { title: true } } },
+            select: {
+              startsAt: true,
+              template: { select: { title: true } },
+              classType: { select: { name: true } },
+            },
           },
         },
       }),
@@ -611,9 +616,10 @@ export class ReportDrilldownService {
     };
 
     for (const instance of instances) {
-      const agg = classAgg(instance.template.title);
+      const agg = classAgg(instance.template?.title ?? instance.classType?.name ?? 'Class');
       agg.sessions += 1;
-      agg.capacity += instance.capacityOverride ?? instance.template.capacity;
+      agg.capacity +=
+        instance.capacityOverride ?? instance.template?.capacity ?? instance.classType?.capacity ?? 0;
       agg.booked += instance.bookedCount;
     }
 
@@ -623,7 +629,9 @@ export class ReportDrilldownService {
     let noShow = 0;
     let canceled = 0;
     for (const booking of bookings) {
-      const agg = classAgg(booking.classInstance.template.title);
+      const agg = classAgg(
+        booking.classInstance.template?.title ?? booking.classInstance.classType?.name ?? 'Class',
+      );
       if (booking.status === BookingStatus.ATTENDED) {
         agg.attended += 1;
         attended += 1;
@@ -748,6 +756,7 @@ export class ReportDrilldownService {
       this.prisma.client.classInstance.findMany({
         where: { startsAt: { gte: win.start, lt: win.end } },
         select: {
+          trainer: { select: { name: true } },
           template: { select: { trainer: { select: { name: true } } } },
         },
       }),
@@ -756,7 +765,10 @@ export class ReportDrilldownService {
         select: {
           status: true,
           classInstance: {
-            select: { template: { select: { trainer: { select: { name: true } } } } },
+            select: {
+              trainer: { select: { name: true } },
+              template: { select: { trainer: { select: { name: true } } } },
+            },
           },
         },
       }),
@@ -777,11 +789,15 @@ export class ReportDrilldownService {
     };
 
     for (const instance of instances) {
-      trainerAgg(instance.template.trainer?.name ?? UNASSIGNED_TRAINER_LABEL).classes += 1;
+      trainerAgg(
+        instance.template?.trainer?.name ?? instance.trainer?.name ?? UNASSIGNED_TRAINER_LABEL,
+      ).classes += 1;
     }
     for (const booking of bookings) {
       const agg = trainerAgg(
-        booking.classInstance.template.trainer?.name ?? UNASSIGNED_TRAINER_LABEL,
+        booking.classInstance.template?.trainer?.name ??
+          booking.classInstance.trainer?.name ??
+          UNASSIGNED_TRAINER_LABEL,
       );
       if ((CONFIRMED_BOOKING_STATUSES as BookingStatus[]).includes(booking.status)) {
         agg.booked += 1;

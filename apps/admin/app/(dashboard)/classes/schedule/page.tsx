@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
@@ -8,9 +7,16 @@ import { ApiError, fetchSchedule } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
-import { ScheduleBoard } from './schedule-board';
+import { ScheduleBoard, type ScheduleView } from './schedule-board';
 import { loadScheduleFilters } from './options';
-import { resolveWeekStart, toIsoDate, weekWindow } from './week';
+import { loadRelationOptions } from '../options';
+import {
+  monthWindow,
+  resolveMonthAnchor,
+  resolveWeekStart,
+  toIsoDate,
+  weekWindow,
+} from './week';
 
 export const metadata: Metadata = {
   title: 'Schedule — Fit Admin',
@@ -53,37 +59,6 @@ const styles = stylex.create({
     maxWidth: '42rem',
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
-  },
-  actions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  btn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    height: '2.75rem',
-    paddingInline: '1.25rem',
-    borderRadius: 'var(--radius-element)',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    textDecoration: 'none',
-  },
-  btnOutline: {
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-    color: 'var(--color-text-primary)',
-  },
-  btnPrimary: {
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  btnIcon: {
-    width: '1rem',
-    height: '1rem',
   },
   errorCard: {
     display: 'flex',
@@ -137,19 +112,26 @@ export default async function SchedulePage({
   const raw = await searchParams;
   const t = await getTranslations('admin.schedule');
 
-  const weekStart = resolveWeekStart(readParam(raw, 'week') || undefined, new Date());
-  const { from, to } = weekWindow(weekStart);
+  const rawView = readParam(raw, 'view');
+  const view: ScheduleView = rawView === 'month' || rawView === 'list' ? rawView : 'week';
+
+  const weekParam = readParam(raw, 'week') || undefined;
+  const now = new Date();
+  const weekStart = resolveWeekStart(weekParam, now);
+  const monthAnchor = resolveMonthAnchor(weekParam, now);
+  // Month view fetches the whole month grid; week + list fetch a single week.
+  const { from, to } = view === 'month' ? monthWindow(monthAnchor) : weekWindow(weekStart);
   const trainerId = readParam(raw, 'trainerId');
   const locationId = readParam(raw, 'locationId');
 
-  // "New class" / "Manage classes" reach the class-template surfaces — offered to
-  // staff who hold the write capability.
+  // "Add Class" opens the class-type drawer — offered only to staff who hold the
+  // write capability, and its form needs the gym's trainer/location/plan options.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
 
   let content;
   try {
-    const [{ instances }, filters] = await Promise.all([
+    const [{ instances }, filters, addClass] = await Promise.all([
       fetchSchedule({
         from,
         to,
@@ -157,16 +139,20 @@ export default async function SchedulePage({
         locationId: locationId || undefined,
       }),
       loadScheduleFilters(),
+      canWrite ? loadRelationOptions() : Promise.resolve(null),
     ]);
     content = (
       <ScheduleBoard
+        view={view}
         weekStart={toIsoDate(weekStart)}
+        monthAnchor={toIsoDate(monthAnchor)}
         instances={instances}
         trainers={filters.trainers}
         locations={filters.locations}
         trainerId={trainerId}
         locationId={locationId}
         canWrite={canWrite}
+        addClass={addClass}
       />
     );
   } catch (error) {
@@ -190,18 +176,6 @@ export default async function SchedulePage({
         <div {...stylex.props(styles.headTitles)}>
           <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
           <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
-        </div>
-        <div {...stylex.props(styles.actions)}>
-          <Link href="/classes" {...stylex.props(styles.btn, styles.btnOutline)}>
-            <Icon name="grid" sw={2} {...stylex.props(styles.btnIcon)} />
-            {t('manageClasses')}
-          </Link>
-          {canWrite ? (
-            <Link href="/classes/new" {...stylex.props(styles.btn, styles.btnPrimary)}>
-              <Icon name="plus" sw={2} {...stylex.props(styles.btnIcon)} />
-              {t('newClass')}
-            </Link>
-          ) : null}
         </div>
       </header>
 

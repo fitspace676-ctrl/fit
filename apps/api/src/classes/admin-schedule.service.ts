@@ -8,6 +8,7 @@ import type {
   AdminScheduleInstance,
   AdminScheduleQuery,
   AdminScheduleResponse,
+  ScheduleClassInstanceData,
 } from '@fit/types';
 import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -24,11 +25,18 @@ import { ClassOccupancyPublisher } from './class-occupancy.publisher';
 const SCHEDULE_SELECT = {
   id: true,
   templateId: true,
+  classTypeId: true,
   startsAt: true,
   endsAt: true,
   capacityOverride: true,
   bookedCount: true,
   status: true,
+  // The occurrence's own trainer / branch / room. Set directly for a single class
+  // scheduled from a type; for a template-generated one these are usually null and
+  // the template's defaults (below) apply.
+  room: true,
+  trainer: { select: { name: true } },
+  location: { select: { name: true } },
   template: {
     select: {
       title: true,
@@ -39,6 +47,16 @@ const SCHEDULE_SELECT = {
       durationMinutes: true,
       trainer: { select: { name: true } },
       location: { select: { name: true } },
+    },
+  },
+  // For a single occurrence scheduled straight from a type, the display + seat
+  // figures come from the type instead of a template.
+  classType: {
+    select: {
+      name: true,
+      color: true,
+      capacity: true,
+      durationMinutes: true,
     },
   },
 } satisfies Prisma.ClassInstanceSelect;
@@ -111,14 +129,22 @@ export class AdminScheduleService {
       startsAt: { gte: new Date(query.from), lt: new Date(query.to) },
     };
 
-    // The trainer / location live on the template, so a filter narrows through
-    // the relation — an occurrence matches when its template's default trainer /
-    // branch is the requested one.
-    if (query.trainerId || query.locationId) {
-      where.template = {
-        ...(query.trainerId ? { trainerId: query.trainerId } : {}),
-        ...(query.locationId ? { locationId: query.locationId } : {}),
-      };
+    // A trainer / branch filter matches either the occurrence's own assignment (a
+    // single class scheduled from a type) or its template's default (a generated
+    // one), so both kinds of occurrence are narrowed the same way.
+    const and: Prisma.ClassInstanceWhereInput[] = [];
+    if (query.trainerId) {
+      and.push({
+        OR: [{ trainerId: query.trainerId }, { template: { trainerId: query.trainerId } }],
+      });
+    }
+    if (query.locationId) {
+      and.push({
+        OR: [{ locationId: query.locationId }, { template: { locationId: query.locationId } }],
+      });
+    }
+    if (and.length > 0) {
+      where.AND = and;
     }
 
     const rows = await this.prisma.client.classInstance.findMany({
@@ -128,6 +154,60 @@ export class AdminScheduleService {
     });
 
     return { instances: rows.map((row) => toScheduleInstance(row)) };
+  }
+
+  /**
+   * Schedule a single class occurrence straight from a {@link ClassType} (no
+   * recurring template). The type must be an `ACTIVE` type of this gym (an unknown
+   * / cross-tenant one is a `404 CLASS_TYPE_NOT_FOUND`, an inactive one a `409
+   * CLASS_TYPE_INACTIVE`); an assigned trainer / location, when given, must belong
+   * to the gym too. `endsAt` is derived from the type's `durationMinutes`, so the
+   * occurrence's length can never drift from its type. Runs on the tenant-scoped
+   * client, so `gymId` is pinned from the session. Returns the created occurrence
+   * as a full {@link AdminClassInstanceDetail} (empty roster) so the caller can
+   * render it exactly like an opened one.
+   */
+  async scheduleClass(data: ScheduleClassInstanceData): Promise<AdminClassInstanceDetail> {
+    const type = await this.prisma.client.classType.findFirst({
+      where: { id: data.classTypeId },
+      select: { id: true, durationMinutes: true, status: true },
+    });
+    if (!type) {
+      throw new NotFoundException({ message: 'Class type not found', code: 'CLASS_TYPE_NOT_FOUND' });
+    }
+    if (type.status !== 'ACTIVE') {
+      throw new ConflictException({
+        message: 'This class type is inactive; reactivate it to schedule classes',
+        code: 'CLASS_TYPE_INACTIVE',
+      });
+    }
+
+    if (data.trainerId) {
+      await this.requireGymTrainer(data.trainerId);
+    }
+    if (data.locationId) {
+      await this.requireGymLocation(data.locationId);
+    }
+
+    const startsAt = new Date(data.startsAt);
+    const endsAt = new Date(startsAt.getTime() + type.durationMinutes * 60 * 1000);
+
+    const created = await this.prisma.client.classInstance.create({
+      data: {
+        gymId: this.tenant.gymId,
+        classTypeId: type.id,
+        trainerId: data.trainerId,
+        locationId: data.locationId,
+        room: data.room,
+        startsAt,
+        endsAt,
+        capacityOverride: data.capacityOverride,
+        status: InstanceStatus.SCHEDULED,
+      },
+      select: { id: true },
+    });
+
+    return this.getInstanceDetail(created.id);
   }
 
   /**
@@ -374,6 +454,7 @@ export class AdminScheduleService {
             bookedCount: true,
             capacityOverride: true,
             template: { select: { capacity: true } },
+            classType: { select: { capacity: true } },
           },
         });
         if (!instance) {
@@ -394,7 +475,11 @@ export class AdminScheduleService {
           throw this.alreadyBooked();
         }
 
-        const capacity = instance.capacityOverride ?? instance.template.capacity;
+        const capacity =
+          instance.capacityOverride ??
+          instance.template?.capacity ??
+          instance.classType?.capacity ??
+          0;
 
         // Same atomic seat claim as the member self-book: the increment runs only
         // while there is room and the DB evaluates `bookedCount < capacity`
@@ -477,6 +562,30 @@ export class AdminScheduleService {
         message: 'Member not found',
         code: 'MEMBER_NOT_FOUND',
       });
+    }
+  }
+
+  /** Resolve the trainer assigned to a scheduled class — tenant-scoped, so an
+   * unknown / cross-tenant id is a `404 TRAINER_NOT_FOUND`. */
+  private async requireGymTrainer(trainerId: string): Promise<void> {
+    const trainer = await this.prisma.client.trainer.findFirst({
+      where: { id: trainerId },
+      select: { id: true },
+    });
+    if (!trainer) {
+      throw new NotFoundException({ message: 'Trainer not found', code: 'TRAINER_NOT_FOUND' });
+    }
+  }
+
+  /** Resolve the branch assigned to a scheduled class — tenant-scoped, so an
+   * unknown / cross-tenant id is a `404 LOCATION_NOT_FOUND`. */
+  private async requireGymLocation(locationId: string): Promise<void> {
+    const location = await this.prisma.client.location.findFirst({
+      where: { id: locationId },
+      select: { id: true },
+    });
+    if (!location) {
+      throw new NotFoundException({ message: 'Location not found', code: 'LOCATION_NOT_FOUND' });
     }
   }
 
@@ -595,19 +704,26 @@ function compareRosterEntries(
  * the public card's empty strings).
  */
 function toScheduleInstance(row: ScheduleRow): AdminScheduleInstance {
+  const durationMinutes =
+    row.template?.durationMinutes ??
+    row.classType?.durationMinutes ??
+    Math.max(1, Math.round((row.endsAt.getTime() - row.startsAt.getTime()) / 60000));
   return {
     id: row.id,
     templateId: row.templateId,
-    title: row.template.title,
-    category: row.template.category,
-    color: row.template.color,
+    classTypeId: row.classTypeId,
+    title: row.template?.title ?? row.classType?.name ?? 'Class',
+    category: row.template?.category ?? '',
+    color: row.template?.color ?? row.classType?.color ?? '#2563eb',
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
-    durationMinutes: row.template.durationMinutes,
-    trainerName: row.template.trainer?.name ?? null,
-    locationName: row.template.location?.name ?? null,
-    room: row.template.room ?? null,
-    capacity: row.capacityOverride ?? row.template.capacity,
+    durationMinutes,
+    // Instance-level assignment wins; a template-generated occurrence falls back to
+    // the template's defaults.
+    trainerName: row.trainer?.name ?? row.template?.trainer?.name ?? null,
+    locationName: row.location?.name ?? row.template?.location?.name ?? null,
+    room: row.room ?? row.template?.room ?? null,
+    capacity: row.capacityOverride ?? row.template?.capacity ?? row.classType?.capacity ?? 0,
     bookedCount: row.bookedCount,
     status: row.status,
   };

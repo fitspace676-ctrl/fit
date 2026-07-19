@@ -9,6 +9,7 @@ import {
   buildRRule,
   parseRRule,
   recurrenceSchema,
+  type AdminClassTypeOption,
   type ClassPricingRule,
   type ClassTemplateStatus,
   type Recurrence,
@@ -155,6 +156,14 @@ const styles = stylex.create({
     textDecoration: 'none',
     color: 'var(--color-text-secondary)',
   },
+  cancelButton: {
+    appearance: 'none',
+    border: 'none',
+    background: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
   pricingBox: {
     display: 'flex',
     flexDirection: 'column',
@@ -237,6 +246,16 @@ type Props = {
   trainers: RelationOption[];
   locations: RelationOption[];
   plans: RelationOption[];
+  /** The gym's active class types — the "Class type" selector's options. */
+  classTypes: AdminClassTypeOption[];
+  /**
+   * Drawer host hook. When set, a successful create refreshes the roster and calls
+   * this instead of navigating to the new template's page, so the drawer can close
+   * over the still-mounted list. Omitted on the standalone `/classes/new` page.
+   */
+  onSuccess?: () => void;
+  /** Drawer host hook — replaces the Cancel link with a close button when set. */
+  onCancel?: () => void;
 } & (
   | { mode: 'create' }
   | {
@@ -344,6 +363,25 @@ export function ClassTemplateForm(props: Props) {
       current.includes(planId) ? current.filter((id) => id !== planId) : [...current, planId],
     );
 
+  /**
+   * Picking a class type stores the type's name (kept in `category` for grouping)
+   * and, on create, seeds the reusable defaults the type carries — capacity,
+   * duration, colour, and the title when still blank. Clearing it leaves the
+   * already-entered values untouched.
+   */
+  function onClassTypeChange(typeId: string): void {
+    const picked = props.classTypes.find((type) => type.id === typeId);
+    setCategory(picked?.name ?? '');
+    if (isEdit || !picked) return;
+    setCapacity(String(picked.capacity));
+    setDurationMinutes(String(picked.durationMinutes));
+    setColor(picked.color);
+    if (title.trim() === '') setTitle(picked.name);
+  }
+
+  // Reflect the stored type name back to its id so the select shows the right row.
+  const selectedClassTypeId = props.classTypes.find((type) => type.name === category)?.id ?? '';
+
   function onSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setError(null);
@@ -382,8 +420,14 @@ export function ClassTemplateForm(props: Props) {
         ? await updateClassTemplateAction(props.templateId, profile)
         : await createClassTemplateAction({ ...profile, status });
       if (result.ok) {
-        router.push(`/classes/${result.data.id}`);
-        router.refresh();
+        if (props.onSuccess) {
+          // Drawer flow: keep the roster on screen, just refresh it and close.
+          router.refresh();
+          props.onSuccess();
+        } else {
+          router.push(`/classes/${result.data.id}`);
+          router.refresh();
+        }
       } else {
         setError(result.error);
       }
@@ -413,19 +457,25 @@ export function ClassTemplateForm(props: Props) {
 
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
-          <label htmlFor="class-category" {...stylex.props(styles.label)}>
-            Category <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+          <label htmlFor="class-type" {...stylex.props(styles.label)}>
+            Class type <span {...stylex.props(styles.labelOptional)}>(optional)</span>
           </label>
-          <input
-            id="class-category"
+          <select
+            id="class-type"
             name="category"
-            type="text"
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-            autoComplete="off"
-            placeholder="e.g. Cardio"
+            value={selectedClassTypeId}
+            onChange={(event) => onClassTypeChange(event.target.value)}
             {...stylex.props(styles.field)}
-          />
+          >
+            <option value="">
+              {props.classTypes.length === 0 ? 'No class types yet' : 'Select a class type…'}
+            </option>
+            {props.classTypes.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div {...stylex.props(styles.colColor)}>
           <label htmlFor="class-color" {...stylex.props(styles.label)}>
@@ -770,9 +820,19 @@ export function ClassTemplateForm(props: Props) {
         <Btn type="submit" v="primary" size="md" disabled={pending}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create class'}
         </Btn>
-        <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
-          Cancel
-        </Link>
+        {props.onCancel ? (
+          <button
+            type="button"
+            onClick={props.onCancel}
+            {...stylex.props(styles.cancelButton, styles.cancelLink)}
+          >
+            Cancel
+          </button>
+        ) : (
+          <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
+            Cancel
+          </Link>
+        )}
       </div>
     </form>
   );

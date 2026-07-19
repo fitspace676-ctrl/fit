@@ -333,6 +333,11 @@ export class AnalyticsService {
     const counts = new Map<string, number>();
     for (const row of rows) {
       const templateId = row.classInstance.templateId;
+      // Single occurrences scheduled straight from a type carry no template, so
+      // they aren't grouped into this template-ranked "top classes" list.
+      if (!templateId) {
+        continue;
+      }
       counts.set(templateId, (counts.get(templateId) ?? 0) + 1);
     }
     if (counts.size === 0) {

@@ -18,6 +18,9 @@ const DETAIL_SELECT = {
   capacityOverride: true,
   bookedCount: true,
   status: true,
+  room: true,
+  trainer: { select: { name: true } },
+  location: { select: { name: true } },
   template: {
     select: {
       title: true,
@@ -29,6 +32,15 @@ const DETAIL_SELECT = {
       durationMinutes: true,
       trainer: { select: { name: true } },
       location: { select: { name: true } },
+    },
+  },
+  classType: {
+    select: {
+      name: true,
+      description: true,
+      color: true,
+      capacity: true,
+      durationMinutes: true,
     },
   },
 } satisfies Prisma.ClassInstanceSelect;
@@ -98,18 +110,21 @@ export class ClassesService {
 function toDetail(row: InstanceDetailRow): GetClassInstanceResponse['instance'] {
   return {
     id: row.id,
-    title: row.template.title,
-    description: row.template.description,
+    title: row.template?.title ?? row.classType?.name ?? 'Class',
+    description: row.template?.description ?? row.classType?.description ?? '',
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
-    trainerName: row.template.trainer?.name ?? '',
-    locationName: row.template.location?.name ?? '',
-    room: row.template.room ?? '',
-    capacity: row.capacityOverride ?? row.template.capacity,
+    trainerName: row.trainer?.name ?? row.template?.trainer?.name ?? '',
+    locationName: row.location?.name ?? row.template?.location?.name ?? '',
+    room: row.room ?? row.template?.room ?? '',
+    capacity: row.capacityOverride ?? row.template?.capacity ?? row.classType?.capacity ?? 0,
     bookedCount: row.bookedCount,
-    durationMinutes: row.template.durationMinutes,
-    category: row.template.category,
-    color: row.template.color,
+    durationMinutes:
+      row.template?.durationMinutes ??
+      row.classType?.durationMinutes ??
+      Math.max(1, Math.round((row.endsAt.getTime() - row.startsAt.getTime()) / 60000)),
+    category: row.template?.category ?? '',
+    color: row.template?.color ?? row.classType?.color ?? '#2563eb',
     status: row.status,
   };
 }

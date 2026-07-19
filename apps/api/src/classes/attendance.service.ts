@@ -21,6 +21,7 @@ const INSTANCE_SELECT = {
   bookedCount: true,
   capacityOverride: true,
   template: { select: { capacity: true } },
+  classType: { select: { capacity: true } },
 } satisfies Prisma.ClassInstanceSelect;
 
 /** A held-seat booking joined to the (cross-tenant) member identity. Kept narrow
@@ -200,7 +201,11 @@ export class AttendanceService {
       status: instance.status,
       startsAt: instance.startsAt.toISOString(),
       endsAt: instance.endsAt.toISOString(),
-      capacity: instance.capacityOverride ?? instance.template.capacity,
+      capacity:
+        instance.capacityOverride ??
+        instance.template?.capacity ??
+        instance.classType?.capacity ??
+        0,
       bookedCount: instance.bookedCount,
       attendedCount: entries.filter((e) => e.status === BookingStatus.ATTENDED).length,
       noShowCount: entries.filter((e) => e.status === BookingStatus.NO_SHOW).length,
