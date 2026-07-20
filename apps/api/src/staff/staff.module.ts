@@ -8,7 +8,7 @@ import { StaffService } from './staff.service';
 /**
  * Staff — the staff console's tenant-scoped staff management (invite, list,
  * re-role, remove; revoke pending invites — T4.7) plus the deeper Staff console
- * (notes, tasks, time-off, specialties, weekly schedule, roles matrix — T12.14).
+ * (notes, tasks, time-off, weekly schedule, roles matrix — T12.14).
  *
  * {@link StaffController} + {@link StaffDepthController} (both `/staff`) sit
  * behind the `TenantGuard` + global `PermissionsGuard`. {@link StaffService}

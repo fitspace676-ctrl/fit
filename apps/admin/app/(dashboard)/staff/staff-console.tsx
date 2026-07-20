@@ -3,44 +3,19 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
-import type {
-  ListStaffRolesResponse,
-  PendingInvite,
-  StaffMember,
-  StaffRole,
-  TimeOffRequestRow,
-} from '@fit/types';
-import {
-  Btn,
-  CountUp,
-  FilterChips,
-  Icon,
-  Tabs,
-  type FilterChip,
-  type IconName,
-} from '@/components/ui';
+import type { ListStaffRolesResponse, StaffMember, StaffRole, WorkingTodayRow } from '@fit/types';
+import { Btn, Drawer, Icon, Select, Tabs } from '@/components/ui';
 import { STAFF_ROLES } from './role-meta';
 import { StaffTable } from './staff-table';
-import { InvitesTable } from './invites-table';
+import { AddStaffDrawer } from './add-staff-drawer';
+import { StaffProfileDrawer } from './staff-profile-drawer';
 import { InviteModal } from './invite-modal';
 import { RolesPanel } from './roles-panel';
-import { NotesPanel } from './notes-panel';
-import { TasksPanel } from './tasks-panel';
-import { SchedulePanel } from './schedule-panel';
-import { SpecialtiesPanel } from './specialties-panel';
-import { TimeOffPanel } from './timeoff-panel';
+import { RolesCards } from './roles-cards';
+import { WhosWorkingCard } from './whos-working-card';
 
-/** The staff-console top-level tabs. */
-type ConsoleTab =
-  | 'people'
-  | 'invitations'
-  | 'roles'
-  | 'notes'
-  | 'tasks'
-  | 'schedule'
-  | 'timeoff'
-  | 'specialties';
+/** The staff-console top-level tabs — Stage 1 keeps just these two. */
+type ConsoleTab = 'staff' | 'roles';
 
 const styles = stylex.create({
   stack: {
@@ -91,90 +66,32 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
-  kpiGrid: {
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr 1fr',
-      '@media (min-width: 1024px)': 'repeat(4, 1fr)',
-    },
-    gap: '1rem',
-  },
-  kpiCard: {
+  headerActions: {
     display: 'flex',
-    height: '100%',
-    flexDirection: 'column',
-    padding: '1.25rem',
-  },
-  kpiIcon: {
-    display: 'grid',
-    height: '2.5rem',
-    width: '2.5rem',
-    placeItems: 'center',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-accent-muted)',
-    color: 'var(--color-text-accent)',
-  },
-  kpiIconSvg: {
-    height: '1.25rem',
-    width: '1.25rem',
-  },
-  kpiValue: {
-    margin: 0,
-    marginTop: '1rem',
-    fontSize: '1.875rem',
-    fontWeight: 800,
-    fontVariantNumeric: 'tabular-nums',
-    letterSpacing: '-0.025em',
-    color: 'var(--color-text-primary)',
-  },
-  kpiLabel: {
-    margin: 0,
-    marginTop: '0.25rem',
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.15em',
-    color: 'var(--color-text-secondary)',
-  },
-  kpiContext: {
-    margin: 0,
-    marginTop: '0.5rem',
-    fontSize: '0.75rem',
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-secondary)',
-  },
-  tabLabel: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.375rem',
-  },
-  tabCount: {
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.75rem',
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-secondary)',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
   },
   filterRow: {
     display: 'flex',
     flexDirection: {
       default: 'column',
-      '@media (min-width: 1024px)': 'row',
+      '@media (min-width: 768px)': 'row',
     },
     alignItems: {
       default: 'stretch',
-      '@media (min-width: 1024px)': 'center',
-    },
-    justifyContent: {
-      default: 'flex-start',
-      '@media (min-width: 1024px)': 'space-between',
+      '@media (min-width: 768px)': 'center',
     },
     gap: '0.75rem',
   },
   searchWrap: {
     position: 'relative',
-    width: {
-      default: '100%',
-      '@media (min-width: 1024px)': '18rem',
+    flex: {
+      default: 'none',
+      '@media (min-width: 768px)': 1,
+    },
+    maxWidth: {
+      default: 'none',
+      '@media (min-width: 768px)': '26rem',
     },
   },
   srOnly: {
@@ -219,87 +136,59 @@ const styles = stylex.create({
     color: 'var(--color-text-primary)',
     outline: 'none',
   },
+  roleSelect: {
+    width: {
+      default: '100%',
+      '@media (min-width: 768px)': '12rem',
+    },
+  },
+  spacer: {
+    display: {
+      default: 'none',
+      '@media (min-width: 768px)': 'block',
+    },
+    flex: 1,
+  },
 });
 
-/** One roster KPI card — icon tile, animated headline value, label, and context. */
-function KpiCard({
-  label,
-  value,
-  context,
-  icon,
-}: {
-  label: string;
-  value: number;
-  context: string;
-  icon: IconName;
-}) {
-  return (
-    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
-      <span {...stylex.props(styles.kpiIcon)}>
-        <Icon name={icon} {...stylex.props(styles.kpiIconSvg)} />
-      </span>
-      <p {...stylex.props(styles.kpiValue)}>
-        <CountUp to={value} />
-      </p>
-      <p {...stylex.props(styles.kpiLabel)}>{label}</p>
-      <p {...stylex.props(styles.kpiContext)}>{context}</p>
-    </Card>
-  );
-}
-
-/** A tab label with a trailing count chip. */
-function TabLabel({ label, count }: { label: string; count: number }) {
-  return (
-    <span {...stylex.props(styles.tabLabel)}>
-      {label}
-      <span {...stylex.props(styles.tabCount)}>{count}</span>
-    </span>
-  );
-}
-
 /**
- * The staff console shell (T2.10) — the client half of the staff screen, rebuilt
- * to the formacore staff artboard. Renders the header (with the "Invite staff"
- * button that opens the shared modal), the four gym-wide KPI cards, the
- * People / Invitations tabs, and — on the People tab — a role filter + search
- * over the (small, un-paginated) roster, filtered client-side. The staff list and
- * pending invites are server-rendered and passed in; this component owns only the
- * view state (active tab, search, role filter, invite-modal open).
+ * The staff console shell (Stage 1) — rebuilt to the reference staff artboard.
+ * Renders the header (title + a "Manage Roles" action that opens a drawer), the
+ * "Who's Working Today" card, and two tabs: the roster
+ * ("Staff List", with a role filter, search and "Add Staff") and the role cards
+ * ("Roles & Permissions"). The roster and role matrix are server-rendered and
+ * passed in; this component owns only view state (active tab, search, role
+ * filter, and which modal/drawer is open).
  */
 export function StaffConsole({
   staff,
-  invites,
   currentUserId,
   canManage,
   roles,
-  timeOff,
+  workingToday,
+  locations,
 }: {
   staff: StaffMember[];
-  invites: PendingInvite[];
   currentUserId: string | null;
   canManage: boolean;
   roles: ListStaffRolesResponse;
-  timeOff: TimeOffRequestRow[];
+  workingToday: WorkingTodayRow[];
+  /** The gym's live locations, offered as assignable-location chips in the Add drawer. */
+  locations: { id: string; name: string }[];
 }) {
   const t = useTranslations('admin.staff');
-  const [tab, setTab] = useState<ConsoleTab>('people');
+  const [tab, setTab] = useState<ConsoleTab>('staff');
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<StaffRole | ''>('');
+  const [addOpen, setAddOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
-  // Shared across the per-staff depth tabs (Notes / Tasks / Calendar / Specialties)
-  // so switching tabs keeps the chosen member. Defaults to the first staff row.
-  const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id ?? '');
-
-  const activeCount = useMemo(
-    () => staff.filter((member) => member.status === 'ACTIVE').length,
-    [staff],
-  );
-  const distinctRoles = useMemo(() => new Set(staff.map((member) => member.role)).size, [staff]);
+  const [manageRolesOpen, setManageRolesOpen] = useState(false);
+  const [profileMember, setProfileMember] = useState<StaffMember | null>(null);
 
   const roleCounts = useMemo(() => {
-    const counts = new Map<StaffRole, number>();
+    const counts: Partial<Record<StaffRole, number>> = {};
     for (const member of staff) {
-      counts.set(member.role, (counts.get(member.role) ?? 0) + 1);
+      counts[member.role] = (counts[member.role] ?? 0) + 1;
     }
     return counts;
   }, [staff]);
@@ -316,15 +205,6 @@ export function StaffConsole({
     });
   }, [staff, query, roleFilter]);
 
-  const roleChips: FilterChip[] = [
-    { label: t('filters.all'), value: '', count: staff.length },
-    ...STAFF_ROLES.map((role) => ({
-      label: t(`roles.${role}`),
-      value: role,
-      count: roleCounts.get(role) ?? 0,
-    })),
-  ];
-
   return (
     <div {...stylex.props(styles.stack)}>
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
@@ -339,74 +219,29 @@ export function StaffConsole({
           <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </div>
         {canManage ? (
-          <Btn v="primary" icon="plus" onClick={() => setInviteOpen(true)}>
-            {t('invite')}
-          </Btn>
+          <div {...stylex.props(styles.headerActions)}>
+            <Btn v="outline" icon="shield" onClick={() => setManageRolesOpen(true)}>
+              {t('manageRoles')}
+            </Btn>
+          </div>
         ) : null}
       </header>
 
-      {/* Gym-wide KPI cards — live aggregates over the whole roster. */}
-      <section aria-label={t('title')} {...stylex.props(styles.kpiGrid)}>
-        <KpiCard
-          label={t('kpi.total')}
-          value={staff.length}
-          context={t('kpi.totalContext', { count: activeCount })}
-          icon="users"
-        />
-        <KpiCard
-          label={t('kpi.active')}
-          value={activeCount}
-          context={t('kpi.activeContext')}
-          icon="bolt"
-        />
-        <KpiCard
-          label={t('kpi.pending')}
-          value={invites.length}
-          context={t('kpi.pendingContext')}
-          icon="message"
-        />
-        <KpiCard
-          label={t('kpi.roles')}
-          value={distinctRoles}
-          context={t('kpi.rolesContext')}
-          icon="shield"
-        />
-      </section>
+      <WhosWorkingCard shifts={workingToday} />
 
       <Tabs
         aria-label={t('title')}
         value={tab}
         onValueChange={(next) => setTab(next as ConsoleTab)}
         items={[
-          {
-            value: 'people',
-            label: <TabLabel label={t('tabs.people')} count={staff.length} />,
-          },
-          {
-            value: 'invitations',
-            label: <TabLabel label={t('tabs.invitations')} count={invites.length} />,
-          },
-          { value: 'roles', label: t('tabs.roles') },
-          { value: 'notes', label: t('tabs.notes') },
-          { value: 'tasks', label: t('tabs.tasks') },
-          { value: 'schedule', label: t('tabs.schedule') },
-          {
-            value: 'timeoff',
-            label: <TabLabel label={t('tabs.timeoff')} count={timeOff.length} />,
-          },
-          { value: 'specialties', label: t('tabs.specialties') },
+          { value: 'staff', label: t('tabs.staffList') },
+          { value: 'roles', label: t('tabs.rolesPermissions') },
         ]}
       />
 
-      {tab === 'people' ? (
+      {tab === 'staff' ? (
         <>
           <div {...stylex.props(styles.filterRow)}>
-            <FilterChips
-              chips={roleChips}
-              active={roleFilter}
-              onSelect={(value) => setRoleFilter(value as StaffRole | '')}
-              ariaLabel={t('filters.roleAria')}
-            />
             <div {...stylex.props(styles.searchWrap)}>
               <label htmlFor="staff-search" {...stylex.props(styles.srOnly)}>
                 {t('filters.searchLabel')}
@@ -423,6 +258,34 @@ export function StaffConsole({
                 {...stylex.props(styles.searchInput)}
               />
             </div>
+            <div {...stylex.props(styles.roleSelect)}>
+              <label htmlFor="staff-role-filter" {...stylex.props(styles.srOnly)}>
+                {t('filters.roleAria')}
+              </label>
+              <Select
+                id="staff-role-filter"
+                value={roleFilter}
+                onChange={(event) => setRoleFilter(event.target.value as StaffRole | '')}
+              >
+                <option value="">{t('filters.allRoles')}</option>
+                {STAFF_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {t(`roles.${role}`)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <span aria-hidden {...stylex.props(styles.spacer)} />
+            {canManage ? (
+              <>
+                <Btn v="outline" icon="mail" onClick={() => setInviteOpen(true)}>
+                  {t('invite')}
+                </Btn>
+                <Btn v="primary" icon="plus" onClick={() => setAddOpen(true)}>
+                  {t('addStaff')}
+                </Btn>
+              </>
+            ) : null}
           </div>
 
           <StaffTable
@@ -430,43 +293,36 @@ export function StaffConsole({
             currentUserId={currentUserId}
             canManage={canManage}
             noMatch={staff.length > 0 && visibleStaff.length === 0}
+            onSelectMember={setProfileMember}
           />
+        </>
+      ) : (
+        <RolesCards roles={roles} staffCountByRole={roleCounts} />
+      )}
+
+      {canManage ? (
+        <>
+          <AddStaffDrawer open={addOpen} onClose={() => setAddOpen(false)} locations={locations} />
+
+          <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
+
+          <Drawer
+            open={manageRolesOpen}
+            onClose={() => setManageRolesOpen(false)}
+            title={t('manageRolesDrawer.title')}
+            size="lg"
+          >
+            <RolesPanel roles={roles} />
+          </Drawer>
         </>
       ) : null}
 
-      {tab === 'invitations' ? <InvitesTable invites={invites} canManage={canManage} /> : null}
-      {tab === 'roles' ? <RolesPanel roles={roles} /> : null}
-      {tab === 'notes' ? (
-        <NotesPanel
-          staff={staff}
-          selectedStaffId={selectedStaffId}
-          onSelectStaff={setSelectedStaffId}
-        />
-      ) : null}
-      {tab === 'tasks' ? (
-        <TasksPanel
-          staff={staff}
-          selectedStaffId={selectedStaffId}
-          onSelectStaff={setSelectedStaffId}
-        />
-      ) : null}
-      {tab === 'schedule' ? (
-        <SchedulePanel
-          staff={staff}
-          selectedStaffId={selectedStaffId}
-          onSelectStaff={setSelectedStaffId}
-        />
-      ) : null}
-      {tab === 'timeoff' ? <TimeOffPanel staff={staff} initialRequests={timeOff} /> : null}
-      {tab === 'specialties' ? (
-        <SpecialtiesPanel
-          staff={staff}
-          selectedStaffId={selectedStaffId}
-          onSelectStaff={setSelectedStaffId}
-        />
-      ) : null}
-
-      {canManage ? <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} /> : null}
+      <StaffProfileDrawer
+        key={profileMember?.id ?? 'none'}
+        member={profileMember}
+        onClose={() => setProfileMember(null)}
+        locations={locations}
+      />
     </div>
   );
 }

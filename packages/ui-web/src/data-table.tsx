@@ -140,6 +140,8 @@ export interface DataTableProps<T> {
   rows: ReadonlyArray<T>;
   /** Stable id for a row — used as React key and for selection. */
   rowKey: (row: T) => string;
+  /** When set, each row becomes clickable and calls this with its row datum. */
+  onRowClick?: (row: T) => void;
   /** Active sort key, matched against each column's `sortKey`. */
   sort?: string;
   dir?: SortDir;
@@ -170,6 +172,7 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
+  onRowClick,
   sort,
   dir = 'asc',
   onSort,
@@ -260,7 +263,12 @@ export function DataTable<T>({
             : rows.map((row) => {
                 const id = rowKey(row);
                 return (
-                  <TableRow key={id}>
+                  <TableRow
+                    key={id}
+                    {...(onRowClick
+                      ? { onClick: () => onRowClick(row), style: { cursor: 'pointer' } }
+                      : {})}
+                  >
                     {selection && (
                       <TableCell className="pl-5 pr-4">
                         <input

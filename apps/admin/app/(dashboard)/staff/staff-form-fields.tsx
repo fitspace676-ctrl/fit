@@ -1,0 +1,403 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
+import * as stylex from '@stylexjs/stylex';
+import type { ShiftSlotRow, StaffRole } from '@fit/types';
+import { Icon, Select, Switch } from '@/components/ui';
+import { STAFF_ROLES } from './role-meta';
+
+/** Weekday indices the schedule uses — 0 (Mon) … 6 (Sun), reusing the schedule i18n. */
+export const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+
+/** Directory statuses a record may take (never `INVITED`). */
+export const STATUSES = ['ACTIVE', 'SUSPENDED'] as const;
+export type DirectoryStatus = (typeof STATUSES)[number];
+
+/** HH:mm options in 30-minute steps, matching the API's `timeOfDay` format. */
+export const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, '0');
+  return `${h}:${i % 2 === 0 ? '00' : '30'}`;
+});
+
+export type DayHours = { on: boolean; start: string; end: string };
+
+/** Mon–Fri on 09:00–17:00, weekend off — the sensible default shift week. */
+export function defaultHours(): DayHours[] {
+  return DAYS.map((d) => ({ on: d < 5, start: '09:00', end: '17:00' }));
+}
+
+/** The controlled value the {@link StaffFormFields} grid edits. */
+export interface StaffFormValue {
+  firstName: string;
+  lastName: string;
+  role: StaffRole | '';
+  status: DirectoryStatus;
+  email: string;
+  phone: string;
+  locationIds: string[];
+  hours: DayHours[];
+}
+
+/** A blank form — the Add drawer's starting point. */
+export function emptyStaffForm(): StaffFormValue {
+  return {
+    firstName: '',
+    lastName: '',
+    role: '',
+    status: 'ACTIVE',
+    email: '',
+    phone: '',
+    locationIds: [],
+    hours: defaultHours(),
+  };
+}
+
+/** Fold a member's stored shift rows into the seven-day toggle grid. */
+export function hoursFromShifts(shifts: ShiftSlotRow[]): DayHours[] {
+  return DAYS.map((d) => {
+    const shift = shifts.find((s) => s.dayOfWeek === d);
+    return shift
+      ? { on: true, start: shift.startTime, end: shift.endTime }
+      : { on: false, start: '09:00', end: '17:00' };
+  });
+}
+
+/** Project the toggle grid to the API's `workingHours` shape (on-days only). */
+export function toWorkingHours(
+  hours: DayHours[],
+): { dayOfWeek: number; startTime: string; endTime: string }[] {
+  return hours
+    .map((h, index) => ({ ...h, dayOfWeek: index }))
+    .filter((h) => h.on)
+    .map((h) => ({ dayOfWeek: h.dayOfWeek, startTime: h.start, endTime: h.end }));
+}
+
+/** True when an on-day has an end at or before its start — the one client check. */
+export function hasBadHours(hours: DayHours[]): boolean {
+  return hours.some((h) => h.on && h.end <= h.start);
+}
+
+const styles = stylex.create({
+  fields: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
+  },
+  row: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '0.75rem',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    minWidth: 0,
+  },
+  labelText: {
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    color: 'var(--color-text-secondary)',
+  },
+  input: {
+    height: '2.75rem',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
+  },
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  chips: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  chipIcon: {
+    width: '0.75rem',
+    height: '0.75rem',
+  },
+  toggleChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.4375rem',
+    borderRadius: '9999px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    fontSize: '0.8125rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transitionProperty: 'color, background-color, border-color',
+    transitionDuration: '150ms',
+  },
+  toggleOn: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-text-accent)',
+  },
+  toggleOff: {
+    borderColor: 'var(--color-border)',
+    color: 'var(--color-text-secondary)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  empty: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
+  hours: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    padding: '0.75rem',
+  },
+  hourRow: {
+    display: 'grid',
+    gridTemplateColumns: '2.75rem auto 1fr 1fr',
+    alignItems: 'center',
+    gap: '0.625rem',
+  },
+  dayName: {
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  dayOff: {
+    gridColumn: '3 / span 2',
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
+});
+
+/**
+ * The shared directory-staff field grid — first/last name, role, status, contact
+ * details, assigned locations and a weekly working-hours editor. Fully controlled
+ * (`value` + `onChange` patch), so both the Add drawer and the profile Edit form
+ * compose it and own their own submit/validation. Labels live under the
+ * `admin.staff.addStaffDrawer` namespace, reused across both surfaces.
+ */
+export function StaffFormFields({
+  value,
+  onChange,
+  locations,
+  pending,
+}: {
+  value: StaffFormValue;
+  onChange: (patch: Partial<StaffFormValue>) => void;
+  /** The gym's live locations, offered as assignable-location chips. */
+  locations: { id: string; name: string }[];
+  pending: boolean;
+}) {
+  const t = useTranslations('admin.staff');
+
+  function toggleLocation(id: string): void {
+    const next = value.locationIds.includes(id)
+      ? value.locationIds.filter((x) => x !== id)
+      : [...value.locationIds, id];
+    onChange({ locationIds: next });
+  }
+
+  function setDay(index: number, patch: Partial<DayHours>): void {
+    onChange({ hours: value.hours.map((h, i) => (i === index ? { ...h, ...patch } : h)) });
+  }
+
+  return (
+    <div {...stylex.props(styles.fields)}>
+      <div {...stylex.props(styles.row)}>
+        <label {...stylex.props(styles.field)}>
+          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.firstName')}</span>
+          <input
+            name="firstName"
+            autoComplete="off"
+            placeholder={t('addStaffDrawer.firstNamePlaceholder')}
+            value={value.firstName}
+            onChange={(e) => onChange({ firstName: e.target.value })}
+            disabled={pending}
+            {...stylex.props(styles.input)}
+          />
+        </label>
+        <label {...stylex.props(styles.field)}>
+          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.lastName')}</span>
+          <input
+            name="lastName"
+            autoComplete="off"
+            placeholder={t('addStaffDrawer.lastNamePlaceholder')}
+            value={value.lastName}
+            onChange={(e) => onChange({ lastName: e.target.value })}
+            disabled={pending}
+            {...stylex.props(styles.input)}
+          />
+        </label>
+      </div>
+
+      <div {...stylex.props(styles.row)}>
+        <div {...stylex.props(styles.field)}>
+          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.role')}</span>
+          <Select
+            value={value.role}
+            onChange={(e) => onChange({ role: e.target.value as StaffRole | '' })}
+            disabled={pending}
+          >
+            <option value="">{t('addStaffDrawer.rolePlaceholder')}</option>
+            {STAFF_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {t(`roles.${r}`)}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div {...stylex.props(styles.field)}>
+          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.status')}</span>
+          <Select
+            value={value.status}
+            onChange={(e) => onChange({ status: e.target.value as DirectoryStatus })}
+            disabled={pending}
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {t(`addStaffDrawer.statuses.${s}`)}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
+      <div {...stylex.props(styles.row)}>
+        <label {...stylex.props(styles.field)}>
+          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.email')}</span>
+          <input
+            type="email"
+            name="email"
+            autoComplete="off"
+            placeholder={t('addStaffDrawer.emailPlaceholder')}
+            value={value.email}
+            onChange={(e) => onChange({ email: e.target.value })}
+            disabled={pending}
+            {...stylex.props(styles.input)}
+          />
+        </label>
+        <label {...stylex.props(styles.field)}>
+          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.phone')}</span>
+          <input
+            type="tel"
+            name="phone"
+            autoComplete="off"
+            placeholder={t('addStaffDrawer.phonePlaceholder')}
+            value={value.phone}
+            onChange={(e) => onChange({ phone: e.target.value })}
+            disabled={pending}
+            {...stylex.props(styles.input)}
+          />
+        </label>
+      </div>
+
+      <div {...stylex.props(styles.section)}>
+        <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.locations')}</span>
+        {locations.length > 0 ? (
+          <div {...stylex.props(styles.chips)}>
+            {locations.map((loc) => {
+              const selected = value.locationIds.includes(loc.id);
+              return (
+                <button
+                  key={loc.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => toggleLocation(loc.id)}
+                  disabled={pending}
+                  {...stylex.props(
+                    styles.toggleChip,
+                    selected ? styles.toggleOn : styles.toggleOff,
+                  )}
+                >
+                  {selected ? (
+                    <Icon name="check" {...stylex.props(styles.chipIcon)} sw={2.5} />
+                  ) : null}
+                  {loc.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p {...stylex.props(styles.empty)}>{t('addStaffDrawer.noLocations')}</p>
+        )}
+      </div>
+
+      <div {...stylex.props(styles.section)}>
+        <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.workingHours')}</span>
+        <div {...stylex.props(styles.hours)}>
+          {DAYS.map((d) => {
+            const h = value.hours[d]!;
+            return (
+              <div key={d} {...stylex.props(styles.hourRow)}>
+                <span {...stylex.props(styles.dayName)}>
+                  {t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
+                </span>
+                <Switch
+                  checked={h.on}
+                  onChange={(next) => setDay(d, { on: next })}
+                  label={t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
+                />
+                {h.on ? (
+                  <>
+                    <Select
+                      value={h.start}
+                      onChange={(e) => setDay(d, { start: e.target.value })}
+                      disabled={pending}
+                      aria-label={t('addStaffDrawer.startTime')}
+                    >
+                      {TIME_OPTIONS.map((time) => (
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
+                      ))}
+                    </Select>
+                    <Select
+                      value={h.end}
+                      onChange={(e) => setDay(d, { end: e.target.value })}
+                      disabled={pending}
+                      aria-label={t('addStaffDrawer.endTime')}
+                    >
+                      {TIME_OPTIONS.map((time) => (
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
+                      ))}
+                    </Select>
+                  </>
+                ) : (
+                  <span {...stylex.props(styles.dayOff)}>{t('addStaffDrawer.dayOff')}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

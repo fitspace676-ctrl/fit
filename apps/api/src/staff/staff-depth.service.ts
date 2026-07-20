@@ -1,26 +1,25 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Role } from '@fit/db';
+import { GymMemberStatus, Prisma, Role } from '@fit/db';
 import {
   staffRolePermissionMatrix,
-  type AddStaffSpecialtyInput,
   type CreateStaffNoteInput,
   type CreateStaffTaskInput,
   type CreateTimeOffRequestInput,
   type DecideTimeOffRequestInput,
   type ListStaffNotesResponse,
   type ListStaffRolesResponse,
-  type ListStaffSpecialtiesResponse,
   type ListStaffTasksResponse,
   type ListTimeOffQuery,
   type ListTimeOffResponse,
   type ShiftSlotRow,
   type StaffNoteRow,
+  type StaffRole,
   type StaffScheduleResponse,
-  type StaffSpecialtyRow,
   type StaffTaskRow,
   type TimeOffRequestRow,
   type UpdateStaffScheduleInput,
   type UpdateStaffTaskInput,
+  type WorkingTodayResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -64,13 +63,6 @@ const TIME_OFF_SELECT = {
 } satisfies Prisma.TimeOffRequestSelect;
 type TimeOffRecord = Prisma.TimeOffRequestGetPayload<{ select: typeof TIME_OFF_SELECT }>;
 
-const SPECIALTY_SELECT = {
-  id: true,
-  staffId: true,
-  name: true,
-} satisfies Prisma.StaffSpecialtySelect;
-type SpecialtyRecord = Prisma.StaffSpecialtyGetPayload<{ select: typeof SPECIALTY_SELECT }>;
-
 const SHIFT_SELECT = {
   id: true,
   staffId: true,
@@ -83,7 +75,7 @@ type ShiftRecord = Prisma.ShiftSlotGetPayload<{ select: typeof SHIFT_SELECT }>;
 
 /**
  * Staff-console "depth" module (T12.14): the per-staff Notes, Tasks, Time-off,
- * Specialties, and Weekly-schedule tabs, the gym-wide time-off approval queue,
+ * and Weekly-schedule tabs, the gym-wide time-off approval queue,
  * and the read-only Roles & Permissions matrix.
  *
  * Runs on the **tenant-scoped** {@link TenantPrismaService}: every query is
@@ -334,56 +326,6 @@ export class StaffDepthService {
     }
   }
 
-  // -- Specialties ----------------------------------------------------------
-
-  /** A staff member's specialty tags (`GET /staff/:staffId/specialties`). */
-  async listSpecialties(staffId: string): Promise<ListStaffSpecialtiesResponse> {
-    await this.requireStaff(staffId);
-    const specialties = await this.prisma.client.staffSpecialty.findMany({
-      where: { staffId },
-      select: SPECIALTY_SELECT,
-      orderBy: { name: 'asc' },
-    });
-    return { specialties: specialties.map((row) => this.toSpecialtyRow(row)) };
-  }
-
-  /**
-   * Tag a staff member with a specialty (`POST /staff/:staffId/specialties`).
-   * `409 SPECIALTY_EXISTS` when the member already carries that tag (the
-   * `(gym, staff, name)` uniqueness).
-   */
-  async addSpecialty(staffId: string, input: AddStaffSpecialtyInput): Promise<StaffSpecialtyRow> {
-    await this.requireStaff(staffId);
-    const existing = await this.prisma.client.staffSpecialty.findFirst({
-      where: { staffId, name: input.name },
-      select: { id: true },
-    });
-    if (existing) {
-      throw new ConflictException({
-        message: 'That specialty is already assigned',
-        code: 'SPECIALTY_EXISTS',
-      });
-    }
-    const specialty = await this.prisma.client.staffSpecialty.create({
-      data: { gymId: this.tenant.gymId, staffId, name: input.name },
-      select: SPECIALTY_SELECT,
-    });
-    return this.toSpecialtyRow(specialty);
-  }
-
-  /** Remove a specialty tag (`DELETE /staff/specialties/:specialtyId`). 404s a bad id. */
-  async deleteSpecialty(specialtyId: string): Promise<void> {
-    const deleted = await this.prisma.client.staffSpecialty.deleteMany({
-      where: { id: specialtyId },
-    });
-    if (deleted.count === 0) {
-      throw new NotFoundException({
-        message: 'Specialty not found',
-        code: 'SPECIALTY_NOT_FOUND',
-      });
-    }
-  }
-
   // -- Weekly schedule ------------------------------------------------------
 
   /** A staff member's weekly schedule (`GET /staff/:staffId/schedule`). */
@@ -427,6 +369,47 @@ export class StaffDepthService {
     });
 
     return this.getSchedule(staffId);
+  }
+
+  /**
+   * Everyone on shift today (`GET /staff/working-today`) — the roster behind the
+   * "Who's Working Today" card. Reads the gym's weekly {@link ShiftSlot} schedule
+   * for today's weekday, joined to each staff member's display name and role so
+   * the card renders without a second lookup. Only `ACTIVE` staff memberships are
+   * returned, ordered by start time. Tenant-scoped, so it only ever sees the
+   * caller's gym.
+   *
+   * The schedule stores `dayOfWeek` as 0 = Monday … 6 = Sunday (the editor's
+   * convention), whereas JS `Date#getDay()` is 0 = Sunday … 6 = Saturday, so the
+   * weekday is rotated before the lookup. The resolved weekday is echoed back.
+   */
+  async getWorkingToday(): Promise<WorkingTodayResponse> {
+    const dayOfWeek = (new Date().getDay() + 6) % 7;
+    const shifts = await this.prisma.client.shiftSlot.findMany({
+      where: {
+        dayOfWeek,
+        staff: { role: { in: STAFF_ROLES }, status: GymMemberStatus.ACTIVE },
+      },
+      select: {
+        staffId: true,
+        startTime: true,
+        endTime: true,
+        location: true,
+        staff: { select: { role: true, user: { select: { name: true, email: true } } } },
+      },
+      orderBy: [{ startTime: 'asc' }],
+    });
+    return {
+      dayOfWeek,
+      shifts: shifts.map((row) => ({
+        staffId: row.staffId,
+        name: row.staff.user.name ?? row.staff.user.email,
+        role: row.staff.role as StaffRole,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        location: row.location,
+      })),
+    };
   }
 
   // -- Helpers --------------------------------------------------------------
@@ -512,10 +495,6 @@ export class StaffDepthService {
       decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
     };
-  }
-
-  private toSpecialtyRow(row: SpecialtyRecord): StaffSpecialtyRow {
-    return { id: row.id, staffId: row.staffId, name: row.name };
   }
 
   private toShiftRow(row: ShiftRecord): ShiftSlotRow {

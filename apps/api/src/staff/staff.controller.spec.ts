@@ -8,9 +8,14 @@ const staffMember: StaffMember = {
   id: 'gm-1',
   userId: 'u-1',
   name: 'Nino',
+  firstName: 'Nino',
+  lastName: '',
   email: 'nino@example.com',
+  phone: null,
   role: 'MANAGER',
   status: 'ACTIVE',
+  assignedLocationIds: [],
+  locations: [],
   joinedAt: '2026-01-15T00:00:00.000Z',
 };
 
@@ -18,25 +23,31 @@ function setup() {
   const listStaff = vi.fn<() => Promise<ListStaffResponse>>(() =>
     Promise.resolve({ staff: [staffMember], invites: [] }),
   );
+  const createStaff = vi.fn(() => Promise.resolve(staffMember));
   const inviteStaff = vi.fn(() => Promise.resolve({ inviteId: 'inv-1' }));
   const revokeInvite = vi.fn(() => Promise.resolve());
   const updateRole = vi.fn(() => Promise.resolve(staffMember));
+  const updateStaffProfile = vi.fn(() => Promise.resolve(staffMember));
   const removeStaff = vi.fn(() => Promise.resolve());
 
   const service = {
     listStaff,
+    createStaff,
     inviteStaff,
     revokeInvite,
     updateRole,
+    updateStaffProfile,
     removeStaff,
   } as unknown as StaffService;
 
   return {
     controller: new StaffController(service),
     listStaff,
+    createStaff,
     inviteStaff,
     revokeInvite,
     updateRole,
+    updateStaffProfile,
     removeStaff,
   };
 }
@@ -60,6 +71,34 @@ describe('StaffController', () => {
     const { controller, listStaff } = setup();
     await expect(controller.list({ role: 'MEMBER' })).rejects.toBeInstanceOf(BadRequestException);
     expect(listStaff).not.toHaveBeenCalled();
+  });
+
+  describe('POST /staff', () => {
+    it('validates and forwards a directory-add body, applying schema defaults', async () => {
+      const { controller, createStaff } = setup();
+      const result = await controller.create({ firstName: '  Nino  ', role: 'MANAGER' });
+      expect(result).toEqual(staffMember);
+      // Only firstName + role are required; the schema fills the optional rest.
+      expect(createStaff).toHaveBeenCalledWith({
+        firstName: 'Nino',
+        lastName: '',
+        role: 'MANAGER',
+        status: 'ACTIVE',
+        assignedLocationIds: [],
+        workingHours: [],
+      });
+    });
+
+    it('rejects a missing first name or invalid role with 400', async () => {
+      const { controller, createStaff } = setup();
+      await expect(controller.create({ firstName: '', role: 'MANAGER' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(controller.create({ firstName: 'Nino', role: 'MEMBER' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(createStaff).not.toHaveBeenCalled();
+    });
   });
 
   describe('POST /staff/invite', () => {
@@ -102,6 +141,25 @@ describe('StaffController', () => {
         BadRequestException,
       );
       expect(updateRole).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH /staff/:memberId/profile', () => {
+    it('validates and forwards a partial profile update', async () => {
+      const { controller, updateStaffProfile } = setup();
+      await controller.updateProfile('gm-1', { firstName: '  Nino  ', status: 'SUSPENDED' });
+      expect(updateStaffProfile).toHaveBeenCalledWith('gm-1', {
+        firstName: 'Nino',
+        status: 'SUSPENDED',
+      });
+    });
+
+    it('rejects an invalid status with 400', async () => {
+      const { controller, updateStaffProfile } = setup();
+      await expect(controller.updateProfile('gm-1', { status: 'INVITED' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(updateStaffProfile).not.toHaveBeenCalled();
     });
   });
 

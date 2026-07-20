@@ -4,15 +4,27 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,
+  createStaffSchema,
   inviteStaffSchema,
   roleHasPermission,
+  updateStaffProfileSchema,
   updateStaffRoleSchema,
+  type CreateStaffInput,
   type InviteStaffInput,
   type StaffMember,
   type StaffRole,
+  type UpdateStaffProfileInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, inviteStaff, removeStaff, revokeStaffInvite, updateStaffRole } from '@/lib/api';
+import {
+  ApiError,
+  createStaff,
+  inviteStaff,
+  removeStaff,
+  revokeStaffInvite,
+  updateStaffProfile,
+  updateStaffRole,
+} from '@/lib/api';
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -77,6 +89,32 @@ export async function inviteStaffAction(
 }
 
 /**
+ * Add a staff member straight to the directory — a login-less record (no email is
+ * sent). Re-validates the body with the same Zod schema the API uses (applying
+ * the optional-field defaults), enforces `StaffManage`, then refreshes the staff
+ * page so the new member appears in the roster. Returns the created member.
+ */
+export async function createStaffAction(
+  input: CreateStaffInput,
+): Promise<ActionResult<{ member: StaffMember }>> {
+  const t = await getTranslations('admin.staff');
+  if (!(await requireStaffManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = createStaffSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const member = await createStaff(parsed.data);
+    revalidatePath('/staff');
+    return { ok: true, data: { member } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
  * Revoke a pending invitation. Enforces `StaffManage` and refreshes the staff
  * page so the invite drops off the list.
  */
@@ -89,6 +127,33 @@ export async function revokeInviteAction(inviteId: string): Promise<ActionResult
     await revokeStaffInvite(inviteId);
     revalidatePath('/staff');
     return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Edit a directory staff member's profile (name, status, contact details,
+ * assigned locations, weekly schedule). Re-validates the body, enforces
+ * `StaffManage`, and refreshes the staff page. Role is changed separately via
+ * {@link updateStaffRoleAction}. Returns the updated member.
+ */
+export async function updateStaffProfileAction(
+  memberId: string,
+  input: UpdateStaffProfileInput,
+): Promise<ActionResult<{ member: StaffMember }>> {
+  const t = await getTranslations('admin.staff');
+  if (!(await requireStaffManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = updateStaffProfileSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
+  }
+  try {
+    const member = await updateStaffProfile(memberId, parsed.data);
+    revalidatePath('/staff');
+    return { ok: true, data: { member } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }

@@ -4,25 +4,21 @@ import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   roleHasPermission,
-  addStaffSpecialtySchema,
   createStaffNoteSchema,
   createStaffTaskSchema,
   createTimeOffRequestSchema,
   decideTimeOffRequestSchema,
   updateStaffScheduleSchema,
   updateStaffTaskSchema,
-  type AddStaffSpecialtyInput,
   type CreateStaffNoteInput,
   type CreateStaffTaskInput,
   type CreateTimeOffRequestInput,
   type DecideTimeOffRequestInput,
   type ListStaffNotesResponse,
-  type ListStaffSpecialtiesResponse,
   type ListStaffTasksResponse,
   type ListTimeOffResponse,
   type StaffNoteRow,
   type StaffScheduleResponse,
-  type StaffSpecialtyRow,
   type StaffTaskRow,
   type TimeOffRequestRow,
   type TimeOffStatus,
@@ -32,18 +28,15 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
-  addStaffSpecialty,
   createStaffNote,
   createStaffTask,
   createTimeOff,
   decideTimeOff,
   deleteStaffNote,
-  deleteStaffSpecialty,
   deleteStaffTask,
   deleteTimeOff,
   fetchStaffNotes,
   fetchStaffSchedule,
-  fetchStaffSpecialties,
   fetchStaffTasks,
   fetchStaffTimeOff,
   fetchTimeOff,
@@ -199,33 +192,6 @@ export async function decideTimeOffAction(
 export async function deleteTimeOffAction(requestId: string): Promise<ActionResult> {
   return guarded(async () => {
     await deleteTimeOff(requestId);
-    return undefined;
-  });
-}
-
-// ── Specialties ──────────────────────────────────────────────────────────────
-
-export async function loadStaffSpecialtiesAction(
-  staffId: string,
-): Promise<ActionResult<ListStaffSpecialtiesResponse>> {
-  return guarded(() => fetchStaffSpecialties(staffId));
-}
-
-export async function addStaffSpecialtyAction(
-  staffId: string,
-  input: AddStaffSpecialtyInput,
-): Promise<ActionResult<StaffSpecialtyRow>> {
-  const parsed = addStaffSpecialtySchema.safeParse(input);
-  if (!parsed.success) {
-    const t = await getTranslations('admin.staff');
-    return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
-  }
-  return guarded(() => addStaffSpecialty(staffId, parsed.data));
-}
-
-export async function deleteStaffSpecialtyAction(specialtyId: string): Promise<ActionResult> {
-  return guarded(async () => {
-    await deleteStaffSpecialty(specialtyId);
     return undefined;
   });
 }

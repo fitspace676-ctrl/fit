@@ -181,30 +181,6 @@ export interface ListTimeOffResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Specialties
-// ---------------------------------------------------------------------------
-
-/** Body for `POST /staff/:staffId/specialties` — tag a staff member with a specialty. */
-export const addStaffSpecialtySchema = z.object({
-  name: z.string().trim().min(1, 'A specialty name is required').max(80),
-});
-
-/** Validated `POST /staff/:staffId/specialties` body — {@link addStaffSpecialtySchema}. */
-export type AddStaffSpecialtyInput = z.infer<typeof addStaffSpecialtySchema>;
-
-/** One specialty tag on a staff member. */
-export interface StaffSpecialtyRow {
-  id: string;
-  staffId: string;
-  name: string;
-}
-
-/** Successful `GET /staff/:staffId/specialties` response. */
-export interface ListStaffSpecialtiesResponse {
-  specialties: StaffSpecialtyRow[];
-}
-
-// ---------------------------------------------------------------------------
 // Weekly schedule (shifts)
 // ---------------------------------------------------------------------------
 
@@ -248,6 +224,31 @@ export interface StaffScheduleResponse {
   shifts: ShiftSlotRow[];
 }
 
+/**
+ * One staff member on shift today, as the "Who's Working Today" card renders it.
+ * A denormalised {@link ShiftSlotRow} + the staff member's display name and role,
+ * so the card needs no second lookup. `staffId` is the membership id.
+ */
+export interface WorkingTodayRow {
+  staffId: string;
+  name: string;
+  role: StaffRole;
+  startTime: string;
+  endTime: string;
+  location: string | null;
+}
+
+/**
+ * Successful `GET /staff/working-today` response — every staff member whose
+ * weekly schedule places them on shift today, ordered by start time. `dayOfWeek`
+ * is the app-convention weekday the server resolved (0 = Monday … 6 = Sunday),
+ * echoed so the client can label the card without re-deriving "today".
+ */
+export interface WorkingTodayResponse {
+  dayOfWeek: number;
+  shifts: WorkingTodayRow[];
+}
+
 // ---------------------------------------------------------------------------
 // Roles & permissions matrix
 // ---------------------------------------------------------------------------
@@ -283,3 +284,86 @@ export function staffRolePermissionMatrix(): StaffRolePermissions[] {
     permissions: [...ROLE_PERMISSIONS[role]],
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Specialty catalogue
+// ---------------------------------------------------------------------------
+
+/** Body for `POST /staff/specialty-tags` — add a specialty to the gym catalogue. */
+export const createSpecialtyTagSchema = z.object({
+  name: z.string().trim().min(1, 'A specialty name is required').max(120),
+});
+
+/** Validated `POST /staff/specialty-tags` body — {@link createSpecialtyTagSchema}. */
+export type CreateSpecialtyTagInput = z.infer<typeof createSpecialtyTagSchema>;
+
+/** One specialty tag in the gym's catalogue — the pickable vocabulary. */
+export interface SpecialtyTagRow {
+  id: string;
+  name: string;
+}
+
+/** Successful `GET /staff/specialty-tags` response — the gym's specialty catalogue. */
+export interface ListSpecialtyTagsResponse {
+  tags: SpecialtyTagRow[];
+}
+
+// ---------------------------------------------------------------------------
+// Directory staff (create / edit)
+// ---------------------------------------------------------------------------
+
+/**
+ * An optional email field: absent, an empty string, or a valid address. The Add
+ * Staff form leaves email blank for a walk-in trainer, so `''` must validate.
+ */
+const optionalEmailSchema = z
+  .union([
+    z.literal(''),
+    z.string().trim().toLowerCase().email('A valid email is required').max(200),
+  ])
+  .optional();
+
+/** The status a directory staff member may be created/saved with (never INVITED). */
+export const directoryStaffStatusSchema = z.enum(['ACTIVE', 'SUSPENDED']);
+
+/**
+ * Body for `POST /staff` — add a staff member straight to the directory. Creates
+ * a login-less record: no invitation email is sent and no password is set. Only
+ * `firstName` and `role` are required, so the front desk can capture as little as
+ * a name and a role; everything else is optional. `workingHours` reuses the
+ * weekly {@link shiftSlotInputSchema}; `assignedLocationIds` are gym `Location`
+ * ids.
+ */
+export const createStaffSchema = z.object({
+  firstName: z.string().trim().min(1, 'A first name is required').max(120),
+  lastName: z.string().trim().max(120).default(''),
+  role: staffRoleSchema,
+  status: directoryStaffStatusSchema.default('ACTIVE'),
+  email: optionalEmailSchema,
+  phone: z.string().trim().max(40).optional(),
+  assignedLocationIds: z.array(z.string().trim().min(1)).max(50).default([]),
+  workingHours: z.array(shiftSlotInputSchema).max(50).default([]),
+});
+
+/** Validated `POST /staff` body — {@link createStaffSchema}. */
+export type CreateStaffInput = z.infer<typeof createStaffSchema>;
+
+/**
+ * Body for `PATCH /staff/:memberId/profile` — edit a directory staff member's
+ * details and weekly schedule. Every field is optional (a partial update); an
+ * omitted field is left unchanged, while a sent `workingHours` /
+ * `assignedLocationIds` replaces the existing set wholesale (set-based, matching
+ * the schedule editor).
+ */
+export const updateStaffProfileSchema = z.object({
+  firstName: z.string().trim().min(1).max(120).optional(),
+  lastName: z.string().trim().max(120).optional(),
+  status: directoryStaffStatusSchema.optional(),
+  email: optionalEmailSchema,
+  phone: z.string().trim().max(40).optional(),
+  assignedLocationIds: z.array(z.string().trim().min(1)).max(50).optional(),
+  workingHours: z.array(shiftSlotInputSchema).max(50).optional(),
+});
+
+/** Validated `PATCH /staff/:memberId/profile` body — {@link updateStaffProfileSchema}. */
+export type UpdateStaffProfileInput = z.infer<typeof updateStaffProfileSchema>;
