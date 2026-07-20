@@ -3,12 +3,18 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import type { ClassTemplateStatus } from '@fit/types';
+import type { ClassTemplateStatus, ClassTypeStatus } from '@fit/types';
 
 /** The status options offered by the filter, in roster-priority order. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: ClassTemplateStatus; label: string }> = [
   { value: 'ACTIVE', label: 'Active' },
   { value: 'PAUSED', label: 'Paused' },
+];
+
+/** Status options for the class-type roster (active / soft-retired). */
+const TYPE_STATUS_OPTIONS: ReadonlyArray<{ value: ClassTypeStatus; label: string }> = [
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'INACTIVE', label: 'Inactive' },
 ];
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
@@ -130,6 +136,79 @@ export function ClassTemplatesFilters({ search, status }: { search: string; stat
         >
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The class-type roster filter bar — a debounced name search and an
+ * active/inactive status select, both written to the URL. Mirrors
+ * {@link ClassTemplatesFilters}, differing only in the status vocabulary.
+ */
+export function ClassTypesFilters({ search, status }: { search: string; status: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
+  const [searchValue, setSearchValue] = useState(search);
+
+  useEffect(() => setSearchValue(search), [search]);
+
+  function commit(key: string, value: string): void {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    params.delete('page');
+    const qs = params.toString();
+    startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname));
+  }
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function onSearchChange(value: string): void {
+    setSearchValue(value);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => commit('search', value.trim()), SEARCH_DEBOUNCE_MS);
+  }
+
+  return (
+    <div {...stylex.props(styles.wrap)}>
+      <div {...stylex.props(styles.searchWrap)}>
+        <label htmlFor="class-type-search" {...stylex.props(styles.srOnly)}>
+          Search class types by name
+        </label>
+        <input
+          id="class-type-search"
+          type="search"
+          value={searchValue}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search by name…"
+          {...stylex.props(styles.control)}
+        />
+      </div>
+
+      <div {...stylex.props(styles.selectWrap)}>
+        <label htmlFor="class-type-status" {...stylex.props(styles.srOnly)}>
+          Filter by status
+        </label>
+        <select
+          id="class-type-status"
+          value={status}
+          onChange={(event) => commit('status', event.target.value)}
+          {...stylex.props(styles.control)}
+        >
+          <option value="">All statuses</option>
+          {TYPE_STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

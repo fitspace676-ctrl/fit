@@ -145,6 +145,14 @@ enum ClassTemplateStatus {
   PAUSED
 }
 
+/// Lifecycle of a {@link ClassType} catalogue entry. `ACTIVE` types are offered
+/// when scheduling; `INACTIVE` soft-retires a type (hidden from the scheduler)
+/// without deleting its past occurrences.
+enum ClassTypeStatus {
+  ACTIVE
+  INACTIVE
+}
+
 /// How a class template is priced to members (parity with the reference admin's
 /// class-type pricing). `FREE` is open to any active member; `INCLUDED` is
 /// covered by the subscription plans listed in `includedPlanIds`; `PAID` charges
@@ -364,7 +372,9 @@ model Gym {
   packagePlans            PackagePlan[]
   staffInvites            StaffInvite[]
   classTemplates          ClassTemplate[]
+  classTypes              ClassType[]
   classInstances          ClassInstance[]
+  ptSessions              PtSession[]
   bookings                Booking[]
   reviews                 Review[]
   orders                  Order[]
@@ -599,21 +609,21 @@ model GymMember {
   // Null/empty for plain members and invited staff, whose name comes from `User`.
   firstName           String?
   lastName            String?
-  assignedLocationIds String[]  @default([])
+  assignedLocationIds String[] @default([])
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  bookings      Booking[]
-  reviews       Review[]
-  orders        Order[]
-  subscriptions Subscription[]
-  creditPacks   CreditPack[]
-  goals         MemberGoal[]
-  checkIns      CheckIn[]
-  invoices      Invoice[]
-  notes         MemberNote[]
-  tasks         MemberTask[]
-  opportunities Opportunity[]
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym                Gym                  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  bookings           Booking[]
+  reviews            Review[]
+  orders             Order[]
+  subscriptions      Subscription[]
+  creditPacks        CreditPack[]
+  goals              MemberGoal[]
+  checkIns           CheckIn[]
+  invoices           Invoice[]
+  notes              MemberNote[]
+  tasks              MemberTask[]
+  opportunities      Opportunity[]
   loyaltyLedger      LoyaltyLedgerEntry[]
   loyaltyRedemptions LoyaltyRedemption[]
   staffNotes         StaffNote[]
@@ -766,6 +776,8 @@ model Trainer {
 
   gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
   classTemplates ClassTemplate[]
+  classInstances ClassInstance[]
+  ptSessions     PtSession[]
   reviews        Review[]
 
   @@index([gymId])
@@ -797,6 +809,7 @@ model Location {
 
   gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
   classTemplates ClassTemplate[]
+  classInstances ClassInstance[]
   orders         Order[]
   leads          Lead[]
 
@@ -1003,6 +1016,38 @@ model ClassTemplate {
   @@map("class_templates")
 }
 
+/// A gym's catalogue entry for a *kind* of class — "Boxing", "Yoga Flow" — with
+/// no schedule of its own. It carries the reusable defaults a scheduled occurrence
+/// inherits: `durationMinutes`, `capacity`, optional `minAttendance`, calendar
+/// `color`, and the `pricingRule` (+ `priceMinor`/`includedPlanIds` for PAID /
+/// INCLUDED). Staff curate types on the Class Types tab; the schedule then places
+/// single {@link ClassInstance} occurrences of a type at a chosen time. `status`
+/// soft-retires a type (INACTIVE) without deleting it, so its past occurrences and
+/// their bookings survive. `gymId` is the isolating tenant key.
+model ClassType {
+  id              String           @id @default(cuid())
+  gymId           String
+  name            String
+  description     String           @default("")
+  durationMinutes Int
+  capacity        Int
+  minAttendance   Int?
+  color           String           @default("#2563eb")
+  pricingRule     ClassPricingRule @default(FREE)
+  priceMinor      Int?
+  includedPlanIds String[]         @default([])
+  status          ClassTypeStatus  @default(ACTIVE)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  gym        Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  instances  ClassInstance[]
+  ptSessions PtSession[]
+
+  @@index([gymId])
+  @@map("class_types")
+}
+
 /// A single materialised occurrence of a {@link ClassTemplate} (T5.1). The
 /// instance-generation job (T5.3) expands a template's `rrule` into these rows,
 /// one per occurrence in the valid window. `startsAt`/`endsAt` are the resolved
@@ -1017,7 +1062,18 @@ model ClassTemplate {
 model ClassInstance {
   id               String         @id @default(cuid())
   gymId            String
-  templateId       String
+  /// Either `templateId` (a recurring template generated this) or `classTypeId`
+  /// (a single occurrence scheduled directly from a type) identifies what this
+  /// class is — exactly one is set. Both are nullable so the row survives its
+  /// source being removed.
+  templateId       String?
+  classTypeId      String?
+  /// Trainer / branch / room for this occurrence. When generated from a template
+  /// these mirror the template's defaults; when scheduled from a type they are the
+  /// choices made at scheduling time.
+  trainerId        String?
+  locationId       String?
+  room             String?
   startsAt         DateTime
   endsAt           DateTime
   capacityOverride Int?
@@ -1026,14 +1082,48 @@ model ClassInstance {
   detachedAt       DateTime?
   createdAt        DateTime       @default(now())
 
-  gym      Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  template ClassTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  bookings Booking[]
-  reviews  Review[]
+  gym       Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  template  ClassTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  classType ClassType?     @relation(fields: [classTypeId], references: [id], onDelete: SetNull)
+  trainer   Trainer?       @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  location  Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  bookings  Booking[]
+  reviews   Review[]
 
   @@index([gymId, startsAt])
   @@index([templateId])
+  @@index([classTypeId])
   @@map("class_instances")
+}
+
+/// A block on a trainer's PT calendar (PT hub). Distinct from a
+/// {@link ClassInstance}: a PT session is just a trainer + a workout type at a
+/// time — no member and no template. The workout type is the gym's
+/// {@link ClassType} (its `name` / `color` render on the calendar card); it is
+/// optional so a type can be deleted without erasing the session's history
+/// (`onDelete: SetNull`). `endsAt` is `startsAt + durationMinutes` resolved at
+/// creation. `status` reuses the class {@link InstanceStatus} lifecycle
+/// (SCHEDULED → COMPLETED, or CANCELED). `gymId` is the isolating tenant key the
+/// scoped Prisma client constrains every query to.
+model PtSession {
+  id          String         @id @default(cuid())
+  gymId       String
+  trainerId   String
+  classTypeId String?
+  startsAt    DateTime
+  endsAt      DateTime
+  status      InstanceStatus @default(SCHEDULED)
+  notes       String         @default("")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  gym       Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  trainer   Trainer    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  classType ClassType? @relation(fields: [classTypeId], references: [id], onDelete: SetNull)
+
+  @@index([gymId, trainerId, startsAt])
+  @@index([classTypeId])
+  @@map("pt_sessions")
 }
 
 /// A member's reservation against a {@link ClassInstance} (T5.1). `status` tracks

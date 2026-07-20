@@ -179,13 +179,18 @@ export class ActivityService {
         status: true,
         createdAt: true,
         member: { select: { id: true, ...MEMBER_IDENTITY_SELECT } },
-        classInstance: { select: { template: { select: { title: true } } } },
+        classInstance: {
+          select: {
+            template: { select: { title: true } },
+            classType: { select: { name: true } },
+          },
+        },
       },
     });
     return rows.map((row) => ({
       id: `booking:${row.id}`,
       type: 'booking',
-      title: `Booked ${row.classInstance.template.title}`,
+      title: `Booked ${row.classInstance.template?.title ?? row.classInstance.classType?.name ?? 'a class'}`,
       detail: row.status,
       memberId: row.member.id,
       memberName: row.member.user.name ?? row.member.user.email,

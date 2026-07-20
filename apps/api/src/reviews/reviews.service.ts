@@ -30,7 +30,12 @@ const ADMIN_REVIEW_SELECT = {
   classInstanceId: true,
   createdAt: true,
   member: { select: { user: { select: { name: true, email: true } } } },
-  classInstance: { select: { template: { select: { title: true } } } },
+  classInstance: {
+    select: {
+      template: { select: { title: true } },
+      classType: { select: { name: true } },
+    },
+  },
 } satisfies Prisma.ReviewSelect;
 
 type AdminReviewRecord = Prisma.ReviewGetPayload<{ select: typeof ADMIN_REVIEW_SELECT }>;
@@ -91,7 +96,7 @@ export class ReviewsService {
     return this.prisma.client.$transaction(async (tx) => {
       const instance = await tx.classInstance.findFirst({
         where: { id: data.classInstanceId },
-        select: { id: true, template: { select: { trainerId: true } } },
+        select: { id: true, trainerId: true, template: { select: { trainerId: true } } },
       });
       if (!instance) {
         throw new NotFoundException({
@@ -126,7 +131,9 @@ export class ReviewsService {
         });
       }
 
-      const trainerId = instance.template.trainerId;
+      // The trainer comes from the template for a generated occurrence, or the
+      // instance's own assignment for one scheduled from a type.
+      const trainerId = instance.template?.trainerId ?? instance.trainerId ?? null;
       let review: { id: string };
       try {
         review = await tx.review.create({
@@ -355,7 +362,7 @@ function toAdminReview(row: AdminReviewRecord): AdminReview {
     authorName: row.member.user.name ?? email.split('@')[0] ?? email,
     authorEmail: email,
     classInstanceId: row.classInstanceId,
-    classTitle: row.classInstance?.template.title ?? null,
+    classTitle: row.classInstance?.template?.title ?? row.classInstance?.classType?.name ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }

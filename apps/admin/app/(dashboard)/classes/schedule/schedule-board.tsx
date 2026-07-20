@@ -4,20 +4,41 @@ import { useCallback, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { AdminScheduleInstance, ClassInstanceStatus } from '@fit/types';
+import type { AdminClassTypeOption, AdminScheduleInstance, ClassInstanceStatus } from '@fit/types';
 import { Badge, Btn, Icon, type Tone } from '@/components/ui';
 import { Card } from '@astryxdesign/core/Card';
 import { useOccupancyStream } from '@/hooks/use-occupancy-stream';
 import { ClassDrawer } from './class-drawer';
-import { addWeeks, mondayOf, toIsoDate, weekDays } from './week';
+import { AddClassDrawer } from '../add-class-drawer';
+import type { RelationOption } from '../class-template-form';
+import { addMonths, addWeeks, monthGridDays, toIsoDate, weekDays } from './week';
 
 type T = ReturnType<typeof useTranslations>;
+
+/** Which calendar surface is showing — the two calendar granularities plus the list. */
+export type ScheduleView = 'week' | 'month' | 'list';
+
+// ── Time-grid geometry (week view) ───────────────────────────────────────────
+// The week grid draws a fixed 06:00–22:00 day, one row per hour split in half at
+// the 30-minute mark. Everything is measured in `rem` off a single hour height so
+// the hour labels, the gridlines, and the absolutely-positioned event blocks all
+// share one scale.
+// NOTE: keep these in sync with the literal `rem` values baked into `styles`
+// below (`timeCell` height, `dayCol` height + gridline gradient). StyleX evaluates
+// `stylex.create` at build time and can't read these runtime consts, so the style
+// object must use literals — 3.5rem/hour, 1.75rem/half, 56rem total.
+const START_HOUR = 6;
+const END_HOUR = 22;
+const HOURS = END_HOUR - START_HOUR; // 16 rows
+const HOUR_REM = 3.5;
+const TOTAL_MIN = HOURS * 60;
+const MIN_EVENT_REM = 1.5;
 
 const styles = stylex.create({
   root: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '1.5rem',
+    gap: '1.25rem',
   },
   toolbar: {
     display: 'flex',
@@ -77,9 +98,64 @@ const styles = stylex.create({
     margin: 0,
     marginLeft: '0.25rem',
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '1rem',
+    fontSize: '1.125rem',
     fontWeight: 700,
     color: 'var(--color-text-primary)',
+  },
+  rightGroup: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  // Segmented control (Today · Week · Month  /  Calendar · List).
+  seg: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '0.1875rem',
+    gap: '0.1875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+  },
+  segBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    height: '2.25rem',
+    paddingInline: '0.875rem',
+    borderWidth: 0,
+    borderRadius: 'calc(var(--radius-element) - 0.1875rem)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-primary)',
+    },
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+    whiteSpace: 'nowrap',
+  },
+  segBtnActive: {
+    backgroundColor: {
+      default: 'var(--color-accent)',
+      ':hover': 'var(--color-accent)',
+    },
+    color: {
+      default: 'var(--color-on-accent)',
+      ':hover': 'var(--color-on-accent)',
+    },
+  },
+  segIcon: {
+    width: '1rem',
+    height: '1rem',
   },
   filterGroup: {
     display: 'flex',
@@ -87,6 +163,249 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.5rem',
   },
+  // ── Week time-grid ─────────────────────────────────────────────────────────
+  calScroll: {
+    overflowX: 'auto',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-body)',
+  },
+  calGrid: {
+    minWidth: '52rem',
+    display: 'grid',
+    gridTemplateColumns: '4rem repeat(7, minmax(0, 1fr))',
+  },
+  corner: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 3,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBlock: '0.75rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+    backgroundColor: 'var(--color-background-body)',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  dayHead: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 3,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.125rem',
+    paddingBlock: '0.625rem',
+    backgroundColor: 'var(--color-background-body)',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    borderLeftWidth: '1px',
+    borderLeftStyle: 'solid',
+    borderLeftColor: 'var(--color-border)',
+  },
+  dayHeadToday: {
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  weekdayLabel: {
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  dayNum: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.25rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    lineHeight: 1,
+    color: 'var(--color-text-primary)',
+  },
+  dayNumToday: {
+    color: 'var(--color-text-accent)',
+  },
+  timeCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: 'var(--color-background-body)',
+  },
+  timeCell: {
+    position: 'relative',
+    height: '3.5rem',
+    paddingRight: '0.5rem',
+  },
+  timeLabel: {
+    position: 'absolute',
+    top: '-0.5rem',
+    right: '0.5rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  dayCol: {
+    position: 'relative',
+    height: '56rem',
+    borderLeftWidth: '1px',
+    borderLeftStyle: 'solid',
+    borderLeftColor: 'var(--color-border)',
+    // Hour lines (stronger) over half-hour lines (subtle), both transparent-based
+    // so they composite over the today tint.
+    backgroundImage:
+      'repeating-linear-gradient(to bottom, var(--color-border) 0, var(--color-border) 1px, transparent 1px, transparent 3.5rem), repeating-linear-gradient(to bottom, var(--color-border-subtle, rgba(120,120,120,0.12)) 0, var(--color-border-subtle, rgba(120,120,120,0.12)) 1px, transparent 1px, transparent 1.75rem)',
+  },
+  dayColToday: {
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  event: {
+    position: 'absolute',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.0625rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-element)',
+    borderLeftWidth: '3px',
+    borderLeftStyle: 'solid',
+    paddingBlock: '0.25rem',
+    paddingInline: '0.375rem',
+    backgroundColor: 'var(--color-background-surface)',
+    boxShadow: {
+      default: 'var(--shadow-low)',
+      ':hover': 'var(--shadow-high)',
+    },
+    textAlign: 'left',
+    cursor: 'pointer',
+    outlineStyle: 'none',
+    transitionProperty: 'box-shadow',
+    transitionDuration: '150ms',
+  },
+  eventCanceled: {
+    opacity: 0.6,
+  },
+  eventTime: {
+    fontSize: '0.625rem',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  eventTitle: {
+    margin: 0,
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    lineHeight: 1.15,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    color: 'var(--color-text-primary)',
+  },
+  eventTitleCanceled: {
+    textDecorationLine: 'line-through',
+  },
+  // ── Month grid ─────────────────────────────────────────────────────────────
+  monthWrap: {
+    overflowX: 'auto',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-body)',
+  },
+  monthWeekdays: {
+    minWidth: '44rem',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  monthWeekday: {
+    paddingBlock: '0.625rem',
+    textAlign: 'center',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-secondary)',
+  },
+  monthGrid: {
+    minWidth: '44rem',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+  },
+  monthCell: {
+    display: 'flex',
+    minHeight: '6.5rem',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    padding: '0.375rem',
+    borderTopWidth: '1px',
+    borderLeftWidth: '1px',
+    borderTopStyle: 'solid',
+    borderLeftStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    borderLeftColor: 'var(--color-border)',
+  },
+  monthCellOutside: {
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  monthCellToday: {
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  monthDateNum: {
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  monthDateNumOutside: {
+    color: 'var(--color-text-secondary)',
+  },
+  monthDateNumToday: {
+    color: 'var(--color-text-accent)',
+  },
+  monthChip: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    width: '100%',
+    overflow: 'hidden',
+    borderWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    paddingBlock: '0.125rem',
+    paddingInline: '0.25rem',
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':hover': 'var(--color-background-muted)',
+    },
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+  monthChipDot: {
+    width: '0.5rem',
+    height: '0.5rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+  },
+  monthChipText: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  monthMore: {
+    marginTop: '0.125rem',
+    fontSize: '0.625rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  // ── List view (day columns of stacked cards) ──────────────────────────────
   gridScroll: {
     overflowX: 'auto',
     paddingBottom: '0.25rem',
@@ -103,7 +422,7 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.5rem',
   },
-  dayHeader: {
+  listDayHeader: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -114,26 +433,9 @@ const styles = stylex.create({
     borderColor: 'var(--color-border)',
     backgroundColor: 'var(--color-background-muted)',
   },
-  dayHeaderToday: {
+  listDayHeaderToday: {
     borderColor: 'var(--color-accent)',
     backgroundColor: 'var(--color-accent-muted)',
-  },
-  weekdayLabel: {
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.12em',
-    color: 'var(--color-text-secondary)',
-  },
-  dayNum: {
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.125rem',
-    fontWeight: 800,
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-primary)',
-  },
-  dayNumToday: {
-    color: 'var(--color-text-accent)',
   },
   cardStack: {
     display: 'flex',
@@ -361,28 +663,38 @@ const STATUS_TONES: Partial<Record<ClassInstanceStatus, Tone>> = {
 };
 
 /**
- * The staff schedule week calendar (T3.2). Server-rendered occurrences for the
- * visible week are bucketed into seven day columns and drawn as class cards with
- * their occupancy, trainer, branch, and status. The toolbar pages between weeks
- * and filters by trainer / location — all state lives in the URL (`?week`,
+ * The staff schedule (T3.2), now a real calendar. Server-rendered occurrences for
+ * the visible window are shown three ways — a **week** time-grid (06:00–22:00,
+ * half-hour ruled, events positioned by their clock time), a **month** overview
+ * grid, and the original **list** of day columns — chosen by the `?view` param.
+ * The toolbar pages the window (a week or a month at a time depending on the
+ * view) and filters by trainer / location, all in the URL (`?week`, `?view`,
  * `?trainerId`, `?locationId`) so the server refetches the right window and the
- * view is shareable and back-button friendly.
+ * view stays shareable and back-button friendly.
  *
- * Everything is computed in UTC (see `week.ts`): occurrences are generated at UTC
- * midnight and the console has no gym-timezone plumbing, so bucketing and time
- * labels stay consistent with the data and free of hydration drift.
+ * Everything is computed in UTC (see `week.ts`): occurrences carry a real
+ * time-of-day (their template's `validFrom` hour) but the console has no
+ * gym-timezone plumbing, so bucketing and time labels stay in UTC to match the
+ * data and avoid hydration drift.
  */
 export function ScheduleBoard({
+  view,
   weekStart,
+  monthAnchor,
   instances,
   trainers,
   locations,
   trainerId,
   locationId,
   canWrite,
+  addClass,
 }: {
-  /** The visible week's Monday, `YYYY-MM-DD` (UTC). */
+  /** Which surface to render. */
+  view: ScheduleView;
+  /** The visible week's Monday, `YYYY-MM-DD` (UTC) — drives week + list. */
   weekStart: string;
+  /** The visible month's first day, `YYYY-MM-DD` (UTC) — drives month. */
+  monthAnchor: string;
   instances: AdminScheduleInstance[];
   trainers: ScheduleOption[];
   locations: ScheduleOption[];
@@ -390,6 +702,13 @@ export function ScheduleBoard({
   locationId: string;
   /** Whether the staff session holds `ClassWrite` (gates the drawer's cancel). */
   canWrite: boolean;
+  /** Class-relation options for the "Add Class" drawer; null when the staffer can't write. */
+  addClass: {
+    trainers: RelationOption[];
+    locations: RelationOption[];
+    plans: RelationOption[];
+    classTypes: AdminClassTypeOption[];
+  } | null;
 }) {
   const t = useTranslations('admin.schedule');
   const locale = useLocale();
@@ -397,12 +716,11 @@ export function ScheduleBoard({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Live occupancy (T8.10): refresh the week grid as members book / cancel and the
+  // Live occupancy (T8.10): refresh the grid as members book / cancel and the
   // desk promotes, pushed over SSE — replacing the schedule's need to poll.
   useOccupancyStream();
 
-  // The occurrence whose detail drawer is open (null when closed). The clicked
-  // block renders the drawer header instantly while its roster is fetched.
+  // The occurrence whose detail drawer is open (null when closed).
   const [selected, setSelected] = useState<AdminScheduleInstance | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const openInstance = useCallback((instance: AdminScheduleInstance) => {
@@ -411,34 +729,32 @@ export function ScheduleBoard({
   }, []);
 
   const monday = useMemo(() => new Date(`${weekStart}T00:00:00.000Z`), [weekStart]);
+  const monthFirst = useMemo(() => new Date(`${monthAnchor}T00:00:00.000Z`), [monthAnchor]);
   const days = useMemo(() => weekDays(monday), [monday]);
+  const monthDays = useMemo(() => monthGridDays(monthFirst), [monthFirst]);
 
-  // Bucket each occurrence under its UTC day key; the API already returns them
-  // ordered by `startsAt`, so each column stays chronological without re-sorting.
+  // Bucket each occurrence under its UTC day key; the API returns them ordered by
+  // `startsAt`, so each bucket stays chronological without re-sorting.
   const byDay = useMemo(() => {
     const map = new Map<string, AdminScheduleInstance[]>();
     for (const instance of instances) {
       const key = instance.startsAt.slice(0, 10);
       const bucket = map.get(key);
-      if (bucket) {
-        bucket.push(instance);
-      } else {
-        map.set(key, [instance]);
-      }
+      if (bucket) bucket.push(instance);
+      else map.set(key, [instance]);
     }
     return map;
   }, [instances]);
 
   const todayKey = toIsoDate(new Date());
 
-  /** Push a new URL with one search param set (or removed when empty). */
-  const setParam = useCallback(
-    (key: string, value: string | null) => {
+  /** Push a new URL with a batch of params set (or removed when null/empty). */
+  const setParams = useCallback(
+    (entries: Record<string, string | null>) => {
       const next = new URLSearchParams(searchParams.toString());
-      if (value === null || value === '') {
-        next.delete(key);
-      } else {
-        next.set(key, value);
+      for (const [key, value] of Object.entries(entries)) {
+        if (value === null || value === '') next.delete(key);
+        else next.set(key, value);
       }
       const qs = next.toString();
       router.push(qs ? `${pathname}?${qs}` : pathname);
@@ -446,24 +762,38 @@ export function ScheduleBoard({
     [pathname, router, searchParams],
   );
 
-  const goToWeek = useCallback(
-    (mondayDate: Date) => setParam('week', toIsoDate(mondayDate)),
-    [setParam],
+  const setView = useCallback(
+    (next: ScheduleView) => setParams({ view: next === 'week' ? null : next }),
+    [setParams],
   );
 
-  const rangeLabel = formatRange(days[0]!, days[days.length - 1]!, locale);
+  // Prev/next steps by month in month view, else by week. "Today" re-anchors both.
+  const goPrev = useCallback(() => {
+    if (view === 'month') setParams({ week: toIsoDate(addMonths(monthFirst, -1)) });
+    else setParams({ week: toIsoDate(addWeeks(monday, -1)) });
+  }, [view, monthFirst, monday, setParams]);
+  const goNext = useCallback(() => {
+    if (view === 'month') setParams({ week: toIsoDate(addMonths(monthFirst, 1)) });
+    else setParams({ week: toIsoDate(addWeeks(monday, 1)) });
+  }, [view, monthFirst, monday, setParams]);
+  const goToday = useCallback(() => setParams({ week: toIsoDate(new Date()) }), [setParams]);
+
+  const rangeLabel =
+    view === 'month'
+      ? formatMonth(monthFirst, locale)
+      : formatRange(days[0]!, days[days.length - 1]!, locale);
   const hasFilters = trainerId !== '' || locationId !== '';
+  const isCalendar = view === 'week' || view === 'month';
 
   return (
     <div {...stylex.props(styles.root)}>
-      {/* Toolbar: week navigation + filters. */}
       <div {...stylex.props(styles.toolbar)}>
         <div {...stylex.props(styles.navGroup)}>
           <div {...stylex.props(styles.navBox)}>
             <button
               type="button"
               aria-label={t('toolbar.prev')}
-              onClick={() => goToWeek(addWeeks(monday, -1))}
+              onClick={goPrev}
               {...stylex.props(styles.navBtn)}
             >
               <Icon name="chevronLeft" {...stylex.props(styles.navBtnIcon)} />
@@ -471,53 +801,108 @@ export function ScheduleBoard({
             <button
               type="button"
               aria-label={t('toolbar.next')}
-              onClick={() => goToWeek(addWeeks(monday, 1))}
+              onClick={goNext}
               {...stylex.props(styles.navBtn)}
             >
               <Icon name="chevronRight" {...stylex.props(styles.navBtnIcon)} />
             </button>
           </div>
-          <Btn v="outline" size="sm" icon="calendar" onClick={() => goToWeek(mondayOf(new Date()))}>
-            {t('toolbar.today')}
-          </Btn>
           <p {...stylex.props(styles.rangeLabel)}>{rangeLabel}</p>
         </div>
 
-        <div aria-label={t('filters.aria')} {...stylex.props(styles.filterGroup)} role="group">
-          <FilterSelect
-            label={t('filters.trainer')}
-            value={trainerId}
-            allLabel={t('filters.allTrainers')}
-            options={trainers}
-            onChange={(value) => setParam('trainerId', value)}
-          />
-          <FilterSelect
-            label={t('filters.location')}
-            value={locationId}
-            allLabel={t('filters.allLocations')}
-            options={locations}
-            onChange={(value) => setParam('locationId', value)}
-          />
-          {hasFilters ? (
-            <Btn
-              v="ghost"
-              size="sm"
-              icon="x"
-              onClick={() => {
-                const next = new URLSearchParams(searchParams.toString());
-                next.delete('trainerId');
-                next.delete('locationId');
-                const qs = next.toString();
-                router.push(qs ? `${pathname}?${qs}` : pathname);
-              }}
-            >
-              {t('filters.clear')}
-            </Btn>
+        <div {...stylex.props(styles.rightGroup)}>
+          {/* Today · Week · Month */}
+          <div {...stylex.props(styles.seg)} role="group" aria-label={t('toolbar.range')}>
+            <button type="button" onClick={goToday} {...stylex.props(styles.segBtn)}>
+              {t('toolbar.today')}
+            </button>
+            <SegButton
+              active={view === 'week'}
+              label={t('toolbar.week')}
+              onClick={() => setView('week')}
+            />
+            <SegButton
+              active={view === 'month'}
+              label={t('toolbar.month')}
+              onClick={() => setView('month')}
+            />
+          </div>
+
+          {/* Calendar · List */}
+          <div {...stylex.props(styles.seg)} role="group" aria-label={t('toolbar.mode')}>
+            <SegButton
+              active={isCalendar}
+              label={t('toolbar.calendar')}
+              icon="calendar"
+              onClick={() => setView('week')}
+            />
+            <SegButton
+              active={view === 'list'}
+              label={t('toolbar.list')}
+              onClick={() => setView('list')}
+            />
+          </div>
+
+          {addClass ? (
+            <AddClassDrawer
+              trainers={addClass.trainers}
+              locations={addClass.locations}
+              plans={addClass.plans}
+              classTypes={addClass.classTypes}
+              triggerLabel={t('toolbar.addClass')}
+            />
           ) : null}
         </div>
       </div>
 
-      {instances.length === 0 ? (
+      {/* Filters (trainer / location) — kept from the original board. */}
+      <div aria-label={t('filters.aria')} {...stylex.props(styles.filterGroup)} role="group">
+        <FilterSelect
+          label={t('filters.trainer')}
+          value={trainerId}
+          allLabel={t('filters.allTrainers')}
+          options={trainers}
+          onChange={(value) => setParams({ trainerId: value })}
+        />
+        <FilterSelect
+          label={t('filters.location')}
+          value={locationId}
+          allLabel={t('filters.allLocations')}
+          options={locations}
+          onChange={(value) => setParams({ locationId: value })}
+        />
+        {hasFilters ? (
+          <Btn
+            v="ghost"
+            size="sm"
+            icon="x"
+            onClick={() => setParams({ trainerId: null, locationId: null })}
+          >
+            {t('filters.clear')}
+          </Btn>
+        ) : null}
+      </div>
+
+      {view === 'week' ? (
+        <WeekGrid
+          days={days}
+          byDay={byDay}
+          todayKey={todayKey}
+          locale={locale}
+          t={t}
+          onOpen={openInstance}
+        />
+      ) : view === 'month' ? (
+        <MonthGrid
+          days={monthDays}
+          anchorMonth={monthFirst.getUTCMonth()}
+          byDay={byDay}
+          todayKey={todayKey}
+          locale={locale}
+          t={t}
+          onOpen={openInstance}
+        />
+      ) : instances.length === 0 ? (
         <EmptyWeek t={t} filtered={hasFilters} />
       ) : (
         <div {...stylex.props(styles.gridScroll)}>
@@ -525,7 +910,7 @@ export function ScheduleBoard({
             {days.map((day) => {
               const key = toIsoDate(day);
               return (
-                <DayColumn
+                <ListDayColumn
                   key={key}
                   day={day}
                   isToday={key === todayKey}
@@ -551,8 +936,305 @@ export function ScheduleBoard({
   );
 }
 
+/** A single segmented-control button (Week / Month / Calendar / List). */
+function SegButton({
+  active,
+  label,
+  icon,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  icon?: 'calendar';
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      {...stylex.props(styles.segBtn, active && styles.segBtnActive)}
+    >
+      {icon ? <Icon name={icon} sw={2} {...stylex.props(styles.segIcon)} /> : null}
+      {label}
+    </button>
+  );
+}
+
+// ── Week time-grid ────────────────────────────────────────────────────────────
+
+/** A laid-out event: its instance plus rem-position and overlap lane geometry. */
+interface PlacedEvent {
+  instance: AdminScheduleInstance;
+  topRem: number;
+  heightRem: number;
+  leftPct: number;
+  widthPct: number;
+}
+
+/** Minutes past midnight (UTC) for an ISO instant. */
+function utcMinutes(iso: string): number {
+  const d = new Date(iso);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
+/**
+ * Position one day's occurrences in the 06:00–22:00 grid, splitting overlapping
+ * events into side-by-side lanes. Times outside the window are clamped so nothing
+ * ever disappears (a 05:30 class pins to the top edge, a 23:00 one to the bottom).
+ */
+function placeEvents(instances: AdminScheduleInstance[]): PlacedEvent[] {
+  const items = instances
+    .map((instance) => {
+      const start = utcMinutes(instance.startsAt) - START_HOUR * 60;
+      const rawEnd = utcMinutes(instance.endsAt) - START_HOUR * 60;
+      const end = rawEnd > start ? rawEnd : start + 30; // guard zero/negative spans
+      return { instance, start, end };
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  // Cluster transitively-overlapping events, then greedily assign lanes per cluster.
+  const placed: PlacedEvent[] = [];
+  let cluster: typeof items = [];
+  let clusterEnd = -Infinity;
+
+  const flush = () => {
+    if (cluster.length === 0) return;
+    const laneEnds: number[] = [];
+    const laneOf = new Map<number, number>();
+    cluster.forEach((item, idx) => {
+      let lane = laneEnds.findIndex((e) => e <= item.start);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(item.end);
+      } else {
+        laneEnds[lane] = item.end;
+      }
+      laneOf.set(idx, lane);
+    });
+    const lanes = laneEnds.length;
+    cluster.forEach((item, idx) => {
+      const clampedStart = Math.max(0, Math.min(item.start, TOTAL_MIN));
+      const clampedEnd = Math.max(clampedStart, Math.min(item.end, TOTAL_MIN));
+      const lane = laneOf.get(idx) ?? 0;
+      placed.push({
+        instance: item.instance,
+        topRem: (clampedStart / 60) * HOUR_REM,
+        heightRem: Math.max(MIN_EVENT_REM, ((clampedEnd - clampedStart) / 60) * HOUR_REM),
+        leftPct: (lane / lanes) * 100,
+        widthPct: 100 / lanes,
+      });
+    });
+    cluster = [];
+    clusterEnd = -Infinity;
+  };
+
+  for (const item of items) {
+    if (item.start >= clusterEnd && cluster.length > 0) flush();
+    cluster.push(item);
+    clusterEnd = Math.max(clusterEnd, item.end);
+  }
+  flush();
+  return placed;
+}
+
+/** The week calendar: a sticky day-header row over a 06:00–22:00 time-grid. */
+function WeekGrid({
+  days,
+  byDay,
+  todayKey,
+  locale,
+  t,
+  onOpen,
+}: {
+  days: Date[];
+  byDay: Map<string, AdminScheduleInstance[]>;
+  todayKey: string;
+  locale: string;
+  t: T;
+  onOpen: (instance: AdminScheduleInstance) => void;
+}) {
+  const hours = Array.from({ length: HOURS }, (_, i) => START_HOUR + i);
+  return (
+    <div {...stylex.props(styles.calScroll)}>
+      <div {...stylex.props(styles.calGrid)}>
+        {/* Header row: corner + seven day headers. */}
+        <div {...stylex.props(styles.corner)}>{t('time')}</div>
+        {days.map((day) => {
+          const isToday = toIsoDate(day) === todayKey;
+          return (
+            <div
+              key={toIsoDate(day)}
+              {...stylex.props(styles.dayHead, isToday && styles.dayHeadToday)}
+            >
+              <span {...stylex.props(styles.weekdayLabel)}>{weekdayShort(day, locale)}</span>
+              <span {...stylex.props(styles.dayNum, isToday && styles.dayNumToday)}>
+                {day.getUTCDate()}
+              </span>
+            </div>
+          );
+        })}
+
+        {/* Body row: time column + seven day columns. */}
+        <div {...stylex.props(styles.timeCol)}>
+          {hours.map((h) => (
+            <div key={h} {...stylex.props(styles.timeCell)}>
+              <span {...stylex.props(styles.timeLabel)}>{hourLabel(h)}</span>
+            </div>
+          ))}
+        </div>
+        {days.map((day) => {
+          const key = toIsoDate(day);
+          const placed = placeEvents(byDay.get(key) ?? []);
+          const isToday = key === todayKey;
+          return (
+            <div key={key} {...stylex.props(styles.dayCol, isToday && styles.dayColToday)}>
+              {placed.map((ev) => (
+                <EventBlock key={ev.instance.id} placed={ev} locale={locale} t={t} onOpen={onOpen} />
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** One positioned class block inside the week time-grid. */
+function EventBlock({
+  placed,
+  locale,
+  t,
+  onOpen,
+}: {
+  placed: PlacedEvent;
+  locale: string;
+  t: T;
+  onOpen: (instance: AdminScheduleInstance) => void;
+}) {
+  const { instance } = placed;
+  const canceled = instance.status === 'CANCELED';
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(instance)}
+      aria-label={t('card.viewAria', {
+        title: instance.title,
+        time: formatTime(instance.startsAt, locale),
+      })}
+      {...stylex.props(styles.event, canceled && styles.eventCanceled)}
+      style={{
+        top: `${placed.topRem}rem`,
+        height: `${placed.heightRem}rem`,
+        left: `calc(${placed.leftPct}% + 0.125rem)`,
+        width: `calc(${placed.widthPct}% - 0.25rem)`,
+        borderLeftColor: instance.color,
+      }}
+    >
+      <span {...stylex.props(styles.eventTime)}>
+        {formatTime(instance.startsAt, locale)}–{formatTime(instance.endsAt, locale)}
+      </span>
+      <p {...stylex.props(styles.eventTitle, canceled && styles.eventTitleCanceled)}>
+        {instance.title}
+      </p>
+    </button>
+  );
+}
+
+// ── Month grid ────────────────────────────────────────────────────────────────
+
+const MONTH_CHIP_LIMIT = 3;
+
+/** The month overview: a Monday-first 7-column grid of day cells with class chips. */
+function MonthGrid({
+  days,
+  anchorMonth,
+  byDay,
+  todayKey,
+  locale,
+  t,
+  onOpen,
+}: {
+  days: Date[];
+  anchorMonth: number;
+  byDay: Map<string, AdminScheduleInstance[]>;
+  todayKey: string;
+  locale: string;
+  t: T;
+  onOpen: (instance: AdminScheduleInstance) => void;
+}) {
+  return (
+    <div {...stylex.props(styles.monthWrap)}>
+      <div {...stylex.props(styles.monthWeekdays)}>
+        {days.slice(0, 7).map((day) => (
+          <span key={toIsoDate(day)} {...stylex.props(styles.monthWeekday)}>
+            {weekdayShort(day, locale)}
+          </span>
+        ))}
+      </div>
+      <div role="grid" aria-label={t('week.gridAria')} {...stylex.props(styles.monthGrid)}>
+        {days.map((day) => {
+          const key = toIsoDate(day);
+          const dayInstances = byDay.get(key) ?? [];
+          const isToday = key === todayKey;
+          const isOutside = day.getUTCMonth() !== anchorMonth;
+          const shown = dayInstances.slice(0, MONTH_CHIP_LIMIT);
+          const overflow = dayInstances.length - shown.length;
+          return (
+            <div
+              key={key}
+              role="gridcell"
+              {...stylex.props(
+                styles.monthCell,
+                isOutside && styles.monthCellOutside,
+                isToday && styles.monthCellToday,
+              )}
+            >
+              <span
+                {...stylex.props(
+                  styles.monthDateNum,
+                  isOutside && styles.monthDateNumOutside,
+                  isToday && styles.monthDateNumToday,
+                )}
+              >
+                {day.getUTCDate()}
+              </span>
+              {shown.map((instance) => (
+                <button
+                  key={instance.id}
+                  type="button"
+                  onClick={() => onOpen(instance)}
+                  aria-label={t('card.viewAria', {
+                    title: instance.title,
+                    time: formatTime(instance.startsAt, locale),
+                  })}
+                  {...stylex.props(styles.monthChip)}
+                >
+                  <span
+                    aria-hidden
+                    {...stylex.props(styles.monthChipDot)}
+                    style={{ backgroundColor: instance.color }}
+                  />
+                  <span {...stylex.props(styles.monthChipText)}>
+                    {formatTime(instance.startsAt, locale)} {instance.title}
+                  </span>
+                </button>
+              ))}
+              {overflow > 0 ? (
+                <span {...stylex.props(styles.monthMore)}>{t('month.more', { count: overflow })}</span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── List view (unchanged day-column cards) ───────────────────────────────────
+
 /** One day's column: a weekday header over its stacked class cards. */
-function DayColumn({
+function ListDayColumn({
   day,
   isToday,
   instances,
@@ -569,7 +1251,7 @@ function DayColumn({
 }) {
   return (
     <div role="gridcell" {...stylex.props(styles.column)}>
-      <div {...stylex.props(styles.dayHeader, isToday && styles.dayHeaderToday)}>
+      <div {...stylex.props(styles.listDayHeader, isToday && styles.listDayHeaderToday)}>
         <span {...stylex.props(styles.weekdayLabel)}>{weekdayShort(day, locale)}</span>
         <span {...stylex.props(styles.dayNum, isToday && styles.dayNumToday)}>
           {day.getUTCDate()}
@@ -581,13 +1263,7 @@ function DayColumn({
           <p {...stylex.props(styles.emptyDay)}>{t('empty.day')}</p>
         ) : (
           instances.map((instance) => (
-            <ClassCard
-              key={instance.id}
-              instance={instance}
-              locale={locale}
-              t={t}
-              onOpen={onOpen}
-            />
+            <ClassCard key={instance.id} instance={instance} locale={locale} t={t} onOpen={onOpen} />
           ))
         )}
       </div>
@@ -595,8 +1271,7 @@ function DayColumn({
   );
 }
 
-/** One class occurrence block: time, title, trainer/branch, occupancy, status.
- * Clicking it opens the detail drawer (roster + quick actions, T3.3). */
+/** One class occurrence block: time, title, trainer/branch, occupancy, status. */
 function ClassCard({
   instance,
   locale,
@@ -625,7 +1300,6 @@ function ClassCard({
       })}
       {...stylex.props(styles.card, canceled && styles.cardCanceled)}
     >
-      {/* Category colour accent rail. */}
       <span
         aria-hidden
         {...stylex.props(styles.accentRail)}
@@ -660,7 +1334,6 @@ function ClassCard({
         ) : null}
       </div>
 
-      {/* Occupancy: a compact fill bar over "booked / capacity". */}
       <div {...stylex.props(styles.occWrap)}>
         <div {...stylex.props(styles.occLabels)}>
           <span {...stylex.props(styles.occBooked)}>
@@ -731,12 +1404,15 @@ function EmptyWeek({ t, filtered }: { t: T; filtered: boolean }) {
         <span {...stylex.props(styles.emptyIcon)}>
           <Icon name="calendar" {...stylex.props(styles.emptyIconSvg)} />
         </span>
-        <p {...stylex.props(styles.emptyText)}>
-          {filtered ? t('empty.filtered') : t('empty.week')}
-        </p>
+        <p {...stylex.props(styles.emptyText)}>{filtered ? t('empty.filtered') : t('empty.week')}</p>
       </div>
     </Card>
   );
+}
+
+/** `06:00`-style label for an hour number. */
+function hourLabel(hour: number): string {
+  return `${String(hour).padStart(2, '0')}:00`;
 }
 
 /** Localised weekday abbreviation for a UTC day anchor (e.g. "Mon"). */
@@ -768,4 +1444,13 @@ function formatRange(start: Date, end: Date, locale: string): string {
     timeZone: 'UTC',
   }).format(end);
   return `${startFmt} – ${endFmt}`;
+}
+
+/** "July 2026" for the month header, in UTC. */
+function formatMonth(anchor: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(anchor);
 }

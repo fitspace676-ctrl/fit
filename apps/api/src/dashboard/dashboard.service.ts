@@ -534,9 +534,11 @@ export class DashboardService {
       select: {
         startsAt: true,
         capacityOverride: true,
+        trainer: { select: { name: true } },
         template: {
           select: { title: true, capacity: true, color: true, trainer: { select: { name: true } } },
         },
+        classType: { select: { name: true, capacity: true, color: true } },
         bookings: {
           where: { status: { in: [BookingStatus.BOOKED, BookingStatus.ATTENDED] } },
           select: { id: true },
@@ -546,11 +548,11 @@ export class DashboardService {
 
     return instances.map((inst) => ({
       startsAt: inst.startsAt.toISOString(),
-      title: inst.template.title,
-      trainerName: inst.template.trainer?.name ?? null,
+      title: inst.template?.title ?? inst.classType?.name ?? 'Class',
+      trainerName: inst.trainer?.name ?? inst.template?.trainer?.name ?? null,
       booked: inst.bookings.length,
-      capacity: inst.capacityOverride ?? inst.template.capacity,
-      color: inst.template.color ?? null,
+      capacity: inst.capacityOverride ?? inst.template?.capacity ?? inst.classType?.capacity ?? 0,
+      color: inst.template?.color ?? inst.classType?.color ?? null,
     }));
   }
 
@@ -588,6 +590,7 @@ export class DashboardService {
           startsAt: true,
           capacityOverride: true,
           template: { select: { title: true, capacity: true } },
+          classType: { select: { name: true, capacity: true } },
           bookings: {
             where: { status: { in: [BookingStatus.BOOKED, BookingStatus.ATTENDED] } },
             select: { id: true },
@@ -609,7 +612,7 @@ export class DashboardService {
     }
 
     for (const inst of todayInstances) {
-      const capacity = inst.capacityOverride ?? inst.template.capacity;
+      const capacity = inst.capacityOverride ?? inst.template?.capacity ?? inst.classType?.capacity ?? 0;
       if (capacity <= 0) {
         continue;
       }
@@ -617,7 +620,7 @@ export class DashboardService {
       if (pct >= 90) {
         alerts.push({
           kind: 'class_full',
-          title: `${inst.template.title} is ${pct}% full`,
+          title: `${inst.template?.title ?? inst.classType?.name ?? 'Class'} is ${pct}% full`,
           detail: `${inst.bookings.length} of ${capacity} spots booked`,
           at: inst.startsAt.toISOString(),
         });

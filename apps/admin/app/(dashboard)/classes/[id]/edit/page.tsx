@@ -129,7 +129,7 @@ export default async function EditClassTemplatePage({
     );
   }
 
-  const { trainers, locations, plans } = await loadRelationOptions();
+  const { trainers, locations, plans, classTypes } = await loadRelationOptions();
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -152,6 +152,7 @@ export default async function EditClassTemplatePage({
         trainers={trainers}
         locations={locations}
         plans={plans}
+        classTypes={classTypes}
         initial={{
           title: template.title,
           description: template.description,

@@ -1708,9 +1708,20 @@
       "manageClasses": "Manage classes",
       "newClass": "New class",
       "toolbar": {
-        "prev": "Previous week",
-        "next": "Next week",
-        "today": "Today"
+        "prev": "Previous",
+        "next": "Next",
+        "today": "Today",
+        "range": "Calendar range",
+        "mode": "Calendar mode",
+        "week": "Week",
+        "month": "Month",
+        "calendar": "Calendar",
+        "list": "List",
+        "addClass": "Add Class"
+      },
+      "time": "Time",
+      "month": {
+        "more": "+{count} more"
       },
       "filters": {
         "aria": "Schedule filters",

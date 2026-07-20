@@ -28,6 +28,25 @@
 @import '@astryxdesign/core/reset.css';
 @import '@fit/astryx-theme/theme.css';
 
+/*
+ * Bind `color-scheme` to the console's theme toggle — the `.dark` class the
+ * ThemeProvider stamps on <html>. Astryx's design tokens are `light-dark()`
+ * values that `color-scheme` resolves; the base (in `@layer astryx-theme`) sets
+ * `:root { color-scheme: light dark }`, i.e. "follow the OS". When the chosen
+ * theme and the OS disagree, token-styled content resolved to the OS scheme —
+ * most visibly portalled drawers, whose panels are Tailwind-`.dark` (always dark)
+ * while their token-styled bodies followed a light OS and rendered dark text on
+ * the dark panel. These rules are UNLAYERED, so they beat that layered base;
+ * Astryx surfaces that intentionally flip still re-set `color-scheme` on their own
+ * `[data-astryx-media]` element, so those keep working.
+ */
+:root {
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
+}
+
 @layer tw-base {
   @tailwind base;
 }

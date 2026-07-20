@@ -60,6 +60,41 @@ export const adminScheduleQuerySchema = z
 export type AdminScheduleQuery = z.infer<typeof adminScheduleQuerySchema>;
 
 /**
+ * Body for `POST /admin/schedule/instances` (schedule a single class) — places one
+ * occurrence of an existing active {@link ClassType} at a chosen instant. `startsAt`
+ * is an ISO-8601 datetime; `endsAt` is derived server-side from the type's duration
+ * (so it can't drift from the type). `trainerId` / `locationId` / `room` are the
+ * optional assignment for this occurrence, and `capacityOverride` optionally
+ * overrides the type's default capacity for this one class. The gym is the tenant
+ * session, so it is not on the wire.
+ */
+export const scheduleClassInstanceSchema = z.object({
+  classTypeId: z.string().min(1, 'Pick a class type'),
+  startsAt: z.string().datetime({ message: 'A valid start time is required' }),
+  trainerId: z.string().trim().min(1).nullable().default(null),
+  locationId: z.string().trim().min(1).nullable().default(null),
+  room: z
+    .string()
+    .trim()
+    .max(120)
+    .nullable()
+    .default(null)
+    .transform((value) => (value === null || value === '' ? null : value)),
+  capacityOverride: z
+    .preprocess(
+      (value) => (value === '' || value === null || value === undefined ? null : value),
+      z.coerce.number().int().min(1).max(100000).nullable(),
+    )
+    .default(null),
+});
+
+/** Raw (pre-parse) schedule-a-class input — the form's string-ish values. */
+export type ScheduleClassInstanceInput = z.input<typeof scheduleClassInstanceSchema>;
+
+/** Validated `POST /admin/schedule/instances` body the service persists. */
+export type ScheduleClassInstanceData = z.infer<typeof scheduleClassInstanceSchema>;
+
+/**
  * One materialised class occurrence as the staff week calendar renders it — a
  * denormalised block, never the full row. `startsAt` / `endsAt` are the resolved
  * ISO-8601 instants the grid positions the block by; `durationMinutes` is the
@@ -73,7 +108,8 @@ export type AdminScheduleQuery = z.infer<typeof adminScheduleQuerySchema>;
  */
 export interface AdminScheduleInstance {
   id: string;
-  templateId: string;
+  templateId: string | null;
+  classTypeId: string | null;
   title: string;
   category: string;
   color: string;

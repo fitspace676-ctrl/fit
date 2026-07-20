@@ -25,6 +25,9 @@ const HISTORY_SELECT = {
       capacityOverride: true,
       bookedCount: true,
       status: true,
+      room: true,
+      trainer: { select: { name: true } },
+      location: { select: { name: true } },
       template: {
         select: {
           title: true,
@@ -36,6 +39,15 @@ const HISTORY_SELECT = {
           durationMinutes: true,
           trainer: { select: { name: true } },
           location: { select: { name: true } },
+        },
+      },
+      classType: {
+        select: {
+          name: true,
+          description: true,
+          color: true,
+          capacity: true,
+          durationMinutes: true,
         },
       },
     },
@@ -139,18 +151,25 @@ function toHistoryEntry(row: HistoryRow): MemberBookingHistoryEntry {
     bookedAt: row.createdAt.toISOString(),
     classInstance: {
       id: instance.id,
-      title: instance.template.title,
-      description: instance.template.description,
+      title: instance.template?.title ?? instance.classType?.name ?? 'Class',
+      description: instance.template?.description ?? instance.classType?.description ?? '',
       startsAt: instance.startsAt.toISOString(),
       endsAt: instance.endsAt.toISOString(),
-      trainerName: instance.template.trainer?.name ?? '',
-      locationName: instance.template.location?.name ?? '',
-      room: instance.template.room ?? '',
-      capacity: instance.capacityOverride ?? instance.template.capacity,
+      trainerName: instance.trainer?.name ?? instance.template?.trainer?.name ?? '',
+      locationName: instance.location?.name ?? instance.template?.location?.name ?? '',
+      room: instance.room ?? instance.template?.room ?? '',
+      capacity:
+        instance.capacityOverride ??
+        instance.template?.capacity ??
+        instance.classType?.capacity ??
+        0,
       bookedCount: instance.bookedCount,
-      durationMinutes: instance.template.durationMinutes,
-      category: instance.template.category,
-      color: instance.template.color,
+      durationMinutes:
+        instance.template?.durationMinutes ??
+        instance.classType?.durationMinutes ??
+        Math.max(1, Math.round((instance.endsAt.getTime() - instance.startsAt.getTime()) / 60000)),
+      category: instance.template?.category ?? '',
+      color: instance.template?.color ?? instance.classType?.color ?? '#2563eb',
       status: instance.status,
     },
   };

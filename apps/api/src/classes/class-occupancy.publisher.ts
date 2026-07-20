@@ -47,6 +47,7 @@ export class ClassOccupancyPublisher {
           bookedCount: true,
           capacityOverride: true,
           template: { select: { capacity: true } },
+          classType: { select: { capacity: true } },
         },
       });
       if (!instance) {
@@ -57,7 +58,11 @@ export class ClassOccupancyPublisher {
         where: { classInstanceId, status: BookingStatus.WAITLIST },
       });
 
-      const capacity = instance.capacityOverride ?? instance.template.capacity;
+      const capacity =
+        instance.capacityOverride ??
+        instance.template?.capacity ??
+        instance.classType?.capacity ??
+        0;
 
       this.stream.publish(this.tenant.gymId, {
         classInstanceId,

@@ -70,3 +70,62 @@ export function weekWindow(weekStart: Date): { from: string; to: string } {
     to: addWeeks(weekStart, 1).toISOString(),
   };
 }
+
+// ── Month view ──────────────────────────────────────────────────────────────
+// The month calendar reuses the same UTC-anchored maths as the week grid: it
+// fetches the whole month *grid* window (the full weeks that overlap the month,
+// so the leading/trailing days from neighbouring months are covered too) and
+// renders a Monday-first 7-column grid.
+
+/** The UTC-midnight `Date` for the first day of the month containing `date`. */
+export function firstOfMonth(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+/**
+ * Resolve a raw `?week=` param to a month anchor — the first of its month. A
+ * well-formed `YYYY-MM-DD` is honoured; anything missing or unparseable falls
+ * back to the month of `today`.
+ */
+export function resolveMonthAnchor(weekParam: string | undefined, today: Date): Date {
+  if (weekParam && /^\d{4}-\d{2}-\d{2}$/.test(weekParam)) {
+    const parsed = new Date(`${weekParam}T00:00:00.000Z`);
+    if (!Number.isNaN(parsed.getTime())) {
+      return firstOfMonth(parsed);
+    }
+  }
+  return firstOfMonth(today);
+}
+
+/** Shift a month anchor (its first) by whole months (negative = earlier). */
+export function addMonths(anchor: Date, months: number): Date {
+  return new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + months, 1));
+}
+
+/**
+ * The day anchors of the month *grid* for `anchor`'s month — every day from the
+ * Monday on/before the 1st through the Sunday on/after the last, so the grid is
+ * always whole weeks (35 or 42 days). Each is a UTC-midnight `Date`.
+ */
+export function monthGridDays(anchor: Date): Date[] {
+  const gridStart = mondayOf(firstOfMonth(anchor));
+  const monthEnd = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0));
+  const gridEndExclusive = addWeeks(mondayOf(monthEnd), 1);
+  const dayCount = Math.round((gridEndExclusive.getTime() - gridStart.getTime()) / DAY_MS);
+  return Array.from({ length: dayCount }, (_, i) => new Date(gridStart.getTime() + i * DAY_MS));
+}
+
+/**
+ * The half-open instant window `[from, to)` covering `anchor`'s whole month grid
+ * — the first grid day's midnight through the day after the last, as ISO-8601
+ * UTC strings. This is the fetch window the API expects for a month view.
+ */
+export function monthWindow(anchor: Date): { from: string; to: string } {
+  const days = monthGridDays(anchor);
+  const first = days[0]!;
+  const last = days[days.length - 1]!;
+  return {
+    from: first.toISOString(),
+    to: new Date(last.getTime() + DAY_MS).toISOString(),
+  };
+}

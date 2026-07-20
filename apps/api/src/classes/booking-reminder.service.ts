@@ -208,7 +208,11 @@ export class BookingReminderService {
         gymId: true,
         member: { select: { userId: true } },
         classInstance: {
-          select: { startsAt: true, template: { select: { title: true } } },
+          select: {
+            startsAt: true,
+            template: { select: { title: true } },
+            classType: { select: { name: true } },
+          },
         },
       },
       orderBy: { createdAt: 'asc' },
@@ -218,7 +222,7 @@ export class BookingReminderService {
       id: row.id,
       gymId: row.gymId,
       userId: row.member.userId,
-      classTitle: row.classInstance.template.title,
+      classTitle: row.classInstance.template?.title ?? row.classInstance.classType?.name ?? 'Class',
       startsAt: row.classInstance.startsAt,
     }));
   }

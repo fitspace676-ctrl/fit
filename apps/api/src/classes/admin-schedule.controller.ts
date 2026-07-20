@@ -19,6 +19,7 @@ import {
   Permission,
   adminBookMemberSchema,
   adminScheduleQuerySchema,
+  scheduleClassInstanceSchema,
   type AdminScheduleResponse,
   type BookMemberOntoClassResponse,
   type CancelClassInstanceResponse,
@@ -109,6 +110,23 @@ export class AdminScheduleController {
   @RequirePermissions(Permission.ClassRead)
   async list(@Query() query: unknown): Promise<AdminScheduleResponse> {
     return this.schedule.listSchedule(parse(adminScheduleQuerySchema, query));
+  }
+
+  /**
+   * `POST /admin/schedule/instances` — schedule a single class occurrence straight
+   * from a class type: `{ classTypeId, startsAt, trainerId?, locationId?, room?,
+   * capacityOverride? }`. The occurrence's `endsAt` is derived from the type's
+   * duration server-side. Requires {@link Permission.ClassWrite}. Returns `201`
+   * with the created occurrence's full detail (empty roster) so the caller renders
+   * it like an opened one. Failure modes: `400` (invalid body), `404
+   * CLASS_TYPE_NOT_FOUND` / `TRAINER_NOT_FOUND` / `LOCATION_NOT_FOUND` (unknown /
+   * cross-tenant), and `409 CLASS_TYPE_INACTIVE`.
+   */
+  @Post('instances')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.ClassWrite)
+  async scheduleClass(@Body() body: unknown): Promise<GetAdminClassInstanceResponse> {
+    return this.schedule.scheduleClass(parse(scheduleClassInstanceSchema, body));
   }
 
   /**

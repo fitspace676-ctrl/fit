@@ -43,6 +43,7 @@ interface FindManyArgs {
   where?: {
     startsAt?: { gte?: Date; lt?: Date };
     template?: { trainerId?: unknown; locationId?: unknown };
+    AND?: unknown[];
   };
   orderBy?: unknown;
   select?: unknown;
@@ -170,12 +171,16 @@ describe('AdminScheduleService', () => {
     expect(instances.map((i) => i.status)).toEqual(['SCHEDULED', 'CANCELED', 'COMPLETED']);
   });
 
-  it('narrows through the template relation when a trainer filter is set', async () => {
+  it('narrows on the trainer at either the occurrence or its template', async () => {
     const { service, findMany } = setup();
 
     await service.listSchedule(query({ trainerId: 'tr-9' }));
 
-    expect(findMany.mock.calls[0]![0].where?.template).toEqual({ trainerId: 'tr-9' });
+    // A trainer filter matches the occurrence's own assignment (a class scheduled
+    // from a type) or its template's default (a generated one).
+    expect(findMany.mock.calls[0]![0].where?.AND).toEqual([
+      { OR: [{ trainerId: 'tr-9' }, { template: { trainerId: 'tr-9' } }] },
+    ]);
   });
 
   it('narrows on both trainer and location together', async () => {
@@ -183,10 +188,10 @@ describe('AdminScheduleService', () => {
 
     await service.listSchedule(query({ trainerId: 'tr-9', locationId: 'loc-3' }));
 
-    expect(findMany.mock.calls[0]![0].where?.template).toEqual({
-      trainerId: 'tr-9',
-      locationId: 'loc-3',
-    });
+    expect(findMany.mock.calls[0]![0].where?.AND).toEqual([
+      { OR: [{ trainerId: 'tr-9' }, { template: { trainerId: 'tr-9' } }] },
+      { OR: [{ locationId: 'loc-3' }, { template: { locationId: 'loc-3' } }] },
+    ]);
   });
 
   it('returns an empty window as a normal result', async () => {

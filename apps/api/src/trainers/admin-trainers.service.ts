@@ -420,7 +420,9 @@ export class AdminTrainersService {
     });
     const counts = new Map<string, number>();
     for (const row of rows) {
-      const trainerId = row.template.trainerId;
+      // The query filters on `template.trainerId`, so only template-backed
+      // occurrences reach here — `template` is always present.
+      const trainerId = row.template?.trainerId;
       if (trainerId) {
         counts.set(trainerId, (counts.get(trainerId) ?? 0) + 1);
       }
@@ -455,9 +457,13 @@ export class AdminTrainersService {
     });
     const next = new Map<string, TrainerNextClass>();
     for (const row of rows) {
-      const trainerId = row.template.trainerId;
+      // Filtered on `template.trainerId`, so `template` is always present here.
+      const trainerId = row.template?.trainerId;
       if (trainerId && !next.has(trainerId)) {
-        next.set(trainerId, { startsAt: row.startsAt.toISOString(), title: row.template.title });
+        next.set(trainerId, {
+          startsAt: row.startsAt.toISOString(),
+          title: row.template?.title ?? 'Class',
+        });
       }
     }
     return next;

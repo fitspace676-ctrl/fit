@@ -85,6 +85,13 @@ import type {
   SetClassTemplateStatusResponse,
   UpdateClassTemplateData,
   UpdateClassTemplateResponse,
+  ListAdminClassTypesQuery,
+  ListAdminClassTypesResponse,
+  CreateClassTypeData,
+  UpdateClassTypeData,
+  AdminClassTypeDetail,
+  AdminClassTypeOption,
+  GetAdminClassTypeResponse,
   CreateStaffInput,
   InviteStaffInput,
   InviteStaffResponse,
@@ -144,6 +151,11 @@ import type {
   CancelClassInstanceResponse,
   PromoteWaitlistResponse,
   BookMemberOntoClassResponse,
+  ListAdminPtSessionsQuery,
+  AdminPtSessionsResponse,
+  CreatePtSessionData,
+  CreatePtSessionResponse,
+  PtSessionStatusResponse,
   MarkAttendanceData,
   MarkAttendanceResponse,
   ReportCatalogResponse,
@@ -1046,6 +1058,98 @@ export async function resumeClassTemplate(id: string): Promise<SetClassTemplateS
   return unwrap<SetClassTemplateStatusResponse>(res);
 }
 
+// ── Class types (the reusable catalogue the schedule places occurrences of) ────
+
+/** Serialise a class-type roster query to a `?key=value` string, dropping empties. */
+export function classTypesQueryString(query: Partial<ListAdminClassTypesQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/class-types` — one filtered, server-paginated page of the gym's class types. */
+export async function fetchClassTypes(
+  query: Partial<ListAdminClassTypesQuery> = {},
+): Promise<ListAdminClassTypesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/class-types${classTypesQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminClassTypesResponse>(res);
+}
+
+/** `GET /admin/class-types/options` — the gym's active types as scheduler options. */
+export async function fetchClassTypeOptions(): Promise<AdminClassTypeOption[]> {
+  const res = await fetch(`${apiBaseUrl()}/admin/class-types/options`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AdminClassTypeOption[]>(res);
+}
+
+/** `GET /admin/class-types/:id` — one class type's detail. */
+export async function fetchClassType(id: string): Promise<GetAdminClassTypeResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/class-types/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetAdminClassTypeResponse>(res);
+}
+
+/** `POST /admin/class-types` — create a class type; returns the new type's detail. */
+export async function createClassType(input: CreateClassTypeData): Promise<AdminClassTypeDetail> {
+  const res = await fetch(`${apiBaseUrl()}/admin/class-types`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<AdminClassTypeDetail>(res);
+}
+
+/** `PATCH /admin/class-types/:id` — edit a class type's profile; returns the updated detail. */
+export async function updateClassType(
+  id: string,
+  input: UpdateClassTypeData,
+): Promise<AdminClassTypeDetail> {
+  const res = await fetch(`${apiBaseUrl()}/admin/class-types/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<AdminClassTypeDetail>(res);
+}
+
+/** `POST /admin/class-types/:id/deactivate` — soft-retire a class type. */
+export async function deactivateClassType(id: string): Promise<AdminClassTypeDetail> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/class-types/${encodeURIComponent(id)}/deactivate`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<AdminClassTypeDetail>(res);
+}
+
+/** `POST /admin/class-types/:id/activate` — reactivate a class type. */
+export async function activateClassType(id: string): Promise<AdminClassTypeDetail> {
+  const res = await fetch(`${apiBaseUrl()}/admin/class-types/${encodeURIComponent(id)}/activate`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AdminClassTypeDetail>(res);
+}
+
 // ── Staff (T4.7) ──────────────────────────────────────────────────────────────
 
 /** `GET /staff` — the gym's active staff plus its pending invitations. */
@@ -1580,6 +1684,81 @@ export async function cancelScheduleInstance(id: string): Promise<CancelClassIns
     },
   );
   return unwrap<CancelClassInstanceResponse>(res);
+}
+
+/** Serialise a PT-sessions range query to a `?key=value` string, dropping empties. */
+export function ptSessionsQueryString(query: Partial<ListAdminPtSessionsQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/**
+ * `GET /admin/pt-sessions?from=&to=&trainerId=` — the chosen trainer's 1:1 PT
+ * sessions whose `startsAt` falls in `[from, to)`, ordered by start. The PT
+ * calendar issues this as staff page between weeks; an empty `sessions` array is a
+ * normal result the calendar renders as its empty state.
+ */
+export async function fetchPtSessions(
+  query: ListAdminPtSessionsQuery,
+): Promise<AdminPtSessionsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/pt-sessions${ptSessionsQueryString(query)}`, {
+    headers: await authHeaders(),
+    // The calendar reflects live tenant state — never serve a stale week.
+    cache: 'no-store',
+  });
+  return unwrap<AdminPtSessionsResponse>(res);
+}
+
+/**
+ * `POST /admin/pt-sessions` — schedule one 1:1 PT session for a member with a
+ * trainer; `endsAt` is derived from `durationMinutes` server-side. Gated
+ * `ClassWrite` API-side; an unknown / cross-tenant trainer or member is a `404`.
+ */
+export async function createPtSession(
+  input: CreatePtSessionData,
+): Promise<CreatePtSessionResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/pt-sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreatePtSessionResponse>(res);
+}
+
+/**
+ * `POST /admin/pt-sessions/:id/cancel` — cancel a scheduled PT session (status
+ * `CANCELED`), keeping the row for history, and return the refreshed session. Gated
+ * `ClassWrite` API-side; a `404 PT_SESSION_NOT_FOUND` for an unknown id.
+ */
+export async function cancelPtSession(id: string): Promise<PtSessionStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/pt-sessions/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<PtSessionStatusResponse>(res);
+}
+
+/**
+ * `POST /admin/pt-sessions/:id/complete` — mark a PT session done (status
+ * `COMPLETED`) and return the refreshed session. Gated `ClassWrite` API-side; a
+ * `404 PT_SESSION_NOT_FOUND` for an unknown id.
+ */
+export async function completePtSession(id: string): Promise<PtSessionStatusResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/pt-sessions/${encodeURIComponent(id)}/complete`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<PtSessionStatusResponse>(res);
 }
 
 /**

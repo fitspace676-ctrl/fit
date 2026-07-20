@@ -13,6 +13,8 @@ import {
   Role,
   GymMemberStatus,
   InstanceStatus,
+  ClassPricingRule,
+  ClassTypeStatus,
   BookingStatus,
   CheckInMethod,
   LocationStatus,
@@ -241,6 +243,106 @@ async function main() {
     });
   }
 
+  // Class-type catalogue (the reusable "kinds" of class staff schedule single
+  // occurrences of). Idempotent — keyed on (gymId, name). Seeds a realistic
+  // catalogue so the Class Types tab and the schedule's "Add Class" type-picker
+  // open onto data; a couple of single occurrences are scheduled from a type
+  // below to exercise the type→occurrence path alongside the template one.
+  const CLASS_TYPES = [
+    {
+      name: 'Boxing',
+      durationMinutes: 60,
+      capacity: 16,
+      minAttendance: 4,
+      color: '#ef4444',
+    },
+    {
+      name: 'Yoga Flow',
+      durationMinutes: 75,
+      capacity: 20,
+      minAttendance: 3,
+      color: '#10b981',
+    },
+    {
+      name: 'CrossFit',
+      durationMinutes: 60,
+      capacity: 14,
+      minAttendance: 5,
+      color: '#ec4899',
+    },
+    {
+      name: 'Spin',
+      durationMinutes: 45,
+      capacity: 24,
+      minAttendance: 6,
+      color: '#7c3aed',
+    },
+    {
+      name: 'Pilates',
+      durationMinutes: 50,
+      capacity: 18,
+      minAttendance: null,
+      color: '#f59e0b',
+    },
+  ] as const;
+
+  const classTypeIdByName = new Map<string, string>();
+  for (const type of CLASS_TYPES) {
+    const existing = await prisma.classType.findFirst({
+      where: { gymId: downtown.id, name: type.name },
+      select: { id: true },
+    });
+    const id =
+      existing?.id ??
+      (
+        await prisma.classType.create({
+          data: {
+            gymId: downtown.id,
+            name: type.name,
+            durationMinutes: type.durationMinutes,
+            capacity: type.capacity,
+            minAttendance: type.minAttendance ?? null,
+            color: type.color,
+            pricingRule: ClassPricingRule.FREE,
+            status: ClassTypeStatus.ACTIVE,
+          },
+          select: { id: true },
+        })
+      ).id;
+    classTypeIdByName.set(type.name, id);
+  }
+
+  // A couple of single occurrences scheduled directly from a type (no template),
+  // this week, at UTC hours inside the 06:00–22:00 calendar. Idempotent on
+  // (gymId, classTypeId, startsAt).
+  const singleOccurrences = [
+    { name: 'Boxing', dayOffset: 0, hour: 20, minutes: 60, capacity: 16 },
+    { name: 'Pilates', dayOffset: 1, hour: 10, minutes: 50, capacity: 18 },
+  ];
+  for (const occ of singleOccurrences) {
+    const classTypeId = classTypeIdByName.get(occ.name);
+    if (!classTypeId) continue;
+    const startsAt = new Date();
+    startsAt.setUTCDate(startsAt.getUTCDate() + occ.dayOffset);
+    startsAt.setUTCHours(occ.hour, 0, 0, 0);
+    const existing = await prisma.classInstance.findFirst({
+      where: { gymId: downtown.id, classTypeId, startsAt },
+      select: { id: true },
+    });
+    if (!existing) {
+      const endsAt = new Date(startsAt.getTime() + occ.minutes * 60 * 1000);
+      await prisma.classInstance.create({
+        data: {
+          gymId: downtown.id,
+          classTypeId,
+          startsAt,
+          endsAt,
+          status: InstanceStatus.SCHEDULED,
+        },
+      });
+    }
+  }
+
   // ── Demo / pilot enrichment for the `downtown` gym (T10.3) ────────────────
   //
   // Populates a realistic, tenant-scoped dataset so a pilot gym opens onto a fully
@@ -252,6 +354,52 @@ async function main() {
   // is guarded by existence/upsert — idempotent and non-destructive, safe to
   // re-run, never deletes.
   await enrichDowntown(downtown.id);
+
+  // A few 1:1 PT sessions this week so the PT Calendar tab opens onto data. Scoped
+  // to the first active trainer + first member of `downtown`; idempotent on
+  // (gymId, trainerId, startsAt). Skipped if the gym has no trainer or member yet.
+  const ptTrainer = await prisma.trainer.findFirst({
+    where: { gymId: downtown.id, status: TrainerStatus.ACTIVE },
+    select: { id: true },
+    orderBy: { name: 'asc' },
+  });
+  // A PT session is a trainer + a workout type (class type) — no member. Attach the
+  // first seeded class type so the calendar shows named blocks.
+  const ptClassTypeId = classTypeIdByName.values().next().value ?? null;
+  if (ptTrainer && ptClassTypeId) {
+    const ptSessions = [
+      { dayOffset: 0, hour: 9, minutes: 60 },
+      { dayOffset: 2, hour: 14, minutes: 45 },
+      { dayOffset: 4, hour: 18, minutes: 60 },
+    ];
+    for (const pt of ptSessions) {
+      const startsAt = new Date();
+      startsAt.setUTCDate(startsAt.getUTCDate() + pt.dayOffset);
+      startsAt.setUTCHours(pt.hour, 0, 0, 0);
+      const existing = await prisma.ptSession.findFirst({
+        where: { gymId: downtown.id, trainerId: ptTrainer.id, startsAt },
+        select: { id: true, classTypeId: true },
+      });
+      if (!existing) {
+        await prisma.ptSession.create({
+          data: {
+            gymId: downtown.id,
+            trainerId: ptTrainer.id,
+            classTypeId: ptClassTypeId,
+            startsAt,
+            endsAt: new Date(startsAt.getTime() + pt.minutes * 60 * 1000),
+            status: InstanceStatus.SCHEDULED,
+          },
+        });
+      } else if (!existing.classTypeId) {
+        // Backfill a workout type onto a legacy row that predates the member→type change.
+        await prisma.ptSession.update({
+          where: { id: existing.id },
+          data: { classTypeId: ptClassTypeId },
+        });
+      }
+    }
+  }
 
   // Materialise every active template's occurrences out to the standard 4-week
   // booking horizon (the same pass the T5.3 cron runs), so a pilot demo opens onto
