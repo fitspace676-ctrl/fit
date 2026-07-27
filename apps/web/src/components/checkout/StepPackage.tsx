@@ -13,6 +13,7 @@ import type {
 } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchSignupCatalogue } from '@/lib/signup';
+import { PRODUCT_TABS, toCards } from './product-cards';
 import { CHECKOUT_LOCATION_KEY } from './StepLocation';
 
 /** sessionStorage key the wizard persists the chosen product's id under (T3.9). */
@@ -25,53 +26,6 @@ export const CHECKOUT_PACKAGE_KEY = 'checkout_packageId';
  * payment step would not know which purchase to make.
  */
 export const CHECKOUT_PRODUCT_TYPE_KEY = 'checkout_productType';
-
-/** The tabs, in render order. Each maps to one catalogue in the response. */
-const TABS: readonly CheckoutProductType[] = ['package', 'subscription', 'credit_pack'];
-
-/**
- * Flatten one catalogue into the card view model. All three products render as
- * the same card, so subscriptions and credit packs are projected onto
- * {@link PackageSummary} rather than given near-identical components of their
- * own: a subscription's cadence becomes the price suffix, and a credit pack's
- * session count becomes the "N sessions" line the card already knows how to show.
- */
-export function toCards(
-  catalogue: SignupCatalogueResponse,
-  tab: CheckoutProductType,
-): readonly PackageSummary[] {
-  switch (tab) {
-    case 'package':
-      return catalogue.packages;
-    case 'subscription':
-      return catalogue.subscriptionPlans.map((plan) => ({
-        id: plan.id,
-        name: plan.name,
-        description: plan.description,
-        priceAmount: plan.priceAmount,
-        currency: plan.currency,
-        interval: plan.interval === 'YEAR' ? 'year' : 'month',
-        // A recurring membership entitles the member to every class rather than a
-        // countable number of them, which is exactly what the card's `null` means.
-        sessionCount: null,
-        features: plan.features,
-        popular: plan.popular,
-      }));
-    case 'credit_pack':
-      return catalogue.creditPacks.map((pack) => ({
-        id: pack.id,
-        name: pack.name,
-        description: '',
-        priceAmount: pack.priceAmount,
-        currency: pack.currency,
-        // A pack is bought outright, so it carries no recurring price suffix.
-        interval: 'one_time',
-        sessionCount: pack.sessionCount,
-        features: [],
-        popular: false,
-      }));
-  }
-}
 
 // Astryx migration (T11.15): step 2 (pick package) is rebuilt on the Fit brand
 // theme — selectable package cards, the feature checklist and status states
@@ -405,7 +359,7 @@ export function StepPackage({
     setSelectedId(storedId);
 
     const storedType = window.sessionStorage.getItem(CHECKOUT_PRODUCT_TYPE_KEY);
-    if (storedType && (TABS as readonly string[]).includes(storedType)) {
+    if (storedType && (PRODUCT_TABS as readonly string[]).includes(storedType)) {
       setSelectedType(storedType as CheckoutProductType);
       setTab(storedType as CheckoutProductType);
     }
@@ -537,7 +491,7 @@ export function StepPackage({
       </div>
 
       <div role="tablist" aria-label={t('packages.tabsLabel')} {...stylex.props(styles.tabs)}>
-        {TABS.map((key) => (
+        {PRODUCT_TABS.map((key) => (
           <button
             key={key}
             type="button"

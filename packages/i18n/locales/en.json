@@ -588,7 +588,8 @@
         "phone": "Phone",
         "dateOfBirth": "Date of birth",
         "personalId": "National ID number",
-        "personalIdHint": "Required by the gym for membership records."
+        "personalIdHint": "Required by the gym for membership records.",
+        "gender": "Gender"
       },
       "gender": {
         "female": "Female",
@@ -596,7 +597,17 @@
         "other": "Other"
       },
       "emailTaken": "This email already has an account.",
-      "emailTakenAction": "Sign in instead"
+      "emailTakenAction": "Sign in instead",
+      "groups": {
+        "about": {
+          "title": "About you",
+          "hint": "The gym keeps this on file for your membership record."
+        },
+        "account": {
+          "title": "Your login",
+          "hint": "You will use these to sign in to the member portal."
+        }
+      }
     },
     "payment": {
       "title": "Review and pay",
@@ -626,7 +637,15 @@
       "missing": {
         "title": "We couldn't find that order",
         "subtitle": "The order may have expired or the link is incomplete."
-      }
+      },
+      "verifyEmail": "One more thing — we have emailed you a confirmation link. Click it to confirm your address, otherwise you will not be able to sign in again once this session ends."
+    },
+    "summary": {
+      "title": "Your selection",
+      "branch": "Branch",
+      "total": "Total",
+      "empty": "Pick a branch and a plan — your choice will show up here.",
+      "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
     }
   },
   "settings": {

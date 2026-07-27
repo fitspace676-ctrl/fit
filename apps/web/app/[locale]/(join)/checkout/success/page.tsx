@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { OrderItem, OrderSummary } from '@fit/types';
 import { cookies } from 'next/headers';
+import { Icon } from '@/src/components/ui';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { fetchOrder } from '@/lib/orders';
 import { HomeCta } from '../home-cta';
@@ -37,6 +38,38 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '1rem',
     textAlign: 'center',
+  },
+  /**
+   * The "confirm your email" notice.
+   *
+   * Signing up issues a session immediately, so a new member walks straight into
+   * the portal and nothing on screen suggests anything is outstanding — until
+   * the session expires and the next sign-in is refused with
+   * `EMAIL_NOT_VERIFIED`. Saying so here, at the moment the verification mail
+   * actually lands, is the difference between a one-click confirmation and a
+   * locked-out member who never knew there was a step left.
+   */
+  verify: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.625rem',
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    paddingInline: '1rem',
+    paddingBlock: '0.875rem',
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    textAlign: 'left',
+    color: 'var(--color-text-primary)',
+    backgroundColor: 'color-mix(in srgb, var(--color-accent) 10%, transparent)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent)',
+  },
+  verifyIcon: {
+    marginTop: '0.1875rem',
+    flexShrink: 0,
+    width: '1rem',
+    height: '1rem',
+    color: 'var(--color-text-accent)',
   },
   confirmation: {
     display: 'flex',
@@ -226,6 +259,11 @@ function OrderConfirmation({
           </dd>
         </div>
       </dl>
+
+      <p {...stylex.props(styles.verify)}>
+        <Icon name="mail" {...stylex.props(styles.verifyIcon)} sw={2.2} />
+        {t('success.verifyEmail')}
+      </p>
 
       <HomeCta label={t('success.returnHome')} />
     </div>
