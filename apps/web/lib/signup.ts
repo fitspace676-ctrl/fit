@@ -11,7 +11,6 @@ import {
   type CreateCheckoutInput,
   type CreateCheckoutResponse,
   type MemberSignupInput,
-  type OrderSummary,
   type SignupCatalogueResponse,
   type TokenPair,
 } from '@fit/types';
@@ -96,20 +95,26 @@ export async function signupMember(input: MemberSignupInput): Promise<TokenPair>
 }
 
 /**
- * Buy the chosen product (`POST /checkout`). Authenticated: the gym, the member
- * and the price are resolved server-side from the session and the catalogue, so
- * the body only names what is being bought. Returns the parsed, validated
- * response — a malformed payload throws rather than redirecting to a broken
- * confirmation page.
+ * Buy the chosen product. Authenticated: the gym, the member and the price are
+ * resolved server-side from the session and the catalogue, so the body only
+ * names what is being bought. Returns the parsed, validated response — a
+ * malformed payload throws rather than redirecting to a broken confirmation
+ * page.
+ *
+ * Goes through the **same-origin** `/api/checkout` route rather than the API
+ * directly. The session lives in an httpOnly cookie the client cannot read, and
+ * the API sits on a different origin than the portal, so a direct cross-origin
+ * call carries no credentials at all and is rejected — the route reads the
+ * cookie server-side and forwards a Bearer token.
  */
 export async function createCheckout(
   input: CreateCheckoutInput & { signal?: AbortSignal },
 ): Promise<CreateCheckoutResponse> {
   const { signal, ...body } = input;
-  const response = await fetch(`${API_URL}/checkout`, {
+  const response = await fetch('/api/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    credentials: 'include',
+    credentials: 'same-origin',
     body: JSON.stringify(body),
     signal,
   });
@@ -120,34 +125,4 @@ export async function createCheckout(
   }
 
   return createCheckoutResponseSchema.parse(await response.json());
-}
-
-/**
- * The buyer's own order confirmation (`GET /checkout/:orderId`). Returns `null`
- * when the id names no order of theirs (a 404), so the confirmation page can
- * render its "order not found" state instead of throwing.
- */
-export async function fetchCheckoutOrder({
-  orderId,
-  accessToken,
-  signal,
-}: {
-  orderId: string;
-  /** Bearer token — the confirmation is read server-side, where cookies are not forwarded. */
-  accessToken: string;
-  signal?: AbortSignal;
-}): Promise<OrderSummary | null> {
-  const response = await fetch(`${API_URL}/checkout/${encodeURIComponent(orderId)}`, {
-    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
-    signal,
-  });
-
-  if (response.status === 404) return null;
-  if (!response.ok) {
-    const detail = await errorBody(response);
-    throw new Error(detail.message ?? `Failed to load the order (${response.status})`);
-  }
-
-  const { order } = (await response.json()) as { order: OrderSummary };
-  return order;
 }
