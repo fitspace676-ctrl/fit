@@ -55,6 +55,26 @@ export function resolveModel(id?: string): AgentModel | undefined {
   return available.find((m) => m.id === id) ?? available[0];
 }
 
+/**
+ * Models to fall back to if `model` fails outright — one per *other* configured
+ * provider, cheapest first.
+ *
+ * Both providers are rarely down at once, but a single rejected or expired key
+ * is common, and it otherwise takes the console's agent down completely while a
+ * second, working key sits configured. Trying the next provider turns that from
+ * an outage into a slightly costlier turn.
+ */
+export function fallbackModels(model: AgentModel): AgentModel[] {
+  const seen = new Set<AgentProvider>([model.provider]);
+  const spares: AgentModel[] = [];
+  for (const candidate of availableModels()) {
+    if (seen.has(candidate.provider)) continue;
+    seen.add(candidate.provider);
+    spares.push(candidate);
+  }
+  return spares;
+}
+
 /** Instantiate the driver for a model. */
 export function createDriver(model: AgentModel): ModelDriver {
   return model.provider === 'anthropic'
