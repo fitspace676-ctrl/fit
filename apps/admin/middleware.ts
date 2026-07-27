@@ -37,10 +37,18 @@ import {
 /**
  * This app's basePath when served behind the tenant proxy (`<slug>.<root>/admin`).
  * `req.nextUrl.pathname` is already basePath-stripped, so we re-add it when
- * building the `from` return-path and in-app redirect targets. Unset (standalone
- * `*.vercel.app` deployment) → empty, and paths stay at the root.
+ * building the `from` return-path and in-app redirect targets.
+ *
+ * **The default must match `next.config.mjs`'s**, which is `/admin`. It used to
+ * default to `''` here, and since `ADMIN_BASE_PATH` is not set on the Vercel
+ * deployment the two disagreed: Next served the console under `/admin` while
+ * this file believed there was no prefix. Every redirect was then built without
+ * it — an unauthenticated operator was sent to `/login` (the *member* site's
+ * sign-in) instead of `/admin/login`, carrying a `from` that had lost the prefix
+ * too. A deployment that genuinely runs at the root sets `ADMIN_BASE_PATH=""`,
+ * which is an empty string rather than nullish and so still wins here.
  */
-const BASE_PATH = process.env.ADMIN_BASE_PATH ?? '';
+const BASE_PATH = process.env.ADMIN_BASE_PATH ?? '/admin';
 
 /** Paths reachable without a session — the console's own sign-in and the 403 page. */
 const PUBLIC_PATHS = ['/login', '/403'];
