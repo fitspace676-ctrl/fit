@@ -55,24 +55,32 @@ export async function createOrder({
 /** Arguments for {@link fetchOrder}. */
 export interface FetchOrderArgs {
   orderId: string;
+  /** The buyer's access token — the confirmation is their own order, not a public read. */
+  accessToken: string;
   /** Abort signal so an in-flight request is cancelled if the caller unmounts. */
   signal?: AbortSignal;
 }
 
 /**
- * Fetch an order's confirmation summary for the success page. GETs
- * `GET /orders/:orderId` and returns the parsed, validated summary, or `null`
- * when the id names no order (a 404) so the page can render its "order not
- * found" state instead of throwing. A malformed payload still throws — a broken
- * shape is a bug, not an empty result.
+ * Fetch an order's confirmation summary for the success page. Returns the
+ * parsed, validated summary, or `null` when the id names no order of the
+ * caller's (a 404) so the page can render its "order not found" state instead of
+ * throwing. A malformed payload still throws — a broken shape is a bug, not an
+ * empty result.
+ *
+ * Reads the member-facing `GET /checkout/:orderId`, not the staff `/orders/:id`:
+ * the latter is the console's order-management surface and requires billing
+ * permissions no member holds. The buyer's own access token is therefore
+ * required — by the time this page renders, the wizard has signed them in.
  */
 export async function fetchOrder({
   orderId,
+  accessToken,
   signal,
 }: FetchOrderArgs): Promise<OrderSummary | null> {
-  const response = await fetch(`${API_URL}/orders/${encodeURIComponent(orderId)}`, {
+  const response = await fetch(`${API_URL}/checkout/${encodeURIComponent(orderId)}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
     signal,
   });
 

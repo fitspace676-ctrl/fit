@@ -174,6 +174,7 @@ export interface MemberFormInitial {
   email: string;
   phone: string;
   dateOfBirth: string;
+  personalId: string;
   gender: string;
   address: string;
   emergencyContactName: string;
@@ -249,6 +250,7 @@ export function MemberForm(props: Props) {
   const [email, setEmail] = useState(seed?.email ?? '');
   const [phone, setPhone] = useState(seed?.phone ?? '');
   const [dateOfBirth, setDateOfBirth] = useState(seed?.dateOfBirth ?? '');
+  const [personalId, setPersonalId] = useState(seed?.personalId ?? '');
   const [gender, setGender] = useState(seed?.gender ?? '');
   const [address, setAddress] = useState(seed?.address ?? '');
   const [emergencyName, setEmergencyName] = useState(seed?.emergencyContactName ?? '');
@@ -279,6 +281,7 @@ export function MemberForm(props: Props) {
     // Shared profile fields; empty strings clear on the API (see `memberProfileShape`).
     const profile = {
       dateOfBirth,
+      personalId,
       gender: gender ? (gender as Gender) : null,
       address,
       emergencyContactName: emergencyName,
@@ -423,6 +426,29 @@ export function MemberForm(props: Props) {
               )}
             </div>
           ) : null}
+
+          {/*
+            National id. Optional here even though the public join wizard requires
+            it: a member added at the desk may not have their document to hand,
+            and refusing to record them until they do would be worse than a blank
+            field staff can fill in later.
+          */}
+          {show('personalId') && (
+            <LabeledField
+              label={t('form.personalId')}
+              htmlFor="personalId"
+              optional={t('form.optional')}
+            >
+              <input
+                id="personalId"
+                name="personalId"
+                type="text"
+                value={personalId}
+                onChange={(e) => setPersonalId(e.target.value)}
+                {...stylex.props(styles.field)}
+              />
+            </LabeledField>
+          )}
 
           {show('address') && (
             <LabeledField label={t('form.address')} htmlFor="address" optional={t('form.optional')}>

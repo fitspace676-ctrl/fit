@@ -12,6 +12,7 @@ import { AutomationModule } from './automation/automation.module';
 import { BillingModule } from './billing/billing.module';
 import { CartModule } from './cart/cart.module';
 import { CartIdentityMiddleware } from './cart/cart-identity.middleware';
+import { CatalogueModule } from './catalogue/catalogue.module';
 import { CheckInModule } from './check-in/check-in.module';
 import { ClassesModule } from './classes/classes.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -162,6 +163,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     LocationsModule,
     ProductsModule,
     PackagePlansModule,
+    CatalogueModule,
     SubscriptionPlansModule,
     SubscriptionsModule,
     MeModule,
@@ -256,6 +258,7 @@ export class AppModule implements NestModule {
         { path: 'packages', method: RequestMethod.GET },
         { path: 'products', method: RequestMethod.GET },
         { path: 'locations', method: RequestMethod.GET },
+        { path: 'catalogue', method: RequestMethod.GET },
         { path: 'cart', method: RequestMethod.ALL },
         { path: 'cart/(.*)', method: RequestMethod.ALL },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },

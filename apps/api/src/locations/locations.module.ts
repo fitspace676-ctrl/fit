@@ -20,5 +20,9 @@ import { LocationsService } from './locations.service';
 @Module({
   controllers: [AdminLocationsController, LocationsController],
   providers: [AdminLocationsService, LocationsService],
+  // The aggregated signup catalogue (`GET /catalogue`) composes this same public
+  // read so the join wizard can decide in one round trip whether the gym has
+  // more than one branch to choose between.
+  exports: [LocationsService],
 })
 export class LocationsModule {}

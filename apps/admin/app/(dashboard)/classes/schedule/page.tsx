@@ -10,13 +10,7 @@ import { ClassesTabs } from '@/components/classes-tabs';
 import { ScheduleBoard, type ScheduleView } from './schedule-board';
 import { loadScheduleFilters } from './options';
 import { loadRelationOptions } from '../options';
-import {
-  monthWindow,
-  resolveMonthAnchor,
-  resolveWeekStart,
-  toIsoDate,
-  weekWindow,
-} from './week';
+import { monthWindow, resolveMonthAnchor, resolveWeekStart, toIsoDate, weekWindow } from './week';
 
 export const metadata: Metadata = {
   title: 'Schedule — Fit Admin',

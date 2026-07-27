@@ -127,7 +127,11 @@ export class BookingsService {
           throw this.alreadyBooked();
         }
 
-        const capacity = instance.capacityOverride ?? instance.template?.capacity ?? instance.classType?.capacity ?? 0;
+        const capacity =
+          instance.capacityOverride ??
+          instance.template?.capacity ??
+          instance.classType?.capacity ??
+          0;
 
         // Atomic seat claim: the increment runs only while there is room, and the
         // DB evaluates `bookedCount < capacity` against the live row — so the last
@@ -390,7 +394,11 @@ export class BookingsService {
         classInstanceId,
         status: BookingStatus.CANCELED,
         promotedBookingId,
-        capacity: instance.capacityOverride ?? instance.template?.capacity ?? instance.classType?.capacity ?? 0,
+        capacity:
+          instance.capacityOverride ??
+          instance.template?.capacity ??
+          instance.classType?.capacity ??
+          0,
         bookedCount: after?.bookedCount ?? instance.bookedCount,
       };
     });
@@ -503,7 +511,12 @@ export class BookingsService {
       where: { id: booking.classInstanceId },
       select: INSTANCE_SELECT,
     });
-    const capacity = instance ? (instance.capacityOverride ?? instance.template?.capacity ?? instance.classType?.capacity ?? 0) : 0;
+    const capacity = instance
+      ? (instance.capacityOverride ??
+        instance.template?.capacity ??
+        instance.classType?.capacity ??
+        0)
+      : 0;
     return {
       bookingId: booking.id,
       classInstanceId: booking.classInstanceId,

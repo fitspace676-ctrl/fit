@@ -287,6 +287,12 @@ export const gymMemberIntakeSettingsSchema = z.object({
   phone: z.boolean().default(true),
   gender: z.boolean().default(false),
   dateOfBirth: z.boolean().default(false),
+  /**
+   * National identity number. Off by default like the other optional intake
+   * fields — a gym that wants it on file at the desk turns it on. Independent of
+   * the public join wizard, which always requires one.
+   */
+  personalId: z.boolean().default(false),
   address: z.boolean().default(false),
   emergencyContact: z.boolean().default(false),
   membershipPlan: z.boolean().default(true),

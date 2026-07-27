@@ -60,5 +60,8 @@ import { SubscriptionsController } from './subscriptions.controller';
     BillingNotificationsService,
     { provide: PAYMENT_PROVIDER, useClass: StubPaymentProvider },
   ],
+  // The join wizard's checkout (`POST /checkout`) enrols a member on a plan
+  // through this same self-service path rather than re-implementing enrolment.
+  exports: [SubscriptionEnrollmentService],
 })
 export class SubscriptionsModule {}

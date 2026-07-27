@@ -439,6 +439,12 @@ export interface MemberDetail extends MemberRow {
   accessLog: MemberAccessLogEntry[];
   /** ISO date of birth, or `null` when not recorded. */
   dateOfBirth: string | null;
+  /**
+   * National identity number, or `null`. Required by the public self-signup
+   * wizard, so every self-joined member has one; memberships created before it
+   * existed — and staff added through the directory or an invite — do not.
+   */
+  personalId: string | null;
   /** Recorded gender — {@link genderSchema}, or `null`. */
   gender: Gender | null;
   /** Postal / home address, or `null`. */
@@ -497,11 +503,14 @@ const editableText = (max: number) =>
 
 /**
  * The profile-extra fields shared by create + update (T4.x): date of birth,
- * gender, address, emergency contact and medical notes. Every field is
- * optional so a minimal create still validates; `null`/empty clears on edit.
+ * gender, national id, address, emergency contact and medical notes. Every field
+ * is optional so a minimal create still validates; `null`/empty clears on edit.
+ * Note the asymmetry with signup: the join wizard *requires* a national id, but
+ * a staff-created member may legitimately not have one on file yet.
  */
 const memberProfileShape = {
   dateOfBirth: editableText(40),
+  personalId: editableText(64),
   gender: genderSchema.nullish(),
   address: editableText(200),
   emergencyContactName: editableText(120),

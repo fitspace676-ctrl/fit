@@ -28,9 +28,10 @@ import {
  * (e.g. an unconfigured preview) tokens can't be trusted, so the gate fails
  * closed and only the public routes below render.
  *
- * The console has **no sign-in of its own** — the web app owns login at the
- * subdomain root (`/{locale}/login`), outside this app's `/admin` basePath. So
- * an unauthenticated request is bounced there, not to a nonexistent `/admin/login`.
+ * The console owns its **own sign-in** at `/admin/login` (inside this app's
+ * basePath), so an unauthenticated request is bounced there. The member site's
+ * `/{locale}/login` still signs staff in too — it sends a non-MEMBER session
+ * straight here after login — but the console is no longer dependent on it.
  */
 
 /**
@@ -41,8 +42,8 @@ import {
  */
 const BASE_PATH = process.env.ADMIN_BASE_PATH ?? '';
 
-/** Paths reachable without a session — the 403 page itself (there is no in-app login). */
-const PUBLIC_PATHS = ['/403'];
+/** Paths reachable without a session — the console's own sign-in and the 403 page. */
+const PUBLIC_PATHS = ['/login', '/403'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -101,11 +102,13 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // 1. Unauthenticated → the web app's sign-in at the subdomain root (outside
-  //    this app's basePath), then come back to the full console path via `from`.
+  // 1. Unauthenticated → the console's own sign-in (inside this app's basePath),
+  //    then come back to the full console path via `from`. Staff used to be sent
+  //    to the *member* site's `/login`; each surface now owns its own door, so an
+  //    operator who bookmarked the console stays inside it to sign in.
   if (!session) {
     const from = `${BASE_PATH}${pathname}${search}`;
-    return redirectTo(req, `/login?from=${encodeURIComponent(from)}`);
+    return redirectTo(req, `${BASE_PATH}/login?from=${encodeURIComponent(from)}`);
   }
 
   // 2. Authenticated but not staff → forbidden (an in-app page, so basePath-prefixed).

@@ -619,7 +619,10 @@ export class ReportDrilldownService {
       const agg = classAgg(instance.template?.title ?? instance.classType?.name ?? 'Class');
       agg.sessions += 1;
       agg.capacity +=
-        instance.capacityOverride ?? instance.template?.capacity ?? instance.classType?.capacity ?? 0;
+        instance.capacityOverride ??
+        instance.template?.capacity ??
+        instance.classType?.capacity ??
+        0;
       agg.booked += instance.bookedCount;
     }
 

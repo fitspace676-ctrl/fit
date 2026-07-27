@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { GymMemberStatus, GymStatus, Prisma, Role } from '@fit/db';
+import { EMAIL_TAKEN_CODE } from '@fit/types';
 import type {
   AppleAuthInput,
   AppleProfile,
@@ -16,6 +17,7 @@ import type {
   ForgotPasswordResponse,
   GoogleAuthInput,
   LoginInput,
+  MemberSignupInput,
   RefreshInput,
   RegisterGymInput,
   RegisterGymResponse,
@@ -132,6 +134,105 @@ export class AuthService {
     await this.redeemStaffInvite(user.id, input.email, input.inviteToken);
 
     return { message: 'verification email sent' };
+  }
+
+  /**
+   * Public member self-signup on one gym (`POST /auth/signup`) — the join
+   * wizard's step 3.
+   *
+   * Differs from {@link register} in three ways, all of which follow from this
+   * being a *gym onboarding a paying member* rather than a bare account
+   * creation: the `GymMember` is created alongside the `User` (with the profile
+   * the front desk needs — phone, date of birth, gender, national id), and a
+   * session is issued immediately so the buyer walks straight into the portal
+   * after paying instead of bouncing off the login screen.
+   *
+   * The address is still **unverified**: the verification email goes out here
+   * exactly as it does for {@link register}, and `login` keeps rejecting an
+   * unverified account. So the issued session is a grace period, not an
+   * exemption — the member must click the emailed link before their next
+   * sign-in. Delivery is best-effort for the same reason it is in `register`: the
+   * account and token already exist, so a transient mail failure must not 500 a
+   * request the buyer has already paid for.
+   *
+   * Runs on the **unscoped** Prisma client: `GymMember` is a tenant-scoped model
+   * and `/auth/*` is excluded from `TenantMiddleware`, so there is no gym in
+   * scope to satisfy the tenant extension — the same reasoning as
+   * {@link registerGym}.
+   */
+  async signupMember(input: MemberSignupInput): Promise<TokenPair> {
+    // Only a live tenant can be joined. An unknown / suspended gym is a 400
+    // rather than a 404: `gymId` is client-supplied context resolved from the
+    // subdomain, so a bad value is a malformed request, not a missing resource.
+    const gym = await this.prisma.client.gym.findFirst({
+      where: { id: input.gymId, status: GymStatus.ACTIVE },
+      select: { id: true, slug: true },
+    });
+    if (!gym) {
+      throw new BadRequestException({ message: 'Unknown gym', code: 'GYM_NOT_FOUND' });
+    }
+
+    const existing = await this.prisma.client.user.findUnique({
+      where: { email: input.email },
+      select: { id: true },
+    });
+    if (existing) {
+      // The wizard turns this into a "you already have an account — sign in"
+      // branch, so the buyer keeps their place in the flow.
+      throw new ConflictException({
+        message: 'Email is already registered',
+        code: EMAIL_TAKEN_CODE,
+      });
+    }
+
+    // Hash outside the transaction — argon2 is deliberately slow and there is no
+    // reason to hold a DB transaction open across it.
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+
+    // The account and the membership are one unit: a `User` with no `GymMember`
+    // would be a person who "joined" a gym they are not a member of, and could
+    // not be recovered by retrying (the email would already be taken).
+    const userId = await this.prisma.client.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: input.email,
+          name: input.name,
+          phone: input.phone,
+          passwordHash,
+        },
+        select: { id: true },
+      });
+
+      await tx.gymMember.create({
+        data: {
+          userId: user.id,
+          gymId: gym.id,
+          role: Role.MEMBER,
+          status: GymMemberStatus.ACTIVE,
+          // A calendar date, not an instant: parsed at UTC midnight so the stored
+          // value round-trips to the same `YYYY-MM-DD` in every server timezone.
+          dateOfBirth: new Date(`${input.dateOfBirth}T00:00:00.000Z`),
+          gender: input.gender,
+          personalId: input.personalId,
+        },
+      });
+
+      return user.id;
+    });
+
+    const token = generateVerificationToken();
+    await this.redis.client.set(verifyKey(token), userId, 'EX', env.EMAIL_VERIFICATION_TTL);
+    try {
+      await this.email.sendVerificationEmail(input.email, token, input.name);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email to ${input.email}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId, gym.slug));
   }
 
   /**

@@ -145,7 +145,11 @@ export function ClassTypesTable({
       sortKey: 'name',
       cell: (type) => (
         <div {...stylex.props(styles.nameCell)}>
-          <span aria-hidden {...stylex.props(styles.swatch)} style={{ backgroundColor: type.color }} />
+          <span
+            aria-hidden
+            {...stylex.props(styles.swatch)}
+            style={{ backgroundColor: type.color }}
+          />
           <span {...stylex.props(styles.nameText)}>{type.name}</span>
         </div>
       ),
@@ -166,9 +170,7 @@ export function ClassTypesTable({
     {
       key: 'minAttendance',
       header: 'Min',
-      cell: (type) => (
-        <span {...stylex.props(styles.numText)}>{type.minAttendance ?? '—'}</span>
-      ),
+      cell: (type) => <span {...stylex.props(styles.numText)}>{type.minAttendance ?? '—'}</span>,
     },
     {
       key: 'pricing',
@@ -217,7 +219,9 @@ export function ClassTypesTable({
             v="outline"
             size="sm"
             disabled={!hasPrev}
-            onClick={() => startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))}
+            onClick={() =>
+              startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
+            }
           >
             Previous
           </Btn>
@@ -225,7 +229,9 @@ export function ClassTypesTable({
             v="outline"
             size="sm"
             disabled={!hasNext}
-            onClick={() => startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))}
+            onClick={() =>
+              startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
+            }
           >
             Next
           </Btn>

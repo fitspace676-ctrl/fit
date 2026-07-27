@@ -1090,7 +1090,13 @@ function WeekGrid({
           return (
             <div key={key} {...stylex.props(styles.dayCol, isToday && styles.dayColToday)}>
               {placed.map((ev) => (
-                <EventBlock key={ev.instance.id} placed={ev} locale={locale} t={t} onOpen={onOpen} />
+                <EventBlock
+                  key={ev.instance.id}
+                  placed={ev}
+                  locale={locale}
+                  t={t}
+                  onOpen={onOpen}
+                />
               ))}
             </div>
           );
@@ -1221,7 +1227,9 @@ function MonthGrid({
                 </button>
               ))}
               {overflow > 0 ? (
-                <span {...stylex.props(styles.monthMore)}>{t('month.more', { count: overflow })}</span>
+                <span {...stylex.props(styles.monthMore)}>
+                  {t('month.more', { count: overflow })}
+                </span>
               ) : null}
             </div>
           );
@@ -1263,7 +1271,13 @@ function ListDayColumn({
           <p {...stylex.props(styles.emptyDay)}>{t('empty.day')}</p>
         ) : (
           instances.map((instance) => (
-            <ClassCard key={instance.id} instance={instance} locale={locale} t={t} onOpen={onOpen} />
+            <ClassCard
+              key={instance.id}
+              instance={instance}
+              locale={locale}
+              t={t}
+              onOpen={onOpen}
+            />
           ))
         )}
       </div>
@@ -1404,7 +1418,9 @@ function EmptyWeek({ t, filtered }: { t: T; filtered: boolean }) {
         <span {...stylex.props(styles.emptyIcon)}>
           <Icon name="calendar" {...stylex.props(styles.emptyIconSvg)} />
         </span>
-        <p {...stylex.props(styles.emptyText)}>{filtered ? t('empty.filtered') : t('empty.week')}</p>
+        <p {...stylex.props(styles.emptyText)}>
+          {filtered ? t('empty.filtered') : t('empty.week')}
+        </p>
       </div>
     </Card>
   );

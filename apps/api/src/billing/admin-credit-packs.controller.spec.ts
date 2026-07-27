@@ -13,7 +13,7 @@ function setup() {
     Promise.resolve({ packs: [] }),
   );
   const grantPackForMember = vi.fn<() => Promise<PurchaseCreditPackResponse>>(() =>
-    Promise.resolve({ creditPackId: 'pack-9' }),
+    Promise.resolve({ creditPackId: 'pack-9', orderId: 'order-9' }),
   );
   const listCatalogue = vi.fn<() => Promise<ListCreditPackCatalogueResponse>>(() =>
     Promise.resolve({ packs: [] }),
@@ -54,7 +54,7 @@ describe('AdminCreditPacksController', () => {
       const result = await ctx.controller.grantForMember('gm-1', { packId: 'plan-1' });
 
       expect(ctx.grantPackForMember).toHaveBeenCalledWith('gm-1', { packId: 'plan-1' });
-      expect(result).toEqual({ creditPackId: 'pack-9' });
+      expect(result).toEqual({ creditPackId: 'pack-9', orderId: 'order-9' });
     });
 
     it('rejects a missing packId with 400 without hitting the service', async () => {

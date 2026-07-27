@@ -231,6 +231,18 @@
       "verifying": "Verifying your email…",
       "success": "Email verified — you’re all set.",
       "missingToken": "This verification link is invalid or has expired."
+    },
+    "splitHeading": "Sign in or join the gym",
+    "join": {
+      "title": "New here?",
+      "subtitle": "Pick a branch and a plan, and start training today.",
+      "benefits": {
+        "branch": "Choose the branch that suits you",
+        "plan": "Memberships, subscriptions and session packs",
+        "instant": "Straight into your member portal once you have paid"
+      },
+      "cta": "Become a member",
+      "ctaNote": "Takes about two minutes."
     }
   },
   "onboarding": {
@@ -551,7 +563,14 @@
       "sessions": "{count, plural, one {# session} other {# sessions}}",
       "popular": "Most popular",
       "select": "Select",
-      "selected": "Selected"
+      "selected": "Selected",
+      "tabsLabel": "Product type",
+      "tabEmpty": "Nothing on sale in this category yet.",
+      "tabs": {
+        "package": "Packages",
+        "subscription": "Subscriptions",
+        "credit_pack": "Session packs"
+      }
     },
     "details": {
       "title": "Your details",
@@ -565,8 +584,19 @@
         "name": "Full name",
         "email": "Email",
         "password": "Password",
-        "passwordHint": "At least 8 characters."
-      }
+        "passwordHint": "At least 8 characters.",
+        "phone": "Phone",
+        "dateOfBirth": "Date of birth",
+        "personalId": "National ID number",
+        "personalIdHint": "Required by the gym for membership records."
+      },
+      "gender": {
+        "female": "Female",
+        "male": "Male",
+        "other": "Other"
+      },
+      "emailTaken": "This email already has an account.",
+      "emailTakenAction": "Sign in instead"
     },
     "payment": {
       "title": "Review and pay",
@@ -1959,7 +1989,8 @@
         "paymentBankTransfer": "Bank transfer",
         "medicalSection": "Medical notes",
         "medicalPlaceholder": "Allergies, conditions, injuries…",
-        "optional": "Optional"
+        "optional": "Optional",
+        "personalId": "National ID"
       },
       "actions": {
         "edit": "Edit",
@@ -2082,7 +2113,8 @@
         "taskNoDue": "No due date",
         "taskMarkDone": "Mark done",
         "taskMarkPending": "Mark pending",
-        "noTasks": "No tasks yet."
+        "noTasks": "No tasks yet.",
+        "personalId": "National ID"
       },
       "memberTabs": {
         "overview": "Overview",

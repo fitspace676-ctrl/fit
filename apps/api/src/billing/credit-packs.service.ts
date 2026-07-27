@@ -191,6 +191,10 @@ export class CreditPacksService {
           total: plan.priceAmount,
           currency: plan.currency,
           status: OrderStatus.PAID,
+          // Itemise the pack so the order reads as a breakdown that sums to
+          // `total` wherever orders are rendered — the buyer's confirmation
+          // screen and the admin order detail alike — rather than a bare figure.
+          items: { create: { label: plan.name, amount: plan.priceAmount } },
           statusEvents: { create: { status: OrderStatus.PAID } },
         },
         select: { id: true },
@@ -225,7 +229,7 @@ export class CreditPacksService {
         select: { id: true },
       });
 
-      return { creditPackId: pack.id };
+      return { creditPackId: pack.id, orderId: order.id };
     });
   }
 

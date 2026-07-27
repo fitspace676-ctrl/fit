@@ -264,6 +264,25 @@ export function StepLocation({ gymId, initialLocationId, onSelect }: StepLocatio
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }, [selectedId, pathname, router]);
 
+  /**
+   * A single-branch gym has no choice to make, so the step makes it and gets out
+   * of the way — the visitor never sees a page whose only action is "confirm the
+   * one option". `replace` rather than `push` so Back from step 2 skips straight
+   * out of the wizard instead of landing here and bouncing forward again.
+   *
+   * Only when the gym really has exactly one branch: zero branches still falls
+   * through to the empty state below, which explains why there is nothing to pick.
+   */
+  useEffect(() => {
+    if (load.status !== 'ready' || load.locations.length !== 1) {
+      return;
+    }
+    const only = load.locations[0]!;
+    window.sessionStorage.setItem(CHECKOUT_LOCATION_KEY, only.id);
+    const params = new URLSearchParams({ step: '2', locationId: only.id });
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [load, pathname, router]);
+
   // The weekday key for the visitor's "today", used to surface today's hours.
   // `getDay()` is always 0–6, so the lookup always hits a key.
   const todayKey = useMemo(() => WEEKDAY_KEYS[new Date().getDay()]!, []);

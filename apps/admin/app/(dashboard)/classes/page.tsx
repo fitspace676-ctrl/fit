@@ -151,9 +151,7 @@ export default async function ClassTypesPage({
             the schedule then places occurrences of.
           </p>
         </div>
-        {canWrite && relationOptions ? (
-          <AddClassTypeDrawer plans={relationOptions.plans} />
-        ) : null}
+        {canWrite && relationOptions ? <AddClassTypeDrawer plans={relationOptions.plans} /> : null}
       </header>
 
       <ClassesTabs />

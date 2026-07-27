@@ -173,7 +173,10 @@ export class AdminScheduleService {
       select: { id: true, durationMinutes: true, status: true },
     });
     if (!type) {
-      throw new NotFoundException({ message: 'Class type not found', code: 'CLASS_TYPE_NOT_FOUND' });
+      throw new NotFoundException({
+        message: 'Class type not found',
+        code: 'CLASS_TYPE_NOT_FOUND',
+      });
     }
     if (type.status !== 'ACTIVE') {
       throw new ConflictException({

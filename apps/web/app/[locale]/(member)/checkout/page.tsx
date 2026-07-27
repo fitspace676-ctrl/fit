@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { checkoutProductTypeSchema, type CheckoutProductType } from '@fit/types';
 import { getActiveGymId } from '@/lib/active-gym';
 import { StepDetails } from '@/src/components/checkout/StepDetails';
 import { StepLocation } from '@/src/components/checkout/StepLocation';
@@ -57,6 +58,18 @@ interface CheckoutSearchParams {
   step?: string;
   locationId?: string;
   packageId?: string;
+  productType?: string;
+}
+
+/**
+ * Coerce the `?productType` param to a known catalogue, or `undefined`. The id
+ * in `?packageId` is meaningless without it — packages, subscriptions and credit
+ * packs are three different tables — so an unrecognised value is dropped rather
+ * than guessed at, and the step falls back to what it persisted.
+ */
+function parseProductType(raw: string | undefined): CheckoutProductType | undefined {
+  const parsed = checkoutProductTypeSchema.safeParse(raw);
+  return parsed.success ? parsed.data : undefined;
 }
 
 /** Coerce the `?step` param to a valid 1-based wizard step, defaulting to 1. */
@@ -89,6 +102,7 @@ export default async function CheckoutPage({
   const [t, gymId] = await Promise.all([getTranslations('checkout'), getActiveGymId()]);
 
   const step = parseStep(sp.step);
+  const productType = parseProductType(sp.productType);
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -101,11 +115,26 @@ export default async function CheckoutPage({
         {step === 1 ? (
           <StepLocation gymId={gymId} initialLocationId={sp.locationId} />
         ) : step === 2 ? (
-          <StepPackage gymId={gymId} locationId={sp.locationId} initialPackageId={sp.packageId} />
+          <StepPackage
+            gymId={gymId}
+            locationId={sp.locationId}
+            initialPackageId={sp.packageId}
+            initialProductType={productType}
+          />
         ) : step === 3 ? (
-          <StepDetails gymId={gymId} locationId={sp.locationId} packageId={sp.packageId} />
+          <StepDetails
+            gymId={gymId}
+            locationId={sp.locationId}
+            packageId={sp.packageId}
+            productType={productType}
+          />
         ) : (
-          <StepPayment gymId={gymId} locationId={sp.locationId} packageId={sp.packageId} />
+          <StepPayment
+            gymId={gymId}
+            locationId={sp.locationId}
+            packageId={sp.packageId}
+            productType={productType}
+          />
         )}
       </WizardShell>
     </div>

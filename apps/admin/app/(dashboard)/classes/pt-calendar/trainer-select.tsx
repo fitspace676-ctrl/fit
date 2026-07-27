@@ -68,9 +68,7 @@ export function TrainerSelect({
         onChange={(event) => onChange(event.target.value)}
         {...stylex.props(styles.select)}
       >
-        <option value="">
-          {trainers.length === 0 ? 'No trainers yet' : 'Select a trainer…'}
-        </option>
+        <option value="">{trainers.length === 0 ? 'No trainers yet' : 'Select a trainer…'}</option>
         {trainers.map((trainer) => (
           <option key={trainer.id} value={trainer.id}>
             {trainer.name}
