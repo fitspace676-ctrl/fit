@@ -3,6 +3,9 @@ import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { checkoutProductTypeSchema, type CheckoutProductType } from '@fit/types';
 import { getActiveGymId } from '@/lib/active-gym';
+import { fetchSignupCatalogue } from '@/lib/signup';
+import { OrderSummary, type OrderSummaryProduct } from '@/src/components/checkout/OrderSummary';
+import { toCards } from '@/src/components/checkout/product-cards';
 import { StepDetails } from '@/src/components/checkout/StepDetails';
 import { StepLocation } from '@/src/components/checkout/StepLocation';
 import { StepPackage } from '@/src/components/checkout/StepPackage';
@@ -28,9 +31,31 @@ const styles = stylex.create({
   page: {
     marginInline: 'auto',
     width: '100%',
-    maxWidth: '48rem',
+    maxWidth: '64rem',
     paddingInline: '1.25rem',
     paddingBlock: '2.5rem',
+  },
+  /**
+   * The wizard beside its running summary. One column on narrow viewports (the
+   * summary rides above the step, where a sticky rail would eat the screen);
+   * from 64rem the summary becomes a sticky rail the buyer keeps in view while
+   * they work through the form.
+   */
+  layout: {
+    display: 'grid',
+    alignItems: 'start',
+    gap: '2rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 64rem)': 'minmax(0, 1fr) 19rem',
+    },
+  },
+  /** Summary first in the source, second on the grid — see the page docstring. */
+  summaryCol: {
+    order: {
+      default: -1,
+      '@media (min-width: 64rem)': 0,
+    },
   },
   header: {
     marginBottom: '2rem',
@@ -72,6 +97,76 @@ function parseProductType(raw: string | undefined): CheckoutProductType | undefi
   return parsed.success ? parsed.data : undefined;
 }
 
+/** What the running summary needs: the chosen branch and product, named and priced. */
+interface ResolvedSelection {
+  locationName: string | null;
+  product: OrderSummaryProduct | null;
+}
+
+/**
+ * Resolve the URL's ids to the display copy the summary shows.
+ *
+ * Reads the same public catalogue the steps do, so the summary can never name a
+ * different product than the one the payment step will charge for. Skipped
+ * entirely on step 1, where nothing has been chosen and the fetch would be
+ * wasted; and every failure degrades to "nothing selected yet" rather than
+ * breaking the wizard — a summary is an aid, never a gate.
+ */
+async function resolveSelection({
+  gymId,
+  locationId,
+  productId,
+  productType,
+  t,
+}: {
+  gymId: string | null;
+  locationId?: string;
+  productId?: string;
+  productType?: CheckoutProductType;
+  t: Awaited<ReturnType<typeof getTranslations<'checkout'>>>;
+}): Promise<ResolvedSelection> {
+  const empty: ResolvedSelection = { locationName: null, product: null };
+  if (!gymId || (!locationId && !productId)) {
+    return empty;
+  }
+
+  const catalogue = await fetchSignupCatalogue({ gymId, locationId }).catch(() => null);
+  if (!catalogue) {
+    return empty;
+  }
+
+  const locationName = locationId
+    ? (catalogue.locations.find((l) => l.id === locationId)?.name ?? null)
+    : null;
+
+  if (!productId || !productType) {
+    return { locationName, product: null };
+  }
+
+  // Project through the same mapping step 2's cards use, so the summary and the
+  // card the buyer clicked always read identically.
+  const card = toCards(catalogue, productType).find((entry) => entry.id === productId);
+  if (!card) {
+    return { locationName, product: null };
+  }
+
+  return {
+    locationName,
+    product: {
+      name: card.name,
+      priceAmount: card.priceAmount,
+      currency: card.currency,
+      type: productType,
+      cadence:
+        card.interval === 'month'
+          ? t('packages.perMonth')
+          : card.interval === 'year'
+            ? t('packages.perYear')
+            : null,
+    },
+  };
+}
+
 /** Coerce the `?step` param to a valid 1-based wizard step, defaulting to 1. */
 function parseStep(raw: string | undefined): WizardStep {
   const value = Number(raw);
@@ -103,6 +198,13 @@ export default async function CheckoutPage({
 
   const step = parseStep(sp.step);
   const productType = parseProductType(sp.productType);
+  const selection = await resolveSelection({
+    gymId,
+    locationId: sp.locationId,
+    productId: sp.packageId,
+    productType,
+    t,
+  });
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -111,32 +213,42 @@ export default async function CheckoutPage({
         <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </header>
 
-      <WizardShell step={step}>
-        {step === 1 ? (
-          <StepLocation gymId={gymId} initialLocationId={sp.locationId} />
-        ) : step === 2 ? (
-          <StepPackage
-            gymId={gymId}
-            locationId={sp.locationId}
-            initialPackageId={sp.packageId}
-            initialProductType={productType}
+      <div {...stylex.props(styles.layout)}>
+        <WizardShell step={step}>
+          {step === 1 ? (
+            <StepLocation gymId={gymId} initialLocationId={sp.locationId} />
+          ) : step === 2 ? (
+            <StepPackage
+              gymId={gymId}
+              locationId={sp.locationId}
+              initialPackageId={sp.packageId}
+              initialProductType={productType}
+            />
+          ) : step === 3 ? (
+            <StepDetails
+              gymId={gymId}
+              locationId={sp.locationId}
+              packageId={sp.packageId}
+              productType={productType}
+            />
+          ) : (
+            <StepPayment
+              gymId={gymId}
+              locationId={sp.locationId}
+              packageId={sp.packageId}
+              productType={productType}
+            />
+          )}
+        </WizardShell>
+
+        <div {...stylex.props(styles.summaryCol)}>
+          <OrderSummary
+            locale={locale}
+            locationName={selection.locationName}
+            product={selection.product}
           />
-        ) : step === 3 ? (
-          <StepDetails
-            gymId={gymId}
-            locationId={sp.locationId}
-            packageId={sp.packageId}
-            productType={productType}
-          />
-        ) : (
-          <StepPayment
-            gymId={gymId}
-            locationId={sp.locationId}
-            packageId={sp.packageId}
-            productType={productType}
-          />
-        )}
-      </WizardShell>
+        </div>
+      </div>
     </div>
   );
 }

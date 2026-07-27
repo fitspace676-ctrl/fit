@@ -1,5 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { Icon } from '@/src/components/ui';
 
 /** The four purchase-wizard steps, in order. Drives the progress indicator. */
 export const WIZARD_STEPS = ['location', 'package', 'details', 'payment'] as const;
@@ -43,7 +44,7 @@ const styles = stylex.create({
     display: 'flex',
     flex: 1,
     flexDirection: 'column',
-    gap: '0.375rem',
+    gap: '0.5rem',
   },
   bar: {
     height: '0.375rem',
@@ -57,9 +58,59 @@ const styles = stylex.create({
   barTodo: {
     backgroundColor: 'var(--color-background-muted)',
   },
+  /**
+   * A numbered marker beside each label, ticked once the step is behind you.
+   *
+   * The bars alone say how far along you are but not what you have *finished* —
+   * and on a four-step form that difference is the reassurance. A filled tick
+   * reads as done, a solid number as here-now, an outline as still to come.
+   */
+  labelRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    minWidth: 0,
+  },
+  marker: {
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    width: '1.125rem',
+    height: '1.125rem',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '0.625rem',
+    fontWeight: 700,
+    lineHeight: 1,
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  markerDone: {
+    color: 'var(--color-text-on-accent)',
+    backgroundColor: 'var(--color-accent)',
+  },
+  markerActive: {
+    color: 'var(--color-text-on-accent)',
+    backgroundColor: 'var(--color-accent)',
+  },
+  markerTodo: {
+    color: 'var(--color-text-disabled)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  markerIcon: {
+    width: '0.75rem',
+    height: '0.75rem',
+  },
+  /** Labels are supporting detail on a phone — the bars and markers carry it. */
   label: {
     fontSize: '0.75rem',
     fontWeight: 500,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    display: {
+      default: 'none',
+      '@media (min-width: 30rem)': 'inline',
+    },
   },
   labelActive: {
     color: 'var(--color-text-accent)',
@@ -109,13 +160,32 @@ export function WizardShell({ step, children }: WizardShellProps) {
                   )}
                   aria-current={active ? 'step' : undefined}
                 />
-                <span
-                  {...stylex.props(
-                    styles.label,
-                    active ? styles.labelActive : complete ? styles.labelDone : styles.labelTodo,
-                  )}
-                >
-                  {t(`steps.${key}`)}
+                <span {...stylex.props(styles.labelRow)}>
+                  <span
+                    {...stylex.props(
+                      styles.marker,
+                      complete
+                        ? styles.markerDone
+                        : active
+                          ? styles.markerActive
+                          : styles.markerTodo,
+                    )}
+                    aria-hidden
+                  >
+                    {complete ? (
+                      <Icon name="check" {...stylex.props(styles.markerIcon)} sw={3} />
+                    ) : (
+                      position
+                    )}
+                  </span>
+                  <span
+                    {...stylex.props(
+                      styles.label,
+                      active ? styles.labelActive : complete ? styles.labelDone : styles.labelTodo,
+                    )}
+                  >
+                    {t(`steps.${key}`)}
+                  </span>
                 </span>
               </li>
             );

@@ -9,7 +9,8 @@ import type { CheckoutProductType, PackageInterval, PackageSummary } from '@fit/
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { createCheckout, fetchSignupCatalogue } from '@/lib/signup';
 import { CHECKOUT_LOCATION_KEY } from './StepLocation';
-import { CHECKOUT_PACKAGE_KEY, CHECKOUT_PRODUCT_TYPE_KEY, toCards } from './StepPackage';
+import { CHECKOUT_PACKAGE_KEY, CHECKOUT_PRODUCT_TYPE_KEY } from './StepPackage';
+import { toCards } from './product-cards';
 import { CHECKOUT_CUSTOMER_KEY } from './StepDetails';
 
 /**

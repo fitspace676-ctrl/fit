@@ -596,7 +596,17 @@
         "other": "Other"
       },
       "emailTaken": "This email already has an account.",
-      "emailTakenAction": "Sign in instead"
+      "emailTakenAction": "Sign in instead",
+      "groups": {
+        "about": {
+          "title": "About you",
+          "hint": "The gym keeps this on file for your membership record."
+        },
+        "account": {
+          "title": "Your login",
+          "hint": "You will use these to sign in to the member portal."
+        }
+      }
     },
     "payment": {
       "title": "Review and pay",
@@ -627,6 +637,13 @@
         "title": "We couldn't find that order",
         "subtitle": "The order may have expired or the link is incomplete."
       }
+    },
+    "summary": {
+      "title": "Your selection",
+      "branch": "Branch",
+      "total": "Total",
+      "empty": "Pick a branch and a plan — your choice will show up here.",
+      "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
     }
   },
   "settings": {

@@ -107,6 +107,48 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
   },
+  /**
+   * The form in two named groups rather than one column of seven inputs.
+   *
+   * Seven stacked fields read as a wall — the buyer cannot see the end of it,
+   * and nothing explains why a gym needs their date of birth or ID number.
+   * Splitting into "about you" and "your login", each with a one-line reason,
+   * turns an interrogation into two short, obvious asks.
+   */
+  group: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.875rem',
+    borderWidth: 0,
+    margin: 0,
+    padding: 0,
+  },
+  groupHead: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+    padding: 0,
+  },
+  groupTitle: {
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-secondary)',
+  },
+  groupHint: {
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
+  /** Two columns once there is room; one below, where side-by-side inputs cramp. */
+  grid2: {
+    display: 'grid',
+    gap: '0.875rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 34rem)': 'repeat(2, minmax(0, 1fr))',
+    },
+  },
   actions: {
     display: 'flex',
     alignItems: 'center',
@@ -364,77 +406,100 @@ export function StepDetails({ gymId, locationId, packageId, productType }: StepD
       ) : null}
 
       <div {...stylex.props(styles.fields)}>
-        <TextInput
-          type="text"
-          label={t('details.fields.name')}
-          htmlName="name"
-          value={name}
-          onChange={(value) => setName(value)}
-          isRequired
-          isDisabled={pending}
-        />
-        <TextInput
-          type="email"
-          label={t('details.fields.email')}
-          htmlName="email"
-          value={email}
-          onChange={(value) => setEmail(value)}
-          isRequired
-          isDisabled={pending}
-        />
-        <TextInput
-          type="text"
-          label={t('details.fields.phone')}
-          htmlName="phone"
-          value={phone}
-          onChange={(value) => setPhone(value)}
-          isRequired
-          isDisabled={pending}
-        />
-        {/*
-          `DateInput` emits an ISO `YYYY-MM-DD` string — exactly what the signup
-          contract expects — so there is no parse or timezone step between the
-          picker and the wire.
-        */}
-        <DateInput
-          label={t('details.fields.dateOfBirth')}
-          value={dateOfBirth ? dateOfBirth : undefined}
-          onChange={(value) => setDateOfBirth(value ?? '')}
-          isRequired
-          isDisabled={pending}
-        />
-        <TextInput
-          type="text"
-          label={t('details.fields.personalId')}
-          htmlName="personalId"
-          description={t('details.fields.personalIdHint')}
-          value={personalId}
-          onChange={(value) => setPersonalId(value)}
-          isRequired
-          isDisabled={pending}
-        />
-        <Selector
-          label={t('details.fields.gender')}
-          value={gender}
-          onChange={(value) => setGender(value as Gender)}
-          options={[
-            { value: 'FEMALE', label: t('details.gender.female') },
-            { value: 'MALE', label: t('details.gender.male') },
-            { value: 'OTHER', label: t('details.gender.other') },
-          ]}
-          isRequired
-          isDisabled={pending}
-        />
-        <TextInput
-          type="password"
-          label={t('details.fields.password')}
-          htmlName="password"
-          description={t('details.fields.passwordHint')}
-          value={password}
-          onChange={(value) => setPassword(value)}
-          isRequired
-          isDisabled={pending}
-        />
+        <fieldset {...stylex.props(styles.group)}>
+          <legend {...stylex.props(styles.groupHead)}>
+            <span {...stylex.props(styles.groupTitle)}>{t('details.groups.about.title')}</span>
+            <span {...stylex.props(styles.groupHint)}>{t('details.groups.about.hint')}</span>
+          </legend>
+
+          <TextInput
+            type="text"
+            label={t('details.fields.name')}
+            htmlName="name"
+            value={name}
+            onChange={(value) => setName(value)}
+            isRequired
+            isDisabled={pending}
+          />
+
+          <div {...stylex.props(styles.grid2)}>
+            <TextInput
+              type="text"
+              label={t('details.fields.phone')}
+              htmlName="phone"
+              value={phone}
+              onChange={(value) => setPhone(value)}
+              isRequired
+              isDisabled={pending}
+            />
+            {/*
+              `DateInput` emits an ISO `YYYY-MM-DD` string — exactly what the
+              signup contract expects — so there is no parse or timezone step
+              between the picker and the wire.
+            */}
+            <DateInput
+              label={t('details.fields.dateOfBirth')}
+              value={dateOfBirth ? dateOfBirth : undefined}
+              onChange={(value) => setDateOfBirth(value ?? '')}
+              isRequired
+              isDisabled={pending}
+            />
+          </div>
+
+          <div {...stylex.props(styles.grid2)}>
+            <TextInput
+              type="text"
+              label={t('details.fields.personalId')}
+              htmlName="personalId"
+              description={t('details.fields.personalIdHint')}
+              value={personalId}
+              onChange={(value) => setPersonalId(value)}
+              isRequired
+              isDisabled={pending}
+            />
+            <Selector
+              label={t('details.fields.gender')}
+              value={gender}
+              onChange={(value) => setGender(value as Gender)}
+              options={[
+                { value: 'FEMALE', label: t('details.gender.female') },
+                { value: 'MALE', label: t('details.gender.male') },
+                { value: 'OTHER', label: t('details.gender.other') },
+              ]}
+              isRequired
+              isDisabled={pending}
+            />
+          </div>
+        </fieldset>
+
+        <fieldset {...stylex.props(styles.group)}>
+          <legend {...stylex.props(styles.groupHead)}>
+            <span {...stylex.props(styles.groupTitle)}>{t('details.groups.account.title')}</span>
+            <span {...stylex.props(styles.groupHint)}>{t('details.groups.account.hint')}</span>
+          </legend>
+
+          <div {...stylex.props(styles.grid2)}>
+            <TextInput
+              type="email"
+              label={t('details.fields.email')}
+              htmlName="email"
+              value={email}
+              onChange={(value) => setEmail(value)}
+              isRequired
+              isDisabled={pending}
+            />
+            <TextInput
+              type="password"
+              label={t('details.fields.password')}
+              htmlName="password"
+              description={t('details.fields.passwordHint')}
+              value={password}
+              onChange={(value) => setPassword(value)}
+              isRequired
+              isDisabled={pending}
+            />
+          </div>
+        </fieldset>
       </div>
 
       <div {...stylex.props(styles.actions)}>
