@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
 export const metadata: Metadata = {
-  title: 'Settings — Fit Admin',
+  title: 'Settings - Fit Admin',
   description: 'Configure your gym’s brand, locale, business hours, and notifications.',
 };
 

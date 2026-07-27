@@ -11,7 +11,7 @@ import { ClassTemplateForm } from '../../class-template-form';
 import { loadRelationOptions } from '../../options';
 
 export const metadata: Metadata = {
-  title: 'Edit class — Fit Admin',
+  title: 'Edit class - Fit Admin',
 };
 
 // Reflects the staff session and writes live template state — never cached.

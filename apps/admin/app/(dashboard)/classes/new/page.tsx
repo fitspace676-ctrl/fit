@@ -9,7 +9,7 @@ import { ClassTemplateForm } from '../class-template-form';
 import { loadRelationOptions } from '../options';
 
 export const metadata: Metadata = {
-  title: 'New class — Fit Admin',
+  title: 'New class - Fit Admin',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.

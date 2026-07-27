@@ -69,7 +69,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Edit location — Fit Admin',
+  title: 'Edit location - Fit Admin',
 };
 
 // Reflects the staff session and writes live location state — never cached.

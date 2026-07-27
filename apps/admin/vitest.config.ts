@@ -9,7 +9,14 @@ export default defineConfig({
     // `app/**/*.spec.ts` is included for co-located server-side specs (e.g. route
     // handlers, server actions) — this config is node-only, so a DOM/component
     // spec under `app/` would need its own `environment: 'jsdom'` override.
-    include: ['lib/**/*.spec.ts', 'app/**/*.spec.ts', 'hooks/**/*.spec.ts'],
+    include: [
+      'lib/**/*.spec.ts',
+      'app/**/*.spec.ts',
+      'hooks/**/*.spec.ts',
+      // The POS cart store is pure money arithmetic (percentage discounts, totals,
+      // change due) — exactly the logic worth pinning down, and DOM-free.
+      'stores/**/*.spec.ts',
+    ],
     exclude: ['node_modules/**', '.next/**'],
   },
 });

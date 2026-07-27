@@ -4,24 +4,15 @@ import { useEffect, useRef, useState, useTransition, type RefObject } from 'reac
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import {
+  createPosMemberAction,
   lookupPosMembersAction,
-  resolvePosMemberByQrAction,
   type PosMemberRow,
 } from '@/app/(dashboard)/pos/actions';
 import { Card } from '@astryxdesign/core/Card';
-import { Icon } from '@/components/ui';
+import { Btn, Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke fires a new member lookup. */
 const LOOKUP_DEBOUNCE_MS = 250;
-
-/** Minimal shape of the experimental `BarcodeDetector` we rely on for QR scanning. */
-interface BarcodeDetectorLike {
-  detect: (source: CanvasImageSource) => Promise<Array<{ rawValue: string }>>;
-}
-interface BarcodeDetectorCtor {
-  new (options?: { formats?: string[] }): BarcodeDetectorLike;
-  getSupportedFormats?: () => Promise<string[]>;
-}
 
 const styles = stylex.create({
   selectedChip: {
@@ -125,33 +116,43 @@ const styles = stylex.create({
       color: 'var(--color-text-secondary)',
     },
   },
-  scanBtn: {
+  walkInRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  addNewBtn: {
     display: 'inline-flex',
-    height: '2.75rem',
-    flexShrink: 0,
     alignItems: 'center',
     gap: '0.375rem',
+    flexShrink: 0,
+    borderStyle: 'none',
+    backgroundColor: 'transparent',
+    padding: 0,
+    fontFamily: 'inherit',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+    cursor: 'pointer',
+  },
+  addNewIcon: { width: '0.875rem', height: '0.875rem' },
+  newForm: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  newField: {
+    height: '2.5rem',
+    width: '100%',
     borderRadius: 'var(--radius-element)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: {
-      default: 'var(--color-border)',
-      ':hover': 'var(--color-accent)',
-    },
-    backgroundColor: 'transparent',
-    paddingInline: '0.875rem',
+    borderColor: { default: 'var(--color-border)', ':focus': 'var(--color-accent)' },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.75rem',
+    fontFamily: 'inherit',
     fontSize: '0.875rem',
-    fontWeight: 500,
-    color: {
-      default: 'var(--color-text-primary)',
-      ':hover': 'var(--color-text-accent)',
-    },
-    cursor: 'pointer',
+    color: 'var(--color-text-primary)',
+    outlineStyle: 'none',
   },
-  scanIcon: {
-    width: '1rem',
-    height: '1rem',
-  },
+  newActions: { display: 'flex', gap: '0.5rem' },
   walkIn: {
     margin: 0,
     fontSize: '0.75rem',
@@ -196,19 +197,6 @@ const styles = stylex.create({
   warningText: {
     fontSize: '0.75rem',
     color: 'var(--color-warning)',
-  },
-  videoFrame: {
-    overflow: 'hidden',
-    borderRadius: 'var(--radius-container)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-  },
-  video: {
-    height: '10rem',
-    width: '100%',
-    backgroundColor: '#000',
-    objectFit: 'cover',
   },
   resultList: {
     maxHeight: '14rem',
@@ -257,12 +245,11 @@ const styles = stylex.create({
 });
 
 /**
- * Member lookup + QR scan (top of the right column). A debounced search over the
- * gym roster (name / phone / email) drops down up to ten matches; picking one
- * attaches the sale to that member. A "Scan QR" button opens the device camera
- * and decodes the member's check-in QR via the Web Barcode Detection API (with a
- * graceful message where it isn't supported). Walk-in is the default — no member
- * is required to sell.
+ * Member lookup (top of the right column). A debounced search over the gym roster
+ * (name / phone / email) drops down up to ten matches; picking one attaches the sale
+ * to that member. Someone with no record yet can be registered on the spot — see
+ * {@link NewMemberForm} — which is what makes a membership sellable to a walk-in.
+ * Walk-in is otherwise the default: no member is required to sell.
  *
  * State (the attached member) lives in the cart store via the `selectedMember` /
  * `onSelect` props the board threads through, so the cart and lookup never drift.
@@ -280,11 +267,9 @@ export function MemberLookup({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PosMemberRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [addingMember, setAddingMember] = useState(false);
   const [, startTransition] = useTransition();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'unsupported'>('idle');
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (query.trim() === '') {
@@ -326,70 +311,6 @@ export function MemberLookup({
     }
   }
 
-  /** Tear down the camera stream and leave scan mode. */
-  function stopScan(): void {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    setScanState('idle');
-  }
-
-  // Always release the camera when the component unmounts.
-  useEffect(() => stopScan, []);
-
-  async function startScan(): Promise<void> {
-    const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor })
-      .BarcodeDetector;
-    if (!Detector || !navigator.mediaDevices?.getUserMedia) {
-      setScanState('unsupported');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      streamRef.current = stream;
-      setScanState('scanning');
-      const detector = new Detector({ formats: ['qr_code'] });
-      const video = videoRef.current;
-      if (!video) {
-        stopScan();
-        return;
-      }
-      video.srcObject = stream;
-      await video.play();
-
-      // Poll frames until a QR decodes or the operator cancels.
-      const tick = async (): Promise<void> => {
-        if (!streamRef.current) {
-          return;
-        }
-        try {
-          const codes = await detector.detect(video);
-          const raw = codes[0]?.rawValue;
-          if (raw) {
-            stopScan();
-            const result = await resolvePosMemberByQrAction(raw);
-            if (result.ok && result.data) {
-              onSelect(result.data);
-            } else if (result.ok) {
-              setError(t('noMatch'));
-            } else {
-              setError(result.error);
-            }
-            return;
-          }
-        } catch {
-          // Transient decode failure on a frame — keep polling.
-        }
-        requestAnimationFrame(() => void tick());
-      };
-      requestAnimationFrame(() => void tick());
-    } catch {
-      stopScan();
-      setError(t('cameraError'));
-    }
-  }
-
   if (selectedMember) {
     return (
       <div {...stylex.props(styles.selectedChip)}>
@@ -422,36 +343,38 @@ export function MemberLookup({
             {...stylex.props(styles.searchInput)}
           />
         </div>
+      </div>
+
+      <div {...stylex.props(styles.walkInRow)}>
+        <p {...stylex.props(styles.walkIn)}>{t('walkIn')}</p>
         <button
           type="button"
-          onClick={() => (scanState === 'scanning' ? stopScan() : void startScan())}
-          {...stylex.props(styles.scanBtn)}
+          onClick={() => {
+            setAddingMember((open) => !open);
+            setError(null);
+          }}
+          {...stylex.props(styles.addNewBtn)}
         >
-          <Icon name="qr" {...stylex.props(styles.scanIcon)} sw={2} />
-          {scanState === 'scanning' ? t('stopScan') : t('scan')}
+          <Icon name="plus" {...stylex.props(styles.addNewIcon)} sw={2} />
+          {addingMember ? 'Cancel' : 'Add new member'}
         </button>
       </div>
 
-      <p {...stylex.props(styles.walkIn)}>{t('walkIn')}</p>
+      {addingMember ? (
+        <NewMemberForm
+          onCreated={(member) => {
+            setAddingMember(false);
+            pick(member);
+          }}
+          onError={setError}
+        />
+      ) : null}
 
       {error ? (
         <Card variant="default" padding={0} role="alert" xstyle={styles.alertCard}>
           <Icon name="info" {...stylex.props(styles.alertIcon)} />
           <span {...stylex.props(styles.alertText)}>{error}</span>
         </Card>
-      ) : null}
-
-      {scanState === 'unsupported' ? (
-        <Card variant="default" padding={0} xstyle={styles.warningCard}>
-          <Icon name="info" {...stylex.props(styles.warningIcon)} />
-          <span {...stylex.props(styles.warningText)}>{t('scanUnsupported')}</span>
-        </Card>
-      ) : null}
-
-      {scanState === 'scanning' ? (
-        <div {...stylex.props(styles.videoFrame)}>
-          <video ref={videoRef} {...stylex.props(styles.video)} muted playsInline />
-        </div>
       ) : null}
 
       {results.length > 0 ? (
@@ -471,5 +394,79 @@ export function MemberLookup({
         </ul>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Register a member without leaving the till.
+ *
+ * Only what a sale needs — name, email, phone — because the operator has a queue
+ * behind them; the rest of the profile is filled in later from the member's page.
+ * The created member is handed straight back and attached to the sale in progress,
+ * which is the whole point: a walk-in who wants a membership becomes a member and
+ * the sale continues in one step.
+ */
+function NewMemberForm({
+  onCreated,
+  onError,
+}: {
+  onCreated: (member: PosMemberRow) => void;
+  onError: (message: string | null) => void;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    onError(null);
+    setSaving(true);
+    const result = await createPosMemberAction({ name, email, phone });
+    setSaving(false);
+    if (result.ok) {
+      onCreated(result.data);
+    } else {
+      onError(result.error);
+    }
+  }
+
+  return (
+    <form onSubmit={(event) => void submit(event)} {...stylex.props(styles.newForm)}>
+      <input
+        type="text"
+        required
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        placeholder="Full name"
+        aria-label="New member name"
+        autoComplete="off"
+        {...stylex.props(styles.newField)}
+      />
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        placeholder="Email"
+        aria-label="New member email"
+        autoComplete="off"
+        {...stylex.props(styles.newField)}
+      />
+      <input
+        type="tel"
+        value={phone}
+        onChange={(event) => setPhone(event.target.value)}
+        placeholder="Phone (optional)"
+        aria-label="New member phone"
+        autoComplete="off"
+        {...stylex.props(styles.newField)}
+      />
+      <div {...stylex.props(styles.newActions)}>
+        <Btn type="submit" v="primary" size="sm" disabled={saving}>
+          {saving ? 'Creating…' : 'Create & attach'}
+        </Btn>
+      </div>
+    </form>
   );
 }

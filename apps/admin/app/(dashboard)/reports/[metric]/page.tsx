@@ -43,7 +43,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Report — Fit Admin',
+  title: 'Report - Fit Admin',
 };
 
 // The drill-down reflects live tenant state + the staff session token, so this page

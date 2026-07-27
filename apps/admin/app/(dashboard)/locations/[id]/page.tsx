@@ -163,7 +163,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Location — Fit Admin',
+  title: 'Location - Fit Admin',
 };
 
 // The detail reflects live location state and the staff session token, so it must

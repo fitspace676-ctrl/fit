@@ -17,6 +17,7 @@ export * from './src/dashboard';
 export * from './src/dashboard-pins';
 export * from './src/gym-settings';
 export * from './src/gyms';
+export * from './src/invoices-admin';
 export * from './src/locations';
 export * from './src/locations-admin';
 export * from './src/loyalty';

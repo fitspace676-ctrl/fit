@@ -6,9 +6,10 @@ import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { SubscriptionPlanForm } from '../../subscription-plan-form';
+import { fetchPlanClassTypeOptions } from '../../class-type-options';
 
 export const metadata: Metadata = {
-  title: 'Edit subscription plan — Fit Admin',
+  title: 'Edit subscription plan - Fit Admin',
 };
 
 // Reflects the staff session and writes live plan state — never cached.
@@ -31,6 +32,10 @@ export default async function EditSubscriptionPlanPage({
   if (!session || !roleHasPermission(session.role, Permission.BillingManage)) {
     redirect('/403');
   }
+
+  // Loaded before the plan so a class-catalogue hiccup can't mask a 404 on the plan
+  // itself; it swallows its own errors and degrades to an empty picker.
+  const classTypes = await fetchPlanClassTypeOptions();
 
   let plan;
   try {
@@ -82,6 +87,7 @@ export default async function EditSubscriptionPlanPage({
       <SubscriptionPlanForm
         mode="edit"
         planId={id}
+        classTypes={classTypes}
         initial={{
           name: plan.name,
           description: plan.description,

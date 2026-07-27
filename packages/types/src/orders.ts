@@ -229,10 +229,37 @@ export type SendReceiptResponse = z.infer<typeof sendReceiptResponseSchema>;
  * sale (there is an account to charge), `null`/absent for a walk-in. The gym is
  * resolved server-side from the request's tenant, never trusted from the client.
  */
-export const recordPosSaleSchema = z.object({
-  memberId: z.string().min(1).nullable().optional(),
-  receipt: posReceiptSchema,
-});
+export const recordPosSaleSchema = z
+  .object({
+    memberId: z.string().min(1).nullable().optional(),
+    receipt: posReceiptSchema,
+    /**
+     * The membership plan sold on this sale, when the operator rang up a membership
+     * rather than (or alongside) products. The API enrols the attached member on it
+     * as part of recording the sale, so selling a membership at the desk produces a
+     * live subscription — not just a payment.
+     *
+     * At most one: enrolment refuses a member who already holds a live subscription,
+     * so two memberships on one sale could never both succeed.
+     */
+    planId: z.string().min(1).optional(),
+    /**
+     * The branch the sale was rung up at. Recorded on the order so takings and
+     * reports can be split per location; omitted by a single-site gym, which has
+     * nothing to attribute.
+     */
+    locationId: z.string().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.planId && !value.memberId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        // A walk-in has no member record to attach a subscription to.
+        message: 'A membership sale must be attached to a member',
+        path: ['memberId'],
+      });
+    }
+  });
 
 /** Validated `POST /orders/pos-sale` body — {@link recordPosSaleSchema}. */
 export type RecordPosSaleInput = z.infer<typeof recordPosSaleSchema>;

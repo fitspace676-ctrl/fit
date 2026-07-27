@@ -4,6 +4,19 @@ import { env } from '../config/env';
 /** Resend's transactional-email endpoint. */
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
+/**
+ * One file to send alongside a message. `content` is the raw bytes; they are
+ * base64-encoded on the way to Resend, which is the only encoding its API accepts.
+ * Resend caps a request at ~40 MB, so this is for documents (an invoice PDF), not
+ * media.
+ */
+export interface MailAttachment {
+  /** Name the recipient sees, extension included (e.g. `"invoice-2026-0001.pdf"`). */
+  filename: string;
+  /** The file's bytes. */
+  content: Buffer;
+}
+
 /** One transactional message to hand Resend. */
 export interface MailMessage {
   /** Recipient address. */
@@ -18,6 +31,8 @@ export interface MailMessage {
   from?: string;
   /** Optional `Reply-To` address. */
   replyTo?: string;
+  /** Files to attach. Omit (or pass an empty list) for a plain message. */
+  attachments?: MailAttachment[];
 }
 
 /** The outcome of a {@link MailerService.send}. */
@@ -79,6 +94,14 @@ export class MailerService {
         html: message.html,
         text: message.text,
         ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+        ...(message.attachments?.length
+          ? {
+              attachments: message.attachments.map((file) => ({
+                filename: file.filename,
+                content: file.content.toString('base64'),
+              })),
+            }
+          : {}),
       }),
     });
 

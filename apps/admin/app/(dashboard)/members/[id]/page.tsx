@@ -24,7 +24,7 @@ import { EmailMemberDrawer } from './email-member-drawer';
 type T = Awaited<ReturnType<typeof getTranslations>>;
 
 export const metadata: Metadata = {
-  title: 'Member — Fit Admin',
+  title: 'Member - Fit Admin',
 };
 
 // The detail reflects live member state and the staff session token, so it must

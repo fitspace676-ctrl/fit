@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { InvoiceStatus } from '@fit/db';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { StorageService } from '../storage/storage.service';
 import { InvoiceDocumentService, invoiceObjectKey } from './invoice-document.service';
@@ -16,7 +15,6 @@ function invoiceRow(overrides: Record<string, unknown> = {}) {
     description: 'Premium — monthly renewal',
     amount: 4999,
     currency: 'GEL',
-    status: InvoiceStatus.PAID,
     pdfUrl: null,
     gym: { name: 'Iron Yard' },
     member: { user: { name: 'Nino Beridze', email: 'nino@example.com' } },

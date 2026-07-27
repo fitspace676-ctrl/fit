@@ -135,11 +135,11 @@ import type {
   RecordPosSaleInput,
   RecordPosSaleResponse,
   CashReconciliationReport,
-  ListOrdersQueryInput,
-  ListOrdersResponse,
-  AdminOrderDetail,
-  RefundOrderInput,
-  RefundOrderResponse,
+  ListAdminInvoicesQuery,
+  ListAdminInvoicesResponse,
+  CreateInvoiceData,
+  CreateInvoiceResponse,
+  SendInvoiceEmailResponse,
   CheckInStatsResponse,
   TodayCheckInsResponse,
   RecordCheckInInput,
@@ -1700,10 +1700,11 @@ export function ptSessionsQueryString(query: Partial<ListAdminPtSessionsQuery>):
 }
 
 /**
- * `GET /admin/pt-sessions?from=&to=&trainerId=` — the chosen trainer's 1:1 PT
- * sessions whose `startsAt` falls in `[from, to)`, ordered by start. The PT
+ * `GET /admin/pt-sessions?from=&to=&trainerId=` — 1:1 PT sessions whose `startsAt`
+ * falls in `[from, to)`, ordered by start. Omit `trainerId` for every trainer's
+ * sessions (how the PT tab opens); pass one to narrow to that trainer. The PT
  * calendar issues this as staff page between weeks; an empty `sessions` array is a
- * normal result the calendar renders as its empty state.
+ * normal result the calendar renders as an empty week.
  */
 export async function fetchPtSessions(
   query: ListAdminPtSessionsQuery,
@@ -1890,7 +1891,7 @@ export async function fetchReport(key: ReportKey, range?: ReportRange): Promise<
  * `GET /admin/reports/:report/export?range=&format=` — the raw streaming file
  * response (CSV or XLSX), with the staff bearer token forwarded. Returned as the
  * live `Response` (not parsed) so the admin route handler can pipe its body
- * straight to the browser as a download, mirroring {@link fetchOrdersExport}.
+ * straight to the browser as a download, mirroring {@link fetchInvoicePdf}.
  */
 export async function fetchReportExport(
   key: ReportKey,
@@ -2082,79 +2083,6 @@ export async function fetchCashReconciliation(date: string): Promise<CashReconci
   return unwrap<CashReconciliationReport>(res);
 }
 
-// ── Order management (T7.9) ───────────────────────────────────────────────────
-
-/**
- * Serialise an order roster query to a `?key=value` string, dropping empty values
- * so a bare list carries no noise. The API re-coerces and re-validates with the
- * same Zod schema, so passing the admin form's raw filter values is safe.
- */
-export function ordersQueryString(query: Partial<ListOrdersQueryInput>): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || value === null || value === '') {
-      continue;
-    }
-    params.set(key, String(value));
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : '';
-}
-
-/** `GET /orders` — one filtered, server-paginated page of the gym's orders. */
-export async function fetchOrders(
-  query: Partial<ListOrdersQueryInput> = {},
-): Promise<ListOrdersResponse> {
-  const res = await fetch(`${apiBaseUrl()}/orders${ordersQueryString(query)}`, {
-    headers: await authHeaders(),
-    // Always reflect the live order history — never serve a stale staff view.
-    cache: 'no-store',
-  });
-  return unwrap<ListOrdersResponse>(res);
-}
-
-/** `GET /orders/:id` — one order's full detail (items, payments, refunds, timeline). */
-export async function fetchOrder(id: string): Promise<AdminOrderDetail> {
-  const res = await fetch(`${apiBaseUrl()}/orders/${encodeURIComponent(id)}`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<AdminOrderDetail>(res);
-}
-
-/**
- * `POST /orders/:id/refund` — refund part or all of an order's payment. Throws an
- * {@link ApiError} carrying `EXCEEDS_PAID_AMOUNT` (422) when the amount is too high,
- * which the refund form translates to a staff-facing message. Gated `BillingManage`.
- */
-export async function refundOrder(
-  id: string,
-  input: RefundOrderInput,
-): Promise<RefundOrderResponse> {
-  const res = await fetch(`${apiBaseUrl()}/orders/${encodeURIComponent(id)}/refund`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<RefundOrderResponse>(res);
-}
-
-/**
- * `GET /orders/export` — the raw streaming CSV response, with the staff bearer
- * token forwarded. Returned as the live `Response` (not parsed) so the admin route
- * handler can pipe its body straight to the browser as a download. The query is
- * the same filter set the roster uses.
- */
-export async function fetchOrdersExport(
-  query: Partial<ListOrdersQueryInput> = {},
-): Promise<Response> {
-  return fetch(`${apiBaseUrl()}/orders/export${ordersQueryString(query)}`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-}
-
 /**
  * `GET /invoices/:id/pdf` — a member invoice's PDF (T5.10), with the staff token
  * forwarded. Returned as the live `Response` (not parsed) so the admin route handler
@@ -2166,6 +2094,59 @@ export async function fetchInvoicePdf(id: string): Promise<Response> {
     headers: await authHeaders(),
     cache: 'no-store',
   });
+}
+
+// ── Admin invoices — the Payments hub's Invoices tab ──────────────────────────
+
+/** Serialise an invoice roster query to a `?key=value` string, dropping empty values. */
+export function invoicesQueryString(query: Partial<ListAdminInvoicesQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/invoices` — one filtered, server-paginated page of the gym's invoices. */
+export async function fetchAdminInvoices(
+  query: Partial<ListAdminInvoicesQuery> = {},
+): Promise<ListAdminInvoicesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/invoices${invoicesQueryString(query)}`, {
+    headers: await authHeaders(),
+    // Always reflect the live billing state — never serve a stale staff view.
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminInvoicesResponse>(res);
+}
+
+/** `POST /admin/invoices` — raise an invoice by hand. Gated `BillingManage`. */
+export async function createAdminInvoice(input: CreateInvoiceData): Promise<CreateInvoiceResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/invoices`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateInvoiceResponse>(res);
+}
+
+/**
+ * `POST /admin/invoices/:id/email` — email the invoice to its member with the PDF
+ * attached. Throws an {@link ApiError} carrying `EMAIL_NOT_CONFIGURED` (503) when
+ * outbound mail is off, or `INVOICE_HAS_NO_RECIPIENT` (422) when there is nobody to
+ * send it to; the row action translates both to a staff-facing message.
+ */
+export async function emailAdminInvoice(id: string): Promise<SendInvoiceEmailResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/invoices/${encodeURIComponent(id)}/email`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<SendInvoiceEmailResponse>(res);
 }
 
 // ── Automation — rules, templates, catalog (T12.6) ────────────────────────────

@@ -10,6 +10,7 @@ import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import type { AdminClassTypeOption } from '@fit/types';
 import { Btn, Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
+import type { TrainerOption } from './trainer-select';
 import { createPtSessionAction } from './pt-session-actions';
 
 /** A workout type (class type) the session's "what" selector offers. */
@@ -101,17 +102,25 @@ const styles = stylex.create({
 
 /**
  * "Add PT session" — a right-hand slide-in drawer on the PT Calendar tab. Schedules
- * one session for the selected trainer: workout type + date + time + duration +
- * notes. The calendar positions blocks by their UTC clock time (like the class
- * schedule), so the chosen date + time are sent as a UTC instant. On success the
- * calendar refreshes and the drawer closes in place.
+ * one session: trainer + workout type + date + time + duration + notes.
+ *
+ * The trainer is chosen **here**, not before the calendar will render — the tab opens
+ * on every trainer's week, and picking one is part of scheduling. When the calendar
+ * happens to be filtered to a trainer, that choice prefills the field.
+ *
+ * The calendar positions blocks by their UTC clock time (like the class schedule), so
+ * the chosen date + time are sent as a UTC instant. On success the calendar refreshes
+ * and the drawer closes in place.
  */
 export function AddPtSessionDrawer({
-  trainerId,
+  trainers,
+  defaultTrainerId,
   classTypes,
   defaultDate,
 }: {
-  trainerId: string;
+  trainers: TrainerOption[];
+  /** The trainer the calendar is filtered to, when any — prefills the picker. */
+  defaultTrainerId: string | null;
   classTypes: ClassTypeOption[];
   /** The visible week's Monday (`YYYY-MM-DD`) — the date field's sensible default. */
   defaultDate: string;
@@ -153,7 +162,8 @@ export function AddPtSessionDrawer({
             <LayoutContent padding={0} isScrollable xstyle={styles.content}>
               <PtSessionForm
                 key={drawer.contentKey}
-                trainerId={trainerId}
+                trainers={trainers}
+                defaultTrainerId={defaultTrainerId}
                 classTypes={classTypes}
                 defaultDate={defaultDate}
                 onSuccess={drawer.requestClose}
@@ -168,13 +178,15 @@ export function AddPtSessionDrawer({
 }
 
 function PtSessionForm({
-  trainerId,
+  trainers,
+  defaultTrainerId,
   classTypes,
   defaultDate,
   onSuccess,
   onCancel,
 }: {
-  trainerId: string;
+  trainers: TrainerOption[];
+  defaultTrainerId: string | null;
   classTypes: ClassTypeOption[];
   defaultDate: string;
   onSuccess: () => void;
@@ -184,6 +196,11 @@ function PtSessionForm({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Prefilled from the calendar's filter when there is one; a lone trainer is picked
+  // for the staffer, since there is nothing to choose between.
+  const [trainerId, setTrainerId] = useState(
+    defaultTrainerId ?? (trainers.length === 1 ? (trainers[0]?.id ?? '') : ''),
+  );
   const [classTypeId, setClassTypeId] = useState('');
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState('09:00');
@@ -203,6 +220,10 @@ function PtSessionForm({
     event.preventDefault();
     setError(null);
 
+    if (!trainerId) {
+      setError('Pick the trainer taking this session.');
+      return;
+    }
     if (!classTypeId) {
       setError('Pick a workout type for this session.');
       return;
@@ -230,6 +251,27 @@ function PtSessionForm({
 
   return (
     <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
+      <div {...stylex.props(styles.fieldGroup)}>
+        <label htmlFor="pt-trainer-pick" {...stylex.props(styles.label)}>
+          Trainer
+        </label>
+        <select
+          id="pt-trainer-pick"
+          value={trainerId}
+          onChange={(e) => setTrainerId(e.target.value)}
+          {...stylex.props(styles.field)}
+        >
+          <option value="">
+            {trainers.length === 0 ? 'No trainers yet' : 'Select a trainer…'}
+          </option>
+          {trainers.map((trainer) => (
+            <option key={trainer.id} value={trainer.id}>
+              {trainer.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="pt-class-type" {...stylex.props(styles.label)}>
           Workout type

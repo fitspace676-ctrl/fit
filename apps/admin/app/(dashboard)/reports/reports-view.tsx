@@ -32,6 +32,7 @@ import type {
   ReportResult,
 } from '@fit/types';
 import { Btn, Icon, type IconName } from '@/components/ui';
+import { adminPath } from '@/lib/base-path';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -413,10 +414,14 @@ function ReportPreview({ preview, range, t }: { preview: ReportResult; range: Re
   );
   const number = useMemo(() => new Intl.NumberFormat(locale), [locale]);
 
+  // Renders as a plain anchor so the browser downloads the file, so the basePath is
+  // not applied for us.
   const exportHref = (format: 'csv' | 'xlsx'): string =>
-    `/reports/export?report=${encodeURIComponent(preview.key)}&range=${encodeURIComponent(
-      range,
-    )}&format=${format}`;
+    adminPath(
+      `/reports/export?report=${encodeURIComponent(preview.key)}&range=${encodeURIComponent(
+        range,
+      )}&format=${format}`,
+    );
 
   return (
     <Card variant="default" padding={0} xstyle={styles.previewCard}>

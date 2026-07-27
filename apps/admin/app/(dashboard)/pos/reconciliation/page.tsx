@@ -16,7 +16,7 @@ import { ReconciliationDateForm } from './reconciliation-date-form';
 import { CashCountForm } from './cash-count-form';
 
 export const metadata: Metadata = {
-  title: 'Cash reconciliation — Fit Admin',
+  title: 'Cash reconciliation - Fit Admin',
   description:
     "The gym's end-of-day cash reconciliation: the day's takings grouped by settlement method, with the expected cash drawer to balance against the count.",
 };

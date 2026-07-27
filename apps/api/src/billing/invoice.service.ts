@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InvoiceStatus, Prisma, formatInvoiceNumber } from '@fit/db';
+import { InvoiceStatus, InvoiceType, Prisma, formatInvoiceNumber } from '@fit/db';
 
 /**
  * The slice of an interactive-transaction Prisma client {@link InvoiceService} needs:
@@ -38,8 +38,18 @@ export interface IssueInvoiceInput {
   currency: string;
   /** Settlement state; defaults to `PAID` (the stub-settled MVP charge). */
   status?: InvoiceStatus;
+  /**
+   * The billed category, stamped at the source so the admin board can classify the
+   * document without inferring it from the relations. Defaults to `OTHER`.
+   */
+  type?: InvoiceType;
   /** Human-readable description of what was billed (e.g. "Premium — monthly renewal"). */
   description?: string;
+  /**
+   * When payment falls due. Only meaningful on a `PENDING` invoice — an already-settled
+   * charge has nothing left to fall due — so it defaults to null.
+   */
+  dueDate?: Date | null;
   /** The charge instant; defaults to now. Its fiscal year scopes the sequence counter. */
   issuedAt?: Date;
 }
@@ -89,7 +99,9 @@ export class InvoiceService {
         amount: input.amount,
         currency: input.currency,
         status: input.status ?? InvoiceStatus.PAID,
+        type: input.type ?? InvoiceType.OTHER,
         description: input.description ?? '',
+        dueDate: input.dueDate ?? null,
         issuedAt,
       },
       select: { id: true, number: true, seq: true, year: true },

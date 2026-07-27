@@ -15,7 +15,7 @@ import { Icon } from '@/components/ui';
 import { StaffConsole } from './staff-console';
 
 export const metadata: Metadata = {
-  title: 'Staff — Fit Admin',
+  title: 'Staff - Fit Admin',
   description: 'Invite staff, assign roles, and manage your gym’s team.',
 };
 

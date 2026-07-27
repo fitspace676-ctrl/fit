@@ -5,9 +5,10 @@ import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlans } from '@/lib/api';
 import { PaymentsTabs } from '@/components/payments-tabs';
 import { BillingPlansView } from './billing-plans-view';
+import { fetchPlanClassTypeOptions } from './class-type-options';
 
 export const metadata: Metadata = {
-  title: 'Billing · Plans — Fit Admin',
+  title: 'Billing · Plans - Fit Admin',
   description:
     'The gym’s recurring membership plans: pricing, renewal cadence, perks and live subscriber counts, with active/archived plans and a live MRR summary.',
 };
@@ -52,12 +53,17 @@ export default async function BillingPlansPage() {
   try {
     // No status filter: pull both active and archived so the segment counts and the
     // KPI totals describe the whole catalogue, not one bucket.
-    const result = await fetchSubscriptionPlans({
-      limit: PLANS_PAGE_LIMIT,
-      sort: 'name',
-      dir: 'asc',
-    });
-    content = <BillingPlansView plans={result.data} canWrite={canWrite} />;
+    // The class picker in the New-plan drawer needs the catalogue too; it loads
+    // alongside the plans rather than after them.
+    const [result, classTypes] = await Promise.all([
+      fetchSubscriptionPlans({
+        limit: PLANS_PAGE_LIMIT,
+        sort: 'name',
+        dir: 'asc',
+      }),
+      fetchPlanClassTypeOptions(),
+    ]);
+    content = <BillingPlansView plans={result.data} classTypes={classTypes} canWrite={canWrite} />;
   } catch (error) {
     const message =
       error instanceof ApiError

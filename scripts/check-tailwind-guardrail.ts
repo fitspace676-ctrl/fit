@@ -157,17 +157,16 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/app/(dashboard)/staff',
   'apps/admin/app/(dashboard)/locations',
   'apps/admin/app/(dashboard)/settings',
-  // T11.22 — admin commerce screens: the orders list + detail (status timeline +
-  // refund form), the POS workspace (product grid + cart pane + member lookup +
-  // cash/card/member-account payment modal) with end-of-day reconciliation, the
-  // product catalog (grid + filters + editor + low-stock adjuster) and the
-  // reports hub (report cards, date presets, CSV/XLSX export). Rebuilt on Astryx
-  // Card/DataTable/Badge/Modal/Form-kit + brand-tokened StyleX, no Tailwind.
-  // Each route group (and the POS component dir) is Astryx-only, so each is
-  // guarded as a directory. Two have since moved: the IA consolidation (622a269)
-  // put orders under `payments/transactions`, and the catalog — routed through
-  // `payments/products` by that commit — now has its own top-level `shop`.
-  'apps/admin/app/(dashboard)/payments/transactions',
+  // T11.22 — admin commerce screens: the POS workspace (product grid + cart pane
+  // + member lookup + cash/card/member-account payment modal) with end-of-day
+  // reconciliation, the product catalog (grid + filters + editor + low-stock
+  // adjuster) and the reports hub (report cards, date presets, CSV/XLSX export).
+  // Rebuilt on Astryx Card/DataTable/Badge/Modal/Form-kit + brand-tokened
+  // StyleX, no Tailwind. Each route group (and the POS component dir) is
+  // Astryx-only, so each is guarded as a directory. The catalog — routed through
+  // `payments/products` by the IA consolidation (622a269) — now has its own
+  // top-level `shop`; the orders screens that commit put under
+  // `payments/transactions` have since been removed outright.
   'apps/admin/app/(dashboard)/pos',
   'apps/admin/app/(dashboard)/shop',
   'apps/admin/app/(dashboard)/reports',

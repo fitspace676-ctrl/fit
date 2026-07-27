@@ -372,6 +372,7 @@ const styles = stylex.create({
   },
 
   // ReceiptSender.
+  receiptActions: { display: 'flex', gap: '0.5rem' },
   receipt: {
     display: 'flex',
     flexDirection: 'column',
@@ -468,6 +469,13 @@ export function PosPayment({
   const cashTendered = usePosCart((state) => state.cashTendered);
   const setPaymentMethod = usePosCart((state) => state.setPaymentMethod);
   const setCashTendered = usePosCart((state) => state.setCashTendered);
+  const locationId = usePosCart((state) => state.locationId);
+  /**
+   * What the cash box literally shows. Kept separate from the store's parsed amount
+   * so a half-typed value ("5", "53.", "53.5") survives the keystroke that produced
+   * it; the store is updated in step and remains the source of truth for the totals.
+   */
+  const [cashText, setCashText] = useState('');
 
   const [completed, setCompleted] = useState<CompletedSale | null>(null);
   // Persisting the sale (T7.5) is the source of truth for the end-of-day
@@ -521,9 +529,22 @@ export function PosPayment({
       memberName: member?.name ?? null,
     };
 
+    // At most one membership can be in the cart (the store enforces it), so the sale
+    // carries at most one plan for the API to enrol the member on.
+    const planId = items.find((item) => item.planId)?.planId;
+    if (planId && !member) {
+      setSaveError('A membership must be sold to a member — attach one before completing.');
+      return;
+    }
+
     setSaving(true);
     setSaveError(null);
-    const result = await recordPosSaleAction({ memberId: member?.id ?? null, receipt });
+    const result = await recordPosSaleAction({
+      memberId: member?.id ?? null,
+      receipt,
+      ...(planId ? { planId } : {}),
+      ...(locationId ? { locationId } : {}),
+    });
     setSaving(false);
     if (!result.ok) {
       setSaveError(result.error);
@@ -604,8 +625,16 @@ export function PosPayment({
                     min={0}
                     step="0.01"
                     autoFocus
-                    value={cashTendered > 0 ? minorToInput(cashTendered) : ''}
-                    onChange={(event) => setCashTendered(inputToMinor(event.target.value) ?? 0)}
+                    // Bound to the raw text, not to a re-formatted store value: rendering
+                    // `toFixed(2)` back into the box on every keystroke rewrote what the
+                    // operator was typing (and made a backspace impossible, since "50.0"
+                    // re-parsed straight back to "50.00"). The store still holds the
+                    // parsed minor-unit amount that the totals derive from.
+                    value={cashText}
+                    onChange={(event) => {
+                      setCashText(event.target.value);
+                      setCashTendered(inputToMinor(event.target.value) ?? 0);
+                    }}
                     placeholder="0.00"
                     aria-label={t('cashReceived')}
                     {...stylex.props(styles.cashInput)}
@@ -617,7 +646,11 @@ export function PosPayment({
                     <button
                       key={amount}
                       type="button"
-                      onClick={() => setCashTendered(amount)}
+                      onClick={() => {
+                        // A quick tender sets both, so the box shows what it charged.
+                        setCashTendered(amount);
+                        setCashText(minorToInput(amount));
+                      }}
                       {...stylex.props(styles.quickBtn)}
                     >
                       {amount === total ? t('exact') : formatPrice(amount, currency)}
@@ -714,6 +747,12 @@ function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () 
         ) : null}
       </dl>
 
+      <div {...stylex.props(styles.receiptActions)}>
+        <Btn v="outline" size="sm" icon="download" onClick={() => printReceipt(sale, 'Receipt')}>
+          {t('success.print')}
+        </Btn>
+      </div>
+
       <ReceiptSender sale={sale} />
 
       <Btn v="primary" size="md" onClick={onFinish}>
@@ -790,4 +829,76 @@ function ReceiptSender({ sale }: { sale: CompletedSale }) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * Print the receipt for a completed sale.
+ *
+ * Rendered into a fresh window rather than the current document: the POS is a
+ * full-height flex app inside a modal, and hiding all of that behind a print
+ * stylesheet is far more fragile than handing the browser a small standalone
+ * document. The window is closed once the print dialog is dismissed.
+ *
+ * Deliberately plain HTML with inline styles — a receipt is 58mm of monospace text,
+ * and it must not depend on the app's stylesheet having loaded into the new window.
+ */
+function printReceipt(sale: CompletedSale, gymLabel: string): void {
+  const money = (minor: number): string => formatPrice(minor, sale.currency);
+  const lines = sale.receipt.items
+    .map(
+      (line) =>
+        `<tr><td>${escapeHtml(line.name)}${line.quantity > 1 ? ` ×${line.quantity}` : ''}</td>` +
+        `<td class="r">${money(line.amount)}</td></tr>`,
+    )
+    .join('');
+
+  const rows: string[] = [
+    `<tr><td>Subtotal</td><td class="r">${money(sale.receipt.subtotal)}</td></tr>`,
+  ];
+  if (sale.receipt.discountTotal > 0) {
+    rows.push(
+      `<tr><td>Discounts</td><td class="r">−${money(sale.receipt.discountTotal)}</td></tr>`,
+    );
+  }
+  rows.push(`<tr class="tot"><td>Total</td><td class="r">${money(sale.total)}</td></tr>`);
+  if (sale.method === 'cash') {
+    rows.push(`<tr><td>Cash received</td><td class="r">${money(sale.tendered)}</td></tr>`);
+    rows.push(`<tr><td>Change</td><td class="r">${money(sale.change)}</td></tr>`);
+  }
+
+  const win = window.open('', '_blank', 'width=380,height=640');
+  if (!win) {
+    // Pop-up blocked — nothing else this function can do; the operator can still
+    // email the receipt, so this stays silent rather than throwing.
+    return;
+  }
+  win.document.write(`<!doctype html><html><head><title>Receipt</title><style>
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+           color: #000; margin: 0; padding: 16px; }
+    h1 { font-size: 14px; margin: 0 0 2px; }
+    .muted { color: #555; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    td { padding: 2px 0; vertical-align: top; }
+    .r { text-align: right; white-space: nowrap; }
+    .sep td { border-top: 1px dashed #999; padding-top: 6px; }
+    .tot td { border-top: 1px solid #000; font-weight: 700; padding-top: 6px; }
+  </style></head><body>
+    <h1>${escapeHtml(gymLabel)}</h1>
+    <div class="muted">${escapeHtml(new Date().toLocaleString())}</div>
+    ${sale.memberName ? `<div class="muted">Member: ${escapeHtml(sale.memberName)}</div>` : ''}
+    <table>${lines}<tr class="sep"><td colspan="2"></td></tr>${rows.join('')}</table>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
+  win.close();
+}
+
+/** Escape text destined for the print document — receipt values are user-supplied. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

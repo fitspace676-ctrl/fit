@@ -76,6 +76,43 @@ describe('MailerService', () => {
     expect(body.reply_to).toBe('lead@gym.com');
   });
 
+  it('omits the attachments key entirely when there is nothing to attach', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    const mailer = new MailerService();
+
+    await mailer.send(MESSAGE);
+    const noKey = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
+    expect(noKey).not.toHaveProperty('attachments');
+
+    // An empty list is the same as none — Resend rejects `attachments: []`.
+    await mailer.send({ ...MESSAGE, attachments: [] });
+    const emptyList = JSON.parse(fetchMock.mock.calls[1]![1].body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(emptyList).not.toHaveProperty('attachments');
+  });
+
+  it('base64-encodes an attachment, the only encoding Resend accepts', async () => {
+    configure({ RESEND_API_KEY: 're_123' });
+    const mailer = new MailerService();
+    const pdf = Buffer.from('%PDF-1.4 fake invoice bytes');
+
+    await mailer.send({
+      ...MESSAGE,
+      attachments: [{ filename: 'invoice-2026-0001.pdf', content: pdf }],
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as {
+      attachments: { filename: string; content: string }[];
+    };
+    expect(body.attachments).toHaveLength(1);
+    expect(body.attachments[0]!.filename).toBe('invoice-2026-0001.pdf');
+    expect(body.attachments[0]!.content).toBe(pdf.toString('base64'));
+    // Round-trips back to the exact bytes handed in.
+    expect(Buffer.from(body.attachments[0]!.content, 'base64').equals(pdf)).toBe(true);
+  });
+
   it('throws when Resend returns a non-2xx response', async () => {
     configure({ RESEND_API_KEY: 're_123' });
     fetchMock.mockResolvedValue(new Response('rate limited', { status: 429 }));

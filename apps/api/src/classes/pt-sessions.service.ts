@@ -44,14 +44,14 @@ export class PtSessionsService {
   ) {}
 
   /**
-   * The chosen trainer's PT sessions whose `startsAt` falls in `[from, to)`,
-   * ordered by `startsAt` (then `id` for a stable order among sessions sharing a
-   * start). An empty list is a normal result.
+   * PT sessions whose `startsAt` falls in `[from, to)`, ordered by `startsAt` (then
+   * `id` for a stable order among sessions sharing a start). Every trainer's by
+   * default; pass `trainerId` to narrow to one. An empty list is a normal result.
    */
   async listPtSessions(query: ListAdminPtSessionsQuery): Promise<AdminPtSessionsResponse> {
     const rows = await this.prisma.client.ptSession.findMany({
       where: {
-        trainerId: query.trainerId,
+        ...(query.trainerId ? { trainerId: query.trainerId } : {}),
         startsAt: { gte: new Date(query.from), lt: new Date(query.to) },
       },
       select: PT_SESSION_SELECT,

@@ -35,6 +35,7 @@ import { EmailService } from '../auth/email.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
+import { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
 
 /** Map the wire settlement method to the persisted Prisma enum. */
 const TO_DB_METHOD: Record<PaymentMethod, DbPaymentMethod> = {
@@ -68,6 +69,7 @@ export class OrdersService {
     private readonly tenant: TenantContext,
     private readonly prisma: TenantPrismaService,
     private readonly loyalty: LoyaltyPointsService,
+    private readonly enrollment: SubscriptionEnrollmentService,
   ) {}
 
   /**
@@ -99,6 +101,14 @@ export class OrdersService {
    * account is charged. Tenant scoping stamps the order's `gymId` automatically;
    * the nested payment's `gymId` is set explicitly from the request's tenant, since
    * the extension does not reach into nested writes.
+   *
+   * When the sale carries a `planId` — the operator sold a membership — the member is
+   * enrolled on that plan **before** the money is recorded. That ordering is
+   * deliberate: enrolment is the step that can legitimately refuse (a member who
+   * already holds a live subscription is a `409`), and refusing before the drawer
+   * opens is far better than taking payment for a membership that cannot be created.
+   * Enrolment mints its own membership invoice; revenue is counted from the captured
+   * payment, so the two do not double-count.
    */
   async recordSale(input: RecordPosSaleInput): Promise<RecordPosSaleResponse> {
     const gymId = this.tenant.gymId;
@@ -106,9 +116,19 @@ export class OrdersService {
       throw new ForbiddenException('Tenant scope is required to record a sale');
     }
 
-    const { receipt, memberId } = input;
+    const { receipt, memberId, planId, locationId } = input;
     if (receipt.paymentMethod === 'member_account' && !memberId) {
       throw new BadRequestException('A member-account sale must be attached to a member');
+    }
+    if (planId && !memberId) {
+      // The schema already refuses this; re-asserted so a direct API caller can't
+      // reach the enrolment below without a member to enrol.
+      throw new BadRequestException('A membership sale must be attached to a member');
+    }
+
+    // Enrol first — see the note above on why this precedes the payment.
+    if (planId && memberId) {
+      await this.enrollment.enrollMember(memberId, planId);
     }
 
     // The order, its lines, and the payment are written in one transaction so a
@@ -123,6 +143,8 @@ export class OrdersService {
           currency: receipt.currency,
           status: OrderStatus.PAID,
           memberId: memberId ?? null,
+          // The branch the till belongs to, when the gym runs more than one.
+          locationId: locationId ?? null,
           customerName: receipt.memberName ?? null,
           items: {
             create: receipt.items.map((line) => ({

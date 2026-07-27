@@ -11,7 +11,7 @@ import { STATUS_STYLES, formatDate, formatDateTime, formatDuration } from '../fo
 import { TemplateActions } from './template-actions';
 
 export const metadata: Metadata = {
-  title: 'Class — Fit Admin',
+  title: 'Class - Fit Admin',
 };
 
 // The detail reflects live template state and the staff session token, so it must

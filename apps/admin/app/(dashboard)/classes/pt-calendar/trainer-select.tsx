@@ -29,10 +29,11 @@ const styles = stylex.create({
 });
 
 /**
- * The PT calendar's trainer picker. The chosen trainer is the single axis the
- * calendar is scoped to, so it lives in the URL (`?trainerId=`) as the server
- * page's source of truth; changing it re-fetches that trainer's sessions. The
- * visible week is preserved across a trainer change.
+ * The PT calendar's trainer **filter** — a narrowing control, not a gate. The
+ * calendar opens on every trainer; picking one here narrows it. The choice lives in
+ * the URL (`?trainerId=`) as the server page's source of truth, so a filtered week is
+ * linkable and survives a refresh; clearing it returns to all trainers. The visible
+ * week is preserved either way.
  */
 export function TrainerSelect({
   trainers,
@@ -60,7 +61,7 @@ export function TrainerSelect({
   return (
     <div {...stylex.props(styles.wrap)}>
       <label htmlFor="pt-trainer" {...stylex.props(styles.label)}>
-        Trainer
+        Filter by trainer
       </label>
       <select
         id="pt-trainer"
@@ -68,7 +69,7 @@ export function TrainerSelect({
         onChange={(event) => onChange(event.target.value)}
         {...stylex.props(styles.select)}
       >
-        <option value="">{trainers.length === 0 ? 'No trainers yet' : 'Select a trainer…'}</option>
+        <option value="">{trainers.length === 0 ? 'No trainers yet' : 'All trainers'}</option>
         {trainers.map((trainer) => (
           <option key={trainer.id} value={trainer.id}>
             {trainer.name}

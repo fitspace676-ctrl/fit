@@ -9,6 +9,7 @@ import type { EmailService } from '../auth/email.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
+import type { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
 import { OrdersService, utcDayRange } from './orders.service';
 
 /** A no-op loyalty earn-hook stub — the sale flow calls it fire-and-forget. */
@@ -16,6 +17,13 @@ function loyaltyStub(): LoyaltyPointsService {
   return {
     awardForPurchase: vi.fn<() => Promise<void>>().mockResolvedValue(),
   } as unknown as LoyaltyPointsService;
+}
+
+/** Enrolment stub — the membership-sale tests assert against its calls. */
+function enrollmentStub(
+  enrollMember = vi.fn().mockResolvedValue({}),
+): SubscriptionEnrollmentService {
+  return { enrollMember } as unknown as SubscriptionEnrollmentService;
 }
 
 const input: SendReceiptInput = {
@@ -37,6 +45,7 @@ function setup(over?: {
   delivered?: boolean;
   settings?: unknown;
   grouped?: Array<{ method: string; _sum: { amount: number | null }; _count: { _all: number } }>;
+  enrollMember?: ReturnType<typeof vi.fn>;
 }) {
   const sendReceiptEmail = vi.fn<() => Promise<boolean>>(() =>
     Promise.resolve(over?.delivered ?? true),
@@ -64,8 +73,11 @@ function setup(over?: {
       $transaction,
     },
   } as unknown as TenantPrismaService;
+  const enrollMember = over?.enrollMember ?? vi.fn().mockResolvedValue({});
+  const enrollment = enrollmentStub(enrollMember);
   return {
-    service: new OrdersService(email, tenant, prisma, loyaltyStub()),
+    service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment),
+    enrollMember,
     sendReceiptEmail,
     findUnique,
     orderCreate,
@@ -171,6 +183,45 @@ describe('OrdersService.recordSale', () => {
         receipt: { ...saleInput.receipt, paymentMethod: 'member_account' },
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it('does not enrol anyone on an ordinary product sale', async () => {
+    const { service, enrollMember } = setup();
+
+    await service.recordSale(saleInput);
+
+    expect(enrollMember).not.toHaveBeenCalled();
+  });
+
+  it('enrols the member on the plan when the sale carries one', async () => {
+    const { service, enrollMember, orderCreate } = setup();
+
+    await service.recordSale({ ...saleInput, planId: 'plan-1' });
+
+    expect(enrollMember).toHaveBeenCalledWith('mem-1', 'plan-1');
+    expect(orderCreate).toHaveBeenCalled();
+  });
+
+  it('enrols before taking the money, so a refused enrolment leaves no payment', async () => {
+    const enrollMember = vi.fn().mockRejectedValue(new Error('ALREADY_SUBSCRIBED'));
+    const { service, orderCreate, paymentCreate } = setup({ enrollMember });
+
+    await expect(service.recordSale({ ...saleInput, planId: 'plan-1' })).rejects.toThrow(
+      'ALREADY_SUBSCRIBED',
+    );
+    // The drawer never opened for a membership that could not be created.
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a membership sale with no member to enrol', async () => {
+    const { service, enrollMember, orderCreate } = setup();
+
+    await expect(
+      service.recordSale({ receipt: saleInput.receipt, planId: 'plan-1' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(enrollMember).not.toHaveBeenCalled();
     expect(orderCreate).not.toHaveBeenCalled();
   });
 });
@@ -287,8 +338,9 @@ function adminSetup(over?: {
     },
   } as unknown as TenantPrismaService;
 
+  const enrollment = enrollmentStub();
   return {
-    service: new OrdersService(email, tenant, prisma, loyaltyStub()),
+    service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment),
     orderFindMany,
     orderCount,
     orderFindFirst,

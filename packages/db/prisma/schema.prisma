@@ -342,6 +342,20 @@ enum InvoiceStatus {
   REFUNDED
 }
 
+/// What an {@link Invoice} was raised *for* — the billed category, surfaced as a badge
+/// on the admin invoice board and selectable when staff raise one by hand. Distinct
+/// from *how* the invoice arose (which `subscriptionId` / `orderId` already record):
+/// a manually issued membership invoice and an automatic renewal are both
+/// `MEMBERSHIP`. `OTHER` is the fallback for anything the enum doesn't name.
+enum InvoiceType {
+  MEMBERSHIP
+  PERSONAL_TRAINING
+  CLASS
+  PRODUCT
+  SERVICE
+  OTHER
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -1698,9 +1712,16 @@ model Invoice {
   amount         Int           @default(0)
   currency       String        @default("USD")
   status         InvoiceStatus @default(PAID)
+  /// The billed category (see {@link InvoiceType}). Chosen by staff on a hand-raised
+  /// invoice and stamped at the source by the automatic issuers. Existing rows were
+  /// backfilled from the relation that produced them.
+  type           InvoiceType   @default(OTHER)
   /// Human-readable line describing what was billed (e.g. "Premium — monthly renewal"),
   /// snapshotted at issue time so a later plan rename never rewrites past invoices.
   description    String        @default("")
+  /// When payment is expected. Only ever set on a `PENDING` invoice — a `PAID` one
+  /// records money already taken, so it has no due date.
+  dueDate        DateTime?
   /// Signed URL / key of the rendered PDF, populated by the later PDF-generation task;
   /// null until then.
   pdfUrl         String?

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   LIVE_SUBSCRIPTION_STATUSES,
+  InvoiceType,
   Prisma,
   SubscriptionPlanStatus,
   SubscriptionStatus,
@@ -212,6 +213,8 @@ export class SubscriptionEnrollmentService {
             subscriptionId: created.id,
             amount: plan.priceAmount,
             currency: plan.currency,
+            // The first period of a recurring membership.
+            type: InvoiceType.MEMBERSHIP,
             description: subscriptionInvoiceDescription(plan.name, plan.interval, 'enrolment'),
             issuedAt: currentPeriodStart,
           });

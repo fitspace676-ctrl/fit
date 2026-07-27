@@ -40,7 +40,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'New location — Fit Admin',
+  title: 'New location - Fit Admin',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.
