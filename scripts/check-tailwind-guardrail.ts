@@ -96,7 +96,7 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/web/src/components/shop',
   'apps/web/app/[locale]/(member)/cart',
   'apps/web/src/components/member/cart',
-  'apps/web/app/[locale]/(member)/checkout',
+  'apps/web/app/[locale]/(join)/checkout',
   'apps/web/src/components/checkout',
   // T11.16 — member account: profile (identity + tabbed personal/preferences/
   // notifications/security), membership (plan/status/freeze/credits/invoices)
