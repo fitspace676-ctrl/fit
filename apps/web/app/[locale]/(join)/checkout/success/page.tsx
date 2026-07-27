@@ -1,12 +1,11 @@
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { Button } from '@astryxdesign/core/Button';
 import type { OrderItem, OrderSummary } from '@fit/types';
 import { cookies } from 'next/headers';
-import { Link } from '@/src/i18n/navigation';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { fetchOrder } from '@/lib/orders';
+import { HomeCta } from '../home-cta';
 
 export const metadata: Metadata = {
   title: 'Order confirmed — Fit',
@@ -249,11 +248,6 @@ function OrderItemRow({
       <dd {...stylex.props(styles.itemValue)}>{formatMoney(locale, item.amount, currency)}</dd>
     </div>
   );
-}
-
-/** Locale-aware "Return home" link back to the member site root. */
-function HomeCta({ label }: { label: string }) {
-  return <Button as={Link} href="/" variant="primary" size="md" label={label} />;
 }
 
 /** Format a minor-unit amount as a currency string (ISO 4217). */

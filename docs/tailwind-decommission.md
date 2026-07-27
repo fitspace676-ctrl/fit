@@ -74,7 +74,7 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/web/src/components/shop`                            | T11.15 | ✅     |
 | `apps/web/app/[locale]/(member)/cart`                     | T11.15 | ✅     |
 | `apps/web/src/components/member/cart`                     | T11.15 | ✅     |
-| `apps/web/app/[locale]/(member)/checkout`                 | T11.15 | ✅     |
+| `apps/web/app/[locale]/(join)/checkout`                   | T11.15 | ✅     |
 | `apps/web/src/components/checkout`                        | T11.15 | ✅     |
 | `apps/web/app/[locale]/(member)/account/profile`          | T11.16 | ✅     |
 | `apps/web/app/[locale]/(member)/account/membership`       | T11.16 | ✅     |
