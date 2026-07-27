@@ -66,7 +66,10 @@ function refinePricing(
   value: { pricingRule?: ClassPricingRule; priceMinor?: number | null; includedPlanIds?: string[] },
   ctx: z.RefinementCtx,
 ): void {
-  if (value.pricingRule === 'PAID' && (value.priceMinor === null || value.priceMinor === undefined || value.priceMinor <= 0)) {
+  if (
+    value.pricingRule === 'PAID' &&
+    (value.priceMinor === null || value.priceMinor === undefined || value.priceMinor <= 0)
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'A paid class needs a price above zero',

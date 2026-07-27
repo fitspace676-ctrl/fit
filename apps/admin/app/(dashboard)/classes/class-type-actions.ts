@@ -43,9 +43,7 @@ function toMessage(error: unknown): string {
  * (`GET /admin/class-types/:id`, which carries the description the roster row
  * omits) into the form's initial values.
  */
-export async function getClassTypeAction(
-  id: string,
-): Promise<ActionResult<ClassTypeInitial>> {
+export async function getClassTypeAction(id: string): Promise<ActionResult<ClassTypeInitial>> {
   if (!(await requireClassWrite())) {
     return { ok: false, error: 'Not authorized' };
   }

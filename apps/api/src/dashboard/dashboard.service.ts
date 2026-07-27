@@ -612,7 +612,8 @@ export class DashboardService {
     }
 
     for (const inst of todayInstances) {
-      const capacity = inst.capacityOverride ?? inst.template?.capacity ?? inst.classType?.capacity ?? 0;
+      const capacity =
+        inst.capacityOverride ?? inst.template?.capacity ?? inst.classType?.capacity ?? 0;
       if (capacity <= 0) {
         continue;
       }
