@@ -14,6 +14,7 @@ describe('gymMemberIntakeSettingsSchema', () => {
       phone: true,
       gender: false,
       dateOfBirth: false,
+      personalId: false,
       address: false,
       emergencyContact: false,
       membershipPlan: true,

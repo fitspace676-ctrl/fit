@@ -17,6 +17,7 @@ import {
   googleAuthSchema,
   loginSchema,
   refreshSchema,
+  memberSignupSchema,
   registerGymSchema,
   registerSchema,
   resetPasswordSchema,
@@ -61,6 +62,25 @@ export class AuthController {
   async register(@Body() body: unknown): Promise<RegisterResponse> {
     const input = parse(registerSchema, body);
     return this.auth.register(input);
+  }
+
+  /**
+   * `POST /auth/signup` — public member self-signup on one gym (the join
+   * wizard's step 3). Creates the account *and* its `MEMBER` membership with the
+   * captured profile, sends the verification email, and returns a session so the
+   * buyer continues straight into checkout. Carries the same `authStrict` budget
+   * as the other account-creating, email-sending routes.
+   *
+   * Failure modes the wizard branches on: `400 GYM_NOT_FOUND` (unknown or
+   * suspended tenant) and `409 EMAIL_TAKEN` (the address already has an account,
+   * which the wizard turns into a sign-in prompt).
+   */
+  @Post('signup')
+  @HttpCode(HttpStatus.CREATED)
+  @RateLimit(RATE_LIMITS.authStrict)
+  async signup(@Body() body: unknown): Promise<TokenPair> {
+    const input = parse(memberSignupSchema, body);
+    return this.auth.signupMember(input);
   }
 
   /** `POST /auth/register-gym` — provision a gym tenant and onboard its owner. */

@@ -3,7 +3,9 @@ import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Button } from '@astryxdesign/core/Button';
 import type { OrderItem, OrderSummary } from '@fit/types';
+import { cookies } from 'next/headers';
 import { Link } from '@/src/i18n/navigation';
+import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { fetchOrder } from '@/lib/orders';
 
 export const metadata: Metadata = {
@@ -152,7 +154,15 @@ export default async function CheckoutSuccessPage({
 
   const t = await getTranslations('checkout');
 
-  const order = sp.orderId ? await fetchOrder({ orderId: sp.orderId }).catch(() => null) : null;
+  // The confirmation is the buyer's *own* order, so it is read with their token
+  // rather than anonymously. A missing cookie falls through to the "order not
+  // found" state, which is also the right answer for a stale confirmation link
+  // opened after signing out.
+  const accessToken = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+  const order =
+    sp.orderId && accessToken
+      ? await fetchOrder({ orderId: sp.orderId, accessToken }).catch(() => null)
+      : null;
 
   return (
     <div {...stylex.props(styles.page)}>

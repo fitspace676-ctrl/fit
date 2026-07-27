@@ -1,41 +1,97 @@
 import { Injectable } from '@nestjs/common';
-import type { ListPackagesQuery, ListPackagesResponse } from '@fit/types';
+import { PackageBillingInterval, PackagePlanStatus, type Prisma } from '@fit/db';
+import type {
+  ListPackagesQuery,
+  ListPackagesResponse,
+  PackageInterval,
+  PackageSummary,
+} from '@fit/types';
+import { PrismaService } from '../prisma/prisma.service';
+
+/**
+ * The columns the public catalogue selects off `PackagePlan` — the fields a
+ * buyer needs in order to choose between plans, and nothing else. Credit
+ * validity and the lifecycle/audit columns are enrolment mechanics a storefront
+ * has no use for, so they stay out of the projection.
+ */
+const PACKAGE_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  priceAmount: true,
+  currency: true,
+  billingInterval: true,
+  sessionCount: true,
+  features: true,
+  popular: true,
+} satisfies Prisma.PackagePlanSelect;
+
+type PackageRecord = Prisma.PackagePlanGetPayload<{ select: typeof PACKAGE_SELECT }>;
+
+/** Prisma's billing cadence → the lower-cased public {@link PackageInterval}. */
+const INTERVALS: Record<PackageBillingInterval, PackageInterval> = {
+  [PackageBillingInterval.MONTH]: 'month',
+  [PackageBillingInterval.YEAR]: 'year',
+  [PackageBillingInterval.ONE_TIME]: 'one_time',
+};
 
 /**
  * Read access to a gym's purchasable packages for the public catalogue
  * (`GET /packages`).
  *
- * Powers two surfaces: the web purchase wizard's package step (T3.9) and the
- * mobile Personal Training screen (T6.6) — both unauthenticated/member reads
- * scoped by an explicit `gymId` (and the optional `locationId` chosen earlier),
- * never a session.
+ * Powers three surfaces: the web join wizard's product step, the mobile Personal
+ * Training screen (T6.6), and the aggregated signup catalogue
+ * ({@link import('../catalogue/catalogue.service').CatalogueService}) — all
+ * unauthenticated reads scoped by an explicit `gymId`, never a session.
  *
- * Like {@link import('../trainers/trainers.service').TrainersService}, the
- * backing Prisma query lands later: a `PackagePlan` row already exists (the
- * staff console manages it via `/admin/packages`, T4.11), so the eventual
- * implementation reads the gym's `ACTIVE` plans, maps the Prisma
- * `PackageBillingInterval` (`MONTH`/`YEAR`/`ONE_TIME`) to the public
- * `PackageInterval` (`month`/`year`/`one_time`), and projects each to
- * {@link import('@fit/types').PackageSummary}. Until then this service honours
- * the wire contract with an **empty** result, so both clients are built and
- * verifiable now (the request fires, the cards / empty state render) with only
- * the data source deferred. The contract here is already the final one, so no
- * caller or client change is needed when the query lands.
+ * Mirrors {@link import('../locations/locations.service').LocationsService}: it
+ * runs on the **base** {@link PrismaService} (the route is `@Public()` and
+ * excluded from the JWT `TenantMiddleware`), so the tenant is constrained
+ * explicitly by the `gymId` argument rather than by the tenant extension. Only
+ * `ACTIVE` plans are listed — deactivating a plan pulls it off the storefront
+ * while preserving the row and the orders that reference it. Distinct from the
+ * staff-only {@link import('./admin-package-plans.service').AdminPackagePlansService}
+ * (`/admin/packages`, T4.11), which manages the same rows behind the
+ * `TenantGuard` + permissions.
  */
 @Injectable()
 export class PackagesService {
+  constructor(private readonly prisma: PrismaService) {}
+
   /**
-   * List the gym's purchasable packages, in display order. Returns an empty list
-   * until the query is wired (see the class docstring) — an empty array is a
-   * valid result the clients render as their "no packages yet" state. The
-   * optional `locationId` narrows the catalogue to a branch when the gym scopes
-   * packages by location.
+   * List the gym's purchasable packages — promoted plans first, then cheapest
+   * first — so the storefront's featured cards lead. Scoped by the explicit
+   * `gymId` (an unknown gym simply matches nothing). An empty array is a normal
+   * result the clients render as their "no packages yet" state.
+   *
+   * `query.locationId` is accepted and deliberately ignored: `PackagePlan`
+   * carries no branch relation, so a gym's package catalogue is gym-wide. The
+   * parameter stays in the contract because the wizard passes the branch it
+   * collected in step 1, and a future per-location catalogue would narrow here
+   * without any client change.
    */
-  listPackages(query: ListPackagesQuery): Promise<ListPackagesResponse> {
-    void query.gymId;
-    void query.locationId;
-    // Async signature kept for the forthcoming Prisma-backed implementation (the
-    // controller already awaits it); for now the result is synchronous.
-    return Promise.resolve({ packages: [] });
+  async listPackages(query: ListPackagesQuery): Promise<ListPackagesResponse> {
+    const rows = await this.prisma.client.packagePlan.findMany({
+      where: { gymId: query.gymId, status: PackagePlanStatus.ACTIVE },
+      select: PACKAGE_SELECT,
+      orderBy: [{ popular: 'desc' }, { priceAmount: 'asc' }, { name: 'asc' }],
+    });
+
+    return { packages: rows.map((row) => toSummary(row)) };
   }
+}
+
+/** Project a queried row to the public {@link PackageSummary}. */
+function toSummary(row: PackageRecord): PackageSummary {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    priceAmount: row.priceAmount,
+    currency: row.currency,
+    interval: INTERVALS[row.billingInterval],
+    sessionCount: row.sessionCount,
+    features: row.features,
+    popular: row.popular,
+  };
 }

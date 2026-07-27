@@ -39,6 +39,7 @@ export * from './src/pt-sessions-admin';
 export * from './src/reports-drilldown';
 export * from './src/reviews';
 export * from './src/schedule-admin';
+export * from './src/signup';
 export * from './src/staff';
 export * from './src/staff-depth';
 export * from './src/subscriptions';

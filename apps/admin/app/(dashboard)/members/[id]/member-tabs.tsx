@@ -937,6 +937,7 @@ function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; local
             label={t('detail.dateOfBirth')}
             value={member.dateOfBirth ? formatDate(member.dateOfBirth, locale) : '—'}
           />
+          <FieldRow label={t('detail.personalId')} value={dash(member.personalId)} />
           <FieldRow label={t('detail.gender')} value={genderLabel} />
           <FieldRow label={t('detail.address')} value={dash(member.address)} />
         </div>

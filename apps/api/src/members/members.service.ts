@@ -110,6 +110,7 @@ const MEMBER_SELECT = {
   joinedAt: true,
   deletedAt: true,
   dateOfBirth: true,
+  personalId: true,
   gender: true,
   address: true,
   emergencyContactName: true,
@@ -359,6 +360,7 @@ export class MembersService {
    */
   private profileWriteData(input: CreateMemberInput | UpdateMemberInput): {
     dateOfBirth?: Date | null;
+    personalId?: string | null;
     gender?: Gender | null;
     address?: string | null;
     emergencyContactName?: string | null;
@@ -369,6 +371,7 @@ export class MembersService {
     if (input.dateOfBirth !== undefined) {
       data.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
     }
+    if (input.personalId !== undefined) data.personalId = input.personalId;
     if (input.gender !== undefined) data.gender = input.gender;
     if (input.address !== undefined) data.address = input.address;
     if (input.emergencyContactName !== undefined) {
@@ -1134,6 +1137,7 @@ export class MembersService {
       accessLog: wireAccessLog,
       // Staff-managed profile extras (real `GymMember` columns; null when unset).
       dateOfBirth: row.dateOfBirth ? row.dateOfBirth.toISOString() : null,
+      personalId: row.personalId,
       gender: row.gender,
       address: row.address,
       emergencyContactName: row.emergencyContactName,

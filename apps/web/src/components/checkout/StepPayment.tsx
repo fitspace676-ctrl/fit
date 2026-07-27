@@ -5,13 +5,12 @@ import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@astryxdesign/core/Button';
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
-import type { PackageInterval, PackageSummary } from '@fit/types';
+import type { CheckoutProductType, PackageInterval, PackageSummary } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
-import { fetchPackages } from '@/lib/packages';
-import { createOrder } from '@/lib/orders';
+import { createCheckout, fetchSignupCatalogue } from '@/lib/signup';
 import { CHECKOUT_LOCATION_KEY } from './StepLocation';
-import { CHECKOUT_PACKAGE_KEY } from './StepPackage';
-import { readCheckoutCustomer } from './StepDetails';
+import { CHECKOUT_PACKAGE_KEY, CHECKOUT_PRODUCT_TYPE_KEY, toCards } from './StepPackage';
+import { CHECKOUT_CUSTOMER_KEY } from './StepDetails';
 
 /**
  * Online-payment feature flag (T10.8), inlined into the client bundle from
@@ -177,8 +176,10 @@ export interface StepPaymentProps {
   gymId: string | null;
   /** `?locationId` from step 1 — scopes the catalogue and rides onto the order. */
   locationId?: string;
-  /** `?packageId` from step 2 — the package being paid for. */
+  /** `?packageId` from step 2 — the product being paid for. */
   packageId?: string;
+  /** `?productType` from step 2 — which catalogue `packageId` belongs to. */
+  productType?: CheckoutProductType;
 }
 
 /** Fetch lifecycle for resolving the chosen package's summary. */
@@ -203,7 +204,7 @@ interface LoadState {
  * pending reservation) is created exactly as before, only the copy is honest about
  * no card being charged online. With the flag on the surface reverts to "Pay now".
  */
-export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) {
+export function StepPayment({ gymId, locationId, packageId, productType }: StepPaymentProps) {
   const t = useTranslations('checkout');
   const locale = useLocale();
   const router = useRouter();
@@ -236,9 +237,21 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
     return window.sessionStorage.getItem(CHECKOUT_PACKAGE_KEY) ?? undefined;
   }, [packageId]);
 
-  // Resolve the chosen package's summary for the order review. We re-fetch the
-  // (location-scoped) catalogue and match by id rather than threading the whole
-  // object through the URL; cancel on unmount / dependency change.
+  const effectiveProductType = useMemo((): CheckoutProductType => {
+    if (productType) {
+      return productType;
+    }
+    if (typeof window === 'undefined') {
+      return 'package';
+    }
+    const stored = window.sessionStorage.getItem(CHECKOUT_PRODUCT_TYPE_KEY);
+    return stored === 'subscription' || stored === 'credit_pack' ? stored : 'package';
+  }, [productType]);
+
+  // Resolve the chosen product's summary for the order review. We re-fetch the
+  // catalogue and match by id rather than threading the whole object through the
+  // URL, then project it the same way step 2's cards do so the review reads
+  // identically to the card the buyer picked. Cancel on unmount / dep change.
   useEffect(() => {
     if (!gymId || !effectivePackageId) {
       setLoad({ pkg: null, status: 'ready' });
@@ -248,9 +261,11 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
     const controller = new AbortController();
     setLoad((prev) => ({ pkg: prev.pkg, status: 'loading' }));
 
-    fetchPackages({ gymId, locationId: effectiveLocationId, signal: controller.signal })
-      .then((packages) => {
-        const match = packages.find((pkg) => pkg.id === effectivePackageId) ?? null;
+    fetchSignupCatalogue({ gymId, locationId: effectiveLocationId, signal: controller.signal })
+      .then((catalogue) => {
+        const match =
+          toCards(catalogue, effectiveProductType).find((pkg) => pkg.id === effectivePackageId) ??
+          null;
         setLoad({ pkg: match, status: 'ready' });
       })
       .catch((error: unknown) => {
@@ -261,7 +276,7 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
       });
 
     return () => controller.abort();
-  }, [gymId, effectivePackageId, effectiveLocationId]);
+  }, [gymId, effectivePackageId, effectiveLocationId, effectiveProductType]);
 
   const intervalSuffix = useCallback(
     (interval: PackageInterval): string => {
@@ -283,18 +298,30 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
       if (effectivePackageId) {
         params.set('packageId', effectivePackageId);
       }
+      params.set('productType', effectiveProductType);
       if (effectiveLocationId) {
         params.set('locationId', effectiveLocationId);
       }
       return `${pathname}?${params.toString()}`;
     },
-    [effectivePackageId, effectiveLocationId, pathname],
+    [effectivePackageId, effectiveProductType, effectiveLocationId, pathname],
   );
 
   const onBack = useCallback(() => {
     router.push(stepHref('3'), { scroll: false });
   }, [router, stepHref]);
 
+  /**
+   * Settle the purchase. `POST /checkout` runs as the member — step 3 signed them
+   * up (or they were already signed in) — so the request carries only *what* is
+   * being bought; the gym, the member and the price come off the session and the
+   * catalogue.
+   *
+   * A subscription enrolment settles onto an invoice rather than an order, so it
+   * has no `orderId` to confirm against; the buyer goes to their membership page,
+   * which reads the live subscription. Everything else lands on the order
+   * confirmation.
+   */
   const onPay = useCallback(() => {
     if (!gymId || !effectivePackageId || !termsAccepted || submitting) {
       return;
@@ -303,28 +330,37 @@ export function StepPayment({ gymId, locationId, packageId }: StepPaymentProps) 
     setSubmitting(true);
     setSubmitError(null);
 
-    const customer = readCheckoutCustomer();
-    createOrder({
-      gymId,
-      packageId: effectivePackageId,
+    createCheckout({
+      productType: effectiveProductType,
+      productId: effectivePackageId,
       ...(effectiveLocationId ? { locationId: effectiveLocationId } : {}),
-      ...(customer ? { customer } : {}),
     })
       .then(({ orderId }) => {
         // Clear the wizard's persisted selection so a fresh visit starts clean.
         window.sessionStorage.removeItem(CHECKOUT_PACKAGE_KEY);
+        window.sessionStorage.removeItem(CHECKOUT_PRODUCT_TYPE_KEY);
         window.sessionStorage.removeItem(CHECKOUT_LOCATION_KEY);
-        window.sessionStorage.removeItem('checkout_customer');
+        window.sessionStorage.removeItem(CHECKOUT_CUSTOMER_KEY);
         // Replace (not push) so Back from the confirmation can't resubmit.
-        router.replace(`/checkout/success?orderId=${encodeURIComponent(orderId)}`, {
-          scroll: false,
-        });
+        const target = orderId
+          ? `/checkout/success?orderId=${encodeURIComponent(orderId)}`
+          : '/account/membership';
+        router.replace(target, { scroll: false });
       })
       .catch((error: unknown) => {
         setSubmitting(false);
         setSubmitError(error instanceof Error ? error.message : t('payment.error'));
       });
-  }, [gymId, effectivePackageId, effectiveLocationId, termsAccepted, submitting, router, t]);
+  }, [
+    gymId,
+    effectivePackageId,
+    effectiveProductType,
+    effectiveLocationId,
+    termsAccepted,
+    submitting,
+    router,
+    t,
+  ]);
 
   if (load.status === 'loading') {
     return <p {...stylex.props(styles.status)}>{t('payment.loading')}</p>;

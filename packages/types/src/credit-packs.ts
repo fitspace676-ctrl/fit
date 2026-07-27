@@ -53,6 +53,13 @@ export type PurchaseCreditPackData = z.infer<typeof purchaseCreditPackSchema>;
  */
 export interface PurchaseCreditPackResponse {
   creditPackId: string;
+  /**
+   * The `PAID` order the purchase was recorded on. Surfaced so a caller that
+   * settles several product types through one flow — the join wizard's checkout —
+   * can key its confirmation screen off the same `orderId` regardless of what was
+   * bought. Callers that only need the pack can ignore it.
+   */
+  orderId: string;
 }
 
 /**

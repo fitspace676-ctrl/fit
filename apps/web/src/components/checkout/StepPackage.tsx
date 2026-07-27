@@ -5,13 +5,73 @@ import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
-import type { PackageInterval, PackageSummary } from '@fit/types';
+import type {
+  CheckoutProductType,
+  PackageInterval,
+  PackageSummary,
+  SignupCatalogueResponse,
+} from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
-import { fetchPackages } from '@/lib/packages';
+import { fetchSignupCatalogue } from '@/lib/signup';
 import { CHECKOUT_LOCATION_KEY } from './StepLocation';
 
-/** sessionStorage key the wizard persists the chosen package under (T3.9). */
+/** sessionStorage key the wizard persists the chosen product's id under (T3.9). */
 export const CHECKOUT_PACKAGE_KEY = 'checkout_packageId';
+
+/**
+ * sessionStorage key the wizard persists the chosen product's *catalogue* under.
+ * The id alone is ambiguous — packages, subscriptions and credit packs are three
+ * different tables — so the type has to survive a refresh alongside it, or the
+ * payment step would not know which purchase to make.
+ */
+export const CHECKOUT_PRODUCT_TYPE_KEY = 'checkout_productType';
+
+/** The tabs, in render order. Each maps to one catalogue in the response. */
+const TABS: readonly CheckoutProductType[] = ['package', 'subscription', 'credit_pack'];
+
+/**
+ * Flatten one catalogue into the card view model. All three products render as
+ * the same card, so subscriptions and credit packs are projected onto
+ * {@link PackageSummary} rather than given near-identical components of their
+ * own: a subscription's cadence becomes the price suffix, and a credit pack's
+ * session count becomes the "N sessions" line the card already knows how to show.
+ */
+export function toCards(
+  catalogue: SignupCatalogueResponse,
+  tab: CheckoutProductType,
+): readonly PackageSummary[] {
+  switch (tab) {
+    case 'package':
+      return catalogue.packages;
+    case 'subscription':
+      return catalogue.subscriptionPlans.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        description: plan.description,
+        priceAmount: plan.priceAmount,
+        currency: plan.currency,
+        interval: plan.interval === 'YEAR' ? 'year' : 'month',
+        // A recurring membership entitles the member to every class rather than a
+        // countable number of them, which is exactly what the card's `null` means.
+        sessionCount: null,
+        features: plan.features,
+        popular: plan.popular,
+      }));
+    case 'credit_pack':
+      return catalogue.creditPacks.map((pack) => ({
+        id: pack.id,
+        name: pack.name,
+        description: '',
+        priceAmount: pack.priceAmount,
+        currency: pack.currency,
+        // A pack is bought outright, so it carries no recurring price suffix.
+        interval: 'one_time',
+        sessionCount: pack.sessionCount,
+        features: [],
+        popular: false,
+      }));
+  }
+}
 
 // Astryx migration (T11.15): step 2 (pick package) is rebuilt on the Fit brand
 // theme — selectable package cards, the feature checklist and status states
@@ -64,6 +124,54 @@ const styles = stylex.create({
   },
   subtitle: {
     margin: 0,
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  /**
+   * The catalogue switcher. A `tablist` rather than a select: there are only
+   * three options and they are the step's primary structure, so they stay
+   * visible and one keystroke apart.
+   */
+  tabs: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-element)',
+    padding: '0.25rem',
+    backgroundColor: 'var(--color-background-subtle)',
+  },
+  tab: {
+    appearance: 'none',
+    cursor: 'pointer',
+    borderWidth: 0,
+    borderRadius: 'calc(var(--radius-element) - 0.125rem)',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.5rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    fontFamily: 'inherit',
+  },
+  tabActive: {
+    color: 'var(--color-text-on-accent)',
+    backgroundColor: 'var(--color-accent)',
+  },
+  tabIdle: {
+    color: 'var(--color-text-secondary)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'color-mix(in srgb, var(--color-accent) 10%, transparent)',
+    },
+  },
+  /** Count suffix on a tab label — dimmed so it reads as metadata. */
+  tabCount: {
+    marginInlineStart: '0.375rem',
+    opacity: 0.7,
+  },
+  /** The per-tab empty state, kept inside the step so the tabs stay reachable. */
+  tabEmpty: {
+    margin: 0,
+    paddingBlock: '3rem',
+    textAlign: 'center',
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
@@ -214,33 +322,58 @@ export interface StepPackageProps {
   locationId?: string;
   /** `?packageId` from the server — restores the selection after a refresh / Back. */
   initialPackageId?: string;
-  /** Notified whenever the visitor picks a package card. */
-  onSelect?: (packageId: string) => void;
+  /** `?productType` from the server — restores which tab the selection came from. */
+  initialProductType?: CheckoutProductType;
+  /** Notified whenever the visitor picks a product card. */
+  onSelect?: (productId: string, productType: CheckoutProductType) => void;
 }
 
-/** Fetch lifecycle for the gym's packages. */
+/** Fetch lifecycle for the gym's catalogue. */
 interface LoadState {
-  packages: PackageSummary[];
+  catalogue: SignupCatalogueResponse | null;
   status: 'loading' | 'ready' | 'error';
 }
 
+/** An empty catalogue — the shape rendered before the fetch settles. */
+const EMPTY_CATALOGUE: SignupCatalogueResponse = {
+  locations: [],
+  packages: [],
+  subscriptionPlans: [],
+  creditPacks: [],
+};
+
 /**
- * Step 2 of the purchase wizard: pick the membership package to buy. Fetches the
- * gym's packages (scoped by the location chosen in step 1) on mount, renders each
- * as a card (name, price, billing interval, perks, an optional "Most popular"
- * badge), and gates a "Continue" button on a selection. The choice is mirrored to
- * `sessionStorage` (and the URL on Continue) so a refresh or the browser Back
- * button from step 3 restores the highlighted card. A Back button returns to
- * step 1 with the location preserved.
+ * Step 2 of the purchase wizard: pick what to buy. Fetches the gym's whole
+ * catalogue on mount and splits it across three tabs — packages, subscriptions
+ * and session (credit) packs — rendering each entry as the same selectable card
+ * (name, price, cadence, perks, an optional "Most popular" badge) and gating
+ * "Continue" on a selection.
+ *
+ * Both halves of the choice are carried forward: an id alone is ambiguous across
+ * three catalogues, so the *type* travels with it through `sessionStorage` and
+ * the URL. That way a refresh or the browser Back button from step 3 restores
+ * not just the highlighted card but the tab it lives on, and the payment step
+ * knows which purchase to make. A Back button returns to step 1 with the branch
+ * preserved.
  */
-export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: StepPackageProps) {
+export function StepPackage({
+  gymId,
+  locationId,
+  initialPackageId,
+  initialProductType,
+  onSelect,
+}: StepPackageProps) {
   const t = useTranslations('checkout');
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
 
   const [selectedId, setSelectedId] = useState<string | null>(initialPackageId ?? null);
-  const [load, setLoad] = useState<LoadState>({ packages: [], status: 'loading' });
+  const [selectedType, setSelectedType] = useState<CheckoutProductType | null>(
+    initialProductType ?? null,
+  );
+  const [tab, setTab] = useState<CheckoutProductType>(initialProductType ?? 'package');
+  const [load, setLoad] = useState<LoadState>({ catalogue: null, status: 'loading' });
 
   // The price-line suffix for a billing interval (none for a one-off purchase).
   const intervalSuffix = useCallback(
@@ -259,14 +392,22 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
 
   // Restore a prior selection from sessionStorage when the URL carried none
   // (e.g. a plain refresh of step 2). The URL wins when present, so this only
-  // fills the gap; it runs once on mount.
+  // fills the gap; it runs once on mount. The type is restored with the id and
+  // opens its tab, so the visitor lands back on the card they had chosen.
   useEffect(() => {
     if (initialPackageId) {
       return;
     }
-    const stored = window.sessionStorage.getItem(CHECKOUT_PACKAGE_KEY);
-    if (stored) {
-      setSelectedId(stored);
+    const storedId = window.sessionStorage.getItem(CHECKOUT_PACKAGE_KEY);
+    if (!storedId) {
+      return;
+    }
+    setSelectedId(storedId);
+
+    const storedType = window.sessionStorage.getItem(CHECKOUT_PRODUCT_TYPE_KEY);
+    if (storedType && (TABS as readonly string[]).includes(storedType)) {
+      setSelectedType(storedType as CheckoutProductType);
+      setTab(storedType as CheckoutProductType);
     }
   }, [initialPackageId]);
 
@@ -282,34 +423,50 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
     return window.sessionStorage.getItem(CHECKOUT_LOCATION_KEY) ?? undefined;
   }, [locationId]);
 
-  // Load the gym's packages; cancel the request if the step unmounts or the gym
+  // Load the gym's catalogue; cancel the request if the step unmounts or the gym
   // changes. No gym in scope → nothing to load, settle as empty.
   useEffect(() => {
     if (!gymId) {
-      setLoad({ packages: [], status: 'ready' });
+      setLoad({ catalogue: EMPTY_CATALOGUE, status: 'ready' });
       return;
     }
 
     const controller = new AbortController();
-    setLoad((prev) => ({ packages: prev.packages, status: 'loading' }));
+    setLoad((prev) => ({ catalogue: prev.catalogue, status: 'loading' }));
 
-    fetchPackages({ gymId, locationId: effectiveLocationId, signal: controller.signal })
-      .then((packages) => setLoad({ packages, status: 'ready' }))
+    fetchSignupCatalogue({ gymId, locationId: effectiveLocationId, signal: controller.signal })
+      .then((catalogue) => setLoad({ catalogue, status: 'ready' }))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        setLoad({ packages: [], status: 'error' });
+        setLoad({ catalogue: null, status: 'error' });
       });
 
     return () => controller.abort();
   }, [gymId, effectiveLocationId]);
 
+  const catalogue = load.catalogue ?? EMPTY_CATALOGUE;
+  const cards = useMemo(() => toCards(catalogue, tab), [catalogue, tab]);
+  const counts = useMemo(
+    () => ({
+      package: catalogue.packages.length,
+      subscription: catalogue.subscriptionPlans.length,
+      credit_pack: catalogue.creditPacks.length,
+    }),
+    [catalogue],
+  );
+  /** Nothing on sale in any tab — distinct from "this tab happens to be empty". */
+  const catalogueEmpty =
+    counts.package === 0 && counts.subscription === 0 && counts.credit_pack === 0;
+
   const select = useCallback(
-    (packageId: string) => {
-      setSelectedId(packageId);
-      window.sessionStorage.setItem(CHECKOUT_PACKAGE_KEY, packageId);
-      onSelect?.(packageId);
+    (productId: string, productType: CheckoutProductType) => {
+      setSelectedId(productId);
+      setSelectedType(productType);
+      window.sessionStorage.setItem(CHECKOUT_PACKAGE_KEY, productId);
+      window.sessionStorage.setItem(CHECKOUT_PRODUCT_TYPE_KEY, productType);
+      onSelect?.(productId, productType);
     },
     [onSelect],
   );
@@ -323,16 +480,20 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
   }, [effectiveLocationId, pathname, router]);
 
   const onContinue = useCallback(() => {
-    if (!selectedId) {
+    if (!selectedId || !selectedType) {
       return;
     }
-    const params = new URLSearchParams({ step: '3', packageId: selectedId });
+    const params = new URLSearchParams({
+      step: '3',
+      packageId: selectedId,
+      productType: selectedType,
+    });
     if (effectiveLocationId) {
       params.set('locationId', effectiveLocationId);
     }
     // Soft navigation (no full reload) so the wizard transitions in place.
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [selectedId, effectiveLocationId, pathname, router]);
+  }, [selectedId, selectedType, effectiveLocationId, pathname, router]);
 
   if (load.status === 'loading') {
     return <p {...stylex.props(styles.status)}>{t('packages.loading')}</p>;
@@ -352,7 +513,9 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
     );
   }
 
-  if (load.packages.length === 0) {
+  // Nothing on sale anywhere — the tabs would all be empty, so drop them and show
+  // the step's empty state instead of three ways to see the same nothing.
+  if (catalogueEmpty) {
     return (
       <div {...stylex.props(styles.root)}>
         <div {...stylex.props(styles.centered)}>
@@ -373,26 +536,50 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
         <p {...stylex.props(styles.subtitle)}>{t('packages.subtitle')}</p>
       </div>
 
-      <ul {...stylex.props(styles.grid)}>
-        {load.packages.map((pkg) => (
-          <PackageCard
-            key={pkg.id}
-            pkg={pkg}
-            locale={locale}
-            selected={pkg.id === selectedId}
-            priceSuffix={intervalSuffix(pkg.interval)}
-            sessionsLabel={
-              pkg.sessionCount === null
-                ? t('packages.unlimited')
-                : t('packages.sessions', { count: pkg.sessionCount })
-            }
-            popularLabel={t('packages.popular')}
-            selectLabel={t('packages.select')}
-            selectedLabel={t('packages.selected')}
-            onSelect={() => select(pkg.id)}
-          />
+      <div role="tablist" aria-label={t('packages.tabsLabel')} {...stylex.props(styles.tabs)}>
+        {TABS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            id={`checkout-tab-${key}`}
+            aria-selected={tab === key}
+            aria-controls={`checkout-panel-${key}`}
+            onClick={() => setTab(key)}
+            {...stylex.props(styles.tab, tab === key ? styles.tabActive : styles.tabIdle)}
+          >
+            {t(`packages.tabs.${key}`)}
+            <span {...stylex.props(styles.tabCount)}>{counts[key]}</span>
+          </button>
         ))}
-      </ul>
+      </div>
+
+      <div role="tabpanel" id={`checkout-panel-${tab}`} aria-labelledby={`checkout-tab-${tab}`}>
+        {cards.length === 0 ? (
+          <p {...stylex.props(styles.tabEmpty)}>{t('packages.tabEmpty')}</p>
+        ) : (
+          <ul {...stylex.props(styles.grid)}>
+            {cards.map((pkg) => (
+              <PackageCard
+                key={pkg.id}
+                pkg={pkg}
+                locale={locale}
+                selected={pkg.id === selectedId}
+                priceSuffix={intervalSuffix(pkg.interval)}
+                sessionsLabel={
+                  pkg.sessionCount === null
+                    ? t('packages.unlimited')
+                    : t('packages.sessions', { count: pkg.sessionCount })
+                }
+                popularLabel={t('packages.popular')}
+                selectLabel={t('packages.select')}
+                selectedLabel={t('packages.selected')}
+                onSelect={() => select(pkg.id, tab)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
 
       <div {...stylex.props(styles.actions)}>
         <Button variant="secondary" size="md" label={t('back')} onClick={onBack} />
@@ -400,7 +587,7 @@ export function StepPackage({ gymId, locationId, initialPackageId, onSelect }: S
           variant="primary"
           size="md"
           label={t('continue')}
-          isDisabled={!selectedId}
+          isDisabled={!selectedId || !selectedType}
           onClick={onContinue}
         />
       </div>

@@ -600,6 +600,13 @@ model GymMember {
   medicalNotes          String?
   tags                  String[]  @default([])
 
+  /// National identity number, captured by the public self-signup wizard (where
+  /// it is required) and editable from the staff console. Nullable at the column
+  /// level because every membership that predates self-signup — and every staff
+  /// row created through the directory or an invite — has none; the "required"
+  /// rule belongs to the signup contract, not to the table.
+  personalId String?
+
   // Directory-staff identity (T-staff-directory). A staff member added straight
   // to the directory is backed by a login-less `User` (no password, never
   // invited); their split name lives here so the roster's First/Last columns are

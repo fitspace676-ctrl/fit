@@ -5,13 +5,23 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Button } from '@astryxdesign/core/Button';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { registerSchema, type OrderCustomer } from '@fit/types';
+import type { ISODateString } from '@astryxdesign/core/Calendar';
+import { DateInput } from '@astryxdesign/core/DateInput';
+import { Selector } from '@astryxdesign/core/Selector';
+import {
+  memberSignupSchema,
+  orderCustomerSchema,
+  type CheckoutProductType,
+  type Gender,
+  type OrderCustomer,
+} from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
-import { registerWithCredentials } from '@/lib/auth';
+import { EmailTakenError, signupMember } from '@/lib/signup';
 import { useSession } from '@/hooks/use-session';
 import { Icon } from '@/src/components/ui';
+import { Link } from '@/src/i18n/navigation';
 import { CHECKOUT_LOCATION_KEY } from './StepLocation';
-import { CHECKOUT_PACKAGE_KEY } from './StepPackage';
+import { CHECKOUT_PACKAGE_KEY, CHECKOUT_PRODUCT_TYPE_KEY } from './StepPackage';
 
 /** sessionStorage key the wizard persists the guest's contact details under (T3.10). */
 export const CHECKOUT_CUSTOMER_KEY = 'checkout_customer';
@@ -120,7 +130,7 @@ export function readCheckoutCustomer(): OrderCustomer | null {
   }
   try {
     const parsed: unknown = JSON.parse(raw);
-    const result = registerSchema.pick({ name: true, email: true }).safeParse(parsed);
+    const result = orderCustomerSchema.safeParse(parsed);
     return result.success ? result.data : null;
   } catch {
     return null;
@@ -134,19 +144,32 @@ export interface StepDetailsProps {
   locationId?: string;
   /** `?packageId` from step 2 — preserved across Back / Continue. */
   packageId?: string;
+  /** `?productType` from step 2 — preserved across Back / Continue. */
+  productType?: CheckoutProductType;
 }
 
 /**
- * Step 3 of the purchase wizard: who the order is for. A signed-in visitor sees
- * a confirmation panel and continues straight to payment; a guest fills an
- * inline registration form (name + email + password, validated against the
- * shared {@link registerSchema}). On Continue the guest's name + email are
- * persisted to `sessionStorage` so step 4 can attach them to the order, and an
- * account is created in the background (`POST /auth/register`) — registration
- * emails a verification link rather than issuing a session, so it never blocks
- * the checkout. Back returns to step 2 with the package preserved.
+ * Step 3 of the purchase wizard: who is joining. A signed-in visitor sees a
+ * confirmation panel and continues straight to payment; everyone else fills the
+ * membership form — the account credentials plus the profile the front desk
+ * needs on file (phone, date of birth, national id, gender) — validated against
+ * the shared {@link memberSignupSchema} so the client and the API can never
+ * drift on what is required.
+ *
+ * **Signing up here creates the session the next step runs on.** `POST
+ * /auth/signup` creates the account *and* its gym membership and returns a live
+ * session, so payment happens as the member rather than as an anonymous buyer —
+ * which is what lets the API take the gym, the member and the price off the
+ * session instead of trusting the wire. The address is still unverified: a
+ * verification email goes out, and the member must click it before their *next*
+ * sign-in.
+ *
+ * An already-registered email is the one failure treated as a branch rather than
+ * an error: the step offers to sign in instead, keeping the buyer's place in the
+ * flow rather than stranding them on a dead end. Back returns to step 2 with the
+ * product preserved.
  */
-export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) {
+export function StepDetails({ gymId, locationId, packageId, productType }: StepDetailsProps) {
   const t = useTranslations('checkout');
   const router = useRouter();
   const pathname = usePathname();
@@ -155,8 +178,16 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  // `DateInput` speaks a template-literal `YYYY-MM-DD`; empty means "not picked
+  // yet", which the signup schema rejects the same way it rejects a bad date.
+  const [dateOfBirth, setDateOfBirth] = useState<ISODateString | ''>('');
+  const [gender, setGender] = useState<Gender | ''>('');
+  const [personalId, setPersonalId] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Set when signup was refused because the address already has an account. */
+  const [emailTaken, setEmailTaken] = useState(false);
 
   // The location/package may be missing from the URL on a direct refresh; fall
   // back to what the earlier steps persisted so the order stays intact.
@@ -180,20 +211,35 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
     return window.sessionStorage.getItem(CHECKOUT_PACKAGE_KEY) ?? undefined;
   }, [packageId]);
 
-  // Build a wizard URL for the given step, carrying the package + location so a
-  // refresh / Back keeps the selection.
+  const effectiveProductType = useMemo(() => {
+    if (productType) {
+      return productType;
+    }
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    return (
+      (window.sessionStorage.getItem(CHECKOUT_PRODUCT_TYPE_KEY) as CheckoutProductType) ?? undefined
+    );
+  }, [productType]);
+
+  // Build a wizard URL for the given step, carrying the product (id *and* type)
+  // plus the branch so a refresh / Back keeps the selection.
   const stepHref = useCallback(
     (step: '2' | '4') => {
       const params = new URLSearchParams({ step });
       if (effectivePackageId) {
         params.set('packageId', effectivePackageId);
       }
+      if (effectiveProductType) {
+        params.set('productType', effectiveProductType);
+      }
       if (effectiveLocationId) {
         params.set('locationId', effectiveLocationId);
       }
       return `${pathname}?${params.toString()}`;
     },
-    [effectivePackageId, effectiveLocationId, pathname],
+    [effectivePackageId, effectiveProductType, effectiveLocationId, pathname],
   );
 
   const onBack = useCallback(() => {
@@ -205,13 +251,34 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
     router.push(stepHref('4'), { scroll: false });
   }, [router, stepHref]);
 
-  // Guest: validate, persist contact details for the order, kick off account
-  // creation (best-effort — a duplicate email shouldn't block checkout), then
-  // advance to payment.
+  /**
+   * New member: validate against the shared signup contract, create the account
+   * + membership, and advance to payment already signed in.
+   *
+   * Unlike the previous guest flow, signup is **not** best-effort: the payment
+   * step needs the session it returns, so a failure keeps the buyer on this step
+   * with the reason rather than sending them to a checkout that would 401. The
+   * one exception is an address that already has an account, which becomes a
+   * "sign in instead" prompt.
+   */
   const onSubmitGuest = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const parsed = registerSchema.safeParse({ name, email, password });
+      if (!gymId) {
+        setError(t('details.invalid'));
+        return;
+      }
+
+      const parsed = memberSignupSchema.safeParse({
+        gymId,
+        name,
+        email,
+        password,
+        phone,
+        dateOfBirth,
+        gender,
+        personalId,
+      });
       if (!parsed.success) {
         setError(t('details.invalid'));
         return;
@@ -219,21 +286,26 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
 
       setPending(true);
       setError(null);
+      setEmailTaken(false);
 
+      // Kept for the order's contact details, which the confirmation reads back.
       const customer: OrderCustomer = { name: parsed.data.name, email: parsed.data.email };
       window.sessionStorage.setItem(CHECKOUT_CUSTOMER_KEY, JSON.stringify(customer));
 
-      registerWithCredentials(parsed.data)
-        .catch(() => {
-          // An already-registered email (or any register hiccup) must not strand
-          // the buyer — the order still carries their contact details. Swallow
-          // and proceed; the account can be claimed later via email verification.
-        })
-        .finally(() => {
+      signupMember(parsed.data)
+        .then(() => {
           router.push(stepHref('4'), { scroll: false });
+        })
+        .catch((err: unknown) => {
+          setPending(false);
+          if (err instanceof EmailTakenError) {
+            setEmailTaken(true);
+            return;
+          }
+          setError(err instanceof Error ? err.message : t('details.invalid'));
         });
     },
-    [name, email, password, t, router, stepHref],
+    [gymId, name, email, password, phone, dateOfBirth, gender, personalId, t, router, stepHref],
   );
 
   if (isLoading) {
@@ -274,6 +346,16 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
         <p {...stylex.props(styles.subtitle)}>{t('details.guestSubtitle')}</p>
       </div>
 
+      {emailTaken ? (
+        <p role="alert" {...stylex.props(styles.error)}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} sw={2.2} />
+          {t('details.emailTaken')}{' '}
+          <Link href={`/login?from=${encodeURIComponent(stepHref('4'))}`}>
+            {t('details.emailTakenAction')}
+          </Link>
+        </p>
+      ) : null}
+
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} sw={2.2} />
@@ -297,6 +379,49 @@ export function StepDetails({ gymId, locationId, packageId }: StepDetailsProps) 
           htmlName="email"
           value={email}
           onChange={(value) => setEmail(value)}
+          isRequired
+          isDisabled={pending}
+        />
+        <TextInput
+          type="text"
+          label={t('details.fields.phone')}
+          htmlName="phone"
+          value={phone}
+          onChange={(value) => setPhone(value)}
+          isRequired
+          isDisabled={pending}
+        />
+        {/*
+          `DateInput` emits an ISO `YYYY-MM-DD` string — exactly what the signup
+          contract expects — so there is no parse or timezone step between the
+          picker and the wire.
+        */}
+        <DateInput
+          label={t('details.fields.dateOfBirth')}
+          value={dateOfBirth ? dateOfBirth : undefined}
+          onChange={(value) => setDateOfBirth(value ?? '')}
+          isRequired
+          isDisabled={pending}
+        />
+        <TextInput
+          type="text"
+          label={t('details.fields.personalId')}
+          htmlName="personalId"
+          description={t('details.fields.personalIdHint')}
+          value={personalId}
+          onChange={(value) => setPersonalId(value)}
+          isRequired
+          isDisabled={pending}
+        />
+        <Selector
+          label={t('details.fields.gender')}
+          value={gender}
+          onChange={(value) => setGender(value as Gender)}
+          options={[
+            { value: 'FEMALE', label: t('details.gender.female') },
+            { value: 'MALE', label: t('details.gender.male') },
+            { value: 'OTHER', label: t('details.gender.other') },
+          ]}
           isRequired
           isDisabled={pending}
         />

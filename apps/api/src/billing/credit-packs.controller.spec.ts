@@ -11,7 +11,7 @@ import type { CreditPacksService } from './credit-packs.service';
 
 function setup() {
   const purchasePack = vi.fn<() => Promise<PurchaseCreditPackResponse>>(() =>
-    Promise.resolve({ creditPackId: 'pack-1' }),
+    Promise.resolve({ creditPackId: 'pack-1', orderId: 'order-1' }),
   );
   const listMyCreditPacks = vi.fn<() => Promise<ListCreditPacksResponse>>(() =>
     Promise.resolve({ packs: [] }),
@@ -47,7 +47,7 @@ describe('CreditPacksController', () => {
       const result = await ctx.purchase.purchase({ packId: 'plan-1' });
 
       expect(ctx.purchasePack).toHaveBeenCalledWith({ packId: 'plan-1' });
-      expect(result).toEqual({ creditPackId: 'pack-1' });
+      expect(result).toEqual({ creditPackId: 'pack-1', orderId: 'order-1' });
     });
 
     it('rejects a missing packId with 400 without hitting the service', async () => {
