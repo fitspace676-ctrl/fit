@@ -130,5 +130,20 @@ export const config = {
   // The bare `/` entry is required because the negative-lookahead pattern below
   // does not match the index route on its own — without it the dashboard (served
   // at the basePath root, `/admin`) would skip the auth gate entirely.
-  matcher: ['/', '/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)'],
+  // `api` is excluded — matching the web app's matcher — because this gate
+  // answers an unauthenticated request with a **redirect**, and a redirect is the
+  // wrong answer for a route the browser reaches by `fetch`.
+  //
+  // The AI-agent panel POSTs to `/admin/api/agent/chat` and reads an NDJSON
+  // stream back. A `fetch` is not a navigation (`sec-fetch-dest: empty`), so
+  // `isNavigationRequest` is false and the silent refresh below never runs for
+  // it: the moment the short-lived access token expired, the POST was answered
+  // with a 307 to the sign-in page, `fetch` followed it, and the stream parser
+  // was handed a page of HTML. The agent stopped working with no visible error.
+  //
+  // The API routes already enforce their own auth (`app/api/agent/chat`
+  // and `app/api/session` both check the session and return a JSON 401), so
+  // letting them past this gate makes them answer with a status the client can
+  // actually act on.
+  matcher: ['/', '/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
 };
