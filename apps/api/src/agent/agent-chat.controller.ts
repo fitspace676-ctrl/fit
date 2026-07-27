@@ -4,6 +4,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Logger,
   Post,
   Res,
   UseGuards,
@@ -53,6 +54,7 @@ const agent = require('@fit/agent') as {
     model: AgentModelRef,
     emit: (event: StreamEvent) => void,
     attachments?: Attachment[],
+    onFallback?: (from: AgentModelRef, to: AgentModelRef, reason: string) => void,
   ) => Promise<void>;
   resolveModel: (id?: string) => AgentModelRef | undefined;
 };
@@ -79,6 +81,14 @@ interface ChatBody {
 @Controller('agent')
 @UseGuards(TenantGuard, PermissionsGuard)
 export class AgentChatController {
+  /**
+   * A failed turn is reported to the browser inside the NDJSON stream, so the
+   * HTTP status stays 200 and nothing reaches Nest's exception filter — without
+   * this logger a provider outage, a rejected key or a bad model id is invisible
+   * everywhere except the operator's screen. Every failure below is logged here.
+   */
+  private readonly logger = new Logger(AgentChatController.name);
+
   @Post('chat')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ProfileManage)
@@ -102,13 +112,31 @@ export class AgentChatController {
 
     try {
       if (model && token) {
-        await agent.runAgent(messages, token, model, emit, attachments);
+        // A fallback means the preferred (cheaper) provider is refusing work —
+        // the turn still succeeds, so this warning is the only place it surfaces.
+        const onFallback = (from: AgentModelRef, to: AgentModelRef, reason: string): void => {
+          this.logger.warn(
+            `agent falling back from ${from.provider}/${from.modelId} to ${to.provider}/${to.modelId}: ${reason}`,
+          );
+        };
+        await agent.runAgent(messages, token, model, emit, attachments, onFallback);
       } else {
         // No provider key configured (no model) — the guards guarantee a token.
+        this.logger.error(
+          `agent_not_configured — no provider key is set, so no model resolved (requested: ${body.model ?? 'default'})`,
+        );
         emit({ t: 'error', message: 'agent_not_configured' });
       }
     } catch (err) {
-      emit({ t: 'error', message: err instanceof Error ? err.message : 'agent_failed' });
+      // Log before streaming: the provider's own message (bad key, retired model
+      // id, rate limit) is the only thing that identifies the fault, and the 200
+      // status means nothing else in the stack will record it.
+      const message = err instanceof Error ? err.message : 'agent_failed';
+      this.logger.error(
+        `agent turn failed [${model?.provider ?? 'no-provider'}/${model?.modelId ?? 'no-model'}]: ${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      emit({ t: 'error', message });
     } finally {
       res.end();
     }

@@ -15,7 +15,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createFitMcpServer } from '@fit/mcp';
-import { createDriver, type AgentModel } from './models';
+import { createDriver, fallbackModels, type AgentModel } from './models';
 import { normalizeAttachments } from './attachments';
 import type {
   AgentAttachment,
@@ -23,6 +23,7 @@ import type {
   AgentStreamEvent,
   AgentTool,
   AgentToolResult,
+  ModelTurn,
 } from './driver';
 
 /** Hard ceiling on tool-call rounds so a loop can never burn tokens unbounded. */
@@ -74,8 +75,14 @@ export async function runAgent(
   model: AgentModel,
   emit: (event: AgentStreamEvent) => void,
   attachments?: AgentAttachment[],
+  onFallback?: (from: AgentModel, to: AgentModel, reason: string) => void,
 ): Promise<void> {
-  const driver = createDriver(model);
+  // The requested model, plus a spare from every other configured provider. A
+  // rejected key or a provider outage then costs a pricier turn instead of the
+  // whole agent — see `fallbackModels`.
+  const spares = fallbackModels(model);
+  let driver = createDriver(model);
+  let active = model;
 
   // Link an MCP client to the in-process Fit server over an in-memory transport.
   const server = createFitMcpServer(token);
@@ -109,13 +116,33 @@ export async function runAgent(
       }
     }
 
+    // Tracks whether the current turn has put text on screen. Once it has, a
+    // provider swap would replay the reply from the start, so the failure is
+    // surfaced instead.
+    let streamed = false;
+    const onDelta = (text: string): void => {
+      streamed = true;
+      emit({ t: 'delta', v: text });
+    };
+
+    /** Stream one turn, moving to the next provider while the turn is silent. */
+    const streamTurn = async (): Promise<ModelTurn> => {
+      for (;;) {
+        try {
+          return await driver.runTurn({ system: SYSTEM, tools, history, onDelta });
+        } catch (err) {
+          const spare = streamed ? undefined : spares.shift();
+          if (!spare) throw err;
+          onFallback?.(active, spare, err instanceof Error ? err.message : 'unknown');
+          driver = createDriver(spare);
+          active = spare;
+        }
+      }
+    };
+
     for (let round = 0; round < MAX_ROUNDS; round += 1) {
-      const turn = await driver.runTurn({
-        system: SYSTEM,
-        tools,
-        history,
-        onDelta: (text) => emit({ t: 'delta', v: text }),
-      });
+      const turn = await streamTurn();
+      streamed = false;
 
       if (turn.toolCalls.length === 0) break;
       history.push({ role: 'assistant', text: turn.text, toolCalls: turn.toolCalls });
