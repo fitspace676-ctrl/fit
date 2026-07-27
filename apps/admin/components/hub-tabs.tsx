@@ -5,7 +5,7 @@
 // Renders an underline tab bar (styling mirrors the `@fit/ui-web` `Tabs`
 // primitive) whose tabs are `next/link` destinations rather than local state, so
 // each tab is its own route and the browser URL/back-button work as expected.
-// Used by the Payments hub (Plans · Invoices · Products · Transactions) and the
+// Used by the Payments hub (Plans · Invoices) and the
 // Classes hub (Class Types · Schedule · PT Calendar · Bookings) to match the
 // reference admin's consolidated information architecture while keeping our
 // design system. The active tab is resolved from the current pathname: the tab

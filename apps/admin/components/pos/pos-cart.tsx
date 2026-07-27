@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/shop/format-price';
+import { formatPrice } from '@/app/(dashboard)/shop/format-price';
 import { Btn } from '@/components/ui';
 import {
   lineTotal,
@@ -216,6 +216,17 @@ const styles = stylex.create({
     borderTopColor: 'var(--color-border)',
     paddingTop: '0.75rem',
   },
+  /** The `%` that sits after a discount box, so the unit is never in doubt. */
+  pctSign: {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  cartDiscountField: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+  },
   cartDiscountLabel: {
     display: 'flex',
     alignItems: 'center',
@@ -367,15 +378,17 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
                     <input
                       type="number"
                       min={0}
-                      step="0.01"
-                      defaultValue={item.lineDiscount > 0 ? minorToInput(item.lineDiscount) : ''}
+                      max={100}
+                      step="1"
+                      defaultValue={item.lineDiscountPct > 0 ? String(item.lineDiscountPct) : ''}
                       onChange={(event) =>
-                        setLineDiscount(item.productId, inputToMinor(event.target.value) ?? 0)
+                        setLineDiscount(item.productId, Number(event.target.value))
                       }
-                      placeholder="0.00"
+                      placeholder="0"
                       aria-label={t('lineDiscountLabel', { name: item.name })}
                       {...stylex.props(styles.discountInput)}
                     />
+                    <span {...stylex.props(styles.pctSign)}>%</span>
                   </label>
 
                   <span {...stylex.props(styles.lineTotal)}>
@@ -399,23 +412,27 @@ function CartSummary({ currency, onCharge }: { currency: string; onCharge: () =>
   const subtotal = usePosCart(selectSubtotal);
   const discountTotal = usePosCart(selectDiscountTotal);
   const total = usePosCart(selectTotal);
-  const cartDiscount = usePosCart((state) => state.cartDiscount);
+  const cartDiscountPct = usePosCart((state) => state.cartDiscountPct);
   const setCartDiscount = usePosCart((state) => state.setCartDiscount);
 
   return (
     <div {...stylex.props(styles.summary)}>
       <label {...stylex.props(styles.cartDiscountLabel)}>
         <span>{t('cartDiscount')}</span>
-        <input
-          type="number"
-          min={0}
-          step="0.01"
-          defaultValue={cartDiscount > 0 ? minorToInput(cartDiscount) : ''}
-          onChange={(event) => setCartDiscount(inputToMinor(event.target.value) ?? 0)}
-          placeholder="0.00"
-          aria-label={t('cartDiscountLabel')}
-          {...stylex.props(styles.cartDiscountInput)}
-        />
+        <span {...stylex.props(styles.cartDiscountField)}>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step="1"
+            defaultValue={cartDiscountPct > 0 ? String(cartDiscountPct) : ''}
+            onChange={(event) => setCartDiscount(Number(event.target.value))}
+            placeholder="0"
+            aria-label={t('cartDiscountLabel')}
+            {...stylex.props(styles.cartDiscountInput)}
+          />
+          <span {...stylex.props(styles.pctSign)}>%</span>
+        </span>
       </label>
 
       <div {...stylex.props(styles.summaryRow)}>

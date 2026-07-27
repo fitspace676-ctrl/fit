@@ -19,7 +19,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 
 export const metadata = {
-  title: 'Astryx smoke — Fit admin',
+  title: 'Astryx smoke - Fit admin',
   robots: { index: false, follow: false },
 };
 

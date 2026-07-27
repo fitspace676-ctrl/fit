@@ -12,9 +12,9 @@ import { TrainerSelect, type TrainerOption } from './trainer-select';
 import { PtCalendarBoard } from './pt-calendar-board';
 
 export const metadata: Metadata = {
-  title: 'Classes · PT Calendar — Fit Admin',
+  title: 'Classes · PT Calendar - Fit Admin',
   description:
-    'A trainer’s weekly personal-training calendar: pick a trainer, see their 1:1 sessions, and schedule new ones like classes.',
+    'The gym’s weekly personal-training calendar: every trainer’s 1:1 sessions on one grid, filterable by trainer, with new sessions scheduled like classes.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -36,21 +36,6 @@ const styles = stylex.create({
   subtitle: {
     margin: 0,
     maxWidth: '42rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
-  emptyPanel: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBlock: '4rem',
-    paddingInline: '1rem',
-    borderRadius: 'var(--radius-container)',
-    borderWidth: '1px',
-    borderStyle: 'dashed',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-    textAlign: 'center',
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
@@ -83,11 +68,14 @@ function readParam(params: SearchParams, key: string): string {
 
 /**
  * The Classes hub's PT Calendar tab. Personal training is a 1:1 session between a
- * trainer and a member on its own calendar (no class type / template). The tab is
- * scoped to one trainer the staff picks (`?trainerId=`); once chosen, it renders
- * that trainer's sessions on the same weekly time-grid the class Schedule uses,
- * with an "Add PT session" drawer. Reads require `ClassRead` (route middleware),
- * writes `ClassWrite` — the board only offers add / cancel / complete to writers.
+ * trainer and a member on its own calendar (no class type / template).
+ *
+ * The calendar is always on screen: it opens showing **every** trainer's sessions for
+ * the week on the same weekly time-grid the class Schedule uses. `?trainerId=` is an
+ * optional narrowing filter, not a gate — staff pick the trainer when they add a
+ * session, not before they can see anything. Reads require `ClassRead` (route
+ * middleware), writes `ClassWrite` — the board only offers add / cancel / complete to
+ * writers.
  */
 export default async function PtCalendarPage({
   searchParams,
@@ -110,41 +98,35 @@ export default async function PtCalendarPage({
     .catch(() => [] as TrainerOption[]);
 
   let body;
-  if (!trainerId) {
+  try {
+    const [classTypes, sessionsRes] = await Promise.all([
+      fetchClassTypeOptions().catch(() => [] as AdminClassTypeOption[]),
+      // No trainer filter unless one was picked — the calendar opens on everyone.
+      fetchPtSessions({ from, to, ...(trainerId ? { trainerId } : {}) }),
+    ]);
     body = (
-      <div {...stylex.props(styles.emptyPanel)}>
-        Select a trainer to view and schedule their PT sessions.
-      </div>
+      <PtCalendarBoard
+        weekStart={toIsoDate(weekStart)}
+        sessions={sessionsRes.sessions}
+        classTypes={classTypes}
+        trainers={trainers}
+        trainerId={trainerId || null}
+        canWrite={canWrite}
+      />
     );
-  } else {
-    try {
-      const [classTypes, sessionsRes] = await Promise.all([
-        fetchClassTypeOptions().catch(() => [] as AdminClassTypeOption[]),
-        fetchPtSessions({ from, to, trainerId }),
-      ]);
-      body = (
-        <PtCalendarBoard
-          weekStart={toIsoDate(weekStart)}
-          sessions={sessionsRes.sessions}
-          classTypes={classTypes}
-          trainerId={trainerId}
-          canWrite={canWrite}
-        />
-      );
-    } catch (error) {
-      const message =
-        error instanceof ApiError
-          ? `Could not load PT sessions (${error.status}): ${error.message}`
-          : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
-      body = (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
-          <Icon name="info" {...stylex.props(styles.errorIcon)} />
-          <p role="alert" {...stylex.props(styles.errorText)}>
-            {message}
-          </p>
-        </Card>
-      );
-    }
+  } catch (error) {
+    const message =
+      error instanceof ApiError
+        ? `Could not load PT sessions (${error.status}): ${error.message}`
+        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+    body = (
+      <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Icon name="info" {...stylex.props(styles.errorIcon)} />
+        <p role="alert" {...stylex.props(styles.errorText)}>
+          {message}
+        </p>
+      </Card>
+    );
   }
 
   return (
@@ -152,8 +134,9 @@ export default async function PtCalendarPage({
       <header {...stylex.props(styles.header)}>
         <h1 {...stylex.props(styles.title)}>PT Calendar</h1>
         <p {...stylex.props(styles.subtitle)}>
-          Pick a trainer to see their personal-training calendar. Schedule 1:1 sessions with a
-          member the same way you add classes, and cancel or complete them from the session.
+          Every trainer’s personal-training week, on one calendar. Schedule a 1:1 session the same
+          way you add classes — picking the trainer as you go — and cancel or complete it from the
+          session. Narrow to a single trainer with the filter.
         </p>
       </header>
 

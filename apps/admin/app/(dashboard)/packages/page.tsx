@@ -13,7 +13,7 @@ import { PackagePlansFilters } from './packages-filters';
 import { PackagePlansTable } from './packages-table';
 
 export const metadata: Metadata = {
-  title: 'Packages — Fit Admin',
+  title: 'Packages - Fit Admin',
   description:
     'The gym’s personal-training package plans: search, filter, sort, open a plan, or add and edit plans with pricing, billing cadence, sessions, and features.',
 };

@@ -31,7 +31,7 @@ import { PromoCodesView } from './promo-codes-view';
 import { AudienceView } from './audience-view';
 
 export const metadata: Metadata = {
-  title: 'Marketing — Fit Admin',
+  title: 'Marketing - Fit Admin',
   description:
     'Reach members with campaigns, promo codes, audience segments, and message templates.',
 };

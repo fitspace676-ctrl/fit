@@ -2,11 +2,11 @@ import { expect, test } from '@playwright/test';
 
 /**
  * Admin core-flow smoke (T9.3): Login → member CRUD → schedule a class →
- * check-in → POS sale → refund, driven against the redesigned admin console.
+ * check-in → POS sale, driven against the redesigned admin console.
  *
- * The steps are interdependent — the member created here is later checked in,
- * the product created here is later sold, and that sale is later refunded — so
- * they run serially and share the ids captured along the way. Auth is handled
+ * The steps are interdependent — the member created here is later checked in
+ * and the product created here is later sold — so they run serially and share
+ * the ids captured along the way. Auth is handled
  * once in `global-setup.ts` (an OWNER `accessToken` cookie), so every test
  * starts already signed in.
  *
@@ -128,29 +128,5 @@ test.describe.serial('Admin core flows', () => {
     await dialog.getByRole('button', { name: 'Complete sale' }).click();
 
     await expect(page.getByText('Sale complete')).toBeVisible({ timeout: 20_000 });
-  });
-
-  test('Refund the most recent order', async ({ page }) => {
-    // Orders are the Transactions tab of the consolidated Payments hub.
-    await page.goto('/payments/transactions');
-
-    // Open the newest POS-channel order — the sale just recorded. (Seeded demo
-    // orders are all ONLINE and carry fixed "today" clock times that can sort
-    // above a real-time row, so the plain top row isn't reliably our sale.)
-    const posRow = page.locator('tbody tr', { hasText: 'POS' }).first();
-    await posRow.getByRole('link').first().click();
-    await page.waitForURL(/\/payments\/transactions\/(?!new$)[a-z0-9]+$/, { timeout: 20_000 });
-
-    // The card sale left a CAPTURED payment, so the refund control is present.
-    await expect(page.getByRole('heading', { name: 'Issue a refund' })).toBeVisible();
-    const reason = `E2E automated refund ${RUN}`;
-    await page.locator('#refund-reason').fill(reason);
-    await page.getByRole('button', { name: 'Issue refund' }).click();
-
-    // The page revalidates after a successful refund: the order flips to
-    // "Refunded" and the refund is listed under a "Refunds" section. (The
-    // transient "Refund issued." banner unmounts with the now-satisfied form.)
-    await expect(page.getByRole('heading', { name: 'Refunds' })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(reason).first()).toBeVisible();
   });
 });

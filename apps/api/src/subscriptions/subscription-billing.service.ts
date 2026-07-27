@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import * as Sentry from '@sentry/nestjs';
 import {
+  InvoiceType,
   Prisma,
   SubscriptionStatus,
   applyEvent,
@@ -361,6 +362,8 @@ export class SubscriptionBillingService {
         subscriptionId: sub.id,
         amount: sub.priceAmount,
         currency: sub.currency,
+        // A recurring membership charge, whatever the plan is called.
+        type: InvoiceType.MEMBERSHIP,
         description: subscriptionInvoiceDescription(
           sub.plan?.name ?? null,
           sub.interval,

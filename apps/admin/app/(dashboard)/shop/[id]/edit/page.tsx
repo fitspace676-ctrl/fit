@@ -10,7 +10,7 @@ import { Icon } from '@/components/ui';
 import { ProductForm } from '../../product-form';
 
 export const metadata: Metadata = {
-  title: 'Edit product — Fit Admin',
+  title: 'Edit product - Fit Admin',
 };
 
 // Reflects the staff session and writes live product state — never cached.

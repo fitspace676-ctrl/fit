@@ -111,7 +111,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Reports — Fit Admin',
+  title: 'Reports - Fit Admin',
 };
 
 // The hub reflects live tenant state + the staff session token, so this page must

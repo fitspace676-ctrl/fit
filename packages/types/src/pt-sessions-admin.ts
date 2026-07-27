@@ -18,15 +18,18 @@ const MAX_WINDOW_MS = MAX_SCHEDULE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 /**
  * Query for `GET /admin/pt-sessions`. `from`/`to` bound the visible window as
  * ISO-8601 instants (a session belongs to the window when its `startsAt` is in
- * `[from, to)`); `trainerId` is **required** — the PT calendar is always scoped to
- * one trainer the staff picked. The gym is the tenant session, not on the wire.
- * The two `.refine`s reject an inverted or over-wide range up front.
+ * `[from, to)`).
+ *
+ * `trainerId` is **optional**: omitted, the calendar shows every trainer's sessions
+ * for the week, which is how the PT tab opens. Supplying one narrows the calendar to
+ * that trainer. The gym is the tenant session, not on the wire. The two `.refine`s
+ * reject an inverted or over-wide range up front.
  */
 export const listAdminPtSessionsQuerySchema = z
   .object({
     from: z.string().datetime(),
     to: z.string().datetime(),
-    trainerId: z.string().min(1, 'A trainer is required'),
+    trainerId: z.string().min(1).optional(),
   })
   .refine((q) => new Date(q.from).getTime() <= new Date(q.to).getTime(), {
     message: 'from must be on or before to',
@@ -89,9 +92,10 @@ export interface AdminPtSession {
 }
 
 /**
- * Successful `GET /admin/pt-sessions` response — the chosen trainer's sessions
- * whose `startsAt` falls in the window, ordered by `startsAt`. An empty array is a
- * normal result (a trainer with no sessions that week), rendered as the empty state.
+ * Successful `GET /admin/pt-sessions` response — the sessions whose `startsAt` falls
+ * in the window (every trainer's, or one trainer's when the query narrowed it),
+ * ordered by `startsAt`. An empty array is a normal result — a quiet week — and is
+ * rendered as an empty calendar rather than an error.
  */
 export interface AdminPtSessionsResponse {
   sessions: AdminPtSession[];

@@ -2,6 +2,7 @@
 
 import {
   Permission,
+  createMemberSchema,
   recordPosSaleSchema,
   roleHasPermission,
   sendReceiptSchema,
@@ -13,7 +14,16 @@ import {
   type SendReceiptResponse,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchMembers, fetchProducts, recordPosSale, sendPosReceipt } from '@/lib/api';
+import {
+  ApiError,
+  createMember,
+  fetchLocations,
+  fetchMembers,
+  fetchProducts,
+  fetchSubscriptionPlans,
+  recordPosSale,
+  sendPosReceipt,
+} from '@/lib/api';
 
 /** Discriminated result returned to the client — a Server Action never throws across the boundary. */
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -141,41 +151,6 @@ export async function lookupPosMembersAction(query: string): Promise<ActionResul
 }
 
 /**
- * Resolve the member a scanned QR code identifies. The member QR (shown in the
- * mobile app, T6.9) encodes a check-in token; until the dedicated
- * `GET /check-in/qr-token` decode endpoint lands, the POS treats the scanned
- * payload as a lookup term — a raw member id resolves directly, and anything else
- * falls through to the same partial search the typed lookup uses. Returns the
- * single resolved member, or `null` when the scan matches nobody. Enforces
- * `MemberRead`.
- */
-export async function resolvePosMemberByQrAction(
-  scanned: string,
-): Promise<ActionResult<PosMemberRow | null>> {
-  if (!(await sessionHas(Permission.MemberRead))) {
-    return { ok: false, error: 'Not authorized' };
-  }
-  const token = scanned.trim();
-  if (token === '') {
-    return { ok: true, data: null };
-  }
-  try {
-    const result = await fetchMembers({
-      search: token,
-      limit: MEMBER_RESULT_LIMIT,
-      sort: 'name',
-      dir: 'asc',
-    });
-    // Prefer an exact id match (a raw member-id QR); otherwise take the top hit.
-    const exact = result.data.find((row) => row.id === token);
-    const resolved = exact ?? result.data[0] ?? null;
-    return { ok: true, data: resolved ? toPosMember(resolved) : null };
-  } catch (error) {
-    return { ok: false, error: toMessage(error) };
-  }
-}
-
-/**
  * Email a customer the receipt of a completed POS sale (T7.4). Re-validates the
  * snapshot against the shared `sendReceiptSchema` before forwarding it to the
  * `POST /orders/receipt` API (which renders + sends the receipt), so a malformed
@@ -221,6 +196,143 @@ export async function recordPosSaleAction(
   }
   try {
     return { ok: true, data: await recordPosSale(parsed.data) };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * One membership as the POS catalogue renders it — the plan's sellable face.
+ * `priceAmount` is in the currency's minor units; `durationLabel` is the renewal
+ * cadence spelled out for the card's badge ("30 days" / "365 days").
+ */
+export interface PosMembershipRow {
+  id: string;
+  name: string;
+  priceAmount: number;
+  currency: string;
+  durationLabel: string;
+}
+
+/** Enough plans to fill the POS catalogue without paging — a gym has a handful. */
+const MEMBERSHIP_RESULT_LIMIT = 50;
+
+/** Days per renewal cadence, for the card's duration badge. */
+const INTERVAL_DAYS: Record<string, number> = { MONTH: 30, YEAR: 365 };
+
+/**
+ * The gym's sellable memberships for the POS catalogue — its **active** subscription
+ * plans, cheapest first so the desk's common sale is nearest to hand.
+ *
+ * Gated on `BillingRead`, the same capability the POS sale itself needs, so a
+ * till-operator role that can ring up a sale can also see what there is to sell.
+ */
+export async function fetchPosMembershipsAction(): Promise<ActionResult<PosMembershipRow[]>> {
+  if (!(await sessionHas(Permission.BillingRead))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const { data } = await fetchSubscriptionPlans({
+      limit: MEMBERSHIP_RESULT_LIMIT,
+      status: 'ACTIVE',
+      sort: 'price',
+      dir: 'asc',
+    });
+    return {
+      ok: true,
+      data: data.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        priceAmount: plan.priceAmount,
+        currency: plan.currency,
+        durationLabel: `${INTERVAL_DAYS[plan.interval] ?? 30} days`,
+      })),
+    };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Register a member from the desk and hand them straight back for the sale in
+ * progress.
+ *
+ * The counter is where people join: someone walks in, wants a membership, and has
+ * no record yet. A membership can only be sold to a member (it creates a real
+ * subscription), so without this the operator would have to leave the till, create
+ * the member on the Members screen, and start the sale over.
+ *
+ * Deliberately the minimum a sale needs — name, email, phone — rather than the full
+ * intake form; the rest of the profile can be filled in later from the member's page.
+ * Gated on `MemberWrite`, the same capability the Members screen's create needs, so
+ * a till-only role can't quietly add people to the roster.
+ */
+export async function createPosMemberAction(input: {
+  name: string;
+  email: string;
+  phone: string;
+}): Promise<ActionResult<PosMemberRow>> {
+  if (!(await sessionHas(Permission.MemberWrite))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const parsed = createMemberSchema.safeParse({
+    name: input.name,
+    email: input.email,
+    // The contract drops a blank phone rather than storing an empty string.
+    phone: input.phone.trim() || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid member details' };
+  }
+  try {
+    const created = await createMember(parsed.data);
+    return {
+      ok: true,
+      data: {
+        id: created.id,
+        name: created.name,
+        phone: created.phone ?? null,
+        email: created.email,
+        photoUrl: null,
+      },
+    };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      return { ok: false, error: 'A member with that email already exists — search for them.' };
+    }
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/** One branch the till can be attributed to. */
+export interface PosLocationRow {
+  id: string;
+  name: string;
+}
+
+/** Enough branches to fill the selector without paging. */
+const LOCATION_RESULT_LIMIT = 100;
+
+/**
+ * The gym's **active** branches, for the POS's "selling at" selector. Recorded on
+ * the order so a multi-site gym can split takings and reports by branch; a
+ * single-site gym gets one option and never thinks about it.
+ *
+ * Gated on `LocationRead`. A failure is the caller's to handle — the POS degrades to
+ * no branch rather than blocking the sale.
+ */
+export async function fetchPosLocationsAction(): Promise<ActionResult<PosLocationRow[]>> {
+  if (!(await sessionHas(Permission.LocationRead))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const { data } = await fetchLocations({
+      limit: LOCATION_RESULT_LIMIT,
+      status: 'ACTIVE',
+      sort: 'name',
+      dir: 'asc',
+    });
+    return { ok: true, data: data.map((row) => ({ id: row.id, name: row.name })) };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }

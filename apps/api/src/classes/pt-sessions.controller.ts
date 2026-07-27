@@ -42,11 +42,11 @@ export class AdminPtSessionsController {
   constructor(private readonly ptSessions: PtSessionsService) {}
 
   /**
-   * `GET /admin/pt-sessions?from=<ISO>&to=<ISO>&trainerId=` — the trainer's PT
-   * sessions whose `startsAt` falls in `[from, to)`, ordered by start. The query is
-   * validated up front (a missing trainer, non-ISO bound, inverted or over-wide
-   * range is a `400` with per-field detail). An empty `sessions` array is a normal
-   * `200`.
+   * `GET /admin/pt-sessions?from=<ISO>&to=<ISO>&trainerId=` — the PT sessions whose
+   * `startsAt` falls in `[from, to)`, ordered by start. `trainerId` is optional:
+   * omit it for every trainer's sessions (how the PT tab opens), pass one to narrow.
+   * The query is validated up front (a non-ISO bound, inverted or over-wide range is
+   * a `400` with per-field detail). An empty `sessions` array is a normal `200`.
    */
   @Get()
   @HttpCode(HttpStatus.OK)

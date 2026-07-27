@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Badge, buttonClasses, Icon } from '@/components/ui';
 
 export const metadata: Metadata = {
-  title: 'Access denied — Fit Admin',
+  title: 'Access denied - Fit Admin',
   description: 'You do not have permission to view this page.',
 };
 

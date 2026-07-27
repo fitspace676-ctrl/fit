@@ -11,7 +11,7 @@ import { formatPrice } from '../format-price';
 import { ProductActions } from './product-actions';
 
 export const metadata: Metadata = {
-  title: 'Product — Fit Admin',
+  title: 'Product - Fit Admin',
 };
 
 // The detail reflects live product state and the staff session token, so it must

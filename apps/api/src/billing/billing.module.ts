@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AdminCreditPacksController } from './admin-credit-packs.controller';
+import { AdminInvoicesController } from './admin-invoices.controller';
+import { AdminInvoicesService } from './admin-invoices.service';
 import { CreditPacksController } from './credit-packs.controller';
 import { CreditPacksService } from './credit-packs.service';
 import { InvoiceDocumentService } from './invoice-document.service';
+import { InvoiceModule } from './invoice.module';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { InvoicesController } from './invoices.controller';
 import { MemberCreditPacksController } from './member-credit-packs.controller';
@@ -27,15 +30,23 @@ import { MemberCreditPacksController } from './member-credit-packs.controller';
  * the desk-side download, and {@link InvoiceDocumentService} — the shared load →
  * render ({@link InvoicePdfService}) → cache-in-R2 seam — is **exported** so the member
  * self-service route (`MeInvoicesController` in {@link MeModule}) reuses it.
+ *
+ * The Invoices tab: {@link AdminInvoicesController} (`/admin/invoices`) lists the
+ * gym's invoices, raises one by hand, and emails one as a PDF attachment. It composes
+ * what is already here rather than reimplementing it — {@link InvoiceModule}'s
+ * `InvoiceService` for the sequential number, {@link InvoiceDocumentService} for the
+ * document, and the globally-provided `MailerService` for delivery.
  */
 @Module({
+  imports: [InvoiceModule],
   controllers: [
     CreditPacksController,
     MemberCreditPacksController,
     AdminCreditPacksController,
     InvoicesController,
+    AdminInvoicesController,
   ],
-  providers: [CreditPacksService, InvoicePdfService, InvoiceDocumentService],
+  providers: [CreditPacksService, InvoicePdfService, InvoiceDocumentService, AdminInvoicesService],
   exports: [CreditPacksService, InvoiceDocumentService],
 })
 export class BillingModule {}

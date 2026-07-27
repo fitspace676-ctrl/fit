@@ -33,7 +33,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Fit — Admin',
+  title: 'Fit - Admin',
   description: 'Fit admin console.',
 };
 

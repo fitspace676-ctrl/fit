@@ -13,7 +13,7 @@ import { loadRelationOptions } from '../options';
 import { monthWindow, resolveMonthAnchor, resolveWeekStart, toIsoDate, weekWindow } from './week';
 
 export const metadata: Metadata = {
-  title: 'Schedule — Fit Admin',
+  title: 'Schedule - Fit Admin',
   description:
     'The gym’s weekly class calendar: day columns of class occurrences with occupancy, trainer, and branch, filtered by trainer or location and paged a week at a time.',
 };

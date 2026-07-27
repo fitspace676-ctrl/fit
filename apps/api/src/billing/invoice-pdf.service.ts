@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
-import { InvoiceStatus } from '@fit/db';
 
 /** Everything the invoice document renders — a flat snapshot, no DB access here. */
 export interface InvoicePdfData {
@@ -14,8 +13,6 @@ export interface InvoicePdfData {
   amount: number;
   /** ISO-4217 currency, snapshotted from the charge. */
   currency: string;
-  /** Settlement state. */
-  status: InvoiceStatus;
   /** Issuing gym's display name (the document header). */
   gymName: string;
   /** Billed member's name, when known. */
@@ -34,7 +31,9 @@ const MUTED = '#6B7280';
  * Renders an {@link Invoice} to a single-page A4 PDF (T5.10) with `pdfkit`, entirely
  * in memory. Deliberately dependency-light — no headless browser — because an invoice
  * is a fixed, text-only layout: a gym header, the invoice/bill-to block, one billed
- * line, the total, and the settlement state. Stateless and pure: it takes a flat
+ * line and the total. The settlement state is deliberately absent — the document
+ * records what is owed, not whether it has been paid, and a stale "PENDING" stamped
+ * on a PDF the member keeps would outlive the payment. Stateless and pure: it takes a flat
  * {@link InvoicePdfData} snapshot and returns the bytes, so the caller owns loading the
  * invoice, storing the result in R2, and streaming it.
  */
@@ -128,15 +127,6 @@ export class InvoicePdfService {
       .text('Total', left, y)
       .text(money, amountX, y, { width: 120, align: 'right' });
 
-    // Settlement state.
-    y += 30;
-    doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(9).text('STATUS', left, y);
-    doc
-      .fillColor(statusColor(data.status))
-      .font('Helvetica-Bold')
-      .fontSize(11)
-      .text(data.status, left, y + 12);
-
     // Footer.
     doc
       .fillColor(MUTED)
@@ -157,11 +147,4 @@ function formatMoney(minorUnits: number, currency: string): string {
 /** `"4 Jul 2026"` in a fixed, locale-independent form (the document is not localised). */
 function formatDate(date: Date): string {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-/** The accent colour for a settlement state — green paid, red failed, amber otherwise. */
-function statusColor(status: InvoiceStatus): string {
-  if (status === InvoiceStatus.PAID) return '#16A34A';
-  if (status === InvoiceStatus.FAILED) return '#DC2626';
-  return '#D97706';
 }

@@ -10,7 +10,7 @@ import { Icon } from '@/components/ui';
 import { MemberForm } from '../member-form';
 
 export const metadata: Metadata = {
-  title: 'New member — Fit Admin',
+  title: 'New member - Fit Admin',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.

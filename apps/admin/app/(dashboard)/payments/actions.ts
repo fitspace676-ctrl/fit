@@ -15,9 +15,18 @@ import {
   ApiError,
   createSubscriptionPlan,
   deactivateSubscriptionPlan,
+  fetchClassTypes,
   reactivateSubscriptionPlan,
+  updateClassType,
   updateSubscriptionPlan,
 } from '@/lib/api';
+
+/**
+ * How many class types one membership sync scans. The API's page cap, and far above
+ * any realistic per-gym catalogue — a gym with more types than this would only leave
+ * the overflow tail unlinked.
+ */
+const CLASS_TYPES_PAGE_LIMIT = 100;
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -114,6 +123,72 @@ export async function setSubscriptionPlanActiveAction(
     revalidatePath('/payments');
     revalidatePath(`/payments/${id}`);
     return { ok: true, data: { status: plan.status } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Sync which class types a plan covers, written from the plan's side of the
+ * relation.
+ *
+ * There is no `SubscriptionPlan.classTypeIds` column: coverage lives on the class
+ * type as `pricingRule = INCLUDED` + `includedPlanIds`, which is what the classes
+ * screen edits. Rather than duplicate that (two sources of truth that drift), the
+ * plan form writes the same relation from the other end — each class type in
+ * `classTypeIds` gains this plan id, each one that no longer wants it loses it.
+ *
+ * Two rules keep the class catalogue intact:
+ *
+ *  • **`PAID` types are never touched.** They carry a per-session `priceMinor` that
+ *    flipping to `INCLUDED` would strip, so the plan picker doesn't offer them and
+ *    this loop skips them even if an id is passed.
+ *  • **A type that loses its last plan falls back to `FREE`.** `INCLUDED` with an
+ *    empty `includedPlanIds` fails validation, and `PAID` would need a price we
+ *    don't have — so the class becomes open to every member.
+ *
+ * Requires `BillingManage` (it's driven from the billing screen) *and* `ClassWrite`
+ * (it mutates class types); the API re-checks the latter on every PATCH.
+ */
+export async function setPlanClassTypesAction(
+  planId: string,
+  classTypeIds: string[],
+): Promise<ActionResult<{ updated: number }>> {
+  if (!(await requireBillingManage()) || !(await sessionHas(Permission.ClassWrite))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const wanted = new Set(classTypeIds);
+    const { data: types } = await fetchClassTypes({
+      limit: CLASS_TYPES_PAGE_LIMIT,
+      sort: 'name',
+      dir: 'asc',
+    });
+
+    let updated = 0;
+    for (const type of types) {
+      if (type.pricingRule === 'PAID') {
+        continue;
+      }
+      const covered = type.includedPlanIds.includes(planId);
+      if (covered === wanted.has(type.id)) {
+        continue;
+      }
+      const includedPlanIds = covered
+        ? type.includedPlanIds.filter((id) => id !== planId)
+        : [...type.includedPlanIds, planId];
+      await updateClassType(type.id, {
+        pricingRule: includedPlanIds.length > 0 ? 'INCLUDED' : 'FREE',
+        includedPlanIds,
+      });
+      updated += 1;
+    }
+
+    revalidatePath('/payments');
+    revalidatePath(`/payments/${planId}`);
+    // The classes board renders each type's pricing badge from what just changed.
+    revalidatePath('/classes');
+    return { ok: true, data: { updated } };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }

@@ -34,6 +34,8 @@ import {
 } from '@/components/ui';
 import { setSubscriptionPlanActiveAction } from './actions';
 import { formatPrice, intervalSuffix } from './format';
+import { NewPlanDrawer } from './new-plan-drawer';
+import type { PlanClassTypeOption } from './subscription-plan-form';
 
 type Segment = 'active' | 'archived';
 
@@ -84,9 +86,11 @@ function toneAt(index: number): Tone {
  */
 export function BillingPlansView({
   plans,
+  classTypes,
   canWrite,
 }: {
   plans: AdminSubscriptionPlanRow[];
+  classTypes: PlanClassTypeOption[];
   canWrite: boolean;
 }) {
   const t = useTranslations('admin.billingPlans');
@@ -141,20 +145,6 @@ export function BillingPlansView({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Sub-tabs — only Plans is a live surface this milestone. */}
-      <div className="flex items-center gap-5 border-b border-ink-200 dark:border-white/10">
-        <span className="relative pb-2.5 text-sm font-semibold text-ink-900 dark:text-white">
-          {t('tabs.plans')}
-          <span className="absolute -bottom-px left-0 right-0 h-0.5 rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)]" />
-        </span>
-        <span className="pb-2.5 text-sm font-semibold text-ink-400 dark:text-ink-500">
-          {t('tabs.promos')}
-        </span>
-        <span className="pb-2.5 text-sm font-semibold text-ink-400 dark:text-ink-500">
-          {t('tabs.ptPackages')}
-        </span>
-      </div>
-
       {/* KPI strip. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {kpis.map((kpi) => (
@@ -196,12 +186,7 @@ export function BillingPlansView({
           <span className="font-mono text-xs text-ink-500 dark:text-ink-400">
             {t('planCount', { count: shown.length })}
           </span>
-          {canWrite ? (
-            <Link href="/payments/new" className={buttonClasses('primary', 'sm')}>
-              <Icon name="plus" className="h-4 w-4" />
-              {t('newPlan')}
-            </Link>
-          ) : null}
+          {canWrite ? <NewPlanDrawer classTypes={classTypes} /> : null}
         </div>
       </div>
 

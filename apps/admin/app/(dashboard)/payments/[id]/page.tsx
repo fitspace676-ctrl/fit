@@ -9,7 +9,7 @@ import { creditsLabel, formatPrice, intervalLabel, intervalSuffix } from '../for
 import { PlanActions } from './plan-actions';
 
 export const metadata: Metadata = {
-  title: 'Subscription plan — Fit Admin',
+  title: 'Subscription plan - Fit Admin',
 };
 
 // The detail reflects live plan state and the staff session token, so it must

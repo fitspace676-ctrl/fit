@@ -1479,11 +1479,6 @@
     "billingPlans": {
       "title": "Billing",
       "subtitle": "Your gym’s recurring membership plans — pricing, perks, and who’s subscribed. Create a plan, edit it, or archive one when it’s retired.",
-      "tabs": {
-        "plans": "Plans",
-        "promos": "Promos",
-        "ptPackages": "PT packages"
-      },
       "kpi": {
         "activePlans": "Active plans",
         "subscribers": "Subscribers",
@@ -1495,6 +1490,7 @@
         "archived": "Archived"
       },
       "newPlan": "New plan",
+      "newPlanTitle": "New subscription plan",
       "planCount": "{count, plural, one {# plan} other {# plans}}",
       "subscribersLabel": "subscribers",
       "monthlyLabel": "monthly",
@@ -1594,13 +1590,8 @@
       "member": {
         "searchLabel": "Look up a member by name or phone (F2)",
         "searchPlaceholder": "Member name or phone…  (F2)",
-        "scan": "Scan QR",
-        "stopScan": "Stop",
         "walkIn": "Walk-in sale — no member required.",
-        "remove": "Remove",
-        "noMatch": "Scanned code did not match any member.",
-        "cameraError": "Could not access the camera.",
-        "scanUnsupported": "QR scanning isn’t supported on this device/browser. Search by name or phone instead."
+        "remove": "Remove"
       },
       "cart": {
         "heading": "Cart",
@@ -1614,9 +1605,9 @@
         "increase": "Increase {name} quantity",
         "quantity": "{name} quantity",
         "discountShort": "Disc.",
-        "lineDiscountLabel": "{name} line discount",
-        "cartDiscount": "Cart discount",
-        "cartDiscountLabel": "Cart-level discount",
+        "lineDiscountLabel": "{name} line discount percentage",
+        "cartDiscount": "Cart discount (%)",
+        "cartDiscountLabel": "Cart-level discount percentage",
         "subtotal": "Subtotal",
         "discounts": "Discounts",
         "total": "Total",
@@ -1648,6 +1639,7 @@
           "totalPaid": "Total paid",
           "cashReceived": "Cash received",
           "changeDue": "Change due",
+          "print": "Print receipt",
           "newSale": "New sale"
         },
         "receipt": {
@@ -3612,32 +3604,25 @@
     "paymentsTabs": {
       "plans": "Plans",
       "invoices": "Invoices",
-      "transactions": "Transactions",
       "ariaLabel": "Payments sections"
     },
     "classesTabs": {
       "types": "Class Types",
       "schedule": "Schedule",
       "ptCalendar": "PT Calendar",
-      "bookings": "Bookings",
       "ariaLabel": "Classes sections"
     },
     "invoicesHub": {
       "title": "Invoices",
-      "subtitle": "Member invoices are generated per subscription and order.",
-      "description": "Invoices are generated for each subscription and order and are available as PDF downloads from each member’s payment history.",
-      "cta": "Go to members"
+      "subtitle": "Raised automatically for subscriptions and shop orders, or by hand against a member. Download one as a PDF, or email it.",
+      "invoiceCount": "{count, plural, one {# invoice} other {# invoices}}",
+      "loadError": "Could not load invoices ({status}): {message}",
+      "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
     },
     "ptHub": {
       "title": "PT Calendar",
       "subtitle": "Personal-training sessions live on the class schedule.",
       "description": "Personal-training sessions are scheduled as classes with a personal category and an assigned trainer. Open the Schedule to view and book them on the weekly calendar.",
-      "cta": "Open schedule"
-    },
-    "bookingsHub": {
-      "title": "Bookings",
-      "subtitle": "Class bookings are managed from the schedule and each member’s record.",
-      "description": "Bookings are created when a member reserves a class occurrence. Open the Schedule to manage a class roster, or a member’s record to see their bookings and attendance.",
       "cta": "Open schedule"
     },
     "agent": {

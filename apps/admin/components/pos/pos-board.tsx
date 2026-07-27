@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { usePosCart } from '@/stores/pos-cart-store';
-import type { PosMemberRow, PosProductRow } from '@/app/(dashboard)/pos/actions';
+import {
+  fetchPosLocationsAction,
+  type PosLocationRow,
+  type PosMemberRow,
+  type PosMembershipRow,
+  type PosProductRow,
+} from '@/app/(dashboard)/pos/actions';
 import { Card } from '@astryxdesign/core/Card';
 import { MemberLookup } from './member-lookup';
 import { PosCart } from './pos-cart';
@@ -34,6 +40,30 @@ const styles = stylex.create({
     gap: '0.75rem',
     padding: '1rem',
   },
+  branchLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  branchSelect: {
+    height: '2.25rem',
+    minWidth: '10rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: { default: 'var(--color-border)', ':focus': 'var(--color-accent)' },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.5rem',
+    fontFamily: 'inherit',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+    outlineStyle: 'none',
+  },
   cartArea: {
     minHeight: 0,
     flexGrow: 1,
@@ -58,10 +88,28 @@ export function PosBoard() {
   const setMember = usePosCart((state) => state.setMember);
   const clear = usePosCart((state) => state.clear);
 
+  const setLocation = usePosCart((state) => state.setLocation);
+  const locationId = usePosCart((state) => state.locationId);
+  const [locations, setLocations] = useState<PosLocationRow[]>([]);
+
   const [selectedMember, setSelectedMember] = useState<PosMemberRow | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const productSearchRef = useRef<HTMLInputElement>(null);
   const memberSearchRef = useRef<HTMLInputElement>(null);
+
+  // Load the gym's branches once and default to the first, so a single-site gym
+  // never has to touch the selector and a multi-site one always attributes the sale.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPosLocationsAction().then((result) => {
+      if (cancelled || !result.ok) return;
+      setLocations(result.data);
+      if (result.data.length > 0) setLocation(result.data[0]!.id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [setLocation]);
 
   const onAdd = useCallback(
     (product: PosProductRow) => {
@@ -70,6 +118,23 @@ export function PosBoard() {
         name: product.name,
         unitPrice: product.priceAmount,
         currency: product.currency,
+      });
+    },
+    [addItem],
+  );
+
+  /**
+   * A membership line is keyed by its plan id and carries `planId`, which is what
+   * tells the sale to enrol the attached member on that plan.
+   */
+  const onAddMembership = useCallback(
+    (membership: PosMembershipRow) => {
+      addItem({
+        productId: membership.id,
+        planId: membership.id,
+        name: membership.name,
+        unitPrice: membership.priceAmount,
+        currency: membership.currency,
       });
     },
     [addItem],
@@ -114,9 +179,25 @@ export function PosBoard() {
   return (
     <div {...stylex.props(styles.grid)}>
       <Card variant="default" padding={0} xstyle={styles.productPane}>
-        <ProductGrid searchRef={productSearchRef} onAdd={onAdd} />
+        <ProductGrid searchRef={productSearchRef} onAdd={onAdd} onAddMembership={onAddMembership} />
       </Card>
       <Card variant="default" padding={0} xstyle={styles.cartPane}>
+        {locations.length > 0 ? (
+          <label {...stylex.props(styles.branchLabel)}>
+            <span>Selling at</span>
+            <select
+              value={locationId ?? ''}
+              onChange={(event) => setLocation(event.target.value || undefined)}
+              {...stylex.props(styles.branchSelect)}
+            >
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <MemberLookup
           searchRef={memberSearchRef}
           selectedMember={selectedMember}

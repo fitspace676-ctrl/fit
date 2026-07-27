@@ -11,7 +11,7 @@ import { Icon } from '@/components/ui';
 import { MemberForm } from '../../member-form';
 
 export const metadata: Metadata = {
-  title: 'Edit member — Fit Admin',
+  title: 'Edit member - Fit Admin',
 };
 
 // Reflects the staff session and writes live member state — never cached.

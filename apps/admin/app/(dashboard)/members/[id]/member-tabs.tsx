@@ -26,6 +26,7 @@ import {
   useToast,
   type IconName,
 } from '@/components/ui';
+import { adminPath } from '@/lib/base-path';
 import {
   addMemberNoteAction,
   freezeMemberSubscriptionAction,
@@ -1466,9 +1467,10 @@ function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
                   </p>
                 </div>
                 {/* Download proxy is a root-relative admin route handler, not a data
-                    action — a plain <a> so the browser handles the file download. */}
+                    action — a plain <a> so the browser handles the file download,
+                    which is also why the basePath has to be added by hand. */}
                 <a
-                  href={`/payments/invoices/${invoice.id}/pdf`}
+                  href={adminPath(`/payments/invoices/${invoice.id}/pdf`)}
                   aria-label={t('detail.downloadInvoice')}
                   {...stylex.props(styles.downloadLink)}
                 >

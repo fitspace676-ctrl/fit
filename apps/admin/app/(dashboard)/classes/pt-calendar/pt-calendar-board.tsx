@@ -12,6 +12,7 @@ import { Badge, Btn, Icon, type Tone } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { addWeeks, toIsoDate, weekDays } from '../schedule/week';
 import { AddPtSessionDrawer, type ClassTypeOption } from './add-pt-session-drawer';
+import type { TrainerOption } from './trainer-select';
 import { cancelPtSessionAction, completePtSessionAction } from './pt-session-actions';
 
 // The time-grid runs 06:00–22:00 (matching the class schedule), each hour 3.5rem
@@ -206,6 +207,16 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
     color: 'var(--color-text-primary)',
   },
+  eventTrainer: {
+    display: 'block',
+    fontSize: '0.6875rem',
+    fontWeight: 500,
+    lineHeight: 1.2,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    color: 'var(--color-text-secondary)',
+  },
   // Detail drawer
   drawer: {
     height: 'calc(100dvh - 1.5rem)',
@@ -332,21 +343,29 @@ function placeSessions(sessions: AdminPtSession[]): PlacedSession[] {
 }
 
 /**
- * The PT calendar's week board — a trainer's sessions on the same 06:00–22:00
- * time-grid the class schedule uses, with prev/next week navigation and an "Add PT
- * session" drawer. Clicking a session opens a detail drawer with cancel / complete.
+ * The PT calendar's week board — PT sessions on the same 06:00–22:00 time-grid the
+ * class schedule uses, with prev/next week navigation and an "Add PT session" drawer.
+ * Clicking a session opens a detail drawer with cancel / complete.
+ *
+ * Shows every trainer's sessions unless `trainerId` narrows it; when unfiltered, each
+ * block names its trainer, since otherwise two trainers' 9am sessions are
+ * indistinguishable.
  */
 export function PtCalendarBoard({
   weekStart,
   sessions,
   classTypes,
+  trainers,
   trainerId,
   canWrite,
 }: {
   weekStart: string;
   sessions: AdminPtSession[];
   classTypes: ClassTypeOption[];
-  trainerId: string;
+  /** Every active trainer — the add drawer's picker. */
+  trainers: TrainerOption[];
+  /** The trainer the calendar is narrowed to, or `null` for all of them. */
+  trainerId: string | null;
   canWrite: boolean;
 }) {
   const locale = useLocale();
@@ -428,7 +447,10 @@ export function PtCalendarBoard({
 
         {canWrite ? (
           <AddPtSessionDrawer
-            trainerId={trainerId}
+            trainers={trainers}
+            // Prefill with whoever the calendar is filtered to; otherwise the staffer
+            // picks in the drawer.
+            defaultTrainerId={trainerId}
             classTypes={classTypes}
             defaultDate={weekStart}
           />
@@ -471,6 +493,7 @@ export function PtCalendarBoard({
                     key={ev.session.id}
                     placed={ev}
                     locale={locale}
+                    showTrainer={!trainerId}
                     onOpen={openSession}
                   />
                 ))}
@@ -491,14 +514,17 @@ export function PtCalendarBoard({
   );
 }
 
-/** One positioned PT session block: time, workout type, status. */
+/** One positioned PT session block: time, workout type, trainer, status. */
 function SessionBlock({
   placed,
   locale,
+  showTrainer,
   onOpen,
 }: {
   placed: PlacedSession;
   locale: string;
+  /** True when the calendar is unfiltered, so the block has to say whose session it is. */
+  showTrainer: boolean;
   onOpen: (session: AdminPtSession) => void;
 }) {
   const { session } = placed;
@@ -508,7 +534,7 @@ function SessionBlock({
     <button
       type="button"
       onClick={() => onOpen(session)}
-      aria-label={`View ${title} at ${formatTime(session.startsAt, locale)}`}
+      aria-label={`View ${title} with ${session.trainerName} at ${formatTime(session.startsAt, locale)}`}
       {...stylex.props(styles.event, dimmed && styles.eventDimmed)}
       style={{
         top: `${placed.topRem}rem`,
@@ -521,6 +547,9 @@ function SessionBlock({
         {formatTime(session.startsAt, locale)}–{formatTime(session.endsAt, locale)}
       </span>
       <p {...stylex.props(styles.eventTitle)}>{title}</p>
+      {showTrainer ? (
+        <span {...stylex.props(styles.eventTrainer)}>{session.trainerName}</span>
+      ) : null}
     </button>
   );
 }

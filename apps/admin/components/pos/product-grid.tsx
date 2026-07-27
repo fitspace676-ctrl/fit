@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type RefObject } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { formatPrice } from '@/app/(dashboard)/shop/format-price';
-import { searchPosProductsAction, type PosProductRow } from '@/app/(dashboard)/pos/actions';
+import {
+  fetchPosMembershipsAction,
+  searchPosProductsAction,
+  type PosMembershipRow,
+  type PosProductRow,
+} from '@/app/(dashboard)/pos/actions';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 
@@ -166,13 +171,62 @@ const styles = stylex.create({
     fontWeight: 600,
     color: 'var(--color-text-accent)',
   },
+  tabs: { display: 'flex', gap: '0.5rem' },
+  tab: {
+    height: '2.25rem',
+    paddingInline: '0.875rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'transparent',
+    fontFamily: 'inherit',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+    cursor: 'pointer',
+  },
+  tabActive: {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
+    color: 'var(--color-text-primary)',
+  },
+  // A membership tile has no image, so it leads with the name and carries a
+  // duration badge instead of the product tile's media block.
+  membershipTop: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    width: '100%',
+  },
+  durationBadge: {
+    flexShrink: 0,
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    borderRadius: 'var(--radius-pill, 999px)',
+    backgroundColor: 'color-mix(in srgb, var(--color-accent) 16%, transparent)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+  },
 });
 
+/** The catalogue sections the POS can sell from. */
+type Catalogue = 'memberships' | 'products';
+
 /**
- * The POS product grid (left column). A debounced full-text search over the gym's
- * active catalogue (reusing the tenant-scoped roster endpoint) renders a grid of
- * tappable tiles; tapping a tile adds the product to the cart. The grid loads the
- * first page of products on mount so the operator sees stock before typing.
+ * The POS catalogue (left column), split into what a gym sells across the counter:
+ * **Memberships** (its active subscription plans) and **Products** (the shop's
+ * stock). Tapping a tile adds that line to the cart.
+ *
+ * Products are searched server-side, debounced, and reload as the operator types.
+ * Memberships are a handful of rows, so they load once and filter in memory — a
+ * round-trip per keystroke would be wasted on a list that fits on screen.
+ *
+ * Selling a membership enrols the attached member on that plan, which is why the
+ * cart refuses to complete one without a member; the tile itself stays tappable so
+ * the operator can build the sale and attach the member in either order.
  *
  * The `searchRef` is owned by the board so the `F1` hotkey can focus the box
  * without this component knowing about the keymap.
@@ -180,16 +234,39 @@ const styles = stylex.create({
 export function ProductGrid({
   searchRef,
   onAdd,
+  onAddMembership,
 }: {
   searchRef: RefObject<HTMLInputElement | null>;
   onAdd: (product: PosProductRow) => void;
+  onAddMembership: (membership: PosMembershipRow) => void;
 }) {
   const t = useTranslations('admin.pos.products');
+  const [catalogue, setCatalogue] = useState<Catalogue>('memberships');
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<PosProductRow[]>([]);
+  const [memberships, setMemberships] = useState<PosMembershipRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The gym's plans change rarely and are few, so they are fetched once.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPosMembershipsAction().then((result) => {
+      if (cancelled) return;
+      if (result.ok) setMemberships(result.data);
+      else setError(result.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const shownMemberships = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return memberships;
+    return memberships.filter((plan) => plan.name.toLowerCase().includes(needle));
+  }, [memberships, query]);
 
   // Run the search whenever the (debounced) query changes, including the initial
   // empty query that populates the grid on mount.
@@ -236,6 +313,21 @@ export function ProductGrid({
         />
       </div>
 
+      <div {...stylex.props(styles.tabs)} role="tablist" aria-label="Catalogue">
+        {(['memberships', 'products'] as const).map((section) => (
+          <button
+            key={section}
+            type="button"
+            role="tab"
+            aria-selected={catalogue === section}
+            onClick={() => setCatalogue(section)}
+            {...stylex.props(styles.tab, catalogue === section && styles.tabActive)}
+          >
+            {section === 'memberships' ? 'Memberships' : 'Products'}
+          </button>
+        ))}
+      </div>
+
       {error ? (
         <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -243,33 +335,69 @@ export function ProductGrid({
         </Card>
       ) : null}
 
-      <div {...stylex.props(styles.scrollArea)}>
-        {products.length === 0 && !isPending && !error ? (
-          <p {...stylex.props(styles.empty)}>{t('empty')}</p>
-        ) : (
-          <ul {...stylex.props(styles.grid)}>
-            {products.map((product) => (
-              <li key={product.id}>
-                <button type="button" onClick={() => onAdd(product)} {...stylex.props(styles.tile)}>
-                  <div {...stylex.props(styles.tileMedia)}>
-                    {product.imageUrl ? (
-                      <img src={product.imageUrl} alt="" {...stylex.props(styles.tileImg)} />
-                    ) : (
-                      <div {...stylex.props(styles.tileInitial)}>
-                        {product.name.slice(0, 1).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <span {...stylex.props(styles.tileName)}>{product.name}</span>
-                  <span {...stylex.props(styles.tilePrice)}>
-                    {formatPrice(product.priceAmount, product.currency)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {catalogue === 'memberships' ? (
+        <div {...stylex.props(styles.scrollArea)}>
+          {shownMemberships.length === 0 ? (
+            <p {...stylex.props(styles.empty)}>
+              {memberships.length === 0
+                ? 'No active membership plans to sell yet.'
+                : 'No memberships match that.'}
+            </p>
+          ) : (
+            <ul {...stylex.props(styles.grid)}>
+              {shownMemberships.map((plan) => (
+                <li key={plan.id}>
+                  <button
+                    type="button"
+                    onClick={() => onAddMembership(plan)}
+                    {...stylex.props(styles.tile)}
+                  >
+                    <span {...stylex.props(styles.membershipTop)}>
+                      <span {...stylex.props(styles.tileName)}>{plan.name}</span>
+                      <span {...stylex.props(styles.durationBadge)}>{plan.durationLabel}</span>
+                    </span>
+                    <span {...stylex.props(styles.tilePrice)}>
+                      {formatPrice(plan.priceAmount, plan.currency)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <div {...stylex.props(styles.scrollArea)}>
+          {products.length === 0 && !isPending && !error ? (
+            <p {...stylex.props(styles.empty)}>{t('empty')}</p>
+          ) : (
+            <ul {...stylex.props(styles.grid)}>
+              {products.map((product) => (
+                <li key={product.id}>
+                  <button
+                    type="button"
+                    onClick={() => onAdd(product)}
+                    {...stylex.props(styles.tile)}
+                  >
+                    <div {...stylex.props(styles.tileMedia)}>
+                      {product.imageUrl ? (
+                        <img src={product.imageUrl} alt="" {...stylex.props(styles.tileImg)} />
+                      ) : (
+                        <div {...stylex.props(styles.tileInitial)}>
+                          {product.name.slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span {...stylex.props(styles.tileName)}>{product.name}</span>
+                    <span {...stylex.props(styles.tilePrice)}>
+                      {formatPrice(product.priceAmount, product.currency)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
