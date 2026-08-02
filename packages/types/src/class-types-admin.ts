@@ -183,4 +183,14 @@ export interface AdminClassTypeOption {
   durationMinutes: number;
   capacity: number;
   color: string;
+  /**
+   * How the type is charged. A class template copies these at save rather than
+   * asking again: pricing is decided once, on the type, and the template form
+   * only picks which type it is. There is no stored link between the two, so the
+   * copy is a snapshot — editing a type does not retro-price existing templates.
+   */
+  pricingRule: ClassPricingRule;
+  priceMinor: number | null;
+  includedPlanIds: string[];
+  minAttendance: number | null;
 }

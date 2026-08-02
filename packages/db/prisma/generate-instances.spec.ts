@@ -27,8 +27,11 @@ interface TemplateRow {
   gymId: string;
   rrule: string;
   durationMinutes: number;
+  startTime: string;
   validFrom: Date;
   validUntil: Date | null;
+  /** The gym's settings blob, which carries the zone `startTime` is read against. */
+  gym?: { settings: unknown } | null;
 }
 
 type CreatedRow = {
@@ -82,6 +85,8 @@ describe('occurrencesInWindow', () => {
       utc(2026, 6, 8),
       utc(2026, 7, 6), // 28 days later (exclusive)
       null,
+      '00:00',
+      'UTC',
     );
 
     // 4 weeks × 3 weekdays = 12; the boundary Monday (Jul 6) is excluded.
@@ -99,6 +104,8 @@ describe('occurrencesInWindow', () => {
       utc(2026, 6, 8),
       utc(2026, 7, 6),
       null,
+      '00:00',
+      'UTC',
     );
     expect(occ).toEqual([utc(2026, 6, 8), utc(2026, 6, 9), utc(2026, 6, 10)]);
   });
@@ -109,7 +116,9 @@ describe('occurrencesInWindow', () => {
       utc(2026, 6, 8),
       utc(2026, 6, 8),
       utc(2026, 7, 6),
-      utc(2026, 6, 12), // inclusive Friday
+      utc(2026, 6, 12), // inclusive Friday,
+      '00:00',
+      'UTC',
     );
     expect(occ).toEqual([utc(2026, 6, 8), utc(2026, 6, 10), utc(2026, 6, 12)]);
   });
@@ -121,6 +130,8 @@ describe('occurrencesInWindow', () => {
       utc(2026, 6, 8, 6), // job runs 06:00 on the Monday → 00:00 occurrence is past
       utc(2026, 7, 6),
       null,
+      '00:00',
+      'UTC',
     );
     expect(occ[0]).toEqual(utc(2026, 6, 10));
     expect(occ).toHaveLength(11);
@@ -133,6 +144,8 @@ describe('occurrencesInWindow', () => {
       utc(2026, 6, 8),
       utc(2026, 7, 6),
       null,
+      '00:00',
+      'UTC',
     );
     expect(occ).toEqual([]);
   });
@@ -148,6 +161,8 @@ describe('generateClassInstances', () => {
         gymId: 'g1',
         rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
         durationMinutes: 60,
+        startTime: '00:00',
+        gym: { settings: { locale: { timezone: 'UTC' } } },
         validFrom: now,
         validUntil: null,
       },
@@ -175,6 +190,8 @@ describe('generateClassInstances', () => {
         gymId: 'g1',
         rrule: 'FREQ=DAILY',
         durationMinutes: 30,
+        startTime: '00:00',
+        gym: { settings: { locale: { timezone: 'UTC' } } },
         validFrom: now,
         validUntil: null,
       },
@@ -202,6 +219,8 @@ describe('generateClassInstances', () => {
           gymId: 'g1',
           rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
           durationMinutes: 45,
+          startTime: '00:00',
+          gym: { settings: { locale: { timezone: 'UTC' } } },
           validFrom: now,
           validUntil: null,
         },
@@ -224,6 +243,8 @@ describe('generateClassInstances', () => {
         gymId: 'g1',
         rrule: 'FREQ=WEEKLY;BYDAY=MO',
         durationMinutes: 60,
+        startTime: '00:00',
+        gym: { settings: { locale: { timezone: 'UTC' } } },
         validFrom: utc(2027, 1, 4),
         validUntil: null,
       },
@@ -243,6 +264,8 @@ describe('generateClassInstances', () => {
         gymId: 'g1',
         rrule: 'FREQ=DAILY;COUNT=2',
         durationMinutes: 60,
+        startTime: '00:00',
+        gym: { settings: { locale: { timezone: 'UTC' } } },
         validFrom: now,
         validUntil: null,
       },
@@ -251,6 +274,8 @@ describe('generateClassInstances', () => {
         gymId: 'g2',
         rrule: 'FREQ=DAILY;COUNT=3',
         durationMinutes: 60,
+        startTime: '00:00',
+        gym: { settings: { locale: { timezone: 'UTC' } } },
         validFrom: now,
         validUntil: null,
       },
@@ -288,6 +313,8 @@ describe('planInstanceRegeneration', () => {
       validFrom: now,
       validUntil: null,
       durationMinutes: 60,
+      startTime: '00:00',
+      timeZone: 'UTC',
       existing: [],
       now,
     });
@@ -314,6 +341,8 @@ describe('planInstanceRegeneration', () => {
       validFrom: now,
       validUntil: null,
       durationMinutes: 45,
+      startTime: '00:00',
+      timeZone: 'UTC',
       existing,
       now,
     });
@@ -331,6 +360,8 @@ describe('planInstanceRegeneration', () => {
       validFrom: now,
       validUntil: null,
       durationMinutes: 45,
+      startTime: '00:00',
+      timeZone: 'UTC',
       existing: [monday, wednesday],
       now,
     });
@@ -349,6 +380,8 @@ describe('planInstanceRegeneration', () => {
       validFrom: now,
       validUntil: null,
       durationMinutes: 45,
+      startTime: '00:00',
+      timeZone: 'UTC',
       existing: [wednesday],
       now,
     });
@@ -365,6 +398,8 @@ describe('planInstanceRegeneration', () => {
       validFrom: now,
       validUntil: null,
       durationMinutes: 90,
+      startTime: '00:00',
+      timeZone: 'UTC',
       existing: [monday],
       now,
     });
@@ -391,6 +426,8 @@ describe('planInstanceRegeneration', () => {
       validFrom: now,
       validUntil: null,
       durationMinutes: 45,
+      startTime: '00:00',
+      timeZone: 'UTC',
       existing: [detached, canceled],
       now,
     });
@@ -412,6 +449,8 @@ describe('planInstanceRegeneration', () => {
       validFrom: now,
       validUntil: utc(2026, 6, 15),
       durationMinutes: 45,
+      startTime: '00:00',
+      timeZone: 'UTC',
       existing: [
         instance({ startsAt: utc(2026, 6, 8) }),
         instance({ startsAt: utc(2026, 6, 15) }),

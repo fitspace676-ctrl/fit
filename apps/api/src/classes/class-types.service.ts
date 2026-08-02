@@ -83,7 +83,17 @@ export class ClassTypesService {
   async listActiveOptions(): Promise<AdminClassTypeOption[]> {
     const rows = await this.prisma.client.classType.findMany({
       where: { status: ClassTypeStatus.ACTIVE },
-      select: { id: true, name: true, durationMinutes: true, capacity: true, color: true },
+      select: {
+        id: true,
+        name: true,
+        durationMinutes: true,
+        capacity: true,
+        color: true,
+        pricingRule: true,
+        priceMinor: true,
+        includedPlanIds: true,
+        minAttendance: true,
+      },
       orderBy: { name: 'asc' },
     });
     return rows.map((row) => ({
@@ -92,6 +102,10 @@ export class ClassTypesService {
       durationMinutes: row.durationMinutes,
       capacity: row.capacity,
       color: row.color,
+      pricingRule: row.pricingRule,
+      priceMinor: row.priceMinor,
+      includedPlanIds: row.includedPlanIds,
+      minAttendance: row.minAttendance,
     }));
   }
 

@@ -9,11 +9,13 @@
 // Design notes:
 //   • Expansion uses rrule.js, the engine the T5.1 round-trip test
 //     (`rrule.spec.ts`) pins the stored rrule strings against.
-//   • The recurrence anchor (DTSTART) is `template.validFrom`. The schema has no
-//     time-of-day column and `validFrom` is stored at UTC midnight, so
-//     occurrences fall at 00:00 UTC on the days the rrule selects. Everything is
-//     kept in UTC so rrule.js never drifts by the host timezone — matching how
-//     `validFrom` and the seed store dates.
+//   • The recurrence anchor (DTSTART) is `template.validFrom`'s *date*; the
+//     clock time is `template.startTime`, read against the gym's own zone. The
+//     two were once one field — validFrom's time-of-day doubled as the start
+//     time, which meant the console (whose form collects a date) created every
+//     class at midnight. Expansion stays in UTC so rrule.js never drifts by the
+//     host timezone, and the wall clock is applied per occurrence so a DST
+//     switch moves the instant rather than the class.
 //   • Generation is idempotent: an occurrence whose `startsAt` already has a row
 //     (in any status) is skipped, so re-runs add only the newly-in-window
 //     occurrences and a CANCELED / detached instance is never resurrected.
@@ -23,6 +25,90 @@ import { ClassTemplateStatus, InstanceStatus, type PrismaClient } from '../gener
 
 /** Milliseconds in one day — the unit the 4-week horizon and `validUntil` clamp use. */
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The offset, in milliseconds, that `timeZone` was at for a given instant —
+ * positive east of UTC. Derived by formatting the instant in that zone and
+ * reading the difference back, so it needs no timezone table of its own and is
+ * automatically right across DST transitions.
+ */
+function zoneOffsetMs(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  const at = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+
+  const asIfUtc = Date.UTC(
+    at('year'),
+    at('month') - 1,
+    at('day'),
+    at('hour'),
+    at('minute'),
+    at('second'),
+  );
+  // Drop sub-second precision on both sides so the difference is a clean offset.
+  return asIfUtc - Math.floor(instant.getTime() / 1000) * 1000;
+}
+
+/**
+ * The UTC instant at which a wall clock reads `hours:minutes` on the calendar day
+ * `occurrence` falls on, in `timeZone`.
+ *
+ * A class scheduled for 09:00 means 09:00 *at the gym*, so the stored instant has
+ * to be resolved per occurrence rather than once for the series — in a zone that
+ * observes DST the same wall time is a different instant either side of the
+ * switch. The offset depends on the instant, and the instant on the offset, so
+ * the guess is refined twice: the first pass lands within an hour of the answer,
+ * the second settles it even when the first guess fell on the far side of a
+ * transition.
+ */
+export function wallClockToUtc(
+  occurrence: Date,
+  hours: number,
+  minutes: number,
+  timeZone: string,
+): Date {
+  const wall = Date.UTC(
+    occurrence.getUTCFullYear(),
+    occurrence.getUTCMonth(),
+    occurrence.getUTCDate(),
+    hours,
+    minutes,
+  );
+
+  let utc = wall;
+  for (let pass = 0; pass < 2; pass += 1) {
+    utc = wall - zoneOffsetMs(new Date(utc), timeZone);
+  }
+  return new Date(utc);
+}
+
+/**
+ * The IANA zone out of a gym's settings blob, falling back to the platform
+ * default when the gym has never saved settings. Read structurally rather than
+ * through `gymSettingsStoredSchema` so the generator — which runs over every gym
+ * in one pass — is not taken down by one gym's malformed blob.
+ */
+export function gymTimeZone(settings: unknown): string {
+  const locale = (settings as { locale?: { timezone?: unknown } } | null)?.locale;
+  return typeof locale?.timezone === 'string' && locale.timezone !== ''
+    ? locale.timezone
+    : 'Asia/Tbilisi';
+}
+
+/** Split a stored `"HH:MM"` start time into its parts. */
+export function parseStartTime(startTime: string): { hours: number; minutes: number } {
+  const [hours, minutes] = startTime.split(':').map(Number);
+  return { hours: hours ?? 0, minutes: minutes ?? 0 };
+}
 
 /** Default booking horizon, in weeks, the job keeps materialised ahead of `now`. */
 export const DEFAULT_WEEKS_AHEAD = 4;
@@ -73,10 +159,19 @@ export function occurrencesInWindow(
   windowStart: Date,
   windowEnd: Date,
   validUntil: Date | null,
+  startTime: string,
+  timeZone: string,
 ): Date[] {
-  // Anchor the recurrence on validFrom; the parsed rrule supplies FREQ/BYDAY/…
+  const { hours, minutes } = parseStartTime(startTime);
+
+  // Expand the rule over calendar days, anchored on validFrom's date. The clock
+  // time comes from `startTime` afterwards, so the anchor is deliberately
+  // midnight UTC: letting validFrom's own time-of-day leak in is exactly the
+  // conflation this column replaced.
   const options = RRule.parseString(rrule);
-  options.dtstart = validFrom;
+  options.dtstart = new Date(
+    Date.UTC(validFrom.getUTCFullYear(), validFrom.getUTCMonth(), validFrom.getUTCDate()),
+  );
   const rule = new RRule(options);
 
   // Never generate occurrences before the template is valid or before `now`.
@@ -95,12 +190,20 @@ export function occurrencesInWindow(
     return [];
   }
 
-  // `between(after, before, inc=true)` includes both endpoints; re-filter to the
-  // half-open `[genStart, genEnd)` interval so a horizon boundary never
-  // double-materialises across consecutive runs.
-  return rule
-    .between(genStart, genEnd, true)
-    .filter((occurrence) => occurrence >= genStart && occurrence < genEnd);
+  // Expand a day wider on each side before applying the start time: an occurrence
+  // whose calendar day sits just outside the window can land inside it once the
+  // clock time and the zone offset are applied, and vice versa. The real bound is
+  // enforced after the shift, so nothing outside `[genStart, genEnd)` survives.
+  const days = rule.between(
+    new Date(genStart.getTime() - DAY_MS),
+    new Date(genEnd.getTime() + DAY_MS),
+    true,
+  );
+
+  return days
+    .map((day) => wallClockToUtc(day, hours, minutes, timeZone))
+    .filter((occurrence) => occurrence >= genStart && occurrence < genEnd)
+    .sort((a, b) => a.getTime() - b.getTime());
 }
 
 /**
@@ -131,8 +234,13 @@ export async function generateClassInstances(
       gymId: true,
       rrule: true,
       durationMinutes: true,
+      startTime: true,
       validFrom: true,
       validUntil: true,
+      // A start time is a wall clock, so it only resolves to an instant against
+      // the gym's own zone. Selected per template rather than looked up per gym:
+      // the pass is system-wide and the blob is small.
+      gym: { select: { settings: true } },
     },
   });
 
@@ -146,6 +254,8 @@ export async function generateClassInstances(
       windowStart,
       windowEnd,
       template.validUntil,
+      template.startTime,
+      gymTimeZone(template.gym?.settings),
     );
 
     if (occurrences.length === 0) {
@@ -239,6 +349,10 @@ export interface PlanInstanceRegenerationInput {
   validUntil: Date | null;
   /** The template's new per-occurrence duration, used to derive `endsAt`. */
   durationMinutes: number;
+  /** The wall-clock time each occurrence starts, `"HH:MM"` in the gym's zone. */
+  startTime: string;
+  /** The gym's IANA zone — the clock `startTime` is read against. */
+  timeZone: string;
   /** Future instances of the template already in the horizon window. */
   existing: ExistingInstance[];
   /** The instant the edit happens (occurrences before it are left in the past). Defaults to `new Date()`. */
@@ -279,6 +393,8 @@ export function planInstanceRegeneration(
     now,
     windowEnd,
     input.validUntil,
+    input.startTime,
+    input.timeZone,
   );
 
   // Index the current future rows by their start instant for O(1) matching.

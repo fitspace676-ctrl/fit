@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -109,6 +110,21 @@ export class AdminClassTemplatesController {
   @RequirePermissions(Permission.ClassWrite)
   async pause(@Param('id') id: string): Promise<SetClassTemplateStatusResponse> {
     return this.templates.pauseClassTemplate(id);
+  }
+
+  /**
+   * `DELETE /admin/classes/:id` — remove a class template (T5.15).
+   *
+   * The gym's history survives: occurrences that already happened, and future
+   * ones a member has booked, are detached from the template rather than
+   * cascaded away — see the service for the rule. `204` on success, `404` for an
+   * unknown / cross-tenant id.
+   */
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions(Permission.ClassWrite)
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.templates.deleteClassTemplate(id);
   }
 
   /**

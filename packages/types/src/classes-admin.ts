@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { sortDirSchema } from './members';
+import { timeOfDaySchema } from './time-of-day';
 
 /**
  * A class template's lifecycle within the gym, mirroring the Prisma
@@ -294,6 +295,8 @@ export interface AdminClassTemplateRow {
   category: string;
   capacity: number;
   durationMinutes: number;
+  /** Wall-clock start, `"HH:MM"` in the gym's own timezone. */
+  startTime: string;
   recurrence: string;
   color: string;
   trainerName: string | null;
@@ -362,7 +365,7 @@ const classTemplateProfileFields = {
   description: z.string().trim().max(2000).default(''),
   category: z.string().trim().max(80).default(''),
   trainerId: z.string().trim().min(1).nullable().default(null),
-  locationId: z.string().trim().min(1).nullable().default(null),
+  locationId: z.string().trim().min(1, 'Pick the location this class runs at'),
   room: z
     .string()
     .trim()
@@ -381,6 +384,7 @@ const classTemplateProfileFields = {
     .int('Duration must be a whole number of minutes')
     .min(1, 'Duration must be at least 1 minute')
     .max(1440, 'Duration cannot exceed 24 hours'),
+  startTime: timeOfDaySchema,
   rrule: z
     .string()
     .trim()

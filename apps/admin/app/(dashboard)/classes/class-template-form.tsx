@@ -164,52 +164,6 @@ const styles = stylex.create({
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
-  pricingBox: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-    padding: '1rem',
-    borderRadius: 'var(--radius-inner)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-  },
-  hint: {
-    margin: 0,
-    fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  planList: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-  },
-  planChipIcon: {
-    width: '0.875rem',
-    height: '0.875rem',
-  },
-  planChip: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.375rem',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.375rem',
-    borderRadius: 'var(--radius-full)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-body)',
-    color: 'var(--color-text-secondary)',
-    fontSize: '0.8125rem',
-    fontWeight: 500,
-    cursor: 'pointer',
-  },
-  planChipActive: {
-    borderColor: 'var(--color-accent)',
-    backgroundColor: 'var(--color-accent-muted)',
-    color: 'var(--color-text-accent)',
-  },
 });
 
 /** The default recurrence a new template starts on — a weekly Monday class. */
@@ -227,6 +181,7 @@ type Initial = {
   room: string | null;
   capacity: number;
   durationMinutes: number;
+  startTime: string;
   rrule: string;
   color: string;
   pricingRule: ClassPricingRule;
@@ -268,20 +223,6 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** A stored minor-unit amount (or null) → the major-unit string the input shows. */
-function minorToMajor(minor: number | null): string {
-  return minor === null ? '' : (minor / 100).toString();
-}
-
-/** A major-unit input string → minor units, or null when blank/invalid. */
-function majorToMinor(value: string): number | null {
-  const trimmed = value.trim();
-  if (trimmed === '') return null;
-  const major = Number(trimmed);
-  if (!Number.isFinite(major)) return null;
-  return Math.round(major * 100);
-}
-
 /**
  * The create / edit class-template form (T5.2). One component serves both flows.
  * Beyond the profile fields (title, description, category, capacity, duration,
@@ -315,6 +256,7 @@ export function ClassTemplateForm(props: Props) {
         room: null,
         capacity: 12,
         durationMinutes: 60,
+        startTime: '09:00',
         rrule: buildRRule(DEFAULT_RECURRENCE),
         color: '#2563eb',
         pricingRule: 'FREE',
@@ -333,33 +275,21 @@ export function ClassTemplateForm(props: Props) {
   const [category, setCategory] = useState(initial.category);
   const [trainerId, setTrainerId] = useState(initial.trainerId ?? '');
   const [locationId, setLocationId] = useState(initial.locationId ?? '');
-  const [room, setRoom] = useState(initial.room ?? '');
+  // Room has no control any more — the gym doesn't use it at this stage. The
+  // value is still read from the record and submitted back untouched, so editing
+  // a template that has one does not silently clear it.
+  const [room] = useState(initial.room ?? '');
   const [capacity, setCapacity] = useState(String(initial.capacity));
   const [durationMinutes, setDurationMinutes] = useState(String(initial.durationMinutes));
+  const [startTime, setStartTime] = useState(initial.startTime);
   const [color, setColor] = useState(initial.color);
   const [validFrom, setValidFrom] = useState(initial.validFrom);
   const [validUntil, setValidUntil] = useState(initial.validUntil ?? '');
   const [status, setStatus] = useState<ClassTemplateStatus>('ACTIVE');
-  // Pricing (parity with the reference class-type pricing). Money fields are held
-  // as major-unit strings for a friendly input and converted to minor on submit.
-  const [pricingRule, setPricingRule] = useState<ClassPricingRule>(initial.pricingRule);
-  const [price, setPrice] = useState(minorToMajor(initial.priceMinor));
-  const [includedPlanIds, setIncludedPlanIds] = useState<string[]>(initial.includedPlanIds);
-  const [minAttendance, setMinAttendance] = useState(
-    initial.minAttendance === null ? '' : String(initial.minAttendance),
-  );
-  const [pt30, setPt30] = useState(minorToMajor(initial.pt30Minor));
-  const [pt45, setPt45] = useState(minorToMajor(initial.pt45Minor));
-  const [pt60, setPt60] = useState(minorToMajor(initial.pt60Minor));
   // Seed the recurrence from the stored rrule (edit), falling back to the default.
   const [recurrence, setRecurrence] = useState<Recurrence>(
     () => parseRRule(initial.rrule) ?? DEFAULT_RECURRENCE,
   );
-
-  const togglePlan = (planId: string): void =>
-    setIncludedPlanIds((current) =>
-      current.includes(planId) ? current.filter((id) => id !== planId) : [...current, planId],
-    );
 
   /**
    * Picking a class type stores the type's name (kept in `category` for grouping)
@@ -391,24 +321,31 @@ export function ClassTemplateForm(props: Props) {
       return;
     }
 
+    const pricedType = props.classTypes.find((type) => type.id === selectedClassTypeId);
+
     const profile = {
       title,
       description,
       category,
       trainerId: trainerId === '' ? null : trainerId,
-      locationId: locationId === '' ? null : locationId,
+      locationId,
       room: room.trim() === '' ? null : room.trim(),
       capacity: Number(capacity),
       durationMinutes: Number(durationMinutes),
+      startTime,
       rrule: buildRRule(parsedRecurrence.data),
       color,
-      pricingRule,
-      priceMinor: pricingRule === 'PAID' ? majorToMinor(price) : null,
-      includedPlanIds: pricingRule === 'INCLUDED' ? includedPlanIds : [],
-      minAttendance: minAttendance.trim() === '' ? null : Number(minAttendance),
-      pt30Minor: majorToMinor(pt30),
-      pt45Minor: majorToMinor(pt45),
-      pt60Minor: majorToMinor(pt60),
+      // Pricing is the class type's answer, not a second question here. Copied at
+      // save because nothing links a template to its type, so this is a snapshot:
+      // repricing a type does not reprice templates already built from it.
+      pricingRule: pricedType?.pricingRule ?? 'FREE',
+      priceMinor: pricedType?.pricingRule === 'PAID' ? (pricedType.priceMinor ?? null) : null,
+      includedPlanIds:
+        pricedType?.pricingRule === 'INCLUDED' ? (pricedType.includedPlanIds ?? []) : [],
+      minAttendance: pricedType?.minAttendance ?? null,
+      pt30Minor: null,
+      pt45Minor: null,
+      pt60Minor: null,
       validFrom,
       validUntil: validUntil === '' ? null : validUntil,
     };
@@ -456,16 +393,20 @@ export function ClassTemplateForm(props: Props) {
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-type" {...stylex.props(styles.label)}>
-            Class type <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+            Class type
           </label>
           <select
             id="class-type"
             name="category"
+            required
             value={selectedClassTypeId}
             onChange={(event) => onClassTypeChange(event.target.value)}
             {...stylex.props(styles.field)}
           >
-            <option value="">
+            {/* Required because the type is where pricing is decided — a template
+                without one would have no answer to copy. Kept selectable-but-empty
+                so a template saved before this rule still renders. */}
+            <option value="" disabled>
               {props.classTypes.length === 0 ? 'No class types yet' : 'Select a class type…'}
             </option>
             {props.classTypes.map((type) => (
@@ -543,6 +484,20 @@ export function ClassTemplateForm(props: Props) {
             {...stylex.props(styles.field)}
           />
         </div>
+        <div {...stylex.props(styles.colFlex)}>
+          <label htmlFor="class-start-time" {...stylex.props(styles.label)}>
+            Starts at
+          </label>
+          <input
+            id="class-start-time"
+            name="startTime"
+            type="time"
+            required
+            value={startTime}
+            onChange={(event) => setStartTime(event.target.value)}
+            {...stylex.props(styles.field)}
+          />
+        </div>
       </div>
 
       {/* The visual recurrence editor — produces the stored rrule on submit. */}
@@ -566,7 +521,7 @@ export function ClassTemplateForm(props: Props) {
         </div>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-valid-until" {...stylex.props(styles.label)}>
-            Ends <span {...stylex.props(styles.labelOptional)}>(blank = open-ended)</span>
+            Ends
           </label>
           <input
             id="class-valid-until"
@@ -580,7 +535,7 @@ export function ClassTemplateForm(props: Props) {
         </div>
       </div>
 
-      {/* Default trainer / location / room. */}
+      {/* Default trainer / location. */}
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-trainer" {...stylex.props(styles.label)}>
@@ -603,184 +558,29 @@ export function ClassTemplateForm(props: Props) {
         </div>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-location" {...stylex.props(styles.label)}>
-            Location <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+            Location
           </label>
           <select
             id="class-location"
             name="locationId"
+            required
             value={locationId}
             onChange={(event) => setLocationId(event.target.value)}
             {...stylex.props(styles.field)}
           >
-            <option value="">No default location</option>
+            {/* Empty and unselectable: a class has to be somewhere, but a
+                template saved before that rule — or a gym with no branches yet —
+                still has to render, so the placeholder exists and simply cannot
+                be submitted. */}
+            <option value="" disabled>
+              Select a location
+            </option>
             {props.locations.map((location) => (
               <option key={location.id} value={location.id}>
                 {location.name}
               </option>
             ))}
           </select>
-        </div>
-      </div>
-
-      <div {...stylex.props(styles.fieldGroup)}>
-        <label htmlFor="class-room" {...stylex.props(styles.label)}>
-          Room <span {...stylex.props(styles.labelOptional)}>(optional)</span>
-        </label>
-        <input
-          id="class-room"
-          name="room"
-          type="text"
-          value={room}
-          onChange={(event) => setRoom(event.target.value)}
-          autoComplete="off"
-          placeholder="e.g. Studio A"
-          {...stylex.props(styles.field)}
-        />
-      </div>
-
-      {/* Pricing — how members pay for this class (parity with the reference). */}
-      <div {...stylex.props(styles.pricingBox)}>
-        <div {...stylex.props(styles.row)}>
-          <div {...stylex.props(styles.colFlex)}>
-            <label htmlFor="class-pricing-rule" {...stylex.props(styles.label)}>
-              Pricing
-            </label>
-            <select
-              id="class-pricing-rule"
-              name="pricingRule"
-              value={pricingRule}
-              onChange={(event) => setPricingRule(event.target.value as ClassPricingRule)}
-              {...stylex.props(styles.field)}
-            >
-              <option value="FREE">Free for members</option>
-              <option value="INCLUDED">Included in selected plans</option>
-              <option value="PAID">Paid per session</option>
-            </select>
-          </div>
-          <div {...stylex.props(styles.colFlex)}>
-            <label htmlFor="class-min-attendance" {...stylex.props(styles.label)}>
-              Min attendance <span {...stylex.props(styles.labelOptional)}>(optional)</span>
-            </label>
-            <input
-              id="class-min-attendance"
-              name="minAttendance"
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={minAttendance}
-              onChange={(event) => setMinAttendance(event.target.value)}
-              placeholder="e.g. 3"
-              {...stylex.props(styles.field)}
-            />
-          </div>
-        </div>
-
-        {pricingRule === 'PAID' ? (
-          <div {...stylex.props(styles.fieldGroup)}>
-            <label htmlFor="class-price" {...stylex.props(styles.label)}>
-              Price per session
-            </label>
-            <input
-              id="class-price"
-              name="price"
-              type="number"
-              min={0}
-              step="0.01"
-              inputMode="decimal"
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
-              placeholder="e.g. 15.00"
-              {...stylex.props(styles.field)}
-            />
-          </div>
-        ) : null}
-
-        {pricingRule === 'INCLUDED' ? (
-          <div {...stylex.props(styles.fieldGroup)}>
-            <span {...stylex.props(styles.label)}>Included in plans</span>
-            {props.plans.length === 0 ? (
-              <p {...stylex.props(styles.hint)}>No membership plans yet — create one first.</p>
-            ) : (
-              <div {...stylex.props(styles.planList)}>
-                {props.plans.map((plan) => {
-                  const active = includedPlanIds.includes(plan.id);
-                  return (
-                    <button
-                      key={plan.id}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => togglePlan(plan.id)}
-                      {...stylex.props(styles.planChip, active && styles.planChipActive)}
-                    >
-                      {active ? (
-                        <Icon name="check" sw={2.5} {...stylex.props(styles.planChipIcon)} />
-                      ) : null}
-                      {plan.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        <div {...stylex.props(styles.fieldGroup)}>
-          <span {...stylex.props(styles.label)}>
-            Personal-training rates <span {...stylex.props(styles.labelOptional)}>(optional)</span>
-          </span>
-          <div {...stylex.props(styles.row)}>
-            <div {...stylex.props(styles.colFlex)}>
-              <label htmlFor="class-pt30" {...stylex.props(styles.hint)}>
-                30 min
-              </label>
-              <input
-                id="class-pt30"
-                name="pt30"
-                type="number"
-                min={0}
-                step="0.01"
-                inputMode="decimal"
-                value={pt30}
-                onChange={(event) => setPt30(event.target.value)}
-                placeholder="0.00"
-                {...stylex.props(styles.field)}
-              />
-            </div>
-            <div {...stylex.props(styles.colFlex)}>
-              <label htmlFor="class-pt45" {...stylex.props(styles.hint)}>
-                45 min
-              </label>
-              <input
-                id="class-pt45"
-                name="pt45"
-                type="number"
-                min={0}
-                step="0.01"
-                inputMode="decimal"
-                value={pt45}
-                onChange={(event) => setPt45(event.target.value)}
-                placeholder="0.00"
-                {...stylex.props(styles.field)}
-              />
-            </div>
-            <div {...stylex.props(styles.colFlex)}>
-              <label htmlFor="class-pt60" {...stylex.props(styles.hint)}>
-                60 min
-              </label>
-              <input
-                id="class-pt60"
-                name="pt60"
-                type="number"
-                min={0}
-                step="0.01"
-                inputMode="decimal"
-                value={pt60}
-                onChange={(event) => setPt60(event.target.value)}
-                placeholder="0.00"
-                {...stylex.props(styles.field)}
-              />
-            </div>
-          </div>
         </div>
       </div>
 

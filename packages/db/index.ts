@@ -33,6 +33,7 @@ export * from './generated/client';
 export {
   DEFAULT_WEEKS_AHEAD,
   generateClassInstances,
+  gymTimeZone,
   occurrencesInWindow,
   planInstanceRegeneration,
   type ExistingInstance,
