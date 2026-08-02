@@ -7,7 +7,8 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { isLocale } from '@fit/i18n';
 import { routing } from '@/src/i18n/routing';
-import { ThemeProvider, THEME_COOKIE, type Theme } from '@/src/components/theme/theme-provider';
+import { ThemeProvider } from '@/src/components/theme/theme-provider';
+import { THEME_COOKIE, resolveTheme, type Theme } from '@/src/lib/theme';
 import { AstryxProvider } from '@/src/components/theme/astryx-provider';
 import { SentryInit } from '../sentry-init';
 import '../globals.css';
@@ -68,7 +69,7 @@ export default async function LocaleLayout({
   // Seed the theme from the cookie so the painted `<html>` class matches the
   // client provider on first render — the member portal defaults to the dark
   // Aurora-glass skin until the visitor flips the header toggle.
-  const theme: Theme = cookieStore.get(THEME_COOKIE)?.value === 'light' ? 'light' : 'dark';
+  const theme: Theme = resolveTheme(cookieStore.get(THEME_COOKIE)?.value);
 
   return (
     <html

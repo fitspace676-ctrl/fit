@@ -13,7 +13,8 @@ import './globals.css';
 import '@astryxdesign/core/astryx.css';
 import { SentryInit } from './sentry-init';
 import { TopLoader } from '@/components/top-loader';
-import { ThemeProvider, THEME_COOKIE, type Theme } from '@/components/theme/theme-provider';
+import { ThemeProvider } from '@/components/theme/theme-provider';
+import { THEME_COOKIE, resolveTheme, type Theme } from '@/lib/theme';
 import { AstryxProvider } from '@/components/theme/astryx-provider';
 
 /** UI body font — Manrope (`font-sans`). */
@@ -40,7 +41,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // Seed the theme from the cookie so the painted `<html>` class matches the
   // client provider on first render — the console defaults to the dark skin.
-  const theme: Theme = (await cookies()).get(THEME_COOKIE)?.value === 'light' ? 'light' : 'dark';
+  const theme: Theme = resolveTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   // Resolve the active locale (from the `NEXT_LOCALE` cookie via i18n/request.ts)
   // and its catalogue so both server components and the client provider translate
