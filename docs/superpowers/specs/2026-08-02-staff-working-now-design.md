@@ -195,6 +195,17 @@ full-page error card. That is the same exposure `orders.service.ts`'s `reconcile
 has parsing the same schema (`apps/api/src/orders/orders.service.ts:207-212`); this branch
 inherits the pattern rather than inventing it.
 
+## Deployment
+
+The `working-today` → `working-now` endpoint rename is breaking, and ships with no
+deprecated alias. `@fit/api` and `apps/admin` are separate deploy targets — `railway.json`
+deploys the API, the admin console is its own Next.js deployment — so they must ship in
+one coordinated release. Deploying them independently opens a window where the old admin
+bundle calls the now-gone `working-today` route, gets a 404, and — because `page.tsx`
+fetches all four resources through a single `Promise.all` inside one `try` — fails the
+whole `/staff` page rather than just the on-shift card: the roster, roles matrix and
+locations all vanish along with it.
+
 ## Testing
 
 `apps/api/src/staff/staff-depth.service.spec.ts` — the `getWorkingToday` describe block
