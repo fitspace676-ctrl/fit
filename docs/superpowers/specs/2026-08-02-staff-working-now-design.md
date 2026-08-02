@@ -104,9 +104,11 @@ const parts = new Intl.DateTimeFormat('en-US', {
 }).formatToParts(instant);
 ```
 
-- **`hourCycle: 'h23'`, not `hour12: false`.** The latter yields `"24"` for midnight under
-  some ICU builds, which would sort after every `endTime` and silently empty the card for
-  an hour each night.
+- **`hourCycle: 'h23'`, not `hour12: false`.** `hour12: false` leaves the cycle to the
+  locale, and under an `h24` resolution midnight formats as `"24:00"` — which sorts after
+  every `endTime` and would silently empty the card for an hour each night. Node 20 on
+  `en-US` happens to resolve to `h23` already, so this is insurance against the ICU/locale
+  combination rather than a bug reproduced here; `h23` states the requirement outright.
 - **The weekday comes from the formatted name**, mapped through a
   `{ Mon: 0, Tue: 1, … Sun: 6 }` lookup. Reading `Date#getDay()` and rotating would
   reintroduce the server-timezone bug this change exists to fix — the whole point is that
