@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { StaffDepthService } from './staff-depth.service';
+import { StaffDepthService, gymLocalNow } from './staff-depth.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -343,5 +343,38 @@ describe('StaffDepthService.getWorkingToday', () => {
 
     const { shifts } = await service.getWorkingToday();
     expect(shifts[0]!.name).toBe('front@desk.io');
+  });
+});
+
+describe('gymLocalNow', () => {
+  // 2026-07-15 is a Wednesday. Asia/Tbilisi is UTC+4 year-round.
+  it("reports the gym-local weekday and time, not the server's", () => {
+    expect(gymLocalNow('Asia/Tbilisi', new Date('2026-07-15T12:00:00Z'))).toEqual({
+      dayOfWeek: 2,
+      time: '16:00',
+    });
+  });
+
+  it('rolls to the next weekday when the gym is already past midnight', () => {
+    // 21:00 UTC Wednesday is 01:00 Thursday in Tbilisi.
+    expect(gymLocalNow('Asia/Tbilisi', new Date('2026-07-15T21:00:00Z'))).toEqual({
+      dayOfWeek: 3,
+      time: '01:00',
+    });
+  });
+
+  it('formats midnight as 00:00, never 24:00', () => {
+    expect(gymLocalNow('Asia/Tbilisi', new Date('2026-07-15T20:00:00Z'))).toEqual({
+      dayOfWeek: 3,
+      time: '00:00',
+    });
+  });
+
+  it('handles a zone west of UTC, where the gym is still on the previous day', () => {
+    // 02:00 UTC Wednesday is 22:00 Tuesday in New York (EDT, UTC-4).
+    expect(gymLocalNow('America/New_York', new Date('2026-07-15T02:00:00Z'))).toEqual({
+      dayOfWeek: 1,
+      time: '22:00',
+    });
   });
 });

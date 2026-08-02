@@ -27,6 +27,55 @@ import { TenantContext } from '../common/tenant/tenant.context';
 /** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
 const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.TRAINER];
 
+/** `Intl`'s `weekday: 'short'` names mapped to the app's 0 = Monday … 6 = Sunday convention. */
+const WEEKDAY_INDEX: Record<string, number> = {
+  Mon: 0,
+  Tue: 1,
+  Wed: 2,
+  Thu: 3,
+  Fri: 4,
+  Sat: 5,
+  Sun: 6,
+};
+
+/**
+ * The wall-clock weekday and time at a gym, as its schedule means them.
+ *
+ * `ShiftSlot` stores a weekday plus `"HH:MM"` strings with no zone attached, so
+ * "is this shift running?" can only be answered against the gym's own clock —
+ * reading the host's (`Date#getDay()`, `getHours()`) makes a UTC server serving
+ * an `Asia/Tbilisi` gym four hours wrong, and a whole day wrong after 20:00
+ * local. Both fields therefore come from a single zoned `formatToParts` call.
+ *
+ * `hourCycle: 'h23'` rather than `hour12: false`: the latter leaves the cycle to
+ * the locale, and an `h24` resolution renders midnight as `"24:00"`, which sorts
+ * after every `endTime` and would empty the roster for an hour each night.
+ *
+ * `instant` is injectable so tests can pin a moment without fake timers.
+ */
+export function gymLocalNow(
+  timeZone: string,
+  instant: Date = new Date(),
+): { dayOfWeek: number; time: string } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  const part = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((candidate) => candidate.type === type)?.value ?? '';
+
+  const weekday = part('weekday');
+  const dayOfWeek = WEEKDAY_INDEX[weekday];
+  if (dayOfWeek === undefined) {
+    throw new Error(`Unrecognised weekday "${weekday}" for time zone ${timeZone}`);
+  }
+
+  return { dayOfWeek, time: `${part('hour')}:${part('minute')}` };
+}
+
 const NOTE_SELECT = {
   id: true,
   staffId: true,
