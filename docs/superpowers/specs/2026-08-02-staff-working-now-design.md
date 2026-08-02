@@ -187,8 +187,13 @@ which is what makes decision 3 work without any client-side timer.
 Unchanged from today. `page.tsx` already wraps all four parallel fetches in one
 `try/catch` that renders the error card on `ApiError` or an unreachable API, and
 `/staff` is already gated to `OWNER` by middleware plus the API's `StaffManage` guard.
-The one new failure mode — a gym whose stored settings are absent or malformed — is
-absorbed by `gymSettingsStoredSchema`'s defaults rather than surfaced.
+The one new failure mode splits in two. A gym with no stored settings at all falls back
+to the platform default, since `gymSettingsStoredSchema`'s defaults repair missing keys.
+But settings that are present and invalid — an unparseable timezone, say — throw a
+`ZodError` from the service's `.parse(...)` call, which the page's catch turns into the
+full-page error card. That is the same exposure `orders.service.ts`'s `reconcile` already
+has parsing the same schema (`apps/api/src/orders/orders.service.ts:207-212`); this branch
+inherits the pattern rather than inventing it.
 
 ## Testing
 

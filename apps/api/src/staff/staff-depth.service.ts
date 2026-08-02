@@ -53,6 +53,12 @@ const WEEKDAY_INDEX: Record<string, number> = {
  * after every `endTime` and would empty the roster for an hour each night.
  *
  * `instant` is injectable so tests can pin a moment without fake timers.
+ *
+ * @throws {Error} if `Intl` resolves a weekday name outside {@link WEEKDAY_INDEX}.
+ * @throws {RangeError} from `Intl.DateTimeFormat` if `timeZone` is not a valid IANA
+ * zone. {@link isValidTimeZone} (`packages/types/src/gym-settings.ts`) relies on this
+ * exact behaviour, and stored settings are validated against it before they ever
+ * reach here, so a gym whose settings parsed successfully cannot hit this path.
  */
 export function gymLocalNow(
   timeZone: string,
@@ -65,6 +71,11 @@ export function gymLocalNow(
     minute: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(instant);
+  // Falls back to '' for a part `Intl` didn't return, rather than throwing — unlike
+  // the weekday check below. A missing hour/minute would make `time === ":"`, which
+  // (as the top of every digit's sort order) matches no `endTime` and empties the
+  // roster: it fails *safe*. An unrecognised weekday would instead query the wrong
+  // day's shifts — it fails *wrong* — so only that case is worth throwing over.
   const part = (type: Intl.DateTimeFormatPartTypes): string =>
     parts.find((candidate) => candidate.type === type)?.value ?? '';
 
@@ -433,7 +444,10 @@ export class StaffDepthService {
    * Both the weekday and the time come from the gym's configured zone via
    * {@link gymLocalNow} — a schedule written as "Wednesday 09:00–17:00" means
    * the gym's Wednesday, not the host's. `startTime` is inclusive and `endTime`
-   * exclusive, so back-to-back shifts hand over with neither gap nor overlap.
+   * exclusive, so back-to-back shifts hand over with neither gap nor overlap —
+   * within a single day. `endTime` is capped at `23:59`, so a shift that runs
+   * past midnight has to be entered as two rows, which leaves a one-minute seam
+   * at 23:59 where the card reads empty.
    */
   async getWorkingNow(): Promise<WorkingNowResponse> {
     const gym = await this.prisma.client.gym.findUnique({
