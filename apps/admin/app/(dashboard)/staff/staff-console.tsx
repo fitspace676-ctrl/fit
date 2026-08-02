@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { ListStaffRolesResponse, StaffMember, StaffRole, WorkingTodayRow } from '@fit/types';
+import type { ListStaffRolesResponse, StaffMember, StaffRole, WorkingNowRow } from '@fit/types';
 import { Btn, Drawer, Icon, Select, Tabs } from '@/components/ui';
 import { STAFF_ROLES } from './role-meta';
 import { StaffTable } from './staff-table';
@@ -154,7 +154,7 @@ const styles = stylex.create({
 /**
  * The staff console shell (Stage 1) — rebuilt to the reference staff artboard.
  * Renders the header (title + a "Manage Roles" action that opens a drawer), the
- * "Who's Working Today" card, and two tabs: the roster
+ * "Who's Working Now" card, and two tabs: the roster
  * ("Staff List", with a role filter, search and "Add Staff") and the role cards
  * ("Roles & Permissions"). The roster and role matrix are server-rendered and
  * passed in; this component owns only view state (active tab, search, role
@@ -165,14 +165,14 @@ export function StaffConsole({
   currentUserId,
   canManage,
   roles,
-  workingToday,
+  workingNow,
   locations,
 }: {
   staff: StaffMember[];
   currentUserId: string | null;
   canManage: boolean;
   roles: ListStaffRolesResponse;
-  workingToday: WorkingTodayRow[];
+  workingNow: WorkingNowRow[];
   /** The gym's live locations, offered as assignable-location chips in the Add drawer. */
   locations: { id: string; name: string }[];
 }) {
@@ -227,7 +227,7 @@ export function StaffConsole({
         ) : null}
       </header>
 
-      <WhosWorkingCard shifts={workingToday} />
+      <WhosWorkingCard shifts={workingNow} />
 
       <Tabs
         aria-label={t('title')}

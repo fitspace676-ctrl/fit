@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { StaffDepthService } from './staff-depth.service';
+import { StaffDepthService, gymLocalNow } from './staff-depth.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -40,6 +40,7 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     shiftSlot: make(models?.shiftSlot),
     gymMember: make(models?.gymMember),
     user: make(models?.user),
+    gym: make(models?.gym),
   } as unknown as {
     staffNote: ReturnType<typeof make>;
     staffTask: ReturnType<typeof make>;
@@ -47,6 +48,7 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     shiftSlot: ReturnType<typeof make>;
     gymMember: ReturnType<typeof make>;
     user: ReturnType<typeof make>;
+    gym: ReturnType<typeof make>;
     $transaction: (cb: (tx: unknown) => unknown) => unknown;
   };
   client.$transaction = (cb: (tx: unknown) => unknown) => cb(client);
@@ -278,44 +280,49 @@ describe('StaffDepthService.updateSchedule', () => {
   });
 });
 
-describe('StaffDepthService.getWorkingToday', () => {
-  it('queries today (0=Mon..6=Sun) and denormalises name + role, newest start first', async () => {
-    // Local Wednesday → JS getDay() 3 → app weekday (3+6)%7 = 2.
+/** A gym whose stored settings pin the given time zone. */
+function gymInZone(timezone: string): Record<string, unknown> {
+  return { findUnique: vi.fn(() => Promise.resolve({ settings: { locale: { timezone } } })) };
+}
+
+describe('StaffDepthService.getWorkingNow', () => {
+  const shiftRow = {
+    staffId: 'gm-9',
+    startTime: '10:00',
+    endTime: '18:00',
+    location: 'Branch 1',
+    staff: { role: 'TRAINER', user: { name: 'Nino Trainer', email: 'nino@x.com' } },
+  };
+
+  it("asks only for the shift running now, in the gym's zone", async () => {
+    // 08:00 UTC Wednesday is 12:00 Wednesday in Tbilisi → weekday 2, "12:00".
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 6, 15, 12, 0, 0));
+    vi.setSystemTime(new Date('2026-07-15T08:00:00Z'));
     try {
       const { service, client } = setup({
-        shiftSlot: {
-          findMany: vi.fn(() =>
-            Promise.resolve([
-              {
-                staffId: 'gm-9',
-                startTime: '09:00',
-                endTime: '17:00',
-                location: 'Branch 1',
-                staff: { role: 'TRAINER', user: { name: 'Nino Trainer', email: 'nino@x.com' } },
-              },
-            ]),
-          ),
-        },
+        gym: gymInZone('Asia/Tbilisi'),
+        shiftSlot: { findMany: vi.fn(() => Promise.resolve([shiftRow])) },
       });
 
-      const result = await service.getWorkingToday();
+      const result = await service.getWorkingNow();
 
       const where = client.shiftSlot.findMany.mock.calls[0]![0].where as {
         dayOfWeek: number;
+        startTime: { lte: string };
+        endTime: { gt: string };
         staff: { status: string };
       };
       expect(where.dayOfWeek).toBe(2);
+      expect(where.startTime).toEqual({ lte: '12:00' });
+      expect(where.endTime).toEqual({ gt: '12:00' });
       expect(where.staff.status).toBe('ACTIVE');
-      expect(result.dayOfWeek).toBe(2);
       expect(result.shifts).toEqual([
         {
           staffId: 'gm-9',
           name: 'Nino Trainer',
           role: 'TRAINER',
-          startTime: '09:00',
-          endTime: '17:00',
+          startTime: '10:00',
+          endTime: '18:00',
           location: 'Branch 1',
         },
       ]);
@@ -324,8 +331,49 @@ describe('StaffDepthService.getWorkingToday', () => {
     }
   });
 
+  it("resolves the weekday from the gym's zone, not the server's", async () => {
+    // 21:00 UTC Wednesday is already 01:00 Thursday in Tbilisi → weekday 3.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T21:00:00Z'));
+    try {
+      const { service, client } = setup({ gym: gymInZone('Asia/Tbilisi') });
+
+      await service.getWorkingNow();
+
+      const where = client.shiftSlot.findMany.mock.calls[0]![0].where as {
+        dayOfWeek: number;
+        startTime: { lte: string };
+      };
+      expect(where.dayOfWeek).toBe(3);
+      expect(where.startTime).toEqual({ lte: '01:00' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back to the platform default zone when a gym has never saved settings', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T08:00:00Z'));
+    try {
+      const { service, client } = setup({
+        gym: { findUnique: vi.fn(() => Promise.resolve({ settings: null })) },
+      });
+
+      await expect(service.getWorkingNow()).resolves.toBeDefined();
+
+      // Asia/Tbilisi is the default, so 08:00 UTC is still 12:00 local.
+      const where = client.shiftSlot.findMany.mock.calls[0]![0].where as {
+        startTime: { lte: string };
+      };
+      expect(where.startTime).toEqual({ lte: '12:00' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('falls back to the email when a staff member has no name', async () => {
     const { service } = setup({
+      gym: gymInZone('Asia/Tbilisi'),
       shiftSlot: {
         findMany: vi.fn(() =>
           Promise.resolve([
@@ -341,7 +389,40 @@ describe('StaffDepthService.getWorkingToday', () => {
       },
     });
 
-    const { shifts } = await service.getWorkingToday();
+    const { shifts } = await service.getWorkingNow();
     expect(shifts[0]!.name).toBe('front@desk.io');
+  });
+});
+
+describe('gymLocalNow', () => {
+  // 2026-07-15 is a Wednesday. Asia/Tbilisi is UTC+4 year-round.
+  it("reports the gym-local weekday and time, not the server's", () => {
+    expect(gymLocalNow('Asia/Tbilisi', new Date('2026-07-15T12:00:00Z'))).toEqual({
+      dayOfWeek: 2,
+      time: '16:00',
+    });
+  });
+
+  it('rolls to the next weekday when the gym is already past midnight', () => {
+    // 21:00 UTC Wednesday is 01:00 Thursday in Tbilisi.
+    expect(gymLocalNow('Asia/Tbilisi', new Date('2026-07-15T21:00:00Z'))).toEqual({
+      dayOfWeek: 3,
+      time: '01:00',
+    });
+  });
+
+  it('formats midnight as 00:00, never 24:00', () => {
+    expect(gymLocalNow('Asia/Tbilisi', new Date('2026-07-15T20:00:00Z'))).toEqual({
+      dayOfWeek: 3,
+      time: '00:00',
+    });
+  });
+
+  it('handles a zone west of UTC, where the gym is still on the previous day', () => {
+    // 02:00 UTC Wednesday is 22:00 Tuesday in New York (EDT, UTC-4).
+    expect(gymLocalNow('America/New_York', new Date('2026-07-15T02:00:00Z'))).toEqual({
+      dayOfWeek: 1,
+      time: '22:00',
+    });
   });
 });

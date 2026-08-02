@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { GymMemberStatus, Prisma, Role } from '@fit/db';
 import {
+  gymSettingsStoredSchema,
   staffRolePermissionMatrix,
   type CreateStaffNoteInput,
   type CreateStaffTaskInput,
@@ -19,13 +20,73 @@ import {
   type TimeOffRequestRow,
   type UpdateStaffScheduleInput,
   type UpdateStaffTaskInput,
-  type WorkingTodayResponse,
+  type WorkingNowResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
 /** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
 const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.TRAINER];
+
+/** `Intl`'s `weekday: 'short'` names mapped to the app's 0 = Monday … 6 = Sunday convention. */
+const WEEKDAY_INDEX: Record<string, number> = {
+  Mon: 0,
+  Tue: 1,
+  Wed: 2,
+  Thu: 3,
+  Fri: 4,
+  Sat: 5,
+  Sun: 6,
+};
+
+/**
+ * The wall-clock weekday and time at a gym, as its schedule means them.
+ *
+ * `ShiftSlot` stores a weekday plus `"HH:MM"` strings with no zone attached, so
+ * "is this shift running?" can only be answered against the gym's own clock —
+ * reading the host's (`Date#getDay()`, `getHours()`) makes a UTC server serving
+ * an `Asia/Tbilisi` gym four hours wrong, and a whole day wrong after 20:00
+ * local. Both fields therefore come from a single zoned `formatToParts` call.
+ *
+ * `hourCycle: 'h23'` rather than `hour12: false`: the latter leaves the cycle to
+ * the locale, and an `h24` resolution renders midnight as `"24:00"`, which sorts
+ * after every `endTime` and would empty the roster for an hour each night.
+ *
+ * `instant` is injectable so tests can pin a moment without fake timers.
+ *
+ * @throws {Error} if `Intl` resolves a weekday name outside {@link WEEKDAY_INDEX}.
+ * @throws {RangeError} from `Intl.DateTimeFormat` if `timeZone` is not a valid IANA
+ * zone. {@link isValidTimeZone} (`packages/types/src/gym-settings.ts`) relies on this
+ * exact behaviour, and stored settings are validated against it before they ever
+ * reach here, so a gym whose settings parsed successfully cannot hit this path.
+ */
+export function gymLocalNow(
+  timeZone: string,
+  instant: Date = new Date(),
+): { dayOfWeek: number; time: string } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  // Falls back to '' for a part `Intl` didn't return, rather than throwing — unlike
+  // the weekday check below. A missing hour/minute would make `time === ":"`, which
+  // (as the top of every digit's sort order) matches no `endTime` and empties the
+  // roster: it fails *safe*. An unrecognised weekday would instead query the wrong
+  // day's shifts — it fails *wrong* — so only that case is worth throwing over.
+  const part = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((candidate) => candidate.type === type)?.value ?? '';
+
+  const weekday = part('weekday');
+  const dayOfWeek = WEEKDAY_INDEX[weekday];
+  if (dayOfWeek === undefined) {
+    throw new Error(`Unrecognised weekday "${weekday}" for time zone ${timeZone}`);
+  }
+
+  return { dayOfWeek, time: `${part('hour')}:${part('minute')}` };
+}
 
 const NOTE_SELECT = {
   id: true,
@@ -372,22 +433,35 @@ export class StaffDepthService {
   }
 
   /**
-   * Everyone on shift today (`GET /staff/working-today`) — the roster behind the
-   * "Who's Working Today" card. Reads the gym's weekly {@link ShiftSlot} schedule
-   * for today's weekday, joined to each staff member's display name and role so
-   * the card renders without a second lookup. Only `ACTIVE` staff memberships are
+   * Everyone on shift **right now** (`GET /staff/working-now`) — the roster
+   * behind the on-shift card. Reads the gym's weekly {@link ShiftSlot} schedule
+   * for the current weekday and keeps only the slots whose window contains the
+   * current time, joined to each staff member's display name and role so the
+   * card renders without a second lookup. Only `ACTIVE` staff memberships are
    * returned, ordered by start time. Tenant-scoped, so it only ever sees the
    * caller's gym.
    *
-   * The schedule stores `dayOfWeek` as 0 = Monday … 6 = Sunday (the editor's
-   * convention), whereas JS `Date#getDay()` is 0 = Sunday … 6 = Saturday, so the
-   * weekday is rotated before the lookup. The resolved weekday is echoed back.
+   * Both the weekday and the time come from the gym's configured zone via
+   * {@link gymLocalNow} — a schedule written as "Wednesday 09:00–17:00" means
+   * the gym's Wednesday, not the host's. `startTime` is inclusive and `endTime`
+   * exclusive, so back-to-back shifts hand over with neither gap nor overlap —
+   * within a single day. `endTime` is capped at `23:59`, so a shift that runs
+   * past midnight has to be entered as two rows, which leaves a one-minute seam
+   * at 23:59 where the card reads empty.
    */
-  async getWorkingToday(): Promise<WorkingTodayResponse> {
-    const dayOfWeek = (new Date().getDay() + 6) % 7;
+  async getWorkingNow(): Promise<WorkingNowResponse> {
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { id: this.tenant.gymId },
+      select: { settings: true },
+    });
+    const { locale } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    const { dayOfWeek, time } = gymLocalNow(locale.timezone);
+
     const shifts = await this.prisma.client.shiftSlot.findMany({
       where: {
         dayOfWeek,
+        startTime: { lte: time },
+        endTime: { gt: time },
         staff: { role: { in: STAFF_ROLES }, status: GymMemberStatus.ACTIVE },
       },
       select: {
@@ -400,7 +474,6 @@ export class StaffDepthService {
       orderBy: [{ startTime: 'asc' }],
     });
     return {
-      dayOfWeek,
       shifts: shifts.map((row) => ({
         staffId: row.staffId,
         name: row.staff.user.name ?? row.staff.user.email,

@@ -2333,10 +2333,10 @@
         "schedule": "Calendar",
         "timeoff": "Time off"
       },
-      "workingToday": {
-        "title": "Who's Working Today",
-        "onShift": "{count, plural, one {# Staff On Shift} other {# Staff On Shift}}",
-        "empty": "No one is scheduled to work today."
+      "workingNow": {
+        "title": "Who's Working Now",
+        "onShift": "{count, plural, one {# on shift now} other {# on shift now}}",
+        "empty": "No one is on shift right now."
       },
       "rolesPermissions": {
         "intro": "Each role grants a fixed set of permissions. Select a role to see exactly what it can access.",

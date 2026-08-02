@@ -115,7 +115,7 @@ import type {
   ListTimeOffQuery,
   StaffScheduleResponse,
   UpdateStaffScheduleInput,
-  WorkingTodayResponse,
+  WorkingNowResponse,
   SetLocationStatusResponse,
   SetMemberStatusResponse,
   SendMemberEmailInput,
@@ -1410,13 +1410,13 @@ export async function fetchStaffSchedule(staffId: string): Promise<StaffSchedule
   return unwrap<StaffScheduleResponse>(res);
 }
 
-/** The gym's staff on shift today — behind the "Who's Working Today" card. */
-export async function fetchWorkingToday(): Promise<WorkingTodayResponse> {
-  const res = await fetch(`${apiBaseUrl()}/staff/working-today`, {
+/** The gym's staff on shift right now — behind the "Who's Working Now" card. */
+export async function fetchWorkingNow(): Promise<WorkingNowResponse> {
+  const res = await fetch(`${apiBaseUrl()}/staff/working-now`, {
     headers: await authHeaders(),
     cache: 'no-store',
   });
-  return unwrap<WorkingTodayResponse>(res);
+  return unwrap<WorkingNowResponse>(res);
 }
 
 /** `PUT /staff/:staffId/schedule` — replace a staff member's whole weekly schedule. */

@@ -31,7 +31,7 @@ import {
   type StaffScheduleResponse,
   type StaffTaskRow,
   type TimeOffRequestRow,
-  type WorkingTodayResponse,
+  type WorkingNowResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -179,18 +179,18 @@ export class StaffDepthController {
     return this.staff.updateSchedule(staffId, parse(updateStaffScheduleSchema, body));
   }
 
-  // -- Working today --------------------------------------------------------
+  // -- Working now ----------------------------------------------------------
 
   /**
-   * `GET /staff/working-today` — the gym's staff on shift today, behind the
-   * "Who's Working Today" card. A static segment, so it never collides with the
-   * `:staffId/schedule` route above.
+   * `GET /staff/working-now` — the gym's staff on shift at this moment, behind
+   * the "Who's Working Now" card. A static segment, so it never collides with
+   * the `:staffId/schedule` route above.
    */
-  @Get('working-today')
+  @Get('working-now')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.StaffManage)
-  async getWorkingToday(): Promise<WorkingTodayResponse> {
-    return this.staff.getWorkingToday();
+  async getWorkingNow(): Promise<WorkingNowResponse> {
+    return this.staff.getWorkingNow();
   }
 }
 

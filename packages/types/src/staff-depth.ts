@@ -225,11 +225,11 @@ export interface StaffScheduleResponse {
 }
 
 /**
- * One staff member on shift today, as the "Who's Working Today" card renders it.
+ * One staff member on shift right now, as the on-shift card renders it.
  * A denormalised {@link ShiftSlotRow} + the staff member's display name and role,
  * so the card needs no second lookup. `staffId` is the membership id.
  */
-export interface WorkingTodayRow {
+export interface WorkingNowRow {
   staffId: string;
   name: string;
   role: StaffRole;
@@ -239,14 +239,12 @@ export interface WorkingTodayRow {
 }
 
 /**
- * Successful `GET /staff/working-today` response — every staff member whose
- * weekly schedule places them on shift today, ordered by start time. `dayOfWeek`
- * is the app-convention weekday the server resolved (0 = Monday … 6 = Sunday),
- * echoed so the client can label the card without re-deriving "today".
+ * Successful `GET /staff/working-now` response — every staff member whose weekly
+ * schedule places them on shift at this moment, in the gym's own time zone,
+ * ordered by start time.
  */
-export interface WorkingTodayResponse {
-  dayOfWeek: number;
-  shifts: WorkingTodayRow[];
+export interface WorkingNowResponse {
+  shifts: WorkingNowRow[];
 }
 
 // ---------------------------------------------------------------------------
