@@ -2335,7 +2335,7 @@
       },
       "workingNow": {
         "title": "ვინ მუშაობს ახლა",
-        "onShift": "{count, plural, one {ცვლაზეა # თანამშრომელი} other {ცვლაზეა # თანამშრომელი}}",
+        "onShift": "{count, plural, one {ახლა ცვლაზეა # თანამშრომელი} other {ახლა ცვლაზეა # თანამშრომელი}}",
         "empty": "ახლა ცვლაზე არავინაა."
       },
       "rolesPermissions": {

@@ -166,11 +166,11 @@ nothing reads it now, and a "now" card has no weekday to print. The response nar
 
 Copy, en / ka:
 
-| Key       | en                           | ka                   |
-| --------- | ---------------------------- | -------------------- |
-| `title`   | Who's Working Now            | ვინ მუშაობს ახლა     |
-| `onShift` | {count} on shift now         | {count} ცვლაზეა ახლა |
-| `empty`   | No one is on shift right now | ახლა ცვლაზე არავინაა |
+| Key       | en                           | ka                                |
+| --------- | ---------------------------- | --------------------------------- |
+| `title`   | Who's Working Now            | ვინ მუშაობს ახლა                  |
+| `onShift` | {count} on shift now         | ახლა ცვლაზეა {count} თანამშრომელი |
+| `empty`   | No one is on shift right now | ახლა ცვლაზე არავინაა              |
 
 ### UI
 
@@ -198,13 +198,19 @@ inherits the pattern rather than inventing it.
 ## Deployment
 
 The `working-today` → `working-now` endpoint rename is breaking, and ships with no
-deprecated alias. `@fit/api` and `apps/admin` are separate deploy targets — `railway.json`
-deploys the API, the admin console is its own Next.js deployment — so they must ship in
-one coordinated release. Deploying them independently opens a window where the old admin
-bundle calls the now-gone `working-today` route, gets a 404, and — because `page.tsx`
-fetches all four resources through a single `Promise.all` inside one `try` — fails the
-whole `/staff` page rather than just the on-shift card: the roster, roles matrix and
-locations all vanish along with it.
+deprecated alias. The production pipeline (`.github/workflows/deploy.yml`) is a single
+run triggered by green CI on `main`, and it deploys in a fixed order: `deploy-api` goes
+first and does not complete until its `/health` probe returns 200, and only then does
+`deploy-web` — gated on `needs: [guard, deploy-api]` — pull, build and deploy the four
+Vercel projects, admin included, which takes minutes. There is no reordering that closes
+this: the API goes live with `working-now` (and without `working-today`) before the admin
+bundle that calls it exists, so for that gap the still-live previous admin deployment
+calls the now-gone `working-today` route and gets a 404. Because `page.tsx` fetches all
+four resources through a single `Promise.all` inside one `try`, that 404 fails the whole
+`/staff` page rather than just the on-shift card: the roster, roles matrix and locations
+all vanish along with it. A brief `/staff` outage spanning the API→web deploy gap is an
+accepted cost of shipping the rename without a deprecated alias; the pipeline's ordering
+bounds how long the window stays open, it does not avoid it.
 
 ## Testing
 

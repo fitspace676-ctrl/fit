@@ -586,7 +586,7 @@ In `packages/i18n/locales/ka.json`, replace the `admin.staff.workingToday` objec
 ```json
     "workingNow": {
       "title": "ვინ მუშაობს ახლა",
-      "onShift": "{count, plural, one {ცვლაზეა # თანამშრომელი} other {ცვლაზეა # თანამშრომელი}}",
+      "onShift": "{count, plural, one {ახლა ცვლაზეა # თანამშრომელი} other {ახლა ცვლაზეა # თანამშრომელი}}",
       "empty": "ახლა ცვლაზე არავინაა."
     },
 ```
