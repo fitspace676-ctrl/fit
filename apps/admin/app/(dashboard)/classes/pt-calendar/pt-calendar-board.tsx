@@ -17,11 +17,11 @@ import { cancelPtSessionAction, completePtSessionAction } from './pt-session-act
 
 // The time-grid runs 06:00–22:00 (matching the class schedule), each hour 3.5rem
 // tall, and session blocks are absolutely positioned by their UTC clock time.
-const START_HOUR = 6;
-const END_HOUR = 22;
-const HOURS = END_HOUR - START_HOUR;
 const HOUR_REM = 3.5;
-const TOTAL_MIN = HOURS * 60;
+/** Room above the first hour line and below the last; see `timeCol` / `dayCol`. */
+const GRID_PAD_REM = 0.5;
+/** Fewest hour rows the grid draws, so a sparse week still reads as a day. */
+const MIN_ROWS = 6;
 const MIN_EVENT_REM = 1.5;
 
 const STATUS_TONES: Record<ClassInstanceStatus, { label: string; tone: Tone }> = {
@@ -149,6 +149,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     backgroundColor: 'var(--color-background-body)',
+    paddingBlock: '0.5rem',
   },
   timeCell: { position: 'relative', height: '3.5rem', paddingRight: '0.5rem' },
   timeLabel: {
@@ -162,7 +163,11 @@ const styles = stylex.create({
   },
   dayCol: {
     position: 'relative',
-    height: '56rem',
+    // The hour labels straddle their gridline, so without this the first is
+    // clipped by the sticky header and a late session sits on the container's
+    // edge. Blocks and the gridline gradient start at the padding box too, so
+    // the whole grid shifts as one.
+    paddingBlock: '0.5rem',
     borderLeftWidth: '1px',
     borderLeftStyle: 'solid',
     borderLeftColor: 'var(--color-border)',
@@ -170,53 +175,95 @@ const styles = stylex.create({
       'repeating-linear-gradient(to bottom, var(--color-border) 0, var(--color-border) 1px, transparent 1px, transparent 3.5rem), repeating-linear-gradient(to bottom, var(--color-border-subtle, rgba(120,120,120,0.12)) 0, var(--color-border-subtle, rgba(120,120,120,0.12)) 1px, transparent 1px, transparent 1.75rem)',
   },
   dayColToday: { backgroundColor: 'var(--color-accent-muted)' },
+  /**
+   * The block itself draws nothing. Its box still carries the position and the
+   * duration, but a card outline around a two-letter chip was more chrome than
+   * content — several in an hour read as a stack of empty boxes. The chip is the
+   * whole visual; everything else is one hover away.
+   */
   event: {
     position: 'absolute',
     display: 'flex',
-    flexDirection: 'column',
-    gap: '0.0625rem',
-    overflow: 'hidden',
-    borderRadius: 'var(--radius-element)',
-    borderLeftWidth: '3px',
-    borderLeftStyle: 'solid',
-    borderLeftColor: 'var(--color-accent)',
-    paddingBlock: '0.25rem',
-    paddingInline: '0.375rem',
-    backgroundColor: 'var(--color-background-surface)',
-    boxShadow: { default: 'var(--shadow-low)', ':hover': 'var(--shadow-high)' },
+    alignItems: 'flex-start',
+    overflow: 'visible',
+    border: 'none',
+    padding: 0,
+    background: 'none',
     textAlign: 'left',
     cursor: 'pointer',
     outlineStyle: 'none',
-    transitionProperty: 'box-shadow',
-    transitionDuration: '150ms',
   },
   eventDimmed: { opacity: 0.6 },
-  eventTime: {
-    fontSize: '0.625rem',
+  /** One row: the trainer chip and the time, the two things every tier keeps. */
+  /**
+   * The trainer's initials. Small enough to survive a third-of-a-column block,
+   * and the one element that answers "whose session" without being read as a
+   * word — which is what makes concurrent sessions scannable.
+   */
+  /**
+   * The hover / focus card. A block only ever shows the trainer chip — a column
+   * of stacked name fragments read as a rendering fault rather than a schedule —
+   * so the detail lives here, one interaction away, and in the `aria-label` for
+   * anyone not using a pointer.
+   */
+  tooltip: {
+    position: 'absolute',
+    left: '100%',
+    top: 0,
+    zIndex: 5,
+    marginLeft: '0.375rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.0625rem',
+    minWidth: '9rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    paddingBlock: '0.5rem',
+    paddingInline: '0.625rem',
+    backgroundColor: 'var(--color-background-body)',
+    boxShadow: 'var(--shadow-high)',
+    pointerEvents: 'none',
+  },
+  tipTime: {
+    fontSize: '0.6875rem',
     fontWeight: 600,
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-secondary)',
   },
-  eventTitle: {
-    margin: 0,
-    fontSize: '0.75rem',
+  tipTitle: {
+    fontSize: '0.8125rem',
     fontWeight: 700,
-    lineHeight: 1.15,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
     color: 'var(--color-text-primary)',
   },
-  eventTrainer: {
-    display: 'block',
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    lineHeight: 1.2,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+  tipTrainer: {
+    fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
+  /**
+   * The trainer's initials — the one element on the block. Sized to stay legible
+   * at a third of a column, and the only thing that has to be read to know whose
+   * session an hour belongs to.
+   */
+  chip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    width: '1.375rem',
+    height: '1.375rem',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '0.625rem',
+    fontWeight: 700,
+    letterSpacing: '0.01em',
+    color: '#fff',
+    boxShadow: { default: 'var(--shadow-low)', ':hover': 'var(--shadow-high)' },
+    transitionProperty: 'transform, box-shadow',
+    transitionDuration: '150ms',
+    transform: { default: 'none', ':hover': 'scale(1.12)' },
+  },
+
   // Detail drawer
   drawer: {
     height: 'calc(100dvh - 1.5rem)',
@@ -259,10 +306,89 @@ const styles = stylex.create({
   errorText: { margin: 0, fontSize: '0.875rem', color: 'var(--color-error)' },
 });
 
-/** Minutes past midnight (UTC) for an ISO instant. */
-function utcMinutes(iso: string): number {
-  const d = new Date(iso);
-  return d.getUTCHours() * 60 + d.getUTCMinutes();
+/** Minutes past midnight for an ISO instant, on the gym's clock. */
+function zonedMinutes(iso: string, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const at = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+  return at('hour') * 60 + at('minute');
+}
+
+/**
+ * Widen a tight window to a readable one. Following the data exactly is right
+ * when a day is busy, but a week with a single 45-minute session would draw a
+ * one-hour-tall "calendar" — accurate and useless. Grow symmetrically around
+ * what is booked so the session keeps its context, clamped to a real day.
+ */
+function atLeast(
+  range: { startHour: number; endHour: number },
+  minRows: number,
+): { startHour: number; endHour: number } {
+  const rows = range.endHour - range.startHour;
+  if (rows >= minRows) return range;
+
+  const grow = minRows - rows;
+  const lifted = Math.max(0, range.startHour - Math.floor(grow / 2));
+  // Clamp to a real day, then pull the window back off midnight rather than
+  // losing rows to the clamp.
+  const endHour = Math.min(24, lifted + minRows);
+  return { startHour: Math.max(0, endHour - minRows), endHour };
+}
+
+/**
+ * The hours the grid draws: the whole hour the first session starts on through
+ * the whole hour the last one ends on. A PT week is sparse — a fixed 06:00–22:00
+ * window spent most of its height on rows with nothing in them.
+ */
+function hourRange(
+  sessions: AdminPtSession[],
+  timeZone: string,
+  openHour: number,
+  closeHour: number,
+): { startHour: number; endHour: number } {
+  // The gym's own opening window is the answer; sessions only ever widen it.
+  let earliest = openHour * 60;
+  let latest = closeHour * 60;
+  for (const session of sessions) {
+    const start = zonedMinutes(session.startsAt, timeZone);
+    const rawEnd = zonedMinutes(session.endsAt, timeZone);
+    const end = rawEnd > start ? rawEnd : 24 * 60;
+    if (start < earliest) earliest = start;
+    if (end > latest) latest = end;
+  }
+  const startHour = Math.max(0, Math.floor(earliest / 60));
+  const endHour = Math.min(24, Math.ceil(latest / 60));
+  return atLeast({ startHour, endHour: Math.max(endHour, startHour + 1) }, MIN_ROWS);
+}
+
+/**
+ * A stable hue per trainer, so two sessions running at the same time are told
+ * apart before either is read. The trainer is the axis that matters on this
+ * calendar — the same workout type at the same hour is a different session
+ * because someone else is taking it — so the colour encodes the trainer rather
+ * than the workout. Derived from the name so it survives a reload and stays the
+ * same across the week without any stored palette.
+ */
+/** Two-letter initials for the trainer chip: "Nika B." → "NB". */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase();
+}
+
+function trainerHue(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) % 360;
+  }
+  return hash;
 }
 
 function hourLabel(hour: number): string {
@@ -271,11 +397,11 @@ function hourLabel(hour: number): string {
 function weekdayShort(day: Date, locale: string): string {
   return new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day);
 }
-function formatTime(iso: string, locale: string): string {
+function formatTime(iso: string, locale: string, timeZone: string): string {
   return new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'UTC',
+    timeZone,
   }).format(new Date(iso));
 }
 
@@ -288,12 +414,20 @@ interface PlacedSession {
 }
 
 /** Position one day's sessions in the grid, splitting overlaps into side-by-side lanes. */
-function placeSessions(sessions: AdminPtSession[]): PlacedSession[] {
+function placeSessions(
+  sessions: AdminPtSession[],
+  timeZone: string,
+  startHour: number,
+  endHour: number,
+): PlacedSession[] {
+  const totalMin = (endHour - startHour) * 60;
   const items = sessions
     .map((session) => {
-      const start = utcMinutes(session.startsAt) - START_HOUR * 60;
-      const rawEnd = utcMinutes(session.endsAt) - START_HOUR * 60;
-      const end = rawEnd > start ? rawEnd : start + 30;
+      const start = zonedMinutes(session.startsAt, timeZone) - startHour * 60;
+      const rawEnd = zonedMinutes(session.endsAt, timeZone) - startHour * 60;
+      // A session ending at or past local midnight wraps to a smaller number;
+      // run it to the end of the grid rather than collapsing it to a stub.
+      const end = rawEnd > start ? rawEnd : totalMin;
       return { session, start, end };
     })
     .sort((a, b) => a.start - b.start || a.end - b.end);
@@ -318,8 +452,8 @@ function placeSessions(sessions: AdminPtSession[]): PlacedSession[] {
     });
     const lanes = laneEnds.length;
     cluster.forEach((item, idx) => {
-      const clampedStart = Math.max(0, Math.min(item.start, TOTAL_MIN));
-      const clampedEnd = Math.max(clampedStart, Math.min(item.end, TOTAL_MIN));
+      const clampedStart = Math.max(0, Math.min(item.start, totalMin));
+      const clampedEnd = Math.max(clampedStart, Math.min(item.end, totalMin));
       const lane = laneOf.get(idx) ?? 0;
       placed.push({
         session: item.session,
@@ -358,6 +492,9 @@ export function PtCalendarBoard({
   trainers,
   trainerId,
   canWrite,
+  timeZone,
+  openHour,
+  closeHour,
 }: {
   weekStart: string;
   sessions: AdminPtSession[];
@@ -367,6 +504,11 @@ export function PtCalendarBoard({
   /** The trainer the calendar is narrowed to, or `null` for all of them. */
   trainerId: string | null;
   canWrite: boolean;
+  /** The gym's IANA zone — the grid's rows and clock labels are read on it. */
+  timeZone: string;
+  /** The gym's opening window, from Settings → Business hours. */
+  openHour: number;
+  closeHour: number;
 }) {
   const locale = useLocale();
   const router = useRouter();
@@ -411,7 +553,10 @@ export function PtCalendarBoard({
     return `${fmt(monday)} – ${fmt(last)}`;
   }, [days, monday, locale]);
 
-  const hours = Array.from({ length: HOURS }, (_, i) => START_HOUR + i);
+  // The window follows the week's own sessions — a PT calendar is sparse, and a
+  // fixed 06:00–22:00 grid was mostly rows with nothing in them.
+  const { startHour, endHour } = hourRange(sessions, timeZone, openHour, closeHour);
+  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   return (
     <div {...stylex.props(styles.root)}>
@@ -484,16 +629,20 @@ export function PtCalendarBoard({
           </div>
           {days.map((day) => {
             const key = toIsoDate(day);
-            const placed = placeSessions(byDay.get(key) ?? []);
+            const placed = placeSessions(byDay.get(key) ?? [], timeZone, startHour, endHour);
             const isToday = key === todayKey;
             return (
-              <div key={key} {...stylex.props(styles.dayCol, isToday && styles.dayColToday)}>
+              <div
+                key={key}
+                {...stylex.props(styles.dayCol, isToday && styles.dayColToday)}
+                style={{ height: `${(endHour - startHour) * HOUR_REM + GRID_PAD_REM * 2}rem` }}
+              >
                 {placed.map((ev) => (
                   <SessionBlock
                     key={ev.session.id}
                     placed={ev}
                     locale={locale}
-                    showTrainer={!trainerId}
+                    timeZone={timeZone}
                     onOpen={openSession}
                   />
                 ))}
@@ -507,6 +656,7 @@ export function PtCalendarBoard({
         drawer={detail}
         session={selected}
         locale={locale}
+        timeZone={timeZone}
         canWrite={canWrite}
         onChanged={() => router.refresh()}
       />
@@ -518,23 +668,32 @@ export function PtCalendarBoard({
 function SessionBlock({
   placed,
   locale,
-  showTrainer,
+  timeZone,
   onOpen,
 }: {
   placed: PlacedSession;
   locale: string;
-  /** True when the calendar is unfiltered, so the block has to say whose session it is. */
-  showTrainer: boolean;
+  timeZone: string;
   onOpen: (session: AdminPtSession) => void;
 }) {
   const { session } = placed;
+  const [showInfo, setShowInfo] = useState(false);
   const dimmed = session.status !== 'SCHEDULED';
   const title = session.classTypeName ?? 'PT session';
+  const trainer = session.trainerName ?? '';
+  const start = formatTime(session.startsAt, locale, timeZone);
+  const end = formatTime(session.endsAt, locale, timeZone);
+  const hue = trainerHue(trainer || title);
+
   return (
     <button
       type="button"
       onClick={() => onOpen(session)}
-      aria-label={`View ${title} with ${session.trainerName} at ${formatTime(session.startsAt, locale)}`}
+      onMouseEnter={() => setShowInfo(true)}
+      onMouseLeave={() => setShowInfo(false)}
+      onFocus={() => setShowInfo(true)}
+      onBlur={() => setShowInfo(false)}
+      aria-label={`${start}–${end} · ${title}${trainer ? ` · ${trainer}` : ''}`}
       {...stylex.props(styles.event, dimmed && styles.eventDimmed)}
       style={{
         top: `${placed.topRem}rem`,
@@ -543,12 +702,17 @@ function SessionBlock({
         width: `calc(${placed.widthPct}% - 0.25rem)`,
       }}
     >
-      <span {...stylex.props(styles.eventTime)}>
-        {formatTime(session.startsAt, locale)}–{formatTime(session.endsAt, locale)}
+      <span {...stylex.props(styles.chip)} style={{ backgroundColor: `hsl(${hue} 55% 34%)` }}>
+        {initialsOf(trainer || title)}
       </span>
-      <p {...stylex.props(styles.eventTitle)}>{title}</p>
-      {showTrainer ? (
-        <span {...stylex.props(styles.eventTrainer)}>{session.trainerName}</span>
+      {showInfo ? (
+        <span role="tooltip" {...stylex.props(styles.tooltip)}>
+          <span {...stylex.props(styles.tipTime)}>
+            {start}–{end}
+          </span>
+          <span {...stylex.props(styles.tipTitle)}>{title}</span>
+          {trainer ? <span {...stylex.props(styles.tipTrainer)}>{trainer}</span> : null}
+        </span>
       ) : null}
     </button>
   );
@@ -559,12 +723,14 @@ function PtSessionDetail({
   drawer,
   session,
   locale,
+  timeZone,
   canWrite,
   onChanged,
 }: {
   drawer: ReturnType<typeof useSlideDrawer>;
   session: AdminPtSession | null;
   locale: string;
+  timeZone: string;
   canWrite: boolean;
   onChanged: () => void;
 }) {
@@ -622,8 +788,8 @@ function PtSessionDetail({
             <div {...stylex.props(styles.detailRow)}>
               <span {...stylex.props(styles.detailLabel)}>When</span>
               <span {...stylex.props(styles.detailValue)}>
-                {formatTime(session.startsAt, locale)}–{formatTime(session.endsAt, locale)} ·{' '}
-                {session.durationMinutes} min
+                {formatTime(session.startsAt, locale, timeZone)}–
+                {formatTime(session.endsAt, locale, timeZone)} · {session.durationMinutes} min
               </span>
             </div>
             <div {...stylex.props(styles.detailRow)}>

@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { sortDirSchema } from './members';
+import { timeOfDaySchema } from './time-of-day';
 
 /**
  * A class template's lifecycle within the gym, mirroring the Prisma
@@ -65,7 +66,7 @@ const nullableMinorField = z.preprocess(
  * RFC-5545's `FREQ` covering the cadences a gym actually schedules classes on.
  * Maps 1:1 to the `FREQ=` token in the generated rrule.
  */
-export const recurrenceFreqSchema = z.enum(['DAILY', 'WEEKLY', 'MONTHLY']);
+export const recurrenceFreqSchema = z.enum(['DAILY', 'WEEKLY']);
 
 /** A supported recurrence frequency — {@link recurrenceFreqSchema}. */
 export type RecurrenceFreq = z.infer<typeof recurrenceFreqSchema>;
@@ -91,45 +92,25 @@ export const RECURRENCE_WEEKDAYS: readonly RecurrenceWeekday[] = [
   'SU',
 ];
 
-/** The most occurrences a `COUNT`-terminated recurrence may schedule (keeps generation bounded). */
-export const MAX_RECURRENCE_COUNT = 730;
-
-/**
- * How a recurrence ends. `never` is open-ended (the template's `validUntil`, if
- * any, still bounds generation); `count` stops after N occurrences (`COUNT=` in
- * the rrule); `until` stops on a date (`UNTIL=` in the rrule), an inclusive
- * `YYYY-MM-DD` the editor surfaces as a date picker.
- */
-export const recurrenceEndSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('never') }),
-  z.object({
-    type: z.literal('count'),
-    count: z.coerce.number().int().min(1).max(MAX_RECURRENCE_COUNT),
-  }),
-  z.object({
-    type: z.literal('until'),
-    until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Until must be a YYYY-MM-DD date'),
-  }),
-]);
-
-/** How a recurrence terminates — {@link recurrenceEndSchema}. */
-export type RecurrenceEnd = z.infer<typeof recurrenceEndSchema>;
-
 /**
  * The structured recurrence the visual editor manipulates and the
  * {@link buildRRule} / {@link parseRRule} pair round-trips with the stored rrule
- * string. `interval` is the every-N spacing (`1` = every week/day/month);
- * `weekdays` only applies when `freq` is `WEEKLY` (an empty list there means "the
- * weekday of `validFrom`", matching RFC-5545's default). The `.superRefine`
- * rejects a `WEEKLY` recurrence with no weekday selected so the editor can't emit
- * an rrule that silently falls back to the start day.
+ * string. `weekdays` only applies when `freq` is `WEEKLY` (an empty list there
+ * means "the weekday of `validFrom`", matching RFC-5545's default). The
+ * `.superRefine` rejects a `WEEKLY` recurrence with no weekday selected so the
+ * editor can't emit an rrule that silently falls back to the start day.
+ *
+ * There is no every-N interval: a class is daily or weekly, and "every 3 weeks"
+ * was a cadence no gym asked for. Nor is there an end clause — how long a series
+ * runs is the template's own `validFrom` / `validUntil` window, which the form
+ * already collects under a field literally labelled "Ends". Encoding it twice,
+ * once as `COUNT`/`UNTIL` here, gave two answers to one question and generation
+ * honoured the narrower.
  */
 export const recurrenceSchema = z
   .object({
     freq: recurrenceFreqSchema,
-    interval: z.coerce.number().int().min(1).max(52).default(1),
     weekdays: z.array(recurrenceWeekdaySchema).default([]),
-    end: recurrenceEndSchema.default({ type: 'never' }),
   })
   .superRefine((value, ctx) => {
     if (value.freq === 'WEEKLY' && value.weekdays.length === 0) {
@@ -149,28 +130,18 @@ export type RecurrenceInput = z.input<typeof recurrenceSchema>;
 
 /**
  * Serialise a {@link Recurrence} to an RFC-5545 RRULE string, e.g.
- * `FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=10`. Tokens are emitted in a stable
- * order so the same recurrence always yields the same string. `INTERVAL` is
- * omitted when `1` (the RFC default); `BYDAY` only for a weekly recurrence with
- * weekdays; the end clause is one of `COUNT` / `UNTIL` / nothing. `UNTIL` is the
- * inclusive date at end-of-day UTC, the form RFC-5545 expects.
+ * `FREQ=WEEKLY;BYDAY=MO,WE`. Tokens are emitted in a stable order so the same
+ * recurrence always yields the same string, and `BYDAY` only for a weekly
+ * recurrence with weekdays. `INTERVAL` is never emitted — every-N spacing is not
+ * a choice the editor offers, so the RFC default of 1 always applies. Neither is
+ * an end clause: the template's validity window bounds the series.
  */
 export function buildRRule(recurrence: Recurrence): string {
   const parts: string[] = [`FREQ=${recurrence.freq}`];
 
-  if (recurrence.interval > 1) {
-    parts.push(`INTERVAL=${recurrence.interval}`);
-  }
-
   if (recurrence.freq === 'WEEKLY' && recurrence.weekdays.length > 0) {
     const ordered = RECURRENCE_WEEKDAYS.filter((day) => recurrence.weekdays.includes(day));
     parts.push(`BYDAY=${ordered.join(',')}`);
-  }
-
-  if (recurrence.end.type === 'count') {
-    parts.push(`COUNT=${recurrence.end.count}`);
-  } else if (recurrence.end.type === 'until') {
-    parts.push(`UNTIL=${recurrence.end.until.replace(/-/g, '')}T235959Z`);
   }
 
   return parts.join(';');
@@ -206,12 +177,10 @@ export function parseRRule(rrule: string): Recurrence | null {
     return null;
   }
 
-  let interval = 1;
-  if (map.has('INTERVAL')) {
-    interval = Number(map.get('INTERVAL'));
-    if (!Number.isInteger(interval) || interval < 1) {
-      return null;
-    }
+  // `INTERVAL=1` is the RFC default and means exactly what a rule without it
+  // means, so accept it; any wider spacing is a cadence the editor cannot show.
+  if (map.has('INTERVAL') && map.get('INTERVAL') !== '1') {
+    return null;
   }
 
   let weekdays: RecurrenceWeekday[] = [];
@@ -224,23 +193,14 @@ export function parseRRule(rrule: string): Recurrence | null {
     weekdays = RECURRENCE_WEEKDAYS.filter((day) => parsed.data.includes(day));
   }
 
-  let end: RecurrenceEnd = { type: 'never' };
-  if (map.has('COUNT')) {
-    const count = Number(map.get('COUNT'));
-    if (!Number.isInteger(count) || count < 1) {
-      return null;
-    }
-    end = { type: 'count', count };
-  } else if (map.has('UNTIL')) {
-    const until = map.get('UNTIL')!;
-    const match = until.match(/^(\d{4})(\d{2})(\d{2})/);
-    if (!match) {
-      return null;
-    }
-    end = { type: 'until', until: `${match[1]}-${match[2]}-${match[3]}` };
+  // Retired controls. A stored rule carrying one of these bounds the series more
+  // tightly than the editor can now show, so refuse it rather than render a form
+  // that means something wider and silently save that back.
+  if (map.has('COUNT') || map.has('UNTIL')) {
+    return null;
   }
 
-  const result = recurrenceSchema.safeParse({ freq: freq.data, interval, weekdays, end });
+  const result = recurrenceSchema.safeParse({ freq: freq.data, weekdays });
   return result.success ? result.data : null;
 }
 
@@ -255,57 +215,27 @@ const WEEKDAY_NAMES: Record<RecurrenceWeekday, string> = {
   SU: 'Sun',
 };
 
-/** The singular noun per frequency, used to build "every 2 weeks" etc. */
-const FREQ_NOUN: Record<RecurrenceFreq, string> = {
-  DAILY: 'day',
-  WEEKLY: 'week',
-  MONTHLY: 'month',
+/** The cadence phrase per frequency. */
+const FREQ_CADENCE: Record<RecurrenceFreq, string> = {
+  DAILY: 'Every day',
+  WEEKLY: 'Every week',
 };
 
 /**
  * Render a {@link Recurrence} as a short, human sentence the editor and the
- * roster show beside the raw rrule, e.g. "Every 2 weeks on Mon, Wed · until Dec
- * 31, 2026". Pure presentation — no locale formatting beyond a plain date — so it
- * is safe on both the server and the client.
+ * roster show beside the raw rrule, e.g. "Every 2 weeks on Mon, Wed". Pure
+ * presentation, so it is safe on both the server and the client. How long the
+ * series runs is not part of the sentence — that is the template's validity
+ * window, shown with the dates that set it.
  */
 export function describeRecurrence(recurrence: Recurrence): string {
-  const noun = FREQ_NOUN[recurrence.freq];
-  const cadence =
-    recurrence.interval === 1
-      ? recurrence.freq === 'DAILY'
-        ? 'Every day'
-        : `Every ${noun}`
-      : `Every ${recurrence.interval} ${noun}s`;
+  const cadence = FREQ_CADENCE[recurrence.freq];
 
-  let main = cadence;
   if (recurrence.freq === 'WEEKLY' && recurrence.weekdays.length > 0) {
     const ordered = RECURRENCE_WEEKDAYS.filter((day) => recurrence.weekdays.includes(day));
-    main = `${cadence} on ${ordered.map((day) => WEEKDAY_NAMES[day]).join(', ')}`;
+    return `${cadence} on ${ordered.map((day) => WEEKDAY_NAMES[day]).join(', ')}`;
   }
-
-  if (recurrence.end.type === 'count') {
-    return `${main} · for ${recurrence.end.count} ${
-      recurrence.end.count === 1 ? 'occurrence' : 'occurrences'
-    }`;
-  }
-  if (recurrence.end.type === 'until') {
-    return `${main} · until ${formatUntil(recurrence.end.until)}`;
-  }
-  return main;
-}
-
-/** Format a `YYYY-MM-DD` as `Mon DD, YYYY` without pulling in a date library. */
-function formatUntil(date: string): string {
-  const parsed = new Date(`${date}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    return date;
-  }
-  return parsed.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
+  return cadence;
 }
 
 /**
@@ -365,6 +295,8 @@ export interface AdminClassTemplateRow {
   category: string;
   capacity: number;
   durationMinutes: number;
+  /** Wall-clock start, `"HH:MM"` in the gym's own timezone. */
+  startTime: string;
   recurrence: string;
   color: string;
   trainerName: string | null;
@@ -433,7 +365,7 @@ const classTemplateProfileFields = {
   description: z.string().trim().max(2000).default(''),
   category: z.string().trim().max(80).default(''),
   trainerId: z.string().trim().min(1).nullable().default(null),
-  locationId: z.string().trim().min(1).nullable().default(null),
+  locationId: z.string().trim().min(1, 'Pick the location this class runs at'),
   room: z
     .string()
     .trim()
@@ -452,6 +384,7 @@ const classTemplateProfileFields = {
     .int('Duration must be a whole number of minutes')
     .min(1, 'Duration must be at least 1 minute')
     .max(1440, 'Duration cannot exceed 24 hours'),
+  startTime: timeOfDaySchema,
   rrule: z
     .string()
     .trim()

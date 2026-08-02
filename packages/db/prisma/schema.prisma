@@ -1011,6 +1011,12 @@ model ClassTemplate {
   room            String?
   capacity        Int
   durationMinutes Int
+  /// The wall-clock time each occurrence starts, `"HH:MM"` on a 24-hour clock,
+  /// read in the gym's own timezone (T5.14). Before this column the start time
+  /// was smuggled in as `validFrom`'s time-of-day — which meant the console,
+  /// whose form only collects a date, created every class at 00:00 UTC.
+  /// `validFrom` now answers only "from which date is this template live".
+  startTime       String              @default("09:00")
   rrule           String
   color           String              @default("#2563eb")
   status          ClassTemplateStatus @default(ACTIVE)

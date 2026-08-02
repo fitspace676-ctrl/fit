@@ -69,10 +69,9 @@ export function formatPricing(
 }
 
 /** The selectable recurrence frequencies and their human labels, in display order. */
-export const FREQ_OPTIONS: ReadonlyArray<{ value: RecurrenceFreq; label: string; noun: string }> = [
-  { value: 'DAILY', label: 'Daily', noun: 'day' },
-  { value: 'WEEKLY', label: 'Weekly', noun: 'week' },
-  { value: 'MONTHLY', label: 'Monthly', noun: 'month' },
+export const FREQ_OPTIONS: ReadonlyArray<{ value: RecurrenceFreq; label: string }> = [
+  { value: 'DAILY', label: 'Daily' },
+  { value: 'WEEKLY', label: 'Weekly' },
 ];
 
 /** The weekday toggles the editor renders, Monday-first with short labels. */
@@ -85,8 +84,3 @@ export const WEEKDAY_OPTIONS: ReadonlyArray<{ value: RecurrenceWeekday; label: s
   { value: 'SA', label: 'Sat' },
   { value: 'SU', label: 'Sun' },
 ];
-
-/** The singular noun for a frequency, for "every N ___s" copy. */
-export function freqNoun(freq: RecurrenceFreq): string {
-  return FREQ_OPTIONS.find((option) => option.value === freq)?.noun ?? freq.toLowerCase();
-}

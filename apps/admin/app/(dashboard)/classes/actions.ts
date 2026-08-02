@@ -14,6 +14,7 @@ import { getServerSession } from '@/lib/session';
 import {
   ApiError,
   createClassTemplate,
+  deleteClassTemplate,
   pauseClassTemplate,
   resumeClassTemplate,
   updateClassTemplate,
@@ -99,6 +100,25 @@ export async function updateClassTemplateAction(
  * boolean keeps the two mirror-image transitions in a single place; both enforce
  * `ClassWrite` and refresh the roster + detail caches.
  */
+/**
+ * Delete a class template. The API keeps the gym's history — past occurrences and
+ * booked future ones are detached rather than cascaded away — so this removes the
+ * rule, not the record of the classes it ran.
+ */
+export async function deleteClassTemplateAction(id: string): Promise<ActionResult<null>> {
+  if (!(await requireClassWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    await deleteClassTemplate(id);
+    revalidatePath('/classes');
+    revalidatePath('/classes/schedule');
+    return { ok: true, data: null };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
 export async function setClassTemplateActiveAction(
   id: string,
   active: boolean,

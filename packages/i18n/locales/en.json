@@ -1864,6 +1864,14 @@
           "alreadyBooked": "That member already has a booking for this class.",
           "subscriptionFrozen": "That member's membership is frozen. Resume it before booking.",
           "insufficientCredits": "That member has no class credits left. Sell them a pack or subscription first."
+        },
+        "details": {
+          "category": "Category",
+          "about": "About",
+          "pricing": "Pricing",
+          "free": "Free for members",
+          "included": "Included in plan",
+          "paid": "Paid"
         }
       }
     },

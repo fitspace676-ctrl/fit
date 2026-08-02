@@ -41,6 +41,9 @@ const SCHEDULE_SELECT = {
     select: {
       title: true,
       category: true,
+      description: true,
+      pricingRule: true,
+      priceMinor: true,
       color: true,
       room: true,
       capacity: true,
@@ -717,6 +720,11 @@ function toScheduleInstance(row: ScheduleRow): AdminScheduleInstance {
     classTypeId: row.classTypeId,
     title: row.template?.title ?? row.classType?.name ?? 'Class',
     category: row.template?.category ?? '',
+    // A one-off scheduled straight from a class type has no template blurb or
+    // pricing rule of its own, so it reads as an unpriced class with no notes.
+    description: row.template?.description ?? '',
+    pricingRule: row.template?.pricingRule ?? 'FREE',
+    priceMinor: row.template?.priceMinor ?? null,
     color: row.template?.color ?? row.classType?.color ?? '#2563eb',
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),

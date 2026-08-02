@@ -21,6 +21,7 @@ interface ClassTemplateRecord {
   room: string | null;
   capacity: number;
   durationMinutes: number;
+  startTime: string;
   rrule: string;
   color: string;
   status: ClassTemplateStatus;
@@ -53,6 +54,7 @@ const row = (over?: Partial<ClassTemplateRecord>): ClassTemplateRecord => ({
   room: 'Studio A',
   capacity: 20,
   durationMinutes: 45,
+  startTime: '09:00',
   rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
   color: '#2563eb',
   status: ClassTemplateStatus.ACTIVE,
@@ -130,6 +132,11 @@ function setup(overrides?: {
     },
     trainer: { findFirst: trainerFindFirst },
     location: { findFirst: locationFindFirst },
+    // The gym's zone is what a `startTime` wall clock resolves against. Pinned to
+    // UTC so the instants these tests assert on are the clock times they name.
+    gym: {
+      findUnique: vi.fn(() => Promise.resolve({ settings: { locale: { timezone: 'UTC' } } })),
+    },
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -161,10 +168,11 @@ const createInput = (over?: Partial<CreateClassTemplateData>): CreateClassTempla
   description: 'High-intensity interval training.',
   category: 'Cardio',
   trainerId: null,
-  locationId: null,
+  locationId: 'loc-1',
   room: null,
   capacity: 20,
   durationMinutes: 45,
+  startTime: '09:00',
   rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
   color: '#2563eb',
   status: 'ACTIVE',
@@ -185,10 +193,11 @@ const updateInput = (over?: Partial<UpdateClassTemplateData>): UpdateClassTempla
   description: 'Updated copy.',
   category: 'Strength',
   trainerId: null,
-  locationId: null,
+  locationId: 'loc-1',
   room: 'Studio B',
   capacity: 30,
   durationMinutes: 60,
+  startTime: '09:00',
   rrule: 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU',
   color: '#16a34a',
   pricingRule: 'FREE',
@@ -223,6 +232,7 @@ describe('AdminClassTemplatesService', () => {
             category: 'Cardio',
             capacity: 20,
             durationMinutes: 45,
+            startTime: '09:00',
             recurrence: 'Every week on Mon, Wed, Fri',
             color: '#2563eb',
             trainerName: 'Jane Coach',
@@ -329,6 +339,7 @@ describe('AdminClassTemplatesService', () => {
         title: 'Morning HIIT',
         capacity: 20,
         durationMinutes: 45,
+        startTime: '09:00',
         rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
         color: '#2563eb',
         status: 'PAUSED',
@@ -378,6 +389,7 @@ describe('AdminClassTemplatesService', () => {
         title: 'Evening HIIT',
         capacity: 30,
         durationMinutes: 60,
+        startTime: '09:00',
         rrule: 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU',
         color: '#16a34a',
         room: 'Studio B',
@@ -403,9 +415,13 @@ describe('AdminClassTemplatesService', () => {
 
     function regenInput() {
       // Weekly-Monday rule, 60-minute occurrences, open-ended from Jun 1.
+      // Midnight so the desired occurrences land on the same instants as the
+      // fixtures below: this test is about realign/delete/detach/create, not
+      // about where on the clock the class sits.
       return updateInput({
         rrule: 'FREQ=WEEKLY;BYDAY=MO',
         durationMinutes: 60,
+        startTime: '00:00',
         validFrom: '2026-06-01',
         validUntil: null,
       });

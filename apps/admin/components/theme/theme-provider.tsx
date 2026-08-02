@@ -9,6 +9,7 @@
 // via context, and on every change flips the `dark` class on `<html>` and
 // persists the choice to the cookie so the next server render matches.
 
+import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, type Theme } from '@/lib/theme';
 import {
   createContext,
   useCallback,
@@ -19,10 +20,10 @@ import {
   type ReactNode,
 } from 'react';
 
-export type Theme = 'light' | 'dark';
-
-/** Cookie the chosen theme is persisted under (read by the server layout). */
-export const THEME_COOKIE = 'theme';
+// The cookie contract lives in a server-safe module: a server component that
+// imports a value from a `'use client'` file gets a client reference, not the
+// value — which is exactly how the theme silently stopped persisting.
+export { THEME_COOKIE, type Theme } from '@/lib/theme';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -35,7 +36,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 /** Persist the theme for a year so the SSR'd `<html>` class stays in sync. */
 function persist(theme: Theme): void {
   document.documentElement.classList.toggle('dark', theme === 'dark');
-  document.cookie = `${THEME_COOKIE}=${theme}; path=/; max-age=31536000; samesite=lax`;
+  document.cookie = `${THEME_COOKIE}=${theme}; path=/; max-age=${THEME_COOKIE_MAX_AGE}; samesite=lax`;
 }
 
 /**

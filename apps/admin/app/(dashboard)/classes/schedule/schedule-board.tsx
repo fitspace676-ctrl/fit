@@ -11,7 +11,7 @@ import { useOccupancyStream } from '@/hooks/use-occupancy-stream';
 import { ClassDrawer } from './class-drawer';
 import { AddClassDrawer } from '../add-class-drawer';
 import type { RelationOption } from '../class-template-form';
-import { addMonths, addWeeks, monthGridDays, toIsoDate, weekDays } from './week';
+import { addMonths, addWeeks, monthGridDays, toIsoDate, weekDays, zonedIsoDate } from './week';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -27,11 +27,18 @@ export type ScheduleView = 'week' | 'month' | 'list';
 // below (`timeCell` height, `dayCol` height + gridline gradient). StyleX evaluates
 // `stylex.create` at build time and can't read these runtime consts, so the style
 // object must use literals — 3.5rem/hour, 1.75rem/half, 56rem total.
-const START_HOUR = 6;
-const END_HOUR = 22;
-const HOURS = END_HOUR - START_HOUR; // 16 rows
 const HOUR_REM = 3.5;
-const TOTAL_MIN = HOURS * 60;
+/**
+ * Breathing room above the first hour line and below the last, in rem. The hour
+ * labels straddle their gridline, so without the top pad the first is clipped by
+ * the sticky header; without the bottom one a class running to midnight sits
+ * flush on the container's edge. Kept in sync with the `paddingBlock` on
+ * `timeCol` / `dayCol` — `box-sizing: border-box` (Tailwind preflight) means the
+ * column's explicit height has to carry both pads on top of the hour rows.
+ */
+const GRID_PAD_REM = 0.5;
+/** Fewest hour rows the grid draws, so a sparse week still reads as a day. */
+const MIN_ROWS = 6;
 const MIN_EVENT_REM = 1.5;
 
 const styles = stylex.create({
@@ -232,6 +239,13 @@ const styles = stylex.create({
   timeCol: {
     display: 'flex',
     flexDirection: 'column',
+    // Matches `dayCol`: the hour labels straddle their gridline (`top: -0.5rem`),
+    // so without this the first one is drawn above the body and clipped by the
+    // sticky header. Blocks and the gridline gradient are positioned from the
+    // padding box too, so the whole grid shifts as one. The matching bottom
+    // padding keeps the last row off the container's edge.
+    paddingTop: '0.5rem',
+    paddingBottom: '0.5rem',
     backgroundColor: 'var(--color-background-body)',
   },
   timeCell: {
@@ -250,7 +264,8 @@ const styles = stylex.create({
   },
   dayCol: {
     position: 'relative',
-    height: '56rem',
+    paddingTop: '0.5rem',
+    paddingBottom: '0.5rem',
     borderLeftWidth: '1px',
     borderLeftStyle: 'solid',
     borderLeftColor: 'var(--color-border)',
@@ -688,6 +703,9 @@ export function ScheduleBoard({
   locationId,
   canWrite,
   addClass,
+  timeZone,
+  openHour,
+  closeHour,
 }: {
   /** Which surface to render. */
   view: ScheduleView;
@@ -703,6 +721,11 @@ export function ScheduleBoard({
   /** Whether the staff session holds `ClassWrite` (gates the drawer's cancel). */
   canWrite: boolean;
   /** Class-relation options for the "Add Class" drawer; null when the staffer can't write. */
+  /** The gym's IANA zone — day columns and clock labels are read on it. */
+  timeZone: string;
+  /** The gym's opening window, from Settings → Business hours. */
+  openHour: number;
+  closeHour: number;
   addClass: {
     trainers: RelationOption[];
     locations: RelationOption[];
@@ -733,20 +756,22 @@ export function ScheduleBoard({
   const days = useMemo(() => weekDays(monday), [monday]);
   const monthDays = useMemo(() => monthGridDays(monthFirst), [monthFirst]);
 
-  // Bucket each occurrence under its UTC day key; the API returns them ordered by
-  // `startsAt`, so each bucket stays chronological without re-sorting.
+  // Bucket each occurrence under the day it falls on **at the gym**; the API
+  // returns them ordered by `startsAt`, so each bucket stays chronological
+  // without re-sorting. Slicing the ISO string instead would file a class held
+  // just after local midnight under the previous day.
   const byDay = useMemo(() => {
     const map = new Map<string, AdminScheduleInstance[]>();
     for (const instance of instances) {
-      const key = instance.startsAt.slice(0, 10);
+      const key = zonedIsoDate(new Date(instance.startsAt), timeZone);
       const bucket = map.get(key);
       if (bucket) bucket.push(instance);
       else map.set(key, [instance]);
     }
     return map;
-  }, [instances]);
+  }, [instances, timeZone]);
 
-  const todayKey = toIsoDate(new Date());
+  const todayKey = zonedIsoDate(new Date(), timeZone);
 
   /** Push a new URL with a batch of params set (or removed when null/empty). */
   const setParams = useCallback(
@@ -776,7 +801,10 @@ export function ScheduleBoard({
     if (view === 'month') setParams({ week: toIsoDate(addMonths(monthFirst, 1)) });
     else setParams({ week: toIsoDate(addWeeks(monday, 1)) });
   }, [view, monthFirst, monday, setParams]);
-  const goToday = useCallback(() => setParams({ week: toIsoDate(new Date()) }), [setParams]);
+  const goToday = useCallback(
+    () => setParams({ week: zonedIsoDate(new Date(), timeZone) }),
+    [setParams, timeZone],
+  );
 
   const rangeLabel =
     view === 'month'
@@ -889,6 +917,9 @@ export function ScheduleBoard({
           byDay={byDay}
           todayKey={todayKey}
           locale={locale}
+          timeZone={timeZone}
+          openHour={openHour}
+          closeHour={closeHour}
           t={t}
           onOpen={openInstance}
         />
@@ -899,6 +930,7 @@ export function ScheduleBoard({
           byDay={byDay}
           todayKey={todayKey}
           locale={locale}
+          timeZone={timeZone}
           t={t}
           onOpen={openInstance}
         />
@@ -916,6 +948,7 @@ export function ScheduleBoard({
                   isToday={key === todayKey}
                   instances={byDay.get(key) ?? []}
                   locale={locale}
+                  timeZone={timeZone}
                   t={t}
                   onOpen={openInstance}
                 />
@@ -931,6 +964,7 @@ export function ScheduleBoard({
         onClose={() => setDrawerOpen(false)}
         canWrite={canWrite}
         locale={locale}
+        timeZone={timeZone}
       />
     </div>
   );
@@ -972,23 +1006,96 @@ interface PlacedEvent {
   widthPct: number;
 }
 
-/** Minutes past midnight (UTC) for an ISO instant. */
-function utcMinutes(iso: string): number {
-  const d = new Date(iso);
-  return d.getUTCHours() * 60 + d.getUTCMinutes();
+/** Minutes past midnight for an ISO instant, on the gym's clock. */
+function zonedMinutes(iso: string, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const at = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+  return at('hour') * 60 + at('minute');
 }
 
 /**
- * Position one day's occurrences in the 06:00–22:00 grid, splitting overlapping
+ * Widen a tight window to a readable one. Following the data exactly is right
+ * when a day is busy, but a week with a single 45-minute session would draw a
+ * one-hour-tall "calendar" — accurate and useless. Grow symmetrically around
+ * what is booked so the session keeps its context, clamped to a real day.
+ */
+function atLeast(
+  range: { startHour: number; endHour: number },
+  minRows: number,
+): { startHour: number; endHour: number } {
+  const rows = range.endHour - range.startHour;
+  if (rows >= minRows) return range;
+
+  const grow = minRows - rows;
+  const lifted = Math.max(0, range.startHour - Math.floor(grow / 2));
+  // Clamp to a real day, then pull the window back off midnight rather than
+  // losing rows to the clamp.
+  const endHour = Math.min(24, lifted + minRows);
+  return { startHour: Math.max(0, endHour - minRows), endHour };
+}
+
+/**
+ * The hours the grid needs to draw: the whole hour the first class starts on
+ * through the whole hour the last one ends on. A fixed 06:00–22:00 window spent
+ * most of its height on rows no gym uses — a day whose classes run 09:00–17:00
+ * had a quarter of the grid empty above them.
+ *
+ * The bounds are widened to whole hours so a 09:50 start still sits under a 09:00
+ * label, and an empty week falls back to a plausible day rather than collapsing.
+ */
+function hourRange(
+  instances: AdminScheduleInstance[],
+  timeZone: string,
+  openHour: number,
+  closeHour: number,
+): { startHour: number; endHour: number } {
+  // The gym's own opening window is the answer; occurrences only ever widen it.
+  let earliest = openHour * 60;
+  let latest = closeHour * 60;
+  for (const instance of instances) {
+    const start = zonedMinutes(instance.startsAt, timeZone);
+    const rawEnd = zonedMinutes(instance.endsAt, timeZone);
+    // An occurrence running past local midnight wraps to a small number; treat it
+    // as the end of the day rather than letting it drag the window back to 00:00.
+    const end = rawEnd > start ? rawEnd : 24 * 60;
+    if (start < earliest) earliest = start;
+    if (end > latest) latest = end;
+  }
+
+  const startHour = Math.max(0, Math.floor(earliest / 60));
+  const endHour = Math.min(24, Math.ceil(latest / 60));
+  // Always leave at least one row, however tight the day.
+  return atLeast({ startHour, endHour: Math.max(endHour, startHour + 1) }, MIN_ROWS);
+}
+
+/**
+ * Position one day's occurrences in the `[startHour, endHour)` grid, splitting overlapping
  * events into side-by-side lanes. Times outside the window are clamped so nothing
  * ever disappears (a 05:30 class pins to the top edge, a 23:00 one to the bottom).
  */
-function placeEvents(instances: AdminScheduleInstance[]): PlacedEvent[] {
+function placeEvents(
+  instances: AdminScheduleInstance[],
+  timeZone: string,
+  startHour: number,
+  endHour: number,
+): PlacedEvent[] {
+  const totalMin = (endHour - startHour) * 60;
   const items = instances
     .map((instance) => {
-      const start = utcMinutes(instance.startsAt) - START_HOUR * 60;
-      const rawEnd = utcMinutes(instance.endsAt) - START_HOUR * 60;
-      const end = rawEnd > start ? rawEnd : start + 30; // guard zero/negative spans
+      const start = zonedMinutes(instance.startsAt, timeZone) - startHour * 60;
+      const rawEnd = zonedMinutes(instance.endsAt, timeZone) - startHour * 60;
+      // A class ending at or past local midnight wraps to a smaller number than
+      // it started at — a 23:00–00:00 hour reads as 23:00→00:00, not a negative
+      // span. Run it to the end of the grid instead of collapsing it to the
+      // 30-minute stub the zero-length guard gives, which cut its title in half.
+      const wrapsMidnight = rawEnd <= start;
+      const end = wrapsMidnight ? (endHour - startHour) * 60 : rawEnd;
       return { instance, start, end };
     })
     .sort((a, b) => a.start - b.start || a.end - b.end);
@@ -1014,8 +1121,8 @@ function placeEvents(instances: AdminScheduleInstance[]): PlacedEvent[] {
     });
     const lanes = laneEnds.length;
     cluster.forEach((item, idx) => {
-      const clampedStart = Math.max(0, Math.min(item.start, TOTAL_MIN));
-      const clampedEnd = Math.max(clampedStart, Math.min(item.end, TOTAL_MIN));
+      const clampedStart = Math.max(0, Math.min(item.start, totalMin));
+      const clampedEnd = Math.max(clampedStart, Math.min(item.end, totalMin));
       const lane = laneOf.get(idx) ?? 0;
       placed.push({
         instance: item.instance,
@@ -1044,6 +1151,9 @@ function WeekGrid({
   byDay,
   todayKey,
   locale,
+  timeZone,
+  openHour,
+  closeHour,
   t,
   onOpen,
 }: {
@@ -1051,10 +1161,22 @@ function WeekGrid({
   byDay: Map<string, AdminScheduleInstance[]>;
   todayKey: string;
   locale: string;
+  timeZone: string;
+  /** The gym's opening window, from Settings → Business hours. */
+  openHour: number;
+  closeHour: number;
   t: T;
   onOpen: (instance: AdminScheduleInstance) => void;
 }) {
-  const hours = Array.from({ length: HOURS }, (_, i) => START_HOUR + i);
+  // The visible window follows the week's own classes, so the grid never spends
+  // rows on hours the gym doesn't use.
+  const { startHour, endHour } = hourRange(
+    days.flatMap((day) => byDay.get(toIsoDate(day)) ?? []),
+    timeZone,
+    openHour,
+    closeHour,
+  );
+  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   return (
     <div {...stylex.props(styles.calScroll)}>
       <div {...stylex.props(styles.calGrid)}>
@@ -1085,15 +1207,20 @@ function WeekGrid({
         </div>
         {days.map((day) => {
           const key = toIsoDate(day);
-          const placed = placeEvents(byDay.get(key) ?? []);
+          const placed = placeEvents(byDay.get(key) ?? [], timeZone, startHour, endHour);
           const isToday = key === todayKey;
           return (
-            <div key={key} {...stylex.props(styles.dayCol, isToday && styles.dayColToday)}>
+            <div
+              key={key}
+              {...stylex.props(styles.dayCol, isToday && styles.dayColToday)}
+              style={{ height: `${(endHour - startHour) * HOUR_REM + GRID_PAD_REM * 2}rem` }}
+            >
               {placed.map((ev) => (
                 <EventBlock
                   key={ev.instance.id}
                   placed={ev}
                   locale={locale}
+                  timeZone={timeZone}
                   t={t}
                   onOpen={onOpen}
                 />
@@ -1110,11 +1237,13 @@ function WeekGrid({
 function EventBlock({
   placed,
   locale,
+  timeZone,
   t,
   onOpen,
 }: {
   placed: PlacedEvent;
   locale: string;
+  timeZone: string;
   t: T;
   onOpen: (instance: AdminScheduleInstance) => void;
 }) {
@@ -1126,7 +1255,7 @@ function EventBlock({
       onClick={() => onOpen(instance)}
       aria-label={t('card.viewAria', {
         title: instance.title,
-        time: formatTime(instance.startsAt, locale),
+        time: formatTime(instance.startsAt, locale, timeZone),
       })}
       {...stylex.props(styles.event, canceled && styles.eventCanceled)}
       style={{
@@ -1138,7 +1267,8 @@ function EventBlock({
       }}
     >
       <span {...stylex.props(styles.eventTime)}>
-        {formatTime(instance.startsAt, locale)}–{formatTime(instance.endsAt, locale)}
+        {formatTime(instance.startsAt, locale, timeZone)}–
+        {formatTime(instance.endsAt, locale, timeZone)}
       </span>
       <p {...stylex.props(styles.eventTitle, canceled && styles.eventTitleCanceled)}>
         {instance.title}
@@ -1158,6 +1288,7 @@ function MonthGrid({
   byDay,
   todayKey,
   locale,
+  timeZone,
   t,
   onOpen,
 }: {
@@ -1166,6 +1297,7 @@ function MonthGrid({
   byDay: Map<string, AdminScheduleInstance[]>;
   todayKey: string;
   locale: string;
+  timeZone: string;
   t: T;
   onOpen: (instance: AdminScheduleInstance) => void;
 }) {
@@ -1212,7 +1344,7 @@ function MonthGrid({
                   onClick={() => onOpen(instance)}
                   aria-label={t('card.viewAria', {
                     title: instance.title,
-                    time: formatTime(instance.startsAt, locale),
+                    time: formatTime(instance.startsAt, locale, timeZone),
                   })}
                   {...stylex.props(styles.monthChip)}
                 >
@@ -1222,7 +1354,7 @@ function MonthGrid({
                     style={{ backgroundColor: instance.color }}
                   />
                   <span {...stylex.props(styles.monthChipText)}>
-                    {formatTime(instance.startsAt, locale)} {instance.title}
+                    {formatTime(instance.startsAt, locale, timeZone)} {instance.title}
                   </span>
                 </button>
               ))}
@@ -1247,6 +1379,7 @@ function ListDayColumn({
   isToday,
   instances,
   locale,
+  timeZone,
   t,
   onOpen,
 }: {
@@ -1254,6 +1387,7 @@ function ListDayColumn({
   isToday: boolean;
   instances: AdminScheduleInstance[];
   locale: string;
+  timeZone: string;
   t: T;
   onOpen: (instance: AdminScheduleInstance) => void;
 }) {
@@ -1275,6 +1409,7 @@ function ListDayColumn({
               key={instance.id}
               instance={instance}
               locale={locale}
+              timeZone={timeZone}
               t={t}
               onOpen={onOpen}
             />
@@ -1289,11 +1424,13 @@ function ListDayColumn({
 function ClassCard({
   instance,
   locale,
+  timeZone,
   t,
   onOpen,
 }: {
   instance: AdminScheduleInstance;
   locale: string;
+  timeZone: string;
   t: T;
   onOpen: (instance: AdminScheduleInstance) => void;
 }) {
@@ -1310,7 +1447,7 @@ function ClassCard({
       onClick={() => onOpen(instance)}
       aria-label={t('card.viewAria', {
         title: instance.title,
-        time: formatTime(instance.startsAt, locale),
+        time: formatTime(instance.startsAt, locale, timeZone),
       })}
       {...stylex.props(styles.card, canceled && styles.cardCanceled)}
     >
@@ -1323,7 +1460,8 @@ function ClassCard({
       <div {...stylex.props(styles.timeRow)}>
         <Icon name="clock" sw={2} {...stylex.props(styles.smallIcon)} />
         <span {...stylex.props(styles.mono)}>
-          {formatTime(instance.startsAt, locale)}–{formatTime(instance.endsAt, locale)}
+          {formatTime(instance.startsAt, locale, timeZone)}–
+          {formatTime(instance.endsAt, locale, timeZone)}
         </span>
       </div>
 
@@ -1436,12 +1574,12 @@ function weekdayShort(day: Date, locale: string): string {
   return new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day);
 }
 
-/** Localised `HH:MM` for an ISO instant, read in UTC to match the data anchor. */
-function formatTime(iso: string, locale: string): string {
+/** Localised `HH:MM` for an ISO instant, read on the gym's clock. */
+function formatTime(iso: string, locale: string, timeZone: string): string {
   return new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'UTC',
+    timeZone,
   }).format(new Date(iso));
 }
 

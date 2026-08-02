@@ -13,6 +13,7 @@
 // as `:staffId`. All dates cross the wire as ISO-8601 strings.
 
 import { z } from 'zod';
+import { timeOfDaySchema } from './time-of-day';
 import { ROLE_PERMISSIONS, type Permission } from './permissions';
 import { staffRoleSchema, type StaffRole } from './staff';
 
@@ -26,11 +27,6 @@ const isoDateSchema = z
   .trim()
   .min(1, 'A date is required')
   .refine((value) => !Number.isNaN(Date.parse(value)), 'A valid date is required');
-
-/** A wall-clock time as `HH:mm` (24-hour), e.g. `09:00` / `18:30`. */
-const timeOfDaySchema = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must be HH:mm (24-hour)');
 
 // ---------------------------------------------------------------------------
 // Notes

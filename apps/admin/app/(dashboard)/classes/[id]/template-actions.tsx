@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import type { ClassTemplateStatus } from '@fit/types';
 import { Btn, Icon } from '@/components/ui';
-import { setClassTemplateActiveAction } from '../actions';
+import { deleteClassTemplateAction, setClassTemplateActiveAction } from '../actions';
 
 const styles = stylex.create({
   wrap: {
@@ -20,6 +20,14 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
+  },
+  confirmHint: {
+    margin: 0,
+    maxWidth: '26rem',
+    textAlign: 'right',
+    fontSize: '0.75rem',
+    lineHeight: 1.5,
+    color: 'var(--color-text-secondary)',
   },
   editLink: {
     display: 'inline-flex',
@@ -87,6 +95,8 @@ export function TemplateActions({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Deleting is irreversible for the rule itself, so it takes two clicks.
+  const [confirming, setConfirming] = useState(false);
 
   const isPaused = status === 'PAUSED';
 
@@ -102,6 +112,21 @@ export function TemplateActions({
     });
   }
 
+  function remove(): void {
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteClassTemplateAction(templateId);
+      if (result.ok) {
+        // The template is gone, so its own page would 404 — go back to the roster.
+        router.push('/classes');
+        router.refresh();
+      } else {
+        setConfirming(false);
+        setError(result.error);
+      }
+    });
+  }
+
   return (
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.row)}>
@@ -112,7 +137,27 @@ export function TemplateActions({
         <Btn v="outline" size="sm" onClick={toggle} disabled={pending}>
           {pending ? 'Saving…' : isPaused ? 'Resume' : 'Pause'}
         </Btn>
+        {confirming ? (
+          <>
+            <Btn v="danger" size="sm" icon="trash" onClick={remove} disabled={pending}>
+              {pending ? 'Deleting…' : 'Delete for good'}
+            </Btn>
+            <Btn v="outline" size="sm" onClick={() => setConfirming(false)} disabled={pending}>
+              Keep
+            </Btn>
+          </>
+        ) : (
+          <Btn v="outline" size="sm" icon="trash" onClick={() => setConfirming(true)}>
+            Delete
+          </Btn>
+        )}
       </div>
+      {confirming ? (
+        <p {...stylex.props(styles.confirmHint)}>
+          Deleting stops this class running. Sessions that already happened, and upcoming ones a
+          member has booked, are kept on the calendar.
+        </p>
+      ) : null}
       {error ? (
         <Card variant="default" padding={0} xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />

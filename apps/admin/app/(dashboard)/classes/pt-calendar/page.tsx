@@ -4,10 +4,11 @@ import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import type { AdminClassTypeOption } from '@fit/types';
 import { ApiError, fetchClassTypeOptions, fetchPtSessions, fetchTrainers } from '@/lib/api';
+import { gymCalendarContext } from '@/lib/gym-time';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
-import { resolveWeekStart, toIsoDate, weekWindow } from '../schedule/week';
+import { resolveWeekStart, toIsoDate, weekWindow, zonedToday } from '../schedule/week';
 import { TrainerSelect, type TrainerOption } from './trainer-select';
 import { PtCalendarBoard } from './pt-calendar-board';
 
@@ -86,9 +87,10 @@ export default async function PtCalendarPage({
   const trainerId = readParam(raw, 'trainerId');
   const weekParam = readParam(raw, 'week') || undefined;
 
-  const now = new Date();
-  const weekStart = resolveWeekStart(weekParam, now);
-  const { from, to } = weekWindow(weekStart);
+  // The PT week is the gym's week, on the gym's clock — see `gymTimeZone`.
+  const { timeZone, openHour, closeHour } = await gymCalendarContext();
+  const weekStart = resolveWeekStart(weekParam, zonedToday(new Date(), timeZone));
+  const { from, to } = weekWindow(weekStart, timeZone);
 
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
@@ -106,6 +108,9 @@ export default async function PtCalendarPage({
     ]);
     body = (
       <PtCalendarBoard
+        timeZone={timeZone}
+        openHour={openHour}
+        closeHour={closeHour}
         weekStart={toIsoDate(weekStart)}
         sessions={sessionsRes.sessions}
         classTypes={classTypes}

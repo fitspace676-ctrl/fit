@@ -11,6 +11,8 @@ function base(over: Record<string, unknown> = {}) {
     validFrom: '2026-06-01',
     capacity: 12,
     durationMinutes: 60,
+    startTime: '09:00',
+    locationId: 'loc-1',
     ...over,
   };
 }

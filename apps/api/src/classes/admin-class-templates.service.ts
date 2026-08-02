@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import {
   ClassTemplateStatus,
   DEFAULT_WEEKS_AHEAD,
+  gymTimeZone,
   InstanceStatus,
   planInstanceRegeneration,
   Prisma,
@@ -39,6 +40,7 @@ const CLASS_TEMPLATE_SELECT = {
   room: true,
   capacity: true,
   durationMinutes: true,
+  startTime: true,
   rrule: true,
   color: true,
   status: true,
@@ -161,6 +163,7 @@ export class AdminClassTemplatesService {
         room: input.room,
         capacity: input.capacity,
         durationMinutes: input.durationMinutes,
+        startTime: input.startTime,
         rrule: input.rrule,
         color: input.color,
         status: input.status,
@@ -176,6 +179,20 @@ export class AdminClassTemplatesService {
       },
       select: CLASS_TEMPLATE_SELECT,
     });
+
+    // Materialise the horizon now rather than waiting for the nightly pass. A
+    // template created in the console used to show nothing on the calendar until
+    // that job next ran, which read as "the class didn't save".
+    if (row.status === ClassTemplateStatus.ACTIVE) {
+      await this.regenerateInstances(row.id, {
+        rrule: row.rrule,
+        validFrom: row.validFrom,
+        validUntil: row.validUntil,
+        durationMinutes: row.durationMinutes,
+        startTime: row.startTime,
+      });
+    }
+
     return this.toDetail(row);
   }
 
@@ -207,6 +224,7 @@ export class AdminClassTemplatesService {
         room: input.room,
         capacity: input.capacity,
         durationMinutes: input.durationMinutes,
+        startTime: input.startTime,
         rrule: input.rrule,
         color: input.color,
         pricingRule: input.pricingRule,
@@ -232,6 +250,7 @@ export class AdminClassTemplatesService {
         validFrom,
         validUntil,
         durationMinutes: input.durationMinutes,
+        startTime: input.startTime,
       });
     }
 
@@ -255,10 +274,19 @@ export class AdminClassTemplatesService {
       validFrom: Date;
       validUntil: Date | null;
       durationMinutes: number;
+      startTime: string;
     },
   ): Promise<void> {
     const now = new Date();
     const windowEnd = new Date(now.getTime() + DEFAULT_WEEKS_AHEAD * 7 * 24 * 60 * 60 * 1000);
+
+    // `startTime` is a wall clock, so it only becomes an instant against the
+    // gym's own zone.
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { id: this.tenant.gymId },
+      select: { settings: true },
+    });
+    const timeZone = gymTimeZone(gym?.settings);
 
     const existing: ExistingInstance[] = await this.prisma.client.classInstance.findMany({
       where: { templateId, startsAt: { gte: now, lt: windowEnd } },
@@ -272,7 +300,7 @@ export class AdminClassTemplatesService {
       },
     });
 
-    const plan = planInstanceRegeneration({ ...recurrence, existing, now });
+    const plan = planInstanceRegeneration({ ...recurrence, timeZone, existing, now });
 
     if (plan.toDelete.length > 0) {
       await this.prisma.client.classInstance.deleteMany({ where: { id: { in: plan.toDelete } } });
@@ -304,6 +332,43 @@ export class AdminClassTemplatesService {
    * instance-generation job stops materialising new occurrences while the
    * definition and any existing instances are preserved. Idempotent; `404`-on-miss.
    */
+  /**
+   * Delete a class template (T5.15) without deleting the gym's history.
+   *
+   * The FK cascades — template → instances → bookings — so a bare delete would
+   * take every occurrence the template ever produced, and every member's booking
+   * with it. What staff mean by "delete this class" is "stop it running", not
+   * "erase that it ever ran", so anything worth keeping is detached first and
+   * only then is the template removed:
+   *
+   *   • past occurrences — the record of classes that happened;
+   *   • future occurrences that already have bookings — a member holds that seat,
+   *     and it is the same rule an edit already applies when a slot leaves the
+   *     recurrence.
+   *
+   * Detaching is `templateId = null` + a `detachedAt` stamp, the shape the
+   * regeneration planner already uses, so a detached occurrence keeps its own
+   * title/time and simply no longer belongs to a rule. Future occurrences nobody
+   * booked are deleted outright — nothing depends on them.
+   */
+  async deleteClassTemplate(id: string): Promise<void> {
+    await this.requireClassTemplate(id);
+    const now = new Date();
+
+    await this.prisma.client.classInstance.updateMany({
+      where: {
+        templateId: id,
+        detachedAt: null,
+        OR: [{ startsAt: { lt: now } }, { bookedCount: { gt: 0 } }],
+      },
+      data: { templateId: null, detachedAt: now },
+    });
+
+    // Whatever is still attached is a future occurrence nobody booked.
+    await this.prisma.client.classInstance.deleteMany({ where: { templateId: id } });
+    await this.prisma.client.classTemplate.delete({ where: { id } });
+  }
+
   async pauseClassTemplate(id: string): Promise<SetClassTemplateStatusResponse> {
     return this.setStatus(id, ClassTemplateStatus.PAUSED);
   }
@@ -433,6 +498,7 @@ export class AdminClassTemplatesService {
       category: row.category,
       capacity: row.capacity,
       durationMinutes: row.durationMinutes,
+      startTime: row.startTime,
       recurrence: describeRRule(row.rrule),
       color: row.color,
       trainerName: row.trainer?.name ?? null,

@@ -1049,6 +1049,23 @@ export async function pauseClassTemplate(id: string): Promise<SetClassTemplateSt
 }
 
 /** `POST /admin/classes/:id/resume` — set the template's status back to `ACTIVE`. */
+/**
+ * `DELETE /admin/classes/:id` — remove a class template. Occurrences that already
+ * happened, and future ones a member booked, are detached by the API rather than
+ * deleted, so the gym keeps its history.
+ */
+export async function deleteClassTemplate(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/admin/classes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  // A 204 carries no body; only a failure needs decoding for its message.
+  if (!res.ok && res.status !== 204) {
+    await unwrap<void>(res);
+  }
+}
+
 export async function resumeClassTemplate(id: string): Promise<SetClassTemplateStatusResponse> {
   const res = await fetch(`${apiBaseUrl()}/admin/classes/${encodeURIComponent(id)}/resume`, {
     method: 'POST',

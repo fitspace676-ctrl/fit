@@ -162,6 +162,7 @@ export default async function EditClassTemplatePage({
           room: template.room,
           capacity: template.capacity,
           durationMinutes: template.durationMinutes,
+          startTime: template.startTime,
           rrule: template.rrule,
           color: template.color,
           pricingRule: template.pricingRule,
