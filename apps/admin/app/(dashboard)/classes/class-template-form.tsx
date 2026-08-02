@@ -215,9 +215,7 @@ const styles = stylex.create({
 /** The default recurrence a new template starts on — a weekly Monday class. */
 const DEFAULT_RECURRENCE: Recurrence = {
   freq: 'WEEKLY',
-  interval: 1,
   weekdays: ['MO'],
-  end: { type: 'never' },
 };
 
 type Initial = {
