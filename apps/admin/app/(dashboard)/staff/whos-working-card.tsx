@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
-import type { WorkingTodayRow } from '@fit/types';
+import type { WorkingNowRow } from '@fit/types';
 import { Badge, Icon } from '@/components/ui';
 import { ROLE_TONES, initialsOf } from './role-meta';
 
@@ -133,13 +133,13 @@ const styles = stylex.create({
 });
 
 /**
- * The "Who's Working Today" card — the on-shift roster derived from the gym's
- * weekly schedule (`GET /staff/working-today`), rendered above the staff console.
- * Each person shows their avatar initials, name, role badge and shift hours;
- * the header pill counts how many are on shift. An empty schedule shows a quiet
- * "no one scheduled" line rather than an empty box.
+ * The "Who's Working Now" card — the staff currently on shift, derived from the
+ * gym's weekly schedule in its own time zone (`GET /staff/working-now`) and
+ * rendered above the staff console. Each person shows their avatar initials,
+ * name, role badge and shift hours; the header pill counts how many are on
+ * shift. It is accurate as of page load and does not refresh on its own.
  */
-export function WhosWorkingCard({ shifts }: { shifts: WorkingTodayRow[] }) {
+export function WhosWorkingCard({ shifts }: { shifts: WorkingNowRow[] }) {
   const t = useTranslations('admin.staff');
 
   return (
@@ -149,17 +149,17 @@ export function WhosWorkingCard({ shifts }: { shifts: WorkingTodayRow[] }) {
           <span {...stylex.props(styles.titleIcon)}>
             <Icon name="briefcase" {...stylex.props(styles.titleIconSvg)} />
           </span>
-          {t('workingToday.title')}
+          {t('workingNow.title')}
         </h2>
         <span {...stylex.props(styles.countPill)}>
-          {t('workingToday.onShift', { count: shifts.length })}
+          {t('workingNow.onShift', { count: shifts.length })}
         </span>
       </div>
 
       {shifts.length === 0 ? (
         <div {...stylex.props(styles.empty)}>
           <Icon name="clock" {...stylex.props(styles.emptyIcon)} />
-          {t('workingToday.empty')}
+          {t('workingNow.empty')}
         </div>
       ) : (
         <div {...stylex.props(styles.grid)}>

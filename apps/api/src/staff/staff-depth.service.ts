@@ -20,7 +20,7 @@ import {
   type TimeOffRequestRow,
   type UpdateStaffScheduleInput,
   type UpdateStaffTaskInput,
-  type WorkingTodayResponse,
+  type WorkingNowResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -422,7 +422,7 @@ export class StaffDepthService {
   }
 
   /**
-   * Everyone on shift **right now** (`GET /staff/working-today`) — the roster
+   * Everyone on shift **right now** (`GET /staff/working-now`) — the roster
    * behind the on-shift card. Reads the gym's weekly {@link ShiftSlot} schedule
    * for the current weekday and keeps only the slots whose window contains the
    * current time, joined to each staff member's display name and role so the
@@ -435,7 +435,7 @@ export class StaffDepthService {
    * the gym's Wednesday, not the host's. `startTime` is inclusive and `endTime`
    * exclusive, so back-to-back shifts hand over with neither gap nor overlap.
    */
-  async getWorkingToday(): Promise<WorkingTodayResponse> {
+  async getWorkingNow(): Promise<WorkingNowResponse> {
     const gym = await this.prisma.client.gym.findUnique({
       where: { id: this.tenant.gymId },
       select: { settings: true },
@@ -460,7 +460,6 @@ export class StaffDepthService {
       orderBy: [{ startTime: 'asc' }],
     });
     return {
-      dayOfWeek,
       shifts: shifts.map((row) => ({
         staffId: row.staffId,
         name: row.staff.user.name ?? row.staff.user.email,

@@ -4,13 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import {
-  ApiError,
-  fetchLocations,
-  fetchStaff,
-  fetchStaffRoles,
-  fetchWorkingToday,
-} from '@/lib/api';
+import { ApiError, fetchLocations, fetchStaff, fetchStaffRoles, fetchWorkingNow } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { StaffConsole } from './staff-console';
 
@@ -89,9 +83,9 @@ export const dynamic = 'force-dynamic';
 /**
  * The staff management page, rebuilt to the reference staff artboard. It
  * server-renders the gym's active staff (`GET /staff`), the read-only roles
- * matrix (`GET /staff/roles`) and today's on-shift roster
- * (`GET /staff/working-today`), then hands them to the client {@link StaffConsole}
- * — which owns the "Who's Working Today" card, the Staff List / Roles &
+ * matrix (`GET /staff/roles`) and the on-shift-now roster
+ * (`GET /staff/working-now`), then hands them to the client {@link StaffConsole}
+ * — which owns the "Who's Working Now" card, the Staff List / Roles &
  * Permissions tabs, filtering, the roster table, the Manage Roles drawer, the
  * Add Staff drawer and the invite modal. The whole `/staff` route already
  * requires an OWNER session (middleware + the API's `StaffManage` guard), so the
@@ -104,10 +98,10 @@ export default async function StaffPage() {
   const canManage = session !== null && roleHasPermission(session.role, Permission.StaffManage);
 
   try {
-    const [{ staff }, roles, workingToday, locations] = await Promise.all([
+    const [{ staff }, roles, workingNow, locations] = await Promise.all([
       fetchStaff(),
       fetchStaffRoles(),
-      fetchWorkingToday(),
+      fetchWorkingNow(),
       fetchLocations({ status: 'ACTIVE', limit: 100 }),
     ]);
     return (
@@ -116,7 +110,7 @@ export default async function StaffPage() {
         currentUserId={session?.userId ?? null}
         canManage={canManage}
         roles={roles}
-        workingToday={workingToday.shifts}
+        workingNow={workingNow.shifts}
         locations={locations.data.map((loc) => ({ id: loc.id, name: loc.name }))}
       />
     );

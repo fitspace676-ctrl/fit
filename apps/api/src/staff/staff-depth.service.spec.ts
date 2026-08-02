@@ -285,7 +285,7 @@ function gymInZone(timezone: string): Record<string, unknown> {
   return { findUnique: vi.fn(() => Promise.resolve({ settings: { locale: { timezone } } })) };
 }
 
-describe('StaffDepthService.getWorkingToday', () => {
+describe('StaffDepthService.getWorkingNow', () => {
   const shiftRow = {
     staffId: 'gm-9',
     startTime: '10:00',
@@ -304,7 +304,7 @@ describe('StaffDepthService.getWorkingToday', () => {
         shiftSlot: { findMany: vi.fn(() => Promise.resolve([shiftRow])) },
       });
 
-      const result = await service.getWorkingToday();
+      const result = await service.getWorkingNow();
 
       const where = client.shiftSlot.findMany.mock.calls[0]![0].where as {
         dayOfWeek: number;
@@ -316,7 +316,6 @@ describe('StaffDepthService.getWorkingToday', () => {
       expect(where.startTime).toEqual({ lte: '12:00' });
       expect(where.endTime).toEqual({ gt: '12:00' });
       expect(where.staff.status).toBe('ACTIVE');
-      expect(result.dayOfWeek).toBe(2);
       expect(result.shifts).toEqual([
         {
           staffId: 'gm-9',
@@ -339,7 +338,7 @@ describe('StaffDepthService.getWorkingToday', () => {
     try {
       const { service, client } = setup({ gym: gymInZone('Asia/Tbilisi') });
 
-      await service.getWorkingToday();
+      await service.getWorkingNow();
 
       const where = client.shiftSlot.findMany.mock.calls[0]![0].where as {
         dayOfWeek: number;
@@ -360,7 +359,7 @@ describe('StaffDepthService.getWorkingToday', () => {
         gym: { findUnique: vi.fn(() => Promise.resolve({ settings: null })) },
       });
 
-      await expect(service.getWorkingToday()).resolves.toBeDefined();
+      await expect(service.getWorkingNow()).resolves.toBeDefined();
 
       // Asia/Tbilisi is the default, so 08:00 UTC is still 12:00 local.
       const where = client.shiftSlot.findMany.mock.calls[0]![0].where as {
@@ -390,7 +389,7 @@ describe('StaffDepthService.getWorkingToday', () => {
       },
     });
 
-    const { shifts } = await service.getWorkingToday();
+    const { shifts } = await service.getWorkingNow();
     expect(shifts[0]!.name).toBe('front@desk.io');
   });
 });
