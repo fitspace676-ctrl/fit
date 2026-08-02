@@ -125,8 +125,11 @@ test.describe.serial('Admin core flows', () => {
     await expect(drawer).toBeHidden({ timeout: 20_000 });
     await expect(page.getByText(product.name).first()).toBeVisible({ timeout: 20_000 });
 
-    // Ring it up at the point of sale.
+    // Ring it up at the point of sale. The till opens on the Memberships tab, so
+    // a retail product is not on screen until the catalogue is switched — the
+    // search box filters whichever tab is showing, it does not span both.
     await page.goto('/pos');
+    await page.getByRole('tab', { name: 'Products' }).click();
     await page.locator('#pos-product-search').fill(product.name);
     await page.getByRole('button', { name: product.name }).click();
 
@@ -146,15 +149,27 @@ test.describe.serial('Admin core flows', () => {
     // for. Switch the optional ones on here, then assert the till honours them —
     // that shared config is what stops the two entry points from drifting apart.
     await page.goto('/settings');
-    await page.getByRole('button', { name: 'Membership' }).click();
+    // `exact` so this picks the Membership section and not "Trial memberships",
+    // which also sits in the settings rail — role-name matching is substring by
+    // default, so the shorter label is a prefix of the longer one.
+    await page.getByRole('button', { name: 'Membership', exact: true }).click();
+    let changed = false;
     for (const field of ['Date of birth', 'National ID', 'Address', 'Emergency contact']) {
       const toggle = page.getByRole('switch', { name: field });
       if (!(await toggle.isChecked())) {
         await toggle.check();
+        changed = true;
       }
+      await expect(toggle).toBeChecked();
     }
-    await page.getByRole('button', { name: 'Save changes' }).click();
-    await expect(page.getByText('Unsaved changes')).toBeHidden({ timeout: 20_000 });
+    // These fields are on by default now, so a run that toggled nothing has
+    // nothing to save — and the save bar only leaves `inert` once the form is
+    // dirty, so clicking it unconditionally would hang until the test timed out.
+    // What this step guarantees is the *state*, not that a write happened.
+    if (changed) {
+      await page.getByRole('button', { name: 'Save changes' }).click();
+      await expect(page.getByText('Unsaved changes')).toBeHidden({ timeout: 20_000 });
+    }
 
     await page.goto('/pos');
     await page.getByRole('button', { name: 'Add new member' }).click();
