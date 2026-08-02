@@ -652,6 +652,7 @@ interface SettingsFormValues {
     phone: boolean;
     gender: boolean;
     dateOfBirth: boolean;
+    personalId: boolean;
     address: boolean;
     emergencyContact: boolean;
     membershipPlan: boolean;
@@ -697,6 +698,7 @@ type BoolFieldName =
   | 'memberIntake.phone'
   | 'memberIntake.gender'
   | 'memberIntake.dateOfBirth'
+  | 'memberIntake.personalId'
   | 'memberIntake.address'
   | 'memberIntake.emergencyContact'
   | 'memberIntake.membershipPlan'
@@ -899,6 +901,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         phone: z.boolean(),
         gender: z.boolean(),
         dateOfBirth: z.boolean(),
+        personalId: z.boolean(),
         address: z.boolean(),
         emergencyContact: z.boolean(),
         membershipPlan: z.boolean(),
@@ -1377,6 +1380,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                     'phone',
                     'gender',
                     'dateOfBirth',
+                    'personalId',
                     'address',
                     'emergencyContact',
                     'membershipPlan',
@@ -1697,6 +1701,7 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       phone: settings.memberIntake.phone,
       gender: settings.memberIntake.gender,
       dateOfBirth: settings.memberIntake.dateOfBirth,
+      personalId: settings.memberIntake.personalId,
       address: settings.memberIntake.address,
       emergencyContact: settings.memberIntake.emergencyContact,
       membershipPlan: settings.memberIntake.membershipPlan,

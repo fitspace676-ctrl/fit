@@ -8,6 +8,10 @@ const FIELD_KEYS = [
   'phone',
   'gender',
   'dateOfBirth',
+  // National ID had a schema flag but no Settings control, so it could never be
+  // switched on — which silently broke intake parity between the roster and the
+  // POS till. Pin its label so the toggle cannot go missing again.
+  'personalId',
   'address',
   'emergencyContact',
   'membershipPlan',

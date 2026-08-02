@@ -274,27 +274,37 @@ export const gymTrialSettingsSchema = z.object({
 export type GymTrialSettings = z.infer<typeof gymTrialSettingsSchema>;
 
 /**
- * Which inputs the admin-console Add-Member drawer shows. Every field is a
- * visibility toggle; `name`/`email` are required by `createMemberSchema` so they
+ * Which inputs the member-create form shows — the admin-console Add-Member drawer
+ * and the POS till's, which are the same form reading this same config. Every field
+ * is a visibility toggle; `name`/`email` are required by `createMemberSchema` so they
  * default on (the Settings UI warns when they are turned off). `surname` is a
  * UI-only split joined onto `name`; `startDate` is intentionally absent (removed
  * from the drawer — the API defaults enrolment to today).
+ *
+ * The identity and contact fields default **on**: a gym that registers someone
+ * without a date of birth, a national id or a next of kin generally wanted them and
+ * had no prompt to ask, and the edit form has always shown all of them anyway. A gym
+ * that wants a leaner desk turns them off — which is the cheap direction, because
+ * chasing a member later for data you never asked for is the expensive one.
+ *
+ * Still off by default: `medicalNotes` (health data — worth an explicit decision
+ * rather than collecting it because a form offered the box), `paymentMethod`, and
+ * the `surname` split.
  */
 export const gymMemberIntakeSettingsSchema = z.object({
   name: z.boolean().default(true),
   surname: z.boolean().default(false),
   email: z.boolean().default(true),
   phone: z.boolean().default(true),
-  gender: z.boolean().default(false),
-  dateOfBirth: z.boolean().default(false),
+  gender: z.boolean().default(true),
+  dateOfBirth: z.boolean().default(true),
   /**
-   * National identity number. Off by default like the other optional intake
-   * fields — a gym that wants it on file at the desk turns it on. Independent of
-   * the public join wizard, which always requires one.
+   * National identity number. Independent of the public join wizard, which always
+   * requires one.
    */
-  personalId: z.boolean().default(false),
-  address: z.boolean().default(false),
-  emergencyContact: z.boolean().default(false),
+  personalId: z.boolean().default(true),
+  address: z.boolean().default(true),
+  emergencyContact: z.boolean().default(true),
   membershipPlan: z.boolean().default(true),
   paymentMethod: z.boolean().default(false),
   medicalNotes: z.boolean().default(false),

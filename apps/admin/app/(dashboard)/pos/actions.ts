@@ -2,7 +2,6 @@
 
 import {
   Permission,
-  createMemberSchema,
   recordPosSaleSchema,
   roleHasPermission,
   sendReceiptSchema,
@@ -16,7 +15,6 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
-  createMember,
   fetchLocations,
   fetchMembers,
   fetchProducts,
@@ -249,57 +247,6 @@ export async function fetchPosMembershipsAction(): Promise<ActionResult<PosMembe
       })),
     };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
-  }
-}
-
-/**
- * Register a member from the desk and hand them straight back for the sale in
- * progress.
- *
- * The counter is where people join: someone walks in, wants a membership, and has
- * no record yet. A membership can only be sold to a member (it creates a real
- * subscription), so without this the operator would have to leave the till, create
- * the member on the Members screen, and start the sale over.
- *
- * Deliberately the minimum a sale needs — name, email, phone — rather than the full
- * intake form; the rest of the profile can be filled in later from the member's page.
- * Gated on `MemberWrite`, the same capability the Members screen's create needs, so
- * a till-only role can't quietly add people to the roster.
- */
-export async function createPosMemberAction(input: {
-  name: string;
-  email: string;
-  phone: string;
-}): Promise<ActionResult<PosMemberRow>> {
-  if (!(await sessionHas(Permission.MemberWrite))) {
-    return { ok: false, error: 'Not authorized' };
-  }
-  const parsed = createMemberSchema.safeParse({
-    name: input.name,
-    email: input.email,
-    // The contract drops a blank phone rather than storing an empty string.
-    phone: input.phone.trim() || undefined,
-  });
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid member details' };
-  }
-  try {
-    const created = await createMember(parsed.data);
-    return {
-      ok: true,
-      data: {
-        id: created.id,
-        name: created.name,
-        phone: created.phone ?? null,
-        email: created.email,
-        photoUrl: null,
-      },
-    };
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 409) {
-      return { ok: false, error: 'A member with that email already exists — search for them.' };
-    }
     return { ok: false, error: toMessage(error) };
   }
 }

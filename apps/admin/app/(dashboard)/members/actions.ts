@@ -40,6 +40,18 @@ import {
   updateMember,
 } from '@/lib/api';
 
+/**
+ * What {@link createMemberAction} hands back — enough for a caller to act on the
+ * new member without a second round trip. The roster navigates to the detail
+ * page; the POS till attaches them to the sale in progress.
+ */
+export interface CreatedMember {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+}
+
 /** A membership plan option for the Add-Member form's plan selector. */
 export interface PlanOption {
   id: string;
@@ -138,12 +150,15 @@ export async function bulkExportMembersAction(
 /**
  * Create a member. Re-validates the body with the same Zod schema the API uses
  * (so a malformed submission fails fast, client-side of the API), enforces
- * `MemberWrite`, then refreshes the roster cache. Returns the new member's `id`
- * so the form can navigate to its detail page.
+ * `MemberWrite`, then refreshes the roster cache.
+ *
+ * Returns enough of the new member to act on without a second fetch: the roster
+ * navigates to `id`, while the POS till needs the name and contact details to
+ * attach them to the sale in progress.
  */
 export async function createMemberAction(
   input: CreateMemberInput,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<CreatedMember>> {
   const t = await getTranslations('admin.members');
   if (!(await requireMemberWrite())) {
     return { ok: false, error: t('errors.notAuthorized') };
@@ -155,7 +170,10 @@ export async function createMemberAction(
   try {
     const member = await createMember(parsed.data);
     revalidatePath('/members');
-    return { ok: true, data: { id: member.id } };
+    return {
+      ok: true,
+      data: { id: member.id, name: member.name, email: member.email, phone: member.phone },
+    };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }

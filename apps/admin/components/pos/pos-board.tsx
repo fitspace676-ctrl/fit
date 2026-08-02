@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
+import type { GymMemberIntakeSettings } from '@fit/types';
 import { usePosCart } from '@/stores/pos-cart-store';
 import {
   fetchPosLocationsAction,
@@ -82,8 +83,12 @@ const styles = stylex.create({
  * are owned here so the focus targets (the two search boxes) and the clear action
  * stay in one place: `F1` focuses product search, `F2` the member lookup, `Esc`
  * clears the whole sale.
+ *
+ * `memberIntake` is threaded straight through to the lookup's add-member drawer — the
+ * gym's Settings → Membership config, so registering at the till asks for exactly what
+ * registering from the roster asks for. `null` for staff who cannot create members.
  */
-export function PosBoard() {
+export function PosBoard({ memberIntake }: { memberIntake: GymMemberIntakeSettings | null }) {
   const addItem = usePosCart((state) => state.addItem);
   const setMember = usePosCart((state) => state.setMember);
   const clear = usePosCart((state) => state.clear);
@@ -201,6 +206,7 @@ export function PosBoard() {
         <MemberLookup
           searchRef={memberSearchRef}
           selectedMember={selectedMember}
+          intake={memberIntake}
           onSelect={onSelectMember}
         />
         <div {...stylex.props(styles.cartArea)}>

@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, roleHasPermission } from '@fit/types';
+import { Permission, gymMemberIntakeSettingsSchema, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { fetchGymSettings } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { PosBoard } from '@/components/pos/pos-board';
@@ -121,6 +122,7 @@ export default async function PosPage() {
   const session = await getServerSession();
   const canSell = session !== null && roleHasPermission(session.role, Permission.ProductRead);
   const canReconcile = session !== null && roleHasPermission(session.role, Permission.BillingRead);
+  const canAddMember = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
 
   if (!canSell) {
     return (
@@ -133,6 +135,17 @@ export default async function PosPage() {
       </div>
     );
   }
+
+  // The till's add-member drawer hosts the roster's own form, so it needs the same
+  // config-driven field visibility (Settings → Membership) — that shared config is what
+  // keeps a member registered here identical to one registered from the Members screen.
+  // Only staff who can create members ever see the drawer, so skip the round trip for
+  // everyone else; fall back to schema defaults if the fetch fails so it still opens.
+  const memberIntake = canAddMember
+    ? await fetchGymSettings()
+        .then((s) => s.memberIntake)
+        .catch(() => gymMemberIntakeSettingsSchema.parse({}))
+    : null;
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -147,7 +160,7 @@ export default async function PosPage() {
           ) : null}
         </div>
       </header>
-      <PosBoard />
+      <PosBoard memberIntake={memberIntake} />
     </div>
   );
 }
