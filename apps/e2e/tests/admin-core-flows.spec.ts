@@ -28,6 +28,17 @@ const product = {
   price: '10',
   currency: 'GEL',
 };
+/** Registered at the till, to prove it collects the same profile the roster does. */
+const posMember = {
+  name: `E2E Till Member ${RUN}`,
+  email: `e2e.till.${RUN}@e2e.test`,
+  phone: '+995555030303',
+  dateOfBirth: '1990-05-17',
+  personalId: `PID${RUN}`,
+  address: '12 Rustaveli Ave',
+  kinName: 'E2E Next Of Kin',
+  kinPhone: '+995555040404',
+};
 const className = `E2E Class ${RUN}`;
 
 /** Set once the member is created; reused by the read/update/check-in steps. */
@@ -128,5 +139,59 @@ test.describe.serial('Admin core flows', () => {
     await dialog.getByRole('button', { name: 'Complete sale' }).click();
 
     await expect(page.getByText('Sale complete')).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('POS: registering at the till collects the gym’s full intake', async ({ page }) => {
+    // Both the roster drawer and the till read one config for which fields to ask
+    // for. Switch the optional ones on here, then assert the till honours them —
+    // that shared config is what stops the two entry points from drifting apart.
+    await page.goto('/settings');
+    await page.getByRole('button', { name: 'Membership' }).click();
+    for (const field of ['Date of birth', 'National ID', 'Address', 'Emergency contact']) {
+      const toggle = page.getByRole('switch', { name: field });
+      if (!(await toggle.isChecked())) {
+        await toggle.check();
+      }
+    }
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect(page.getByText('Unsaved changes')).toBeHidden({ timeout: 20_000 });
+
+    await page.goto('/pos');
+    await page.getByRole('button', { name: 'Add new member' }).click();
+
+    const drawer = page.getByRole('dialog', { name: 'Add member' });
+    await expect(drawer).toBeVisible();
+
+    // Selling a membership is the cart's job — offering enrolment here would let the
+    // operator charge the same person twice.
+    await expect(drawer.locator('#planId')).toHaveCount(0);
+    await expect(drawer.locator('#paymentMethod')).toHaveCount(0);
+
+    await drawer.locator('input[name="name"]').fill(posMember.name);
+    await drawer.locator('input[name="email"]').fill(posMember.email);
+    await drawer.locator('input[name="phone"]').fill(posMember.phone);
+    await drawer.locator('#dateOfBirth').fill(posMember.dateOfBirth);
+    await drawer.locator('#personalId').fill(posMember.personalId);
+    await drawer.locator('#address').fill(posMember.address);
+    await drawer.locator('#emergencyName').fill(posMember.kinName);
+    await drawer.locator('#emergencyPhone').fill(posMember.kinPhone);
+    await drawer.getByRole('button', { name: 'Create & attach' }).click();
+
+    // The drawer closes and the new member is attached to the sale in progress.
+    await expect(drawer).toBeHidden({ timeout: 20_000 });
+    await expect(page.getByText(posMember.name).first()).toBeVisible({ timeout: 20_000 });
+
+    // The profile actually persisted — not just the three fields the till used to
+    // collect. The edit form shows every field regardless of intake config.
+    await page.goto(`/members?search=${encodeURIComponent(posMember.name)}`);
+    await page.getByRole('link', { name: posMember.name }).first().click();
+    await page.waitForURL(/\/members\/(?!new$)[a-z0-9]+$/, { timeout: 20_000 });
+    await page.goto(`${page.url()}/edit`);
+
+    await expect(page.locator('#personalId')).toHaveValue(posMember.personalId);
+    await expect(page.locator('#address')).toHaveValue(posMember.address);
+    await expect(page.locator('#dateOfBirth')).toHaveValue(posMember.dateOfBirth);
+    await expect(page.locator('#emergencyName')).toHaveValue(posMember.kinName);
+    await expect(page.locator('#emergencyPhone')).toHaveValue(posMember.kinPhone);
   });
 });

@@ -17,6 +17,7 @@ import {
   createMemberAction,
   listActivePlanOptionsAction,
   updateMemberAction,
+  type CreatedMember,
   type PlanOption,
 } from './actions';
 
@@ -186,7 +187,16 @@ type Props =
   | {
       mode: 'create';
       intake?: GymMemberIntakeSettings;
-      onSuccess?: () => void;
+      /**
+       * Show the membership-plan / payment-method / status block. Defaults to on.
+       * The POS drawer passes `false`: at the till the enrolment *is* the cart, so
+       * offering it here would invite charging the member twice. Structural rather
+       * than configurable, hence a prop and not a `memberIntake` toggle.
+       */
+      enrolment?: boolean;
+      /** Overrides the submit button's label (the till says "Create & attach"). */
+      submitLabel?: string;
+      onSuccess?: (member: CreatedMember) => void;
       onCancel?: () => void;
     }
   | {
@@ -241,6 +251,10 @@ export function MemberForm(props: Props) {
   const isEdit = props.mode === 'edit';
   const seed = isEdit ? props.initial : null;
 
+  // Enrolment is a create-only block, and the till opts out of it entirely.
+  const enrolment = props.mode === 'create' ? props.enrolment !== false : false;
+  const submitLabel = props.mode === 'create' ? props.submitLabel : undefined;
+
   // In edit mode every field shows (config governs the create drawer only).
   const show = (field: keyof GymMemberIntakeSettings): boolean =>
     isEdit || props.intake?.[field] !== false;
@@ -264,7 +278,8 @@ export function MemberForm(props: Props) {
   const [paymentMethod, setPaymentMethod] = useState('');
 
   useEffect(() => {
-    if (isEdit) return;
+    // No enrolment block, no plan picker to populate — skip the round trip.
+    if (!enrolment) return;
     let active = true;
     void listActivePlanOptionsAction().then((opts) => {
       if (active) setPlanOptions(opts);
@@ -272,7 +287,7 @@ export function MemberForm(props: Props) {
     return () => {
       active = false;
     };
-  }, [isEdit]);
+  }, [enrolment]);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -291,18 +306,19 @@ export function MemberForm(props: Props) {
 
     startTransition(async () => {
       const composedName = composeName(name, surname);
-      const result = isEdit
-        ? await updateMemberAction(props.memberId, { name: composedName, phone, ...profile })
-        : await createMemberAction({
-            name: composedName,
-            email,
-            phone,
-            status,
-            ...profile,
-            planId: planId || undefined,
-            paymentMethod: paymentMethod || undefined,
-          });
-      if (result.ok) {
+
+      // The two modes are split rather than shared because only `create` has a
+      // member to hand back — `onSuccess` is typed differently on each branch.
+      if (props.mode === 'edit') {
+        const result = await updateMemberAction(props.memberId, {
+          name: composedName,
+          phone,
+          ...profile,
+        });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
         if (props.onSuccess) {
           props.onSuccess();
           router.refresh();
@@ -310,8 +326,30 @@ export function MemberForm(props: Props) {
           router.push(`/members/${result.data.id}`);
           router.refresh();
         }
-      } else {
+        return;
+      }
+
+      const result = await createMemberAction({
+        name: composedName,
+        email,
+        phone,
+        status,
+        ...profile,
+        // Both are '' whenever the enrolment block is hidden, so the till never
+        // silently enrols anyone in a plan its operator could not see.
+        planId: planId || undefined,
+        paymentMethod: paymentMethod || undefined,
+      });
+      if (!result.ok) {
         setError(result.error);
+        return;
+      }
+      if (props.onSuccess) {
+        props.onSuccess(result.data);
+        router.refresh();
+      } else {
+        router.push(`/members/${result.data.id}`);
+        router.refresh();
       }
     });
   }
@@ -506,8 +544,8 @@ export function MemberForm(props: Props) {
         </Card>
       )}
 
-      {/* Membership plan enrolment (create only). */}
-      {!isEdit ? (
+      {/* Membership plan enrolment (create only, and never at the till). */}
+      {enrolment ? (
         <Card variant="default" padding={4} xstyle={styles.formSection}>
           <Stack gap={3}>
             <Text type="label" weight="semibold" color="secondary" display="block">
@@ -615,7 +653,9 @@ export function MemberForm(props: Props) {
             disabled={pending}
             {...stylex.props(props.onCancel && styles.actionButton)}
           >
-            {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createMember')}
+            {pending
+              ? t('form.saving')
+              : (submitLabel ?? (isEdit ? t('form.saveChanges') : t('form.createMember')))}
           </Btn>
           {props.onCancel ? (
             <Btn

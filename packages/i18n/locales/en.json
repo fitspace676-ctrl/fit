@@ -1610,7 +1610,10 @@
         "searchLabel": "Look up a member by name or phone (F2)",
         "searchPlaceholder": "Member name or phone…  (F2)",
         "walkIn": "Walk-in sale — no member required.",
-        "remove": "Remove"
+        "remove": "Remove",
+        "addNew": "Add new member",
+        "addNewTitle": "Add member",
+        "createAndAttach": "Create & attach"
       },
       "cart": {
         "heading": "Cart",
@@ -2907,6 +2910,7 @@
           "phone": "Phone",
           "gender": "Gender",
           "dateOfBirth": "Date of birth",
+          "personalId": "National ID",
           "address": "Address",
           "emergencyContact": "Emergency contact",
           "membershipPlan": "Membership plan",

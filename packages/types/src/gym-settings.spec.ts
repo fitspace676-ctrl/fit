@@ -37,4 +37,13 @@ describe('gymMemberIntakeSettingsSchema', () => {
     });
     expect(updateGymSettingsSchema.safeParse({ memberIntake: { nope: true } }).success).toBe(false);
   });
+
+  // The console had no National ID control, so the flag existed but could never be
+  // switched on — and both the roster drawer and the POS till read this config to
+  // decide what to ask for. Pin the write path now that Settings exposes it.
+  it('carries personalId through an update', () => {
+    expect(updateGymSettingsSchema.parse({ memberIntake: { personalId: true } })).toEqual({
+      memberIntake: { personalId: true },
+    });
+  });
 });
