@@ -69,8 +69,25 @@ surfaces symmetrically.
 ### 2. Settings gains the National ID toggle
 
 `personalId` joins the zod object, the field-name union and the rendered toggle list in
-`settings-form.tsx`, with an i18n label at `membership.fields.personalId`. The schema
-default stays `false` — this adds the ability to turn it on, it does not turn it on.
+`settings-form.tsx`, with an i18n label at `membership.fields.personalId`.
+
+### 2a. The identity and contact fields default on
+
+Parity alone left the create form nearly empty, because `gender`, `dateOfBirth`,
+`personalId`, `address` and `emergencyContact` all defaulted `false` — so both surfaces
+faithfully asked for almost nothing. Those five now default `true`. The edit form has
+always shown them; a gym that registers someone without a next of kin generally wanted
+one and had no prompt to ask. Turning them off stays one click away, and that is the
+cheap direction — chasing a member later for data you never asked for is the expensive
+one.
+
+`medicalNotes` stays off (health data deserves an explicit decision, not a box a form
+happened to offer), as do `paymentMethod` and the UI-only `surname` split.
+
+**Existing gyms need a data change, not just a default.** The Settings form submits the
+whole `memberIntake` object, so any gym that ever pressed Save has explicit `false`s
+frozen into its settings JSON that no default can reach. They are updated in place;
+gyms that never saved pick the new defaults up on their own.
 
 ### 3. `MemberForm` gains two props and a richer callback
 
