@@ -30,6 +30,9 @@ interface ScheduleRow {
   template: {
     title: string;
     category: string;
+    description: string;
+    pricingRule: string;
+    priceMinor: number | null;
     color: string;
     room: string | null;
     capacity: number;
@@ -60,6 +63,9 @@ const row = (over?: Partial<ScheduleRow>): ScheduleRow => ({
   template: {
     title: 'Morning Flow',
     category: 'Yoga',
+    description: 'A gentle start to the morning.',
+    pricingRule: 'FREE',
+    priceMinor: null,
     color: '#2563eb',
     room: 'Studio A',
     capacity: 12,
@@ -125,6 +131,9 @@ describe('AdminScheduleService', () => {
         templateId: 'ct-1',
         title: 'Morning Flow',
         category: 'Yoga',
+        description: 'A gentle start to the morning.',
+        pricingRule: 'FREE',
+        priceMinor: null,
         color: '#2563eb',
         startsAt: '2026-06-01T09:00:00.000Z',
         endsAt: '2026-06-01T10:00:00.000Z',

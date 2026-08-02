@@ -109,6 +109,13 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  description: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    color: 'var(--color-text-secondary)',
+  },
   occCard: {
     display: 'flex',
     flexDirection: 'column',
@@ -418,6 +425,7 @@ export function ClassDrawer({
   onClose,
   canWrite,
   locale,
+  timeZone,
 }: {
   /** The clicked calendar block — drives the header before the roster loads. */
   instance: AdminScheduleInstance | null;
@@ -426,6 +434,8 @@ export function ClassDrawer({
   /** Whether the staff session holds `ClassWrite` (gates the cancel action). */
   canWrite: boolean;
   locale: string;
+  /** The gym's IANA zone — the drawer's day and clock read on it, like the grid. */
+  timeZone: string;
 }) {
   const t = useTranslations('admin.schedule.drawer');
   const { toast } = useToast();
@@ -621,10 +631,10 @@ export function ClassDrawer({
                 <Badge tone={STATUS_TONES[status]}>{t(`status.${status}`)}</Badge>
               </span>
               <dl {...stylex.props(styles.detailList)}>
-                <DetailRow icon="calendar" text={formatDay(head.startsAt, locale)} />
+                <DetailRow icon="calendar" text={formatDay(head.startsAt, locale, timeZone)} />
                 <DetailRow
                   icon="clock"
-                  text={`${formatTime(head.startsAt, locale)}–${formatTime(head.endsAt, locale)}`}
+                  text={`${formatTime(head.startsAt, locale, timeZone)}–${formatTime(head.endsAt, locale, timeZone)}`}
                 />
                 {head.trainerName ? <DetailRow icon="user" text={head.trainerName} /> : null}
                 {head.locationName || head.room ? (
@@ -633,7 +643,14 @@ export function ClassDrawer({
                     text={[head.locationName, head.room].filter(Boolean).join(' · ')}
                   />
                 ) : null}
+                {head.category ? <DetailRow icon="tag" text={head.category} /> : null}
+                <DetailRow icon="tag" text={pricingLabel(t, head)} />
               </dl>
+
+              {/* The template's blurb, when it has one. */}
+              {head.description ? (
+                <p {...stylex.props(styles.description)}>{head.description}</p>
+              ) : null}
             </div>
 
             {/* Occupancy bar. */}
@@ -694,7 +711,29 @@ export function ClassDrawer({
 }
 
 /** A labelled detail line: an icon and its value. */
-function DetailRow({ icon, text }: { icon: 'calendar' | 'clock' | 'user' | 'pin'; text: string }) {
+/**
+ * How the class is charged, as one line. The price *amount* needs the gym's
+ * currency, which this view does not load, so a `PAID` class shows the rule and
+ * the major-unit figure without a symbol rather than guessing one.
+ */
+function pricingLabel(
+  t: ReturnType<typeof useTranslations>,
+  head: { pricingRule: string; priceMinor: number | null },
+): string {
+  if (head.pricingRule === 'PAID' && head.priceMinor !== null) {
+    return `${t('details.paid')} · ${(head.priceMinor / 100).toFixed(2)}`;
+  }
+  if (head.pricingRule === 'INCLUDED') return t('details.included');
+  return t('details.free');
+}
+
+function DetailRow({
+  icon,
+  text,
+}: {
+  icon: 'calendar' | 'clock' | 'user' | 'pin' | 'tag';
+  text: string;
+}) {
   return (
     <div {...stylex.props(styles.detailRow)}>
       <Icon name={icon} sw={2} {...stylex.props(styles.detailIcon)} />
@@ -1169,21 +1208,21 @@ function initials(label: string): string {
   return `${parts[0]![0]!}${parts[parts.length - 1]![0]!}`.toUpperCase();
 }
 
-/** Localised full day (e.g. "Monday, Jun 1"), read in UTC to match the grid. */
-function formatDay(iso: string, locale: string): string {
+/** Localised full day (e.g. "Monday, Jun 1"), read on the gym's clock. */
+function formatDay(iso: string, locale: string, timeZone: string): string {
   return new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
-    timeZone: 'UTC',
+    timeZone,
   }).format(new Date(iso));
 }
 
-/** Localised `HH:MM` for an ISO instant, read in UTC to match the grid. */
-function formatTime(iso: string, locale: string): string {
+/** Localised `HH:MM` for an ISO instant, read on the gym's clock like the grid. */
+function formatTime(iso: string, locale: string, timeZone: string): string {
   return new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'UTC',
+    timeZone,
   }).format(new Date(iso));
 }

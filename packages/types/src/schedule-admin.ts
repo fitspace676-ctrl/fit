@@ -15,6 +15,7 @@
 // says so, and the occupancy the desk plans around is always visible.
 
 import { z } from 'zod';
+import type { ClassPricingRule } from './classes-admin';
 import type { ClassInstanceStatus } from './classes';
 
 /**
@@ -105,6 +106,8 @@ export type ScheduleClassInstanceData = z.infer<typeof scheduleClassInstanceSche
  * template has none. `status` carries the occurrence's lifecycle so a canceled /
  * completed class renders with the right badge rather than being hidden.
  * `templateId` deep-links the block to its recurring definition for a quick edit.
+ * `description` / `pricingRule` / `priceMinor` come along so the drawer can show
+ * what was set at creation rather than only when and how full.
  */
 export interface AdminScheduleInstance {
   id: string;
@@ -112,6 +115,11 @@ export interface AdminScheduleInstance {
   classTypeId: string | null;
   title: string;
   category: string;
+  /** The template's blurb, so the drawer explains the class without a second fetch. */
+  description: string;
+  /** How the class is charged, and the per-session price in minor units when `PAID`. */
+  pricingRule: ClassPricingRule;
+  priceMinor: number | null;
   color: string;
   startsAt: string;
   endsAt: string;

@@ -4,13 +4,21 @@ import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSchedule } from '@/lib/api';
+import { gymCalendarContext } from '@/lib/gym-time';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
 import { ScheduleBoard, type ScheduleView } from './schedule-board';
 import { loadScheduleFilters } from './options';
 import { loadRelationOptions } from '../options';
-import { monthWindow, resolveMonthAnchor, resolveWeekStart, toIsoDate, weekWindow } from './week';
+import {
+  monthWindow,
+  resolveMonthAnchor,
+  resolveWeekStart,
+  toIsoDate,
+  weekWindow,
+  zonedToday,
+} from './week';
 
 export const metadata: Metadata = {
   title: 'Schedule - Fit Admin',
@@ -110,11 +118,17 @@ export default async function SchedulePage({
   const view: ScheduleView = rawView === 'month' || rawView === 'list' ? rawView : 'week';
 
   const weekParam = readParam(raw, 'week') || undefined;
-  const now = new Date();
-  const weekStart = resolveWeekStart(weekParam, now);
-  const monthAnchor = resolveMonthAnchor(weekParam, now);
+  // The calendar is the gym's own week, so "today" and the day boundaries are
+  // read on the gym's clock. Server-side `new Date()` is UTC: just after local
+  // midnight in a UTC+4 gym it still reads yesterday, which put the grid a whole
+  // week behind and every class four hours early.
+  const { timeZone, openHour, closeHour } = await gymCalendarContext();
+  const today = zonedToday(new Date(), timeZone);
+  const weekStart = resolveWeekStart(weekParam, today);
+  const monthAnchor = resolveMonthAnchor(weekParam, today);
   // Month view fetches the whole month grid; week + list fetch a single week.
-  const { from, to } = view === 'month' ? monthWindow(monthAnchor) : weekWindow(weekStart);
+  const { from, to } =
+    view === 'month' ? monthWindow(monthAnchor, timeZone) : weekWindow(weekStart, timeZone);
   const trainerId = readParam(raw, 'trainerId');
   const locationId = readParam(raw, 'locationId');
 
@@ -147,6 +161,9 @@ export default async function SchedulePage({
         locationId={locationId}
         canWrite={canWrite}
         addClass={addClass}
+        timeZone={timeZone}
+        openHour={openHour}
+        closeHour={closeHour}
       />
     );
   } catch (error) {

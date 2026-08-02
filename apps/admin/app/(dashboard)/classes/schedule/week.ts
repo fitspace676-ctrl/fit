@@ -1,11 +1,18 @@
-// @fit/admin — the schedule calendar's week-window maths (pure, UTC-anchored).
+// @fit/admin — the schedule calendar's week-window maths.
 //
 // The staff week calendar (T3.2) pages over `GET /admin/schedule` (T3.1) one week
-// at a time. Everything here is computed in **UTC**: the instance-generation job
-// (T5.3) anchors occurrences at UTC midnight (there is no time-of-day field yet),
-// the API windows by `startsAt`, and the console has no gym-timezone plumbing — so
-// bucketing occurrences into day columns (and formatting their times) in UTC keeps
-// the grid consistent with the data and free of SSR/client timezone drift.
+// at a time.
+//
+// Day *anchors* here are UTC-midnight `Date`s used purely as calendar-day tokens
+// — "the 3rd of August", not an instant. What needs the gym's zone is the three
+// places a token meets real time: which day is **today**, the `[from, to)`
+// **instants** a week covers, and which column an occurrence **falls in**.
+//
+// This module used to do all of that in UTC, on the stated grounds that
+// occurrences were anchored at UTC midnight and the console had no timezone to
+// hand. `ClassTemplate.startTime` ended that: an occurrence now sits at a
+// gym-local wall clock, so a UTC grid shows a Tbilisi gym its 11:00 class at
+// 07:00 and, just after local midnight, the whole of last week.
 //
 // The URL carries a single `?week=YYYY-MM-DD` param — the Monday of the visible
 // week. From it the page derives the `[from, to)` instant window the API expects
@@ -17,9 +24,82 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Days shown in a week column strip. */
 export const DAYS_IN_WEEK = 7;
 
-/** `YYYY-MM-DD` for a Date, in UTC — the canonical `?week=` / day-key form. */
+/** `YYYY-MM-DD` for a Date, in UTC — the canonical `?week=` / day-anchor form. */
 export function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The `YYYY-MM-DD` calendar date `instant` falls on **in `timeZone`** — the key a
+ * grid column is bucketed under. A 00:30 Tbilisi class is 20:30Z the day before,
+ * so keying off the raw instant would file it in yesterday's column.
+ */
+export function zonedIsoDate(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(instant);
+  const at = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  return `${at('year')}-${at('month')}-${at('day')}`;
+}
+
+/**
+ * The day anchor for "today at the gym" — today's gym-local date, as the
+ * UTC-midnight token the rest of this module works in.
+ */
+export function zonedToday(now: Date, timeZone: string): Date {
+  return new Date(`${zonedIsoDate(now, timeZone)}T00:00:00.000Z`);
+}
+
+/**
+ * The UTC instant at which the gym-local calendar day `anchor` begins.
+ *
+ * The offset depends on the instant and the instant on the offset, so the guess
+ * is refined twice: the first pass lands within an hour, the second settles it
+ * even when the first fell the far side of a DST switch.
+ */
+export function zonedDayStart(anchor: Date, timeZone: string): Date {
+  const wall = Date.UTC(
+    anchor.getUTCFullYear(),
+    anchor.getUTCMonth(),
+    anchor.getUTCDate(),
+    0,
+    0,
+    0,
+  );
+  let utc = wall;
+  for (let pass = 0; pass < 2; pass += 1) {
+    utc = wall - zoneOffsetMs(new Date(utc), timeZone);
+  }
+  return new Date(utc);
+}
+
+/** The offset, in ms, that `timeZone` was at for `instant` — positive east of UTC. */
+function zoneOffsetMs(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  const at = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+  const asIfUtc = Date.UTC(
+    at('year'),
+    at('month') - 1,
+    at('day'),
+    at('hour'),
+    at('minute'),
+    at('second'),
+  );
+  return asIfUtc - Math.floor(instant.getTime() / 1000) * 1000;
 }
 
 /**
@@ -64,10 +144,10 @@ export function weekDays(weekStart: Date): Date[] {
  * The half-open instant window `[from, to)` the API expects for the week — the
  * Monday midnight through the next Monday midnight, both as ISO-8601 UTC strings.
  */
-export function weekWindow(weekStart: Date): { from: string; to: string } {
+export function weekWindow(weekStart: Date, timeZone: string): { from: string; to: string } {
   return {
-    from: weekStart.toISOString(),
-    to: addWeeks(weekStart, 1).toISOString(),
+    from: zonedDayStart(weekStart, timeZone).toISOString(),
+    to: zonedDayStart(addWeeks(weekStart, 1), timeZone).toISOString(),
   };
 }
 
@@ -120,12 +200,12 @@ export function monthGridDays(anchor: Date): Date[] {
  * — the first grid day's midnight through the day after the last, as ISO-8601
  * UTC strings. This is the fetch window the API expects for a month view.
  */
-export function monthWindow(anchor: Date): { from: string; to: string } {
+export function monthWindow(anchor: Date, timeZone: string): { from: string; to: string } {
   const days = monthGridDays(anchor);
   const first = days[0]!;
   const last = days[days.length - 1]!;
   return {
-    from: first.toISOString(),
-    to: new Date(last.getTime() + DAY_MS).toISOString(),
+    from: zonedDayStart(first, timeZone).toISOString(),
+    to: zonedDayStart(new Date(last.getTime() + DAY_MS), timeZone).toISOString(),
   };
 }
