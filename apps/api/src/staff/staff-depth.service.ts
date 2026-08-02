@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { GymMemberStatus, Prisma, Role } from '@fit/db';
 import {
+  gymSettingsStoredSchema,
   staffRolePermissionMatrix,
   type CreateStaffNoteInput,
   type CreateStaffTaskInput,
@@ -421,22 +422,32 @@ export class StaffDepthService {
   }
 
   /**
-   * Everyone on shift today (`GET /staff/working-today`) — the roster behind the
-   * "Who's Working Today" card. Reads the gym's weekly {@link ShiftSlot} schedule
-   * for today's weekday, joined to each staff member's display name and role so
-   * the card renders without a second lookup. Only `ACTIVE` staff memberships are
+   * Everyone on shift **right now** (`GET /staff/working-today`) — the roster
+   * behind the on-shift card. Reads the gym's weekly {@link ShiftSlot} schedule
+   * for the current weekday and keeps only the slots whose window contains the
+   * current time, joined to each staff member's display name and role so the
+   * card renders without a second lookup. Only `ACTIVE` staff memberships are
    * returned, ordered by start time. Tenant-scoped, so it only ever sees the
    * caller's gym.
    *
-   * The schedule stores `dayOfWeek` as 0 = Monday … 6 = Sunday (the editor's
-   * convention), whereas JS `Date#getDay()` is 0 = Sunday … 6 = Saturday, so the
-   * weekday is rotated before the lookup. The resolved weekday is echoed back.
+   * Both the weekday and the time come from the gym's configured zone via
+   * {@link gymLocalNow} — a schedule written as "Wednesday 09:00–17:00" means
+   * the gym's Wednesday, not the host's. `startTime` is inclusive and `endTime`
+   * exclusive, so back-to-back shifts hand over with neither gap nor overlap.
    */
   async getWorkingToday(): Promise<WorkingTodayResponse> {
-    const dayOfWeek = (new Date().getDay() + 6) % 7;
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { id: this.tenant.gymId },
+      select: { settings: true },
+    });
+    const { locale } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    const { dayOfWeek, time } = gymLocalNow(locale.timezone);
+
     const shifts = await this.prisma.client.shiftSlot.findMany({
       where: {
         dayOfWeek,
+        startTime: { lte: time },
+        endTime: { gt: time },
         staff: { role: { in: STAFF_ROLES }, status: GymMemberStatus.ACTIVE },
       },
       select: {
