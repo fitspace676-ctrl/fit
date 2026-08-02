@@ -154,7 +154,7 @@ const styles = stylex.create({
 /**
  * The staff console shell (Stage 1) — rebuilt to the reference staff artboard.
  * Renders the header (title + a "Manage Roles" action that opens a drawer), the
- * "Who's Working Today" card, and two tabs: the roster
+ * "Who's Working Now" card, and two tabs: the roster
  * ("Staff List", with a role filter, search and "Add Staff") and the role cards
  * ("Roles & Permissions"). The roster and role matrix are server-rendered and
  * passed in; this component owns only view state (active tab, search, role
