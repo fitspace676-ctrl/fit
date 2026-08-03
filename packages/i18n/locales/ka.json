@@ -1615,7 +1615,8 @@
         "remove": "მოხსნა",
         "addNew": "ახალი წევრის დამატება",
         "addNewTitle": "წევრის დამატება",
-        "createAndAttach": "შექმნა და მიმაგრება"
+        "createAndAttach": "შექმნა და მიმაგრება",
+        "guestHint": "დაემატება სტუმრის სტატუსით. აბონემენტის გაყიდვის შემდეგ ავტომატურად გახდება წევრი."
       },
       "cart": {
         "heading": "კალათა",
@@ -1674,7 +1675,9 @@
           "sending": "იგზავნება…",
           "sent": "ქვითარი გაიგზავნა {email}-ზე.",
           "unconfigured": "ელფოსტის მიწოდება არ არის კონფიგურირებული — ქვითარი არ გაიგზავნა."
-        }
+        },
+        "promoLabel": "პრომოკოდი",
+        "promoPlaceholder": "არასავალდებულო"
       }
     },
     "activity": {
@@ -1900,7 +1903,7 @@
         "selectAll": "ამ გვერდის ყველა წევრის მონიშვნა",
         "selectMember": "{name}-ის მონიშვნა",
         "columnPlan": "გეგმა",
-        "columnNextBilling": "შემდეგი გადახდა",
+        "columnNextBilling": "ვადა გასდის",
         "rowActions": "მოქმედებები",
         "openMember": "{name}-ის გახსნა",
         "noPlan": "გეგმის გარეშე",
@@ -1914,10 +1917,10 @@
       },
       "tabs": {
         "all": "ყველა",
-        "active": "აქტიური",
+        "member": "წევრები",
+        "guest": "სტუმრები",
+        "inactive": "არააქტიური",
         "frozen": "გაყინული",
-        "trial": "საცდელი",
-        "expired": "ვადაგასული",
         "trash": "წაშლილები"
       },
       "trash": {
@@ -2182,6 +2185,11 @@
         "MALE": "მამრობითი",
         "FEMALE": "მდედრობითი",
         "OTHER": "სხვა"
+      },
+      "kind": {
+        "MEMBER": "წევრი",
+        "GUEST": "სტუმარი",
+        "INACTIVE": "არააქტიური"
       }
     },
     "trainers": {
@@ -3445,7 +3453,19 @@
         "expiryHint": "დატოვეთ ცარიელი ვადის გარეშე.",
         "statusLabel": "სტატუსი",
         "statusActive": "აქტიური",
-        "statusInactive": "არააქტიური"
+        "statusInactive": "არააქტიური",
+        "appliesToLabel": "რაზე ვრცელდება",
+        "appliesToHint": "რომელ კატალოგზე მოქმედებს კოდი",
+        "scopeAll": "ყველაფერზე",
+        "scopeProducts": "პროდუქტებზე",
+        "scopePackages": "პაკეტებზე",
+        "scopeSubscriptions": "აბონემენტებზე",
+        "audienceLabel": "ვისზე ვრცელდება",
+        "audienceHint": "ერთჯერადი კოდი თითო წევრს მხოლოდ ერთხელ",
+        "audienceEveryone": "ყველა იუზერზე",
+        "audienceOnce": "ერთჯერადი",
+        "startsAtLabel": "იწყება",
+        "startsAtHint": "ცარიელი — მაშინვე ამოქმედდება"
       },
       "audienceTab": {
         "buildTitle": "ააგეთ აუდიტორია",

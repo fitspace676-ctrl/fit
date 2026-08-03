@@ -150,6 +150,8 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           currency: product.currency,
           images: product.images,
           variants: product.variants,
+          stock: product.stock,
+          lowStockThreshold: product.lowStockThreshold,
           categoryId: product.category?.id ?? null,
         }}
       />

@@ -1615,7 +1615,8 @@
         "remove": "Remove",
         "addNew": "Add new member",
         "addNewTitle": "Add member",
-        "createAndAttach": "Create & attach"
+        "createAndAttach": "Create & attach",
+        "guestHint": "They will be added as a guest. Selling them a membership later makes them a member automatically."
       },
       "cart": {
         "heading": "Cart",
@@ -1674,7 +1675,9 @@
           "sending": "Sending…",
           "sent": "Receipt sent to {email}.",
           "unconfigured": "Email delivery isn’t configured — receipt not sent."
-        }
+        },
+        "promoLabel": "Promo code",
+        "promoPlaceholder": "Optional"
       }
     },
     "activity": {
@@ -1900,7 +1903,7 @@
         "selectAll": "Select all members on this page",
         "selectMember": "Select {name}",
         "columnPlan": "Plan",
-        "columnNextBilling": "Next billing",
+        "columnNextBilling": "Expires",
         "rowActions": "Actions",
         "openMember": "Open {name}",
         "noPlan": "No plan",
@@ -1914,10 +1917,10 @@
       },
       "tabs": {
         "all": "All",
-        "active": "Active",
+        "member": "Members",
+        "guest": "Guests",
+        "inactive": "Inactive",
         "frozen": "Frozen",
-        "trial": "Trial",
-        "expired": "Expired",
         "trash": "Trash"
       },
       "trash": {
@@ -2182,6 +2185,11 @@
         "MALE": "Male",
         "FEMALE": "Female",
         "OTHER": "Other"
+      },
+      "kind": {
+        "MEMBER": "Member",
+        "GUEST": "Guest",
+        "INACTIVE": "Inactive"
       }
     },
     "trainers": {
@@ -3445,7 +3453,19 @@
         "expiryHint": "Leave blank for no expiry.",
         "statusLabel": "Status",
         "statusActive": "Active",
-        "statusInactive": "Inactive"
+        "statusInactive": "Inactive",
+        "appliesToLabel": "Applies to",
+        "appliesToHint": "Which catalogue this code may be spent on",
+        "scopeAll": "Everything",
+        "scopeProducts": "Products",
+        "scopePackages": "Packages",
+        "scopeSubscriptions": "Memberships",
+        "audienceLabel": "Who can use it",
+        "audienceHint": "One-time codes can be redeemed once per member",
+        "audienceEveryone": "Everyone, repeatedly",
+        "audienceOnce": "Once per member",
+        "startsAtLabel": "Starts",
+        "startsAtHint": "Leave blank to start immediately"
       },
       "audienceTab": {
         "buildTitle": "Build your audience",

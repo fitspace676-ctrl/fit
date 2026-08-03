@@ -46,6 +46,12 @@ import type {
   ListAdminProductsQuery,
   ListAdminProductsResponse,
   ListLowStockResponse,
+  InventoryQuery,
+  ListInventoryResponse,
+  ListStockMovementsQuery,
+  ListStockMovementsResponse,
+  AdjustStockInput,
+  AdjustStockResponse,
   CreateProductData,
   CreateProductResponse,
   GetAdminProductResponse,
@@ -606,6 +612,27 @@ export async function fetchLowStockProducts(threshold?: number): Promise<ListLow
   return unwrap<ListLowStockResponse>(res);
 }
 
+/**
+ * `GET /admin/products/inventory` — every product flattened into its stock
+ * positions with on-hand counts, plus totals across the whole filtered set.
+ */
+export async function fetchInventory(
+  query: Partial<InventoryQuery> = {},
+): Promise<ListInventoryResponse> {
+  const params = new URLSearchParams();
+  if (query.page !== undefined) params.set('page', String(query.page));
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
+  if (query.search) params.set('search', query.search);
+  if (query.status) params.set('status', query.status);
+  if (query.tracked) params.set('tracked', 'true');
+  const qs = params.toString();
+  const res = await fetch(`${apiBaseUrl()}/admin/products/inventory${qs ? `?${qs}` : ''}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListInventoryResponse>(res);
+}
+
 /** `GET /admin/product-categories` — the gym's category shelves, by name. */
 export async function fetchProductCategories(): Promise<ListAdminProductCategoriesResponse> {
   const res = await fetch(`${apiBaseUrl()}/admin/product-categories`, {
@@ -687,6 +714,42 @@ export async function updateProduct(
     cache: 'no-store',
   });
   return unwrap<UpdateProductResponse>(res);
+}
+
+/**
+ * `POST /admin/products/:id/stock` — move one stock position and record why.
+ *
+ * The write path for inventory, distinct from {@link updateProduct}: it applies
+ * atomically against the count currently in the database, so two people
+ * restocking at once compose instead of overwriting each other.
+ */
+export async function adjustProductStock(
+  id: string,
+  input: AdjustStockInput,
+): Promise<AdjustStockResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products/${encodeURIComponent(id)}/stock`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<AdjustStockResponse>(res);
+}
+
+/** `GET /admin/products/:id/stock-movements` — that product's ledger, newest first. */
+export async function fetchStockMovements(
+  id: string,
+  query: Partial<ListStockMovementsQuery> = {},
+): Promise<ListStockMovementsResponse> {
+  const params = new URLSearchParams();
+  if (query.page !== undefined) params.set('page', String(query.page));
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
+  const qs = params.toString();
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/products/${encodeURIComponent(id)}/stock-movements${qs ? `?${qs}` : ''}`,
+    { headers: await authHeaders(), cache: 'no-store' },
+  );
+  return unwrap<ListStockMovementsResponse>(res);
 }
 
 /** `POST /admin/products/:id/deactivate` — set the product's status to `INACTIVE`. */

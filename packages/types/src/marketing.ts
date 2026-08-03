@@ -258,6 +258,17 @@ export const promoDiscountTypeSchema = z.enum(['percentage', 'fixed']);
 /** A promo discount type — {@link promoDiscountTypeSchema}. */
 export type PromoDiscountType = z.infer<typeof promoDiscountTypeSchema>;
 
+/**
+ * What a promo code may be spent on — mirrors Prisma `PromoScope`. A code is
+ * written for a purpose, so honouring it across everything the gym sells is how a
+ * drinks voucher ends up discounting an annual membership. `all` is the
+ * deliberate opt-in to that breadth.
+ */
+export const promoScopeSchema = z.enum(['all', 'products', 'packages', 'subscriptions']);
+
+/** What a code applies to — {@link promoScopeSchema}. */
+export type PromoScope = z.infer<typeof promoScopeSchema>;
+
 /** Whether a promo code is honoured — mirrors Prisma `PromoStatus`. */
 export const promoStatusSchema = z.enum(['active', 'inactive']);
 
@@ -276,7 +287,13 @@ export interface PromoCodeRow {
   minPurchase: number | null;
   usageLimit: number | null;
   usedCount: number;
+  /** What the code may be spent on; `all` honours it across the catalogue. */
+  appliesTo: PromoScope;
+  /** ISO instant the code starts working, or `null` for "already running". */
+  startsAt: string | null;
   expiryDate: string | null;
+  /** When true a member may redeem this code only once, ever. */
+  oncePerMember: boolean;
   status: PromoStatus;
   createdAt: string;
   updatedAt: string;
@@ -304,7 +321,10 @@ const promoBase = z.object({
   discountValue: z.number().int().min(1).max(100_000_000),
   minPurchase: z.number().int().min(0).max(100_000_000).nullable().optional(),
   usageLimit: z.number().int().min(1).max(1_000_000).nullable().optional(),
+  appliesTo: promoScopeSchema.default('all'),
+  startsAt: z.string().datetime().nullable().optional(),
   expiryDate: z.string().datetime().nullable().optional(),
+  oncePerMember: z.boolean().default(false),
   status: promoStatusSchema.default('active'),
 });
 
@@ -343,7 +363,10 @@ export const updatePromoCodeSchema = z
     discountValue: z.number().int().min(1).max(100_000_000).optional(),
     minPurchase: z.number().int().min(0).max(100_000_000).nullable().optional(),
     usageLimit: z.number().int().min(1).max(1_000_000).nullable().optional(),
+    appliesTo: promoScopeSchema.optional(),
+    startsAt: z.string().datetime().nullable().optional(),
     expiryDate: z.string().datetime().nullable().optional(),
+    oncePerMember: z.boolean().optional(),
     status: promoStatusSchema.optional(),
   })
   .superRefine((value, ctx) => {
@@ -379,6 +402,18 @@ export type TogglePromoCodeInput = z.infer<typeof togglePromoCodeSchema>;
 export const validatePromoCodeSchema = z.object({
   code: z.string().trim().min(1).max(64),
   amount: z.number().int().min(0).max(100_000_000).optional(),
+  /**
+   * What is being bought. Omitted means "no particular catalogue", which only a
+   * code scoped to `all` can satisfy — a scoped code cannot be confirmed against
+   * a purchase whose kind is unknown.
+   */
+  scope: promoScopeSchema.optional(),
+  /**
+   * Who is buying. Required to enforce a one-per-customer code: an anonymous
+   * walk-in cannot be checked against past redemptions, so such a code is
+   * refused rather than quietly granted twice.
+   */
+  memberId: z.string().min(1).optional(),
 });
 
 /** Validated validate/redeem body — {@link validatePromoCodeSchema}. */
@@ -388,8 +423,14 @@ export type ValidatePromoCodeInput = z.infer<typeof validatePromoCodeSchema>;
 export const promoRejectionReasonSchema = z.enum([
   'not_found',
   'inactive',
+  /** Its window has not opened yet — a campaign scheduled ahead of time. */
+  'not_started',
   'expired',
   'usage_limit_reached',
+  /** A one-per-customer code this member has already spent. */
+  'already_redeemed',
+  /** The purchase is not what this code is for (a drinks code on a membership). */
+  'out_of_scope',
   'below_min_purchase',
 ]);
 
@@ -580,3 +621,92 @@ export type SaveCampaignAsTemplateInput = z.infer<typeof saveCampaignAsTemplateS
 
 /** Response of `GET /marketing/campaigns/:id` (and every campaign mutation). */
 export type GetCampaignResponse = CampaignRow;
+
+// ── The promo rules, as pure functions ───────────────────────────────────────
+//
+// Both the marketing service (validate / redeem) and the shop checkout have to
+// decide whether a code applies and what it takes off. Written twice they would
+// drift, and the drift would be invisible: a code the console calls valid while
+// checkout silently ignores it. So the rules live here, over plain values, and
+// each caller supplies its own database access.
+
+/** The stored code, reduced to the fields the rules actually read. */
+export interface PromoRuleFacts {
+  status: string;
+  appliesTo: string;
+  startsAt: Date | null;
+  expiryDate: Date | null;
+  usageLimit: number | null;
+  usedCount: number;
+  minPurchase: number | null;
+  oncePerMember: boolean;
+  discountType: string;
+  discountValue: number;
+}
+
+/** What is being bought, and by whom, when that is known. */
+export interface PromoRuleContext {
+  /** Which catalogue the purchase came from; absent means "unknown". */
+  scope?: PromoScope;
+  /** Whether this buyer has already spent a one-per-customer code. */
+  alreadyRedeemed?: boolean;
+  /** Purchase total in MINOR units, for the minimum-spend floor. */
+  amount?: number;
+  /** Milliseconds since epoch; injectable so the window is testable. */
+  now?: number;
+}
+
+/**
+ * Why this code cannot be used, or `null` when it can.
+ *
+ * The order is deliberate: the reason a customer is shown should be the most
+ * fundamental one. "This code is switched off" is more useful than "you have
+ * already used it", and a code outside its window is not really about scope.
+ */
+export function promoRejectionReason(
+  promo: PromoRuleFacts,
+  context: PromoRuleContext = {},
+): PromoRejectionReason | null {
+  const now = context.now ?? Date.now();
+
+  if (promo.status !== 'active') return 'inactive';
+  if (promo.startsAt && promo.startsAt.getTime() > now) return 'not_started';
+  if (promo.expiryDate && promo.expiryDate.getTime() < now) return 'expired';
+  if (promo.usageLimit !== null && promo.usedCount >= promo.usageLimit) {
+    return 'usage_limit_reached';
+  }
+  // A scoped code needs to know what is being bought; without that the honest
+  // answer is no, since honouring a supplements code against a membership is
+  // precisely what the scope exists to stop.
+  if (promo.appliesTo !== 'all' && promo.appliesTo !== context.scope) {
+    return 'out_of_scope';
+  }
+  if (promo.oncePerMember && context.alreadyRedeemed) return 'already_redeemed';
+  if (
+    promo.minPurchase !== null &&
+    context.amount !== undefined &&
+    context.amount < promo.minPurchase
+  ) {
+    return 'below_min_purchase';
+  }
+  return null;
+}
+
+/**
+ * What the code takes off `amount`, in MINOR units.
+ *
+ * Never more than the amount itself: a 5000-off voucher against a 3000 basket
+ * discounts 3000, not 5000, so a purchase can never total below zero and turn
+ * into a refund. Percentages round down, so rounding always favours the gym by
+ * at most a tetri.
+ */
+export function computePromoDiscount(
+  promo: Pick<PromoRuleFacts, 'discountType' | 'discountValue'>,
+  amount: number,
+): number {
+  if (amount <= 0) return 0;
+  if (promo.discountType === 'percentage') {
+    return Math.min(amount, Math.floor((amount * promo.discountValue) / 100));
+  }
+  return Math.min(amount, promo.discountValue);
+}

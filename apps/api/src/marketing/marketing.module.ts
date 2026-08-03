@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MarketingController } from './marketing.controller';
 import { MarketingService } from './marketing.service';
+import { PromoRedemptionService } from './promo-redemption.service';
 
 /**
  * Marketing: the staff console's growth surface (`/marketing`, T12.7) — campaigns,
@@ -14,6 +15,7 @@ import { MarketingService } from './marketing.service';
  */
 @Module({
   controllers: [MarketingController],
-  providers: [MarketingService],
+  providers: [MarketingService, PromoRedemptionService],
+  exports: [PromoRedemptionService],
 })
 export class MarketingModule {}

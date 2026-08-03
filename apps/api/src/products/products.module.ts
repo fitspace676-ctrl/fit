@@ -3,6 +3,7 @@ import { AdminProductCategoriesController } from './admin-product-categories.con
 import { AdminProductCategoriesService } from './admin-product-categories.service';
 import { AdminProductsController } from './admin-products.controller';
 import { AdminProductsService } from './admin-products.service';
+import { ProductStockService } from './product-stock.service';
 import { ProductsController } from './products.controller';
 import { ProductsService } from './products.service';
 
@@ -24,6 +25,11 @@ import { ProductsService } from './products.service';
  */
 @Module({
   controllers: [AdminProductCategoriesController, AdminProductsController, ProductsController],
-  providers: [AdminProductCategoriesService, AdminProductsService, ProductsService],
+  providers: [
+    AdminProductCategoriesService,
+    AdminProductsService,
+    ProductStockService,
+    ProductsService,
+  ],
 })
 export class ProductsModule {}

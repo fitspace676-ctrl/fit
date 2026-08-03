@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { MarketingModule } from '../marketing/marketing.module';
 import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 
@@ -14,7 +15,7 @@ import { CartService } from './cart.service';
  * identity middleware verifies session tokens with.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, MarketingModule],
   controllers: [CartController],
   providers: [CartService],
 })

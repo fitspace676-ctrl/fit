@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { GymStatus, ProductStatus, Role } from '@fit/db';
 import { encodeVariantRef } from '@fit/types';
+import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { CartService } from './cart.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -13,7 +14,12 @@ import type { TenantState } from '../common/tenant/tenant.context';
  * removal at checkout — the three behaviours the acceptance criteria turn on,
  * exercised through the real Prisma queries the migration's tables back.
  */
-const service = new CartService(new PrismaService(), new TenantContext());
+const prismaForCart = new PrismaService();
+const service = new CartService(
+  prismaForCart,
+  new TenantContext(),
+  new PromoRedemptionService(prismaForCart),
+);
 
 function anon(gymId: string): TenantState {
   return { userId: null, gymId, role: Role.MEMBER, allowCrossTenant: false };

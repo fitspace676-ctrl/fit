@@ -14,14 +14,20 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  adjustStockSchema,
   createProductSchema,
+  inventoryQuerySchema,
   listAdminProductsQuerySchema,
+  listStockMovementsQuerySchema,
   lowStockQuerySchema,
   updateProductSchema,
+  type AdjustStockResponse,
   type CreateProductResponse,
   type GetAdminProductResponse,
   type ListAdminProductsResponse,
+  type ListInventoryResponse,
   type ListLowStockResponse,
+  type ListStockMovementsResponse,
   type SetProductStatusResponse,
   type UpdateProductResponse,
 } from '@fit/types';
@@ -29,6 +35,7 @@ import { RequirePermissions } from '../common/decorators/require-permissions.dec
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { AdminProductsService } from './admin-products.service';
+import { ProductStockService } from './product-stock.service';
 
 /**
  * Staff-console product management API (`/admin/products`, T4.6).
@@ -44,7 +51,10 @@ import { AdminProductsService } from './admin-products.service';
 @Controller('admin/products')
 @UseGuards(TenantGuard, PermissionsGuard)
 export class AdminProductsController {
-  constructor(private readonly products: AdminProductsService) {}
+  constructor(
+    private readonly products: AdminProductsService,
+    private readonly stock: ProductStockService,
+  ) {}
 
   /**
    * `GET /admin/products?page&limit&search&status&sort&dir` — one filtered,
@@ -70,6 +80,18 @@ export class AdminProductsController {
   @RequirePermissions(Permission.ProductRead)
   async lowStock(@Query() query: unknown): Promise<ListLowStockResponse> {
     return this.products.listLowStock(parse(lowStockQuerySchema, query));
+  }
+
+  /**
+   * `GET /admin/products/inventory?page&limit&search&status&tracked` — every
+   * product flattened into its stock positions with on-hand counts and totals.
+   * Declared before `:id` so the literal path wins over the param route.
+   */
+  @Get('inventory')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductRead)
+  async inventory(@Query() query: unknown): Promise<ListInventoryResponse> {
+    return this.products.listInventory(parse(inventoryQuerySchema, query));
   }
 
   /**
@@ -128,6 +150,40 @@ export class AdminProductsController {
   @RequirePermissions(Permission.ProductWrite)
   async reactivate(@Param('id') id: string): Promise<SetProductStatusResponse> {
     return this.products.reactivateProduct(id);
+  }
+
+  /**
+   * `POST /admin/products/:id/stock` — move one stock position and record why.
+   *
+   * The write path for day-to-day inventory: a delivery landing, a breakage
+   * written off, a shelf recounted. Deliberately separate from `PATCH :id` (which
+   * replaces the whole product) because it applies atomically against the current
+   * count, so two staff restocking at once compose instead of overwriting.
+   *
+   * A body that is neither a delta nor an absolute count — or is both — is a
+   * `400`, as is a change that would drive the count negative. Requires
+   * `ProductWrite`: adjusting stock is editing the catalogue's truth.
+   */
+  @Post(':id/stock')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductWrite)
+  async adjustStock(@Param('id') id: string, @Body() body: unknown): Promise<AdjustStockResponse> {
+    return this.stock.adjust(id, parse(adjustStockSchema, body));
+  }
+
+  /**
+   * `GET /admin/products/:id/stock-movements?page&limit` — that product's ledger,
+   * newest first, so "why is this 3?" is answerable from the console. Read-only,
+   * and gated on `ProductRead` like every other view of the catalogue.
+   */
+  @Get(':id/stock-movements')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductRead)
+  async stockMovements(
+    @Param('id') id: string,
+    @Query() query: unknown,
+  ): Promise<ListStockMovementsResponse> {
+    return this.stock.listMovements(id, parse(listStockMovementsQuerySchema, query));
   }
 }
 

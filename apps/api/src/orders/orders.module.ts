@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
+import { MarketingModule } from '../marketing/marketing.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
@@ -19,7 +20,7 @@ import { OrdersService } from './orders.service';
  * created by hand afterwards.
  */
 @Module({
-  imports: [AuthModule, LoyaltyModule, SubscriptionsModule],
+  imports: [MarketingModule, AuthModule, LoyaltyModule, SubscriptionsModule],
   controllers: [OrdersController],
   providers: [OrdersService],
 })

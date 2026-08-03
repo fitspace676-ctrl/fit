@@ -16,6 +16,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { ensureSessionChecked, isSessionUsable } from './use-session';
 
 /**
  * Poll the current route by calling `router.refresh()` every `intervalMs`.
@@ -41,6 +42,13 @@ export function useLiveRefresh(intervalMs: number, enabled = true): void {
       if (typeof document !== 'undefined' && document.hidden) {
         return;
       }
+      // Hold while the access token is expired. An RSC refresh in that window is
+      // answered with a redirect to the sign-in page — following it would throw
+      // the operator out of the console mid-shift, which is precisely what a
+      // background poll must never do. `useSession` is already reloading.
+      if (!isSessionUsable()) {
+        return;
+      }
       router.refresh();
     };
 
@@ -59,8 +67,11 @@ export function useLiveRefresh(intervalMs: number, enabled = true): void {
       if (document.hidden) {
         stop();
       } else {
-        // Catch up immediately, then resume the cadence from now.
-        router.refresh();
+        // Catch up immediately, then resume the cadence from now. The catch-up
+        // waits on the session check rather than racing it: on tab return both
+        // fire in the same tick, and a refresh sent before the answer is in gets
+        // a redirect to the sign-in page when the access token has expired.
+        void ensureSessionChecked().then(tick);
         stop();
         start();
       }

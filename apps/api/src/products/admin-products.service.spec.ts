@@ -28,6 +28,10 @@ interface ProductRecord {
   currency: string;
   images: string[];
   variants: unknown;
+  /** Base-position count; `null` is untracked, the column's default. */
+  stock: number | null;
+  /** Per-product reorder cushion; `null` uses the shared default. */
+  lowStockThreshold: number | null;
   status: ProductStatus;
   category: { id: string; name: string } | null;
   createdAt: Date;
@@ -54,6 +58,8 @@ const row = (over?: Partial<ProductRecord>): ProductRecord => ({
   currency: 'USD',
   images: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'],
   variants: VARIANTS,
+  stock: null,
+  lowStockThreshold: null,
   status: ProductStatus.ACTIVE,
   category: null,
   createdAt: new Date('2026-02-01T00:00:00.000Z'),
@@ -115,6 +121,8 @@ const createInput = (over?: Partial<CreateProductData>): CreateProductData => ({
   currency: 'USD',
   images: ['https://cdn.example.com/a.jpg'],
   variants: VARIANTS,
+  stock: null,
+  lowStockThreshold: null,
   status: 'ACTIVE',
   categoryId: null,
   ...over,
@@ -128,6 +136,8 @@ const updateInput = (over?: Partial<UpdateProductData>): UpdateProductData => ({
   currency: 'EUR',
   images: ['https://cdn.example.com/c.jpg'],
   variants: VARIANTS,
+  stock: null,
+  lowStockThreshold: null,
   categoryId: null,
   ...over,
 });
@@ -153,6 +163,8 @@ describe('AdminProductsService', () => {
             variantCount: 2,
             totalStock: 14,
             lowestStock: 4,
+            stock: null,
+            lowStockThreshold: null,
             status: 'ACTIVE',
             category: null,
             createdAt: '2026-02-01T00:00:00.000Z',
@@ -357,6 +369,8 @@ describe('AdminProductsService', () => {
         variantCount: 2,
         totalStock: 14,
         lowestStock: 4,
+        stock: null,
+        lowStockThreshold: null,
         status: 'ACTIVE',
         category: null,
         createdAt: '2026-02-01T00:00:00.000Z',
@@ -506,5 +520,56 @@ describe('AdminProductsService', () => {
       await expect(service.deactivateProduct('missing')).rejects.toBeInstanceOf(NotFoundException);
       expect(update).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('AdminProductsService — base-position stock', () => {
+  it("reports a variant-less product's base count as its total and lowest", async () => {
+    const { service } = setup({
+      findMany: [row({ variants: [], stock: 3, lowStockThreshold: null })],
+      count: 1,
+    });
+
+    const result = await service.listProducts(query());
+
+    expect(result.data[0]).toMatchObject({ totalStock: 3, lowestStock: 3, stock: 3 });
+  });
+
+  it('keeps an uncounted product untracked rather than calling it out of stock', async () => {
+    // `null` and `0` are different facts, and the badge renders them differently:
+    // nobody has counted it, versus it is counted and empty.
+    const { service } = setup({
+      findMany: [row({ variants: [], stock: null })],
+      count: 1,
+    });
+
+    const result = await service.listProducts(query());
+
+    expect(result.data[0]).toMatchObject({ totalStock: 0, lowestStock: null, stock: null });
+  });
+
+  it("honours a product's own threshold over the shared default in the KPI tally", async () => {
+    // 8 units is comfortable against the default cushion of 5, but this product
+    // sells fast and asked to be warned at 10.
+    const { service } = setup({
+      findMany: [row({ variants: [], stock: 8, lowStockThreshold: 10 })],
+      count: 1,
+    });
+
+    const result = await service.listProducts(query());
+
+    expect(result.summary).toMatchObject({ lowStockCount: 1, outOfStockCount: 0 });
+  });
+
+  it('ignores the base column for a product that counts per variant', async () => {
+    // Two counts would be two answers to "how many do I have?" — the variants win.
+    const { service } = setup({
+      findMany: [row({ variants: VARIANTS, stock: 99 })],
+      count: 1,
+    });
+
+    const result = await service.listProducts(query());
+
+    expect(result.data[0]).toMatchObject({ totalStock: 14, stock: null });
   });
 });

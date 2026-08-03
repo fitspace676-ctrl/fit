@@ -5,7 +5,13 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { OrderStatus, PaymentMethod as DbPaymentMethod, PaymentStatus, Prisma } from '@fit/db';
+import {
+  OrderStatus,
+  PaymentMethod as DbPaymentMethod,
+  PaymentStatus,
+  Prisma,
+  StockMovementReason,
+} from '@fit/db';
 import {
   buildReconciliationReport,
   decodeVariantRef,
@@ -36,6 +42,7 @@ import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
+import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 
 /** Map the wire settlement method to the persisted Prisma enum. */
 const TO_DB_METHOD: Record<PaymentMethod, DbPaymentMethod> = {
@@ -70,6 +77,7 @@ export class OrdersService {
     private readonly prisma: TenantPrismaService,
     private readonly loyalty: LoyaltyPointsService,
     private readonly enrollment: SubscriptionEnrollmentService,
+    private readonly promos: PromoRedemptionService,
   ) {}
 
   /**
@@ -135,11 +143,24 @@ export class OrdersService {
     // partial sale can never land. `gymId` is stamped by the tenant extension at
     // runtime and passed explicitly here to satisfy the create input's static type
     // (mirroring the other tenant-scoped writes).
+    // A till sale mixes catalogues: memberships when a plan was rung up, retail
+    // otherwise. The code is checked against whichever it is, so a products-only
+    // code cannot discount a membership sold at the desk.
+    const promo = await this.promos.resolve({
+      gymId,
+      code: input.promoCode,
+      amount: receipt.total,
+      scope: planId ? 'subscriptions' : 'products',
+      memberId: memberId ?? null,
+    });
+    const promoDiscount = promo?.discount ?? 0;
+    const chargedTotal = receipt.total - promoDiscount;
+
     const sale = await this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
           gymId,
-          total: receipt.total,
+          total: chargedTotal,
           currency: receipt.currency,
           status: OrderStatus.PAID,
           memberId: memberId ?? null,
@@ -147,15 +168,21 @@ export class OrdersService {
           locationId: locationId ?? null,
           customerName: receipt.memberName ?? null,
           items: {
-            create: receipt.items.map((line) => ({
-              label: line.quantity > 1 ? `${line.name} ×${line.quantity}` : line.name,
-              amount: line.amount,
-              // The POS receipt snapshot carries no variant reference, so a POS line
-              // can't be mapped back to a stock position — `productVariantId` stays
-              // null and a POS refund's restock is a no-op for it. `qty` is recorded
-              // so the line's quantity survives onto the order detail.
-              qty: line.quantity,
-            })),
+            create: [
+              ...(promoDiscount > 0
+                ? [{ label: `Promo ${input.promoCode}`, amount: -promoDiscount, qty: 1 }]
+                : []),
+            ].concat(
+              receipt.items.map((line) => ({
+                label: line.quantity > 1 ? `${line.name} ×${line.quantity}` : line.name,
+                amount: line.amount,
+                // The POS receipt snapshot carries no variant reference, so a POS
+                // line can't be mapped back to a stock position — `productVariantId`
+                // stays null and a POS refund's restock is a no-op for it. `qty` is
+                // recorded so the line's quantity survives onto the order detail.
+                qty: line.quantity,
+              })),
+            ),
           },
           // Record the opening transition so the order's status timeline (T7.9) is
           // generated from the same append-only log every other transition writes to.
@@ -164,11 +191,20 @@ export class OrdersService {
         select: { id: true },
       });
 
+      if (promo) {
+        await this.promos.consume(tx, {
+          ...promo,
+          gymId,
+          memberId: memberId ?? null,
+          orderId: order.id,
+        });
+      }
+
       const payment = await tx.payment.create({
         data: {
           gymId,
           orderId: order.id,
-          amount: receipt.total,
+          amount: chargedTotal,
           currency: receipt.currency,
           status: PaymentStatus.CAPTURED,
           method: TO_DB_METHOD[receipt.paymentMethod],
@@ -445,7 +481,7 @@ export class OrdersService {
       }
 
       if (input.restockItems) {
-        await this.restockItems(tx, gymId, order.items);
+        await this.restockItems(tx, gymId, order.id, order.items);
       }
 
       return { refundId: refund.id };
@@ -486,31 +522,40 @@ export class OrdersService {
   }
 
   /**
-   * Return sold variants to on-hand stock for a refund's restock (T7.9) — the
-   * mirror of the checkout's stock draw-down. Sums refunded units per
-   * (productId → variantIndex) from the order's lines (skipping base / untracked /
-   * adjustment lines, which carry no resolvable variant), then increments each
-   * affected variant's `stock` in the product's `variants` JSON inside the refund
-   * transaction. Runs on the passed transaction client so stock and the refund
-   * commit together.
+   * Return sold units to on-hand stock for a refund's restock (T7.9) — the mirror
+   * of the checkout's stock draw-down. Sums refunded units per (productId →
+   * position) from the order's lines, skipping adjustment lines that carry no
+   * resolvable position, then puts them back inside the refund transaction so
+   * stock and the refund commit together.
+   *
+   * A base position is only restocked when its product is actually tracked. A
+   * refund must not be what starts a product counting: the sale it reverses never
+   * drew anything down, so crediting units back would invent stock the gym never
+   * said it had.
+   *
+   * Each position that moves writes a `REFUND_RESTOCK` row to its ledger, carrying
+   * the order behind it — the counterpart to the `SALE` rows checkout wrote, so
+   * the history shows the round trip rather than an unexplained rise.
    */
   private async restockItems(
     tx: TenantTransactionClient,
     gymId: string,
+    orderId: string,
     items: { productVariantId: string | null; qty: number }[],
   ): Promise<void> {
-    const byProduct = new Map<string, Map<number, number>>();
+    const byProduct = new Map<string, Map<number | null, number>>();
     for (const item of items) {
       if (!item.productVariantId) {
         continue;
       }
       const parsed = decodeVariantRef(item.productVariantId);
-      if (!parsed || parsed.variantIndex === null) {
+      if (!parsed) {
         continue;
       }
-      const byIndex = byProduct.get(parsed.productId) ?? new Map<number, number>();
-      byIndex.set(parsed.variantIndex, (byIndex.get(parsed.variantIndex) ?? 0) + item.qty);
-      byProduct.set(parsed.productId, byIndex);
+      const byPosition = byProduct.get(parsed.productId) ?? new Map<number | null, number>();
+      const at = parsed.variantIndex;
+      byPosition.set(at, (byPosition.get(at) ?? 0) + item.qty);
+      byProduct.set(parsed.productId, byPosition);
     }
     if (byProduct.size === 0) {
       return;
@@ -518,7 +563,7 @@ export class OrdersService {
 
     const products = await tx.product.findMany({
       where: { gymId, id: { in: [...byProduct.keys()] } },
-      select: { id: true, variants: true },
+      select: { id: true, variants: true, stock: true },
     });
 
     for (const product of products) {
@@ -531,17 +576,59 @@ export class OrdersService {
         continue;
       }
       const variants = parsed.data;
-      let changed = false;
-      for (const [index, qty] of restocked) {
-        const variant = variants[index];
+      const movements: Prisma.StockMovementCreateManyInput[] = [];
+      let variantsChanged = false;
+      let baseStock = product.stock;
+
+      for (const [position, qty] of restocked) {
+        if (position === null) {
+          if (baseStock === null) {
+            continue;
+          }
+          baseStock += qty;
+          movements.push({
+            gymId,
+            productId: product.id,
+            variantIndex: null,
+            variantLabel: '',
+            delta: qty,
+            resultingStock: baseStock,
+            reason: StockMovementReason.REFUND_RESTOCK,
+            orderId,
+          });
+          continue;
+        }
+
+        const variant = variants[position];
         if (!variant) {
           continue;
         }
-        variants[index] = { ...variant, stock: variant.stock + qty };
-        changed = true;
+        const next = variant.stock + qty;
+        variants[position] = { ...variant, stock: next };
+        variantsChanged = true;
+        movements.push({
+          gymId,
+          productId: product.id,
+          variantIndex: position,
+          variantLabel: variant.name,
+          delta: qty,
+          resultingStock: next,
+          reason: StockMovementReason.REFUND_RESTOCK,
+          orderId,
+        });
       }
-      if (changed) {
-        await tx.product.update({ where: { id: product.id }, data: { variants } });
+
+      if (variantsChanged || baseStock !== product.stock) {
+        await tx.product.update({
+          where: { id: product.id },
+          data: {
+            ...(variantsChanged ? { variants } : {}),
+            ...(baseStock !== product.stock ? { stock: baseStock } : {}),
+          },
+        });
+      }
+      if (movements.length > 0) {
+        await tx.stockMovement.createMany({ data: movements });
       }
     }
   }

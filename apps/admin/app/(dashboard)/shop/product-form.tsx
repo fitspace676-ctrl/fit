@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import {
   MAX_PRODUCT_IMAGES,
+  DEFAULT_LOW_STOCK_THRESHOLD,
   MAX_PRODUCT_VARIANTS,
   type AdminProductCategory,
   type ProductStatus,
@@ -251,6 +252,11 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.25rem',
   },
+  stockHint: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
   fieldset: {
     display: 'flex',
     flexDirection: 'column',
@@ -402,6 +408,10 @@ type Initial = {
   currency: string;
   images: string[];
   variants: ProductVariant[];
+  /** Base-position count for a product with no variants; `null` is untracked. */
+  stock: number | null;
+  /** Per-product reorder cushion; `null` uses the shared default. */
+  lowStockThreshold: number | null;
   categoryId: string | null;
 };
 
@@ -482,6 +492,8 @@ export function ProductForm(props: Props) {
         currency: 'USD',
         images: [],
         variants: [],
+        stock: null,
+        lowStockThreshold: null,
         categoryId: null,
       };
 
@@ -494,6 +506,12 @@ export function ProductForm(props: Props) {
   const [currency, setCurrency] = useState(initial.currency);
   const [images, setImages] = useState<string[]>(initial.images);
   const [variants, setVariants] = useState<VariantDraft[]>(initial.variants.map(toDraft));
+  // Both kept as strings so an empty field stays empty — '' means "not tracked" /
+  // "use the default", which is a different statement from the number 0.
+  const [stock, setStock] = useState(initial.stock === null ? '' : String(initial.stock));
+  const [threshold, setThreshold] = useState(
+    initial.lowStockThreshold === null ? '' : String(initial.lowStockThreshold),
+  );
   const [status, setStatus] = useState<ProductStatus>('ACTIVE');
   // '' is the "No category" option; the submit maps it back to null. A product whose
   // category was deleted while this form was open falls back to '' rather than
@@ -615,6 +633,11 @@ export function ProductForm(props: Props) {
       currency,
       images,
       variants: cleanedVariants,
+      // A product that carries variants counts per variant, so its base figure is
+      // dropped rather than sent alongside — two counts would be two answers to
+      // "how many do I have?". The API enforces the same rule.
+      stock: cleanedVariants.length > 0 || stock.trim() === '' ? null : Number(stock.trim()),
+      lowStockThreshold: threshold.trim() === '' ? null : Number(threshold.trim()),
       categoryId: categoryId === '' ? null : categoryId,
     };
 
@@ -798,6 +821,57 @@ export function ProductForm(props: Props) {
       {marginPct !== null ? (
         <p {...stylex.props(styles.marginHint)}>Profit margin: {marginPct}%</p>
       ) : null}
+
+      {/* Inventory. Only meaningful for a product sold as-is: once it carries
+          variants each one holds its own count, edited in the rows above. */}
+      <fieldset {...stylex.props(styles.fieldset)}>
+        <legend {...stylex.props(styles.legend)}>
+          Inventory <span {...stylex.props(styles.optional)}>(optional)</span>
+        </legend>
+        <div {...stylex.props(styles.priceRow)}>
+          {variants.length === 0 ? (
+            <div {...stylex.props(styles.priceGroup)}>
+              <label htmlFor="product-stock" {...stylex.props(styles.label)}>
+                On hand
+              </label>
+              <input
+                id="product-stock"
+                name="stock"
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                value={stock}
+                onChange={(event) => setStock(event.target.value)}
+                placeholder="Not tracked"
+                {...stylex.props(styles.input)}
+              />
+            </div>
+          ) : null}
+          <div {...stylex.props(styles.priceGroup)}>
+            <label htmlFor="product-threshold" {...stylex.props(styles.label)}>
+              Low-stock alert at
+            </label>
+            <input
+              id="product-threshold"
+              name="lowStockThreshold"
+              type="number"
+              min="0"
+              step="1"
+              inputMode="numeric"
+              value={threshold}
+              onChange={(event) => setThreshold(event.target.value)}
+              placeholder={String(DEFAULT_LOW_STOCK_THRESHOLD)}
+              {...stylex.props(styles.input)}
+            />
+          </div>
+        </div>
+        <p {...stylex.props(styles.stockHint)}>
+          {variants.length > 0
+            ? 'This product counts stock per variant — set each count in the rows above. Day-to-day restocking is done from the product page, where every change is logged.'
+            : 'Leave “On hand” empty to sell this product without counting it. Once counted, restock it from the product page so each change is logged with a reason.'}
+        </p>
+      </fieldset>
 
       {/* Variants. */}
       <fieldset {...stylex.props(styles.fieldset)}>

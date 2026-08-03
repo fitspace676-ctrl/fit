@@ -27,6 +27,7 @@ import {
   type GetMemberResponse,
   type ListMembersResponse,
   type SendMemberEmailResponse,
+  setMemberKindSchema,
   type SetMemberStatusResponse,
   type UpdateMemberResponse,
 } from '@fit/types';
@@ -132,6 +133,18 @@ export class MembersController {
   @RequirePermissions(Permission.MemberWrite)
   async reactivate(@Param('id') id: string): Promise<SetMemberStatusResponse> {
     return this.members.reactivateMember(id);
+  }
+
+  /**
+   * `PATCH /members/:id/kind` — pin this person's standing (member / guest /
+   * lapsed), or send `{ kind: null }` to clear the pin and let it follow their
+   * subscriptions again. Requires `MemberWrite`; `404` on an unknown id.
+   */
+  @Patch(':id/kind')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MemberWrite)
+  async setKind(@Param('id') id: string, @Body() body: unknown): Promise<SetMemberStatusResponse> {
+    return this.members.setMemberKind(id, parse(setMemberKindSchema, body).kind);
   }
 
   /**

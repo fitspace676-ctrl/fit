@@ -177,6 +177,9 @@ export default async function ProductsPage({
           </p>
         </div>
         <div {...stylex.props(styles.headActions)}>
+          <Link href="/shop/inventory" {...stylex.props(styles.outlineLink)}>
+            Inventory
+          </Link>
           <Link href="/shop/low-stock" {...stylex.props(styles.outlineLink)}>
             Low stock
           </Link>

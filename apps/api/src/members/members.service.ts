@@ -17,6 +17,7 @@ import {
   SubscriptionInterval,
   SubscriptionPlanStatus,
   SubscriptionStatus,
+  MemberKind as MemberKindEnum,
 } from '@fit/db';
 import type {
   BulkExportMembersInput,
@@ -32,6 +33,7 @@ import type {
   MemberActivity,
   MemberAttendanceWeek,
   MemberBillingState,
+  MemberKind,
   MemberCurrentPlan,
   MemberDetail,
   MemberNoteEntry,
@@ -49,7 +51,7 @@ import type {
   UpdateMemberTaskInput,
   UpdateMemberResponse,
 } from '@fit/types';
-import { interpolateMergeFields } from '@fit/types';
+import { interpolateMergeFields, resolveMemberKind } from '@fit/types';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -117,12 +119,18 @@ const MEMBER_SELECT = {
   emergencyContactPhone: true,
   medicalNotes: true,
   user: { select: { name: true, email: true, phone: true } },
+  kindOverride: true,
   subscriptions: {
     where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
     orderBy: { currentPeriodEnd: 'desc' },
     take: 1,
     select: LIVE_SUBSCRIPTION_SELECT,
   },
+  // Every subscription this person has ever held, live or not. One number is all
+  // the derivation needs, and it is what separates a lapsed member from someone
+  // who only ever dropped in — counted here rather than fetched, so the roster
+  // does not grow a second query per page.
+  _count: { select: { subscriptions: true } },
   checkIns: {
     orderBy: { checkedInAt: 'desc' },
     take: 1,
@@ -157,6 +165,60 @@ type LiveSubscription = MemberRecord['subscriptions'][number];
  * (`MemberNote`) and follow-up `tasks` (`MemberTask`). Every figure is a REAL
  * tenant-scoped query — never fabricated.
  */
+
+/**
+ * The `where` fragment that selects one {@link MemberKind}, mirroring
+ * `resolveMemberKind` in SQL.
+ *
+ * The two must agree: a row the derivation calls a guest has to be a row this
+ * clause matches, or a tab would show a count its own list cannot reproduce.
+ * Each kind is therefore "pinned to it, OR unpinned and deriving to it", in the
+ * same precedence the function uses — the override first, then suspension, then
+ * whether a subscription is live, then whether one ever was.
+ */
+function memberKindWhere(kind: MemberKind): Prisma.GymMemberWhereInput {
+  const live = { some: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } } };
+
+  if (kind === 'MEMBER') {
+    return {
+      OR: [
+        { kindOverride: MemberKindEnum.MEMBER },
+        {
+          kindOverride: null,
+          status: { not: GymMemberStatus.SUSPENDED },
+          subscriptions: live,
+        },
+      ],
+    };
+  }
+
+  if (kind === 'GUEST') {
+    return {
+      OR: [
+        { kindOverride: MemberKindEnum.GUEST },
+        {
+          kindOverride: null,
+          status: { not: GymMemberStatus.SUSPENDED },
+          subscriptions: { none: {} },
+        },
+      ],
+    };
+  }
+
+  // Lapsed: suspended outright, or holding subscriptions of which none is live.
+  return {
+    OR: [
+      { kindOverride: MemberKindEnum.INACTIVE },
+      { kindOverride: null, status: GymMemberStatus.SUSPENDED },
+      {
+        kindOverride: null,
+        subscriptions: { some: {} },
+        NOT: { subscriptions: live },
+      },
+    ],
+  };
+}
+
 @Injectable()
 export class MembersService {
   constructor(
@@ -496,6 +558,26 @@ export class MembersService {
     return this.setStatus(id, GymMemberStatus.ACTIVE);
   }
 
+  /**
+   * Pin a member's standing, or clear the pin and hand it back to the derivation
+   * (`kind: null`).
+   *
+   * An override is a statement that the rules are wrong about this person — a
+   * lifetime member who is never billed, a guest kept on the list deliberately.
+   * It is stored rather than derived precisely because nothing in the data can
+   * imply it, and it stays until staff clear it: a later subscription does not
+   * silently take it back, since that would undo a decision someone made on
+   * purpose.
+   */
+  async setMemberKind(id: string, kind: MemberKind | null): Promise<SetMemberStatusResponse> {
+    await this.requireMember(id);
+    await this.prisma.client.gymMember.update({
+      where: { id },
+      data: { kindOverride: kind },
+    });
+    return this.getMember(id);
+  }
+
   /** Set a member's lifecycle `status`, 404-ing an unknown / cross-tenant id. */
   private async setStatus(id: string, status: GymMemberStatus): Promise<SetMemberStatusResponse> {
     await this.requireMember(id);
@@ -738,7 +820,12 @@ export class MembersService {
     const db = this.prisma.client;
     // The status segments and the frozen/plan aggregates describe the live roster,
     // so they exclude trashed members; `trash` counts the soft-deleted ones.
-    const [byStatus, frozen, trash] = await Promise.all([
+    const kindCount = (kind: MemberKind): Promise<number> =>
+      db.gymMember.count({
+        where: { role: Role.MEMBER, deletedAt: null, ...memberKindWhere(kind) },
+      });
+
+    const [byStatus, frozen, trash, member, guest, inactive] = await Promise.all([
       db.gymMember.groupBy({
         by: ['status'],
         where: { role: Role.MEMBER, deletedAt: null },
@@ -752,6 +839,9 @@ export class MembersService {
         },
       }),
       db.gymMember.count({ where: { role: Role.MEMBER, deletedAt: { not: null } } }),
+      kindCount('MEMBER'),
+      kindCount('GUEST'),
+      kindCount('INACTIVE'),
     ]);
 
     const countOf = (status: GymMemberStatus): number =>
@@ -761,7 +851,17 @@ export class MembersService {
     const trial = countOf(GymMemberStatus.INVITED);
     const expired = countOf(GymMemberStatus.SUSPENDED);
 
-    return { all: active + trial + expired, active, frozen, trial, expired, trash };
+    return {
+      all: active + trial + expired,
+      member,
+      guest,
+      inactive,
+      active,
+      frozen,
+      trial,
+      expired,
+      trash,
+    };
   }
 
   /**
@@ -780,6 +880,12 @@ export class MembersService {
       return where;
     }
     where.deletedAt = null;
+
+    // The roster's primary segment. Derived, so it is expressed as the subscription
+    // + override conditions `memberKindWhere` mirrors from `resolveMemberKind`.
+    if (query.kind) {
+      Object.assign(where, memberKindWhere(query.kind));
+    }
 
     if (query.status) {
       where.status = query.status;
@@ -851,6 +957,15 @@ export class MembersService {
       email: row.user.email,
       phone: row.user.phone,
       status: row.status,
+      kind: resolveMemberKind({
+        kindOverride: row.kindOverride,
+        status: row.status,
+        hasLiveSubscription: sub !== null,
+        // A live subscription is itself proof they have ever held one, so the
+        // count only decides the lapsed-vs-guest split.
+        hasEverSubscribed: row._count.subscriptions > 0 || sub !== null,
+      }),
+      kindOverride: row.kindOverride,
       planName: plan?.name ?? null,
       plan,
       lastVisitAt,

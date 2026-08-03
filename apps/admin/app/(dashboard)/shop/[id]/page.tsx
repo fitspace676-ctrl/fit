@@ -2,13 +2,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, roleHasPermission } from '@fit/types';
+import { Permission, roleHasPermission, type StockMovementRow } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchProduct } from '@/lib/api';
+import { ApiError, fetchProduct, fetchStockMovements } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Badge, Icon, type Tone } from '@/components/ui';
 import { formatPrice } from '../format-price';
 import { ProductActions } from './product-actions';
+import { StockPanel } from './stock-panel';
 
 export const metadata: Metadata = {
   title: 'Product - Fit Admin',
@@ -244,6 +245,15 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     tone: 'ink' as Tone,
   };
 
+  // The ledger is supporting detail, not the point of the page: if it fails to
+  // load the product still renders, with the history section simply empty.
+  let movements: StockMovementRow[] = [];
+  try {
+    movements = (await fetchStockMovements(id, { limit: 20 })).data;
+  } catch {
+    movements = [];
+  }
+
   // Write controls (edit + deactivate) are a `ProductWrite` capability.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ProductWrite);
@@ -287,6 +297,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <p {...stylex.props(styles.description)}>{product.description}</p>
         </section>
       ) : null}
+
+      <StockPanel product={product} movements={movements} canWrite={canWrite} />
 
       <section {...stylex.props(styles.section)}>
         <h2 {...stylex.props(styles.sectionHeading)}>Variants</h2>

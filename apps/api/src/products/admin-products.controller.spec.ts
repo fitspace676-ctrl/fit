@@ -5,9 +5,27 @@ import type {
   GetAdminProductResponse,
   ListAdminProductsResponse,
   ListLowStockResponse,
+  AdjustStockResponse,
+  ListStockMovementsResponse,
+  StockMovementRow,
 } from '@fit/types';
 import { AdminProductsController } from './admin-products.controller';
 import type { AdminProductsService } from './admin-products.service';
+import type { ProductStockService } from './product-stock.service';
+
+const movementRow = (over?: Partial<StockMovementRow>): StockMovementRow => ({
+  id: 'm-1',
+  variantIndex: null,
+  variantLabel: '',
+  delta: 3,
+  resultingStock: 7,
+  reason: 'RECEIVE',
+  note: '',
+  actorName: 'Alex Owner',
+  orderId: null,
+  createdAt: '2026-02-01T00:00:00.000Z',
+  ...over,
+});
 
 const detail = (over?: Partial<GetAdminProductResponse>): GetAdminProductResponse => ({
   id: 'p-1',
@@ -19,6 +37,8 @@ const detail = (over?: Partial<GetAdminProductResponse>): GetAdminProductRespons
   variantCount: 0,
   totalStock: 0,
   lowestStock: null,
+  stock: null,
+  lowStockThreshold: null,
   status: 'ACTIVE',
   category: null,
   createdAt: '2026-02-01T00:00:00.000Z',
@@ -62,13 +82,26 @@ function setup() {
     createProduct,
     updateProduct,
   } as unknown as AdminProductsService;
+  const adjust = vi.fn<() => Promise<AdjustStockResponse>>(() =>
+    Promise.resolve({
+      variantIndex: null,
+      stock: 7,
+      movement: movementRow(),
+    }),
+  );
+  const listMovements = vi.fn<() => Promise<ListStockMovementsResponse>>(() =>
+    Promise.resolve({ data: [], total: 0, page: 1, limit: 20 }),
+  );
+  const stock = { adjust, listMovements } as unknown as ProductStockService;
   return {
-    controller: new AdminProductsController(service),
+    controller: new AdminProductsController(service, stock),
     listProducts,
     getProduct,
     listLowStock,
     createProduct,
     updateProduct,
+    adjust,
+    listMovements,
   };
 }
 

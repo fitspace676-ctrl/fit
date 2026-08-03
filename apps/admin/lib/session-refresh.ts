@@ -49,16 +49,26 @@ export interface SessionCookie {
 }
 
 /**
- * Whether this request is a genuine navigation we should spend a refresh on — a
- * document load or an App-Router RSC navigation, never a link prefetch or a
- * background sub-request — so rotation stays single-flight per user action.
+ * Whether this request is a genuine navigation we should spend a refresh on, so
+ * rotation stays single-flight per user action.
+ *
+ * **Only a document load qualifies.** This used to also accept an RSC navigation
+ * (`rsc: 1`) and to exclude prefetches by their headers, but none of those
+ * headers survive to middleware: behind the tenant proxy the request arrives
+ * carrying `sec-fetch-*` and `x-forwarded-*` and nothing else — no `rsc`, no
+ * `next-router-prefetch`, no `purpose`. Those branches were therefore dead code
+ * that read as though RSC navigations were covered when they never were, which is
+ * how an expired token survived long enough to answer a `router.refresh()` with a
+ * redirect to the sign-in page and empty the console's whole sidebar.
+ *
+ * The prefetch guards are kept for the case where the headers do reach us (a
+ * direct, unproxied deployment): they cost nothing and still express the intent.
  */
 export function isNavigationRequest(req: NextRequest): boolean {
   if (req.headers.get('next-router-prefetch')) return false;
   const purpose = req.headers.get('purpose') ?? req.headers.get('x-purpose');
   if (purpose === 'prefetch') return false;
-  const dest = req.headers.get('sec-fetch-dest');
-  return dest === 'document' || req.headers.get('rsc') === '1';
+  return req.headers.get('sec-fetch-dest') === 'document';
 }
 
 /** Exchange a refresh token for a fresh pair via `POST /auth/refresh`, or `null`. */

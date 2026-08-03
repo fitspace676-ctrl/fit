@@ -29,6 +29,16 @@ export const memberStatusSchema = z.enum(['ACTIVE', 'INVITED', 'SUSPENDED']);
 export type MemberStatus = z.infer<typeof memberStatusSchema>;
 
 /**
+ * What a person currently is to the gym. `member` holds a live subscription;
+ * `guest` never has (a drop-in, a free session, a walk-in who bought a drink at
+ * the till); `inactive` did once and no longer does.
+ */
+export const memberKindSchema = z.enum(['MEMBER', 'GUEST', 'INACTIVE']);
+
+/** A person's standing with the gym — {@link memberKindSchema}. */
+export type MemberKind = z.infer<typeof memberKindSchema>;
+
+/**
  * How long a soft-deleted (trashed) member is retained before the purge cron
  * permanently deletes it. Staff can restore any time within this window; after it
  * the member and its cascade-owned history are gone. The UI computes the
@@ -77,6 +87,12 @@ export const listMembersQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(100).optional(),
   status: memberStatusSchema.optional(),
+  /**
+   * The roster's primary segment — member / guest / lapsed. Derived server-side
+   * from subscriptions (or a staff override), so it is its own filter rather than
+   * a value of `status`, which describes the account instead.
+   */
+  kind: memberKindSchema.optional(),
   planId: z.string().min(1).optional(),
   sort: memberSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
@@ -143,6 +159,14 @@ export interface MemberRow {
   email: string;
   phone: string | null;
   status: MemberStatus;
+  /**
+   * What this person is to the gym — member / guest / lapsed. Derived from their
+   * subscriptions unless staff pinned it; see {@link resolveMemberKind}. This is
+   * what the roster's status pill and its tabs show.
+   */
+  kind: MemberKind;
+  /** Staff's pinned standing, or `null` when the derivation is in charge. */
+  kindOverride: MemberKind | null;
   /** The live plan's name (or `null`), kept for backwards compatibility. */
   planName: string | null;
   /** The live plan denormalised for the roster's PLAN cell, or `null`. */
@@ -195,6 +219,12 @@ export interface MemberPlanMix {
 export interface MemberTabCounts {
   /** Every `MEMBER`-role membership. */
   all: number;
+  /** Holding a live subscription — the roster's "Member" segment. */
+  member: number;
+  /** Never held a subscription — drop-ins, free sessions, till walk-ins. */
+  guest: number;
+  /** Suspended, or every subscription lapsed — the "Inactive" segment. */
+  inactive: number;
   /** `ACTIVE` memberships. */
   active: number;
   /** Members whose live subscription is `FROZEN`. */
@@ -669,4 +699,67 @@ export type BulkExportMembersInput = z.infer<typeof bulkExportMembersSchema>;
  */
 export interface BulkExportMembersResponse {
   jobId: string;
+}
+
+// ── Relationship kind: member / guest / inactive ──────────────────────────────
+//
+// The question the roster is actually read to settle is "who is this person to
+// us?", and neither existing vocabulary answers it. `GymMemberStatus`
+// (ACTIVE/INVITED/SUSPENDED) describes the account, and `SubscriptionStatus`
+// describes the billing. This third axis sits on top of both, and is what the
+// status pill and the roster tabs show.
+//
+// It is derived, not stored, so it can never drift from the subscriptions it
+// describes — with one escape hatch (`kindOverride`) for the standing that
+// billing genuinely cannot explain.
+
+/**
+ * Body for `PATCH /members/:id/kind` — pin a person's standing, or hand it back
+ * to the derivation. `kind: null` clears the override, which is the normal state
+ * and the way staff undo a pin.
+ */
+export const setMemberKindSchema = z.object({
+  kind: memberKindSchema.nullable(),
+});
+
+/** Validated `PATCH /members/:id/kind` body — {@link setMemberKindSchema}. */
+export type SetMemberKindInput = z.infer<typeof setMemberKindSchema>;
+
+/** The facts the derivation needs. All of them come off the roster row already. */
+export interface MemberKindInput {
+  /** Staff's explicit standing for this person, or `null` to derive it. */
+  kindOverride?: MemberKind | null;
+  /** The account's own state — a suspended account is not an active member. */
+  status?: MemberStatus;
+  /** Whether a subscription is currently live (TRIAL / ACTIVE / PAST_DUE / FROZEN). */
+  hasLiveSubscription: boolean;
+  /** Whether this person has ever held one — what separates a lapsed member from a guest. */
+  hasEverSubscribed: boolean;
+}
+
+/**
+ * Resolve a person's standing with the gym.
+ *
+ * The order matters. A staff override wins outright: it exists precisely for the
+ * cases the rules get wrong, so nothing may quietly overrule it. A suspended
+ * account reads `inactive` regardless of billing — whatever is still being
+ * charged, that person is not walking in today. Otherwise a live subscription
+ * makes someone a member, and the difference between the two remaining states is
+ * whether they ever had one: never → a guest, once → lapsed.
+ *
+ * `PAST_DUE` deliberately counts as live. A failed card is a billing problem, not
+ * a change in who the person is, and the dunning ladder is what decides when it
+ * becomes one.
+ */
+export function resolveMemberKind(input: MemberKindInput): MemberKind {
+  if (input.kindOverride) {
+    return input.kindOverride;
+  }
+  if (input.status === 'SUSPENDED') {
+    return 'INACTIVE';
+  }
+  if (input.hasLiveSubscription) {
+    return 'MEMBER';
+  }
+  return input.hasEverSubscribed ? 'INACTIVE' : 'GUEST';
 }

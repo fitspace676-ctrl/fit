@@ -104,6 +104,24 @@ export const MAX_PRODUCT_IMAGES = 12;
 /** The most variants a single product may carry. */
 export const MAX_PRODUCT_VARIANTS = 50;
 
+// The inventory bounds live here, above the schemas that reference them, because
+// `stock.ts` builds on this module — putting them there instead would make the
+// two import each other, and these constants are read while the schemas below are
+// being constructed at module load.
+
+/**
+ * Default low-stock alert threshold (inclusive). A position whose on-hand count
+ * is at or below this is "low" unless its product overrides the cushion. Chosen
+ * as a small number, not zero, so the alert fires before a line is fully out.
+ */
+export const DEFAULT_LOW_STOCK_THRESHOLD = 5;
+
+/** The largest threshold a product or the low-stock report accepts. */
+export const MAX_LOW_STOCK_THRESHOLD = 1000;
+
+/** The largest on-hand count any single stock position may hold. */
+export const MAX_STOCK_COUNT = 1_000_000;
+
 /**
  * One purchasable variant of a product (e.g. a size / colour / flavour). `name` is
  * the human label shown on the option. `sku` is the optional stock-keeping code
@@ -187,12 +205,14 @@ export type ListAdminProductsQuery = z.infer<typeof listAdminProductsQuerySchema
  * gallery image, or `null` when the product has no images (the card renders a
  * placeholder). `priceAmount` is the base price in `currency`'s minor units the
  * card formats. `variantCount` is the size of the variant list so the roster can
- * show "3 variants" without shipping the whole list. `totalStock` is the summed
- * on-hand count across the product's variants (0 when it has none) and `lowestStock`
- * is the smallest single-variant on-hand count — or `null` when the product has no
- * variants (stock is untracked) — so the card can render the right stock badge
- * without shipping the whole variant list. `createdAt` is an ISO-8601 instant the
- * card formats in the staff member's local zone.
+ * show "3 variants" without shipping the whole list.
+ *
+ * `totalStock` and `lowestStock` are the derived numbers the stock badge reads,
+ * and they cover both ways a product tracks stock: across its variants when it
+ * has them, or the single base count when it has none. `lowestStock` is `null`
+ * only when the product tracks no stock at all, which is what makes "untracked"
+ * distinguishable from "out". `createdAt` is an ISO-8601 instant the card formats
+ * in the staff member's local zone.
  */
 export interface AdminProductRow {
   id: string;
@@ -205,6 +225,14 @@ export interface AdminProductRow {
   variantCount: number;
   totalStock: number;
   lowestStock: number | null;
+  /**
+   * On-hand count for the base position — the product sold with no variant — or
+   * `null` when it is not tracked. Always `null` for a product WITH variants,
+   * which count per variant instead; the two are alternatives, never summed.
+   */
+  stock: number | null;
+  /** This product's own reorder cushion, or `null` to use the shared default. */
+  lowStockThreshold: number | null;
   status: ProductStatus;
   /** The shelf this product sits on, or `null` when uncategorised. */
   category: { id: string; name: string } | null;
@@ -301,6 +329,44 @@ const productProfileFields = {
     .default([]),
   variants: productVariantsSchema,
   /**
+   * On-hand count for the base position, for a product sold with no variants.
+   * `null` — the default, and what an empty form field submits — leaves the
+   * product untracked. Ignored when `variants` is non-empty: those carry their
+   * own counts, and the service nulls this so there is one source of truth.
+   *
+   * Editing this on the product form is a correction, not a movement with a
+   * reason attached; the ledger records it as an `ADJUSTMENT`. Day-to-day
+   * restocking belongs on `POST /admin/products/:id/stock`, which is atomic and
+   * makes staff say why.
+   */
+  stock: z
+    .preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.coerce
+        .number()
+        .int('Stock must be a whole number')
+        .nonnegative('Stock cannot be negative')
+        .max(MAX_STOCK_COUNT, `Stock must be ${MAX_STOCK_COUNT} or fewer`)
+        .nullable(),
+    )
+    .default(null),
+  /**
+   * This product's reorder cushion. `null` — the default — falls back to
+   * {@link DEFAULT_LOW_STOCK_THRESHOLD}, so a gym only sets it for the lines
+   * whose turnover differs from the rest.
+   */
+  lowStockThreshold: z
+    .preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.coerce
+        .number()
+        .int('Threshold must be a whole number')
+        .nonnegative('Threshold cannot be negative')
+        .max(MAX_LOW_STOCK_THRESHOLD, `Threshold must be ${MAX_LOW_STOCK_THRESHOLD} or fewer`)
+        .nullable(),
+    )
+    .default(null),
+  /**
    * The category to shelve this product under. `null` — the default — is
    * uncategorised, and the form's empty select submits `''`, so both normalise to
    * `null`. An id belonging to another gym is rejected by the service, not here.
@@ -360,23 +426,15 @@ export type SetProductStatusResponse = AdminProductDetail;
 
 // ── Inventory tracking + low-stock alerts (T7.8) ──────────────────────────────
 //
-// On-hand stock lives per-variant in the product's `variants` JSON (`stock`); a
-// product sold as-is (no variants) is untracked. A completed online sale
-// decrements the sold variant's `stock` at checkout, so the roster's numbers are
-// the live on-hand count. The low-stock report surfaces every ACTIVE product
-// carrying at least one variant at or below the alert threshold so staff can
-// reorder before a line sells out.
-
-/**
- * Default low-stock alert threshold (inclusive). A variant whose on-hand `stock`
- * is at or below this is "low" and surfaces on the report unless the caller
- * overrides the threshold. Chosen as a small reorder cushion, not zero, so the
- * alert fires before a line is fully out of stock.
- */
-export const DEFAULT_LOW_STOCK_THRESHOLD = 5;
-
-/** The largest threshold the low-stock report accepts (keeps the query bounded). */
-export const MAX_LOW_STOCK_THRESHOLD = 1000;
+// A product tracks on-hand stock one of two ways, never both: per variant (inside
+// the `variants` JSON) when it has variants, or a single base count on the product
+// when it does not. A product with no variants and no base count is untracked, and
+// stays out of every alert. A completed sale decrements the sold position and
+// appends to that product's ledger (see `stock.ts`), so the roster's numbers are
+// the live on-hand count and each change carries a reason.
+//
+// The low-stock report surfaces every ACTIVE product with a position at or below
+// its alert threshold, so staff can reorder before a line sells out.
 
 /**
  * Query for `GET /admin/products/low-stock`. `threshold` is the inclusive on-hand
@@ -397,14 +455,14 @@ export const lowStockQuerySchema = z.object({
 export type LowStockQuery = z.infer<typeof lowStockQuerySchema>;
 
 /**
- * One low-stock variant on the report. `variantIndex` is its position in the
+ * One low-stock position on the report. `variantIndex` is its slot in the
  * product's variant array (variants have no id of their own — they live as a JSON
- * array, see the `variants` field), so staff can find it on the edit form.
- * `name` / `sku` label it and `stock` is the live on-hand count that tripped the
- * threshold.
+ * array, see the `variants` field), or `null` for the base position of a product
+ * sold with no variants. `name` / `sku` label it and `stock` is the live on-hand
+ * count that tripped the threshold.
  */
 export interface LowStockVariant {
-  variantIndex: number;
+  variantIndex: number | null;
   name: string;
   sku: string;
   stock: number;
@@ -435,4 +493,81 @@ export interface LowStockProductRow {
 export interface ListLowStockResponse {
   data: LowStockProductRow[];
   threshold: number;
+}
+
+// ── Inventory overview ───────────────────────────────────────────────────────
+//
+// The low-stock report answers "what needs reordering". This answers the broader
+// question staff actually ask while holding a clipboard: what do I stock, and how
+// many of each? It flattens every product into its addressable positions, so a
+// product with three variants contributes three rows and one sold as-is
+// contributes one — the same shape the shelf has.
+
+/**
+ * Query for `GET /admin/products/inventory`. `search` matches the product name,
+ * `status` narrows by lifecycle (omitted ⇒ active only, since a deactivated
+ * product's stock is not being sold), and `tracked` limits to positions that
+ * actually carry a count.
+ */
+export const inventoryQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  search: z.string().trim().max(100).optional(),
+  status: productStatusSchema.optional(),
+  tracked: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .transform((value) => value === true || value === 'true')
+    .optional(),
+});
+
+/** Validated `GET /admin/products/inventory` query — {@link inventoryQuerySchema}. */
+export type InventoryQuery = z.infer<typeof inventoryQuerySchema>;
+
+/**
+ * One addressable stock position, as the inventory table renders it. `stock` is
+ * `null` when the position is not counted — deliberately distinct from `0`, which
+ * means counted and empty. `value` is `stock × costAmount` in minor units, or
+ * `null` when either is unknown, so the totals never quietly treat an unknown cost
+ * as free.
+ */
+export interface InventoryPositionRow {
+  productId: string;
+  productName: string;
+  status: ProductStatus;
+  variantIndex: number | null;
+  label: string;
+  sku: string;
+  stock: number | null;
+  lowStockThreshold: number | null;
+  currency: string;
+  costAmount: number | null;
+  value: number | null;
+}
+
+/**
+ * Totals across the whole filtered set — not just the page — so the tiles above
+ * the table describe the gym's actual holdings. `positionCount` counts every
+ * matched position; `trackedCount` how many carry a count; `totalUnits` sums those
+ * counts; `totalValue` sums the positions whose cost is known, with
+ * `valuedPositions` saying how many that was, so a partial valuation is visibly
+ * partial rather than passing as complete.
+ */
+export interface InventorySummary {
+  positionCount: number;
+  trackedCount: number;
+  lowCount: number;
+  outCount: number;
+  totalUnits: number;
+  totalValue: number;
+  valuedPositions: number;
+  currency: string;
+}
+
+/** Successful `GET /admin/products/inventory` response — one page plus the totals. */
+export interface ListInventoryResponse {
+  data: InventoryPositionRow[];
+  total: number;
+  page: number;
+  limit: number;
+  summary: InventorySummary;
 }

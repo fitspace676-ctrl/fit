@@ -3,6 +3,7 @@ import { NotFoundException, UnprocessableEntityException } from '@nestjs/common'
 import { encodeVariantRef } from '@fit/types';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { PrismaService } from '../prisma/prisma.service';
+import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { CartService } from './cart.service';
 
 /** A stored product row as `loadVariantInfo` selects it. */
@@ -13,6 +14,8 @@ interface ProductRow {
   currency: string;
   images: string[];
   variants: Array<{ name: string; sku: string; priceAmount: number | null; stock: number }>;
+  /** Base-position count; `null` is untracked, which is what the column defaults to. */
+  stock: number | null;
 }
 
 interface CartRow {
@@ -31,6 +34,7 @@ function product(over: Partial<ProductRow> = {}): ProductRow {
     currency: 'USD',
     images: ['https://img.test/tee.png'],
     variants: [{ name: 'M', sku: '', priceAmount: null, stock: 10 }],
+    stock: null,
     ...over,
   };
 }
@@ -77,6 +81,7 @@ function setup(config: {
 
   const cartItemCreate = vi.fn(() => Promise.resolve({}));
   const orderCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'order-1' }));
+  const movementCreateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
   const gymMemberFindFirst = vi.fn(() => Promise.resolve(null));
 
   const client = {
@@ -95,6 +100,7 @@ function setup(config: {
       create: cartItemCreate,
     },
     order: { create: orderCreate },
+    stockMovement: { createMany: movementCreateMany },
     gymMember: { findFirst: gymMemberFindFirst },
     $transaction: vi.fn((arg: unknown) =>
       Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => unknown)(client),
@@ -108,7 +114,7 @@ function setup(config: {
   } as unknown as TenantContext;
 
   return {
-    service: new CartService(prisma, tenant),
+    service: new CartService(prisma, tenant, new PromoRedemptionService(prisma)),
     mocks: {
       findMany,
       cartCreate,
@@ -118,6 +124,7 @@ function setup(config: {
       orderCreate,
       cartDelete,
       productUpdate,
+      movementCreateMany,
     },
   };
 }

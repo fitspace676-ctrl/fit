@@ -15,6 +15,7 @@ import {
 import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
 
 /**
@@ -54,6 +55,7 @@ export class CheckoutService {
     private readonly tenant: TenantContext,
     private readonly creditPacks: CreditPacksService,
     private readonly subscriptions: SubscriptionEnrollmentService,
+    private readonly promos: PromoRedemptionService,
   ) {}
 
   /** Buy the named catalogue product for the calling member. */
@@ -70,7 +72,7 @@ export class CheckoutService {
       case 'package':
         return {
           productType: input.productType,
-          orderId: await this.buyPackage(input.productId, input.locationId),
+          orderId: await this.buyPackage(input.productId, input.locationId, input.promoCode),
           subscriptionId: null,
         };
     }
@@ -117,7 +119,11 @@ export class CheckoutService {
    * written in one transaction so a charged-but-unrecorded purchase can never
    * land — the same shape the credit-pack and POS writes use.
    */
-  private async buyPackage(packageId: string, locationId?: string): Promise<string> {
+  private async buyPackage(
+    packageId: string,
+    locationId?: string,
+    promoCode?: string,
+  ): Promise<string> {
     const memberId = await this.requireCallerMembership();
     const gymId = this.tenant.gymId;
 
@@ -151,6 +157,19 @@ export class CheckoutService {
         )?.id ?? null)
       : null;
 
+    // A package purchase is checked against the `packages` scope, and resolved
+    // before the transaction opens so an unusable code fails the request without
+    // having written anything.
+    const promo = await this.promos.resolve({
+      gymId,
+      code: promoCode,
+      amount: plan.priceAmount,
+      scope: 'packages',
+      memberId,
+    });
+    const discount = promo?.discount ?? 0;
+    const total = plan.priceAmount - discount;
+
     return this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
@@ -158,10 +177,17 @@ export class CheckoutService {
           packageId: plan.id,
           locationId: branchId,
           memberId,
-          total: plan.priceAmount,
+          total,
           currency: plan.currency,
           status: OrderStatus.PAID,
-          items: { create: { label: plan.name, amount: plan.priceAmount } },
+          items: {
+            create: [
+              { label: plan.name, amount: plan.priceAmount },
+              // The discount rides as its own line so the confirmation shows what
+              // the code took off, rather than an unexplained lower total.
+              ...(discount > 0 ? [{ label: `Promo ${promoCode}`, amount: -discount }] : []),
+            ],
+          },
           statusEvents: { create: { status: OrderStatus.PAID } },
         },
         select: { id: true },
@@ -171,7 +197,7 @@ export class CheckoutService {
         data: {
           gymId,
           orderId: order.id,
-          amount: plan.priceAmount,
+          amount: total,
           currency: plan.currency,
           status: PaymentStatus.CAPTURED,
           // The MVP charge is stubbed (treated as captured); T8.8 swaps `stub` for
@@ -180,6 +206,10 @@ export class CheckoutService {
         },
         select: { id: true },
       });
+
+      if (promo) {
+        await this.promos.consume(tx, { ...promo, gymId, memberId, orderId: order.id });
+      }
 
       return order.id;
     });

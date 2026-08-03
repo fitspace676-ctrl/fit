@@ -8,6 +8,7 @@ import type {
   CreatePromoCodeInput,
   PromoCodeRow,
   PromoDiscountType,
+  PromoScope,
   UpdatePromoCodeInput,
 } from '@fit/types';
 import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
@@ -65,7 +66,13 @@ interface FormState {
   /** Optional whole-lari (major-unit) minimum purchase. */
   minPurchase: string;
   usageLimit: string;
+  /** What the code may be spent on. */
+  appliesTo: PromoScope;
+  /** First day it works; blank means "already running". */
+  startsAt: string;
   expiryDate: string;
+  /** True for a one-per-customer offer. */
+  oncePerMember: boolean;
   status: 'active' | 'inactive';
 }
 
@@ -86,7 +93,10 @@ function seedState(seed: PromoCodeRow | undefined): FormState {
         ? String(minorToMajor(seed.minPurchase))
         : '',
     usageLimit: seed?.usageLimit != null ? String(seed.usageLimit) : '',
+    appliesTo: seed?.appliesTo ?? 'all',
+    startsAt: seed?.startsAt ? seed.startsAt.slice(0, 10) : '',
     expiryDate: seed?.expiryDate ? seed.expiryDate.slice(0, 10) : '',
+    oncePerMember: seed?.oncePerMember ?? false,
     status: seed?.status ?? 'active',
   };
 }
@@ -147,6 +157,10 @@ export function PromoFormDialog({
     const minMajor = posInt(form.minPurchase);
     const minPurchase = minMajor !== undefined ? majorToMinor(minMajor) : null;
     const usageLimit = posInt(form.usageLimit) ?? null;
+    // The window is inclusive of both days as the operator typed them: a code
+    // starting today works from midnight, and one ending today works until the
+    // last second of it.
+    const startsAt = form.startsAt ? new Date(`${form.startsAt}T00:00:00`).toISOString() : null;
     const expiryDate = form.expiryDate
       ? new Date(`${form.expiryDate}T23:59:59`).toISOString()
       : null;
@@ -158,7 +172,10 @@ export function PromoFormDialog({
       discountValue,
       minPurchase,
       usageLimit,
+      appliesTo: form.appliesTo,
+      startsAt,
       expiryDate,
+      oncePerMember: form.oncePerMember,
       status: form.status,
     } satisfies CreatePromoCodeInput & UpdatePromoCodeInput;
 
@@ -291,6 +308,36 @@ export function PromoFormDialog({
         </div>
 
         <div {...stylex.props(styles.grid)}>
+          <Field label={t('promo.appliesToLabel')} hint={t('promo.appliesToHint')}>
+            <Select
+              value={form.appliesTo}
+              onChange={(e) => patch('appliesTo', e.target.value as PromoScope)}
+            >
+              <option value="all">{t('promo.scopeAll')}</option>
+              <option value="products">{t('promo.scopeProducts')}</option>
+              <option value="packages">{t('promo.scopePackages')}</option>
+              <option value="subscriptions">{t('promo.scopeSubscriptions')}</option>
+            </Select>
+          </Field>
+          <Field label={t('promo.audienceLabel')} hint={t('promo.audienceHint')}>
+            <Select
+              value={form.oncePerMember ? 'once' : 'everyone'}
+              onChange={(e) => patch('oncePerMember', e.target.value === 'once')}
+            >
+              <option value="everyone">{t('promo.audienceEveryone')}</option>
+              <option value="once">{t('promo.audienceOnce')}</option>
+            </Select>
+          </Field>
+        </div>
+
+        <div {...stylex.props(styles.grid)}>
+          <Field label={t('promo.startsAtLabel')} hint={t('promo.startsAtHint')}>
+            <Input
+              type="date"
+              value={form.startsAt}
+              onChange={(e) => patch('startsAt', e.target.value)}
+            />
+          </Field>
           <Field label={t('promo.expiryLabel')} hint={t('promo.expiryHint')}>
             <Input
               type="date"
@@ -298,6 +345,9 @@ export function PromoFormDialog({
               onChange={(e) => patch('expiryDate', e.target.value)}
             />
           </Field>
+        </div>
+
+        <div {...stylex.props(styles.grid)}>
           <Field label={t('promo.statusLabel')}>
             <Select
               value={form.status}

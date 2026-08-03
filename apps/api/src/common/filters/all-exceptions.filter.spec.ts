@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ArgumentsHost } from '@nestjs/common';
-import { BadRequestException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  BadRequestException,
+  UnprocessableEntityException,
+  ConflictException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
 import { AllExceptionsFilter, type ErrorResponseBody } from './all-exceptions.filter';
 
@@ -120,5 +126,37 @@ describe('AllExceptionsFilter', () => {
     // The original (leaky) message must never reach the client.
     expect(captured.body.message).not.toContain('secret');
     expect(Sentry.captureException).toHaveBeenCalledWith(error);
+  });
+});
+
+describe('AllExceptionsFilter — structured details', () => {
+  const filter = new AllExceptionsFilter();
+
+  it("passes a handler's `details` through so a client can act on the specifics", () => {
+    // Without this the client sees only PROMO_CODE_INVALID and cannot tell the
+    // shopper whether the code expired, was out of scope, or was already used.
+    const captured = {} as Captured;
+    filter.catch(
+      new UnprocessableEntityException({
+        code: 'PROMO_CODE_INVALID',
+        message: 'That promo code cannot be used on this order',
+        details: ['out_of_scope'],
+      }),
+      mockHost(mockResponse(captured)),
+    );
+
+    expect(captured.body.code).toBe('PROMO_CODE_INVALID');
+    expect(captured.body.details).toEqual(['out_of_scope']);
+    expect(captured.body.message).toBe('That promo code cannot be used on this order');
+  });
+
+  it('still reports null details when a handler stamps none', () => {
+    const captured = {} as Captured;
+    filter.catch(
+      new UnprocessableEntityException({ code: 'X', message: 'nope' }),
+      mockHost(mockResponse(captured)),
+    );
+
+    expect(captured.body.details).toBeNull();
   });
 });

@@ -39,11 +39,22 @@ interface MemberRecord {
     plan: { name: string } | null;
   }>;
   checkIns: Array<{ checkedInAt: Date }>;
+  /** Staff's pinned standing; `null` lets the derivation decide. */
+  kindOverride: 'MEMBER' | 'GUEST' | 'INACTIVE' | null;
+  /** Every subscription ever held — what separates a lapsed member from a guest. */
+  _count: { subscriptions: number };
 }
 
 /** The subset of a Prisma `findMany` arg shape the assertions inspect. */
 interface FindManyArgs {
-  where?: { role?: unknown; status?: unknown; user?: unknown; subscriptions?: unknown };
+  where?: {
+    role?: unknown;
+    status?: unknown;
+    user?: unknown;
+    subscriptions?: unknown;
+    /** The kind segment's clause — an override branch plus a derived branch. */
+    OR?: unknown[];
+  };
   orderBy?: unknown;
   skip?: number;
   take?: number;
@@ -273,6 +284,8 @@ const row = (over?: Partial<MemberRecord>): MemberRecord => ({
   user: { name: 'Nino Beridze', email: 'nino@example.com', phone: null },
   subscriptions: [],
   checkIns: [],
+  kindOverride: null,
+  _count: { subscriptions: 0 },
   ...over,
 });
 
@@ -996,5 +1009,81 @@ describe('MembersService.sendMemberEmail', () => {
       service.sendMemberEmail('gm-1', { subject: 'Hi', body: 'There' }),
     ).rejects.toMatchObject({ response: { code: 'EMAIL_NOT_CONFIGURED' } });
     expect(mailerSend).not.toHaveBeenCalled();
+  });
+});
+
+/** One live subscription, as the roster's join selects it. */
+const liveSub = () => ({
+  id: 's-1',
+  planId: 'plan-1',
+  status: 'ACTIVE',
+  priceAmount: 4500,
+  currency: 'GEL',
+  interval: 'MONTH' as const,
+  currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
+  currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
+  plan: { name: 'Premium' },
+});
+
+describe('MembersService — member / guest / inactive', () => {
+  it('reads a member with a live subscription as MEMBER', async () => {
+    const { service } = setup({
+      findMany: [row({ subscriptions: [liveSub()], _count: { subscriptions: 1 } })],
+      count: 1,
+    });
+
+    const result = await service.listMembers(query());
+
+    expect(result.data[0]).toMatchObject({ kind: 'MEMBER', kindOverride: null });
+  });
+
+  it('reads someone who never subscribed as GUEST', async () => {
+    // How a till walk-in lands on the roster: created with no subscription, so
+    // nothing extra has to mark them a guest — the derivation already does.
+    const { service } = setup({
+      findMany: [row({ subscriptions: [], _count: { subscriptions: 0 } })],
+      count: 1,
+    });
+
+    const result = await service.listMembers(query());
+
+    expect(result.data[0]?.kind).toBe('GUEST');
+  });
+
+  it('reads a lapsed member as INACTIVE, not as a guest', async () => {
+    const { service } = setup({
+      findMany: [row({ subscriptions: [], _count: { subscriptions: 2 } })],
+      count: 1,
+    });
+
+    const result = await service.listMembers(query());
+
+    expect(result.data[0]?.kind).toBe('INACTIVE');
+  });
+
+  it('lets a staff override win over the subscription', async () => {
+    const { service } = setup({
+      findMany: [row({ subscriptions: [], _count: { subscriptions: 0 }, kindOverride: 'MEMBER' })],
+      count: 1,
+    });
+
+    const result = await service.listMembers(query());
+
+    expect(result.data[0]).toMatchObject({ kind: 'MEMBER', kindOverride: 'MEMBER' });
+  });
+
+  it('filters the roster by kind through the override + subscription clauses', async () => {
+    const { service, findMany } = setup();
+
+    await service.listMembers(query({ kind: 'GUEST' }));
+
+    // The clause has to mirror `resolveMemberKind`, or a tab would show a count
+    // its own list cannot reproduce: pinned to GUEST, or unpinned with no
+    // subscriptions and not suspended.
+    const where = findMany.mock.calls[0]![0].where;
+    expect(where?.OR).toEqual([
+      { kindOverride: 'GUEST' },
+      expect.objectContaining({ kindOverride: null, subscriptions: { none: {} } }),
+    ]);
   });
 });

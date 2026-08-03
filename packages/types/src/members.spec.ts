@@ -5,6 +5,7 @@ import {
   createMemberTaskSchema,
   updateMemberSchema,
   updateMemberTaskSchema,
+  resolveMemberKind,
 } from './members';
 
 describe('createMemberSchema', () => {
@@ -100,5 +101,75 @@ describe('member note / task schemas', () => {
   it('constrains task status to PENDING / DONE', () => {
     expect(updateMemberTaskSchema.parse({ status: 'DONE' }).status).toBe('DONE');
     expect(updateMemberTaskSchema.safeParse({ status: 'ARCHIVED' }).success).toBe(false);
+  });
+});
+
+describe('resolveMemberKind', () => {
+  /** The common case: nothing pinned, an ordinary active account. */
+  const base = { kindOverride: null, status: 'ACTIVE' as const };
+
+  it('calls someone holding a live subscription a member', () => {
+    expect(resolveMemberKind({ ...base, hasLiveSubscription: true, hasEverSubscribed: true })).toBe(
+      'MEMBER',
+    );
+  });
+
+  it('calls someone who never subscribed a guest', () => {
+    // A drop-in, a free session, a walk-in who bought a drink at the till.
+    expect(
+      resolveMemberKind({ ...base, hasLiveSubscription: false, hasEverSubscribed: false }),
+    ).toBe('GUEST');
+  });
+
+  it('separates a lapsed member from a guest by whether they ever subscribed', () => {
+    // History is the only thing telling these two people apart, which is why the
+    // roster carries the count rather than inferring from the live subscription.
+    expect(
+      resolveMemberKind({ ...base, hasLiveSubscription: false, hasEverSubscribed: true }),
+    ).toBe('INACTIVE');
+  });
+
+  it('reads a suspended account as inactive whatever the billing says', () => {
+    // Something may still be charging, but that person is not walking in today.
+    expect(
+      resolveMemberKind({
+        kindOverride: null,
+        status: 'SUSPENDED',
+        hasLiveSubscription: true,
+        hasEverSubscribed: true,
+      }),
+    ).toBe('INACTIVE');
+  });
+
+  it('lets a staff override win over every rule, including suspension', () => {
+    // The override exists for what the rules cannot know — a lifetime member who
+    // is never billed — so nothing may quietly overrule it.
+    expect(
+      resolveMemberKind({
+        kindOverride: 'MEMBER',
+        status: 'ACTIVE',
+        hasLiveSubscription: false,
+        hasEverSubscribed: false,
+      }),
+    ).toBe('MEMBER');
+    expect(
+      resolveMemberKind({
+        kindOverride: 'GUEST',
+        status: 'SUSPENDED',
+        hasLiveSubscription: true,
+        hasEverSubscribed: true,
+      }),
+    ).toBe('GUEST');
+  });
+
+  it('returns to the derivation once the override is cleared', () => {
+    expect(
+      resolveMemberKind({
+        kindOverride: null,
+        status: 'ACTIVE',
+        hasLiveSubscription: true,
+        hasEverSubscribed: true,
+      }),
+    ).toBe('MEMBER');
   });
 });
