@@ -54,11 +54,14 @@ export function AdminShell({
   gymSlug,
   system,
   locations,
+  sidebarCollapsed = false,
   children,
 }: {
   gymSlug: string | null;
   system: ShellSystemState;
   locations: ShellLocation[];
+  /** Sidebar collapse choice, seeded from its cookie by the console layout. */
+  sidebarCollapsed?: boolean;
   children: ReactNode;
 }) {
   const t = useTranslations('admin.common');
@@ -69,7 +72,7 @@ export function AdminShell({
       <AppShell
         variant="wash"
         contentPadding={0}
-        sideNav={<Sidebar gymSlug={gymSlug} system={system} />}
+        sideNav={<Sidebar gymSlug={gymSlug} system={system} defaultCollapsed={sidebarCollapsed} />}
         mobileNav={{ hasToggle: false, breakpoint: 'md' }}
       >
         <div id="main-content" {...stylex.props(styles.content)}>
