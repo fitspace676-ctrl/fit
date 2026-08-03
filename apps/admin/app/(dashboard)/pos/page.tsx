@@ -154,9 +154,16 @@ export default async function PosPage() {
         <div {...stylex.props(styles.headerMeta)}>
           <p {...stylex.props(styles.shortcuts)}>{t('shortcuts')}</p>
           {canReconcile ? (
-            <Link href="/pos/reconciliation" {...stylex.props(styles.endOfDayLink)}>
-              {t('endOfDay')}
-            </Link>
+            <>
+              {/* Same capability as the end-of-day report: both read the day's
+                  takings, one as a total and one sale by sale. */}
+              <Link href="/pos/orders" {...stylex.props(styles.endOfDayLink)}>
+                {t('salesLog')}
+              </Link>
+              <Link href="/pos/reconciliation" {...stylex.props(styles.endOfDayLink)}>
+                {t('endOfDay')}
+              </Link>
+            </>
           ) : null}
         </div>
       </header>

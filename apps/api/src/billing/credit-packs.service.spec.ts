@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { CreditPackStatus, OrderStatus, PackagePlanStatus, PaymentStatus } from '@fit/db';
+import type { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { CreditPacksService } from './credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -174,19 +175,32 @@ function setup(opts?: Options) {
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
+  // No code on the existing purchases, so the promo service resolves to nothing.
+  const promoResolve = vi.fn<
+    () => Promise<{ promoId: string; discount: number; usageLimit: number | null } | null>
+  >(() => Promise.resolve(null));
+  const promoConsume = vi.fn<(tx: unknown, input: unknown) => Promise<void>>(() =>
+    Promise.resolve(),
+  );
+  const promos = {
+    resolve: promoResolve,
+    consume: promoConsume,
+  } as unknown as PromoRedemptionService;
   const tenant = {
     gymId: GYM_ID,
     userId: opts?.userId === undefined ? USER_ID : opts.userId,
   } as unknown as TenantContext;
 
   return {
-    service: new CreditPacksService(prisma, tenant),
+    service: new CreditPacksService(prisma, tenant, promos),
     packs,
     orderCreate,
     paymentCreate,
     creditPackCreate,
     creditPack,
     client,
+    promoResolve,
+    promoConsume,
   };
 }
 
@@ -636,5 +650,57 @@ describe('CreditPacksService', () => {
 
       expect(ctx.packs[0]?.remainingCredits).toBe(1); // unchanged
     });
+  });
+});
+
+describe('CreditPacksService — promo codes on a pack purchase', () => {
+  it('checks the code against the packages scope and charges the discounted total', async () => {
+    const ctx = setup({ plan: activePlan() });
+    ctx.promoResolve.mockResolvedValueOnce({ promoId: 'promo-1', discount: 900, usageLimit: null });
+
+    await ctx.service.purchasePack({ packId: 'plan-1', promoCode: 'PACKS20' });
+
+    expect(ctx.promoResolve).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'PACKS20', scope: 'packages', amount: 5000 }),
+    );
+    const order = ctx.orderCreate.mock.calls[0]![0] as {
+      data: { total: number; items: { create: Array<{ label: string; amount: number }> } };
+    };
+    expect(order.data.total).toBe(5000 - 900);
+    // The discount is itemised, so the confirmation explains the lower figure
+    // rather than showing an unexplained total.
+    expect(order.data.items.create).toEqual([
+      expect.objectContaining({ amount: 5000 }),
+      expect.objectContaining({ label: 'Promo PACKS20', amount: -900 }),
+    ]);
+    const payment = ctx.paymentCreate.mock.calls[0]![0] as { data: { amount: number } };
+    expect(payment.data.amount).toBe(5000 - 900);
+  });
+
+  it('consumes the code in the same transaction as the pack', async () => {
+    // A code counted as spent against a pack that failed to mint would be lost
+    // for the customer and unexplained in the ledger.
+    const ctx = setup({ plan: activePlan() });
+    ctx.promoResolve.mockResolvedValueOnce({ promoId: 'promo-1', discount: 500, usageLimit: 10 });
+
+    await ctx.service.purchasePack({ packId: 'plan-1', promoCode: 'PACKS20' });
+
+    const consumed = ctx.promoConsume.mock.calls[0]![1] as {
+      promoId: string;
+      discount: number;
+      orderId?: string | null;
+    };
+    expect(consumed).toMatchObject({ promoId: 'promo-1', discount: 500 });
+    expect(typeof consumed.orderId).toBe('string');
+  });
+
+  it('charges full price and records nothing when no code is given', async () => {
+    const ctx = setup({ plan: activePlan() });
+
+    await ctx.service.purchasePack({ packId: 'plan-1' });
+
+    const order = ctx.orderCreate.mock.calls[0]![0] as { data: { total: number } };
+    expect(order.data.total).toBe(5000);
+    expect(ctx.promoConsume).not.toHaveBeenCalled();
   });
 });

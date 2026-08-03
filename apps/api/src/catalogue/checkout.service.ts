@@ -62,7 +62,10 @@ export class CheckoutService {
   async checkout(input: CreateCheckoutInput): Promise<CreateCheckoutResponse> {
     switch (input.productType) {
       case 'credit_pack': {
-        const { orderId } = await this.creditPacks.purchasePack({ packId: input.productId });
+        const { orderId } = await this.creditPacks.purchasePack({
+          packId: input.productId,
+          ...(input.promoCode ? { promoCode: input.promoCode } : {}),
+        });
         return { productType: input.productType, orderId, subscriptionId: null };
       }
       case 'subscription': {
