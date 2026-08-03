@@ -37,6 +37,25 @@ enum GymMemberStatus {
   SUSPENDED
 }
 
+/// What a person currently *is* to the gym, as the front desk would describe them.
+///
+/// Deliberately separate from {@link GymMemberStatus} (the account's own state —
+/// invited, suspended) and from {@link SubscriptionStatus} (the billing truth).
+/// Those two answer "what is this record?" and "what is being charged?"; this
+/// answers "who is this person to us?", which is the question the roster is
+/// actually read to settle.
+///
+/// Normally derived rather than stored: someone holding a live subscription is a
+/// `MEMBER`, someone who never held one is a `GUEST` (a drop-in, a free trial
+/// session, a walk-in who bought a drink), and someone whose subscription has
+/// lapsed is `INACTIVE`. `GymMember.kindOverride` exists for the cases the rules
+/// cannot know about — a lifetime member who is never billed, say.
+enum MemberKind {
+  MEMBER
+  GUEST
+  INACTIVE
+}
+
 /// A member's recorded gender on their staff-managed profile (T4.x). Kept small —
 /// the gym serves a single region and staff pick from a short list; the column is
 /// nullable when not recorded. Mirrors `genderSchema` in `@fit/types`.
@@ -594,6 +613,12 @@ model GymMember {
   status   GymMemberStatus @default(ACTIVE)
   joinedAt DateTime        @default(now())
 
+  /// Staff override for the derived {@link MemberKind}. `null` — the default, and
+  /// what almost every row keeps — means "trust the subscription". Set only when a
+  /// person's standing genuinely does not follow from their billing, and it then
+  /// wins over the derivation until staff clear it again.
+  kindOverride MemberKind?
+
   // Soft-delete "trash" (T-members-trash). When set, the membership was moved to
   // trash: it is hidden from the roster, tab counts, plan mix, check-in, and the
   // dashboard's live counts, but the row (and its history) survives so staff can
@@ -647,6 +672,7 @@ model GymMember {
   opportunities      Opportunity[]
   loyaltyLedger      LoyaltyLedgerEntry[]
   loyaltyRedemptions LoyaltyRedemption[]
+  promoRedemptions   PromoRedemption[]
   staffNotes         StaffNote[]
   staffTasks         StaffTask[]
   timeOffRequests    TimeOffRequest[]
@@ -884,18 +910,88 @@ model Product {
   images      String[]      @default([])
   variants    Json          @default("[]")
   status      ProductStatus @default(ACTIVE)
+  /// On-hand count for the **base** position — the product sold as-is, with no
+  /// variant chosen (the `"<productId>:base"` reference the cart already uses).
+  /// `null` means this product's stock is not tracked, which is what every
+  /// pre-existing row and every newly created product starts as; a gym that
+  /// never counts its towels is not nagged about them. Products that DO carry
+  /// variants keep their counts per variant inside `variants`, and this stays
+  /// null — the two are alternatives, never summed.
+  stock       Int?
+  /// Per-product reorder cushion. `null` falls back to the shared default, so a
+  /// gym only sets this for the few lines whose turnover differs from the rest.
+  lowStockThreshold Int?
   /// Optional shelf — `null` is "uncategorised", the state every product starts in
   /// and the state it returns to if its category is deleted.
   categoryId  String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  gym      Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  category ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  gym       Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  category  ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  movements StockMovement[]
 
   @@index([gymId])
   @@index([categoryId])
   @@map("products")
+}
+
+/// Why a {@link StockMovement} happened. `RECEIVE` is a delivery landing on the
+/// shelf, `WRITE_OFF` is loss/damage/expiry leaving it, and `RECOUNT` is a
+/// physical count overriding whatever the system believed (the only reason whose
+/// delta is derived from a target rather than chosen). `ADJUSTMENT` is the
+/// catch-all manual correction. `SALE` and `REFUND_RESTOCK` are written by the
+/// checkout and the refund path, never by hand — they carry an `orderId`.
+enum StockMovementReason {
+  RECEIVE
+  ADJUSTMENT
+  RECOUNT
+  WRITE_OFF
+  SALE
+  REFUND_RESTOCK
+}
+
+/// One append-only entry in a product's stock ledger. Every change to an on-hand
+/// count writes exactly one of these in the same transaction as the count itself,
+/// so "why is this 3?" is answerable — the current number is a running total, not
+/// a value someone typed with no history.
+///
+/// A movement addresses one stock position: `variantIndex` is the variant's slot
+/// in the product's `variants` array, or `null` for the base position (the
+/// product sold with no variant). Positions are addressed by index because
+/// variants have no row id of their own; `variantLabel` snapshots the name at the
+/// time so a later rename or reorder cannot make history unreadable.
+///
+/// `delta` is the signed change and `resultingStock` the count after it. Storing
+/// both means the ledger reconstructs the timeline without replaying every prior
+/// row, and a mismatch between them across consecutive rows is itself a signal
+/// that something wrote stock outside this path.
+model StockMovement {
+  id             String              @id @default(cuid())
+  gymId          String
+  productId      String
+  /// Variant slot this moved, or `null` for the base position.
+  variantIndex   Int?
+  /// The variant's name when the movement happened; `""` for the base position.
+  variantLabel   String              @default("")
+  /// Signed change — negative for a sale or write-off, positive for a delivery.
+  delta          Int
+  /// On-hand count after the change, so history reads without replaying it.
+  resultingStock Int
+  reason         StockMovementReason
+  /// Optional free-text note (supplier, damage description, count sheet ref).
+  note           String              @default("")
+  /// Staff user who caused it, or `null` for a member-driven checkout.
+  actorId        String?
+  /// The order behind a `SALE` / `REFUND_RESTOCK`, else `null`.
+  orderId        String?
+  createdAt      DateTime            @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, createdAt])
+  @@index([productId, createdAt])
+  @@map("stock_movements")
 }
 
 /// A personal-training package plan a gym curates from the staff console (T4.11).
@@ -2202,6 +2298,21 @@ enum PromoStatus {
   inactive
 }
 
+/// What a promo code may be spent on. A code is written for a purpose — "20% off
+/// supplements", "a free month" — and honouring it against everything the gym
+/// sells is how a drinks voucher ends up discounting an annual membership.
+///
+/// `all` is the deliberate opt-in to that breadth. The other three name the
+/// catalogue a purchase came from: retail {@link Product}s, PT
+/// {@link PackagePlan}s, and recurring {@link SubscriptionPlan}s. Mirrors
+/// `promoScopeSchema`.
+enum PromoScope {
+  all
+  products
+  packages
+  subscriptions
+}
+
 /// A gym's marketing campaign (T12.7): a one-shot or recurring message blast to a
 /// resolved audience. Tenant-scoped by `gymId`. The audience is either a saved
 /// {@link AudienceSegment} (`audienceSegmentId`) or an ad-hoc `inlineCriteria`
@@ -2257,18 +2368,67 @@ model PromoCode {
   minPurchase   Int?
   usageLimit    Int?
   usedCount     Int               @default(0)
+  /// What this code may be spent on; `all` honours it across the catalogue.
+  appliesTo     PromoScope        @default(all)
+  /// When the code starts working. `null` means "already running" — the state
+  /// every existing code is in, and the one a code created for immediate use
+  /// wants. Set it to schedule a campaign ahead of time.
+  startsAt      DateTime?
+  /// Last day the code validates; `null` never expires.
   expiryDate    DateTime?
+  /// When true a member may redeem this code only once, ever — the "one per
+  /// customer" offer. Enforced against {@link PromoRedemption}, not `usedCount`,
+  /// which counts redemptions across everyone.
+  oncePerMember Boolean           @default(false)
   status        PromoStatus       @default(active)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  gym         Gym               @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  redemptions PromoRedemption[]
 
   // One code per gym; the list reads newest-first and filters by status.
   @@unique([gymId, code])
   @@index([gymId, createdAt])
   @@index([gymId, status])
   @@map("promo_codes")
+}
+
+/// One actual use of a {@link PromoCode} — written in the same transaction as the
+/// sale it discounted.
+///
+/// `usedCount` on the code is a running total and cannot answer "has *this*
+/// member used it?", which is exactly what a one-per-customer offer turns on. The
+/// ledger can, and it doubles as the record of what a campaign actually cost:
+/// `discountAmount` is the money given away, in MINOR units.
+///
+/// `memberId` is null for a walk-in with no member record. Such a redemption is
+/// still recorded — the gym gave the discount either way — but it cannot be held
+/// against a person, so a `oncePerMember` code cannot be enforced for anonymous
+/// buyers; the till has to identify them first.
+model PromoRedemption {
+  id             String   @id @default(cuid())
+  gymId          String
+  promoCodeId    String
+  /// The member who redeemed, or `null` for an anonymous walk-in sale.
+  memberId       String?
+  /// The order this discounted, when the redemption came from a sale.
+  orderId        String?
+  /// Money discounted, in the currency's MINOR units.
+  discountAmount Int
+  createdAt      DateTime @default(now())
+
+  promoCode PromoCode  @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  member    GymMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  // The one-per-customer guard: at most one redemption of a code per member. A
+  // partial index would be tidier, but Prisma has no syntax for one, so the
+  // constraint is enforced here and anonymous rows (null memberId) are exempt —
+  // Postgres treats nulls as distinct in a unique index.
+  @@unique([promoCodeId, memberId])
+  @@index([gymId, createdAt])
+  @@index([promoCodeId])
+  @@map("promo_redemptions")
 }
 
 /// A saved audience filter (T12.7) — a reusable set of `criteria` (membership

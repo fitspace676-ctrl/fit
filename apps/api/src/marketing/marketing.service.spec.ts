@@ -22,7 +22,10 @@ function promoRecord(over?: Record<string, unknown>) {
     minPurchase: null,
     usageLimit: 100,
     usedCount: 10,
+    appliesTo: 'all',
+    startsAt: null,
     expiryDate: null,
+    oncePerMember: false,
     status: 'active',
     createdAt: new Date('2026-07-01T00:00:00.000Z'),
     updatedAt: new Date('2026-07-01T00:00:00.000Z'),
@@ -75,6 +78,10 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     gymMember: make(models?.gymMember),
     booking: make(models?.booking),
     order: make(models?.order),
+    promoRedemption: make(models?.promoRedemption),
+    // Redemption writes the ledger row and bumps the counter together, so the
+    // transaction runs its callback against this same mock client.
+    $transaction: vi.fn((cb: (tx: unknown) => unknown) => cb(client)),
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -200,6 +207,8 @@ describe('MarketingService promo create conflicts', () => {
         description: '',
         discountType: 'percentage',
         discountValue: 20,
+        appliesTo: 'all',
+        oncePerMember: false,
         status: 'active',
       }),
     ).rejects.toBeInstanceOf(ConflictException);

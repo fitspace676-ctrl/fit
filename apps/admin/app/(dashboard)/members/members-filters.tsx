@@ -4,14 +4,19 @@ import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { MemberStatus, MemberPlanSlice } from '@fit/types';
+import type { MemberKind, MemberPlanSlice } from '@fit/types';
 import { Btn, FilterBar, TableSearch } from '@/components/ui';
 
-/** The status options offered by the Filter panel, in roster-priority order; labels come from `status.<value>`. */
-const STATUS_OPTIONS: ReadonlyArray<{ value: MemberStatus }> = [
-  { value: 'ACTIVE' },
-  { value: 'INVITED' },
-  { value: 'SUSPENDED' },
+/**
+ * The standings offered by the Filter panel, matching the segmented tabs above
+ * it. The panel is the secondary control for the *same* axis, so it has to write
+ * the same URL param — a select that filtered the account status instead would
+ * set a filter no tab could reflect, and the two would disagree on screen.
+ */
+const KIND_OPTIONS: ReadonlyArray<{ value: MemberKind }> = [
+  { value: 'MEMBER' },
+  { value: 'GUEST' },
+  { value: 'INACTIVE' },
 ];
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
@@ -68,12 +73,13 @@ const styles = stylex.create({
  */
 export function MembersFilters({
   search,
-  status,
+  kind,
   planId,
   plans,
 }: {
   search: string;
-  status: string;
+  /** The active standing segment from the URL (`''` for all). */
+  kind: string;
   planId: string;
   plans: MemberPlanSlice[];
 }) {
@@ -109,13 +115,13 @@ export function MembersFilters({
         />
 
         <Btn
-          v={status || planId || filtersOpen ? 'primary' : 'outline'}
+          v={kind || planId || filtersOpen ? 'primary' : 'outline'}
           size="md"
           icon="filter"
           aria-expanded={filtersOpen}
           onClick={() => setFiltersOpen((open) => !open)}
         >
-          {status || planId ? t('filters.filterActive') : t('filters.filter')}
+          {kind || planId ? t('filters.filterActive') : t('filters.filter')}
         </Btn>
       </FilterBar>
 
@@ -126,14 +132,14 @@ export function MembersFilters({
           </label>
           <select
             id="member-status"
-            value={status}
-            onChange={(event) => commit('status', event.target.value)}
+            value={kind}
+            onChange={(event) => commit('kind', event.target.value)}
             {...stylex.props(styles.select)}
           >
             <option value="">{t('filters.allStatuses')}</option>
-            {STATUS_OPTIONS.map((option) => (
+            {KIND_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {t(`status.${option.value}`)}
+                {t(`kind.${option.value}`)}
               </option>
             ))}
           </select>

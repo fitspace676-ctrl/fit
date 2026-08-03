@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { OrderStatus, ProductStatus, type Prisma } from '@fit/db';
+import { OrderStatus, ProductStatus, StockMovementReason, type Prisma } from '@fit/db';
 import {
   decodeVariantRef,
   productVariantsSchema,
@@ -18,8 +18,13 @@ import {
 } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 
-/** Sentinel stock for a base (no-variant) product — sold as-is, untracked. */
+/**
+ * Sentinel stock for a position whose product does not count stock. Untracked is
+ * not the same as zero: the gym never told us how many towels it has, so the
+ * storefront must not refuse to sell one.
+ */
 const UNLIMITED_STOCK = Number.MAX_SAFE_INTEGER;
 
 /** Currency assumed for an empty cart, before any line pins a real one. */
@@ -33,6 +38,7 @@ const PRODUCT_SELECT = {
   currency: true,
   images: true,
   variants: true,
+  stock: true,
 } satisfies Prisma.ProductSelect;
 
 type ProductRecord = Prisma.ProductGetPayload<{ select: typeof PRODUCT_SELECT }>;
@@ -46,7 +52,7 @@ interface VariantInfo {
   exists: boolean;
   /** Current per-unit price (MINOR units). */
   unitPrice: number;
-  /** On-hand units ({@link UNLIMITED_STOCK} for a base product). */
+  /** On-hand units ({@link UNLIMITED_STOCK} when the position is untracked). */
   stock: number;
   productId: string;
   productName: string;
@@ -103,6 +109,7 @@ export class CartService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContext,
+    private readonly promos: PromoRedemptionService,
   ) {}
 
   /** The resolved tenant + (optional) user for the current request. */
@@ -270,8 +277,6 @@ export class CartService {
     const subtotal = cart.items.reduce((sum, item) => {
       return sum + info.get(item.productVariantId)!.unitPrice * item.qty;
     }, 0);
-    const discount = this.resolvePromoDiscount(input.promoCode, subtotal);
-    const total = subtotal - discount;
     const currency = info.get(cart.items[0]!.productVariantId)?.currency ?? DEFAULT_CURRENCY;
 
     const member = userId
@@ -280,6 +285,19 @@ export class CartService {
           select: { id: true },
         })
       : null;
+
+    // Resolved after the member, because a one-per-customer code is decided
+    // against the person buying. A shop basket holds retail products, so it is
+    // checked against the `products` scope — a membership code does not apply.
+    const promo = await this.promos.resolve({
+      gymId,
+      code: input.promoCode,
+      amount: subtotal,
+      scope: 'products',
+      memberId: member?.id ?? null,
+    });
+    const discount = promo?.discount ?? 0;
+    const total = subtotal - discount;
 
     const lines: Prisma.OrderItemCreateWithoutOrderInput[] = cart.items.map((item) => {
       const current = info.get(item.productVariantId)!;
@@ -323,7 +341,19 @@ export class CartService {
       });
       // Inventory tracking (T7.8): draw down the sold variants' on-hand stock in the
       // same transaction, so stock never moves without the order landing.
-      await this.decrementStock(tx, gymId, cart.items);
+      await this.decrementStock(tx, gymId, order.id, cart.items);
+
+      // Consume the promo in the same transaction as the order it discounted, so
+      // a code can never be counted as spent against a sale that did not land —
+      // nor a discounted order exist with no record of who spent the code.
+      if (promo) {
+        await this.promos.consume(tx, {
+          ...promo,
+          gymId,
+          memberId: member?.id ?? null,
+          orderId: order.id,
+        });
+      }
       // Empty the cart — its lines cascade-delete with it. The anon cookie (if any)
       // is left in place: the next add reuses it for a fresh cart.
       await tx.cart.delete({ where: { id: cart.id } });
@@ -337,25 +367,34 @@ export class CartService {
    * Draw down on-hand stock for the sold variants, inside the checkout transaction.
    * Stock lives per-variant in the product's `variants` JSON, so each affected
    * product is read, the sold positions decremented, and the array written back.
-   * Only **variant** lines are tracked — a base (no-variant) line is sold untracked
-   * and left alone. Quantities were already stock-checked above, so the decrement
-   * is clamped at `0` purely as a guard against a concurrent edit.
+   * Base (no-variant) lines draw down the product's own count, but only once the
+   * gym has started tracking it — an untracked product is sold without a count and
+   * stays that way, since inventing a zero for it would immediately report it out
+   * of stock. Quantities were already stock-checked above, so the decrement is
+   * clamped at `0` purely as a guard against a concurrent edit.
+   *
+   * Each position that actually moves also writes a `SALE` row to its ledger, in
+   * this same transaction: stock never changes without the reason being recorded,
+   * so the product's history explains its current count rather than showing
+   * unexplained drops between manual adjustments.
    */
   private async decrementStock(
     tx: Prisma.TransactionClient,
     gymId: string,
+    orderId: string,
     items: CartWithItems['items'],
   ): Promise<void> {
-    // Sum sold units per (productId → variantIndex), skipping base/untracked lines.
-    const soldByProduct = new Map<string, Map<number, number>>();
+    // Sum sold units per (productId → position), where `null` is the base position.
+    const soldByProduct = new Map<string, Map<number | null, number>>();
     for (const item of items) {
       const parsed = decodeVariantRef(item.productVariantId);
-      if (!parsed || parsed.variantIndex === null) {
+      if (!parsed) {
         continue;
       }
-      const byIndex = soldByProduct.get(parsed.productId) ?? new Map<number, number>();
-      byIndex.set(parsed.variantIndex, (byIndex.get(parsed.variantIndex) ?? 0) + item.qty);
-      soldByProduct.set(parsed.productId, byIndex);
+      const byPosition = soldByProduct.get(parsed.productId) ?? new Map<number | null, number>();
+      const at = parsed.variantIndex;
+      byPosition.set(at, (byPosition.get(at) ?? 0) + item.qty);
+      soldByProduct.set(parsed.productId, byPosition);
     }
     if (soldByProduct.size === 0) {
       return;
@@ -363,7 +402,7 @@ export class CartService {
 
     const products = await tx.product.findMany({
       where: { gymId, id: { in: [...soldByProduct.keys()] } },
-      select: { id: true, variants: true },
+      select: { id: true, variants: true, stock: true },
     });
 
     for (const product of products) {
@@ -376,23 +415,67 @@ export class CartService {
         continue;
       }
       const variants = parsed.data;
-      let changed = false;
-      for (const [index, qty] of sold) {
-        const variant = variants[index];
+      const movements: Prisma.StockMovementCreateManyInput[] = [];
+      let variantsChanged = false;
+      let baseStock = product.stock;
+
+      for (const [position, qty] of sold) {
+        if (position === null) {
+          // Untracked base position — nothing to draw down, nothing to record.
+          if (baseStock === null) {
+            continue;
+          }
+          const next = Math.max(0, baseStock - qty);
+          if (next === baseStock) {
+            continue;
+          }
+          movements.push({
+            gymId,
+            productId: product.id,
+            variantIndex: null,
+            variantLabel: '',
+            delta: next - baseStock,
+            resultingStock: next,
+            reason: StockMovementReason.SALE,
+            orderId,
+          });
+          baseStock = next;
+          continue;
+        }
+
+        const variant = variants[position];
         if (!variant) {
           continue;
         }
         const next = Math.max(0, variant.stock - qty);
-        if (next !== variant.stock) {
-          variants[index] = { ...variant, stock: next };
-          changed = true;
+        if (next === variant.stock) {
+          continue;
         }
+        movements.push({
+          gymId,
+          productId: product.id,
+          variantIndex: position,
+          variantLabel: variant.name,
+          delta: next - variant.stock,
+          resultingStock: next,
+          reason: StockMovementReason.SALE,
+          orderId,
+        });
+        variants[position] = { ...variant, stock: next };
+        variantsChanged = true;
       }
-      if (changed) {
+
+      if (variantsChanged || baseStock !== product.stock) {
         await tx.product.update({
           where: { id: product.id },
-          data: { variants },
+          data: {
+            ...(variantsChanged ? { variants } : {}),
+            ...(baseStock !== product.stock ? { stock: baseStock } : {}),
+          },
         });
+      }
+      if (movements.length > 0) {
+        await tx.stockMovement.createMany({ data: movements });
       }
     }
   }
@@ -605,11 +688,13 @@ export class CartService {
       currency: product.currency,
     };
     if (variantIndex === null) {
-      // A product sold as-is: untracked stock, base price.
+      // A product sold as-is, at the base price. Its base count is authoritative
+      // once the gym starts tracking it; until then the position is unlimited so
+      // an uncounted line is never blocked from selling.
       return {
         exists: true,
         unitPrice: product.priceAmount,
-        stock: UNLIMITED_STOCK,
+        stock: product.stock ?? UNLIMITED_STOCK,
         variantName: null,
         ...base,
       };
@@ -640,17 +725,5 @@ export class CartService {
       imageUrl: null,
       currency: DEFAULT_CURRENCY,
     };
-  }
-
-  /**
-   * The discount (MINOR units) a promo code grants against `subtotal`. The shop
-   * shares the subscription flow's promo validation (T8.7); until that service
-   * lands this is the single integration point — it applies no discount, so the
-   * checkout proceeds at the un-discounted total. A future change resolves the
-   * code here (invalid codes will reject with their own error) without touching
-   * the surrounding flow.
-   */
-  private resolvePromoDiscount(_promoCode: string | undefined, _subtotal: number): number {
-    return 0;
   }
 }

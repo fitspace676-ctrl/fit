@@ -142,6 +142,13 @@ export const createCheckoutSchema = z.object({
   productType: checkoutProductTypeSchema,
   productId: z.string().min(1),
   locationId: z.string().min(1).optional(),
+  /**
+   * An optional discount code. Checked against the catalogue being bought — a
+   * code scoped to products does not discount a package — and refused loudly
+   * rather than ignored, so a buyer expecting a discount never silently pays
+   * full price.
+   */
+  promoCode: z.string().trim().min(1).max(64).optional(),
 });
 
 /** Validated `POST /checkout` body — {@link createCheckoutSchema}. */

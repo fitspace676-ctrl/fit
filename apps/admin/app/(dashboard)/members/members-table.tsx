@@ -12,7 +12,7 @@ import type {
   MemberPlanMix,
   MemberRow,
   MemberSort,
-  MemberStatus,
+  MemberKind,
   MemberTabCounts,
   SortDir,
 } from '@fit/types';
@@ -36,23 +36,29 @@ import { bulkExportMembersAction, setMemberTrashedAction } from './actions';
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
 
-/** Visual treatment per member status — green active, slate invited, amber suspended. */
-const STATUS_TONES: Record<MemberStatus, Tone> = {
-  ACTIVE: 'success',
-  INVITED: 'ink',
-  SUSPENDED: 'warning',
+/**
+ * Visual treatment per standing — green for a paying member, slate for a guest,
+ * amber for someone lapsed. This is the pill the roster shows: staff read the
+ * roster to answer "who is this person to us?", and the account's own state
+ * (invited / suspended) and the billing state are the finer detail behind it.
+ */
+const KIND_TONES: Record<MemberKind, Tone> = {
+  MEMBER: 'success',
+  GUEST: 'ink',
+  INACTIVE: 'warning',
 };
 
 /** Fallback plan colour (brand accent) when a plan carries no colour of its own. */
 const PLAN_FALLBACK = '#6257E3';
 
 /**
- * The roster's segmented tabs. Most map to the `status` URL param — "All" clears the
- * filter, the others pin a `GymMemberStatus` — with counts from the gym-wide
- * response so each shows its total. "Frozen" is a subscription-derived count with no
- * `GymMemberStatus`, so selecting it clears the status filter (read-only). "Trash" is
- * the odd one out: it switches the `view` param (not `status`) to list soft-deleted
- * members, so it is handled specially in {@link MembersTable}'s tab logic.
+ * The roster's segmented tabs, on the standing axis: member / guest / lapsed.
+ *
+ * These replaced the old status segments (Active / Trial / Expired), which mixed
+ * two vocabularies — `GymMemberStatus` for some tabs and subscription state for
+ * others — so two of them could describe the same person. "Frozen" survives as a
+ * cross-cutting flag (a member whose plan is paused is still a member), and
+ * "Trash" still switches the `view` param rather than a filter.
  */
 const TABS: ReadonlyArray<{
   labelKey: string;
@@ -60,10 +66,10 @@ const TABS: ReadonlyArray<{
   countKey: keyof MemberTabCounts;
 }> = [
   { labelKey: 'all', value: '', countKey: 'all' },
-  { labelKey: 'active', value: 'ACTIVE', countKey: 'active' },
+  { labelKey: 'member', value: 'MEMBER', countKey: 'member' },
+  { labelKey: 'guest', value: 'GUEST', countKey: 'guest' },
+  { labelKey: 'inactive', value: 'INACTIVE', countKey: 'inactive' },
   { labelKey: 'frozen', value: 'frozen', countKey: 'frozen' },
-  { labelKey: 'trial', value: 'INVITED', countKey: 'trial' },
-  { labelKey: 'expired', value: 'SUSPENDED', countKey: 'expired' },
   { labelKey: 'trash', value: 'trash', countKey: 'trash' },
 ];
 
@@ -353,10 +359,10 @@ const styles = stylex.create({
   },
 });
 
-/** A status pill mirroring the roster styling. */
-function StatusPill({ status }: { status: MemberStatus }) {
+/** The standing pill mirroring the roster styling. */
+function StatusPill({ kind }: { kind: MemberKind }) {
   const t = useTranslations('admin.members');
-  return <Badge tone={STATUS_TONES[status]}>{t(`status.${status}`)}</Badge>;
+  return <Badge tone={KIND_TONES[kind]}>{t(`kind.${kind}`)}</Badge>;
 }
 
 /** Render a member's initials for the avatar placeholder. */
@@ -516,7 +522,7 @@ export function MembersTable({
   sort,
   dir,
   search,
-  status,
+  kind,
   view,
   frozen,
   planId,
@@ -531,7 +537,8 @@ export function MembersTable({
   sort: MemberSort;
   dir: SortDir;
   search: string;
-  status: string;
+  /** The active standing segment from the URL (`''` for All). */
+  kind: string;
   view: string;
   frozen: boolean;
   planId: string;
@@ -591,7 +598,7 @@ export function MembersTable({
       return;
     }
     startTransition(() =>
-      router.replace(hrefWith({ status: nextValue, view: '', frozen: '', page: '' })),
+      router.replace(hrefWith({ kind: nextValue, view: '', frozen: '', status: '', page: '' })),
     );
   }
 
@@ -687,7 +694,7 @@ export function MembersTable({
       key: 'status',
       header: t('columns.status'),
       sortKey: 'status',
-      cell: (member) => <StatusPill status={member.status} />,
+      cell: (member) => <StatusPill kind={member.kind} />,
     },
     {
       key: 'lastVisitAt',
@@ -775,7 +782,7 @@ export function MembersTable({
       {/* Segmented tabs-with-counts. */}
       <FilterChips
         chips={chips}
-        active={isTrashView ? 'trash' : frozen ? 'frozen' : status}
+        active={isTrashView ? 'trash' : frozen ? 'frozen' : kind}
         onSelect={selectTab}
         ariaLabel={t('list.tablistLabel')}
       />
@@ -783,7 +790,7 @@ export function MembersTable({
       {/* Search + Filter row. Hidden in the trash view — the status/plan filters
           describe the live roster, not the soft-deleted list. */}
       {isTrashView ? null : (
-        <MembersFilters search={search} status={status} planId={planId} plans={planMix.plans} />
+        <MembersFilters search={search} kind={kind} planId={planId} plans={planMix.plans} />
       )}
 
       {/* Selection + export toolbar. */}

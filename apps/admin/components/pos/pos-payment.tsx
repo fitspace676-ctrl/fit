@@ -242,6 +242,34 @@ const styles = stylex.create({
   changeValueShort: {
     color: 'var(--color-error)',
   },
+  promoRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  promoLabel: {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  promoInput: {
+    height: '2.75rem',
+    width: '100%',
+    boxSizing: 'border-box',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.875rem',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.9375rem',
+    textTransform: 'uppercase',
+  },
   errorCard: {
     display: 'flex',
     alignItems: 'center',
@@ -483,6 +511,12 @@ export function PosPayment({
   // an error string to surface (and let the operator retry) on failure.
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /**
+   * A discount code typed at the till. Only sent — the server re-resolves it and
+   * recomputes the discount from catalogue prices, so the figure on this screen
+   * is never what the customer is charged against.
+   */
+  const [promoCode, setPromoCode] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Move focus into the dialog on open so keyboard operators land inside it.
@@ -544,6 +578,7 @@ export function PosPayment({
       receipt,
       ...(planId ? { planId } : {}),
       ...(locationId ? { locationId } : {}),
+      ...(promoCode.trim() ? { promoCode: promoCode.trim() } : {}),
     });
     setSaving(false);
     if (!result.ok) {
@@ -668,6 +703,24 @@ export function PosPayment({
                 </div>
               </div>
             ) : null}
+
+            <div {...stylex.props(styles.promoRow)}>
+              <label htmlFor="pos-promo" {...stylex.props(styles.promoLabel)}>
+                {t('promoLabel')}
+              </label>
+              <input
+                id="pos-promo"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={64}
+                value={promoCode}
+                disabled={saving}
+                placeholder={t('promoPlaceholder')}
+                onChange={(event) => setPromoCode(event.target.value)}
+                {...stylex.props(styles.promoInput)}
+              />
+            </div>
 
             {saveError !== null ? (
               <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>

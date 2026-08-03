@@ -24,8 +24,10 @@ import { CheckoutService } from './checkout.service';
  * invoice). Only the plain-package purchase, which had no existing path, is
  * written here — see {@link CheckoutService}.
  */
+import { MarketingModule } from '../marketing/marketing.module';
+
 @Module({
-  imports: [LocationsModule, BillingModule, SubscriptionsModule],
+  imports: [MarketingModule, LocationsModule, BillingModule, SubscriptionsModule],
   controllers: [CatalogueController, CheckoutController],
   providers: [CatalogueService, CheckoutService],
 })

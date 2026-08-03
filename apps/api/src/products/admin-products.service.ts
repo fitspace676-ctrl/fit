@@ -4,6 +4,7 @@ import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   UNCATEGORISED_FILTER,
   productVariantsSchema,
+  resolveStockLevel,
   type AdminProductDetail,
   type AdminProductRow,
   type CreateProductData,
@@ -11,6 +12,10 @@ import {
   type GetAdminProductResponse,
   type ListAdminProductsQuery,
   type ListAdminProductsResponse,
+  type InventoryPositionRow,
+  type InventoryQuery,
+  type InventorySummary,
+  type ListInventoryResponse,
   type ListLowStockResponse,
   type LowStockProductRow,
   type LowStockQuery,
@@ -37,6 +42,8 @@ const PRODUCT_SELECT = {
   currency: true,
   images: true,
   variants: true,
+  stock: true,
+  lowStockThreshold: true,
   status: true,
   categoryId: true,
   // The category is the gym's own row (the relation can't cross tenants), and the
@@ -47,6 +54,35 @@ const PRODUCT_SELECT = {
 } satisfies Prisma.ProductSelect;
 
 type ProductRecord = Prisma.ProductGetPayload<{ select: typeof PRODUCT_SELECT }>;
+
+/**
+ * Fold a product's stock — however it tracks it — into the two numbers every
+ * surface reads: the total on hand, and the most-urgent single position.
+ *
+ * A product with variants counts per variant and ignores the base column; one
+ * without counts in the base column alone. `lowestStock` is `null` only when
+ * neither applies, which is what keeps "untracked" distinguishable from "out"
+ * — a distinction the badge, the roster totals and the low-stock report all rest
+ * on, so it is derived in exactly one place.
+ */
+export function tallyStock(
+  variants: ProductVariants,
+  baseStock: number | null | undefined,
+): { totalStock: number; lowestStock: number | null } {
+  if (variants.length > 0) {
+    return {
+      totalStock: variants.reduce((sum, variant) => sum + variant.stock, 0),
+      lowestStock: Math.min(...variants.map((variant) => variant.stock)),
+    };
+  }
+  // `undefined` as well as `null`: a caller reading through a narrower select has
+  // not learned the count is zero, only that it did not ask — and answering "0"
+  // there would report a stocked product as out of stock.
+  if (baseStock === null || baseStock === undefined) {
+    return { totalStock: 0, lowestStock: null };
+  }
+  return { totalStock: baseStock, lowestStock: baseStock };
+}
 
 /**
  * Staff-console product management for a gym (read + write, T4.6).
@@ -94,7 +130,7 @@ export class AdminProductsService {
       this.prisma.client.product.count({ where }),
       this.prisma.client.product.findMany({
         where,
-        select: { status: true, variants: true },
+        select: { status: true, variants: true, stock: true, lowStockThreshold: true },
       }),
     ]);
 
@@ -111,12 +147,18 @@ export class AdminProductsService {
    * Fold the filtered roster's status + stock into the {@link ProductRosterSummary}
    * KPI tiles. `productCount` echoes the filtered `total`; `activeCount` counts the
    * `ACTIVE` matches; the low/out buckets classify each **active** product by its
-   * most-urgent variant (lowest on-hand) against {@link DEFAULT_LOW_STOCK_THRESHOLD},
-   * so a deactivated product — off the storefront, stock moot — never trips an alert.
-   * A product with no variants is untracked and counts toward neither bucket.
+   * most-urgent position — lowest variant, or the base count for a product with no
+   * variants — against that product's own threshold, so a deactivated product (off
+   * the storefront, stock moot) never trips an alert and an untracked one counts
+   * toward neither bucket.
    */
   private summarize(
-    scan: Array<{ status: ProductStatus; variants: Prisma.JsonValue }>,
+    scan: Array<{
+      status: ProductStatus;
+      variants: Prisma.JsonValue;
+      stock: number | null;
+      lowStockThreshold: number | null;
+    }>,
     total: number,
   ): ProductRosterSummary {
     let activeCount = 0;
@@ -128,14 +170,14 @@ export class AdminProductsService {
         continue;
       }
       activeCount += 1;
-      const variants = this.parseVariants(product.variants);
-      if (variants.length === 0) {
-        continue;
-      }
-      const lowest = Math.min(...variants.map((variant) => variant.stock));
-      if (lowest === 0) {
+      const { lowestStock } = tallyStock(this.parseVariants(product.variants), product.stock);
+      const level = resolveStockLevel({
+        lowestStock,
+        lowStockThreshold: product.lowStockThreshold,
+      });
+      if (level === 'out') {
         outOfStockCount += 1;
-      } else if (lowest <= DEFAULT_LOW_STOCK_THRESHOLD) {
+      } else if (level === 'low') {
         lowStockCount += 1;
       }
     }
@@ -161,14 +203,23 @@ export class AdminProductsService {
   async listLowStock(query: LowStockQuery): Promise<ListLowStockResponse> {
     const rows = await this.prisma.client.product.findMany({
       where: { status: ProductStatus.ACTIVE },
-      select: { id: true, name: true, currency: true, images: true, variants: true },
+      select: {
+        id: true,
+        name: true,
+        currency: true,
+        images: true,
+        variants: true,
+        stock: true,
+        lowStockThreshold: true,
+      },
       orderBy: { name: 'asc' },
     });
 
     const data: LowStockProductRow[] = [];
     for (const row of rows) {
       const low: LowStockVariant[] = [];
-      this.parseVariants(row.variants).forEach((variant, variantIndex) => {
+      const variants = this.parseVariants(row.variants);
+      variants.forEach((variant, variantIndex) => {
         if (variant.stock <= query.threshold) {
           low.push({
             variantIndex,
@@ -178,6 +229,12 @@ export class AdminProductsService {
           });
         }
       });
+      // A product sold as-is has one position, on the product itself. It only
+      // qualifies once the gym is actually counting it — an untracked product has
+      // no shortfall to report, however low the threshold is set.
+      if (variants.length === 0 && row.stock !== null && row.stock <= query.threshold) {
+        low.push({ variantIndex: null, name: row.name, sku: '', stock: row.stock });
+      }
       if (low.length === 0) {
         continue;
       }
@@ -195,6 +252,115 @@ export class AdminProductsService {
     data.sort((a, b) => a.lowestStock - b.lowestStock);
 
     return { data, threshold: query.threshold };
+  }
+
+  /**
+   * The inventory overview — every product flattened into its addressable stock
+   * positions, so a product with three variants contributes three rows and one
+   * sold as-is contributes one. This is the "what do I stock, and how many?" view,
+   * as distinct from the low-stock report's "what needs reordering?".
+   *
+   * Defaults to `ACTIVE` products: a deactivated line is off the storefront, so
+   * its stock is not what anyone is counting. Flattening and paging happen in
+   * memory because a position is not a row in the database — variant counts live
+   * inside the product's JSON, so there is nothing for SQL to page over. The
+   * summary is computed across the whole filtered set before the page is sliced,
+   * so the tiles describe the gym's holdings rather than the visible page.
+   */
+  async listInventory(query: InventoryQuery): Promise<ListInventoryResponse> {
+    const where: Prisma.ProductWhereInput = {
+      status: query.status ?? ProductStatus.ACTIVE,
+      ...(query.search
+        ? { name: { contains: query.search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+    };
+
+    const rows = await this.prisma.client.product.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        currency: true,
+        costAmount: true,
+        variants: true,
+        stock: true,
+        lowStockThreshold: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const positions: InventoryPositionRow[] = [];
+    for (const row of rows) {
+      const variants = this.parseVariants(row.variants);
+      const base = {
+        productId: row.id,
+        productName: row.name,
+        status: row.status,
+        currency: row.currency,
+        costAmount: row.costAmount,
+        lowStockThreshold: row.lowStockThreshold,
+      };
+      if (variants.length > 0) {
+        variants.forEach((variant, variantIndex) => {
+          positions.push({
+            ...base,
+            variantIndex,
+            label: variant.name,
+            sku: variant.sku,
+            stock: variant.stock,
+            value: row.costAmount === null ? null : row.costAmount * variant.stock,
+          });
+        });
+      } else {
+        positions.push({
+          ...base,
+          variantIndex: null,
+          label: row.name,
+          sku: '',
+          stock: row.stock,
+          value: row.stock === null || row.costAmount === null ? null : row.costAmount * row.stock,
+        });
+      }
+    }
+
+    const filtered = query.tracked ? positions.filter((p) => p.stock !== null) : positions;
+
+    const summary: InventorySummary = {
+      positionCount: filtered.length,
+      trackedCount: 0,
+      lowCount: 0,
+      outCount: 0,
+      totalUnits: 0,
+      totalValue: 0,
+      valuedPositions: 0,
+      currency: filtered[0]?.currency ?? 'USD',
+    };
+    for (const position of filtered) {
+      if (position.stock !== null) {
+        summary.trackedCount += 1;
+        summary.totalUnits += position.stock;
+      }
+      const level = resolveStockLevel({
+        lowestStock: position.stock,
+        lowStockThreshold: position.lowStockThreshold,
+      });
+      if (level === 'low') summary.lowCount += 1;
+      if (level === 'out') summary.outCount += 1;
+      if (position.value !== null) {
+        summary.totalValue += position.value;
+        summary.valuedPositions += 1;
+      }
+    }
+
+    const skip = (query.page - 1) * query.limit;
+    return {
+      data: filtered.slice(skip, skip + query.limit),
+      total: filtered.length,
+      page: query.page,
+      limit: query.limit,
+      summary,
+    };
   }
 
   /**
@@ -387,6 +553,7 @@ export class AdminProductsService {
   /** Project a queried row to the denormalised roster {@link AdminProductRow}. */
   private toRow(row: ProductRecord): AdminProductRow {
     const variants = this.parseVariants(row.variants);
+    const { totalStock, lowestStock } = tallyStock(variants, row.stock);
     return {
       id: row.id,
       name: row.name,
@@ -395,8 +562,10 @@ export class AdminProductsService {
       currency: row.currency,
       imageUrl: row.images[0] ?? null,
       variantCount: variants.length,
-      totalStock: variants.reduce((sum, variant) => sum + variant.stock, 0),
-      lowestStock: variants.length === 0 ? null : Math.min(...variants.map((v) => v.stock)),
+      totalStock,
+      lowestStock,
+      stock: variants.length === 0 ? (row.stock ?? null) : null,
+      lowStockThreshold: row.lowStockThreshold ?? null,
       status: row.status,
       category: row.category ? { id: row.category.id, name: row.category.name } : null,
       createdAt: row.createdAt.toISOString(),

@@ -249,6 +249,13 @@ export const recordPosSaleSchema = z
      * nothing to attribute.
      */
     locationId: z.string().min(1).optional(),
+    /**
+     * A discount code rung up with the sale. The server re-resolves it and
+     * recomputes the discount from the catalogue prices — the till's own totals
+     * are a display artefact, and trusting them would let a tampered request name
+     * its own discount.
+     */
+    promoCode: z.string().trim().min(1).max(64).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.planId && !value.memberId) {

@@ -26,7 +26,11 @@ import {
   type PreviewAudienceInput,
   type PromoCodeRow,
   type PromoRedeemResult,
+  promoRejectionReason,
+  computePromoDiscount,
   type PromoRejectionReason,
+  type PromoRuleFacts,
+  type PromoScope,
   type PromoValidationResult,
   type SaveCampaignAsTemplateInput,
   type ScheduleCampaignInput,
@@ -221,7 +225,10 @@ export class MarketingService {
           discountValue: input.discountValue,
           minPurchase: input.minPurchase ?? null,
           usageLimit: input.usageLimit ?? null,
+          appliesTo: input.appliesTo,
+          startsAt: input.startsAt ? new Date(input.startsAt) : null,
           expiryDate: input.expiryDate ? new Date(input.expiryDate) : null,
+          oncePerMember: input.oncePerMember,
           status: input.status,
         },
       });
@@ -247,9 +254,14 @@ export class MarketingService {
           ...(input.discountValue !== undefined ? { discountValue: input.discountValue } : {}),
           ...(input.minPurchase !== undefined ? { minPurchase: input.minPurchase } : {}),
           ...(input.usageLimit !== undefined ? { usageLimit: input.usageLimit } : {}),
+          ...(input.appliesTo !== undefined ? { appliesTo: input.appliesTo } : {}),
+          ...(input.startsAt !== undefined
+            ? { startsAt: input.startsAt ? new Date(input.startsAt) : null }
+            : {}),
           ...(input.expiryDate !== undefined
             ? { expiryDate: input.expiryDate ? new Date(input.expiryDate) : null }
             : {}),
+          ...(input.oncePerMember !== undefined ? { oncePerMember: input.oncePerMember } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
         },
       });
@@ -282,15 +294,23 @@ export class MarketingService {
    */
   async validatePromoCode(input: ValidatePromoCodeInput): Promise<PromoValidationResult> {
     const promo = await this.findPromoByCode(input.code);
-    const reason = promo ? this.rejectionReason(promo, input.amount) : 'not_found';
-    if (!promo || reason) {
-      return { valid: false, reason: reason ?? 'not_found' };
+    if (!promo) {
+      return { valid: false, reason: 'not_found' };
+    }
+    const reason = this.rejectionReason(promo, input.amount, {
+      scope: input.scope,
+      alreadyRedeemed: promo.oncePerMember
+        ? await this.hasRedeemed(promo.id, input.memberId)
+        : false,
+    });
+    if (reason) {
+      return { valid: false, reason };
     }
     return {
       valid: true,
       promo: this.toPromoRow(promo),
       ...(input.amount !== undefined
-        ? { discountAmount: computeDiscount(promo, input.amount) }
+        ? { discountAmount: computePromoDiscount(promo, input.amount) }
         : {}),
     };
   }
@@ -303,37 +323,66 @@ export class MarketingService {
    */
   async redeemPromoCode(input: ValidatePromoCodeInput): Promise<PromoRedeemResult> {
     const promo = await this.findPromoByCode(input.code);
-    const reason = promo ? this.rejectionReason(promo, input.amount) : 'not_found';
-    if (!promo || reason) {
+    if (!promo) {
       throw new ConflictException({
         message: 'Promo code cannot be redeemed',
         code: 'PROMO_CODE_INVALID',
-        reason: reason ?? 'not_found',
+        details: ['not_found' satisfies PromoRejectionReason],
+      });
+    }
+    const reason = this.rejectionReason(promo, input.amount, {
+      scope: input.scope,
+      alreadyRedeemed: promo.oncePerMember
+        ? await this.hasRedeemed(promo.id, input.memberId)
+        : false,
+    });
+    if (reason) {
+      throw new ConflictException({
+        message: 'Promo code cannot be redeemed',
+        code: 'PROMO_CODE_INVALID',
+        details: [reason],
       });
     }
 
+    const discountAmount = computePromoDiscount(promo, input.amount ?? 0);
+    const gymId = this.tenant.gymId;
+
     // Atomic guard against the usage limit: only increment while still under it,
-    // so two concurrent redemptions of the final use can't both succeed.
-    const result = await this.prisma.client.promoCode.updateMany({
-      where: {
-        id: promo.id,
-        ...(promo.usageLimit !== null ? { usedCount: { lt: promo.usageLimit } } : {}),
-      },
-      data: { usedCount: { increment: 1 } },
+    // so two concurrent redemptions of the final use can't both succeed. The
+    // ledger row is written in the same transaction as that increment, so the
+    // running total and the record of who spent it can never disagree.
+    const redeemed = await this.prisma.client.$transaction(async (tx) => {
+      const result = await tx.promoCode.updateMany({
+        where: {
+          id: promo.id,
+          ...(promo.usageLimit !== null ? { usedCount: { lt: promo.usageLimit } } : {}),
+        },
+        data: { usedCount: { increment: 1 } },
+      });
+      if (result.count === 0) {
+        return false;
+      }
+      await tx.promoRedemption.create({
+        data: {
+          gymId,
+          promoCodeId: promo.id,
+          memberId: input.memberId ?? null,
+          discountAmount,
+        },
+      });
+      return true;
     });
-    if (result.count === 0) {
+
+    if (!redeemed) {
       throw new ConflictException({
         message: 'Promo code cannot be redeemed',
         code: 'PROMO_CODE_INVALID',
-        reason: 'usage_limit_reached' satisfies PromoRejectionReason,
+        details: ['usage_limit_reached' satisfies PromoRejectionReason],
       });
     }
 
     const updated = await this.requirePromo(promo.id);
-    return {
-      promo: this.toPromoRow(updated),
-      discountAmount: computeDiscount(promo, input.amount ?? 0),
-    };
+    return { promo: this.toPromoRow(updated), discountAmount };
   }
 
   // -------------------------------------------------------------------------
@@ -719,25 +768,38 @@ export class MarketingService {
    * Why a code can't apply right now, or `null` when it can. Checked in order:
    * inactive → expired → usage limit reached → below the minimum purchase.
    */
+  /**
+   * Why a code cannot be used here, or `null` when it can. Delegates to the
+   * shared rule in `@fit/types` so the console and the shop checkout can never
+   * disagree about which codes are honoured.
+   */
   private rejectionReason(
-    promo: {
-      status: string;
-      expiryDate: Date | null;
-      usageLimit: number | null;
-      usedCount: number;
-      minPurchase: number | null;
-    },
+    promo: PromoRuleFacts,
     amount: number | undefined,
+    context: { scope?: PromoScope; alreadyRedeemed?: boolean } = {},
   ): PromoRejectionReason | null {
-    if (promo.status !== 'active') return 'inactive';
-    if (promo.expiryDate && promo.expiryDate.getTime() < Date.now()) return 'expired';
-    if (promo.usageLimit !== null && promo.usedCount >= promo.usageLimit) {
-      return 'usage_limit_reached';
+    return promoRejectionReason(promo, { ...context, amount });
+  }
+
+  /**
+   * Whether this member has already spent this code. Answered from the redemption
+   * ledger rather than `usedCount`, which counts everyone's uses together and so
+   * cannot tell one customer's second attempt from another's first.
+   *
+   * A caller with no member — an anonymous walk-in at the till — is treated as
+   * having redeemed it. That refuses a one-per-customer code to someone the gym
+   * cannot identify, which is the safe direction to be wrong in: a code that can
+   * be spent repeatedly by anonymous buyers is not one-per-customer at all.
+   */
+  private async hasRedeemed(promoId: string, memberId: string | undefined): Promise<boolean> {
+    if (!memberId) {
+      return true;
     }
-    if (promo.minPurchase !== null && amount !== undefined && amount < promo.minPurchase) {
-      return 'below_min_purchase';
-    }
-    return null;
+    const existing = await this.prisma.client.promoRedemption.findFirst({
+      where: { promoCodeId: promoId, memberId },
+      select: { id: true },
+    });
+    return existing !== null;
   }
 
   private toSegmentRow(row: {
@@ -787,7 +849,10 @@ export class MarketingService {
     minPurchase: number | null;
     usageLimit: number | null;
     usedCount: number;
+    appliesTo: PromoCodeRow['appliesTo'];
+    startsAt: Date | null;
     expiryDate: Date | null;
+    oncePerMember: boolean;
     status: PromoCodeRow['status'];
     createdAt: Date;
     updatedAt: Date;
@@ -801,7 +866,10 @@ export class MarketingService {
       minPurchase: row.minPurchase,
       usageLimit: row.usageLimit,
       usedCount: row.usedCount,
+      appliesTo: row.appliesTo,
+      startsAt: row.startsAt ? row.startsAt.toISOString() : null,
       expiryDate: row.expiryDate ? row.expiryDate.toISOString() : null,
+      oncePerMember: row.oncePerMember,
       status: row.status,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
@@ -869,15 +937,6 @@ function toCriteriaJson(
 }
 
 /** The MINOR-unit discount a promo applies to `amount`, never more than the amount. */
-function computeDiscount(
-  promo: { discountType: string; discountValue: number },
-  amount: number,
-): number {
-  if (promo.discountType === 'percentage') {
-    return Math.min(amount, Math.floor((amount * promo.discountValue) / 100));
-  }
-  return Math.min(amount, promo.discountValue);
-}
 
 /**
  * Intersect the non-empty id lists, or `null` when there were none (no aggregate

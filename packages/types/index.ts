@@ -43,6 +43,7 @@ export * from './src/schedule-admin';
 export * from './src/signup';
 export * from './src/staff';
 export * from './src/staff-depth';
+export * from './src/stock';
 export * from './src/subscriptions';
 export * from './src/subscriptions-admin';
 export * from './src/trainer-availability';

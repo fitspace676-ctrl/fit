@@ -116,7 +116,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return { status, code: this.codeFor(status), message: payload, details: null };
       }
 
-      const record = payload as { error?: unknown; message?: unknown; code?: unknown };
+      const record = payload as {
+        error?: unknown;
+        message?: unknown;
+        code?: unknown;
+        details?: unknown;
+      };
       // A handler may stamp a stable, domain-specific `code` (e.g. `EMAIL_TAKEN`)
       // onto the exception body; honour it so the wire contract isn't limited to
       // the status-derived defaults. Falls back to the status mapping otherwise.
@@ -127,11 +132,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return { status, code, message: 'Validation failed', details: arrayDetails };
       }
 
+      // A handler may also stamp structured `details` — the machine-readable
+      // specifics behind a domain code, e.g. *why* a promo code was refused.
+      // Without this they were silently dropped, leaving a client able to see
+      // that something failed but never able to say what to do about it.
       return {
         status,
         code,
         message: typeof record.message === 'string' ? record.message : exception.message,
-        details: null,
+        details: this.asStringArray(record.details),
       };
     }
 

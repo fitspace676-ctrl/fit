@@ -157,7 +157,7 @@ export default async function MembersPage({
         sort={query.sort}
         dir={query.dir}
         search={query.search ?? ''}
-        status={query.status ?? ''}
+        kind={query.kind ?? ''}
         view={query.view}
         frozen={query.frozen}
         planId={query.planId ?? ''}

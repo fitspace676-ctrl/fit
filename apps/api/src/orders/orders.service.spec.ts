@@ -10,9 +10,21 @@ import type { TenantContext } from '../common/tenant/tenant.context';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import type { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
+import type { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { OrdersService, utcDayRange } from './orders.service';
 
 /** A no-op loyalty earn-hook stub — the sale flow calls it fire-and-forget. */
+/**
+ * A promo service that never finds a code — the default for sales rung up with
+ * no discount, which is every existing case here.
+ */
+function promoStub(): PromoRedemptionService {
+  return {
+    resolve: vi.fn(() => Promise.resolve(null)),
+    consume: vi.fn(() => Promise.resolve()),
+  } as unknown as PromoRedemptionService;
+}
+
 function loyaltyStub(): LoyaltyPointsService {
   return {
     awardForPurchase: vi.fn<() => Promise<void>>().mockResolvedValue(),
@@ -76,7 +88,7 @@ function setup(over?: {
   const enrollMember = over?.enrollMember ?? vi.fn().mockResolvedValue({});
   const enrollment = enrollmentStub(enrollMember);
   return {
-    service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment),
+    service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment, promoStub()),
     enrollMember,
     sendReceiptEmail,
     findUnique,
@@ -313,6 +325,7 @@ function adminSetup(over?: {
   const statusEventCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'evt-1' }));
   const productFindMany = vi.fn((_args: unknown) => Promise.resolve(over?.productFindMany ?? []));
   const productUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'p1' }));
+  const movementCreateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
 
   const tx = {
     order: { findFirst: orderFindFirst, update: orderUpdate },
@@ -320,6 +333,7 @@ function adminSetup(over?: {
     payment: { update: paymentUpdate },
     orderStatusEvent: { create: statusEventCreate },
     product: { findMany: productFindMany, update: productUpdate },
+    stockMovement: { createMany: movementCreateMany },
   };
   const $transaction = vi.fn((cb: (client: typeof tx) => unknown) => cb(tx));
 
@@ -340,7 +354,7 @@ function adminSetup(over?: {
 
   const enrollment = enrollmentStub();
   return {
-    service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment),
+    service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment, promoStub()),
     orderFindMany,
     orderCount,
     orderFindFirst,
@@ -352,6 +366,7 @@ function adminSetup(over?: {
     statusEventCreate,
     productFindMany,
     productUpdate,
+    movementCreateMany,
   };
 }
 
@@ -636,7 +651,7 @@ describe('OrdersService.refundOrder', () => {
         ],
       },
       productFindMany: [
-        { id: 'p1', variants: [{ name: 'S', sku: 'A', priceAmount: null, stock: 5 }] },
+        { id: 'p1', variants: [{ name: 'S', sku: 'A', priceAmount: null, stock: 5 }], stock: null },
       ],
     });
 
@@ -649,6 +664,58 @@ describe('OrdersService.refundOrder', () => {
     };
     expect(updateArgs.where.id).toBe('p1');
     expect(updateArgs.data.variants[0]!.stock).toBe(8); // 5 + 3
+  });
+
+  it('records the restock in the product ledger, tied to the refunded order', async () => {
+    // The counterpart to the SALE rows checkout writes: without this the history
+    // would show stock rising with no explanation.
+    const { service, movementCreateMany } = adminSetup({
+      orderFindFirst: {
+        id: 'order-1',
+        status: 'PAID',
+        payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+        items: [{ productVariantId: 'p1:0', qty: 3 }],
+      },
+      productFindMany: [
+        { id: 'p1', variants: [{ name: 'S', sku: 'A', priceAmount: null, stock: 5 }], stock: null },
+      ],
+    });
+
+    await service.refundOrder('order-1', { amount: 1000, reason: 'Returned', restockItems: true });
+
+    const args = movementCreateMany.mock.calls[0]![0] as {
+      data: Array<Record<string, unknown>>;
+    };
+    expect(args.data).toEqual([
+      expect.objectContaining({
+        productId: 'p1',
+        variantIndex: 0,
+        variantLabel: 'S',
+        delta: 3,
+        resultingStock: 8,
+        reason: 'REFUND_RESTOCK',
+        orderId: 'order-1',
+      }),
+    ]);
+  });
+
+  it('does not credit units back to a product that was never counted', async () => {
+    // The sale drew nothing down, so returning units would invent stock the gym
+    // never said it had — and would silently start it tracking.
+    const { service, productUpdate, movementCreateMany } = adminSetup({
+      orderFindFirst: {
+        id: 'order-1',
+        status: 'PAID',
+        payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+        items: [{ productVariantId: 'p1:base', qty: 2 }],
+      },
+      productFindMany: [{ id: 'p1', variants: [], stock: null }],
+    });
+
+    await service.refundOrder('order-1', { amount: 1000, reason: 'Returned', restockItems: true });
+
+    expect(productUpdate).not.toHaveBeenCalled();
+    expect(movementCreateMany).not.toHaveBeenCalled();
   });
 
   it('does not touch stock when restockItems is false', async () => {

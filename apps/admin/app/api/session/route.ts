@@ -10,6 +10,7 @@
 // `POST /api/session` — the two write the same cookies with the same options, so
 // either entry point produces one session that both apps accept.
 
+import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { getServerSession } from '@/lib/session';
@@ -66,10 +67,38 @@ function accessTokenMaxAge(token: string): number {
   return DEFAULT_ACCESS_MAX_AGE;
 }
 
-/** `GET /api/session` — the verified session, for the client `useSession()` hook. */
+/**
+ * `GET /api/session` — the verified session, for the client `useSession()` hook.
+ *
+ * When the access cookie is not valid, the answer also says whether the session is
+ * **recoverable**: whether a refresh token is sitting beside it.
+ *
+ * That flag is the difference between two states this route used to conflate. The
+ * access token lives 15 minutes and the refresh token 30 days, so an operator who
+ * left the tab open over lunch comes back with the first expired and the second
+ * perfectly good. `middleware.ts` renews it silently — but only on genuine
+ * navigations, and this route is reached by `fetch()`, which carries neither
+ * `sec-fetch-dest: document` nor the RSC header. So the honest answer was "no
+ * valid access token", and the client read it as "signed out" and emptied the
+ * whole sidebar.
+ *
+ * This route deliberately does **not** refresh the token itself. The API rotates
+ * the refresh token on every use and revokes the family when one is reused, so
+ * rotation has exactly one owner — the middleware — and adding a second one here
+ * raced it: the rotated token landed in the cookie jar, the next RSC refresh sent
+ * the stale one, and the reuse detector logged the operator out for real. Instead
+ * the flag lets the client keep its nav and ask for a navigation, which the
+ * middleware then refreshes through the single path built for it.
+ */
 export async function GET(): Promise<NextResponse> {
   const user = await getServerSession();
-  return NextResponse.json({ user });
+  if (user) {
+    return NextResponse.json({ user, recoverable: false });
+  }
+
+  const cookieStore = await cookies();
+  const recoverable = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value !== undefined;
+  return NextResponse.json({ user: null, recoverable });
 }
 
 /**

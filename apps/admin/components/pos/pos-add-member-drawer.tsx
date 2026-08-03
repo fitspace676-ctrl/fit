@@ -26,6 +26,12 @@ const styles = stylex.create({
   content: {
     padding: '1.5rem',
   },
+  guestHint: {
+    margin: 0,
+    marginBlockEnd: '1rem',
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
   trigger: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -112,6 +118,10 @@ export function PosAddMemberDrawer({
           }
           content={
             <LayoutContent padding={0} isScrollable xstyle={styles.content}>
+              {/* Someone added at the till holds no subscription, so the roster
+                  derives their standing as a guest. Said here because the form
+                  itself has no status field to show it. */}
+              <p {...stylex.props(styles.guestHint)}>{t('guestHint')}</p>
               <MemberForm
                 key={drawer.contentKey}
                 mode="create"
