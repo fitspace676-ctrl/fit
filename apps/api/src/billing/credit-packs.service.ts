@@ -23,6 +23,7 @@ import {
 } from '@fit/types';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 
 /**
  * Credit packs / class passes (T8.5).
@@ -53,6 +54,7 @@ export class CreditPacksService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly promos: PromoRedemptionService,
   ) {}
 
   /**
@@ -171,6 +173,19 @@ export class CreditPacksService {
       });
     }
 
+    // Resolved before the transaction opens, so an unusable code fails the
+    // request without having written an order. A pack is a package plan, so it
+    // is checked against the `packages` scope.
+    const promo = await this.promos.resolve({
+      gymId,
+      code: data.promoCode,
+      amount: plan.priceAmount,
+      scope: 'packages',
+      memberId,
+    });
+    const discount = promo?.discount ?? 0;
+    const total = plan.priceAmount - discount;
+
     const credits = plan.sessionCount;
     const expiresAt =
       plan.creditValidityDays !== null
@@ -188,13 +203,20 @@ export class CreditPacksService {
           gymId,
           packageId: plan.id,
           memberId,
-          total: plan.priceAmount,
+          total,
           currency: plan.currency,
           status: OrderStatus.PAID,
           // Itemise the pack so the order reads as a breakdown that sums to
           // `total` wherever orders are rendered — the buyer's confirmation
           // screen and the admin order detail alike — rather than a bare figure.
-          items: { create: { label: plan.name, amount: plan.priceAmount } },
+          // The discount rides as its own line for the same reason: a lower total
+          // with nothing explaining it reads as a pricing bug.
+          items: {
+            create: [
+              { label: plan.name, amount: plan.priceAmount },
+              ...(discount > 0 ? [{ label: `Promo ${data.promoCode}`, amount: -discount }] : []),
+            ],
+          },
           statusEvents: { create: { status: OrderStatus.PAID } },
         },
         select: { id: true },
@@ -204,7 +226,7 @@ export class CreditPacksService {
         data: {
           gymId,
           orderId: order.id,
-          amount: plan.priceAmount,
+          amount: total,
           currency: plan.currency,
           status: PaymentStatus.CAPTURED,
           // The MVP charge is stubbed (treated as captured); T8.8 swaps `stub` for
@@ -228,6 +250,12 @@ export class CreditPacksService {
         },
         select: { id: true },
       });
+
+      if (promo) {
+        // Consumed with the purchase, so a code is never counted as spent against
+        // a pack that failed to mint.
+        await this.promos.consume(tx, { ...promo, gymId, memberId, orderId: order.id });
+      }
 
       return { creditPackId: pack.id, orderId: order.id };
     });

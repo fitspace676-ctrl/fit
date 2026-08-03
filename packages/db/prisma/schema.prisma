@@ -435,6 +435,7 @@ model Gym {
   promoCodes              PromoCode[]
   audienceSegments        AudienceSegment[]
   messageTemplates        MessageTemplate[]
+  emailTemplateOverrides  EmailTemplateOverride[]
   loyaltyProgram          LoyaltyProgram?
   loyaltyLedger           LoyaltyLedgerEntry[]
   loyaltyRewards          LoyaltyReward[]
@@ -2429,6 +2430,32 @@ model PromoRedemption {
   @@index([gymId, createdAt])
   @@index([promoCodeId])
   @@map("promo_redemptions")
+}
+
+/// A gym's override of one system email's wording.
+///
+/// The built-in wording for every template lives in code (`@fit/types`), so a gym
+/// that has never opened the screen still has all of them. A row exists here only
+/// once someone edits one — which makes "reset to default" a delete, and lets a
+/// later improvement to the default copy reach every gym that has not overridden
+/// it. Seeding twenty rows per gym would have frozen the defaults forever.
+model EmailTemplateOverride {
+  id        String   @id @default(cuid())
+  gymId     String
+  /// Which system email this overrides — mirrors `emailTemplateKeySchema`.
+  key       String
+  subject   String
+  body      String
+  /// Cleared to stop the email being sent at all, keeping the wording.
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@unique([gymId, key])
+  @@index([gymId])
+  @@map("email_template_overrides")
 }
 
 /// A saved audience filter (T12.7) — a reusable set of `criteria` (membership

@@ -39,6 +39,13 @@ export const INSUFFICIENT_CREDITS_CODE = 'INSUFFICIENT_CREDITS';
  */
 export const purchaseCreditPackSchema = z.object({
   packId: z.string().min(1),
+  /**
+   * An optional discount code. A credit pack is a {@link PackagePlan}, so it is
+   * checked against the `packages` scope — the same codes that discount a plain
+   * package discount a session pack, which is what a gym running "20% off
+   * packages" means by it.
+   */
+  promoCode: z.string().trim().min(1).max(64).optional(),
 });
 
 /** Validated `POST /credit-packs/purchase` body — {@link purchaseCreditPackSchema}. */

@@ -46,6 +46,12 @@ import type {
   ListAdminProductsQuery,
   ListAdminProductsResponse,
   ListLowStockResponse,
+  ListEmailTemplatesResponse,
+  EmailTemplateRow,
+  UpdateEmailTemplateInput,
+  ListOrdersQueryInput,
+  ListOrdersResponse,
+  AdminOrderDetail,
   InventoryQuery,
   ListInventoryResponse,
   ListStockMovementsQuery,
@@ -2161,6 +2167,74 @@ export async function fetchCashReconciliation(date: string): Promise<CashReconci
     },
   );
   return unwrap<CashReconciliationReport>(res);
+}
+
+/** `GET /gyms/settings/email-templates` — every system email and its current wording. */
+export async function fetchEmailTemplates(): Promise<ListEmailTemplatesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/settings/email-templates`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListEmailTemplatesResponse>(res);
+}
+
+/** `PUT /gyms/settings/email-templates/:key` — save this gym's wording for one email. */
+export async function updateEmailTemplate(
+  key: string,
+  input: UpdateEmailTemplateInput,
+): Promise<EmailTemplateRow> {
+  const res = await fetch(
+    `${apiBaseUrl()}/gyms/settings/email-templates/${encodeURIComponent(key)}`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<EmailTemplateRow>(res);
+}
+
+/** `POST /gyms/settings/email-templates/:key/reset` — go back to the built-in wording. */
+export async function resetEmailTemplate(key: string): Promise<EmailTemplateRow> {
+  const res = await fetch(
+    `${apiBaseUrl()}/gyms/settings/email-templates/${encodeURIComponent(key)}/reset`,
+    { method: 'POST', headers: await authHeaders(), cache: 'no-store' },
+  );
+  return unwrap<EmailTemplateRow>(res);
+}
+
+/**
+ * `GET /orders` — one filtered, paginated page of the gym's orders (T7.9): every
+ * sale the till and the online shop have recorded, newest first.
+ */
+export async function fetchOrders(query: ListOrdersQueryInput = {}): Promise<ListOrdersResponse> {
+  const params = new URLSearchParams();
+  if (query.page !== undefined) params.set('page', String(query.page));
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
+  if (query.channel) params.set('channel', query.channel);
+  if (query.status) params.set('status', query.status);
+  if (query.memberId) params.set('memberId', query.memberId);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  const qs = params.toString();
+  const res = await fetch(`${apiBaseUrl()}/orders${qs ? `?${qs}` : ''}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListOrdersResponse>(res);
+}
+
+/**
+ * `GET /orders/:id` — one order in full: its lines, payments, refunds and the
+ * status timeline. A `404` here is an unknown or cross-tenant id.
+ */
+export async function fetchOrder(id: string): Promise<AdminOrderDetail> {
+  const res = await fetch(`${apiBaseUrl()}/orders/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AdminOrderDetail>(res);
 }
 
 /**

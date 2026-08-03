@@ -1678,7 +1678,8 @@
         },
         "promoLabel": "Promo code",
         "promoPlaceholder": "Optional"
-      }
+      },
+      "salesLog": "Sales log"
     },
     "activity": {
       "title": "Activity",
@@ -3013,7 +3014,8 @@
         "subtitle": "Your gym’s branches and their capacity.",
         "description": "Manage each branch — its address, manager, capacity, and status — in the full locations manager.",
         "cta": "Manage locations"
-      }
+      },
+      "emailTemplatesLink": "Email templates"
     },
     "automation": {
       "breadcrumb": {

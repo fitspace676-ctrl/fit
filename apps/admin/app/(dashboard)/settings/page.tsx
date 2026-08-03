@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { ApiError, fetchGymSettings } from '@/lib/api';
+import Link from 'next/link';
 import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
@@ -36,6 +37,28 @@ const styles = stylex.create({
     width: '0.875rem',
     height: '0.875rem',
   },
+  sideLink: {
+    display: 'inline-flex',
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginBlockStart: '0.5rem',
+    height: '2.5rem',
+    paddingInline: '1rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':hover': 'var(--color-background-muted)',
+    },
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: 'var(--color-text-primary)',
+  },
+  sideLinkIcon: { width: '1rem', height: '1rem' },
   header: {
     display: 'flex',
     flexDirection: 'column',
@@ -108,6 +131,12 @@ export default async function SettingsPage() {
         <header {...stylex.props(styles.header)}>
           <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
           <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
+          {/* Its own screen rather than another rail section: twenty message
+              editors do not belong in the same form as the opening hours. */}
+          <Link href="/settings/email-templates" {...stylex.props(styles.sideLink)}>
+            <Icon name="mail" sw={2} {...stylex.props(styles.sideLinkIcon)} />
+            {t('emailTemplatesLink')}
+          </Link>
         </header>
         <Card variant="default" padding={0} xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />

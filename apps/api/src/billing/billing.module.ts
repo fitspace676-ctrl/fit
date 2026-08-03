@@ -5,6 +5,7 @@ import { AdminInvoicesService } from './admin-invoices.service';
 import { CreditPacksController } from './credit-packs.controller';
 import { CreditPacksService } from './credit-packs.service';
 import { InvoiceDocumentService } from './invoice-document.service';
+import { MarketingModule } from '../marketing/marketing.module';
 import { InvoiceModule } from './invoice.module';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { InvoicesController } from './invoices.controller';
@@ -38,7 +39,7 @@ import { MemberCreditPacksController } from './member-credit-packs.controller';
  * document, and the globally-provided `MailerService` for delivery.
  */
 @Module({
-  imports: [InvoiceModule],
+  imports: [InvoiceModule, MarketingModule],
   controllers: [
     CreditPacksController,
     MemberCreditPacksController,
