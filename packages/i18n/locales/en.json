@@ -1253,6 +1253,8 @@
       "skipToContent": "Skip to main content",
       "scrollUp": "Scroll up",
       "scrollDown": "Scroll down",
+      "collapseNav": "Collapse",
+      "expandNav": "Expand",
       "quickSale": "Quick sale",
       "notifications": "Notifications",
       "locationLabel": "Location",

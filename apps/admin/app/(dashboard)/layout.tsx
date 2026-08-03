@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { cookies } from 'next/headers';
 import { Permission, roleHasPermission } from '@fit/types';
 import { AdminShell, type ShellLocation, type ShellSystemState } from '@/components/admin-shell';
+import { SIDEBAR_COLLAPSED_COOKIE, SIDEBAR_COLLAPSED_VALUE } from '@/lib/sidebar-collapse';
 import { getActiveGymSlug } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
 import { fetchCheckInStats, fetchLocations } from '@/lib/api';
@@ -22,7 +24,16 @@ import { fetchCheckInStats, fetchLocations } from '@/lib/api';
  * authenticated and role-gated the request before anything here renders.
  */
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  const [gymSlug, session] = await Promise.all([getActiveGymSlug(), getServerSession()]);
+  const [gymSlug, session, cookieStore] = await Promise.all([
+    getActiveGymSlug(),
+    getServerSession(),
+    cookies(),
+  ]);
+
+  // Seed the sidebar's collapsed state from its cookie so the rail is painted at
+  // its final width — the client provider starts from the same value.
+  const sidebarCollapsed =
+    cookieStore.get(SIDEBAR_COLLAPSED_COOKIE)?.value === SIDEBAR_COLLAPSED_VALUE;
 
   let system: ShellSystemState = { online: false, checkInCount: null };
   if (session && roleHasPermission(session.role, Permission.MemberRead)) {
@@ -48,7 +59,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   }
 
   return (
-    <AdminShell gymSlug={gymSlug} system={system} locations={locations}>
+    <AdminShell
+      gymSlug={gymSlug}
+      system={system}
+      locations={locations}
+      sidebarCollapsed={sidebarCollapsed}
+    >
       {children}
     </AdminShell>
   );
