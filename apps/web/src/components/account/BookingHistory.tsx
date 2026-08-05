@@ -222,7 +222,13 @@ export function BookingHistory({ entries, now }: BookingHistoryProps) {
         title={t('empty.title')}
         description={t('empty.subtitle')}
         actions={
-          <Button as={Link} href="/classes" variant="primary" size="md" label={t('empty.action')} />
+          <Button
+            as={Link}
+            href="/member/classes"
+            variant="primary"
+            size="md"
+            label={t('empty.action')}
+          />
         }
       />
     );
@@ -314,7 +320,7 @@ function NextUpHero({
         </div>
         <Button
           as={Link}
-          href={`/classes/${instance.id}`}
+          href={`/member/classes/${instance.id}`}
           variant="secondary"
           size="md"
           label={t('viewClass')}

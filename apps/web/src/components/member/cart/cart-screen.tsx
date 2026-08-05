@@ -394,7 +394,7 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
         <p {...stylex.props(styles.successLine)}>{t('collectHint')}</p>
         <Button
           as={Link}
-          href="/shop"
+          href="/member/shop"
           variant="primary"
           size="md"
           label={t('continueShopping')}
@@ -414,7 +414,7 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
           <p {...stylex.props(styles.emptyHint)}>{t('emptyHint')}</p>
           <Button
             as={Link}
-            href="/shop"
+            href="/member/shop"
             variant="primary"
             size="md"
             icon={<Icon name="bag" />}

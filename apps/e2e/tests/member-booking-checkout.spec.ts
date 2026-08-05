@@ -63,7 +63,7 @@ test.describe.serial('Member booking + checkout', () => {
   });
 
   test('Register: a new member signs up and is told to check their inbox', async () => {
-    await page.goto('/en/register');
+    await page.goto('/en/member/register');
 
     await page.locator('input[name="name"]').fill(member.name);
     await page.locator('input[name="email"]').fill(member.email);
@@ -87,7 +87,7 @@ test.describe.serial('Member booking + checkout', () => {
   });
 
   test('Sign in: the verified member lands on their home', async () => {
-    await page.goto('/en/login');
+    await page.goto('/en/member/login');
     await page.locator('input[name="email"]').fill(member.email);
     await page.locator('input[name="password"]').fill(member.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -101,14 +101,14 @@ test.describe.serial('Member booking + checkout', () => {
   test('Book a class — capacity path', async () => {
     // Deep-link the occurrence detail page; a signed-in member gets the real
     // booking button, labelled "Book" while seats remain.
-    await page.goto(`/en/classes/${catalogue.bookableClassId}`);
+    await page.goto(`/en/member/classes/${catalogue.bookableClassId}`);
     await page.getByRole('button', { name: 'Book' }).click();
 
     // The action toasts and refreshes in place (no navigation). Assert on the
     // durable record: the bookings page lists it as "Booked".
     await expect(page.getByText('Booked! See you there')).toBeVisible({ timeout: 20_000 });
 
-    await page.goto('/en/account/bookings');
+    await page.goto('/en/member/account/bookings');
     await expect(page.getByText('Booked', { exact: true }).first()).toBeVisible({
       timeout: 20_000,
     });
@@ -117,27 +117,27 @@ test.describe.serial('Member booking + checkout', () => {
   test('Join the waitlist — full class path', async () => {
     // The full occurrence (zero capacity) renders the same button labelled
     // "Join waitlist"; booking it queues the member rather than seating them.
-    await page.goto(`/en/classes/${catalogue.fullClassId}`);
+    await page.goto(`/en/member/classes/${catalogue.fullClassId}`);
     await page.getByRole('button', { name: 'Join waitlist' }).click();
 
     await expect(page.getByText('Added to the waitlist')).toBeVisible({ timeout: 20_000 });
 
     // The bookings page shows a waitlist entry as its queued position, e.g.
     // "Waitlist · #1" (a confirmed seat shows the "Booked" badge instead).
-    await page.goto('/en/account/bookings');
+    await page.goto('/en/member/account/bookings');
     await expect(page.getByText(/Waitlist · #\d+/).first()).toBeVisible({ timeout: 20_000 });
   });
 
   test('Shop → cart → checkout', async () => {
     // Add the seeded product from the shop grid.
-    await page.goto('/en/shop');
+    await page.goto('/en/member/shop');
     const card = page.locator('li', { hasText: catalogue.productName });
     await expect(card).toBeVisible({ timeout: 20_000 });
     await card.getByRole('button', { name: 'Add' }).click();
     await expect(page.getByText('Added to cart')).toBeVisible({ timeout: 20_000 });
 
     // Review the cart and confirm the line landed before paying.
-    await page.goto('/en/cart');
+    await page.goto('/en/member/cart');
     await expect(page.getByText(catalogue.productName).first()).toBeVisible({ timeout: 20_000 });
 
     // Place the order — pickup defaults to the gym's first location, so no manual

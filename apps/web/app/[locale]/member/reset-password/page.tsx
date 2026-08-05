@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
-import { AuthShell } from '../_components/auth/auth-shell';
+import { AuthShell } from '../../_components/auth/auth-shell';
 import { ResetPasswordForm } from './reset-password-form';
 
 export const metadata: Metadata = {
@@ -43,7 +43,7 @@ export default async function ResetPasswordPage({
       title={t('reset.title')}
       subtitle={t('reset.subtitle')}
       footer={
-        <Link href="/login" {...stylex.props(styles.link)}>
+        <Link href="/member/login" {...stylex.props(styles.link)}>
           {t('reset.backToLogin')}
         </Link>
       }

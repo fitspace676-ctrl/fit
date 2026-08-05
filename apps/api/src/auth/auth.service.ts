@@ -850,14 +850,14 @@ export class AuthService {
     });
 
     if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
-      return { url: buildInviteRedirectUrl('/login', { inviteError: 'invalid' }) };
+      return { url: buildInviteRedirectUrl('/member/login', { inviteError: 'invalid' }) };
     }
 
     const existing = await this.prisma.client.user.findUnique({
       where: { email: invite.email },
       select: { id: true },
     });
-    const path = existing ? '/login' : '/register';
+    const path = existing ? '/member/login' : '/member/register';
     return { url: buildInviteRedirectUrl(path, { inviteToken: token }) };
   }
 
@@ -927,9 +927,10 @@ export class AuthService {
 /**
  * Build a web-client deep link for the staff-invite accept flow (T4.7). Targets
  * the web app (`WEB_URL`, falling back to the dev default the email links use) at
- * `path` with the given query params — e.g. `/register?inviteToken=…`. The path
- * carries no locale prefix; the web app's i18n middleware adds the default locale
- * on redirect, preserving the query string.
+ * `path` with the given query params — e.g. `/member/register?inviteToken=…`. The
+ * path carries the member portal's `/member` base but no locale prefix; the web
+ * app's i18n middleware adds the default locale on redirect, preserving the query
+ * string.
  */
 function buildInviteRedirectUrl(path: string, params: Record<string, string>): string {
   const base = env.WEB_URL ? env.WEB_URL.replace(/\/+$/, '') : 'http://localhost:3001';

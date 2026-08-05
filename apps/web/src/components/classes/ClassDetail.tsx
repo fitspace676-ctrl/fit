@@ -137,7 +137,7 @@ export interface ClassDetailProps {
 
 /**
  * The member-facing class detail page body (T5.9): one occurrence's full detail
- * on a deep-linkable `/classes/:id` URL — the schedule, trainer, location, and
+ * on a deep-linkable `/member/classes/:id` URL — the schedule, trainer, location, and
  * live capacity, plus the auth-gated booking CTA.
  *
  * Reuses the calendar's pure date helpers so the detail page and the calendar

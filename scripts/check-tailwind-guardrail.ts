@@ -51,52 +51,52 @@ const MIGRATED_PATHS: readonly string[] = [
   // forgot/reset screens migrated (T11.9) the whole `_components/auth` dir is now
   // Astryx-only — the legacy `form-controls.tsx` is gone — so it is guarded as a
   // directory rather than file-by-file.
-  'apps/web/app/[locale]/login',
+  'apps/web/app/[locale]/member/login',
   'apps/web/app/[locale]/_components/auth',
   // T11.8 — register + post-signup email-verification screen. Rebuilt inline on
   // Astryx form primitives (no longer routed through `form-controls.tsx`).
-  'apps/web/app/[locale]/register',
+  'apps/web/app/[locale]/member/register',
   // T11.9 — forgot-password (request link) + reset-password (set new password).
   // Rebuilt on the shared Astryx auth shell + Astryx form primitives (StyleX).
-  'apps/web/app/[locale]/forgot-password',
-  'apps/web/app/[locale]/reset-password',
+  'apps/web/app/[locale]/member/forgot-password',
+  'apps/web/app/[locale]/member/reset-password',
   // T11.11 — member dashboard: rebuilt on Astryx Card/Button/Badge/Avatar +
   // StyleX. Guarded file-by-file (not the whole `(member)` group) so the
   // not-yet-migrated member screens the shell hosts keep their Tailwind during
   // coexistence.
-  'apps/web/app/[locale]/(member)/home/page.tsx',
+  'apps/web/app/[locale]/member/(member)/home/page.tsx',
   'apps/web/src/components/member/home/membership-hero.tsx',
   // T11.12 — member classes list (week/list calendar + filter strip) + class
   // detail + booking CTA. Both route files and the whole classes component dir
   // are rebuilt on Astryx Card/Button/Badge + StyleX (the shared side-sheet
   // shell stays in @fit/ui-web, out of scope). Guarded as directories since the
   // classes route group and component dir are now Astryx-only.
-  'apps/web/app/[locale]/(member)/classes',
+  'apps/web/app/[locale]/member/(member)/classes',
   'apps/web/src/components/classes',
   // T11.13 — member trainers browse (roster + filter card) + trainer detail
   // (profile + schedule + reviews). Both route files and the whole trainers
   // component dir are rebuilt on Astryx Card/Avatar/Badge/Button + StyleX.
   // Guarded as directories since the trainers route group and component dir are
   // now Astryx-only.
-  'apps/web/app/[locale]/(member)/trainers',
+  'apps/web/app/[locale]/member/(member)/trainers',
   'apps/web/src/components/trainers',
   // T11.14 — member "My bookings" board (upcoming/past segmented control + cancel
   // confirm dialog). The bookings route file is guarded file-by-file (the sibling
   // account screens — profile, membership — keep their Tailwind until T11.16),
   // while the whole `src/components/account` dir is Astryx-only and guarded as a
   // directory.
-  'apps/web/app/[locale]/(member)/account/bookings',
+  'apps/web/app/[locale]/member/(member)/account/bookings',
   'apps/web/src/components/account',
   // T11.15 — member commerce: shop listing + product card, cart + checkout, and
   // the four-step purchase wizard (+ success). Rebuilt on Astryx
   // Card/Button/IconButton/Badge/Selector/TextInput/CheckboxInput + StyleX.
   // Guarded as directories since the shop / cart / checkout route groups and
   // component dirs are now Astryx-only.
-  'apps/web/app/[locale]/(member)/shop',
+  'apps/web/app/[locale]/member/(member)/shop',
   'apps/web/src/components/shop',
-  'apps/web/app/[locale]/(member)/cart',
+  'apps/web/app/[locale]/member/(member)/cart',
   'apps/web/src/components/member/cart',
-  'apps/web/app/[locale]/(join)/checkout',
+  'apps/web/app/[locale]/member/(join)/checkout',
   'apps/web/src/components/checkout',
   // T11.16 — member account: profile (identity + tabbed personal/preferences/
   // notifications/security), membership (plan/status/freeze/credits/invoices)
@@ -105,8 +105,8 @@ const MIGRATED_PATHS: readonly string[] = [
   // NumberInput/Popover + StyleX. The account route group is now fully migrated
   // (bookings T11.14 + profile + membership), and the notification bell is
   // guarded file-by-file (the member shell/header stays Tailwind for now).
-  'apps/web/app/[locale]/(member)/account/profile',
-  'apps/web/app/[locale]/(member)/account/membership',
+  'apps/web/app/[locale]/member/(member)/account/profile',
+  'apps/web/app/[locale]/member/(member)/account/membership',
   'apps/web/src/components/member/profile',
   'apps/web/src/components/member/notification-bell.tsx',
   // T11.17 — admin console shell: the AppShell frame, collapsible SideNav, the

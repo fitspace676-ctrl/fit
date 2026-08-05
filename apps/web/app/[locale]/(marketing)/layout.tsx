@@ -26,13 +26,13 @@ export default async function MarketingLayout({
           <Link href="/" className="font-display font-extrabold text-brand-600 dark:text-brand-300">
             {t('appName')}
           </Link>
-          <Link href="/classes" className="hover:text-brand-600 dark:hover:text-white">
+          <Link href="/member/classes" className="hover:text-brand-600 dark:hover:text-white">
             {t('nav.classes')}
           </Link>
-          <Link href="/trainers" className="hover:text-brand-600 dark:hover:text-white">
+          <Link href="/member/trainers" className="hover:text-brand-600 dark:hover:text-white">
             {t('nav.trainers')}
           </Link>
-          <Link href="/shop" className="hover:text-brand-600 dark:hover:text-white">
+          <Link href="/member/shop" className="hover:text-brand-600 dark:hover:text-white">
             {t('nav.shop')}
           </Link>
         </nav>

@@ -112,7 +112,7 @@ export interface ClassDetailDrawerProps {
  *
  * Built on the shared @fit/ui-web `Drawer` overlay; the body is rebuilt on
  * Astryx primitives under the Fit brand theme. The CTA is auth-gated: a
- * signed-out visitor gets a link to `/login?from=<this page, with the class
+ * signed-out visitor gets a link to `/member/login?from=<this page, with the class
  * preselected>` so they return here after signing in; a signed-in member gets
  * the real {@link BookingActionButton}, which runs the booking server action and
  * refreshes the seat counts.
@@ -133,11 +133,11 @@ export function ClassDetailDrawer({ instance, onClose }: ClassDetailDrawerProps)
 
   // Where login should send the visitor back to: this page, with the class
   // preselected so the drawer can reopen. next-intl's <Link> prefixes the
-  // locale onto `/login`, and the login form validates this same-origin path.
+  // locale onto `/member/login`, and the login form validates this same-origin path.
   const returnParams = new URLSearchParams(searchParams?.toString() ?? '');
   returnParams.set('class', instance.id);
   const from = `/${locale}${pathname}?${returnParams.toString()}`;
-  const loginHref = `/login?from=${encodeURIComponent(from)}`;
+  const loginHref = `/member/login?from=${encodeURIComponent(from)}`;
 
   return (
     <Drawer

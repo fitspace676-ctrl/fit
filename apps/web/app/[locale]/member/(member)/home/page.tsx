@@ -3,7 +3,6 @@ import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
 import { Avatar } from '@astryxdesign/core/Avatar';
 import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard, MemberBookingHistoryEntry, ProductSummary } from '@fit/types';
 import { getActiveGymId } from '@/lib/active-gym';
@@ -13,7 +12,7 @@ import { fetchMyCreditPacks, totalRemainingCredits } from '@/lib/credit-packs';
 import { fetchProducts, formatMoney } from '@/lib/shop';
 import { fetchTrainers } from '@/lib/trainers';
 import { fetchClassInstances } from '@/lib/classes';
-import { CountUp, Icon } from '@/src/components/ui';
+import { ButtonLink, CountUp, Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { MembershipHero } from '@/src/components/member/home/membership-hero';
 
@@ -593,9 +592,8 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                     />
                   </div>
                 </div>
-                <Button
-                  as={Link}
-                  href={`/classes/${nextBooking.classInstance.id}`}
+                <ButtonLink
+                  href={`/member/classes/${nextBooking.classInstance.id}`}
                   variant="primary"
                   size="md"
                   label={t('checkIn')}
@@ -605,9 +603,8 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               <div {...stylex.props(styles.empty)}>
                 <Icon name="calendar" {...stylex.props(styles.mutedIcon)} />
                 <p {...stylex.props(styles.emptyText)}>{t('noClasses')}</p>
-                <Button
-                  as={Link}
-                  href="/classes"
+                <ButtonLink
+                  href="/member/classes"
                   variant="secondary"
                   size="sm"
                   label={t('browseClasses')}
@@ -635,7 +632,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
       <section>
         <div {...stylex.props(styles.sectionHead)}>
           <h2 {...stylex.props(styles.sectionTitle)}>{t('bookClass')}</h2>
-          <Link href="/classes" {...stylex.props(styles.viewAll)}>
+          <Link href="/member/classes" {...stylex.props(styles.viewAll)}>
             {t('viewAll')}
           </Link>
         </div>
@@ -663,9 +660,8 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                     {c.category && <Badge variant="blue" label={c.category} />}
                   </div>
                   <OccupancyBar value={c.bookedCount} cap={c.capacity} />
-                  <Button
-                    as={Link}
-                    href={`/classes/${c.id}`}
+                  <ButtonLink
+                    href={`/member/classes/${c.id}`}
                     variant={full ? 'secondary' : 'primary'}
                     size="sm"
                     label={full ? t('joinWaitlist') : t('book')}
@@ -706,17 +702,15 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               </div>
             </div>
             <div {...stylex.props(styles.actionRow)}>
-              <Button
-                as={Link}
-                href={`/trainers/${trainer.id}`}
+              <ButtonLink
+                href={`/member/trainers/${trainer.id}`}
                 variant="primary"
                 size="md"
                 label={t('bookSession')}
                 xstyle={styles.flexBtn}
               />
-              <Button
-                as={Link}
-                href="/trainers"
+              <ButtonLink
+                href="/member/trainers"
                 variant="secondary"
                 size="md"
                 label={t('viewAll')}
@@ -733,7 +727,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
           {topProducts.length > 0 ? (
             <div {...stylex.props(styles.productGrid)}>
               {topProducts.map((p) => (
-                <Link key={p.id} href="/shop" {...stylex.props(styles.productCard)}>
+                <Link key={p.id} href="/member/shop" {...stylex.props(styles.productCard)}>
                   <div {...stylex.props(styles.productThumb)}>
                     {p.imageUrl ? (
                       <img src={p.imageUrl} alt="" {...stylex.props(styles.productImg)} />
@@ -752,9 +746,8 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
             <p {...stylex.props(styles.productEmpty)}>{t('noProducts')}</p>
           )}
           <div style={{ marginTop: '1rem' }}>
-            <Button
-              as={Link}
-              href="/shop"
+            <ButtonLink
+              href="/member/shop"
               variant="secondary"
               size="sm"
               label={t('visitShop')}
@@ -806,9 +799,8 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
           <Card variant="default" padding={0} xstyle={styles.emptyLg}>
             <Icon name="clock" {...stylex.props(styles.mutedIcon)} />
             <p {...stylex.props(styles.emptyText)}>{t('noClasses')}</p>
-            <Button
-              as={Link}
-              href="/classes"
+            <ButtonLink
+              href="/member/classes"
               variant="primary"
               size="sm"
               label={t('browseClasses')}

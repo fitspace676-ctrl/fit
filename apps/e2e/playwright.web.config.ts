@@ -90,7 +90,7 @@ export default defineConfig({
     {
       command: 'pnpm --filter @fit/web dev',
       // Probe a public page on the bare origin — the server serves every host.
-      url: `${WEB_ORIGIN}/en/login`,
+      url: `${WEB_ORIGIN}/en/member/login`,
       reuseExistingServer: !isCI,
       timeout: 180_000,
       cwd: '../..',

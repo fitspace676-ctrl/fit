@@ -344,8 +344,8 @@ export function StepPayment({ gymId, locationId, packageId, productType }: StepP
         window.sessionStorage.removeItem(CHECKOUT_CUSTOMER_KEY);
         // Replace (not push) so Back from the confirmation can't resubmit.
         const target = orderId
-          ? `/checkout/success?orderId=${encodeURIComponent(orderId)}`
-          : '/account/membership';
+          ? `/member/checkout/success?orderId=${encodeURIComponent(orderId)}`
+          : '/member/account/membership';
         router.replace(target, { scroll: false });
       })
       .catch((error: unknown) => {

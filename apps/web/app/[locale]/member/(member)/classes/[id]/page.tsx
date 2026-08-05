@@ -105,7 +105,7 @@ export default async function ClassDetailPage({ params }: { params: Promise<Clas
 
   return (
     <div {...stylex.props(styles.page)}>
-      <Link href="/classes" {...stylex.props(styles.back)}>
+      <Link href="/member/classes" {...stylex.props(styles.back)}>
         <Icon name="chevronLeft" {...stylex.props(styles.backIcon)} sw={2.2} />
         {t('detail.back')}
       </Link>

@@ -11,22 +11,22 @@ export interface NavItem {
 
 /** The primary nav, shared by the desktop bar, the mobile drawer, and the tab bar. */
 export const NAV_ITEMS: NavItem[] = [
-  { key: 'home', href: '/home', icon: 'home' },
-  { key: 'classes', href: '/classes', icon: 'calendar' },
-  { key: 'bookings', href: '/account/bookings', icon: 'clock' },
-  { key: 'trainer', href: '/trainers', icon: 'dumbbell' },
-  { key: 'shop', href: '/shop', icon: 'bag' },
-  { key: 'membership', href: '/account/membership', icon: 'ticket' },
+  { key: 'home', href: '/member/home', icon: 'home' },
+  { key: 'classes', href: '/member/classes', icon: 'calendar' },
+  { key: 'bookings', href: '/member/account/bookings', icon: 'clock' },
+  { key: 'trainer', href: '/member/trainers', icon: 'dumbbell' },
+  { key: 'shop', href: '/member/shop', icon: 'bag' },
+  { key: 'membership', href: '/member/account/membership', icon: 'ticket' },
 ];
 
 /**
  * Is `href` the active nav target for the current locale-less `pathname`?
- * `/home` matches exactly; the rest match their subtree (so `/classes/42` still
+ * `/member/home` matches exactly; the rest match their subtree (so `/member/classes/42` still
  * lights up Classes).
  */
 export function isActive(pathname: string, href: string): boolean {
-  if (href === '/home') {
-    return pathname === '/home';
+  if (href === '/member/home') {
+    return pathname === '/member/home';
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
