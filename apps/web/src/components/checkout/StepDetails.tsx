@@ -392,7 +392,7 @@ export function StepDetails({ gymId, locationId, packageId, productType }: StepD
         <p role="alert" {...stylex.props(styles.error)}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} sw={2.2} />
           {t('details.emailTaken')}{' '}
-          <Link href={`/login?from=${encodeURIComponent(stepHref('4'))}`}>
+          <Link href={`/member/login?from=${encodeURIComponent(stepHref('4'))}`}>
             {t('details.emailTakenAction')}
           </Link>
         </p>

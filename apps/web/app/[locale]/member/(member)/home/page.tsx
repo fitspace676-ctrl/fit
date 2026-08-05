@@ -595,7 +595,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                 </div>
                 <Button
                   as={Link}
-                  href={`/classes/${nextBooking.classInstance.id}`}
+                  href={`/member/classes/${nextBooking.classInstance.id}`}
                   variant="primary"
                   size="md"
                   label={t('checkIn')}
@@ -607,7 +607,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                 <p {...stylex.props(styles.emptyText)}>{t('noClasses')}</p>
                 <Button
                   as={Link}
-                  href="/classes"
+                  href="/member/classes"
                   variant="secondary"
                   size="sm"
                   label={t('browseClasses')}
@@ -635,7 +635,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
       <section>
         <div {...stylex.props(styles.sectionHead)}>
           <h2 {...stylex.props(styles.sectionTitle)}>{t('bookClass')}</h2>
-          <Link href="/classes" {...stylex.props(styles.viewAll)}>
+          <Link href="/member/classes" {...stylex.props(styles.viewAll)}>
             {t('viewAll')}
           </Link>
         </div>
@@ -665,7 +665,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                   <OccupancyBar value={c.bookedCount} cap={c.capacity} />
                   <Button
                     as={Link}
-                    href={`/classes/${c.id}`}
+                    href={`/member/classes/${c.id}`}
                     variant={full ? 'secondary' : 'primary'}
                     size="sm"
                     label={full ? t('joinWaitlist') : t('book')}
@@ -708,7 +708,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
             <div {...stylex.props(styles.actionRow)}>
               <Button
                 as={Link}
-                href={`/trainers/${trainer.id}`}
+                href={`/member/trainers/${trainer.id}`}
                 variant="primary"
                 size="md"
                 label={t('bookSession')}
@@ -716,7 +716,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               />
               <Button
                 as={Link}
-                href="/trainers"
+                href="/member/trainers"
                 variant="secondary"
                 size="md"
                 label={t('viewAll')}
@@ -733,7 +733,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
           {topProducts.length > 0 ? (
             <div {...stylex.props(styles.productGrid)}>
               {topProducts.map((p) => (
-                <Link key={p.id} href="/shop" {...stylex.props(styles.productCard)}>
+                <Link key={p.id} href="/member/shop" {...stylex.props(styles.productCard)}>
                   <div {...stylex.props(styles.productThumb)}>
                     {p.imageUrl ? (
                       <img src={p.imageUrl} alt="" {...stylex.props(styles.productImg)} />
@@ -754,7 +754,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
           <div style={{ marginTop: '1rem' }}>
             <Button
               as={Link}
-              href="/shop"
+              href="/member/shop"
               variant="secondary"
               size="sm"
               label={t('visitShop')}
@@ -808,7 +808,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
             <p {...stylex.props(styles.emptyText)}>{t('noClasses')}</p>
             <Button
               as={Link}
-              href="/classes"
+              href="/member/classes"
               variant="primary"
               size="sm"
               label={t('browseClasses')}

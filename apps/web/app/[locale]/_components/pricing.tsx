@@ -77,7 +77,7 @@ export async function Pricing() {
                   ))}
                 </ul>
                 <Link
-                  href="/login"
+                  href="/member/login"
                   className={buttonClasses(popular ? 'primary' : 'outline', 'md', 'mt-8 w-full')}
                 >
                   {t(`plans.${key}.cta`)}

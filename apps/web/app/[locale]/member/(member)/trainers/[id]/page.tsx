@@ -131,7 +131,7 @@ export default async function TrainerDetailPage({
 
   return (
     <div {...stylex.props(styles.page)}>
-      <Link href="/trainers" {...stylex.props(styles.back)}>
+      <Link href="/member/trainers" {...stylex.props(styles.back)}>
         <Icon name="chevronLeft" {...stylex.props(styles.backIcon)} sw={2} />
         {t('detail.back')}
       </Link>

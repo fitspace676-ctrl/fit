@@ -207,7 +207,7 @@ export async function storeTokens(tokens: TokenPair): Promise<void> {
 /**
  * Client-side sign-out. Asks `DELETE /api/session` to expire the httpOnly
  * session cookies (across subdomains when a cookie domain is configured) so the
- * next request fails the middleware gate and is redirected to `/login`. The
+ * next request fails the middleware gate and is redirected to `/member/login`. The
  * refresh token's server-side revocation is handled separately by the auth API.
  */
 export async function logout(): Promise<void> {
@@ -222,7 +222,7 @@ export async function logout(): Promise<void> {
  * bounced them to login) always wins. Otherwise we look at the freshly-set
  * session: **staff** (any role other than `MEMBER`) land in the admin console at
  * `/admin` — the tenant proxy serves it at the same origin — while members go to
- * their localized member home (`/<locale>/home`). The session is read from the verified `GET /api/session`
+ * their localized member home (`/<locale>/member/home`). The session is read from the verified `GET /api/session`
  * (the sign-in has already persisted the cookie); any failure falls back to the
  * member home, so a hiccup never traps someone on the login page.
  */
@@ -237,5 +237,5 @@ export async function postLoginPath(from: string | null, locale: string): Promis
   } catch {
     /* fall through to the member home */
   }
-  return `/${locale}/home`;
+  return `/${locale}/member/home`;
 }

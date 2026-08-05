@@ -32,7 +32,7 @@ export interface ClassBookingCtaProps {
  * The class detail page's booking call-to-action, auth-gated like the calendar's
  * {@link import('./ClassDetailDrawer').ClassDetailDrawer}:
  *
- * - a signed-out visitor gets a link to `/login?from=<this detail page>` so they
+ * - a signed-out visitor gets a link to `/member/login?from=<this detail page>` so they
  *   land back here after signing in;
  * - a signed-in member gets the real booking button ({@link BookingActionButton}),
  *   which runs the server action and refreshes the seat counts. When the class is
@@ -62,10 +62,10 @@ export function ClassBookingCta({ classId, isFull }: ClassBookingCtaProps) {
   }
 
   // Where login should send the visitor back to: this detail page. next-intl's
-  // <Link> prefixes the locale onto `/login`, and the login form validates this
+  // <Link> prefixes the locale onto `/member/login`, and the login form validates this
   // same-origin path.
-  const from = `/${locale}/classes/${classId}`;
-  const loginHref = `/login?from=${encodeURIComponent(from)}`;
+  const from = `/${locale}/member/classes/${classId}`;
+  const loginHref = `/member/login?from=${encodeURIComponent(from)}`;
 
   return (
     <Button

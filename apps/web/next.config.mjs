@@ -65,6 +65,31 @@ const adminOrigin = (
   process.env.ADMIN_ORIGIN ?? 'https://fit-admin-fitspace676-5825s-projects.vercel.app'
 ).replace(/\/+$/, '');
 
+// Locale prefixes next-intl serves, as a path-to-regexp alternation for the
+// legacy-redirect rules below. Kept in sync with `@fit/i18n`'s `locales` by hand
+// because next.config.mjs is loaded before the TS path aliases resolve.
+const LOCALE_PATTERN = 'ka|en';
+
+/**
+ * Top-level segments that moved from `/<locale>/…` to `/<locale>/member/…` when
+ * the member portal took over its own base path. Every one of these had public,
+ * linkable URLs — class and trainer detail pages are shared, the password-reset
+ * link is emailed — so each needs a permanent redirect rather than a 404.
+ */
+const MOVED_MEMBER_SEGMENTS = [
+  'home',
+  'classes',
+  'trainers',
+  'shop',
+  'cart',
+  'account',
+  'checkout',
+  'login',
+  'register',
+  'forgot-password',
+  'reset-password',
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -81,6 +106,26 @@ const nextConfig = {
       { source: '/admin', destination: `${adminOrigin}/admin` },
       { source: '/admin/:path*', destination: `${adminOrigin}/admin/:path*` },
     ];
+  },
+  // The member portal moved from the locale root to its own `/member` segment
+  // (`/ka/home` → `/ka/member/home`), mirroring how the staff console owns
+  // `/admin`. Permanently redirect the old locale-rooted paths so existing
+  // bookmarks, emailed deep links, and search results keep resolving. The locale
+  // is matched explicitly because next-intl — not Next's built-in i18n — owns the
+  // prefix, so Next does not strip it before matching. Only the marketing landing
+  // (`/:locale`) and the 403 page stay at the root, so they are not listed here.
+  async redirects() {
+    return MOVED_MEMBER_SEGMENTS.map((segment) => ({
+      source: `/:locale(${LOCALE_PATTERN})/${segment}/:path*`,
+      destination: `/:locale/member/${segment}/:path*`,
+      permanent: true,
+    })).concat(
+      MOVED_MEMBER_SEGMENTS.map((segment) => ({
+        source: `/:locale(${LOCALE_PATTERN})/${segment}`,
+        destination: `/:locale/member/${segment}`,
+        permanent: true,
+      })),
+    );
   },
   // Lint and type-check run as dedicated turbo tasks (`pnpm lint`,
   // `pnpm type-check`) with the shared @fit/config presets, so skip Next's

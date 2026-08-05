@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
-import { AuthShell } from '../_components/auth/auth-shell';
+import { AuthShell } from '../../_components/auth/auth-shell';
 import { RegisterForm } from './register-form';
 
 export const metadata: Metadata = {
@@ -40,7 +40,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ local
       footer={
         <>
           {t('register.haveAccount')}{' '}
-          <Link href="/login" {...stylex.props(styles.link)}>
+          <Link href="/member/login" {...stylex.props(styles.link)}>
             {t('register.loginLink')}
           </Link>
         </>

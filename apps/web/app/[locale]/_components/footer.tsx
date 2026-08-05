@@ -21,8 +21,8 @@ export async function Footer() {
     {
       heading: t('product'),
       links: [
-        { label: t('links.classes'), href: '/classes' },
-        { label: t('links.trainers'), href: '/trainers' },
+        { label: t('links.classes'), href: '/member/classes' },
+        { label: t('links.trainers'), href: '/member/trainers' },
         { label: t('links.pricing'), href: '/#pricing' },
       ],
     },

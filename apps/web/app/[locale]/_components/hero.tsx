@@ -37,10 +37,10 @@ export async function Hero() {
           </h1>
           <p className="max-w-lg text-lg text-ink-600 dark:text-ink-300">{t('subtitle')}</p>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-            <Link href="/login" className={buttonClasses('primary', 'lg')}>
+            <Link href="/member/login" className={buttonClasses('primary', 'lg')}>
               {t('ctaPrimary')}
             </Link>
-            <Link href="/classes" className={buttonClasses('outline', 'lg')}>
+            <Link href="/member/classes" className={buttonClasses('outline', 'lg')}>
               {t('ctaSecondary')}
             </Link>
           </div>

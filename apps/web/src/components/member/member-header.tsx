@@ -13,7 +13,7 @@ import { NAV_ITEMS, isActive } from './nav-items';
 /** Brand mark — the gradient bolt badge + wordmark, linking home. */
 function Logo({ label }: { label: string }) {
   return (
-    <Link href="/home" className="flex items-center gap-2.5">
+    <Link href="/member/home" className="flex items-center gap-2.5">
       <span className="grid h-10 w-10 place-items-center rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
         <Icon name="bolt" className="h-5 w-5" sw={2.4} />
       </span>
@@ -39,7 +39,7 @@ function AccountMenu() {
 
   const onLogout = (): void => {
     setOpen(false);
-    void logout().finally(() => router.replace('/login'));
+    void logout().finally(() => router.replace('/member/login'));
   };
 
   return (
@@ -65,7 +65,7 @@ function AccountMenu() {
           />
           <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-card border border-ink-200 bg-white py-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-ink-900">
             <Link
-              href="/account/profile"
+              href="/member/account/profile"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/5"
             >
@@ -108,7 +108,7 @@ export function MemberHeader() {
 
   const onLogout = (): void => {
     setNavOpen(false);
-    void logout().finally(() => router.replace('/login'));
+    void logout().finally(() => router.replace('/member/login'));
   };
 
   return (
@@ -140,7 +140,7 @@ export function MemberHeader() {
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <ThemeToggle />
           <Link
-            href="/cart"
+            href="/member/cart"
             aria-label={t('nav.cart')}
             className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
           >

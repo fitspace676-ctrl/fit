@@ -98,19 +98,19 @@ describe('AuthService — staff invites (T4.7)', () => {
     it('routes a brand-new address to the web register flow with the token', async () => {
       const { service } = setup({ invite: liveInvite(), userExists: false });
       const { url } = await service.acceptInvite('tok-123');
-      expect(url).toBe('https://app.example.com/register?inviteToken=tok-123');
+      expect(url).toBe('https://app.example.com/member/register?inviteToken=tok-123');
     });
 
     it('routes an existing address to the login flow with the token', async () => {
       const { service } = setup({ invite: liveInvite(), userExists: true });
       const { url } = await service.acceptInvite('tok-123');
-      expect(url).toBe('https://app.example.com/login?inviteToken=tok-123');
+      expect(url).toBe('https://app.example.com/member/login?inviteToken=tok-123');
     });
 
     it('routes an unknown token to login with an inviteError flag', async () => {
       const { service } = setup({ invite: null });
       const { url } = await service.acceptInvite('nope');
-      expect(url).toBe('https://app.example.com/login?inviteError=invalid');
+      expect(url).toBe('https://app.example.com/member/login?inviteError=invalid');
     });
 
     it('treats an expired invite as invalid', async () => {

@@ -73,7 +73,7 @@ export function TrainerNotFound() {
       <p {...stylex.props(styles.subtitle)}>{t('detail.notFound.subtitle')}</p>
       <Button
         as={Link}
-        href="/trainers"
+        href="/member/trainers"
         variant="secondary"
         size="sm"
         label={t('detail.notFound.action')}

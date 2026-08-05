@@ -184,7 +184,7 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
           <div {...stylex.props(styles.details)}>
             <div {...stylex.props(styles.titleRow)}>
               <Link
-                href={`/classes/${instance.id}`}
+                href={`/member/classes/${instance.id}`}
                 {...stylex.props(styles.title, muted && styles.titleMuted)}
               >
                 {instance.title}
@@ -242,7 +242,7 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
             ) : past ? (
               <Button
                 as={Link}
-                href={`/classes/${instance.id}`}
+                href={`/member/classes/${instance.id}`}
                 variant="primary"
                 size="sm"
                 label={t('bookAgain')}
@@ -250,7 +250,7 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
             ) : (
               <Button
                 as={Link}
-                href={`/classes/${instance.id}`}
+                href={`/member/classes/${instance.id}`}
                 variant="secondary"
                 size="sm"
                 label={t('viewClass')}

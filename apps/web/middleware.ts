@@ -26,23 +26,32 @@ import { routing } from '@/src/i18n/routing';
 
 const handleI18nRouting = createMiddleware(routing);
 
+/**
+ * The member portal owns the `/member` path segment (after the locale prefix),
+ * mirroring how the staff console owns `/admin`. Every member-facing route —
+ * the portal itself, the join/checkout wizard, and the auth pages — lives under
+ * it, so `/<locale>/member/...` is the canonical shape. Only the marketing
+ * landing and the 403 page remain at the locale root.
+ */
+const MEMBER_BASE_PATH = '/member';
+
 /** Locale-stripped paths anyone can reach without a session. `/` is public. */
 const PUBLIC_PATHS = [
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
+  '/member/login',
+  '/member/register',
+  '/member/forgot-password',
+  '/member/reset-password',
   // Public discovery surface — a logged-out visitor browses the class schedule
-  // and is only sent to /login when they act on a class (the booking CTA).
-  '/classes',
+  // and is only sent to /member/login when they act on a class (the booking CTA).
+  '/member/classes',
   // Public discovery surface — the trainers index (T3.6) is pure browsing.
-  '/trainers',
+  '/member/trainers',
   // Purchase wizard — location/package selection is browsable signed-out; the
   // auth gate is the final payment step (T3.10), not the browse.
-  '/checkout',
+  '/member/checkout',
 ];
 
-/** Split `/en/login` into its locale (`en`) and locale-less path (`/login`). */
+/** Split `/en/member/login` into its locale (`en`) and locale-less path (`/member/login`). */
 function splitLocale(pathname: string): { locale: Locale; rest: string } {
   const [, maybeLocale, ...segments] = pathname.split('/');
   if (maybeLocale && isLocale(maybeLocale)) {
@@ -57,9 +66,14 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-/** Where a signed-in session belongs: staff → the admin console, members → home. */
+/** Where a signed-in session belongs: staff → the admin console, members → the portal home. */
 function dashboardPath(session: Session, locale: Locale): string {
-  return session.role !== 'MEMBER' ? '/admin' : `/${locale}/home`;
+  return session.role !== 'MEMBER' ? '/admin' : `/${locale}${MEMBER_BASE_PATH}/home`;
+}
+
+/** The portal's sign-in page for `locale` — the single place the auth gate sends people. */
+function loginPath(locale: Locale): string {
+  return `/${locale}${MEMBER_BASE_PATH}/login`;
 }
 
 /** Attach any freshly-refreshed cookies to an outgoing response before returning it. */
@@ -96,7 +110,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   if (rest === '/') {
     const target = req.nextUrl.clone();
     target.search = '';
-    target.pathname = session ? dashboardPath(session, locale) : `/${locale}/login`;
+    target.pathname = session ? dashboardPath(session, locale) : loginPath(locale);
     return withRefreshed(NextResponse.redirect(target), refreshed);
   }
 
@@ -107,7 +121,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   if (!session) {
     const loginUrl = req.nextUrl.clone();
-    loginUrl.pathname = `/${locale}/login`;
+    loginUrl.pathname = loginPath(locale);
     loginUrl.search = '';
     loginUrl.searchParams.set('from', `${pathname}${search}`);
     return NextResponse.redirect(loginUrl);

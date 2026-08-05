@@ -566,7 +566,7 @@ export function ProfileScreen({
               <Card variant="default" padding={0}>
                 <div {...stylex.props(styles.panel)}>
                   <h2 {...stylex.props(styles.sectionTitle)}>{t('security')}</h2>
-                  <Link href="/forgot-password" {...stylex.props(styles.secLink)}>
+                  <Link href="/member/forgot-password" {...stylex.props(styles.secLink)}>
                     <Icon name="lock" {...stylex.props(styles.glyph)} /> {t('changePassword')}
                   </Link>
                   <div {...stylex.props(styles.secRow)}>

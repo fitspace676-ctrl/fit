@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
-import { AuthSplitPanel, AuthSplitShell } from '../_components/auth/auth-split-shell';
+import { AuthSplitPanel, AuthSplitShell } from '../../_components/auth/auth-split-shell';
 import { Icon } from '@/src/components/ui';
 import { AppleSignInButton } from './apple-sign-in-button';
 import { CredentialsLoginForm } from './credentials-login-form';
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
  * newcomers join on the right.
  *
  * The join side is a doorway, not the flow itself — it sells the outcome and
- * hands off to the purchase wizard at `/checkout`, which owns the real work
+ * hands off to the purchase wizard at `/member/checkout`, which owns the real work
  * (branch → product → details → payment) and is reachable signed-out. Embedding
  * those four steps beside a password field would make the page unusable on a
  * phone and duplicate a flow that already exists.
@@ -142,7 +142,7 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
         </Suspense>
 
         <div {...stylex.props(styles.forgotRow)}>
-          <Link href="/forgot-password" {...stylex.props(styles.link)}>
+          <Link href="/member/forgot-password" {...stylex.props(styles.link)}>
             {t('login.forgotPassword')}
           </Link>
         </div>
@@ -170,7 +170,7 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
         </ul>
 
         <div {...stylex.props(styles.ctaRow)}>
-          <Link href="/checkout" {...stylex.props(styles.cta)}>
+          <Link href="/member/checkout" {...stylex.props(styles.cta)}>
             {t('join.cta')}
           </Link>
           <p {...stylex.props(styles.ctaNote)}>{t('join.ctaNote')}</p>

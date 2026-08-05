@@ -400,7 +400,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         </div>
         <Button
           as={Link}
-          href="/checkout"
+          href="/member/checkout"
           variant="primary"
           size="md"
           label={hasMembership ? t('changePlan') : t('choosePlan')}
@@ -467,7 +467,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             <p {...stylex.props(styles.actionsLabel)}>{t('managePlan')}</p>
             <Button
               as={Link}
-              href="/checkout"
+              href="/member/checkout"
               variant="secondary"
               size="md"
               icon={<Icon name="ticket" {...stylex.props(styles.glyph)} />}
@@ -476,7 +476,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             />
             <Button
               as={Link}
-              href="/account/bookings"
+              href="/member/account/bookings"
               variant="ghost"
               size="md"
               icon={<Icon name="calendar" {...stylex.props(styles.glyph)} />}
@@ -485,7 +485,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             />
             <Button
               as={Link}
-              href="/shop"
+              href="/member/shop"
               variant="ghost"
               size="md"
               icon={<Icon name="bag" {...stylex.props(styles.glyph)} />}

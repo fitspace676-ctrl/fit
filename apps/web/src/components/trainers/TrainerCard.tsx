@@ -137,7 +137,7 @@ export function TrainerCard({ trainer }: TrainerCardProps) {
   const t = useTranslations('trainers');
 
   return (
-    <Link href={`/trainers/${trainer.id}`} {...stylex.props(styles.link)}>
+    <Link href={`/member/trainers/${trainer.id}`} {...stylex.props(styles.link)}>
       <Card variant="default" padding={0} xstyle={styles.card}>
         <div {...stylex.props(styles.head)}>
           <Avatar src={trainer.avatarUrl ?? undefined} name={trainer.name} size={60} />
