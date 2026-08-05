@@ -1,9 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
-import { Link } from '@/src/i18n/navigation';
-import { Icon } from '@/src/components/ui';
+import { ButtonLink, Icon } from '@/src/components/ui';
 
 // Astryx migration (T11.12): rebuilt on the Astryx `Card` / `Button` over the
 // Fit brand theme, layout authored in compiled StyleX (`var(--color-*)`) — no
@@ -67,8 +65,7 @@ export function ClassNotFound() {
       </span>
       <p {...stylex.props(styles.title)}>{t('detail.notFound.title')}</p>
       <p {...stylex.props(styles.subtitle)}>{t('detail.notFound.subtitle')}</p>
-      <Button
-        as={Link}
+      <ButtonLink
         href="/member/classes"
         variant="secondary"
         size="sm"

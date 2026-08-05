@@ -15,8 +15,7 @@ import {
 } from '@/lib/credit-packs';
 import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
-import { Icon } from '@/src/components/ui';
-import { Link } from '@/src/i18n/navigation';
+import { ButtonLink, Icon } from '@/src/components/ui';
 import { FreezeCard } from './freeze-card';
 import { BuyCreditsCard } from './buy-credits-card';
 
@@ -398,8 +397,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           <p {...stylex.props(styles.eyebrow)}>{t('eyebrow')}</p>
           <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
         </div>
-        <Button
-          as={Link}
+        <ButtonLink
           href="/member/checkout"
           variant="primary"
           size="md"
@@ -465,8 +463,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         <Card variant="default" padding={0}>
           <div {...stylex.props(styles.actions)}>
             <p {...stylex.props(styles.actionsLabel)}>{t('managePlan')}</p>
-            <Button
-              as={Link}
+            <ButtonLink
               href="/member/checkout"
               variant="secondary"
               size="md"
@@ -474,8 +471,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
               label={hasMembership ? t('changePlan') : t('choosePlan')}
               xstyle={styles.fullStart}
             />
-            <Button
-              as={Link}
+            <ButtonLink
               href="/member/account/bookings"
               variant="ghost"
               size="md"
@@ -483,8 +479,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
               label={t('viewBookings')}
               xstyle={styles.fullStart}
             />
-            <Button
-              as={Link}
+            <ButtonLink
               href="/member/shop"
               variant="ghost"
               size="md"

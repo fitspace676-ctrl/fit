@@ -1,8 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { Link } from '@/src/i18n/navigation';
-import { Icon } from '@/src/components/ui';
+import { ButtonLink, Icon } from '@/src/components/ui';
 
 // Astryx migration (T11.13): rebuilt on the Astryx `Button` over the Fit brand
 // theme, layout authored in compiled StyleX (`var(--color-*)`) — no Tailwind
@@ -71,8 +69,7 @@ export function TrainerNotFound() {
       </span>
       <p {...stylex.props(styles.title)}>{t('detail.notFound.title')}</p>
       <p {...stylex.props(styles.subtitle)}>{t('detail.notFound.subtitle')}</p>
-      <Button
-        as={Link}
+      <ButtonLink
         href="/member/trainers"
         variant="secondary"
         size="sm"
