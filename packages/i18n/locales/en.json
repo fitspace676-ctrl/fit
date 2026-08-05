@@ -47,1212 +47,6 @@
       }
     }
   },
-  "common": {
-    "appName": "Fit",
-    "nav": {
-      "home": "Home",
-      "classes": "Classes",
-      "trainers": "Trainers",
-      "bookings": "Bookings",
-      "shop": "Shop",
-      "profile": "Profile",
-      "qr": "Check-in"
-    },
-    "cta": {
-      "getStarted": "Get started",
-      "signIn": "Sign in"
-    },
-    "language": {
-      "label": "Language",
-      "ka": "ქართული",
-      "en": "English"
-    }
-  },
-  "home": {
-    "hero": {
-      "badge": "Now live in Georgia",
-      "title": "Find your gym. Book your class.",
-      "subtitle": "Fit connects you with gyms, trainers, and classes near you — book and manage your membership in one place.",
-      "ctaPrimary": "Get started",
-      "ctaSecondary": "Browse classes"
-    },
-    "features": {
-      "title": "Everything you need to stay in shape",
-      "subtitle": "One app for members, trainers, and gyms — from discovery to check-in.",
-      "items": {
-        "discover": {
-          "title": "Discover gyms & studios",
-          "description": "Browse verified gyms and studios near you with photos, amenities, and real reviews."
-        },
-        "book": {
-          "title": "Book in seconds",
-          "description": "Reserve a class or a session in a couple of taps and get instant confirmation."
-        },
-        "train": {
-          "title": "Train with the best",
-          "description": "Find certified trainers, compare specialties, and book one-on-one sessions."
-        },
-        "membership": {
-          "title": "One membership, everywhere",
-          "description": "Manage your plan, track visits, and pay in one place — no paper cards."
-        }
-      }
-    },
-    "pricing": {
-      "title": "Simple, transparent pricing",
-      "subtitle": "Start free and upgrade as you grow. No hidden fees.",
-      "perMonth": "/mo",
-      "mostPopular": "Most popular",
-      "plans": {
-        "starter": {
-          "name": "Starter",
-          "price": "₾0",
-          "description": "For members getting started.",
-          "cta": "Get started",
-          "features": {
-            "0": "Discover gyms & classes",
-            "1": "Book up to 4 classes / mo",
-            "2": "Mobile check-in"
-          }
-        },
-        "pro": {
-          "name": "Pro",
-          "price": "₾49",
-          "description": "For regulars who train often.",
-          "cta": "Start free trial",
-          "features": {
-            "0": "Unlimited bookings",
-            "1": "Priority class waitlists",
-            "2": "Trainer sessions",
-            "3": "Visit history & stats"
-          }
-        },
-        "studio": {
-          "name": "Studio",
-          "price": "₾149",
-          "description": "For gyms and studios.",
-          "cta": "Contact sales",
-          "features": {
-            "0": "Member management",
-            "1": "Class scheduling",
-            "2": "Payments & payouts",
-            "3": "Analytics dashboard"
-          }
-        }
-      }
-    }
-  },
-  "footer": {
-    "tagline": "Book gyms, classes, and trainers across Georgia — all in one app.",
-    "product": "Product",
-    "company": "Company",
-    "legal": "Legal",
-    "links": {
-      "classes": "Classes",
-      "trainers": "Trainers",
-      "pricing": "Pricing",
-      "about": "About",
-      "contact": "Contact",
-      "privacy": "Privacy policy",
-      "terms": "Terms of service"
-    },
-    "copyright": "© {year} Fit. All rights reserved."
-  },
-  "auth": {
-    "fields": {
-      "name": "Full name",
-      "namePlaceholder": "Jane Doe",
-      "email": "Email",
-      "emailPlaceholder": "you@example.com",
-      "password": "Password",
-      "passwordPlaceholder": "••••••••",
-      "passwordHint": "At least 8 characters."
-    },
-    "orContinueWith": "or continue with",
-    "continueWithGoogle": "Continue with Google",
-    "continueWithApple": "Continue with Apple",
-    "tabs": {
-      "signIn": "Sign in",
-      "createAccount": "Create account"
-    },
-    "social": {
-      "apple": "Apple",
-      "google": "Google"
-    },
-    "showPassword": "Show",
-    "hidePassword": "Hide",
-    "togglePassword": "Toggle password visibility",
-    "terms": "By continuing you agree to our Terms and Privacy Policy.",
-    "signingIn": "Signing you in…",
-    "signedIn": "Signed in successfully.",
-    "googleNotConfigured": "Google sign-in is not configured.",
-    "appleNotConfigured": "Apple sign-in is not configured.",
-    "genericError": "Something went wrong. Please try again.",
-    "invite": {
-      "invalid": "This invitation link is invalid or has expired. Ask your gym to send a new one."
-    },
-    "login": {
-      "title": "Sign in to Fit",
-      "subtitle": "Welcome back — enter your details to continue.",
-      "heroTitle": "Welcome back.",
-      "heroSubtitle": "Book classes, check in with a tap, and track every session.",
-      "submit": "Sign in",
-      "submitting": "Signing in…",
-      "forgotPassword": "Forgot password?",
-      "noAccount": "Don’t have an account?",
-      "registerLink": "Create one"
-    },
-    "register": {
-      "title": "Create your account",
-      "subtitle": "Join Fit to discover gyms, classes, and trainers near you.",
-      "submit": "Create account",
-      "submitting": "Creating account…",
-      "success": "Almost there! Check your inbox to verify your email and finish setting up your account.",
-      "haveAccount": "Already have an account?",
-      "loginLink": "Sign in"
-    },
-    "forgot": {
-      "title": "Reset your password",
-      "subtitle": "Enter your email and we’ll send you a link to reset your password.",
-      "submit": "Send reset link",
-      "submitting": "Sending…",
-      "sent": "If that email is registered, a reset link is on its way. Check your inbox.",
-      "backToLogin": "Back to sign in"
-    },
-    "reset": {
-      "title": "Set a new password",
-      "subtitle": "Choose a new password for your account.",
-      "submit": "Update password",
-      "submitting": "Updating…",
-      "missingToken": "This reset link is invalid or has expired. Request a new one.",
-      "backToLogin": "Back to sign in"
-    },
-    "verify": {
-      "verifying": "Verifying your email…",
-      "success": "Email verified — you’re all set.",
-      "missingToken": "This verification link is invalid or has expired."
-    },
-    "splitHeading": "Sign in or join the gym",
-    "join": {
-      "title": "New here?",
-      "subtitle": "Pick a branch and a plan, and start training today.",
-      "benefits": {
-        "branch": "Choose the branch that suits you",
-        "plan": "Memberships, subscriptions and session packs",
-        "instant": "Straight into your member portal once you have paid"
-      },
-      "cta": "Become a member",
-      "ctaNote": "Takes about two minutes."
-    }
-  },
-  "onboarding": {
-    "skip": "Skip",
-    "next": "Next",
-    "getStarted": "Get started",
-    "classes": {
-      "title": "Find your next class",
-      "body": "Browse the weekly schedule and book a spot in seconds — right from your phone."
-    },
-    "qr": {
-      "title": "Check in with QR",
-      "body": "Show your personal QR code at the door for a fast, contactless check-in."
-    },
-    "shop": {
-      "title": "Shop the store",
-      "body": "Grab gear, supplements, and add-ons, and pick them up on your next visit."
-    }
-  },
-  "classes": {
-    "title": "Classes",
-    "subtitle": "Browse the schedule and book your next session.",
-    "toggle": {
-      "label": "Calendar view",
-      "week": "Week",
-      "list": "List"
-    },
-    "weekView": {
-      "label": "Weekly calendar",
-      "prev": "Previous week",
-      "next": "Next week",
-      "today": "This week",
-      "dayEmpty": "No classes this day"
-    },
-    "listView": {
-      "label": "Class list",
-      "count": "{count, plural, one {# class} other {# classes}}",
-      "itemsOne": "{count} class",
-      "itemsOther": "{count} classes"
-    },
-    "card": {
-      "spotsLeft": "{count, plural, one {# spot left} other {# spots left}}",
-      "spotsLeftOne": "{count} spot left",
-      "spotsLeftOther": "{count} spots left",
-      "full": "Full",
-      "joinWaitlist": "Join waitlist"
-    },
-    "drawer": {
-      "close": "Close",
-      "time": "Time",
-      "trainer": "Trainer",
-      "location": "Location",
-      "capacity": "Capacity",
-      "book": "Book",
-      "full": "Join waitlist",
-      "signInToBook": "Sign in to book"
-    },
-    "empty": {
-      "title": "No classes this week",
-      "subtitle": "There are no classes scheduled for the selected week. Try another week or check back soon."
-    },
-    "filters": {
-      "groupLabel": "Filter classes",
-      "type": "Type",
-      "trainer": "Trainer",
-      "allTrainers": "All trainers",
-      "location": "Location",
-      "allLocations": "All locations",
-      "time": "Time",
-      "anyTime": "Any time",
-      "morning": "Morning",
-      "afternoon": "Afternoon",
-      "evening": "Evening",
-      "clear": "Clear filters",
-      "noMatch": {
-        "title": "No classes match your filters",
-        "subtitle": "Try removing a filter or pick another week.",
-        "action": "Clear filters"
-      }
-    },
-    "loading": "Loading classes…",
-    "error": "We couldn’t load the classes. Please try again.",
-    "retry": "Try again",
-    "detail": {
-      "back": "All classes",
-      "about": "What to expect",
-      "time": "Time",
-      "duration": "Duration",
-      "minutes": "{count, plural, one {# minute} other {# minutes}}",
-      "trainer": "Trainer",
-      "location": "Location",
-      "room": "Room",
-      "capacity": "Capacity",
-      "status": {
-        "canceled": "This class has been canceled.",
-        "completed": "This class has already taken place."
-      },
-      "notFound": {
-        "title": "Class not found",
-        "subtitle": "We couldn’t find this class. It may have been canceled or removed.",
-        "action": "Back to classes"
-      },
-      "booking": {
-        "book": "Book this class",
-        "joinWaitlist": "Join waitlist",
-        "booking": "Booking…",
-        "cancel": "Cancel booking",
-        "leaveWaitlist": "Leave waitlist",
-        "canceling": "Canceling…",
-        "bookedTitle": "You’re booked",
-        "bookedSubtitle": "You have a confirmed spot in this class.",
-        "waitlistedTitle": "You’re on the waitlist",
-        "waitlistedSubtitle": "We’ll let you know if a spot opens up.",
-        "waitlistPosition": "Position #{position}",
-        "fullNote": "This class is full — join the waitlist and we’ll notify you if a spot opens up.",
-        "toast": {
-          "booked": "You’re booked!",
-          "waitlisted": "You’re on the waitlist.",
-          "canceled": "Your booking was canceled.",
-          "leftWaitlist": "You’ve left the waitlist.",
-          "error": "Something went wrong. Please try again."
-        }
-      }
-    }
-  },
-  "trainers": {
-    "title": "Trainers",
-    "subtitle": "Meet the team and find the right coach for you.",
-    "grid": {
-      "label": "Trainers"
-    },
-    "card": {
-      "specialties": "Specialties"
-    },
-    "detail": {
-      "back": "All trainers",
-      "specialties": "Specialties",
-      "locations": "Locations",
-      "schedule": {
-        "title": "Upcoming sessions",
-        "empty": "No upcoming sessions scheduled yet. Check back soon."
-      },
-      "reviews": {
-        "title": "Reviews",
-        "empty": "No reviews yet. Members who attend this trainer’s classes can leave one.",
-        "count": "{count, plural, one {# review} other {# reviews}}",
-        "ratingLabel": "{rating} out of 5 stars"
-      },
-      "notFound": {
-        "title": "Trainer not found",
-        "subtitle": "We couldn’t find this trainer. They may no longer be with this gym.",
-        "action": "Back to trainers"
-      }
-    },
-    "filters": {
-      "groupLabel": "Filter trainers",
-      "search": "Search",
-      "searchPlaceholder": "Search by name",
-      "specialty": "Specialty",
-      "location": "Location",
-      "allLocations": "All locations",
-      "clear": "Clear filters",
-      "noMatch": {
-        "title": "No trainers match your filters",
-        "subtitle": "Try removing a filter or searching for a different name.",
-        "action": "Clear filters"
-      }
-    },
-    "empty": {
-      "title": "No trainers yet",
-      "subtitle": "This gym hasn’t added any trainers yet. Check back soon."
-    },
-    "loading": "Loading trainers…",
-    "error": "We couldn’t load the trainers. Please try again.",
-    "retry": "Try again"
-  },
-  "training": {
-    "title": "Personal Training",
-    "subtitle": "Train one-on-one with a coach. Choose a package and track your upcoming sessions.",
-    "retry": "Try again",
-    "packages": {
-      "boughtToast": "{name} is yours — settle up at reception.",
-      "buy": "Buy this plan",
-      "buying": "Purchasing…",
-      "cancel": "Cancel",
-      "confirmBody": "Your membership is reserved straight away. You settle the payment at the gym.",
-      "confirmCta": "Buy",
-      "confirmTitle": "Buy {name}?",
-      "empty": {
-        "title": "No packages yet",
-        "subtitle": "This gym hasn’t set up any personal-training packages yet. Check back soon."
-      },
-      "errAlreadySubscribed": "You already have an active membership.",
-      "errGeneric": "The purchase did not go through. Please try again.",
-      "errNoMembership": "Only members of this gym can buy a plan.",
-      "errUnavailable": "This plan is no longer on sale.",
-      "error": "We couldn’t load the packages. Please try again.",
-      "heading": "Packages",
-      "loading": "Loading packages…",
-      "perMonth": "/ mo",
-      "perYear": "/ yr",
-      "popular": "Most popular",
-      "sessionsOne": "{count} session",
-      "sessionsOther": "{count} sessions",
-      "unlimited": "Unlimited sessions"
-    },
-    "sessions": {
-      "heading": "Upcoming sessions",
-      "loading": "Loading your sessions…",
-      "error": "We couldn’t load your sessions. Please try again.",
-      "empty": {
-        "title": "No upcoming sessions",
-        "subtitle": "When you book a session it will show up here.",
-        "action": "Browse classes"
-      }
-    }
-  },
-  "shop": {
-    "title": "Shop",
-    "subtitle": "Gear, supplements, and essentials from your gym.",
-    "grid": {
-      "label": "Products"
-    },
-    "retry": "Try again",
-    "browse": {
-      "loading": "Loading products…",
-      "error": "We couldn’t load the shop. Please try again.",
-      "fromPrice": "from {price}",
-      "empty": {
-        "title": "Nothing for sale yet",
-        "subtitle": "This gym hasn’t added any products yet. Check back soon."
-      }
-    },
-    "detail": {
-      "back": "Shop",
-      "added": "Added to cart",
-      "options": "Options",
-      "outOfStock": "Out of stock",
-      "quantity": "Quantity",
-      "addToCart": "Add to cart",
-      "unavailable": "Unavailable",
-      "notFound": {
-        "title": "Product not found",
-        "subtitle": "This product may no longer be available."
-      }
-    },
-    "cart": {
-      "open": "Open cart",
-      "back": "Shop",
-      "title": "Cart",
-      "eachPrice": "{price} each",
-      "remove": "Remove",
-      "decrease": "Decrease quantity",
-      "increase": "Increase quantity",
-      "subtotal": "Subtotal",
-      "empty": {
-        "title": "Your cart is empty",
-        "subtitle": "Browse the shop and add a few things to get started.",
-        "action": "Browse products"
-      }
-    },
-    "checkout": {
-      "pay": "Place order",
-      "processing": "Placing order…",
-      "note": "Payment is simulated for now — no card is charged.",
-      "error": "We couldn’t place your order. Please try again."
-    },
-    "order": {
-      "loading": "Loading your order…",
-      "error": "We couldn’t load this order. Please try again.",
-      "title": "Order confirmed",
-      "subtitle": "Thanks! Your order has been placed.",
-      "idLabel": "Order {id}",
-      "total": "Total",
-      "continue": "Continue shopping",
-      "status": {
-        "pending": "Pending",
-        "paid": "Paid",
-        "cancelled": "Cancelled"
-      },
-      "notFound": {
-        "title": "Order not found",
-        "subtitle": "We couldn’t find that order. It may have been removed."
-      }
-    }
-  },
-  "checkout": {
-    "title": "Checkout",
-    "subtitle": "A few quick steps to set up your membership.",
-    "progress": "Step {current} of {total}",
-    "progressLabel": "Checkout progress",
-    "steps": {
-      "location": "Location",
-      "package": "Package",
-      "details": "Details",
-      "payment": "Payment"
-    },
-    "continue": "Continue",
-    "back": "Back",
-    "comingSoon": "This step is coming soon.",
-    "locations": {
-      "title": "Choose a location",
-      "subtitle": "Pick the location where you'd like to train.",
-      "loading": "Loading locations…",
-      "error": "We couldn't load the locations. Please try again.",
-      "retry": "Try again",
-      "empty": {
-        "title": "No locations available",
-        "subtitle": "This gym hasn't set up any locations yet. Please check back soon."
-      },
-      "todayHours": "Today",
-      "closed": "Closed",
-      "select": "Select",
-      "selected": "Selected"
-    },
-    "packages": {
-      "title": "Choose a package",
-      "subtitle": "Pick the membership that fits how you train.",
-      "loading": "Loading packages…",
-      "error": "We couldn't load the packages. Please try again.",
-      "retry": "Try again",
-      "empty": {
-        "title": "No packages available",
-        "subtitle": "This gym hasn't set up any packages yet. Please check back soon."
-      },
-      "perMonth": "/ mo",
-      "perYear": "/ yr",
-      "unlimited": "Unlimited access",
-      "sessions": "{count, plural, one {# session} other {# sessions}}",
-      "popular": "Most popular",
-      "select": "Select",
-      "selected": "Selected",
-      "tabsLabel": "Product type",
-      "tabEmpty": "Nothing on sale in this category yet.",
-      "tabs": {
-        "package": "Packages",
-        "subscription": "Subscriptions",
-        "credit_pack": "Session packs"
-      }
-    },
-    "details": {
-      "title": "Your details",
-      "subtitle": "Confirm who this membership is for.",
-      "guestSubtitle": "Create an account to complete your purchase.",
-      "loading": "Checking your account…",
-      "signedIn": "You're signed in — your membership will be added to your account.",
-      "submitting": "Saving…",
-      "invalid": "Please enter your name, a valid email, and a password of at least 8 characters.",
-      "fields": {
-        "name": "Full name",
-        "email": "Email",
-        "password": "Password",
-        "passwordHint": "At least 8 characters.",
-        "phone": "Phone",
-        "dateOfBirth": "Date of birth",
-        "personalId": "National ID number",
-        "personalIdHint": "Required by the gym for membership records.",
-        "gender": "Gender"
-      },
-      "gender": {
-        "female": "Female",
-        "male": "Male",
-        "other": "Other"
-      },
-      "emailTaken": "This email already has an account.",
-      "emailTakenAction": "Sign in instead",
-      "groups": {
-        "about": {
-          "title": "About you",
-          "hint": "The gym keeps this on file for your membership record."
-        },
-        "account": {
-          "title": "Your login",
-          "hint": "You will use these to sign in to the member portal."
-        }
-      }
-    },
-    "payment": {
-      "title": "Review and pay",
-      "subtitle": "Confirm your order and complete your purchase.",
-      "loading": "Loading your order…",
-      "processing": "Processing…",
-      "pay": "Pay now",
-      "reserve": "Reserve my membership",
-      "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk — no card is charged online.",
-      "error": "We couldn't place your order. Please try again.",
-      "terms": "I agree to the terms of service and the membership policy.",
-      "summary": {
-        "package": "Package",
-        "total": "Total"
-      },
-      "unavailable": {
-        "title": "This package is no longer available",
-        "subtitle": "Please go back and choose another package."
-      }
-    },
-    "success": {
-      "title": "You're all set!",
-      "subtitle": "Your membership purchase is confirmed. A confirmation email is on its way.",
-      "orderId": "Order #{id}",
-      "total": "Total paid",
-      "returnHome": "Return home",
-      "missing": {
-        "title": "We couldn't find that order",
-        "subtitle": "The order may have expired or the link is incomplete."
-      },
-      "verifyEmail": "One more thing — we have emailed you a confirmation link. Click it to confirm your address, otherwise you will not be able to sign in again once this session ends."
-    },
-    "summary": {
-      "title": "Your selection",
-      "branch": "Branch",
-      "total": "Total",
-      "empty": "Pick a branch and a plan — your choice will show up here.",
-      "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
-    }
-  },
-  "settings": {
-    "title": "Settings",
-    "subtitle": "Manage your profile, language, and notifications.",
-    "account": {
-      "heading": "Account",
-      "role": "Role",
-      "gym": "Gym",
-      "memberId": "Member ID",
-      "noGym": "No gym selected",
-      "roles": {
-        "MEMBER": "Member",
-        "TRAINER": "Trainer",
-        "RECEPTIONIST": "Receptionist",
-        "MANAGER": "Manager",
-        "OWNER": "Owner",
-        "SUPER_ADMIN": "Super admin"
-      }
-    },
-    "preferences": {
-      "heading": "Preferences",
-      "language": "Language",
-      "notifications": "Notifications",
-      "notificationsHint": "Reminders and updates",
-      "appearance": "Appearance",
-      "appearanceSystem": "Follows system"
-    },
-    "about": {
-      "heading": "About",
-      "version": "Version",
-      "signOut": "Sign out",
-      "signOutConfirm": "You'll need to sign in again to use the app.",
-      "signOutCancel": "Cancel",
-      "signedOut": "Signed out"
-    }
-  },
-  "notifications": {
-    "title": "Notifications",
-    "subtitle": "Choose what you'd like to hear about. Delivery is enabled in a later update.",
-    "push": "Push notifications",
-    "pushHint": "Allow Fit to send notifications to this device.",
-    "categories": "Categories",
-    "classReminders": "Class reminders",
-    "classRemindersHint": "Before your booked classes start.",
-    "bookingUpdates": "Booking updates",
-    "bookingUpdatesHint": "Waitlist promotions, cancellations, and changes.",
-    "promotions": "Promotions",
-    "promotionsHint": "Offers and news from your gym.",
-    "disabledHint": "Enable push notifications to manage categories.",
-    "inboxTitle": "Notifications",
-    "back": "Back",
-    "settings": "Notification settings",
-    "markAllRead": "Mark all read",
-    "empty": "You're all caught up",
-    "emptyHint": "New reminders and updates will show up here.",
-    "error": "We couldn't load your notifications.",
-    "retry": "Try again",
-    "timeNow": "now"
-  },
-  "qr": {
-    "title": "Check in",
-    "subtitle": "Hold this up to the scanner at the front desk.",
-    "instruction": "Hold your phone up to the scanner at reception.",
-    "memberId": "Member ID",
-    "brightnessHint": "Turn your screen brightness up for a faster scan.",
-    "signedOut": "Sign in to get your check-in code.",
-    "boost": "Boost brightness",
-    "refreshesIn": "Refreshes in {time}",
-    "daysLeft": "days left",
-    "recentTitle": "Recent check-ins",
-    "recentEmpty": "No check-ins yet",
-    "yesterday": "Yesterday"
-  },
-  "errors": {
-    "forbidden": {
-      "badge": "403",
-      "title": "Access denied",
-      "description": "Your account doesn’t have permission to view this page. If you think this is a mistake, contact your gym administrator.",
-      "backHome": "Back to home"
-    },
-    "generic": {
-      "badge": "Something went wrong",
-      "title": "Unexpected error",
-      "description": "An unexpected error occurred. You can try again, and if the problem persists please contact support.",
-      "reference": "Reference: {id}",
-      "tryAgain": "Try again"
-    }
-  },
-  "member": {
-    "nav": {
-      "home": "Home",
-      "classes": "Classes",
-      "bookings": "Bookings",
-      "trainer": "Trainer",
-      "shop": "Shop",
-      "membership": "Membership",
-      "profile": "Profile",
-      "cart": "Cart"
-    },
-    "shell": {
-      "brand": "FormaCore",
-      "skipToContent": "Skip to main content",
-      "search": "Search classes, trainers…",
-      "notifications": "Notifications",
-      "noNotifications": "You're all caught up",
-      "markAllRead": "Mark all read",
-      "themeToLight": "Switch to light",
-      "themeToDark": "Switch to dark",
-      "menu": "Menu",
-      "openMenu": "Open menu",
-      "closeMenu": "Close menu",
-      "signOut": "Sign out",
-      "premium": "Premium",
-      "checkIn": "Check-in",
-      "viewProfile": "View profile",
-      "greetingFallback": "Member",
-      "adminConsole": "Admin console"
-    },
-    "home": {
-      "greeting": "Welcome back",
-      "greetingFallbackName": "Member",
-      "today": "Today",
-      "tomorrow": "Tomorrow",
-      "membership": "Membership",
-      "active": "Active",
-      "noPlan": "No active plan",
-      "memberId": "ID",
-      "daysLeft": "{used} of {total} days left",
-      "showQr": "Show check-in QR",
-      "ptCredits": "PT left",
-      "qrTitle": "Check-in QR",
-      "qrSub": "Show this at the front desk",
-      "done": "Done",
-      "nextClass": "Your next class",
-      "checkIn": "Check in",
-      "noClasses": "No classes booked yet",
-      "browseClasses": "Browse classes",
-      "dayStreak": "Day streak",
-      "checkInsMonth": "Check-ins",
-      "classesBooked": "Classes booked",
-      "bookClass": "Book a class",
-      "viewAll": "View all",
-      "book": "Book",
-      "booked": "Booked",
-      "joinWaitlist": "Join waitlist",
-      "noBookable": "No classes this week yet",
-      "yourTrainer": "Your trainer",
-      "bookSession": "Book session",
-      "forTraining": "For your training",
-      "membersGet": "Members −10%",
-      "visitShop": "Visit shop",
-      "noProducts": "No products yet",
-      "upcomingBookings": "Your upcoming bookings",
-      "confirmed": "Confirmed",
-      "waitlist": "Waitlist · #{position}"
-    },
-    "classes": {
-      "title": "Classes",
-      "today": "Today",
-      "myBookings": "My bookings",
-      "prevWeek": "Previous week",
-      "nextWeek": "Next week",
-      "all": "All",
-      "spotsLeft": "{count} left",
-      "full": "Full",
-      "book": "Book",
-      "booked": "Booked",
-      "waitlisted": "Waitlisted",
-      "waitlist": "Waitlist",
-      "minutes": "{count} min",
-      "loading": "Loading classes…",
-      "error": "We couldn’t load the classes. Please try again.",
-      "retry": "Try again",
-      "periods": {
-        "morning": "Morning",
-        "afternoon": "Afternoon",
-        "evening": "Evening"
-      },
-      "empty": {
-        "title": "No classes today",
-        "titleFiltered": "No {type} classes",
-        "subtitle": "Try another day or filter."
-      }
-    },
-    "actions": {
-      "booked": "Booked! See you there",
-      "waitlisted": "Added to the waitlist",
-      "canceled": "Booking canceled",
-      "working": "…",
-      "errAlreadyBooked": "You're already booked",
-      "errNotBookable": "This class can't be booked",
-      "errWindowPassed": "Cancellation window has passed",
-      "errNotFound": "No booking found",
-      "errAuth": "Please sign in",
-      "errGeneric": "Something went wrong"
-    },
-    "membership": {
-      "title": "Membership",
-      "eyebrow": "Account",
-      "changePlan": "Change plan",
-      "managePlan": "Manage plan",
-      "choosePlan": "Choose a plan",
-      "status": {
-        "TRIAL": "Trial",
-        "ACTIVE": "Active",
-        "FROZEN": "Frozen",
-        "CANCELED": "Canceled",
-        "PAST_DUE": "Past due",
-        "EXPIRED": "Inactive"
-      },
-      "noPlan": "No active plan",
-      "noPlanHint": "Pick a plan to unlock classes, trainers and member pricing.",
-      "perks": "Unlimited classes · 1 guest pass / mo · −10% shop",
-      "nextBilling": "Next billing",
-      "endsOn": "Access until",
-      "cancelNotice": "Set to cancel — won't renew.",
-      "memberSince": "Member since",
-      "viewBookings": "My bookings",
-      "shopMember": "Member shop",
-      "paymentMethod": "Payment method",
-      "payAtDesk": "Pay at desk",
-      "thisPeriod": "This period",
-      "classes": "classes",
-      "ptCredits": "PT credits",
-      "buyMore": "Buy more sessions",
-      "invoices": "Invoice history",
-      "invoice": "Invoice",
-      "date": "Date",
-      "amount": "Amount",
-      "statusCol": "Status",
-      "invoiceStatus": {
-        "PAID": "Paid",
-        "PENDING": "Pending",
-        "FAILED": "Failed",
-        "REFUNDED": "Refunded"
-      },
-      "noInvoices": "No invoices yet",
-      "downloadCol": "Invoice PDF",
-      "download": "Download",
-      "downloadPdf": "Download invoice PDF",
-      "pastDue": {
-        "title": "Payment didn't go through",
-        "body": "We couldn't process your last renewal. We'll retry automatically over the next few days — please settle up at the desk to keep your membership active."
-      },
-      "freeze": {
-        "title": "Pause membership",
-        "subtitle": "Freeze your plan while you're away",
-        "used": "{used} of {total} days used",
-        "remaining": "{days} days left",
-        "freeze": "Pause membership",
-        "resume": "Resume now",
-        "working": "Working…",
-        "notAvailable": "Your plan doesn't include freezes.",
-        "exhausted": "You've used all your freeze days this period.",
-        "frozenUntil": "Paused until {date}",
-        "frozenHint": "Your membership resumes automatically — or resume it any time.",
-        "modalTitle": "Pause membership",
-        "modalBody": "You have {days} freeze days left this period.",
-        "durationLabel": "How many days?",
-        "durationHint": "Your renewal date moves out by the days you're paused.",
-        "cancel": "Cancel",
-        "confirmFreeze": "Pause",
-        "frozenToast": "Membership paused until {date}",
-        "resumedToast": "Membership resumed",
-        "errInvalidDuration": "Enter a whole number of days.",
-        "errAllowance": "That's more than the {days} freeze days you have left.",
-        "errGeneric": "Something went wrong. Please try again."
-      },
-      "credits": {
-        "title": "PT credits",
-        "buyMore": "Buy more",
-        "noneOnSale": "No packs on sale",
-        "modalTitle": "Buy credits",
-        "modalBody": "Pick a credit pack to buy. Pay at the desk.",
-        "packMeta": "{count, plural, one {# credit} other {# credits}} · {price}",
-        "buy": "Buy",
-        "buying": "Buying…",
-        "boughtToast": "{count, plural, one {# credit} other {# credits}} added",
-        "errUnavailable": "That pack is no longer available.",
-        "errGeneric": "Something went wrong. Please try again.",
-        "close": "Close"
-      }
-    },
-    "profile": {
-      "mobile": {
-        "title": "Profile",
-        "notificationsA11y": "Notifications",
-        "memberSince": "{tier} · since {year}",
-        "member": "Member",
-        "membership": "Membership",
-        "renews": "Renews {date}",
-        "daysLeft": "{used} of {total} days left",
-        "noPlanTitle": "No active membership",
-        "noPlanHint": "Pick a plan to unlock classes and member pricing.",
-        "browsePlans": "Browse plans",
-        "showQr": "Show check-in QR",
-        "freeze": "Freeze",
-        "resumeNow": "Resume now",
-        "frozenUntil": "Frozen until {date}",
-        "pt": {
-          "sessionsLeftOne": "{count} PT session left",
-          "sessionsLeftOther": "{count} PT sessions left",
-          "none": "No PT sessions left",
-          "refreshesActive": "Refreshes with your renewal",
-          "refreshesEmpty": "Buy a pack to book personal training",
-          "buy": "Buy"
-        },
-        "stats": {
-          "dayStreak": "Day streak",
-          "totalVisits": "Total visits",
-          "classes": "Classes"
-        },
-        "achievements": {
-          "title": "Achievements",
-          "all": "All",
-          "firstClass": "First class",
-          "tenVisits": "10 visits",
-          "fiftyVisits": "50 visits",
-          "hundredVisits": "100 visits",
-          "streak": "7-day streak"
-        },
-        "toggles": {
-          "push": "Push notifications",
-          "pushHint": "Class reminders & offers",
-          "reminders": "Class reminders",
-          "remindersHint": "Before your booked classes"
-        },
-        "menu": {
-          "heading": "Settings",
-          "notifications": "Notifications",
-          "notificationsHint": "Reminders & updates",
-          "training": "Personal training",
-          "trainingHint": "Packages & PT sessions",
-          "trainers": "Trainers",
-          "trainersHint": "Browse and book",
-          "language": "Language",
-          "appearance": "Appearance",
-          "appearanceHint": "Follows system"
-        },
-        "freezeSheet": {
-          "title": "Freeze membership",
-          "subtitle": "Pause billing while you're away.",
-          "carryover": "Your remaining days carry over — nothing is lost. You can freeze up to {days} more days this period.",
-          "confirm": "Freeze for {label}",
-          "opt2w": "2 weeks",
-          "opt1m": "1 month",
-          "opt2m": "2 months",
-          "optDays": "{days} days"
-        },
-        "version": "FormaCore · v{version}"
-      },
-      "title": "Profile",
-      "eyebrow": "Account",
-      "save": "Save changes",
-      "saved": "Profile saved",
-      "namePlaceholder": "Your name",
-      "emailPlaceholder": "you@email.com",
-      "premiumMember": "Premium member",
-      "changePhoto": "Change photo",
-      "checkIns": "Check-ins",
-      "credits": "Credits",
-      "id": "ID",
-      "personalInfo": "Personal information",
-      "fields": {
-        "firstName": "First name",
-        "lastName": "Last name",
-        "email": "Email",
-        "phone": "Phone",
-        "emergency": "Emergency contact",
-        "address": "Address"
-      },
-      "preferences": "Preferences",
-      "language": "Language",
-      "units": "Units",
-      "unit": {
-        "metric": "Metric",
-        "imperial": "Imperial"
-      },
-      "theme": "Theme",
-      "themeName": {
-        "light": "Light",
-        "dark": "Dark"
-      },
-      "notifications": "Notifications",
-      "notif": {
-        "reminders": {
-          "title": "Class reminders",
-          "desc": "Before your booked classes"
-        },
-        "bookings": {
-          "title": "Booking updates",
-          "desc": "Confirmations and waitlist moves"
-        },
-        "billing": {
-          "title": "Billing",
-          "desc": "Payments and renewals"
-        },
-        "promotions": {
-          "title": "Promotions",
-          "desc": "Offers and member perks"
-        }
-      },
-      "security": "Security",
-      "changePassword": "Change password",
-      "twoFa": "Two-factor authentication",
-      "twoFaOn": "Enabled",
-      "twoFaOff": "Add an extra layer of security",
-      "deleteTitle": "Delete account",
-      "deleteDesc": "Permanently remove your account and data.",
-      "delete": "Delete",
-      "deleteToast": "Contact the front desk to delete your account",
-      "saving": "Saving…",
-      "saveAuth": "Please sign in",
-      "saveError": "Couldn't save, try again"
-    },
-    "cart": {
-      "title": "Your cart",
-      "summary": "Order summary",
-      "empty": "Your cart is empty",
-      "emptyHint": "Stock up on fuel and gear for your next session.",
-      "browseShop": "Browse shop",
-      "outOfStock": "Out of stock",
-      "remove": "Remove",
-      "decrease": "Decrease",
-      "increase": "Increase",
-      "pickup": "Collect at",
-      "payDesk": "Pay at desk",
-      "payCard": "Card",
-      "payApple": "Apple Pay",
-      "promo": "Promo code",
-      "subtotal": "Subtotal",
-      "discount": "Discount",
-      "total": "Total",
-      "placeOrder": "Place order",
-      "placing": "Placing…",
-      "securePayment": "Secure checkout · pay on collection",
-      "confirmed": "Order confirmed",
-      "orderNo": "Order",
-      "collectHint": "We'll have it ready at the front desk.",
-      "continueShopping": "Continue shopping",
-      "add": "Add",
-      "adding": "Adding…",
-      "added": "Added to cart",
-      "errAdd": "Couldn't add to cart",
-      "signInToAdd": "Sign in to add to cart",
-      "errUpdate": "Couldn't update the cart",
-      "errCheckout": "Checkout failed, try again",
-      "errPrice": "Prices changed — review your cart",
-      "pickLocation": "Choose a pickup location"
-    },
-    "goals": {
-      "title": "Your goals",
-      "edit": "Edit",
-      "add": "Add goal",
-      "addFirst": "Add a goal",
-      "save": "Save",
-      "saving": "Saving…",
-      "cancel": "Cancel",
-      "remove": "Remove",
-      "empty": "No goals yet — set a target to track your progress.",
-      "saved": "Goals saved",
-      "error": "Couldn't save goals",
-      "signIn": "Please sign in",
-      "labelPh": "Goal (e.g. Workouts / week)",
-      "unitPh": "unit",
-      "current": "Current",
-      "target": "Target"
-    },
-    "trainers": {
-      "eyebrow": "Meet the team",
-      "title": "Trainers",
-      "all": "All",
-      "search": "Search",
-      "searchPlaceholder": "Search by name",
-      "clear": "Clear search",
-      "loading": "Loading trainers…",
-      "error": "We couldn’t load the trainers. Please try again.",
-      "retry": "Try again",
-      "empty": {
-        "title": "No trainers yet",
-        "subtitle": "This gym hasn’t added any trainers yet. Check back soon."
-      },
-      "noMatch": {
-        "title": "No trainers match",
-        "subtitle": "Try a different name or specialty.",
-        "action": "Clear filters"
-      },
-      "detail": {
-        "back": "All trainers",
-        "specialties": "Specialties",
-        "locations": "Locations",
-        "schedule": {
-          "title": "Upcoming sessions",
-          "empty": "No upcoming sessions scheduled yet. Check back soon."
-        },
-        "notFound": {
-          "title": "Trainer not found",
-          "subtitle": "We couldn’t find this trainer. They may no longer be with this gym.",
-          "action": "Back to trainers"
-        }
-      }
-    },
-    "shop": {
-      "eyebrow": "Fuel & gear",
-      "title": "Shop",
-      "search": "Search",
-      "searchPlaceholder": "Search supplements, gear…",
-      "clear": "Clear search",
-      "cart": {
-        "title": "Your cart",
-        "back": "Back",
-        "remove": "Remove",
-        "decrease": "Decrease quantity",
-        "increase": "Increase quantity",
-        "each": "{price} ea",
-        "empty": {
-          "title": "Your cart is empty",
-          "subtitle": "Browse the shop and add supplements or gear to get started.",
-          "action": "Browse shop"
-        },
-        "pickup": {
-          "title": "Front-desk pickup",
-          "subtitle": "Collect your order at the gym’s front desk.",
-          "free": "Free",
-          "ready": "Ready in ~2 hours · collect anytime this week."
-        },
-        "summary": {
-          "subtotal": "Subtotal",
-          "pickup": "Pickup",
-          "total": "Total"
-        },
-        "secure": "Secure checkout · payment is simulated for now.",
-        "open": "Open cart"
-      },
-      "perk": "Collect your order at the front desk — no shipping, no waiting.",
-      "loading": "Loading products…",
-      "error": "We couldn’t load the shop. Please try again.",
-      "retry": "Try again",
-      "add": "Add to cart",
-      "soldOut": "Sold out",
-      "from": "from {price}",
-      "miniCart": {
-        "items": "{count} in cart",
-        "viewCart": "View cart"
-      },
-      "empty": {
-        "title": "Nothing for sale yet",
-        "subtitle": "This gym hasn’t added any products yet. Check back soon."
-      },
-      "noMatch": {
-        "title": "No products match",
-        "subtitle": "Try a different search.",
-        "action": "Clear search"
-      },
-      "detail": {
-        "back": "Shop",
-        "added": "Added to cart",
-        "options": "Options",
-        "outOfStock": "Out of stock",
-        "quantity": "Quantity",
-        "addToCart": "Add to cart",
-        "unavailable": "Unavailable",
-        "notFound": {
-          "title": "Product not found",
-          "subtitle": "This product may no longer be available."
-        }
-      },
-      "checkout": {
-        "place": "Place order",
-        "processing": "Placing order…",
-        "total": "Total",
-        "error": "We couldn’t place your order. Please try again."
-      },
-      "order": {
-        "loading": "Loading your order…",
-        "error": "We couldn’t load this order. Please try again.",
-        "retry": "Try again",
-        "title": "Order placed",
-        "subtitle": "We’ll let you know when it’s ready at the front desk — usually within 2 hours.",
-        "orderLabel": "Order",
-        "paidLabel": "Paid",
-        "total": "Total",
-        "continue": "Keep shopping",
-        "status": {
-          "pending": "Pending",
-          "paid": "Paid",
-          "cancelled": "Cancelled"
-        },
-        "notFound": {
-          "title": "Order not found",
-          "subtitle": "We couldn’t find that order. It may have been removed."
-        }
-      }
-    }
-  },
   "admin": {
     "common": {
       "brand": "FormaCore",
@@ -3712,6 +2506,1251 @@
       "deleteSession": "Delete session",
       "untitled": "Untitled chat",
       "dropHere": "Drop files to attach"
+    }
+  },
+  "auth": {
+    "fields": {
+      "name": "Full name",
+      "namePlaceholder": "Jane Doe",
+      "email": "Email",
+      "emailPlaceholder": "you@example.com",
+      "password": "Password",
+      "passwordPlaceholder": "••••••••",
+      "passwordHint": "At least 8 characters."
+    },
+    "orContinueWith": "or continue with",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithApple": "Continue with Apple",
+    "tabs": {
+      "signIn": "Sign in",
+      "createAccount": "Create account"
+    },
+    "social": {
+      "apple": "Apple",
+      "google": "Google"
+    },
+    "showPassword": "Show",
+    "hidePassword": "Hide",
+    "togglePassword": "Toggle password visibility",
+    "terms": "By continuing you agree to our Terms and Privacy Policy.",
+    "signingIn": "Signing you in…",
+    "signedIn": "Signed in successfully.",
+    "googleNotConfigured": "Google sign-in is not configured.",
+    "appleNotConfigured": "Apple sign-in is not configured.",
+    "genericError": "Something went wrong. Please try again.",
+    "invite": {
+      "invalid": "This invitation link is invalid or has expired. Ask your gym to send a new one."
+    },
+    "login": {
+      "title": "Sign in to Fit",
+      "subtitle": "Welcome back — enter your details to continue.",
+      "heroTitle": "Welcome back.",
+      "heroSubtitle": "Book classes, check in with a tap, and track every session.",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "Don’t have an account?",
+      "registerLink": "Create one"
+    },
+    "register": {
+      "title": "Create your account",
+      "subtitle": "Join Fit to discover gyms, classes, and trainers near you.",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "success": "Almost there! Check your inbox to verify your email and finish setting up your account.",
+      "haveAccount": "Already have an account?",
+      "loginLink": "Sign in"
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "subtitle": "Enter your email and we’ll send you a link to reset your password.",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "sent": "If that email is registered, a reset link is on its way. Check your inbox.",
+      "backToLogin": "Back to sign in"
+    },
+    "reset": {
+      "title": "Set a new password",
+      "subtitle": "Choose a new password for your account.",
+      "submit": "Update password",
+      "submitting": "Updating…",
+      "missingToken": "This reset link is invalid or has expired. Request a new one.",
+      "backToLogin": "Back to sign in"
+    },
+    "verify": {
+      "verifying": "Verifying your email…",
+      "success": "Email verified — you’re all set.",
+      "missingToken": "This verification link is invalid or has expired."
+    },
+    "splitHeading": "Sign in or join the gym",
+    "join": {
+      "title": "New here?",
+      "subtitle": "Pick a branch and a plan, and start training today.",
+      "benefits": {
+        "branch": "Choose the branch that suits you",
+        "plan": "Memberships, subscriptions and session packs",
+        "instant": "Straight into your member portal once you have paid"
+      },
+      "cta": "Become a member",
+      "ctaNote": "Takes about two minutes."
+    }
+  },
+  "billing": {
+    "title": "Billing",
+    "subtitle": "Buy PT credits and review what you have been charged.",
+    "retry": "Try again",
+    "credits": {
+      "heading": "Buy PT credits",
+      "loading": "Loading credit packs…",
+      "error": "Credit packs could not be loaded.",
+      "emptyTitle": "No credit packs on sale",
+      "emptySubtitle": "This gym is not selling PT credits right now.",
+      "sessionsOne": "{count} session",
+      "sessionsOther": "{count} sessions",
+      "expires": "Valid for {days} days",
+      "neverExpires": "Never expires",
+      "buy": "Buy",
+      "buying": "Purchasing…",
+      "confirmTitle": "Buy {name}?",
+      "confirmBody": "The credits are added straight away. You settle the payment at the gym.",
+      "confirmCta": "Buy",
+      "cancel": "Cancel",
+      "boughtToast": "{name} added to your balance.",
+      "errUnavailable": "This pack is no longer on sale.",
+      "errNoMembership": "Only members of this gym can buy credits.",
+      "errGeneric": "The purchase did not go through. Please try again."
+    },
+    "invoices": {
+      "heading": "Billing history",
+      "loading": "Loading invoices…",
+      "error": "Invoices could not be loaded.",
+      "emptyTitle": "Nothing billed yet",
+      "emptySubtitle": "Invoices appear here once your membership renews.",
+      "statusPAID": "Paid",
+      "statusPENDING": "Pending",
+      "statusFAILED": "Failed",
+      "statusREFUNDED": "Refunded"
+    }
+  },
+  "checkout": {
+    "title": "Checkout",
+    "subtitle": "A few quick steps to set up your membership.",
+    "progress": "Step {current} of {total}",
+    "progressLabel": "Checkout progress",
+    "steps": {
+      "location": "Location",
+      "package": "Package",
+      "details": "Details",
+      "payment": "Payment"
+    },
+    "continue": "Continue",
+    "back": "Back",
+    "comingSoon": "This step is coming soon.",
+    "locations": {
+      "title": "Choose a location",
+      "subtitle": "Pick the location where you'd like to train.",
+      "loading": "Loading locations…",
+      "error": "We couldn't load the locations. Please try again.",
+      "retry": "Try again",
+      "empty": {
+        "title": "No locations available",
+        "subtitle": "This gym hasn't set up any locations yet. Please check back soon."
+      },
+      "todayHours": "Today",
+      "closed": "Closed",
+      "select": "Select",
+      "selected": "Selected"
+    },
+    "packages": {
+      "title": "Choose a package",
+      "subtitle": "Pick the membership that fits how you train.",
+      "loading": "Loading packages…",
+      "error": "We couldn't load the packages. Please try again.",
+      "retry": "Try again",
+      "empty": {
+        "title": "No packages available",
+        "subtitle": "This gym hasn't set up any packages yet. Please check back soon."
+      },
+      "perMonth": "/ mo",
+      "perYear": "/ yr",
+      "unlimited": "Unlimited access",
+      "sessions": "{count, plural, one {# session} other {# sessions}}",
+      "popular": "Most popular",
+      "select": "Select",
+      "selected": "Selected",
+      "tabsLabel": "Product type",
+      "tabEmpty": "Nothing on sale in this category yet.",
+      "tabs": {
+        "package": "Packages",
+        "subscription": "Subscriptions",
+        "credit_pack": "Session packs"
+      }
+    },
+    "details": {
+      "title": "Your details",
+      "subtitle": "Confirm who this membership is for.",
+      "guestSubtitle": "Create an account to complete your purchase.",
+      "loading": "Checking your account…",
+      "signedIn": "You're signed in — your membership will be added to your account.",
+      "submitting": "Saving…",
+      "invalid": "Please enter your name, a valid email, and a password of at least 8 characters.",
+      "fields": {
+        "name": "Full name",
+        "email": "Email",
+        "password": "Password",
+        "passwordHint": "At least 8 characters.",
+        "phone": "Phone",
+        "dateOfBirth": "Date of birth",
+        "personalId": "National ID number",
+        "personalIdHint": "Required by the gym for membership records.",
+        "gender": "Gender"
+      },
+      "gender": {
+        "female": "Female",
+        "male": "Male",
+        "other": "Other"
+      },
+      "emailTaken": "This email already has an account.",
+      "emailTakenAction": "Sign in instead",
+      "groups": {
+        "about": {
+          "title": "About you",
+          "hint": "The gym keeps this on file for your membership record."
+        },
+        "account": {
+          "title": "Your login",
+          "hint": "You will use these to sign in to the member portal."
+        }
+      }
+    },
+    "payment": {
+      "title": "Review and pay",
+      "subtitle": "Confirm your order and complete your purchase.",
+      "loading": "Loading your order…",
+      "processing": "Processing…",
+      "pay": "Pay now",
+      "reserve": "Reserve my membership",
+      "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk — no card is charged online.",
+      "error": "We couldn't place your order. Please try again.",
+      "terms": "I agree to the terms of service and the membership policy.",
+      "summary": {
+        "package": "Package",
+        "total": "Total"
+      },
+      "unavailable": {
+        "title": "This package is no longer available",
+        "subtitle": "Please go back and choose another package."
+      }
+    },
+    "success": {
+      "title": "You're all set!",
+      "subtitle": "Your membership purchase is confirmed. A confirmation email is on its way.",
+      "orderId": "Order #{id}",
+      "total": "Total paid",
+      "returnHome": "Return home",
+      "missing": {
+        "title": "We couldn't find that order",
+        "subtitle": "The order may have expired or the link is incomplete."
+      },
+      "verifyEmail": "One more thing — we have emailed you a confirmation link. Click it to confirm your address, otherwise you will not be able to sign in again once this session ends."
+    },
+    "summary": {
+      "title": "Your selection",
+      "branch": "Branch",
+      "total": "Total",
+      "empty": "Pick a branch and a plan — your choice will show up here.",
+      "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
+    }
+  },
+  "classes": {
+    "title": "Classes",
+    "subtitle": "Browse the schedule and book your next session.",
+    "toggle": {
+      "label": "Calendar view",
+      "week": "Week",
+      "list": "List"
+    },
+    "weekView": {
+      "label": "Weekly calendar",
+      "prev": "Previous week",
+      "next": "Next week",
+      "today": "This week",
+      "dayEmpty": "No classes this day"
+    },
+    "listView": {
+      "label": "Class list",
+      "count": "{count, plural, one {# class} other {# classes}}",
+      "itemsOne": "{count} class",
+      "itemsOther": "{count} classes"
+    },
+    "card": {
+      "spotsLeft": "{count, plural, one {# spot left} other {# spots left}}",
+      "spotsLeftOne": "{count} spot left",
+      "spotsLeftOther": "{count} spots left",
+      "full": "Full",
+      "joinWaitlist": "Join waitlist"
+    },
+    "drawer": {
+      "close": "Close",
+      "time": "Time",
+      "trainer": "Trainer",
+      "location": "Location",
+      "capacity": "Capacity",
+      "book": "Book",
+      "full": "Join waitlist",
+      "signInToBook": "Sign in to book"
+    },
+    "empty": {
+      "title": "No classes this week",
+      "subtitle": "There are no classes scheduled for the selected week. Try another week or check back soon."
+    },
+    "filters": {
+      "groupLabel": "Filter classes",
+      "type": "Type",
+      "trainer": "Trainer",
+      "allTrainers": "All trainers",
+      "location": "Location",
+      "allLocations": "All locations",
+      "time": "Time",
+      "anyTime": "Any time",
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "evening": "Evening",
+      "clear": "Clear filters",
+      "noMatch": {
+        "title": "No classes match your filters",
+        "subtitle": "Try removing a filter or pick another week.",
+        "action": "Clear filters"
+      }
+    },
+    "loading": "Loading classes…",
+    "error": "We couldn’t load the classes. Please try again.",
+    "retry": "Try again",
+    "detail": {
+      "back": "All classes",
+      "about": "What to expect",
+      "time": "Time",
+      "duration": "Duration",
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "trainer": "Trainer",
+      "location": "Location",
+      "room": "Room",
+      "capacity": "Capacity",
+      "status": {
+        "canceled": "This class has been canceled.",
+        "completed": "This class has already taken place."
+      },
+      "notFound": {
+        "title": "Class not found",
+        "subtitle": "We couldn’t find this class. It may have been canceled or removed.",
+        "action": "Back to classes"
+      },
+      "booking": {
+        "book": "Book this class",
+        "joinWaitlist": "Join waitlist",
+        "booking": "Booking…",
+        "cancel": "Cancel booking",
+        "leaveWaitlist": "Leave waitlist",
+        "canceling": "Canceling…",
+        "bookedTitle": "You’re booked",
+        "bookedSubtitle": "You have a confirmed spot in this class.",
+        "waitlistedTitle": "You’re on the waitlist",
+        "waitlistedSubtitle": "We’ll let you know if a spot opens up.",
+        "waitlistPosition": "Position #{position}",
+        "fullNote": "This class is full — join the waitlist and we’ll notify you if a spot opens up.",
+        "toast": {
+          "booked": "You’re booked!",
+          "waitlisted": "You’re on the waitlist.",
+          "canceled": "Your booking was canceled.",
+          "leftWaitlist": "You’ve left the waitlist.",
+          "error": "Something went wrong. Please try again."
+        }
+      }
+    }
+  },
+  "common": {
+    "appName": "Fit",
+    "nav": {
+      "home": "Home",
+      "classes": "Classes",
+      "trainers": "Trainers",
+      "bookings": "Bookings",
+      "shop": "Shop",
+      "profile": "Profile",
+      "qr": "Check-in"
+    },
+    "cta": {
+      "getStarted": "Get started",
+      "signIn": "Sign in"
+    },
+    "language": {
+      "label": "Language",
+      "ka": "ქართული",
+      "en": "English"
+    }
+  },
+  "errors": {
+    "forbidden": {
+      "badge": "403",
+      "title": "Access denied",
+      "description": "Your account doesn’t have permission to view this page. If you think this is a mistake, contact your gym administrator.",
+      "backHome": "Back to home"
+    },
+    "generic": {
+      "badge": "Something went wrong",
+      "title": "Unexpected error",
+      "description": "An unexpected error occurred. You can try again, and if the problem persists please contact support.",
+      "reference": "Reference: {id}",
+      "tryAgain": "Try again"
+    }
+  },
+  "footer": {
+    "tagline": "Book gyms, classes, and trainers across Georgia — all in one app.",
+    "product": "Product",
+    "company": "Company",
+    "legal": "Legal",
+    "links": {
+      "classes": "Classes",
+      "trainers": "Trainers",
+      "pricing": "Pricing",
+      "about": "About",
+      "contact": "Contact",
+      "privacy": "Privacy policy",
+      "terms": "Terms of service"
+    },
+    "copyright": "© {year} Fit. All rights reserved."
+  },
+  "home": {
+    "hero": {
+      "badge": "Now live in Georgia",
+      "title": "Find your gym. Book your class.",
+      "subtitle": "Fit connects you with gyms, trainers, and classes near you — book and manage your membership in one place.",
+      "ctaPrimary": "Get started",
+      "ctaSecondary": "Browse classes"
+    },
+    "features": {
+      "title": "Everything you need to stay in shape",
+      "subtitle": "One app for members, trainers, and gyms — from discovery to check-in.",
+      "items": {
+        "discover": {
+          "title": "Discover gyms & studios",
+          "description": "Browse verified gyms and studios near you with photos, amenities, and real reviews."
+        },
+        "book": {
+          "title": "Book in seconds",
+          "description": "Reserve a class or a session in a couple of taps and get instant confirmation."
+        },
+        "train": {
+          "title": "Train with the best",
+          "description": "Find certified trainers, compare specialties, and book one-on-one sessions."
+        },
+        "membership": {
+          "title": "One membership, everywhere",
+          "description": "Manage your plan, track visits, and pay in one place — no paper cards."
+        }
+      }
+    },
+    "pricing": {
+      "title": "Simple, transparent pricing",
+      "subtitle": "Start free and upgrade as you grow. No hidden fees.",
+      "perMonth": "/mo",
+      "mostPopular": "Most popular",
+      "plans": {
+        "starter": {
+          "name": "Starter",
+          "price": "₾0",
+          "description": "For members getting started.",
+          "cta": "Get started",
+          "features": {
+            "0": "Discover gyms & classes",
+            "1": "Book up to 4 classes / mo",
+            "2": "Mobile check-in"
+          }
+        },
+        "pro": {
+          "name": "Pro",
+          "price": "₾49",
+          "description": "For regulars who train often.",
+          "cta": "Start free trial",
+          "features": {
+            "0": "Unlimited bookings",
+            "1": "Priority class waitlists",
+            "2": "Trainer sessions",
+            "3": "Visit history & stats"
+          }
+        },
+        "studio": {
+          "name": "Studio",
+          "price": "₾149",
+          "description": "For gyms and studios.",
+          "cta": "Contact sales",
+          "features": {
+            "0": "Member management",
+            "1": "Class scheduling",
+            "2": "Payments & payouts",
+            "3": "Analytics dashboard"
+          }
+        }
+      }
+    }
+  },
+  "member": {
+    "nav": {
+      "home": "Home",
+      "classes": "Classes",
+      "bookings": "Bookings",
+      "trainer": "Trainer",
+      "shop": "Shop",
+      "membership": "Membership",
+      "profile": "Profile",
+      "cart": "Cart"
+    },
+    "shell": {
+      "brand": "FormaCore",
+      "skipToContent": "Skip to main content",
+      "search": "Search classes, trainers…",
+      "notifications": "Notifications",
+      "noNotifications": "You're all caught up",
+      "markAllRead": "Mark all read",
+      "themeToLight": "Switch to light",
+      "themeToDark": "Switch to dark",
+      "menu": "Menu",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "signOut": "Sign out",
+      "premium": "Premium",
+      "checkIn": "Check-in",
+      "viewProfile": "View profile",
+      "greetingFallback": "Member",
+      "adminConsole": "Admin console"
+    },
+    "home": {
+      "greeting": "Welcome back",
+      "greetingFallbackName": "Member",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "membership": "Membership",
+      "active": "Active",
+      "noPlan": "No active plan",
+      "memberId": "ID",
+      "daysLeft": "{used} of {total} days left",
+      "showQr": "Show check-in QR",
+      "ptCredits": "PT left",
+      "qrTitle": "Check-in QR",
+      "qrSub": "Show this at the front desk",
+      "done": "Done",
+      "nextClass": "Your next class",
+      "checkIn": "Check in",
+      "noClasses": "No classes booked yet",
+      "browseClasses": "Browse classes",
+      "dayStreak": "Day streak",
+      "checkInsMonth": "Check-ins",
+      "classesBooked": "Classes booked",
+      "bookClass": "Book a class",
+      "viewAll": "View all",
+      "book": "Book",
+      "booked": "Booked",
+      "joinWaitlist": "Join waitlist",
+      "noBookable": "No classes this week yet",
+      "yourTrainer": "Your trainer",
+      "bookSession": "Book session",
+      "forTraining": "For your training",
+      "membersGet": "Members −10%",
+      "visitShop": "Visit shop",
+      "noProducts": "No products yet",
+      "upcomingBookings": "Your upcoming bookings",
+      "confirmed": "Confirmed",
+      "waitlist": "Waitlist · #{position}"
+    },
+    "classes": {
+      "title": "Classes",
+      "today": "Today",
+      "myBookings": "My bookings",
+      "prevWeek": "Previous week",
+      "nextWeek": "Next week",
+      "all": "All",
+      "spotsLeft": "{count} left",
+      "full": "Full",
+      "book": "Book",
+      "booked": "Booked",
+      "waitlisted": "Waitlisted",
+      "waitlist": "Waitlist",
+      "minutes": "{count} min",
+      "loading": "Loading classes…",
+      "error": "We couldn’t load the classes. Please try again.",
+      "retry": "Try again",
+      "periods": {
+        "morning": "Morning",
+        "afternoon": "Afternoon",
+        "evening": "Evening"
+      },
+      "empty": {
+        "title": "No classes today",
+        "titleFiltered": "No {type} classes",
+        "subtitle": "Try another day or filter."
+      }
+    },
+    "actions": {
+      "booked": "Booked! See you there",
+      "waitlisted": "Added to the waitlist",
+      "canceled": "Booking canceled",
+      "working": "…",
+      "errAlreadyBooked": "You're already booked",
+      "errNotBookable": "This class can't be booked",
+      "errWindowPassed": "Cancellation window has passed",
+      "errNotFound": "No booking found",
+      "errAuth": "Please sign in",
+      "errGeneric": "Something went wrong"
+    },
+    "membership": {
+      "title": "Membership",
+      "eyebrow": "Account",
+      "changePlan": "Change plan",
+      "managePlan": "Manage plan",
+      "choosePlan": "Choose a plan",
+      "status": {
+        "TRIAL": "Trial",
+        "ACTIVE": "Active",
+        "FROZEN": "Frozen",
+        "CANCELED": "Canceled",
+        "PAST_DUE": "Past due",
+        "EXPIRED": "Inactive"
+      },
+      "noPlan": "No active plan",
+      "noPlanHint": "Pick a plan to unlock classes, trainers and member pricing.",
+      "perks": "Unlimited classes · 1 guest pass / mo · −10% shop",
+      "nextBilling": "Next billing",
+      "endsOn": "Access until",
+      "cancelNotice": "Set to cancel — won't renew.",
+      "memberSince": "Member since",
+      "viewBookings": "My bookings",
+      "shopMember": "Member shop",
+      "paymentMethod": "Payment method",
+      "payAtDesk": "Pay at desk",
+      "thisPeriod": "This period",
+      "classes": "classes",
+      "ptCredits": "PT credits",
+      "buyMore": "Buy more sessions",
+      "invoices": "Invoice history",
+      "invoice": "Invoice",
+      "date": "Date",
+      "amount": "Amount",
+      "statusCol": "Status",
+      "invoiceStatus": {
+        "PAID": "Paid",
+        "PENDING": "Pending",
+        "FAILED": "Failed",
+        "REFUNDED": "Refunded"
+      },
+      "noInvoices": "No invoices yet",
+      "downloadCol": "Invoice PDF",
+      "download": "Download",
+      "downloadPdf": "Download invoice PDF",
+      "pastDue": {
+        "title": "Payment didn't go through",
+        "body": "We couldn't process your last renewal. We'll retry automatically over the next few days — please settle up at the desk to keep your membership active."
+      },
+      "freeze": {
+        "title": "Pause membership",
+        "subtitle": "Freeze your plan while you're away",
+        "used": "{used} of {total} days used",
+        "remaining": "{days} days left",
+        "freeze": "Pause membership",
+        "resume": "Resume now",
+        "working": "Working…",
+        "notAvailable": "Your plan doesn't include freezes.",
+        "exhausted": "You've used all your freeze days this period.",
+        "frozenUntil": "Paused until {date}",
+        "frozenHint": "Your membership resumes automatically — or resume it any time.",
+        "modalTitle": "Pause membership",
+        "modalBody": "You have {days} freeze days left this period.",
+        "durationLabel": "How many days?",
+        "durationHint": "Your renewal date moves out by the days you're paused.",
+        "cancel": "Cancel",
+        "confirmFreeze": "Pause",
+        "frozenToast": "Membership paused until {date}",
+        "resumedToast": "Membership resumed",
+        "errInvalidDuration": "Enter a whole number of days.",
+        "errAllowance": "That's more than the {days} freeze days you have left.",
+        "errGeneric": "Something went wrong. Please try again."
+      },
+      "credits": {
+        "title": "PT credits",
+        "buyMore": "Buy more",
+        "noneOnSale": "No packs on sale",
+        "modalTitle": "Buy credits",
+        "modalBody": "Pick a credit pack to buy. Pay at the desk.",
+        "packMeta": "{count, plural, one {# credit} other {# credits}} · {price}",
+        "buy": "Buy",
+        "buying": "Buying…",
+        "boughtToast": "{count, plural, one {# credit} other {# credits}} added",
+        "errUnavailable": "That pack is no longer available.",
+        "errGeneric": "Something went wrong. Please try again.",
+        "close": "Close"
+      }
+    },
+    "profile": {
+      "mobile": {
+        "title": "Profile",
+        "notificationsA11y": "Notifications",
+        "memberSince": "{tier} · since {year}",
+        "member": "Member",
+        "membership": "Membership",
+        "renews": "Renews {date}",
+        "daysLeft": "{used} of {total} days left",
+        "noPlanTitle": "No active membership",
+        "noPlanHint": "Pick a plan to unlock classes and member pricing.",
+        "browsePlans": "Browse plans",
+        "showQr": "Show check-in QR",
+        "freeze": "Freeze",
+        "resumeNow": "Resume now",
+        "frozenUntil": "Frozen until {date}",
+        "pt": {
+          "sessionsLeftOne": "{count} PT session left",
+          "sessionsLeftOther": "{count} PT sessions left",
+          "none": "No PT sessions left",
+          "refreshesActive": "Refreshes with your renewal",
+          "refreshesEmpty": "Buy a pack to book personal training",
+          "buy": "Buy"
+        },
+        "stats": {
+          "dayStreak": "Day streak",
+          "totalVisits": "Total visits",
+          "classes": "Classes"
+        },
+        "achievements": {
+          "title": "Achievements",
+          "all": "All",
+          "firstClass": "First class",
+          "tenVisits": "10 visits",
+          "fiftyVisits": "50 visits",
+          "hundredVisits": "100 visits",
+          "streak": "7-day streak"
+        },
+        "toggles": {
+          "push": "Push notifications",
+          "pushHint": "Class reminders & offers",
+          "reminders": "Class reminders",
+          "remindersHint": "Before your booked classes"
+        },
+        "menu": {
+          "appearance": "Appearance",
+          "appearanceHint": "Follows system",
+          "billing": "Billing",
+          "billingHint": "PT credits and invoices",
+          "heading": "Settings",
+          "language": "Language",
+          "notifications": "Notifications",
+          "notificationsHint": "Reminders & updates",
+          "trainers": "Trainers",
+          "trainersHint": "Browse and book",
+          "training": "Personal training",
+          "trainingHint": "Packages & PT sessions"
+        },
+        "freezeSheet": {
+          "title": "Freeze membership",
+          "subtitle": "Pause billing while you're away.",
+          "carryover": "Your remaining days carry over — nothing is lost. You can freeze up to {days} more days this period.",
+          "confirm": "Freeze for {label}",
+          "opt2w": "2 weeks",
+          "opt1m": "1 month",
+          "opt2m": "2 months",
+          "optDays": "{days} days"
+        },
+        "version": "FormaCore · v{version}"
+      },
+      "title": "Profile",
+      "eyebrow": "Account",
+      "save": "Save changes",
+      "saved": "Profile saved",
+      "namePlaceholder": "Your name",
+      "emailPlaceholder": "you@email.com",
+      "premiumMember": "Premium member",
+      "changePhoto": "Change photo",
+      "checkIns": "Check-ins",
+      "credits": "Credits",
+      "id": "ID",
+      "personalInfo": "Personal information",
+      "fields": {
+        "firstName": "First name",
+        "lastName": "Last name",
+        "email": "Email",
+        "phone": "Phone",
+        "emergency": "Emergency contact",
+        "address": "Address"
+      },
+      "preferences": "Preferences",
+      "language": "Language",
+      "units": "Units",
+      "unit": {
+        "metric": "Metric",
+        "imperial": "Imperial"
+      },
+      "theme": "Theme",
+      "themeName": {
+        "light": "Light",
+        "dark": "Dark"
+      },
+      "notifications": "Notifications",
+      "notif": {
+        "reminders": {
+          "title": "Class reminders",
+          "desc": "Before your booked classes"
+        },
+        "bookings": {
+          "title": "Booking updates",
+          "desc": "Confirmations and waitlist moves"
+        },
+        "billing": {
+          "title": "Billing",
+          "desc": "Payments and renewals"
+        },
+        "promotions": {
+          "title": "Promotions",
+          "desc": "Offers and member perks"
+        }
+      },
+      "security": "Security",
+      "changePassword": "Change password",
+      "twoFa": "Two-factor authentication",
+      "twoFaOn": "Enabled",
+      "twoFaOff": "Add an extra layer of security",
+      "deleteTitle": "Delete account",
+      "deleteDesc": "Permanently remove your account and data.",
+      "delete": "Delete",
+      "deleteToast": "Contact the front desk to delete your account",
+      "saving": "Saving…",
+      "saveAuth": "Please sign in",
+      "saveError": "Couldn't save, try again"
+    },
+    "cart": {
+      "title": "Your cart",
+      "summary": "Order summary",
+      "empty": "Your cart is empty",
+      "emptyHint": "Stock up on fuel and gear for your next session.",
+      "browseShop": "Browse shop",
+      "outOfStock": "Out of stock",
+      "remove": "Remove",
+      "decrease": "Decrease",
+      "increase": "Increase",
+      "pickup": "Collect at",
+      "payDesk": "Pay at desk",
+      "payCard": "Card",
+      "payApple": "Apple Pay",
+      "promo": "Promo code",
+      "subtotal": "Subtotal",
+      "discount": "Discount",
+      "total": "Total",
+      "placeOrder": "Place order",
+      "placing": "Placing…",
+      "securePayment": "Secure checkout · pay on collection",
+      "confirmed": "Order confirmed",
+      "orderNo": "Order",
+      "collectHint": "We'll have it ready at the front desk.",
+      "continueShopping": "Continue shopping",
+      "add": "Add",
+      "adding": "Adding…",
+      "added": "Added to cart",
+      "errAdd": "Couldn't add to cart",
+      "signInToAdd": "Sign in to add to cart",
+      "errUpdate": "Couldn't update the cart",
+      "errCheckout": "Checkout failed, try again",
+      "errPrice": "Prices changed — review your cart",
+      "pickLocation": "Choose a pickup location"
+    },
+    "goals": {
+      "title": "Your goals",
+      "edit": "Edit",
+      "add": "Add goal",
+      "addFirst": "Add a goal",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "remove": "Remove",
+      "empty": "No goals yet — set a target to track your progress.",
+      "saved": "Goals saved",
+      "error": "Couldn't save goals",
+      "signIn": "Please sign in",
+      "labelPh": "Goal (e.g. Workouts / week)",
+      "unitPh": "unit",
+      "current": "Current",
+      "target": "Target"
+    },
+    "trainers": {
+      "eyebrow": "Meet the team",
+      "title": "Trainers",
+      "all": "All",
+      "search": "Search",
+      "searchPlaceholder": "Search by name",
+      "clear": "Clear search",
+      "loading": "Loading trainers…",
+      "error": "We couldn’t load the trainers. Please try again.",
+      "retry": "Try again",
+      "empty": {
+        "title": "No trainers yet",
+        "subtitle": "This gym hasn’t added any trainers yet. Check back soon."
+      },
+      "noMatch": {
+        "title": "No trainers match",
+        "subtitle": "Try a different name or specialty.",
+        "action": "Clear filters"
+      },
+      "detail": {
+        "back": "All trainers",
+        "specialties": "Specialties",
+        "locations": "Locations",
+        "schedule": {
+          "title": "Upcoming sessions",
+          "empty": "No upcoming sessions scheduled yet. Check back soon."
+        },
+        "notFound": {
+          "title": "Trainer not found",
+          "subtitle": "We couldn’t find this trainer. They may no longer be with this gym.",
+          "action": "Back to trainers"
+        }
+      }
+    },
+    "shop": {
+      "eyebrow": "Fuel & gear",
+      "title": "Shop",
+      "search": "Search",
+      "searchPlaceholder": "Search supplements, gear…",
+      "clear": "Clear search",
+      "cart": {
+        "title": "Your cart",
+        "back": "Back",
+        "remove": "Remove",
+        "decrease": "Decrease quantity",
+        "increase": "Increase quantity",
+        "each": "{price} ea",
+        "empty": {
+          "title": "Your cart is empty",
+          "subtitle": "Browse the shop and add supplements or gear to get started.",
+          "action": "Browse shop"
+        },
+        "pickup": {
+          "title": "Front-desk pickup",
+          "subtitle": "Collect your order at the gym’s front desk.",
+          "free": "Free",
+          "ready": "Ready in ~2 hours · collect anytime this week."
+        },
+        "summary": {
+          "subtotal": "Subtotal",
+          "pickup": "Pickup",
+          "total": "Total"
+        },
+        "secure": "Secure checkout · payment is simulated for now.",
+        "open": "Open cart"
+      },
+      "perk": "Collect your order at the front desk — no shipping, no waiting.",
+      "loading": "Loading products…",
+      "error": "We couldn’t load the shop. Please try again.",
+      "retry": "Try again",
+      "add": "Add to cart",
+      "soldOut": "Sold out",
+      "from": "from {price}",
+      "miniCart": {
+        "items": "{count} in cart",
+        "viewCart": "View cart"
+      },
+      "empty": {
+        "title": "Nothing for sale yet",
+        "subtitle": "This gym hasn’t added any products yet. Check back soon."
+      },
+      "noMatch": {
+        "title": "No products match",
+        "subtitle": "Try a different search.",
+        "action": "Clear search"
+      },
+      "detail": {
+        "back": "Shop",
+        "added": "Added to cart",
+        "options": "Options",
+        "outOfStock": "Out of stock",
+        "quantity": "Quantity",
+        "addToCart": "Add to cart",
+        "unavailable": "Unavailable",
+        "notFound": {
+          "title": "Product not found",
+          "subtitle": "This product may no longer be available."
+        }
+      },
+      "checkout": {
+        "place": "Place order",
+        "processing": "Placing order…",
+        "total": "Total",
+        "error": "We couldn’t place your order. Please try again."
+      },
+      "order": {
+        "loading": "Loading your order…",
+        "error": "We couldn’t load this order. Please try again.",
+        "retry": "Try again",
+        "title": "Order placed",
+        "subtitle": "We’ll let you know when it’s ready at the front desk — usually within 2 hours.",
+        "orderLabel": "Order",
+        "paidLabel": "Paid",
+        "total": "Total",
+        "continue": "Keep shopping",
+        "status": {
+          "pending": "Pending",
+          "paid": "Paid",
+          "cancelled": "Cancelled"
+        },
+        "notFound": {
+          "title": "Order not found",
+          "subtitle": "We couldn’t find that order. It may have been removed."
+        }
+      }
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "subtitle": "Choose what you'd like to hear about. Delivery is enabled in a later update.",
+    "push": "Push notifications",
+    "pushHint": "Allow Fit to send notifications to this device.",
+    "categories": "Categories",
+    "classReminders": "Class reminders",
+    "classRemindersHint": "Before your booked classes start.",
+    "bookingUpdates": "Booking updates",
+    "bookingUpdatesHint": "Waitlist promotions, cancellations, and changes.",
+    "promotions": "Promotions",
+    "promotionsHint": "Offers and news from your gym.",
+    "disabledHint": "Enable push notifications to manage categories.",
+    "inboxTitle": "Notifications",
+    "back": "Back",
+    "settings": "Notification settings",
+    "markAllRead": "Mark all read",
+    "empty": "You're all caught up",
+    "emptyHint": "New reminders and updates will show up here.",
+    "error": "We couldn't load your notifications.",
+    "retry": "Try again",
+    "timeNow": "now"
+  },
+  "onboarding": {
+    "skip": "Skip",
+    "next": "Next",
+    "getStarted": "Get started",
+    "classes": {
+      "title": "Find your next class",
+      "body": "Browse the weekly schedule and book a spot in seconds — right from your phone."
+    },
+    "qr": {
+      "title": "Check in with QR",
+      "body": "Show your personal QR code at the door for a fast, contactless check-in."
+    },
+    "shop": {
+      "title": "Shop the store",
+      "body": "Grab gear, supplements, and add-ons, and pick them up on your next visit."
+    }
+  },
+  "qr": {
+    "title": "Check in",
+    "subtitle": "Hold this up to the scanner at the front desk.",
+    "instruction": "Hold your phone up to the scanner at reception.",
+    "memberId": "Member ID",
+    "brightnessHint": "Turn your screen brightness up for a faster scan.",
+    "signedOut": "Sign in to get your check-in code.",
+    "boost": "Boost brightness",
+    "refreshesIn": "Refreshes in {time}",
+    "daysLeft": "days left",
+    "recentTitle": "Recent check-ins",
+    "recentEmpty": "No check-ins yet",
+    "yesterday": "Yesterday"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your profile, language, and notifications.",
+    "account": {
+      "heading": "Account",
+      "role": "Role",
+      "gym": "Gym",
+      "memberId": "Member ID",
+      "noGym": "No gym selected",
+      "roles": {
+        "MEMBER": "Member",
+        "TRAINER": "Trainer",
+        "RECEPTIONIST": "Receptionist",
+        "MANAGER": "Manager",
+        "OWNER": "Owner",
+        "SUPER_ADMIN": "Super admin"
+      }
+    },
+    "preferences": {
+      "heading": "Preferences",
+      "language": "Language",
+      "notifications": "Notifications",
+      "notificationsHint": "Reminders and updates",
+      "appearance": "Appearance",
+      "appearanceSystem": "Follows system"
+    },
+    "about": {
+      "heading": "About",
+      "version": "Version",
+      "signOut": "Sign out",
+      "signOutConfirm": "You'll need to sign in again to use the app.",
+      "signOutCancel": "Cancel",
+      "signedOut": "Signed out"
+    }
+  },
+  "shop": {
+    "title": "Shop",
+    "subtitle": "Gear, supplements, and essentials from your gym.",
+    "grid": {
+      "label": "Products"
+    },
+    "retry": "Try again",
+    "browse": {
+      "loading": "Loading products…",
+      "error": "We couldn’t load the shop. Please try again.",
+      "fromPrice": "from {price}",
+      "empty": {
+        "title": "Nothing for sale yet",
+        "subtitle": "This gym hasn’t added any products yet. Check back soon."
+      }
+    },
+    "detail": {
+      "back": "Shop",
+      "added": "Added to cart",
+      "options": "Options",
+      "outOfStock": "Out of stock",
+      "quantity": "Quantity",
+      "addToCart": "Add to cart",
+      "unavailable": "Unavailable",
+      "notFound": {
+        "title": "Product not found",
+        "subtitle": "This product may no longer be available."
+      }
+    },
+    "cart": {
+      "open": "Open cart",
+      "back": "Shop",
+      "title": "Cart",
+      "eachPrice": "{price} each",
+      "remove": "Remove",
+      "decrease": "Decrease quantity",
+      "increase": "Increase quantity",
+      "subtotal": "Subtotal",
+      "empty": {
+        "title": "Your cart is empty",
+        "subtitle": "Browse the shop and add a few things to get started.",
+        "action": "Browse products"
+      }
+    },
+    "checkout": {
+      "pay": "Place order",
+      "processing": "Placing order…",
+      "note": "Payment is simulated for now — no card is charged.",
+      "error": "We couldn’t place your order. Please try again."
+    },
+    "order": {
+      "loading": "Loading your order…",
+      "error": "We couldn’t load this order. Please try again.",
+      "title": "Order confirmed",
+      "subtitle": "Thanks! Your order has been placed.",
+      "idLabel": "Order {id}",
+      "total": "Total",
+      "continue": "Continue shopping",
+      "status": {
+        "pending": "Pending",
+        "paid": "Paid",
+        "cancelled": "Cancelled"
+      },
+      "notFound": {
+        "title": "Order not found",
+        "subtitle": "We couldn’t find that order. It may have been removed."
+      }
+    }
+  },
+  "trainers": {
+    "title": "Trainers",
+    "subtitle": "Meet the team and find the right coach for you.",
+    "grid": {
+      "label": "Trainers"
+    },
+    "card": {
+      "specialties": "Specialties"
+    },
+    "detail": {
+      "back": "All trainers",
+      "specialties": "Specialties",
+      "locations": "Locations",
+      "schedule": {
+        "title": "Upcoming sessions",
+        "empty": "No upcoming sessions scheduled yet. Check back soon."
+      },
+      "reviews": {
+        "title": "Reviews",
+        "empty": "No reviews yet. Members who attend this trainer’s classes can leave one.",
+        "count": "{count, plural, one {# review} other {# reviews}}",
+        "ratingLabel": "{rating} out of 5 stars"
+      },
+      "notFound": {
+        "title": "Trainer not found",
+        "subtitle": "We couldn’t find this trainer. They may no longer be with this gym.",
+        "action": "Back to trainers"
+      }
+    },
+    "filters": {
+      "groupLabel": "Filter trainers",
+      "search": "Search",
+      "searchPlaceholder": "Search by name",
+      "specialty": "Specialty",
+      "location": "Location",
+      "allLocations": "All locations",
+      "clear": "Clear filters",
+      "noMatch": {
+        "title": "No trainers match your filters",
+        "subtitle": "Try removing a filter or searching for a different name.",
+        "action": "Clear filters"
+      }
+    },
+    "empty": {
+      "title": "No trainers yet",
+      "subtitle": "This gym hasn’t added any trainers yet. Check back soon."
+    },
+    "loading": "Loading trainers…",
+    "error": "We couldn’t load the trainers. Please try again.",
+    "retry": "Try again"
+  },
+  "training": {
+    "title": "Personal Training",
+    "subtitle": "Train one-on-one with a coach. Choose a package and track your upcoming sessions.",
+    "retry": "Try again",
+    "packages": {
+      "boughtToast": "{name} is yours — settle up at reception.",
+      "buy": "Buy this plan",
+      "buying": "Purchasing…",
+      "cancel": "Cancel",
+      "confirmBody": "Your membership is reserved straight away. You settle the payment at the gym.",
+      "confirmCta": "Buy",
+      "confirmTitle": "Buy {name}?",
+      "empty": {
+        "title": "No packages yet",
+        "subtitle": "This gym hasn’t set up any personal-training packages yet. Check back soon."
+      },
+      "errAlreadySubscribed": "You already have an active membership.",
+      "errGeneric": "The purchase did not go through. Please try again.",
+      "errNoMembership": "Only members of this gym can buy a plan.",
+      "errUnavailable": "This plan is no longer on sale.",
+      "error": "We couldn’t load the packages. Please try again.",
+      "heading": "Packages",
+      "loading": "Loading packages…",
+      "perMonth": "/ mo",
+      "perYear": "/ yr",
+      "popular": "Most popular",
+      "sessionsOne": "{count} session",
+      "sessionsOther": "{count} sessions",
+      "unlimited": "Unlimited sessions"
+    },
+    "sessions": {
+      "heading": "Upcoming sessions",
+      "loading": "Loading your sessions…",
+      "error": "We couldn’t load your sessions. Please try again.",
+      "empty": {
+        "title": "No upcoming sessions",
+        "subtitle": "When you book a session it will show up here.",
+        "action": "Browse classes"
+      }
     }
   }
 }
