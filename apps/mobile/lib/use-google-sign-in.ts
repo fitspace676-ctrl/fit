@@ -7,6 +7,7 @@
 // API's GOOGLE_CLIENT_IDS so the token's audience is accepted.
 
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { loginWithGoogle, type TokenPair } from './auth';
@@ -18,6 +19,23 @@ WebBrowser.maybeCompleteAuthSession();
 const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+
+/**
+ * The client id **this** platform needs. Expo's Google provider is per-platform:
+ * it reads `iosClientId` on iOS and `androidClientId` on Android, and *throws*
+ * from `useIdTokenAuthRequest` when the one it wants is missing — during render,
+ * so the whole sign-in screen goes down with it.
+ *
+ * That is why configuration is judged per platform rather than "any id is set".
+ * An iOS build carrying only a web client id is not configured *for iOS*, and
+ * treating it as configured is what crashed the screen with "Client Id property
+ * `iosClientId` must be defined to use Google auth on this platform".
+ */
+const platformClientId = Platform.select({
+  ios: iosClientId,
+  android: androidClientId,
+  default: webClientId,
+});
 
 export type GoogleSignInStatus = 'idle' | 'authenticating' | 'success' | 'error';
 
@@ -33,15 +51,19 @@ export interface UseGoogleSignIn {
   signIn: () => void;
 }
 
-/**
- * Drive a Google sign-in from a screen: render a button wired to `signIn`, then
- * react to `status` / `error` / `session`. Returns `isConfigured: false` when no
- * client id is set so the screen can degrade gracefully instead of opening a
- * broken flow.
- */
-export function useGoogleSignIn(): UseGoogleSignIn {
-  const isConfigured = Boolean(webClientId ?? iosClientId ?? androidClientId);
+/** The unconfigured build: report it and offer a no-op, never touching the provider. */
+function useGoogleSignInUnavailable(): UseGoogleSignIn {
+  return {
+    isReady: false,
+    isConfigured: false,
+    status: 'idle',
+    error: null,
+    session: null,
+    signIn: () => {},
+  };
+}
 
+function useGoogleSignInProvider(): UseGoogleSignIn {
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId,
     iosClientId,
@@ -81,7 +103,7 @@ export function useGoogleSignIn(): UseGoogleSignIn {
 
   return {
     isReady: Boolean(request),
-    isConfigured,
+    isConfigured: true,
     status,
     error,
     session,
@@ -90,3 +112,18 @@ export function useGoogleSignIn(): UseGoogleSignIn {
     },
   };
 }
+
+/**
+ * Drive a Google sign-in from a screen: render a button wired to `signIn`, then
+ * react to `status` / `error` / `session`. Returns `isConfigured: false` when
+ * this platform has no client id, so the screen degrades to its "not configured"
+ * notice instead of opening a broken flow.
+ *
+ * Which implementation runs is decided once, at module scope, from build-time
+ * `EXPO_PUBLIC_*` values. Picking here rather than branching inside the hook
+ * keeps every call site's hook order fixed — the provider's hooks either always
+ * run or never do, so the choice can never flip mid-session.
+ */
+export const useGoogleSignIn: () => UseGoogleSignIn = platformClientId
+  ? useGoogleSignInProvider
+  : useGoogleSignInUnavailable;
