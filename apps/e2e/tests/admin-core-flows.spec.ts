@@ -96,9 +96,15 @@ test.describe.serial('Admin core flows', () => {
 
   test('Schedule a class', async ({ page }) => {
     await page.goto('/classes/new');
-    // Every other field has a valid default (capacity, duration, a weekly
-    // recurrence, validFrom = today, status = ACTIVE), so a title is enough.
+    // Capacity, duration, the weekly recurrence, validFrom and status all carry
+    // a usable default. Class type and location do not: both are `required`
+    // selects that open on a disabled placeholder — the type is where pricing is
+    // decided, and a class has to run somewhere — so the browser blocks the
+    // submit until each holds a real value. Index 1 is the first option after
+    // that placeholder; the seed ships five class types and two locations.
     await page.locator('#class-title').fill(className);
+    await page.locator('#class-type').selectOption({ index: 1 });
+    await page.locator('#class-location').selectOption({ index: 1 });
     await page.getByRole('button', { name: 'Create class' }).click();
 
     // On success the form routes to the new class template's detail page.
