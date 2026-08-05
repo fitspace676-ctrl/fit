@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import type { PackageSummary } from '@fit/types';
 import { useI18n } from '../../providers/I18nProvider';
 import { useTheme } from '../../providers/ThemeProvider';
@@ -6,6 +6,15 @@ import { formatPackagePrice, priceSuffixKey } from '../../lib/packages';
 
 export interface PackageCardProps {
   pkg: PackageSummary;
+  /**
+   * Buy this plan. Omit to keep the card informational — the roster on a screen
+   * that only advertises plans passes nothing and renders no button.
+   */
+  onBuy?: (pkg: PackageSummary) => void;
+  /** True while *this* card's purchase is in flight. */
+  busy?: boolean;
+  /** True while another card's purchase is in flight, so this one waits its turn. */
+  disabled?: boolean;
 }
 
 /**
@@ -13,12 +22,15 @@ export interface PackageCardProps {
  * plan's name + description, its price (with a per-interval suffix for recurring
  * plans), what it grants (a finite session count or unlimited access), and its
  * perk `features` as a bulleted list. The gym's emphasised plan gets a "Most
- * popular" badge and a primary-tinted border. The card is informational — there
- * is no member-facing purchase flow on mobile yet (purchases run through the web
- * wizard / reception), so it does not navigate. Colours come from `useTheme()`,
- * so the card tracks system dark mode like the rest of the app.
+ * popular" badge and a primary-tinted border.
+ *
+ * Pass `onBuy` to make the card sell (T7.10): it grows a purchase button, so a
+ * member no longer has to finish on the web wizard or at reception. Without it
+ * the card stays purely informational, which is what a screen that only
+ * advertises plans wants. Colours come from `useTheme()`, so the card tracks
+ * system dark mode like the rest of the app.
  */
-export function PackageCard({ pkg }: PackageCardProps) {
+export function PackageCard({ pkg, onBuy, busy = false, disabled = false }: PackageCardProps) {
   const { colors } = useTheme();
   const { t, locale } = useI18n();
 
@@ -96,6 +108,35 @@ export function PackageCard({ pkg }: PackageCardProps) {
             </View>
           ))}
         </View>
+      ) : null}
+
+      {onBuy ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('training.packages.buy')}
+          accessibilityState={{ disabled: busy || disabled }}
+          testID="package-buy"
+          disabled={busy || disabled}
+          onPress={() => onBuy(pkg)}
+          style={({ pressed }) => ({
+            marginTop: 4,
+            height: 44,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            borderRadius: 10,
+            backgroundColor: colors.primary,
+            // A purchase in flight elsewhere dims every button, so it reads as
+            // "wait" rather than "broken" when a second tap does nothing.
+            opacity: busy || disabled ? 0.5 : pressed ? 0.85 : 1,
+          })}
+        >
+          {busy ? <ActivityIndicator size="small" color={colors.onPrimary} /> : null}
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.onPrimary }}>
+            {busy ? t('training.packages.buying') : t('training.packages.buy')}
+          </Text>
+        </Pressable>
       ) : null}
     </View>
   );
