@@ -7,12 +7,11 @@ import { navigationMock } from '@/test/next-navigation-mock';
 
 vi.mock('next/navigation', () => navigationMock.factory());
 
-// The shell's job is routing and mounting, not rendering. Standing in for the
-// four children keeps this test on the shell's own logic and off the chart,
-// dialog and fetch machinery they each drag in.
-vi.mock('../dashboard-header', () => ({
-  DashboardHeader: () => <div data-testid="header" />,
-}));
+// The shell's job is routing and mounting, not rendering. Standing in for
+// these children keeps this test on the shell's own logic and off the chart,
+// dialog and fetch machinery they each drag in. `DashboardHeader` is left
+// real (not mocked) — Step 7 wired it directly into the shell, and a mock
+// here would hide whether that wiring actually works.
 vi.mock('../overview/overview-view', () => ({
   OverviewView: () => <div data-testid="overview" />,
 }));
@@ -30,6 +29,18 @@ const { SegmentedDashboard } = await import('./segmented-dashboard');
 const messages = {
   admin: {
     dashboard: {
+      title: 'Dashboard',
+      subtitle: "Here's what's happening with your gym.",
+      period: {
+        today: 'Today',
+        week: 'This Week',
+        month: 'This Month',
+        custom: 'Custom',
+        aria: 'Dashboard period',
+        rangeLabel: 'Custom date range',
+        rangeAria: 'Widget range',
+      },
+      ranges: { '7d': '7d', '30d': '30d', '12w': '12w' },
       segments: {
         aria: 'Dashboard segments',
         overview: 'Overview',
@@ -51,11 +62,17 @@ const selectedKeys = {
   staff: [],
 };
 
+// A real resolved period, not `{}` — the header (rendered for real, not
+// mocked) reads `overview.period` directly.
+const overviewFixture = {
+  period: { period: 'today', from: '2026-08-07', to: '2026-08-07' },
+} as DashboardOverviewResponse;
+
 function renderShell(initialSegment: 'overview' | ConfigurableDashboardSegment = 'overview') {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <SegmentedDashboard
-        overview={{} as DashboardOverviewResponse}
+        overview={overviewFixture}
         initialSegment={initialSegment}
         selectedKeys={selectedKeys}
         range="7d"
@@ -76,6 +93,15 @@ describe('SegmentedDashboard', () => {
       'aria-labelledby',
       'dashboard-tab-members',
     );
+  });
+
+  // The bug this shell fixes: the header used to live inside OverviewView, so
+  // every other tab opened untitled. Assert the real (unmocked) header
+  // renders its title on a segment tab, not just on Overview.
+  it('titles the page on a segment tab, not just on Overview', () => {
+    navigationMock.setSearch('segment=members');
+    renderShell('members');
+    expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
   });
 
   // The load-bearing one. `initialSegment` is the server's parse of the URL at
@@ -122,7 +148,7 @@ describe('SegmentedDashboard', () => {
     rerender(
       <NextIntlClientProvider locale="en" messages={messages}>
         <SegmentedDashboard
-          overview={{} as DashboardOverviewResponse}
+          overview={overviewFixture}
           initialSegment="overview"
           selectedKeys={selectedKeys}
           range="7d"
