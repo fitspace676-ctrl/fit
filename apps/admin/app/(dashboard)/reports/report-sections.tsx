@@ -3,8 +3,8 @@
 // @fit/admin — the reusable renderer for one drill-down report section (T12.12).
 //
 // A {@link ReportSection} is a discriminated union the API emits; this maps each
-// `kind` to the brand Astryx chart/table so the drill-down pages AND the pinned
-// dashboard widgets render identically from one place. Presentation is Astryx
+// `kind` to the brand Astryx chart/table so the drill-down pages AND the
+// dashboard's segment widgets render identically from one place. Presentation is Astryx
 // `Card` + the brand `charts.tsx` primitives over compiled StyleX (`var(--color-*)`)
 // — no Tailwind, no recharts. Money values are MINOR-unit integers formatted here
 // against the report `currency`.
@@ -111,9 +111,9 @@ function EmptyNote({ label }: { label: string }): ReactNode {
 type KeyedRow = Record<string, ReportCellValue> & { __rk: string };
 
 /**
- * Render one section inside a brand `Card` — its title, an optional header `action`
- * (the Pin/Unpin control), and the chart/table for its `kind`. An empty series/
- * table degrades to the shared `EmptyState` rather than a broken frame.
+ * Render one section inside a brand `Card` — its title, an optional header `action`,
+ * and the chart/table for its `kind`. An empty series/table degrades to the shared
+ * `EmptyState` rather than a broken frame.
  */
 export function ReportSectionCard({
   section,
