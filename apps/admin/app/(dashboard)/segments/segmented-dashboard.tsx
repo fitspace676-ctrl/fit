@@ -3,9 +3,11 @@
 // The dashboard shell: the tab bar, the picker, and whichever segment is active.
 //
 // The active segment lives in the URL (`?segment=`) beside the existing `?range=`
-// and `?period=`, so the back button and a shared link behave the way they
-// already do for those. `overview` renders the server-fetched control room
-// unchanged; every other tab hands off to the lazily-fetched panel.
+// and `?period=`, so a shared or bookmarked link opens on the right tab. Like
+// those two it is written with `router.replace`, so switching tabs does not
+// stack history entries — and the back button leaves the dashboard rather than
+// stepping back through segments. `overview` renders the server-fetched control
+// room unchanged; every other tab hands off to the lazily-fetched panel.
 
 import { useCallback, useState, useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
