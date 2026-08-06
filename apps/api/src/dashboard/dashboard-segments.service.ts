@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   findDashboardWidget,
   widgetsForSegment,
@@ -73,6 +73,42 @@ export class DashboardSegmentsService {
 
     const currency = reports.values().next().value?.currency ?? (await this.drilldown.currency());
     return { segment, range, currency, widgets };
+  }
+
+  /**
+   * Replace a segment's widget selection wholesale, in display order. Whole-slice
+   * replacement (rather than add/remove deltas) makes the picker's apply
+   * idempotent and removes any reorder race.
+   *
+   * Every key is validated against the catalogue BEFORE anything is written, so a
+   * bad payload can never leave a half-applied layout. Duplicates are rejected
+   * here rather than left to trip the unique index as a 500.
+   */
+  async setWidgets(segment: ConfigurableDashboardSegment, widgetKeys: string[]): Promise<void> {
+    const seen = new Set<string>();
+    for (const key of widgetKeys) {
+      const definition = findDashboardWidget(key);
+      if (!definition || definition.segment !== segment) {
+        throw new BadRequestException(`Not a ${segment} widget: ${key}`);
+      }
+      if (seen.has(key)) {
+        throw new BadRequestException(`Duplicated widget: ${key}`);
+      }
+      seen.add(key);
+    }
+
+    const gymId = this.tenant.gymId;
+    await this.prisma.client.$transaction(async (tx) => {
+      await tx.dashboardWidget.deleteMany({ where: { gymId, segment } });
+      await tx.dashboardWidget.createMany({
+        data: widgetKeys.map((widgetKey, position) => ({
+          gymId,
+          segment,
+          widgetKey,
+          position,
+        })),
+      });
+    });
   }
 
   /**

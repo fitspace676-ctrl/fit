@@ -159,3 +159,52 @@ describe('DashboardSegmentsService.get', () => {
     expect(result.currency).toBe('GEL');
   });
 });
+
+describe('DashboardSegmentsService.setWidgets', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('replaces the segment slice in one transaction, numbering positions densely', async () => {
+    const { service, deleteMany, createMany } = setup();
+
+    await service.setWidgets('sales', ['sales.top-plans', 'sales.payment-method']);
+
+    expect(deleteMany).toHaveBeenCalledWith({ where: { gymId: 'gym-1', segment: 'sales' } });
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        { gymId: 'gym-1', segment: 'sales', widgetKey: 'sales.top-plans', position: 0 },
+        { gymId: 'gym-1', segment: 'sales', widgetKey: 'sales.payment-method', position: 1 },
+      ],
+    });
+  });
+
+  it('refuses a key the catalogue does not define', async () => {
+    const { service, deleteMany } = setup();
+    await expect(service.setWidgets('sales', ['sales.nope'])).rejects.toThrow(/sales\.nope/);
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses a key belonging to another segment', async () => {
+    const { service, deleteMany } = setup();
+    await expect(service.setWidgets('sales', ['revenue.over-time'])).rejects.toThrow(
+      /revenue\.over-time/,
+    );
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+
+  // A duplicate would trip the (gym, segment, widgetKey) unique index mid-write;
+  // rejecting up front turns a 500 into a 400.
+  it('refuses a duplicated key', async () => {
+    const { service, deleteMany } = setup();
+    await expect(
+      service.setWidgets('sales', ['sales.top-plans', 'sales.top-plans']),
+    ).rejects.toThrow(/sales\.top-plans/);
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('validates every key before writing anything', async () => {
+    const { service, deleteMany, createMany } = setup();
+    await expect(service.setWidgets('sales', ['sales.top-plans', 'sales.nope'])).rejects.toThrow();
+    expect(deleteMany).not.toHaveBeenCalled();
+    expect(createMany).not.toHaveBeenCalled();
+  });
+});
