@@ -183,6 +183,14 @@ const MIGRATED_PATHS: readonly string[] = [
   // palette), save-as-template and the templates gallery. Born on Astryx +
   // brand-tokened StyleX — never had Tailwind — and guarded so it stays that way.
   'apps/admin/app/(dashboard)/automation',
+  // Dashboard-segments task 9 — the segment tab bar (`segment-tabs.tsx`) that
+  // switches the dashboard between Overview/Sales/Members/Revenue/Classes/Staff.
+  // Reimplements `@fit/ui-web`'s `Tabs` ARIA contract (tablist, roving tabindex,
+  // arrow/Home/End navigation) directly in StyleX rather than importing that
+  // Tailwind-classed primitive. Born on Astryx + brand-tokened StyleX — never had
+  // Tailwind — and guarded so it stays that way. First (and so far only) file in
+  // `segments/`, so guarded as a directory to cover its siblings as they land.
+  'apps/admin/app/(dashboard)/segments',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

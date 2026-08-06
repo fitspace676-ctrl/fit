@@ -99,6 +99,7 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/(dashboard)/shop`                          | T11.22 | ✅     |
 | `apps/admin/app/(dashboard)/reports`                       | T11.22 | ✅     |
 | `apps/admin/components/pos`                                | T11.22 | ✅     |
+| `apps/admin/app/(dashboard)/segments`                      | DS-9   | ✅     |
 
 ### Rows retired by the IA consolidation
 

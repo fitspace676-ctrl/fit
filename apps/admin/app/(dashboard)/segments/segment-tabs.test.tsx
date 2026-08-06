@@ -1,0 +1,81 @@
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { NextIntlClientProvider } from 'next-intl';
+import type { DashboardSegment } from '@fit/types';
+import { SegmentTabs } from './segment-tabs';
+
+const messages = {
+  admin: {
+    dashboard: {
+      segments: {
+        aria: 'Dashboard segments',
+        overview: 'Overview',
+        sales: 'Sales',
+        members: 'Members',
+        revenue: 'Revenue',
+        classes: 'Classes',
+        staff: 'Staff',
+      },
+    },
+  },
+};
+
+function renderTabs(active: DashboardSegment = 'overview', onSelect = vi.fn()) {
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <SegmentTabs active={active} onSelect={onSelect} />
+    </NextIntlClientProvider>,
+  );
+  return onSelect;
+}
+
+describe('SegmentTabs', () => {
+  it('renders one tab per segment, overview first', () => {
+    renderTabs();
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Overview',
+      'Sales',
+      'Members',
+      'Revenue',
+      'Classes',
+      'Staff',
+    ]);
+  });
+
+  it('marks only the active tab selected', () => {
+    renderTabs('overview');
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Sales' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('reports the chosen segment on click', async () => {
+    const onSelect = renderTabs('overview');
+    await userEvent.click(screen.getByRole('tab', { name: 'Members' }));
+    expect(onSelect).toHaveBeenCalledWith('members');
+  });
+
+  // Roving tabindex: Tab enters the bar once, arrows move within it.
+  it('keeps only the active tab in the tab order', () => {
+    renderTabs('sales');
+    expect(screen.getByRole('tab', { name: 'Sales' })).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('selects the next segment on ArrowRight and wraps at the end', async () => {
+    const onSelect = renderTabs('staff');
+    screen.getByRole('tab', { name: 'Staff' }).focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(onSelect).toHaveBeenCalledWith('overview');
+  });
+
+  it('jumps to the first and last segment on Home and End', async () => {
+    const onSelect = renderTabs('members');
+    screen.getByRole('tab', { name: 'Members' }).focus();
+    await userEvent.keyboard('{End}');
+    expect(onSelect).toHaveBeenCalledWith('staff');
+    await userEvent.keyboard('{Home}');
+    expect(onSelect).toHaveBeenCalledWith('overview');
+  });
+});
