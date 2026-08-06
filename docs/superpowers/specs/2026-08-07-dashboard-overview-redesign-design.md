@@ -31,12 +31,14 @@ widget picker — but four things it promised are missing:
   It uses `router.replace`, which does not. (`replace` is the correct choice —
   it matches `overview-view.tsx` — so the comment is what is wrong.)
 
-**2. The overview itself reads as dated and wastes the screen.** It is eight
-stacked sections holding thirteen cards of identical visual weight. Nothing
-tells the eye where to start. Eight KPI numbers are split across two different
-card components in two separate rows, the second of which puts five cards into a
-three-column grid and leaves a hole. On a wide monitor the content is a single
-tall column of full-width bands.
+**2. The overview itself reads as dated and wastes the screen.** It is seven
+stacked sections holding sixteen cards of identical visual weight. Nothing
+tells the eye where to start. Nine KPI numbers are split across two different
+card components in two separate rows, and the split is not meaningful: the
+second row mixes `revenueThisMonth` (which carries a period-over-period delta)
+in with five plain standing counts, then puts those six cards into a
+three-column grid. On a wide monitor the content is a single tall column of
+full-width bands.
 
 ## Scope
 
@@ -95,13 +97,13 @@ tabs it would present a period filter that does nothing.
 
 Two new files, one rewritten, one merged pair.
 
-| File                                        | Responsibility                                                                                                          |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `(dashboard)/dashboard-header.tsx` **new**  | `<h1>`, subtitle, and the context-appropriate filter. The only writer of `?period=` / `?from=` / `?to=` / `?range=`.    |
-| `overview/metric-strip.tsx` **new**         | All eight numbers in one bordered container with hairline dividers. Absorbs `DeltaChip` from `kpi-cards.tsx` unchanged. |
-| `overview/overview-view.tsx` **rewritten**  | Header removed; strip plus the two-column work area. ~280 lines → ~130.                                                 |
-| `overview/recent-activity-card.tsx` **new** | `RecentCheckInsCard` + `RecentMembersCard` behind a small tab switch. Two full-width cards → one rail card.             |
-| `overview/kpi-cards.tsx` **deleted**        | Superseded by the strip.                                                                                                |
+| File                                        | Responsibility                                                                                                       |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `(dashboard)/dashboard-header.tsx` **new**  | `<h1>`, subtitle, and the context-appropriate filter. The only writer of `?period=` / `?from=` / `?to=` / `?range=`. |
+| `overview/metric-strip.tsx` **new**         | All nine numbers in one bordered container, two tiers (see §3). Absorbs `DeltaChip` from `kpi-cards.tsx` unchanged.  |
+| `overview/overview-view.tsx` **rewritten**  | Header removed; strip plus the two-column work area. ~280 lines → ~130.                                              |
+| `overview/recent-activity-card.tsx` **new** | `RecentCheckInsCard` + `RecentMembersCard` behind a small tab switch. Two full-width cards → one rail card.          |
+| `overview/kpi-cards.tsx` **deleted**        | Superseded by the strip.                                                                                             |
 
 **Deleting `kpi-cards.tsx` is safe.** Its `KpiCard` / `StatKpiCard` exports are
 imported by `overview-view.tsx` and nothing else in the console.
@@ -113,7 +115,10 @@ importers — neither is affected.
 new plumbing through `page.tsx`: it takes `period={overview.period}` (the
 server-resolved `{period, from, to}`) and the `range` already passed in.
 
-Surface count: **13 → 6**.
+Surface count: **16 → 7**. Before: `InGymNow`, three KPI cards, six secondary KPI
+cards, `RevenueCard`, `PlanMixCard`, `ScheduleCard`, `AlertsCard`,
+`RecentCheckInsCard`, `RecentMembersCard`. After: the strip, `RevenueCard`,
+`ScheduleCard`, `PlanMixCard`, `InGymNow`, `AlertsCard`, `RecentActivityCard`.
 
 ## 3. Layout
 
@@ -123,7 +128,8 @@ Surface count: **13 → 6**.
 ├──────────────────────────────────────────────────────────┤
 │  Overview │ Sales │ Members │ Revenue │ Classes │ Staff   │  ← segment-tabs
 ├──────────────────────────────────────────────────────────┤
-│ revenue │ check-ins │ new │ active │ /mo │ overdue │ …    │  ← metric-strip
+│ revenue ▲ │ check-ins ▲ │ new ▼ │ this month ▲          │  ← strip, tier 1
+│ active │ overdue │ classes │ expiring │ renewals        │  ← strip, tier 2
 ├────────────────────────────────────┬─────────────────────┤
 │  Revenue (chart + range toggle)    │  ● In the gym now   │
 │  Today's schedule                  │  Alerts             │
@@ -132,15 +138,24 @@ Surface count: **13 → 6**.
 └────────────────────────────────────┴─────────────────────┘
 ```
 
-| Block        | <768px  | ≥768px  | ≥1024px                      | ≥1280px            | ≥1440px          |
-| ------------ | ------- | ------- | ---------------------------- | ------------------ | ---------------- |
-| Metric strip | 2 cols  | 4 cols  | 4 cols                       | 4 cols             | 8 cols (one row) |
-| Work area    | 1 col   | 1 col   | `2.2fr / minmax(280px, 1fr)` | same               | same             |
-| Right rail   | in flow | in flow | in flow                      | `position: sticky` | same             |
+| Block         | <768px  | ≥768px  | ≥1024px                      | ≥1280px            |
+| ------------- | ------- | ------- | ---------------------------- | ------------------ |
+| Strip, tier 1 | 2 cols  | 4 cols  | 4 cols                       | 4 cols             |
+| Strip, tier 2 | 2 cols  | 3 cols  | 5 cols                       | 5 cols             |
+| Work area     | 1 col   | 1 col   | `2.2fr / minmax(280px, 1fr)` | same               |
+| Right rail    | in flow | in flow | in flow                      | `position: sticky` |
 
-The strip only goes to eight-across at ≥1440px. At 1280px the content column is
-roughly 1000px wide once the console's nav is subtracted, which gives each of
-eight cells ~125px — too narrow for the longer Georgian labels.
+**Why two tiers rather than one row of nine.** Nine is an awkward number to
+grid — nine-across gives each cell ~110px at 1280px, too narrow for the longer
+Georgian labels, and any other single-row count leaves a ragged tail. But the
+nine metrics are not homogeneous in the first place: exactly four carry a
+period-over-period delta (`todaysRevenue`, `checkInsToday`, `newMembers7d`,
+`revenueThisMonth`) and five are standing counts with no baseline. Splitting on
+that line grids cleanly (4 and 5) _and_ is the hierarchy the redesign is for —
+unlike today's split, which puts a delta-bearing metric in with the counts.
+
+Both tiers live in **one** bordered container, separated by a single hairline.
+Tier 1 uses the larger numeral; tier 2 is smaller and muted.
 
 `RevenueCard` and `ScheduleCard` lose their own
 `gridColumn: { '@media (min-width: 1024px)': 'span 2' }`. Width becomes the
@@ -158,8 +173,8 @@ on every card heading — `textTransform: uppercase` with
 | Element      | Now                                   | After                                                |
 | ------------ | ------------------------------------- | ---------------------------------------------------- |
 | Card heading | uppercase, `.15em` tracking, 700      | sentence case, `600`, `0.8125rem`, neutral tracking  |
-| KPI chrome   | 8 cards, each `minHeight: 13rem`      | 1 container, hairline dividers, no per-metric height |
-| Icon tiles   | 2.75rem accent tile on every KPI card | dropped — eight identical tiles carry no information |
+| KPI chrome   | 9 cards, each `minHeight: 13rem`      | 1 container, hairline dividers, no per-metric height |
+| Icon tiles   | 2.75rem accent tile on every KPI card | dropped — nine identical tiles carry no information  |
 | Spacing      | `1rem`/`1.5rem` everywhere            | 1.5rem between blocks, 1rem within a column          |
 | Colour       | —                                     | unchanged                                            |
 
@@ -172,11 +187,13 @@ work and are carried over verbatim rather than reinvented:
 - **Numerals are already tabular.** KPI values render through Astryx `Text` with
   `hasTabularNumbers`. The strip keeps that; no numeral change is claimed.
 
-**Only three of the eight metrics have a delta.** `todaysRevenue`,
-`checkInsToday` and `newMembers7d` are `DashboardKpi` (value + `deltaPct`); the
-other five are plain counts that today use `StatKpiCard`, which deliberately
-shows a static `hint` rather than a fabricated trend. The strip preserves that
-distinction exactly — a cell shows a delta chip, a hint, or nothing.
+**Four of the nine metrics have a delta, not three.** `todaysRevenue`,
+`checkInsToday`, `newMembers7d` **and `revenueThisMonth`** are `DashboardKpi`
+(value + `deltaPct`). The remaining five — `activeMembers`, `overduePayments`,
+`classesToday`, `expiringSoon`, `renewalsDue` — are plain integers that today use
+`StatKpiCard`, which deliberately shows a static `hint` rather than a fabricated
+trend. `revenueThisMonth` currently sits in the secondary row despite being a
+full KPI; the two-tier strip is what puts it back with its own kind.
 
 ## 5. ARIA
 
@@ -215,13 +232,13 @@ cache-bypass are untouched.
 `app/(dashboard)` currently has five test files and **none of them cover the
 overview**, so there is nothing to update — only new coverage.
 
-| File                             | Asserts                                                                                                                                                                                                                            |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `segmented-dashboard.test.tsx`   | invalid `?segment=` falls back to the default; the last segment stays mounted and `hidden` across a trip through Overview; `aria-labelledby` tracks the active tab; saving bumps the key and remounts the panel                    |
-| `dashboard-header.test.tsx`      | overview renders the period control and writes `?period=`; a segment tab renders the range control and writes `?range=`; a custom range writes `from`/`to`, and selecting a preset clears them                                     |
-| `metric-strip.test.tsx`          | all eight metrics render; the three delta-bearing metrics colour by sign and fall back to `noPriorData` when `deltaPct` is `null`; the five count metrics show their hint or nothing, never a delta; a genuine zero renders as `0` |
-| `recent-activity-card.test.tsx`  | the tab switch moves between check-ins and members                                                                                                                                                                                 |
-| `segment-tabs.test.tsx` (extend) | each tab carries `id` and `aria-controls` matching the panel                                                                                                                                                                       |
+| File                             | Asserts                                                                                                                                                                                                                                               |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `segmented-dashboard.test.tsx`   | invalid `?segment=` falls back to the default; the last segment stays mounted and `hidden` across a trip through Overview; `aria-labelledby` tracks the active tab; saving bumps the key and remounts the panel                                       |
+| `dashboard-header.test.tsx`      | overview renders the period control and writes `?period=`; a segment tab renders the range control and writes `?range=`; a custom range writes `from`/`to`, and selecting a preset clears them                                                        |
+| `metric-strip.test.tsx`          | all nine metrics render across the two tiers; the four delta-bearing metrics colour by sign and fall back to `noPriorData` when `deltaPct` is `null`; the five count metrics show their hint or nothing, never a delta; a genuine zero renders as `0` |
+| `recent-activity-card.test.tsx`  | the tab switch moves between check-ins and members                                                                                                                                                                                                    |
+| `segment-tabs.test.tsx` (extend) | each tab carries `id` and `aria-controls` matching the panel                                                                                                                                                                                          |
 
 `segment-panel.test.tsx` needs no change — the panel's own logic is untouched.
 
@@ -230,7 +247,8 @@ overview**, so there is nothing to update — only new coverage.
 - **Sticky rail overlap.** A sticky rail must clear the console's fixed
   chrome. `top` is expressed against the same offset the layout already uses for
   its header, and the rail falls back to normal flow below 1280px.
-- **Strip density at 8 columns.** Eight cells in one row is only offered at
-  ≥1440px; below that it wraps to four. If the longest localised label (Georgian
-  labels run longer than English) still breaks the 4-column layout at 768px, the
-  fallback is 2 columns at that breakpoint rather than shrinking the type.
+- **Strip density in Georgian.** The widest tier-2 cell at ≥1024px is a fifth of
+  the strip. `secondaryKpi.overduePayments` is "ვადაგადაცილებული გადახდები" — by
+  some margin the longest label in either locale. Labels wrap to two lines rather
+  than truncate; if that still overflows, the fallback is 3 columns at ≥1024px,
+  never a smaller type size.
