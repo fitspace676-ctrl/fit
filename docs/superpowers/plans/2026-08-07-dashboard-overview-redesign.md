@@ -345,20 +345,27 @@ describe('SegmentedDashboard', () => {
   // The panel stays mounted behind Overview so its fetch cache — a ref, and so
   // only as long-lived as the mount — survives the round trip.
   it('keeps the last segment mounted but hidden while Overview is on screen', () => {
-    navigationMock.setSearch('');
+    // Open a segment, then go back to Overview the way the app does it: the
+    // click drops `?segment=`, so the next render sees an empty query AND an
+    // `initialSegment` the server re-parsed as `overview`. Re-rendering with the
+    // segment still selected would prove nothing — `active` would never leave it.
+    navigationMock.setSearch('segment=sales');
     const { rerender } = renderShell('sales');
     expect(screen.getByTestId('panel')).toBeVisible();
 
+    navigationMock.setSearch('');
     rerender(
       <NextIntlClientProvider locale="en" messages={messages}>
         <SegmentedDashboard
           overview={{} as DashboardOverviewResponse}
-          initialSegment="sales"
+          initialSegment="overview"
           selectedKeys={selectedKeys}
           range="7d"
         />
       </NextIntlClientProvider>,
     );
+    // Still mounted — `lastSegment` survives because a useState initialiser runs
+    // only on mount, which is exactly what keeps the panel's fetch cache alive.
     expect(screen.getByTestId('panel')).toBeInTheDocument();
     expect(screen.getByTestId('panel')).not.toBeVisible();
   });
