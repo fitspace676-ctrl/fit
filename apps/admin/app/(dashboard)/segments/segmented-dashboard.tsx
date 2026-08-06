@@ -20,6 +20,7 @@ import {
   type DashboardRange,
   type DashboardSegment,
 } from '@fit/types';
+import { DashboardHeader } from '../dashboard-header';
 import { OverviewView } from '../overview/overview-view';
 import { AddWidgetDialog } from './add-widget-dialog';
 import { SegmentPanel } from './segment-panel';
@@ -116,6 +117,8 @@ export function SegmentedDashboard({
 
   return (
     <div {...stylex.props(styles.page)}>
+      <DashboardHeader active={active} period={overview.period} range={range} />
+
       <div {...stylex.props(styles.bar)}>
         <SegmentTabs active={active} onSelect={select} />
         {active !== 'overview' ? (

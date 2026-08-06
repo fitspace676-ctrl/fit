@@ -136,7 +136,8 @@
         "month": "This Month",
         "custom": "Custom",
         "aria": "Dashboard period",
-        "rangeLabel": "Custom date range"
+        "rangeLabel": "Custom date range",
+        "rangeAria": "Widget range"
       },
       "segments": {
         "aria": "Dashboard segments",

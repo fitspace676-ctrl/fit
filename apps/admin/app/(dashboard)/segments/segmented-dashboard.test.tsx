@@ -8,8 +8,11 @@ import { navigationMock } from '@/test/next-navigation-mock';
 vi.mock('next/navigation', () => navigationMock.factory());
 
 // The shell's job is routing and mounting, not rendering. Standing in for the
-// three children keeps this test on the shell's own logic and off the chart,
+// four children keeps this test on the shell's own logic and off the chart,
 // dialog and fetch machinery they each drag in.
+vi.mock('../dashboard-header', () => ({
+  DashboardHeader: () => <div data-testid="header" />,
+}));
 vi.mock('../overview/overview-view', () => ({
   OverviewView: () => <div data-testid="overview" />,
 }));

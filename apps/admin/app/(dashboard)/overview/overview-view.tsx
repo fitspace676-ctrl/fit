@@ -21,9 +21,7 @@ import { useMemo, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { DateRangeInput, type DateRange } from '@astryxdesign/core/DateRangeInput';
-import type { DashboardOverviewResponse, DashboardPeriod, DashboardRange } from '@fit/types';
+import type { DashboardOverviewResponse, DashboardRange } from '@fit/types';
 import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 import { InGymNow } from './in-gym-now';
 import { KpiCard, StatKpiCard } from './kpi-cards';
@@ -33,51 +31,11 @@ import { ScheduleCard } from './schedule-card';
 import { AlertsCard } from './alerts-card';
 import { RecentCheckInsCard, RecentMembersCard } from './recent-cards';
 
-/** The period values offered by the header date filter, in ascending span order. */
-const PERIOD_VALUES = [
-  'today',
-  'week',
-  'month',
-  'custom',
-] as const satisfies readonly DashboardPeriod[];
-
 const styles = stylex.create({
   page: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
-  },
-  header: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '1rem',
-  },
-  headerText: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-    color: 'var(--color-text-primary)',
-  },
-  subtitle: {
-    margin: 0,
-    maxWidth: '42rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
-  headerControls: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: '0.75rem',
   },
   pending: {
     opacity: 0.7,
@@ -146,70 +104,8 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
     startTransition(() => router.replace(`${pathname}?${params.toString()}`));
   }
 
-  // The header period filter drives the period-bounded KPI cards (revenue /
-  // check-ins / new members / classes) by writing `?period=` (+ `from`/`to` for a
-  // custom range) so the server component re-fetches — the URL stays the source of
-  // truth, exactly like the revenue chart's `?range=`.
-  function selectPeriod(next: DashboardPeriod): void {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('period', next);
-    // Presets carry no explicit dates — drop any stale custom range.
-    if (next !== 'custom') {
-      params.delete('from');
-      params.delete('to');
-    }
-    startTransition(() => router.replace(`${pathname}?${params.toString()}`));
-  }
-
-  function selectCustomRange(range: DateRange | null): void {
-    if (!range) {
-      return;
-    }
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('period', 'custom');
-    params.set('from', range.start);
-    params.set('to', range.end);
-    startTransition(() => router.replace(`${pathname}?${params.toString()}`));
-  }
-
-  const periodRange: DateRange = {
-    start: data.period.from as DateRange['start'],
-    end: data.period.to as DateRange['end'],
-  };
-
   return (
     <div {...stylex.props(styles.page, isPending && styles.pending)}>
-      {/* Page header + period filter */}
-      <header {...stylex.props(styles.header)}>
-        <div {...stylex.props(styles.headerText)}>
-          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
-          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
-        </div>
-        <div {...stylex.props(styles.headerControls)}>
-          <SegmentedControl
-            value={data.period.period}
-            onChange={(next) => selectPeriod(next as DashboardPeriod)}
-            label={t('period.aria')}
-            size="sm"
-            isDisabled={isPending}
-          >
-            {PERIOD_VALUES.map((value) => (
-              <SegmentedControlItem key={value} value={value} label={t(`period.${value}`)} />
-            ))}
-          </SegmentedControl>
-          <DateRangeInput
-            label={t('period.rangeLabel')}
-            isLabelHidden
-            value={periodRange}
-            onChange={selectCustomRange}
-            hasClear={false}
-            size="sm"
-            numberOfMonths={1}
-            isDisabled={isPending}
-          />
-        </div>
-      </header>
-
       {/* In the gym now + KPIs */}
       <section {...stylex.props(styles.gridThirds)}>
         <InGymNow data={data} />
