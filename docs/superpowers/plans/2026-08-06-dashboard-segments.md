@@ -645,9 +645,17 @@ Line 493 is on the `User` model — a user no longer owns widgets, so **delete t
 Run: `pnpm --filter @fit/db exec prisma migrate dev --name dashboard_widgets_replace_pins --create-only`
 Expected: a new folder under `packages/db/prisma/migrations/` containing a `migration.sql` that creates `dashboard_widgets` and drops `dashboard_pins`.
 
-- [ ] **Step 3: Add the backfill between create and drop**
+- [ ] **Step 3: Reorder the migration, then add the backfill**
 
-Open the generated `migration.sql`. It will create the new table and then `DROP TABLE "dashboard_pins"`. Insert this **between** those two statements, so pins are carried across before their table goes:
+Open the generated `migration.sql`. **Prisma emits the DROP before the CREATE** — it has no way to know the two tables are related, so it treats them as an unrelated removal and addition. Left in that order, the pins are gone before anything can read them.
+
+Reorder the file so it reads `CREATE TABLE "dashboard_widgets"` (with its indexes and foreign key) first, then the backfill below, then `DROP TABLE "dashboard_pins"` last. Verify the order before applying:
+
+```bash
+grep -n "CREATE TABLE\|INSERT INTO\|DROP TABLE" packages/db/prisma/migrations/*_dashboard_widgets_replace_pins/migration.sql
+```
+
+Expected: `CREATE TABLE`, then `INSERT INTO`, then `DROP TABLE`. Insert the backfill between the create and the drop:
 
 ```sql
 -- Carry each gym's existing pins across to the shared layout. A pin is per-user;
@@ -686,39 +694,47 @@ FROM (
 ) AS agg;
 ```
 
-- [ ] **Step 4: Apply the migration and verify the backfill**
+- [ ] **Step 4: Count the pins, then rehearse the backfill**
 
-Run: `pnpm --filter @fit/db exec prisma migrate dev`
-Then confirm the table exists, is empty-or-backfilled, and the old one is gone:
+Count what the backfill has to carry, so the verification afterwards means something:
 
 ```bash
-pnpm --filter @fit/db exec prisma db execute --stdin <<'SQL'
-SELECT "segment", "widgetKey", "position" FROM "dashboard_widgets" ORDER BY "segment", "position";
+pnpm --filter @fit/db exec prisma db execute --schema prisma/schema.prisma --stdin <<'SQL'
+SELECT COUNT(*) AS pins FROM "dashboard_pins";
 SQL
 ```
 
-Expected: the command succeeds (rows only if the dev database had pins). Then:
+If the count is **zero**, applying the migration proves nothing about the backfill. Rehearse it instead: open a transaction, insert a handful of synthetic pins covering the cases that matter — the same section pinned by two users in one gym (must collapse to one widget), pins in two gyms (positions restart per gym and segment), a `(metric, section)` pair absent from the mapping (must be discarded) — run the backfill `INSERT`, read the result, then `ROLLBACK`. Record what you saw in the report, and say plainly that the live run was against an empty table.
+
+- [ ] **Step 5: Apply the migration**
+
+Run: `pnpm --filter @fit/db exec prisma migrate dev`
+
+If Prisma proposes **resetting the database**, stop and report BLOCKED with the drift it names. A reset destroys the dev database, and no migration in this plan is worth that.
+
+Then confirm the new table is there and the old one is gone:
 
 ```bash
-pnpm --filter @fit/db exec prisma db execute --stdin <<'SQL'
+pnpm --filter @fit/db exec prisma db execute --schema prisma/schema.prisma --stdin <<'SQL'
 SELECT to_regclass('public.dashboard_pins') IS NULL AS pins_dropped;
 SQL
 ```
 
 Expected: `pins_dropped = true`.
 
-- [ ] **Step 5: Regenerate the Prisma client**
+- [ ] **Step 6: Regenerate the Prisma client**
 
 Run: `pnpm --filter @fit/db exec prisma generate`
 Expected: succeeds; `prisma.dashboardWidget` is now typed and `prisma.dashboardPin` is gone.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-npx prettier --write packages/db/prisma/schema.prisma
 git add packages/db
 git commit -m "feat(dashboard): give the whole gym one shared widget layout"
 ```
+
+Do not run Prettier here: it has no parser for `.prisma` or `.sql`, and lint-staged does not cover either extension, so the pre-commit hook will not ask for it. Use `pnpm --filter @fit/db exec prisma format` if the schema needs tidying — and check its diff, since it may realign unrelated models you should then revert.
 
 ---
 
