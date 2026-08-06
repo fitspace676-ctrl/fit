@@ -11,9 +11,8 @@ import {
 } from '@fit/types';
 import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchDashboardOverview, fetchDashboardWidgets } from '@/lib/api';
+import { ApiError, fetchDashboardOverview } from '@/lib/api';
 import { DashboardView } from './dashboard-view';
-import type { PinnedWidget } from '@fit/types';
 
 const styles = stylex.create({
   stack: {
@@ -108,16 +107,7 @@ export default async function DashboardPage({
     );
   }
 
-  // Pinned report widgets (T12.12) are a secondary surface — a failure to resolve
-  // them must never take down the whole dashboard, so degrade to none on error.
-  let pinnedWidgets: PinnedWidget[] = [];
-  try {
-    pinnedWidgets = (await fetchDashboardWidgets()).widgets;
-  } catch {
-    pinnedWidgets = [];
-  }
-
-  return <DashboardView data={overview} pinnedWidgets={pinnedWidgets} />;
+  return <DashboardView data={overview} />;
 }
 
 /** The role-degraded welcome shown to staff without `ReportView` (and as a fallback). */

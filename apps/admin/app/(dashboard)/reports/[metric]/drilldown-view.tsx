@@ -4,22 +4,20 @@
 //
 // Renders a live {@link ReportDrilldown}: a back link + heading, a date-range
 // segmented control (writes `?range=` so the server component re-fetches), the
-// headline KPI tiles, and every section via the shared {@link ReportSectionCard}
-// with a per-section Pin/Unpin control wired to the report Server Actions. Astryx
-// `Card`/`SegmentedControl` over compiled StyleX + the brand `charts.tsx` — no
-// Tailwind, no recharts.
+// headline KPI tiles, and every section via the shared {@link ReportSectionCard}.
+// Astryx `Card`/`SegmentedControl` over compiled StyleX + the brand `charts.tsx` —
+// no Tailwind, no recharts.
 
-import { useMemo, useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import type { DashboardPin, ReportDrilldown, ReportRange } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import type { ReportDrilldown, ReportRange } from '@fit/types';
+import { Icon } from '@/components/ui';
 import { ReportSectionCard, formatUnitValue } from '../report-sections';
-import { pinReportAction, unpinReportAction } from '../actions';
 
 /** The range options offered by the segmented control, in ascending span order. */
 const RANGE_OPTIONS: ReadonlyArray<{ value: ReportRange; labelKey: string }> = [
@@ -113,46 +111,15 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1.25rem',
   },
-  error: {
-    margin: 0,
-    borderRadius: 'var(--radius-inner)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-error)',
-    backgroundColor: 'var(--color-error-muted)',
-    paddingInline: '1rem',
-    paddingBlock: '0.5rem',
-    fontSize: '0.8125rem',
-    color: 'var(--color-error)',
-  },
 });
 
-export function DrilldownView({
-  drilldown,
-  pins,
-}: {
-  drilldown: ReportDrilldown;
-  pins: DashboardPin[];
-}) {
+export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
   const t = useTranslations('admin.reports');
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isNavigating, startNavigate] = useTransition();
-  const [isPinning, startPin] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  /** section id → pin id, so each section knows whether it is pinned (and how to unpin). */
-  const pinnedBySection = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const pin of pins) {
-      if (pin.metric === drilldown.metric) {
-        map.set(pin.section, pin.id);
-      }
-    }
-    return map;
-  }, [pins, drilldown.metric]);
 
   function selectRange(next: ReportRange): void {
     if (next === drilldown.range) {
@@ -163,22 +130,7 @@ export function DrilldownView({
     startNavigate(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
   }
 
-  function togglePin(sectionId: string): void {
-    setError(null);
-    const pinId = pinnedBySection.get(sectionId);
-    startPin(async () => {
-      const result = pinId
-        ? await unpinReportAction(pinId, drilldown.metric)
-        : await pinReportAction({ metric: drilldown.metric, section: sectionId });
-      if (result.ok) {
-        router.refresh();
-      } else {
-        setError(result.error);
-      }
-    });
-  }
-
-  const busy = isNavigating || isPinning;
+  const busy = isNavigating;
 
   return (
     <div {...stylex.props(styles.page, busy && styles.pending)}>
@@ -210,12 +162,6 @@ export function DrilldownView({
         </SegmentedControl>
       </header>
 
-      {error !== null && (
-        <p role="alert" {...stylex.props(styles.error)}>
-          {error}
-        </p>
-      )}
-
       {drilldown.kpis.length > 0 && (
         <div {...stylex.props(styles.kpiRow)}>
           {drilldown.kpis.map((kpi) => (
@@ -230,30 +176,15 @@ export function DrilldownView({
       )}
 
       <div {...stylex.props(styles.sections)}>
-        {drilldown.sections.map((section) => {
-          const isPinned = pinnedBySection.has(section.id);
-          return (
-            <ReportSectionCard
-              key={section.id}
-              section={section}
-              currency={drilldown.currency}
-              locale={locale}
-              emptyLabel={t('drilldown.emptySection')}
-              action={
-                <Btn
-                  v={isPinned ? 'ink' : 'outline'}
-                  size="sm"
-                  icon="pin"
-                  disabled={busy}
-                  onClick={() => togglePin(section.id)}
-                  title={isPinned ? t('drilldown.unpin') : t('drilldown.pin')}
-                >
-                  {isPinned ? t('drilldown.pinned') : t('drilldown.pin')}
-                </Btn>
-              }
-            />
-          );
-        })}
+        {drilldown.sections.map((section) => (
+          <ReportSectionCard
+            key={section.id}
+            section={section}
+            currency={drilldown.currency}
+            locale={locale}
+            emptyLabel={t('drilldown.emptySection')}
+          />
+        ))}
       </div>
     </div>
   );

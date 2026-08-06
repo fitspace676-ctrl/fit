@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ReportsModule } from '../reports/reports.module';
 import { DashboardController } from './dashboard.controller';
-import { DashboardPinsController } from './dashboard-pins.controller';
-import { DashboardPinsService } from './dashboard-pins.service';
 import { DashboardService } from './dashboard.service';
 
 /**
@@ -15,7 +13,7 @@ import { DashboardService } from './dashboard.service';
  */
 @Module({
   imports: [ReportsModule],
-  controllers: [DashboardController, DashboardPinsController],
-  providers: [DashboardService, DashboardPinsService],
+  controllers: [DashboardController],
+  providers: [DashboardService],
 })
 export class DashboardModule {}

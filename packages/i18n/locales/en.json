@@ -138,9 +138,6 @@
         "aria": "Dashboard period",
         "rangeLabel": "Custom date range"
       },
-      "pinned": {
-        "title": "Pinned reports"
-      },
       "segments": {
         "aria": "Dashboard segments",
         "overview": "Overview",
@@ -326,13 +323,7 @@
       "drilldown": {
         "heading": "Drill-down reports",
         "back": "Back to reports",
-        "pin": "Pin",
-        "pinned": "Pinned",
-        "unpin": "Unpin",
-        "emptySection": "No data in this range.",
-        "notAuthorized": "Your role does not have permission to pin reports.",
-        "pinInvalid": "That widget can't be pinned.",
-        "pinError": "Could not update the pin (error {status})."
+        "emptySection": "No data in this range."
       }
     },
     "billingPlans": {
