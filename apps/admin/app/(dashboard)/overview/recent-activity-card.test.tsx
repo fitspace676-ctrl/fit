@@ -58,4 +58,25 @@ describe('RecentActivityCard', () => {
     expect(screen.getByRole('tab', { name: 'Recent check-ins' })).toHaveAttribute('tabindex', '0');
     expect(screen.getByRole('tab', { name: 'Recent members' })).toHaveAttribute('tabindex', '-1');
   });
+
+  // Each tab must name the panel it drives, and the panel must point back at
+  // whichever tab is active — the same tablist/tabpanel wiring the segment bar
+  // carries (`segment-tabs.test.tsx`). This also pins the panel wrapper Critical
+  // 2 depends on for the body's inset: if the wrapper were removed, the feed
+  // marker would render as a direct child of the tabpanel-less `<div>` (or of
+  // the card itself) and `getByRole('tabpanel')` would stop finding an ancestor
+  // that contains it, failing this assertion.
+  it('wires each tab to the panel it controls, and the panel back to the active tab', () => {
+    renderCard();
+    const checkInsTab = screen.getByRole('tab', { name: 'Recent check-ins' });
+    const membersTab = screen.getByRole('tab', { name: 'Recent members' });
+    const panel = screen.getByRole('tabpanel');
+
+    expect(checkInsTab).toHaveAttribute('id', 'recent-activity-tab-checkIns');
+    expect(membersTab).toHaveAttribute('id', 'recent-activity-tab-members');
+    expect(checkInsTab).toHaveAttribute('aria-controls', panel.id);
+    expect(membersTab).toHaveAttribute('aria-controls', panel.id);
+    expect(panel).toHaveAttribute('aria-labelledby', 'recent-activity-tab-checkIns');
+    expect(panel).toContainElement(screen.getByText('check-ins feed'));
+  });
 });

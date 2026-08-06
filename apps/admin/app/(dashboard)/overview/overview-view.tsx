@@ -2,20 +2,32 @@
 
 // @fit/admin — the control-room dashboard view, rebuilt on Astryx (T11.18).
 //
-// Renders the real {@link DashboardOverviewResponse} as the reference layout: an
-// "in the gym now" live occupancy card (donut + per-area bars), three KPI cards,
-// a range-toggled revenue area chart, a plan-mix stacked bar, today's schedule,
-// a real-event alerts card, and the live recent-check-ins feed. Every value comes
-// from the server (tenant-scoped, real); each section degrades to an explicit
-// empty state when its source is empty, never inventing a value. The range control
-// writes `?range=` to the URL so the server component re-fetches — the source of
-// truth stays server-side.
+// Renders the real {@link DashboardOverviewResponse} as: the metric strip (all
+// nine KPI/count numbers in one bordered grid, see `metric-strip.tsx`) over a
+// two-column work area — a main column (revenue chart, today's schedule, the
+// plan-mix bar) and a rail that sticks on wide screens ("in the gym now" live
+// occupancy, real-event alerts, and the merged recent-check-ins/recent-members
+// feed). Every value comes from the server (tenant-scoped, real); each section
+// degrades to an explicit empty state when its source is empty, never inventing
+// a value. The page title, subtitle and the `?period=` filter that bounds these
+// KPI numbers now live in `DashboardHeader`, above the segment tab bar in
+// `segmented-dashboard.tsx` — not in this file. `RevenueCard`'s own `?range=`
+// toggle is the one control that stayed here; see `selectRange` below.
 //
-// Presentation is Astryx `Card` / `Badge` / `SegmentedControl` over the Fit brand
-// theme tokens, with all layout and the data-viz bits authored in compiled StyleX
-// (`var(--color-*)` / `var(--font-family-*)`) — no Tailwind utilities and no
-// FormaCore Aurora-glass primitives. The data flow below is unchanged; only the
-// presentation moved off Tailwind.
+// Presentation is Astryx `Card` / `Badge` over the Fit brand theme tokens, with
+// all layout and the data-viz bits authored in compiled StyleX
+// (`var(--color-*)` / `var(--font-family-*)`) — no Tailwind utilities, no
+// FormaCore Aurora-glass primitives, and no Astryx `SegmentedControl` (that
+// moved out to `DashboardHeader` with the period filter).
+//
+// Known gap (deferred, not fixed here): a `?range=` change dims this whole page
+// via `isPending`/`styles.pending` below, because `selectRange` still lives in
+// this component. A `?period=` change does not — `DashboardHeader` runs its own
+// separate `useTransition` and only disables its own controls while pending, so
+// the KPI numbers it's about to replace stay at full opacity. Wiring the two
+// together needs cross-component pending state for a cosmetic difference; the
+// header already gives period changes an affordance (its controls disable), so
+// that is treated as sufficient rather than plumbed through.
 
 import { useMemo, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -70,6 +82,20 @@ const styles = stylex.create({
     },
     // Clears the console's fixed chrome, then a little breathing room.
     top: '5rem',
+    // Scoped to the same breakpoint the sticky positioning turns on at: below
+    // 1280px the rail is in normal flow and a max-height would clip content
+    // for no reason. At 1280px+, `InGymNow` + `AlertsCard` + the recent-activity
+    // feed can run taller than a typical scrollport once pinned, which would
+    // hide the rail's own bottom with no way to scroll it into view. 6rem is
+    // `top`'s 5rem plus a rem of breathing room at the bottom.
+    maxHeight: {
+      default: 'none',
+      '@media (min-width: 1280px)': 'calc(100dvh - 6rem)',
+    },
+    overflowY: {
+      default: 'visible',
+      '@media (min-width: 1280px)': 'auto',
+    },
   },
 });
 

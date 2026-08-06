@@ -45,10 +45,14 @@ const styles = stylex.create({
     padding: 0,
     display: 'grid',
     gap: '0.5rem',
+    // Capped at 2 columns: this list now lives in the overview rail, whose
+    // track is `minmax(280px, 1fr)` from 1024px up (see `overview-view.tsx`).
+    // A 3-column step here dates from when this was a full-width card at the
+    // foot of the page — do not restore it, it packs each row into ~90-110px
+    // in the rail and crushes the avatar and both text lines.
     gridTemplateColumns: {
       default: '1fr',
       '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
-      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
     },
   },
   checkInRow: {

@@ -84,4 +84,24 @@ describe('DashboardHeader', () => {
     await userEvent.click(screen.getByRole('radio', { name: '30d' }));
     expect(navigationMock.replace).toHaveBeenCalledWith('/?segment=revenue&range=30d');
   });
+
+  // `selectCustomRange` (including its `if (!next) return` guard and its
+  // `period=custom` write) is the only path in this file with no coverage
+  // above. Astryx's `DateRangeInput` opens a native-Popover-API surface and
+  // hands back a range only once two Calendar day cells are clicked; drive it
+  // for real rather than reaching around it, per §7.
+  it('writes a custom range and switches the period to custom', async () => {
+    navigationMock.setSearch('segment=sales');
+    renderHeader('overview');
+
+    await userEvent.click(screen.getByRole('button', { name: /Custom date range/ }));
+    // `period.from`/`period.to` are both 2026-08-07, so the calendar opens on
+    // August 2026 without needing to page months.
+    await userEvent.click(screen.getByRole('button', { name: /August 3, 2026/ }));
+    await userEvent.click(screen.getByRole('button', { name: /August 10, 2026/ }));
+
+    expect(navigationMock.replace).toHaveBeenCalledWith(
+      '/?segment=sales&period=custom&from=2026-08-03&to=2026-08-10',
+    );
+  });
 });

@@ -85,6 +85,20 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'var(--color-text-disabled)',
   },
+  // Tier two holds five cells, which never fills a grid: 2 columns leaves one
+  // gap in the last row, 3 columns leaves one in the second. Because the
+  // hairline technique paints the tier container in the border color and lets
+  // each cell paint over it, an unfilled grid area shows through as a solid
+  // border-colored block instead of empty space. A sixth, hidden cell tiles
+  // exactly at both 2 and 3 columns; it is hidden again from 1024px up, where
+  // the tier is 5 columns and already tiles without it. Do not delete this —
+  // it looks like dead markup, but it is load-bearing below 1024px.
+  filler: {
+    display: {
+      default: 'block',
+      '@media (min-width: 1024px)': 'none',
+    },
+  },
 });
 
 export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
@@ -150,6 +164,7 @@ export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
           value={count.format(data.secondaryKpis.renewalsDue)}
           hint={t('secondaryKpi.renewalsDueHint')}
         />
+        <div aria-hidden="true" {...stylex.props(styles.cell, styles.filler)} />
       </div>
     </div>
   );

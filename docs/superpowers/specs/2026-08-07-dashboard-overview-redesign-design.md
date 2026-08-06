@@ -97,13 +97,13 @@ tabs it would present a period filter that does nothing.
 
 Two new files, one rewritten, one merged pair.
 
-| File                                        | Responsibility                                                                                                       |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `(dashboard)/dashboard-header.tsx` **new**  | `<h1>`, subtitle, and the context-appropriate filter. The only writer of `?period=` / `?from=` / `?to=` / `?range=`. |
-| `overview/metric-strip.tsx` **new**         | All nine numbers in one bordered container, two tiers (see §3). Absorbs `DeltaChip` from `kpi-cards.tsx` unchanged.  |
-| `overview/overview-view.tsx` **rewritten**  | Header removed; strip plus the two-column work area. ~280 lines → ~130.                                              |
-| `overview/recent-activity-card.tsx` **new** | `RecentCheckInsCard` + `RecentMembersCard` behind a small tab switch. Two full-width cards → one rail card.          |
-| `overview/kpi-cards.tsx` **deleted**        | Superseded by the strip.                                                                                             |
+| File                                        | Responsibility                                                                                                                                                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `(dashboard)/dashboard-header.tsx` **new**  | `<h1>`, subtitle, and the context-appropriate filter. The only writer of `?period=` / `?from=` / `?to=`, and of `?range=` on segment tabs — `RevenueCard` keeps its own Overview `?range=` toggle (see §1). |
+| `overview/metric-strip.tsx` **new**         | All nine numbers in one bordered container, two tiers (see §3). Absorbs `DeltaChip` from `kpi-cards.tsx` unchanged.                                                                                         |
+| `overview/overview-view.tsx` **rewritten**  | Header removed; strip plus the two-column work area. ~280 lines → ~130.                                                                                                                                     |
+| `overview/recent-activity-card.tsx` **new** | `RecentCheckInsCard` + `RecentMembersCard` behind a small tab switch. Two full-width cards → one rail card.                                                                                                 |
+| `overview/kpi-cards.tsx` **deleted**        | Superseded by the strip.                                                                                                                                                                                    |
 
 **Deleting `kpi-cards.tsx` is safe.** Its `KpiCard` / `StatKpiCard` exports are
 imported by `overview-view.tsx` and nothing else in the console.

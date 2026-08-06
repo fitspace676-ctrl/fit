@@ -64,6 +64,10 @@ const styles = stylex.create({
     borderBottomColor: 'var(--color-brand)',
     color: 'var(--color-brand)',
   },
+  body: {
+    paddingInline: '1.25rem',
+    paddingBlock: '1rem',
+  },
 });
 
 export function RecentActivityCard({ data }: { data: DashboardOverviewResponse }) {
@@ -85,6 +89,8 @@ export function RecentActivityCard({ data }: { data: DashboardOverviewResponse }
             return (
               <button
                 key={value}
+                id={`recent-activity-tab-${value}`}
+                aria-controls="recent-activity-panel"
                 ref={registerRef(index)}
                 type="button"
                 role="tab"
@@ -103,7 +109,31 @@ export function RecentActivityCard({ data }: { data: DashboardOverviewResponse }
             that feed rather than sitting over the members list too. */}
         {feed === 'checkIns' ? <LiveNowPill /> : null}
       </div>
-      {feed === 'checkIns' ? <RecentCheckInsBody data={data} /> : <RecentMembersBody data={data} />}
+      {/*
+        The tab row above is inset 1.25rem; this wrapper restores the same
+        inset for the body, which `Card`'s own `padding={0}` (needed so the
+        tab row's border can run edge-to-edge) does not supply.
+
+        It also completes the tablist/tabpanel pair: each tab points here via
+        `aria-controls`, and this points back at whichever tab is active via
+        `aria-labelledby` — the same wiring `segment-tabs.tsx` /
+        `segmented-dashboard.tsx` use, and the panel this card was missing
+        entirely once its own `<h2>`s were removed. No `tabIndex={0}`: the
+        body is full of interactive rows, so the APG does not call for a tab
+        stop on the container itself.
+      */}
+      <div
+        id="recent-activity-panel"
+        role="tabpanel"
+        aria-labelledby={`recent-activity-tab-${feed}`}
+        {...stylex.props(styles.body)}
+      >
+        {feed === 'checkIns' ? (
+          <RecentCheckInsBody data={data} />
+        ) : (
+          <RecentMembersBody data={data} />
+        )}
+      </div>
     </Card>
   );
 }
