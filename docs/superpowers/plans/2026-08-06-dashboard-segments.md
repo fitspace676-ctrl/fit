@@ -2289,7 +2289,15 @@ export function SegmentPanel({
 
   // Stage the swap: fade the current grid out, hold the height, then switch.
   useEffect(() => {
-    if (segment === shown) return;
+    // Bouncing back to the segment already on screen (a double-clicked tab) cancels
+    // the pending timer below, so this branch has to undo the exit itself — leave it
+    // as a bare `return` and the panel stays stuck at opacity 0 with a frozen height
+    // until some later, different segment completes a full cycle.
+    if (segment === shown) {
+      setExiting(false);
+      setMinHeight(undefined);
+      return;
+    }
     setMinHeight(bodyRef.current?.offsetHeight);
     setExiting(true);
     const timer = setTimeout(() => {
@@ -2303,7 +2311,12 @@ export function SegmentPanel({
   useEffect(() => {
     const key = `${shown}:${range}`;
     const cached = cache.current.get(key);
-    if (cached && attempt === 0) {
+    // Gate on the cache entry alone. `attempt` is in the dep array purely to re-run
+    // this effect for a same-segment retry — reading it HERE would be the bug: the
+    // counter is never reset, so the first retry anywhere would suppress cache hits
+    // for every segment for the rest of the session. The retry bypasses the cache by
+    // deleting its own key instead (see the retry handler below).
+    if (cached) {
       setData(cached);
       setError(null);
       setMinHeight(undefined);
@@ -2328,16 +2341,31 @@ export function SegmentPanel({
     };
   }, [shown, range, attempt]);
 
+  /**
+   * Retry the segment on screen. Drops that ONE cache entry so the effect below
+   * refetches it, then bumps `attempt` to make the effect re-run at all (its other
+   * dependencies are unchanged). Every other segment keeps its cached data, and this
+   * one caches again as soon as it succeeds.
+   */
+  function retry(): void {
+    cache.current.delete(`${shown}:${range}`);
+    setAttempt((n) => n + 1);
+  }
+
   return (
     <div
       ref={bodyRef}
+      // Reflects the swap phase. Real state, not a test hook — but it is also what
+      // makes the exit observable in tests, since the StyleX shim collapses every
+      // class name and jsdom reports zero height.
+      data-phase={exiting ? 'exiting' : 'entering'}
       style={minHeight ? { minHeight } : undefined}
       {...stylex.props(styles.panel, exiting ? styles.exiting : styles.entering)}
     >
       {error !== null ? (
         <div role="alert" {...stylex.props(styles.status)}>
           <span>{t('loadError')}</span>
-          <Button variant="secondary" size="sm" onPress={() => setAttempt((n) => n + 1)}>
+          <Button variant="secondary" size="sm" onPress={retry}>
             {t('retry')}
           </Button>
         </div>
