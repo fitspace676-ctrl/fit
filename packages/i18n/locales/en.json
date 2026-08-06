@@ -141,6 +141,39 @@
       "pinned": {
         "title": "Pinned reports"
       },
+      "segments": {
+        "aria": "Dashboard segments",
+        "overview": "Overview",
+        "sales": "Sales",
+        "members": "Members",
+        "revenue": "Revenue",
+        "classes": "Classes",
+        "staff": "Staff",
+        "retry": "Retry",
+        "loadError": "Couldn't load this segment.",
+        "empty": "No widgets in this segment yet."
+      },
+      "widgets": {
+        "salesPaymentMethod": "Sales by payment method",
+        "salesTopProducts": "Top-selling products",
+        "salesTopPlans": "Top-selling plans",
+        "membersNewSignups": "New member signups",
+        "membersChurn": "Member churn",
+        "revenueOverTime": "Revenue over time",
+        "revenueByLocation": "Revenue by location",
+        "classesMostBooked": "Most booked classes",
+        "classesPeakHours": "Peak hours",
+        "staffSessionsPerTrainer": "Sessions per trainer"
+      },
+      "picker": {
+        "open": "Add widget",
+        "title": "Add widget",
+        "shared": "This layout is shared with everyone at your gym.",
+        "lastWidget": "Each segment keeps at least one widget.",
+        "apply": "Save",
+        "cancel": "Cancel",
+        "saveError": "Couldn't save your widgets."
+      },
       "greeting": {
         "morning": "Good morning",
         "afternoon": "Good afternoon",
