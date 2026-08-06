@@ -188,6 +188,7 @@
         "quiet": "Quiet right now — no members checked in today yet.",
         "capacity": "{pct}% of capacity in use across {areas, plural, one {# area} other {# areas}}."
       },
+      "metrics": { "aria": "Key metrics" },
       "kpi": {
         "todaysRevenue": "Today's revenue",
         "checkInsToday": "Check-ins today",

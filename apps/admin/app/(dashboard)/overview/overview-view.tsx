@@ -19,12 +19,12 @@
 
 import { useMemo, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useLocale, useTranslations } from 'next-intl';
+import { useLocale } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { DashboardOverviewResponse, DashboardRange } from '@fit/types';
 import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 import { InGymNow } from './in-gym-now';
-import { KpiCard, StatKpiCard } from './kpi-cards';
+import { MetricStrip } from './metric-strip';
 import { RevenueCard } from './revenue-card';
 import { PlanMixCard } from './plan-mix-card';
 import { ScheduleCard } from './schedule-card';
@@ -50,29 +50,6 @@ const styles = stylex.create({
       '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
     },
   },
-  kpiGroup: {
-    display: 'grid',
-    gap: '1rem',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 640px)': 'repeat(3, minmax(0, 1fr))',
-      '@media (min-width: 1024px)': '1fr',
-      '@media (min-width: 1280px)': 'repeat(3, minmax(0, 1fr))',
-    },
-    gridColumn: {
-      default: 'auto',
-      '@media (min-width: 1024px)': 'span 2',
-    },
-  },
-  secondaryKpiGrid: {
-    display: 'grid',
-    gap: '1rem',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
-      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
-    },
-  },
 });
 
 export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
@@ -80,7 +57,6 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const t = useTranslations('admin.dashboard');
   const locale = useLocale();
 
   // Keep the control-room overview live: re-run the server component on an
@@ -106,56 +82,10 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
 
   return (
     <div {...stylex.props(styles.page, isPending && styles.pending)}>
-      {/* In the gym now + KPIs */}
+      <MetricStrip data={data} />
+
       <section {...stylex.props(styles.gridThirds)}>
         <InGymNow data={data} />
-        <div {...stylex.props(styles.kpiGroup)}>
-          <KpiCard
-            label={t('kpi.revenue')}
-            icon="card"
-            kpi={data.kpis.todaysRevenue}
-            format={(v) => money.format(v / 100)}
-          />
-          <KpiCard label={t('kpi.checkIns')} icon="check" kpi={data.kpis.checkInsToday} />
-          <KpiCard label={t('kpi.newMembers')} icon="users" kpi={data.kpis.newMembers7d} />
-        </div>
-      </section>
-
-      {/* Secondary stat KPIs (gym-admin parity) */}
-      <section {...stylex.props(styles.secondaryKpiGrid)}>
-        <StatKpiCard
-          label={t('secondaryKpi.activeMembers')}
-          icon="users"
-          value={data.secondaryKpis.activeMembers}
-        />
-        <KpiCard
-          label={t('secondaryKpi.revenueThisMonth')}
-          icon="card"
-          kpi={data.secondaryKpis.revenueThisMonth}
-          format={(v) => money.format(v / 100)}
-        />
-        <StatKpiCard
-          label={t('secondaryKpi.overduePayments')}
-          icon="bell"
-          value={data.secondaryKpis.overduePayments}
-        />
-        <StatKpiCard
-          label={t('secondaryKpi.classes')}
-          icon="calendar"
-          value={data.secondaryKpis.classesToday}
-        />
-        <StatKpiCard
-          label={t('secondaryKpi.expiringSoon')}
-          icon="clock"
-          value={data.secondaryKpis.expiringSoon}
-          hint={t('secondaryKpi.expiringSoonHint')}
-        />
-        <StatKpiCard
-          label={t('secondaryKpi.renewalsDue')}
-          icon="arrow"
-          value={data.secondaryKpis.renewalsDue}
-          hint={t('secondaryKpi.renewalsDueHint')}
-        />
       </section>
 
       {/* Revenue + plan mix */}
