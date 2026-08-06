@@ -28,9 +28,14 @@ const styles = stylex.create({
   },
   tier: {
     display: 'grid',
-    // The hairlines between cells are the cells' own top/left borders, so the
-    // grid needs no gap and the container's radius stays clean.
-    gap: 0,
+    // The hairlines are the 1px grid gap showing the container's border color
+    // through, with each cell painting over it with the surface color. That is
+    // correct at every column count and every row-start, unlike a per-cell
+    // left border reset on `:first-child`, which only zeroes the very first
+    // cell of the whole tier — every other row-start still drew a stray border
+    // flush against the container edge.
+    gap: '1px',
+    backgroundColor: 'var(--color-border)',
   },
   tierOne: {
     gridTemplateColumns: {
@@ -53,11 +58,7 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.25rem',
     padding: '0.875rem 1rem',
-    borderLeftWidth: '1px',
-    borderLeftStyle: 'solid',
-    borderLeftColor: 'var(--color-border)',
-    // The first cell of a row must not draw a border against the container edge.
-    ':first-child': { borderLeftWidth: 0 },
+    backgroundColor: 'var(--color-surface)',
   },
   label: {
     fontSize: '0.75rem',
