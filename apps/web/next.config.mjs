@@ -115,17 +115,38 @@ const nextConfig = {
   // prefix, so Next does not strip it before matching. Only the marketing landing
   // (`/:locale`) and the 403 page stay at the root, so they are not listed here.
   async redirects() {
-    return MOVED_MEMBER_SEGMENTS.map((segment) => ({
-      source: `/:locale(${LOCALE_PATTERN})/${segment}/:path*`,
-      destination: `/:locale/member/${segment}/:path*`,
-      permanent: true,
-    })).concat(
-      MOVED_MEMBER_SEGMENTS.map((segment) => ({
+    return [
+      ...MOVED_MEMBER_SEGMENTS.map((segment) => ({
+        source: `/:locale(${LOCALE_PATTERN})/${segment}/:path*`,
+        destination: `/:locale/member/${segment}/:path*`,
+        permanent: true,
+      })),
+      ...MOVED_MEMBER_SEGMENTS.map((segment) => ({
         source: `/:locale(${LOCALE_PATTERN})/${segment}`,
         destination: `/:locale/member/${segment}`,
         permanent: true,
       })),
-    );
+      // The staff console is locale-less: it owns `/admin`, and its own language
+      // switcher drives a cookie rather than the URL. But `/ka/admin` is what an
+      // operator types once every member URL carries a locale, and without these
+      // it fell to the member gate and landed on the *portal's* sign-in — the
+      // wrong door, with a `from` pointing back at a path the console does not
+      // serve. Send the locale-prefixed form to the console's own entrance.
+      //
+      // A redirect rather than a rewrite because Next's `basePath` is one static
+      // string: the console cannot answer on `/ka/admin` and `/en/admin` at once,
+      // so the URL has to collapse to the single prefix it is built for.
+      {
+        source: `/:locale(${LOCALE_PATTERN})/admin/:path*`,
+        destination: '/admin/:path*',
+        permanent: true,
+      },
+      {
+        source: `/:locale(${LOCALE_PATTERN})/admin`,
+        destination: '/admin',
+        permanent: true,
+      },
+    ];
   },
   // Lint and type-check run as dedicated turbo tasks (`pnpm lint`,
   // `pnpm type-check`) with the shared @fit/config presets, so skip Next's

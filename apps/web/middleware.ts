@@ -105,9 +105,16 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Root: open the login page directly (no marketing landing), or send a
-  // signed-in user straight to the dashboard their role belongs in.
-  if (rest === '/') {
+  // Root, and the portal's own base: open the login page directly (no marketing
+  // landing), or send a signed-in user straight to the dashboard their role
+  // belongs in.
+  //
+  // `/<locale>/member` is a bare prefix with no page of its own — every screen
+  // lives a segment deeper. Left to the gate below it would have been treated as
+  // a protected route and bounced to `/<locale>/member/login?from=/<locale>/member`,
+  // sending the visitor back to a path that renders nothing once they signed in.
+  // Handling it here makes typing the portal's base do the obvious thing.
+  if (rest === '/' || rest === MEMBER_BASE_PATH) {
     const target = req.nextUrl.clone();
     target.search = '';
     target.pathname = session ? dashboardPath(session, locale) : loginPath(locale);
