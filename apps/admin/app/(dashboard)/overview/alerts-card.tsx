@@ -22,11 +22,10 @@ const styles = stylex.create({
   sectionLabel: {
     margin: 0,
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.875rem',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.15em',
-    color: 'var(--color-text-secondary)',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    letterSpacing: '-0.005em',
+    color: 'var(--color-text-primary)',
   },
   metaText: {
     fontFamily: 'var(--font-family-code)',
