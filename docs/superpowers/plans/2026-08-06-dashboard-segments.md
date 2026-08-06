@@ -12,7 +12,8 @@
 
 ## Global Constraints
 
-- **No Tailwind.** Every file under `apps/admin/app/(dashboard)/` is on the `check-tailwind-guardrail.ts` migrated manifest. Style with StyleX only. Do not import `Tabs` from `@fit/ui-web` — it is Tailwind-classed.
+- **No Tailwind.** The dashboard is StyleX-only. Do not import `Tabs` from `@fit/ui-web` — it is Tailwind-classed.
+- **New directories must be added to the guardrail manifest.** `scripts/check-tailwind-guardrail.ts` guards `apps/admin/app/(dashboard)/` **file by file**, not by directory: its `MIGRATED_PATHS` names `page.tsx`, `dashboard-view.tsx` and `charts.tsx` individually, and the manifest is opt-in. A new subdirectory is therefore **unguarded until you list it**, and the guard will pass, vacuously, while you assume otherwise. Any task creating one (`overview/`, `segments/`) must add its path to `MIGRATED_PATHS` and the matching row to `docs/tailwind-decommission.md` — the script's header requires the two to stay in sync — and prove the guard bites by adding a Tailwind class, watching it fail, and reverting.
 - **Money is MINOR units** (integer cents/tetri) everywhere in report contracts; format against the response `currency`.
 - **Never fabricate data.** An empty section means "no rows in this window" and renders the existing empty state — never a synthesised zero.
 - **Tenant scoping is explicit.** `DashboardWidget` is _not_ in `TENANT_SCOPED_MODELS`, so every query must pin `gymId` from `TenantContext` by hand, exactly as `DashboardPinsService` does today.
@@ -1593,8 +1594,10 @@ Expected: clean.
 Run: `pnpm --filter @fit/admin test`
 Expected: PASS.
 
+Add `'apps/admin/app/(dashboard)/overview'` to `MIGRATED_PATHS` in `scripts/check-tailwind-guardrail.ts` and the matching row to `docs/tailwind-decommission.md`. The guard is opt-in per path, so without this the extracted files leave enforcement while the guard keeps reporting PASS.
+
 Run: `pnpm exec tsx scripts/check-tailwind-guardrail.ts`
-Expected: PASS — the new `overview/` files are under an already-guarded path and must be StyleX-only.
+Expected: PASS, with the migrated-file count HIGHER than before — that increase is the evidence the new files are covered. Then add a `className="flex gap-4"` to one `overview/` element, re-run, confirm it FAILS naming that file, and revert.
 
 Start the console (`pnpm --filter @fit/admin dev`), open `/`, and confirm the dashboard renders exactly as it did before this task — the extraction is meant to be invisible.
 
@@ -2886,8 +2889,10 @@ Expected: clean.
 Run: `pnpm --filter @fit/admin test`
 Expected: PASS.
 
+Add `'apps/admin/app/(dashboard)/segments'` to `MIGRATED_PATHS` in `scripts/check-tailwind-guardrail.ts` and the matching row to `docs/tailwind-decommission.md`, unless an earlier task already did. The guard is opt-in per path — a new directory is unguarded until listed, and the guard reports PASS either way.
+
 Run: `pnpm exec tsx scripts/check-tailwind-guardrail.ts`
-Expected: PASS.
+Expected: PASS, with the migrated-file count covering every file under `segments/`.
 
 - [ ] **Step 4: Confirm it works in the app**
 
