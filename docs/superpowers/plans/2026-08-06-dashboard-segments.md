@@ -386,17 +386,20 @@ Expected: PASS, 8 tests.
 
 - [ ] **Step 5: Export from the package index**
 
-In `packages/types/index.ts`, replace the `dashboard-pins` export (line 17) with:
+In `packages/types/index.ts`, add beside the existing `dashboard-pins` export (line 17):
 
 ```ts
 export * from './src/dashboard-segments';
 ```
 
-Delete `packages/types/src/dashboard-pins.ts`. Type-checking the API will now fail — Task 5 removes those consumers.
+Leave the `dashboard-pins` export in place. Pinning is retired wholesale in Task 2 — deleting its contract here would break the API and the console for four tasks, and a red type-check that early hides any real breakage the later tasks introduce.
+
+Run: `pnpm --filter @fit/types exec tsc --noEmit`
+Expected: clean.
 
 - [ ] **Step 6: Add the i18n copy**
 
-In `packages/i18n/locales/en.json`, under `admin.dashboard`, **remove** the `pinned` block and add:
+In `packages/i18n/locales/en.json`, under `admin.dashboard`, add (leave the `pinned` block alone — Task 2 removes it with the component that reads it):
 
 ```json
 "segments": {
@@ -482,7 +485,105 @@ git commit -m "feat(dashboard): name the segments and the widgets they hold"
 
 ---
 
-### Task 2: Gym-scoped widget rows replace per-user pins
+### Task 2: Retire pinning end-to-end
+
+Pinning goes in one move, before the schema changes under it. Doing this as one
+task is what keeps every later task's type-check meaningful: spread across the
+types, API and console tasks, the repo would not compile for four tasks and a
+real breakage would hide inside the expected red.
+
+The `dashboard_pins` TABLE stays for now — Task 3's migration reads it to carry
+each gym's pins across before dropping it.
+
+**Files:**
+
+- Delete: `packages/types/src/dashboard-pins.ts`, `apps/api/src/dashboard/dashboard-pins.controller.ts`, `apps/api/src/dashboard/dashboard-pins.service.ts`, `apps/api/src/dashboard/dashboard-pins.service.spec.ts`
+- Modify: `packages/types/index.ts`, `apps/api/src/dashboard/dashboard.module.ts`, `apps/admin/lib/api.ts`, `apps/admin/app/(dashboard)/reports/actions.ts`, `apps/admin/app/(dashboard)/reports/[metric]/page.tsx`, `apps/admin/app/(dashboard)/reports/[metric]/drilldown-view.tsx`, `apps/admin/app/(dashboard)/page.tsx`, `apps/admin/app/(dashboard)/dashboard-view.tsx`, `packages/i18n/locales/en.json`, `packages/i18n/locales/ka.json`
+
+**Interfaces:**
+
+- Consumes: nothing from Task 1 — this task only removes.
+- Produces: a repo with no reference to `DashboardPin`, `pinReportAction`, `unpinReportAction`, `fetchDashboardPins`, `fetchDashboardWidgets`, `addDashboardPin` or `removeDashboardPin`. The Prisma model and its table are untouched.
+
+- [ ] **Step 1: Delete the API pins layer**
+
+```bash
+git rm apps/api/src/dashboard/dashboard-pins.controller.ts \
+       apps/api/src/dashboard/dashboard-pins.service.ts \
+       apps/api/src/dashboard/dashboard-pins.service.spec.ts
+```
+
+Then in `apps/api/src/dashboard/dashboard.module.ts` drop the two pins imports, `DashboardPinsController` from `controllers`, and `DashboardPinsService` from `providers`. Leave `ReportsModule` in `imports` — Task 4's service needs it.
+
+- [ ] **Step 2: Delete the types contract**
+
+```bash
+git rm packages/types/src/dashboard-pins.ts
+```
+
+In `packages/types/index.ts`, remove the `export * from './src/dashboard-pins';` line. The `dashboard-segments` export added in Task 1 stays.
+
+- [ ] **Step 3: Remove the console's pin calls**
+
+In `apps/admin/lib/api.ts`, delete `fetchDashboardPins`, `fetchDashboardWidgets`, `addDashboardPin` and `removeDashboardPin` (around lines 2028-2070), and remove the now-unused `DashboardPinsResponse`, `DashboardWidgetsResponse`, `CreateDashboardPin` and `DashboardPin` type imports.
+
+- [ ] **Step 4: Strip pinning out of Reports**
+
+In `apps/admin/app/(dashboard)/reports/actions.ts`: delete `pinReportAction`, `unpinReportAction`, `refreshPinned`, and the imports only they used (`addDashboardPin`, `removeDashboardPin`, `createDashboardPinSchema`, `CreateDashboardPin`, `revalidatePath`). Keep `ActionResult`, `Translator`, `requireReportView` and `toMessage` only if something else in the file still uses them; if the file ends up with no exports, delete it.
+
+In `apps/admin/app/(dashboard)/reports/[metric]/page.tsx`: remove `fetchDashboardPins` from the import on line 15 and from the `Promise.all` on line 93, and stop passing the pins prop to `DrilldownView`.
+
+In `apps/admin/app/(dashboard)/reports/[metric]/drilldown-view.tsx`: remove the `../actions` import on line 22, the pin-toggle handler around lines 165-180, the `pins` prop, and the pin control passed as `ReportSectionCard`'s `action`. Pass no `action` — the prop is optional.
+
+- [ ] **Step 5: Strip the pinned block off the dashboard**
+
+In `apps/admin/app/(dashboard)/dashboard-view.tsx`: remove the `unpinReportAction` import (line 44), the `PinnedReports` component (778-837), the `pinnedWidgets` prop from `DashboardView`, and its render on line 745. Remove any `stylex.create` entries and `PinnedWidget` imports left unused.
+
+In `apps/admin/app/(dashboard)/page.tsx`: remove the `fetchDashboardWidgets` import (line 14), the `PinnedWidget` type import (line 16), the `pinnedWidgets` try/catch (111-118), and change the final return to:
+
+```tsx
+return <DashboardView data={overview} />;
+```
+
+- [ ] **Step 6: Remove the pinned copy**
+
+In both `packages/i18n/locales/en.json` and `packages/i18n/locales/ka.json`, remove the `admin.dashboard.pinned` block and the `admin.reports.drilldown` keys only the pin control used (`pinError`, `pinInvalid`, `notAuthorized`, and any `pin`/`unpin` labels). Leave every other `admin.reports.drilldown` key — the section renderer still uses them.
+
+- [ ] **Step 7: Verify nothing references pinning**
+
+Run:
+
+```bash
+grep -rn "DashboardPin\|dashboardPin\|pinReportAction\|unpinReportAction\|fetchDashboardWidgets\|dashboard/pins" apps packages --exclude-dir=node_modules --exclude-dir=.next
+```
+
+Expected: no matches outside `packages/db/prisma/` (the Prisma model and its migrations stay until Task 3).
+
+- [ ] **Step 8: Confirm the repo is green**
+
+```bash
+pnpm --filter @fit/types test
+pnpm --filter @fit/api test
+pnpm --filter @fit/admin test
+pnpm --filter @fit/admin exec tsc --noEmit
+pnpm exec tsx scripts/check-tailwind-guardrail.ts
+```
+
+Expected: all PASS. If a spec still imports a deleted service, delete that spec — its subject is gone.
+
+Open the console at `/` and confirm the dashboard renders without the "Pinned reports" block, and a report page renders without pin controls.
+
+- [ ] **Step 9: Commit**
+
+```bash
+npx prettier --write packages/types/index.ts apps/api/src/dashboard "apps/admin/app/(dashboard)" apps/admin/lib/api.ts packages/i18n/locales/en.json packages/i18n/locales/ka.json
+git add -A packages/types apps/api apps/admin packages/i18n
+git commit -m "refactor(dashboard): retire per-user pinning ahead of shared segments"
+```
+
+---
+
+### Task 3: Gym-scoped widget rows replace per-user pins
 
 **Files:**
 
@@ -621,7 +722,7 @@ git commit -m "feat(dashboard): give the whole gym one shared widget layout"
 
 ---
 
-### Task 3: Resolving a segment's widgets
+### Task 4: Resolving a segment's widgets
 
 **Files:**
 
@@ -946,7 +1047,7 @@ git commit -m "feat(dashboard): resolve a segment's widgets in one pass per repo
 
 ---
 
-### Task 4: Persisting a segment's widget selection
+### Task 5: Persisting a segment's widget selection
 
 **Files:**
 
@@ -1077,18 +1178,17 @@ git commit -m "feat(dashboard): save a segment's widgets as one whole slice"
 
 ---
 
-### Task 5: The segments API, and retiring the pins API
+### Task 6: The segments API
 
 **Files:**
 
 - Create: `apps/api/src/dashboard/dashboard-segments.controller.ts`
 - Test: `apps/api/src/dashboard/dashboard-segments.controller.spec.ts`
 - Modify: `apps/api/src/dashboard/dashboard.module.ts`
-- Delete: `apps/api/src/dashboard/dashboard-pins.controller.ts`, `dashboard-pins.service.ts`, `dashboard-pins.service.spec.ts`
 
 **Interfaces:**
 
-- Consumes: `DashboardSegmentsService` from Tasks 3-4; `configurableDashboardSegmentSchema`, `setDashboardWidgetsSchema`, `dashboardRangeSchema`, `DEFAULT_DASHBOARD_RANGE` from `@fit/types`.
+- Consumes: `DashboardSegmentsService` from Tasks 4-5; `configurableDashboardSegmentSchema`, `setDashboardWidgetsSchema`, `dashboardRangeSchema`, `DEFAULT_DASHBOARD_RANGE` from `@fit/types`.
 - Produces: `GET /admin/dashboard/segments/:segment?range=` → `DashboardSegmentResponse`; `PUT /admin/dashboard/segments/:segment/widgets` → `204`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1297,9 +1397,9 @@ function parse<TSchema extends z.ZodTypeAny>(schema: TSchema, data: unknown): z.
 Run: `pnpm --filter @fit/api test -- dashboard-segments.controller`
 Expected: PASS, 8 tests.
 
-- [ ] **Step 5: Rewire the module and delete the pins API**
+- [ ] **Step 5: Register the controller and service**
 
-Replace `apps/api/src/dashboard/dashboard.module.ts` with:
+Task 2 already removed the pins wiring; this adds the segments wiring. Replace `apps/api/src/dashboard/dashboard.module.ts` with:
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -1325,37 +1425,26 @@ import { DashboardService } from './dashboard.service';
 export class DashboardModule {}
 ```
 
-Then:
-
-```bash
-git rm apps/api/src/dashboard/dashboard-pins.controller.ts \
-       apps/api/src/dashboard/dashboard-pins.service.ts \
-       apps/api/src/dashboard/dashboard-pins.service.spec.ts
-```
-
 - [ ] **Step 6: Run the whole API suite**
 
 Run: `pnpm --filter @fit/api test`
-Expected: PASS with no reference to `DashboardPins` remaining. If a spec still imports the deleted service, delete that spec — its subject is gone.
+Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 npx prettier --write apps/api/src/dashboard
 git add apps/api/src/dashboard
-git commit -m "feat(dashboard): serve segments, and retire per-user pinning"
+git commit -m "feat(dashboard): serve one segment's widgets over HTTP"
 ```
 
 ---
 
-### Task 6: Admin client — segment calls in, pin calls out
+### Task 7: Admin client — the segment calls
 
 **Files:**
 
 - Modify: `apps/admin/lib/api.ts`
-- Modify: `apps/admin/app/(dashboard)/reports/actions.ts`
-- Modify: `apps/admin/app/(dashboard)/reports/[metric]/page.tsx`
-- Modify: `apps/admin/app/(dashboard)/reports/[metric]/drilldown-view.tsx`
 
 **Interfaces:**
 
@@ -1363,7 +1452,7 @@ git commit -m "feat(dashboard): serve segments, and retire per-user pinning"
 
 - [ ] **Step 1: Add the segment helpers**
 
-In `apps/admin/lib/api.ts`, add `ConfigurableDashboardSegment` and `DashboardSegmentResponse` to the type imports, then **replace** the four pin helpers (`fetchDashboardPins`, `fetchDashboardWidgets`, `addDashboardPin`, `removeDashboardPin`, around lines 2028-2070) with:
+Task 2 already removed the pin helpers from this file. In `apps/admin/lib/api.ts`, add `ConfigurableDashboardSegment` and `DashboardSegmentResponse` to the type imports, then add — beside the other dashboard helpers, after `fetchDashboardOverview`:
 
 ```ts
 /**
@@ -1411,42 +1500,22 @@ export async function saveDashboardSegmentWidgets(
 }
 ```
 
-Remove the now-unused `DashboardPinsResponse`, `DashboardWidgetsResponse`, `CreateDashboardPin`, `DashboardPin` type imports.
-
-- [ ] **Step 2: Strip pinning out of Reports**
-
-In `apps/admin/app/(dashboard)/reports/actions.ts`, delete `pinReportAction`, `unpinReportAction`, `refreshPinned`, and the now-unused imports (`addDashboardPin`, `removeDashboardPin`, `createDashboardPinSchema`, `CreateDashboardPin`). Keep `ActionResult`, `Translator`, `requireReportView` and `toMessage` if other exports in the file use them; if the file ends up empty, delete it and remove its imports from `drilldown-view.tsx`.
-
-In `apps/admin/app/(dashboard)/reports/[metric]/page.tsx`: remove `fetchDashboardPins` from the import on line 15 and from the `Promise.all` on line 93, and stop passing the pins prop to `DrilldownView`.
-
-In `apps/admin/app/(dashboard)/reports/[metric]/drilldown-view.tsx`: remove the import on line 22, the pin-toggle handler around lines 165-180, the `pins` prop, and the pin control passed as `ReportSectionCard`'s `action`. Pass no `action` — the prop is optional.
-
-- [ ] **Step 3: Verify nothing still references pinning**
-
-Run:
-
-```bash
-grep -rn "DashboardPin\|dashboardPin\|pinReportAction\|unpinReportAction\|fetchDashboardWidgets" apps packages --exclude-dir=node_modules --exclude-dir=.next
-```
-
-Expected: no matches.
-
-- [ ] **Step 4: Type-check the console**
+- [ ] **Step 2: Type-check the console**
 
 Run: `pnpm --filter @fit/admin exec tsc --noEmit`
-Expected: the only remaining errors are in `dashboard-view.tsx` (its `PinnedReports` block and `pinnedWidgets` prop) — Task 7 removes them. Fix any others now.
+Expected: clean.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-npx prettier --write apps/admin/lib/api.ts "apps/admin/app/(dashboard)/reports"
+npx prettier --write apps/admin/lib/api.ts
 git add apps/admin
-git commit -m "feat(dashboard): call segments from the console, drop the pin calls"
+git commit -m "feat(dashboard): let the console ask for a segment"
 ```
 
 ---
 
-### Task 7: Break the overview out of the 1348-line view
+### Task 8: Break the overview out of the 1348-line view
 
 Pure refactor: identical rendered output, no behaviour change. It exists so the segment work lands in focused files instead of growing a file that is already too big to reason about.
 
@@ -1465,7 +1534,9 @@ Create `apps/admin/app/(dashboard)/overview/format.ts` and move `formatTime` (13
 
 - [ ] **Step 2: Move the cards**
 
-Move each block out of `dashboard-view.tsx` verbatim, carrying the `stylex.create` entries each one uses into the new file:
+Move each block out of `dashboard-view.tsx` verbatim, carrying the `stylex.create` entries each one uses into the new file.
+
+The line numbers below are from the file as it stood **before** Task 2 removed the pinning block, so everything after `PinnedReports` now sits ~60 lines earlier. Locate each block by its symbol name, not by line.
 
 | From `dashboard-view.tsx`                                     | To                                           |
 | ------------------------------------------------------------- | -------------------------------------------- |
@@ -1482,12 +1553,9 @@ Each new file starts with `'use client';` and exports its components. Constants 
 
 - [ ] **Step 3: Move the body**
 
-Create `apps/admin/app/(dashboard)/overview/overview-view.tsx` holding what is left of `DashboardView` (593-777) renamed to `OverviewView`, importing the cards from their new homes.
+Create `apps/admin/app/(dashboard)/overview/overview-view.tsx` holding what is left of the `DashboardView` function body, renamed to `OverviewView`, importing the cards from their new homes.
 
-Two changes while moving:
-
-- Drop the `pinnedWidgets` prop, the `PinnedReports` component (778-837), the `unpinReportAction` import (44) and the render on line 745. Pinning is gone.
-- Keep the period header, `useLiveRefresh`, and the `selectRange` / `selectPeriod` / `selectCustomRange` handlers exactly as they are.
+Keep the period header, `useLiveRefresh`, and the `selectRange` / `selectPeriod` / `selectCustomRange` handlers exactly as they are. Nothing about the rendered output changes in this task.
 
 - [ ] **Step 4: Reduce the old file to a re-export**
 
@@ -1499,15 +1567,9 @@ Replace the entire contents of `apps/admin/app/(dashboard)/dashboard-view.tsx` w
 export { OverviewView as DashboardView } from './overview/overview-view';
 ```
 
-- [ ] **Step 5: Update the page**
+`page.tsx` needs no change — Task 2 already reduced its render to `<DashboardView data={overview} />`, and that import path still resolves.
 
-In `apps/admin/app/(dashboard)/page.tsx`: remove the `fetchDashboardWidgets` import and its `try/catch` block (111-118), the `PinnedWidget` type import (16), and change line 120 to:
-
-```tsx
-return <DashboardView data={overview} />;
-```
-
-- [ ] **Step 6: Verify nothing changed**
+- [ ] **Step 5: Verify nothing changed**
 
 Run: `pnpm --filter @fit/admin exec tsc --noEmit`
 Expected: clean.
@@ -1518,9 +1580,9 @@ Expected: PASS.
 Run: `pnpm exec tsx scripts/check-tailwind-guardrail.ts`
 Expected: PASS — the new `overview/` files are under an already-guarded path and must be StyleX-only.
 
-Start the console (`pnpm --filter @fit/admin dev`), open `/`, and confirm the dashboard renders exactly as before minus the "Pinned reports" block.
+Start the console (`pnpm --filter @fit/admin dev`), open `/`, and confirm the dashboard renders exactly as it did before this task — the extraction is meant to be invisible.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 npx prettier --write "apps/admin/app/(dashboard)"
@@ -1530,7 +1592,7 @@ git commit -m "refactor(dashboard): give each control-room card its own file"
 
 ---
 
-### Task 8: The segment tab bar
+### Task 9: The segment tab bar
 
 **Files:**
 
@@ -1782,7 +1844,7 @@ git commit -m "feat(dashboard): let the keyboard walk the segment bar"
 
 ---
 
-### Task 9: The animated, caching segment panel
+### Task 10: The animated, caching segment panel
 
 **Files:**
 
@@ -1793,7 +1855,7 @@ git commit -m "feat(dashboard): let the keyboard walk the segment bar"
 
 **Interfaces:**
 
-- Consumes: `fetchDashboardSegment` (Task 6), `ReportSectionCard` from `../reports/report-sections`.
+- Consumes: `fetchDashboardSegment` (Task 7), `ReportSectionCard` from `../reports/report-sections`.
 - Produces: `loadSegmentAction(segment, range)` returning `{ ok: true; data: DashboardSegmentResponse } | { ok: false; error: string }`; `WidgetGrid({ widgets, currency, locale })`; `SegmentPanel({ segment, range })`.
 
 - [ ] **Step 1: Write the failing test**
@@ -2287,7 +2349,7 @@ git commit -m "feat(dashboard): cascade a segment's widgets in, and remember the
 
 ---
 
-### Task 10: The Add Widget picker
+### Task 11: The Add Widget picker
 
 **Files:**
 
@@ -2296,7 +2358,7 @@ git commit -m "feat(dashboard): cascade a segment's widgets in, and remember the
 
 **Interfaces:**
 
-- Consumes: `saveSegmentWidgetsAction` (Task 9), `DASHBOARD_WIDGET_CATALOG`, `CONFIGURABLE_DASHBOARD_SEGMENTS`, `widgetsForSegment`.
+- Consumes: `saveSegmentWidgetsAction` (Task 10), `DASHBOARD_WIDGET_CATALOG`, `CONFIGURABLE_DASHBOARD_SEGMENTS`, `widgetsForSegment`.
 - Produces: `AddWidgetDialog({ initialSegment, selectedKeys, onSaved })` where `selectedKeys: Record<ConfigurableDashboardSegment, string[]>`.
 
 - [ ] **Step 1: Write the failing test**
@@ -2655,7 +2717,7 @@ git commit -m "feat(dashboard): pick a segment's widgets where you read them"
 
 ---
 
-### Task 11: Wire the dashboard together
+### Task 12: Wire the dashboard together
 
 **Files:**
 
@@ -2664,7 +2726,7 @@ git commit -m "feat(dashboard): pick a segment's widgets where you read them"
 
 **Interfaces:**
 
-- Consumes: `SegmentTabs` (Task 8), `SegmentPanel` (Task 9), `AddWidgetDialog` (Task 10), `OverviewView` (Task 7).
+- Consumes: `SegmentTabs` (Task 9), `SegmentPanel` (Task 10), `AddWidgetDialog` (Task 11), `OverviewView` (Task 8).
 - Produces: `SegmentedDashboard({ overview, initialSegment, selectedKeys })`.
 
 - [ ] **Step 1: Write the shell**
@@ -2833,7 +2895,7 @@ git commit -m "feat(dashboard): give the console its segmented control room"
 
 ---
 
-### Task 12: End-to-end coverage
+### Task 13: End-to-end coverage
 
 **Files:**
 
@@ -2886,7 +2948,7 @@ test('Dashboard: a segment shows its widgets and the picker persists a change', 
 - [ ] **Step 2: Run it and watch it fail against a stale build**
 
 Run: `pnpm --filter @fit/e2e test -- --grep "Dashboard: a segment"`
-Expected: FAIL if the console is not rebuilt with Tasks 7-11. Rebuild, then re-run.
+Expected: FAIL if the console is not rebuilt with Tasks 8-12. Rebuild, then re-run.
 
 - [ ] **Step 3: Run it green**
 
@@ -2920,23 +2982,25 @@ git commit -m "test(e2e): prove a segment renders and its widget choice sticks"
 
 **Spec coverage**
 
-| Spec section                                                            | Task                     |
-| ----------------------------------------------------------------------- | ------------------------ |
-| §1 Catalogue, segment enum, invariants, default selection, min-one rule | 1                        |
-| §1 Spec-1 catalogue of 10 widgets                                       | 1                        |
-| §2 `DashboardWidget` model, migration, pin backfill                     | 2                        |
-| §3 `GET` route, per-metric dedup, omit unresolvable                     | 3, 5                     |
-| §3 `PUT` route, whole-slice replacement, validation                     | 4, 5                     |
-| §3 `ReportView` on both routes; `overview` rejected; range vocabulary   | 5                        |
-| §3 Pins API removed                                                     | 5, 6                     |
-| §4 Lazy fetch, `segment:range` cache, `?segment=` in the URL            | 9, 11                    |
-| §5 File structure, `overview/` extraction, own tab bar, picker          | 7, 8, 10                 |
-| §6 Animation timings, stagger, reduced motion, min-height               | 9                        |
-| §7 Per-segment error, empty section, stale key, default-when-empty      | 3, 9                     |
-| §8 Types / API / admin / e2e / guardrail tests                          | 1, 3, 4, 5, 8, 9, 10, 12 |
+| Spec section                                                            | Task                      |
+| ----------------------------------------------------------------------- | ------------------------- |
+| §1 Catalogue, segment enum, invariants, default selection, min-one rule | 1                         |
+| §1 Spec-1 catalogue of 10 widgets                                       | 1                         |
+| §2 `DashboardWidget` model, migration, pin backfill                     | 3                         |
+| §3 `GET` route, per-metric dedup, omit unresolvable                     | 4, 6                      |
+| §3 `PUT` route, whole-slice replacement, validation                     | 5, 6                      |
+| §3 `ReportView` on both routes; `overview` rejected; range vocabulary   | 6                         |
+| §3 Pins API removed                                                     | 2                         |
+| §4 Lazy fetch, `segment:range` cache, `?segment=` in the URL            | 10, 12                    |
+| §5 File structure, `overview/` extraction, own tab bar, picker          | 8, 9, 11                  |
+| §6 Animation timings, stagger, reduced motion, min-height               | 10                        |
+| §7 Per-segment error, empty section, stale key, default-when-empty      | 4, 10                     |
+| §8 Types / API / admin / e2e / guardrail tests                          | 1, 4, 5, 6, 9, 10, 11, 13 |
 
-**Known deviation:** the spec's §5 lists `widget-grid.tsx` but not `segmented-dashboard.tsx`. Task 11 adds the latter because `page.tsx` is a Server Component and the tab state must live in a Client Component. It is a mechanical split of the same responsibility, not a design change.
+**Known deviation:** the spec's §5 lists `widget-grid.tsx` but not `segmented-dashboard.tsx`. Task 12 adds the latter because `page.tsx` is a Server Component and the tab state must live in a Client Component. It is a mechanical split of the same responsibility, not a design change.
 
-**Type consistency:** `DashboardSegmentsService.get(segment, range)` / `setWidgets(segment, widgetKeys)` are used with those exact signatures in Tasks 3, 4, 5. `loadSegmentAction` / `saveSegmentWidgetsAction` return `ActionResult` in Tasks 9, 10. `widgetsForSegment` / `findDashboardWidget` are named identically in Tasks 1, 3, 4, 10, 11. `ResolvedDashboardWidget` fields (`key`, `size`, `section`) match between Tasks 1, 3 and 9.
+**Type consistency:** `DashboardSegmentsService.get(segment, range)` / `setWidgets(segment, widgetKeys)` are used with those exact signatures in Tasks 4, 5, 6. `loadSegmentAction` / `saveSegmentWidgetsAction` return `ActionResult` in Tasks 10, 11. `widgetsForSegment` / `findDashboardWidget` are named identically in Tasks 1, 4, 5, 11, 12. `ResolvedDashboardWidget` fields (`key`, `size`, `section`) match between Tasks 1, 4 and 10.
+
+**Sequencing:** every deletion pinning owns — the types contract, the API layer, the console helpers, the Reports controls, the dashboard block, the copy — happens in Task 2, before Task 3 drops the Prisma model out from under it. Spreading those deletions across the types, schema and console tasks would leave the repo non-compiling from Task 1 through Task 7, and a red type-check that long hides any real breakage inside the expected red. Every task from here leaves `tsc --noEmit` clean.
 
 **Carry-forward for the follow-up specs:** each new widget needs a section added to `ReportDrilldownService` _and_ an entry in `DASHBOARD_WIDGET_CATALOG` _and_ a `labelKey` in both locale files. The Task-1 invariant test fails loudly if the first two drift apart.
