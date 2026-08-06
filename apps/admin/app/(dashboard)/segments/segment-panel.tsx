@@ -82,22 +82,42 @@ export function SegmentPanel({
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   // Stage the swap: fade the current grid out, hold the height, then switch.
+  //
+  // If `segment` returns to whatever `shown` still is — the tab was double-
+  // clicked, or clicked twice within EXIT_MS — there is no swap to perform.
+  // Resetting `exiting`/`minHeight` here (rather than leaving them as the
+  // in-flight exit left them) is what stops the panel getting stuck faded out:
+  // without it, the timeout that would have cleared them never runs, because
+  // the cleanup below cancels it the moment `segment` changes back.
   useEffect(() => {
-    if (segment === shown) return;
+    if (segment === shown) {
+      setExiting(false);
+      setMinHeight(undefined);
+      return;
+    }
     setMinHeight(bodyRef.current?.offsetHeight);
     setExiting(true);
     const timer = setTimeout(() => {
       setShown(segment);
       setExiting(false);
     }, EXIT_MS);
+    // Runs on the next segment change AND on unmount — either way, a pending
+    // swap must not fire setState against a panel that has moved on.
     return () => clearTimeout(timer);
   }, [segment, shown]);
 
   // Load the shown segment, from cache when we already have it.
+  //
+  // The cache check is keyed only on `key` — NOT on `attempt` — so a retry
+  // fired for one segment can never defeat the cache for any other segment.
+  // `attempt` still forces this effect to re-run (its deps are otherwise
+  // unchanged on a same-segment retry); what makes the retry actually bypass
+  // the cache is the Retry button deleting this segment's own entry before
+  // bumping `attempt`, below.
   useEffect(() => {
     const key = `${shown}:${range}`;
     const cached = cache.current.get(key);
-    if (cached && attempt === 0) {
+    if (cached) {
       setData(cached);
       setError(null);
       setMinHeight(undefined);
@@ -122,21 +142,34 @@ export function SegmentPanel({
     };
   }, [shown, range, attempt]);
 
+  /**
+   * Retry the segment currently on screen. Deleting its own cache entry (a
+   * failed load was never cached in the first place, but a stale success
+   * might be what's being retried) scopes the bypass to THIS segment only —
+   * every other segment's cache entry, and this one once it next succeeds,
+   * stays intact.
+   */
+  function retry() {
+    cache.current.delete(`${shown}:${range}`);
+    setAttempt((n) => n + 1);
+  }
+
   return (
     <div
       ref={bodyRef}
+      // Not styling — plain attributes the StyleX-shimmed test suite (which
+      // cannot see the `exiting`/`entering` classes) can assert the swap phase
+      // through directly, since production CSS reads `exiting`/`entering` off
+      // that same state, not off this attribute.
+      data-testid="segment-panel"
+      data-phase={exiting ? 'exiting' : 'entering'}
       style={minHeight ? { minHeight } : undefined}
       {...stylex.props(styles.panel, exiting ? styles.exiting : styles.entering)}
     >
       {error !== null ? (
         <div role="alert" {...stylex.props(styles.status)}>
           <span>{t('loadError')}</span>
-          <Button
-            variant="secondary"
-            size="sm"
-            label={t('retry')}
-            onClick={() => setAttempt((n) => n + 1)}
-          />
+          <Button variant="secondary" size="sm" label={t('retry')} onClick={retry} />
         </div>
       ) : data === null ? (
         <div {...stylex.props(styles.skeleton)} aria-hidden="true" />
