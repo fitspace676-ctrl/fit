@@ -130,6 +130,11 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/app/(dashboard)/page.tsx',
   'apps/admin/app/(dashboard)/dashboard-view.tsx',
   'apps/admin/app/(dashboard)/charts.tsx',
+  // Dashboard-segments task 8 — the control-room overview split out of the
+  // single `dashboard-view.tsx` (now a re-export) into `overview/`. Guarded as
+  // a directory: every card file it holds is still the same Astryx + StyleX
+  // T11.18 build, just relocated.
+  'apps/admin/app/(dashboard)/overview',
   // T11.19 — admin members (list + detail + create/edit): the roster rebuilt on the
   // Astryx DataTable + FilterChips + TableSearch kit, plan-mix and profile/schedule
   // cards on Astryx Card/Badge/Avatar, and the create/edit forms on the Astryx Form
