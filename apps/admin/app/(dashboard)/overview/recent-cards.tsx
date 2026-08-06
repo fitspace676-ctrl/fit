@@ -2,7 +2,6 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { Badge } from '@astryxdesign/core/Badge';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { EmptyState, formatDate, initials, memberStatusVariant, timeAgo } from './format';
@@ -16,26 +15,6 @@ const pulse = stylex.keyframes({
 });
 
 const styles = stylex.create({
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    padding: '1.25rem',
-  },
-  cardHead: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '1rem',
-  },
-  sectionLabel: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.875rem',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.15em',
-    color: 'var(--color-text-secondary)',
-  },
   livePill: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -123,78 +102,75 @@ const styles = stylex.create({
 /*  Recent check-ins                                                          */
 /* -------------------------------------------------------------------------- */
 
-export function RecentCheckInsCard({ data }: { data: DashboardOverviewResponse }) {
+/**
+ * The "live" pill that used to sit in the check-ins card's head. Exported so
+ * `RecentActivityCard` can put it in the tab row beside that feed's tab, instead
+ * of the head this feed no longer has.
+ */
+export function LiveNowPill() {
+  const t = useTranslations('admin.dashboard');
+  return (
+    <span {...stylex.props(styles.livePill)}>
+      <span {...stylex.props(styles.liveDot)} />
+      {t('inGymNow.live')}
+    </span>
+  );
+}
+
+export function RecentCheckInsBody({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
   const rows = data.recentCheckIns;
-  return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
-      <div {...stylex.props(styles.cardHead)}>
-        <h2 {...stylex.props(styles.sectionLabel)}>{t('recentCheckIns.title')}</h2>
-        <span {...stylex.props(styles.livePill)}>
-          <span {...stylex.props(styles.liveDot)} />
-          {t('inGymNow.live')}
-        </span>
-      </div>
-      {rows.length === 0 ? (
-        <EmptyState>{t('recentCheckIns.empty')}</EmptyState>
-      ) : (
-        <ul {...stylex.props(styles.checkInGrid)}>
-          {rows.map((row, i) => (
-            <li key={`${row.checkedInAt}-${i}`} {...stylex.props(styles.checkInRow)}>
-              <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
-              <span {...stylex.props(styles.alertMain)}>
-                <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
-                <span {...stylex.props(styles.alertDetail)}>
-                  {row.planName ?? t('recentCheckIns.noPlan')} · {timeAgo(t, row.checkedInAt)}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+  return rows.length === 0 ? (
+    <EmptyState>{t('recentCheckIns.empty')}</EmptyState>
+  ) : (
+    <ul {...stylex.props(styles.checkInGrid)}>
+      {rows.map((row, i) => (
+        <li key={`${row.checkedInAt}-${i}`} {...stylex.props(styles.checkInRow)}>
+          <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
+          <span {...stylex.props(styles.alertMain)}>
+            <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
+            <span {...stylex.props(styles.alertDetail)}>
+              {row.planName ?? t('recentCheckIns.noPlan')} · {timeAgo(t, row.checkedInAt)}
+            </span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
 /**
- * The "recent members" card (gym-admin parity) — the latest joiners with their plan,
+ * The "recent members" body (gym-admin parity) — the latest joiners with their plan,
  * status badge, and membership expiry. Mirrors the recent-check-ins row layout. The
  * payload carries each member's `id` for a future row link into the member's profile
  * route; wiring that link is deferred to a later part of the migration.
  */
-export function RecentMembersCard({ data }: { data: DashboardOverviewResponse }) {
+export function RecentMembersBody({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
   const locale = useLocale();
   const rows = data.recentMembers;
-  return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
-      <div {...stylex.props(styles.cardHead)}>
-        <h2 {...stylex.props(styles.sectionLabel)}>{t('recentMembers.title')}</h2>
-      </div>
-      {rows.length === 0 ? (
-        <EmptyState>{t('recentMembers.empty')}</EmptyState>
-      ) : (
-        <ul {...stylex.props(styles.checkInGrid)}>
-          {rows.map((row) => (
-            <li key={row.id} {...stylex.props(styles.checkInRow)}>
-              <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
-              <span {...stylex.props(styles.alertMain)}>
-                <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
-                <span {...stylex.props(styles.alertDetail)}>
-                  {row.planName ?? t('recentMembers.noPlan')}
-                  {row.expiresAt
-                    ? ` · ${t('recentMembers.expires', { date: formatDate(locale, row.expiresAt) })}`
-                    : ''}
-                </span>
-              </span>
-              <Badge
-                variant={memberStatusVariant(row.status)}
-                label={t(`recentMembers.status.${row.status.toLowerCase()}`)}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+  return rows.length === 0 ? (
+    <EmptyState>{t('recentMembers.empty')}</EmptyState>
+  ) : (
+    <ul {...stylex.props(styles.checkInGrid)}>
+      {rows.map((row) => (
+        <li key={row.id} {...stylex.props(styles.checkInRow)}>
+          <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
+          <span {...stylex.props(styles.alertMain)}>
+            <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
+            <span {...stylex.props(styles.alertDetail)}>
+              {row.planName ?? t('recentMembers.noPlan')}
+              {row.expiresAt
+                ? ` · ${t('recentMembers.expires', { date: formatDate(locale, row.expiresAt) })}`
+                : ''}
+            </span>
+          </span>
+          <Badge
+            variant={memberStatusVariant(row.status)}
+            label={t(`recentMembers.status.${row.status.toLowerCase()}`)}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -15,7 +15,7 @@ import { useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { useRovingTablist } from '../segments/use-roving-tablist';
-import { RecentCheckInsCard, RecentMembersCard } from './recent-cards';
+import { LiveNowPill, RecentCheckInsBody, RecentMembersBody } from './recent-cards';
 
 const FEEDS = ['checkIns', 'members'] as const;
 type Feed = (typeof FEEDS)[number];
@@ -28,12 +28,19 @@ const styles = stylex.create({
   },
   tabs: {
     display: 'flex',
+    alignItems: 'center',
+    // The tab labels take the space; the live pill is pushed to the far end.
+    justifyContent: 'space-between',
     gap: '0.25rem',
     paddingInline: '1.25rem',
     paddingTop: '1rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
     borderBottomColor: 'var(--color-border)',
+  },
+  tabList: {
+    display: 'flex',
+    gap: '0.25rem',
   },
   tab: {
     marginBottom: '-1px',
@@ -71,27 +78,32 @@ export function RecentActivityCard({ data }: { data: DashboardOverviewResponse }
 
   return (
     <Card variant="default" padding={0} xstyle={styles.card}>
-      <div role="tablist" aria-label={t('recentActivity.aria')} {...stylex.props(styles.tabs)}>
-        {FEEDS.map((value, index) => {
-          const isActive = value === feed;
-          return (
-            <button
-              key={value}
-              ref={registerRef(index)}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
-              onClick={() => setFeed(value)}
-              onKeyDown={(event) => onKeyDown(event, index)}
-              {...stylex.props(styles.tab, isActive && styles.active)}
-            >
-              {labels[value]}
-            </button>
-          );
-        })}
+      <div {...stylex.props(styles.tabs)}>
+        <div role="tablist" aria-label={t('recentActivity.aria')} {...stylex.props(styles.tabList)}>
+          {FEEDS.map((value, index) => {
+            const isActive = value === feed;
+            return (
+              <button
+                key={value}
+                ref={registerRef(index)}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => setFeed(value)}
+                onKeyDown={(event) => onKeyDown(event, index)}
+                {...stylex.props(styles.tab, isActive && styles.active)}
+              >
+                {labels[value]}
+              </button>
+            );
+          })}
+        </div>
+        {/* The live pill belonged to the check-ins card's own head; it follows
+            that feed rather than sitting over the members list too. */}
+        {feed === 'checkIns' ? <LiveNowPill /> : null}
       </div>
-      {feed === 'checkIns' ? <RecentCheckInsCard data={data} /> : <RecentMembersCard data={data} />}
+      {feed === 'checkIns' ? <RecentCheckInsBody data={data} /> : <RecentMembersBody data={data} />}
     </Card>
   );
 }

@@ -7,8 +7,9 @@ import type { DashboardOverviewResponse } from '@fit/types';
 // The two feeds are already covered by their own rendering; this test is about
 // the switch between them, so stand them in with markers.
 vi.mock('./recent-cards', () => ({
-  RecentCheckInsCard: () => <div>check-ins feed</div>,
-  RecentMembersCard: () => <div>members feed</div>,
+  RecentCheckInsBody: () => <div>check-ins feed</div>,
+  RecentMembersBody: () => <div>members feed</div>,
+  LiveNowPill: () => <span>live</span>,
 }));
 
 const { RecentActivityCard } = await import('./recent-activity-card');
