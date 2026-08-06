@@ -78,4 +78,17 @@ describe('SegmentTabs', () => {
     await userEvent.keyboard('{Home}');
     expect(onSelect).toHaveBeenCalledWith('overview');
   });
+
+  // The tablist half of the ARIA pattern was in place from the start; this is
+  // the other half — every tab must name the panel it drives, and its own id is
+  // what the panel points back at with aria-labelledby.
+  it('points every tab at the panel and gives each a stable id', () => {
+    renderTabs('overview');
+    for (const segment of ['overview', 'sales', 'members', 'revenue', 'classes', 'staff']) {
+      const label = segment.charAt(0).toUpperCase() + segment.slice(1);
+      const tab = screen.getByRole('tab', { name: label });
+      expect(tab).toHaveAttribute('id', `dashboard-tab-${segment}`);
+      expect(tab).toHaveAttribute('aria-controls', 'dashboard-tabpanel');
+    }
+  });
 });

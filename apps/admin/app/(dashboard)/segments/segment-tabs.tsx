@@ -72,6 +72,8 @@ export function SegmentTabs({
         return (
           <button
             key={segment}
+            id={`dashboard-tab-${segment}`}
+            aria-controls="dashboard-tabpanel"
             ref={registerRef(index)}
             type="button"
             role="tab"

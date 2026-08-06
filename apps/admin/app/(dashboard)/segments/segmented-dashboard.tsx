@@ -121,17 +121,28 @@ export function SegmentedDashboard({
         ) : null}
       </div>
 
-      {active === 'overview' ? <OverviewView data={overview} /> : null}
+      {/*
+        One panel, not two. Both the overview and the lazily-fetched segment live
+        inside it, and `aria-labelledby` follows whichever tab is active — which is
+        what completes the tablist/tabpanel pair the tab bar has always claimed.
 
-      {lastSegment !== null ? (
-        <div
-          key={savedAt}
-          hidden={active === 'overview'}
-          {...stylex.props(active === 'overview' && styles.hidden)}
-        >
-          <SegmentPanel segment={lastSegment} range={range} onLoaded={noteSelection} />
-        </div>
-      ) : null}
+        No `tabIndex={0}` here: the APG asks for it only when a panel has no
+        focusable descendants, and these are full of buttons, links and charts. A
+        tab stop on the container would just be one more thing to tab past.
+      */}
+      <div id="dashboard-tabpanel" role="tabpanel" aria-labelledby={`dashboard-tab-${active}`}>
+        {active === 'overview' ? <OverviewView data={overview} /> : null}
+
+        {lastSegment !== null ? (
+          <div
+            key={savedAt}
+            hidden={active === 'overview'}
+            {...stylex.props(active === 'overview' && styles.hidden)}
+          >
+            <SegmentPanel segment={lastSegment} range={range} onLoaded={noteSelection} />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
