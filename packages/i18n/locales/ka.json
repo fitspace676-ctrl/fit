@@ -256,6 +256,7 @@
           "suspended": "შეჩერებული"
         }
       },
+      "recentActivity": { "aria": "ბოლო აქტივობა" },
       "relative": {
         "justNow": "ახლახან",
         "minutes": "{mins}წთ წინ",

@@ -29,7 +29,7 @@ import { RevenueCard } from './revenue-card';
 import { PlanMixCard } from './plan-mix-card';
 import { ScheduleCard } from './schedule-card';
 import { AlertsCard } from './alerts-card';
-import { RecentCheckInsCard, RecentMembersCard } from './recent-cards';
+import { RecentActivityCard } from './recent-activity-card';
 
 const styles = stylex.create({
   page: {
@@ -100,11 +100,7 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
         <AlertsCard data={data} />
       </section>
 
-      {/* Recent check-ins */}
-      <RecentCheckInsCard data={data} />
-
-      {/* Recent members (gym-admin parity) */}
-      <RecentMembersCard data={data} />
+      <RecentActivityCard data={data} />
     </div>
   );
 }

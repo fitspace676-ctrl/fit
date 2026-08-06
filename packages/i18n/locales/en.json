@@ -256,6 +256,7 @@
           "suspended": "Suspended"
         }
       },
+      "recentActivity": { "aria": "Recent activity" },
       "relative": {
         "justNow": "just now",
         "minutes": "{mins}m ago",
