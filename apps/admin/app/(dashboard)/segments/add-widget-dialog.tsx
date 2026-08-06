@@ -30,6 +30,7 @@ import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent, LayoutFooter } from '@astryxdesign/core/Layout';
 import { Icon } from '@/components/ui';
 import { saveSegmentWidgetsAction } from './actions';
+import { useRovingTablist } from './use-roving-tablist';
 
 type Selection = Record<ConfigurableDashboardSegment, string[]>;
 
@@ -108,6 +109,13 @@ export function AddWidgetDialog({
   const catalogue = useMemo(() => widgetsForSegment(tab), [tab]);
   const chosen = draft[tab] ?? [];
   const isLast = chosen.length === 1;
+  // The same roving-tabindex keyboard contract as the dashboard's own segment
+  // bar (`segment-tabs.tsx`) — the two are the same tablist idea and must not
+  // diverge on what `role="tab"` promises the keyboard.
+  const { registerRef, onKeyDown: onTabKeyDown } = useRovingTablist(
+    CONFIGURABLE_DASHBOARD_SEGMENTS,
+    setTab,
+  );
 
   function openDialog(): void {
     // Each open starts from what's actually saved — any abandoned edit from a
@@ -168,18 +176,24 @@ export function AddWidgetDialog({
               <p {...stylex.props(styles.note)}>{t('shared')}</p>
 
               <div role="tablist" aria-label={tSegments('aria')} {...stylex.props(styles.tabs)}>
-                {CONFIGURABLE_DASHBOARD_SEGMENTS.map((segment) => (
-                  <button
-                    key={segment}
-                    type="button"
-                    role="tab"
-                    aria-selected={segment === tab}
-                    onClick={() => setTab(segment)}
-                    {...stylex.props(styles.tab, segment === tab && styles.tabActive)}
-                  >
-                    {tSegments(segment)}
-                  </button>
-                ))}
+                {CONFIGURABLE_DASHBOARD_SEGMENTS.map((segment, index) => {
+                  const isActive = segment === tab;
+                  return (
+                    <button
+                      key={segment}
+                      ref={registerRef(index)}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      tabIndex={isActive ? 0 : -1}
+                      onClick={() => setTab(segment)}
+                      onKeyDown={(event) => onTabKeyDown(event, index)}
+                      {...stylex.props(styles.tab, isActive && styles.tabActive)}
+                    >
+                      {tSegments(segment)}
+                    </button>
+                  );
+                })}
               </div>
 
               <div {...stylex.props(styles.list)}>

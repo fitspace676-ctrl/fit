@@ -123,4 +123,46 @@ describe('AddWidgetDialog', () => {
     expect(await screen.findByText("Couldn't save your widgets.")).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
+
+  // The tab bar announces role="tablist"/role="tab" — it must honour the
+  // roving-tabindex keyboard contract that announcement promises, the same
+  // one `segment-tabs.test.tsx` pins for the dashboard's own segment bar.
+  it('keeps only the active tab in the tab order', async () => {
+    renderDialog({ sales: ALL_SALES });
+    await userEvent.click(screen.getByRole('button', { name: 'Add widget' }));
+
+    expect(screen.getByRole('tab', { name: 'Sales' })).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('tab', { name: 'Members' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('tab', { name: 'Staff' })).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('moves through the tabs with the arrow keys and wraps at both ends', async () => {
+    renderDialog({ sales: ALL_SALES });
+    await userEvent.click(screen.getByRole('button', { name: 'Add widget' }));
+
+    // Sales is first — ArrowLeft must wrap to the last tab, Staff.
+    screen.getByRole('tab', { name: 'Sales' }).focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(screen.getByRole('tab', { name: 'Staff' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Staff' })).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('tab', { name: 'Sales' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('checkbox', { name: 'Sessions per trainer' })).toBeInTheDocument();
+
+    // Staff is last — ArrowRight must wrap back to the first tab, Sales.
+    await userEvent.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Sales' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('checkbox', { name: 'Top-selling plans' })).toBeInTheDocument();
+  });
+
+  it('jumps to the first and last segment on Home and End', async () => {
+    renderDialog({ sales: ALL_SALES });
+    await userEvent.click(screen.getByRole('button', { name: 'Add widget' }));
+
+    screen.getByRole('tab', { name: 'Sales' }).focus();
+    await userEvent.keyboard('{End}');
+    expect(screen.getByRole('tab', { name: 'Staff' })).toHaveAttribute('aria-selected', 'true');
+
+    await userEvent.keyboard('{Home}');
+    expect(screen.getByRole('tab', { name: 'Sales' })).toHaveAttribute('aria-selected', 'true');
+  });
 });

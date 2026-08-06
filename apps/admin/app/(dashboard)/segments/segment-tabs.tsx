@@ -11,10 +11,10 @@
 // Distinct from Astryx's `SegmentedControl`, which this screen already uses for
 // the period filter. Segments here are dashboard sections, not a value picker.
 
-import { useRef, type KeyboardEvent } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { DASHBOARD_SEGMENTS, type DashboardSegment } from '@fit/types';
+import { useRovingTablist } from './use-roving-tablist';
 
 const styles = stylex.create({
   list: {
@@ -63,42 +63,7 @@ export function SegmentTabs({
   onSelect: (segment: DashboardSegment) => void;
 }) {
   const t = useTranslations('admin.dashboard.segments');
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  // Move focus and selection together, wrapping at both ends.
-  const focusTab = (index: number): void => {
-    const count = DASHBOARD_SEGMENTS.length;
-    const wrapped = ((index % count) + count) % count;
-    const segment = DASHBOARD_SEGMENTS[wrapped];
-    if (!segment) return;
-    tabRefs.current[wrapped]?.focus();
-    onSelect(segment);
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
-    switch (event.key) {
-      case 'ArrowRight':
-      case 'ArrowDown':
-        event.preventDefault();
-        focusTab(index + 1);
-        break;
-      case 'ArrowLeft':
-      case 'ArrowUp':
-        event.preventDefault();
-        focusTab(index - 1);
-        break;
-      case 'Home':
-        event.preventDefault();
-        focusTab(0);
-        break;
-      case 'End':
-        event.preventDefault();
-        focusTab(DASHBOARD_SEGMENTS.length - 1);
-        break;
-      default:
-        break;
-    }
-  };
+  const { registerRef, onKeyDown } = useRovingTablist(DASHBOARD_SEGMENTS, onSelect);
 
   return (
     <div role="tablist" aria-label={t('aria')} {...stylex.props(styles.list)}>
@@ -107,9 +72,7 @@ export function SegmentTabs({
         return (
           <button
             key={segment}
-            ref={(el) => {
-              tabRefs.current[index] = el;
-            }}
+            ref={registerRef(index)}
             type="button"
             role="tab"
             aria-selected={isActive}
