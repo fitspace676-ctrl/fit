@@ -7,10 +7,20 @@ import type { ReportDrilldownService } from '../reports/report-drilldown.service
 
 function setup() {
   const findMany = vi.fn().mockResolvedValue([]);
+  // Outer-client spies. A `setWidgets` run must NEVER touch these directly — a
+  // statement issued on `this.prisma.client` inside the transaction callback
+  // would silently run outside the transaction. `txDeleteMany`/`txCreateMany`
+  // below are the ONLY spies the callback handed to `$transaction` exposes, so
+  // asserting on them (and asserting these outer ones stay untouched) is what
+  // actually proves the writes went through `tx`, not around it.
   const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
   const createMany = vi.fn().mockResolvedValue({ count: 0 });
+  const txDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
+  const txCreateMany = vi.fn().mockResolvedValue({ count: 0 });
   const $transaction = vi.fn((fn: (tx: unknown) => unknown) =>
-    Promise.resolve(fn({ dashboardWidget: { deleteMany, createMany } })),
+    Promise.resolve(
+      fn({ dashboardWidget: { deleteMany: txDeleteMany, createMany: txCreateMany } }),
+    ),
   );
 
   const client = { dashboardWidget: { findMany, deleteMany, createMany }, $transaction };
@@ -25,6 +35,8 @@ function setup() {
     findMany,
     deleteMany,
     createMany,
+    txDeleteMany,
+    txCreateMany,
     run,
   };
 }
@@ -164,47 +176,52 @@ describe('DashboardSegmentsService.setWidgets', () => {
   afterEach(() => vi.clearAllMocks());
 
   it('replaces the segment slice in one transaction, numbering positions densely', async () => {
-    const { service, deleteMany, createMany } = setup();
+    const { service, deleteMany, createMany, txDeleteMany, txCreateMany } = setup();
 
     await service.setWidgets('sales', ['sales.top-plans', 'sales.payment-method']);
 
-    expect(deleteMany).toHaveBeenCalledWith({ where: { gymId: 'gym-1', segment: 'sales' } });
-    expect(createMany).toHaveBeenCalledWith({
+    expect(txDeleteMany).toHaveBeenCalledWith({ where: { gymId: 'gym-1', segment: 'sales' } });
+    expect(txCreateMany).toHaveBeenCalledWith({
       data: [
         { gymId: 'gym-1', segment: 'sales', widgetKey: 'sales.top-plans', position: 0 },
         { gymId: 'gym-1', segment: 'sales', widgetKey: 'sales.payment-method', position: 1 },
       ],
     });
+    // The writes must go through `tx`, never the outer client — a statement on
+    // the outer client inside the transaction callback would silently run
+    // outside the transaction.
+    expect(deleteMany).not.toHaveBeenCalled();
+    expect(createMany).not.toHaveBeenCalled();
   });
 
   it('refuses a key the catalogue does not define', async () => {
-    const { service, deleteMany } = setup();
+    const { service, txDeleteMany } = setup();
     await expect(service.setWidgets('sales', ['sales.nope'])).rejects.toThrow(/sales\.nope/);
-    expect(deleteMany).not.toHaveBeenCalled();
+    expect(txDeleteMany).not.toHaveBeenCalled();
   });
 
   it('refuses a key belonging to another segment', async () => {
-    const { service, deleteMany } = setup();
+    const { service, txDeleteMany } = setup();
     await expect(service.setWidgets('sales', ['revenue.over-time'])).rejects.toThrow(
       /revenue\.over-time/,
     );
-    expect(deleteMany).not.toHaveBeenCalled();
+    expect(txDeleteMany).not.toHaveBeenCalled();
   });
 
   // A duplicate would trip the (gym, segment, widgetKey) unique index mid-write;
   // rejecting up front turns a 500 into a 400.
   it('refuses a duplicated key', async () => {
-    const { service, deleteMany } = setup();
+    const { service, txDeleteMany } = setup();
     await expect(
       service.setWidgets('sales', ['sales.top-plans', 'sales.top-plans']),
     ).rejects.toThrow(/sales\.top-plans/);
-    expect(deleteMany).not.toHaveBeenCalled();
+    expect(txDeleteMany).not.toHaveBeenCalled();
   });
 
   it('validates every key before writing anything', async () => {
-    const { service, deleteMany, createMany } = setup();
+    const { service, txDeleteMany, txCreateMany } = setup();
     await expect(service.setWidgets('sales', ['sales.top-plans', 'sales.nope'])).rejects.toThrow();
-    expect(deleteMany).not.toHaveBeenCalled();
-    expect(createMany).not.toHaveBeenCalled();
+    expect(txDeleteMany).not.toHaveBeenCalled();
+    expect(txCreateMany).not.toHaveBeenCalled();
   });
 });
