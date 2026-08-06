@@ -440,7 +440,7 @@ model Gym {
   loyaltyLedger           LoyaltyLedgerEntry[]
   loyaltyRewards          LoyaltyReward[]
   loyaltyRedemptions      LoyaltyRedemption[]
-  dashboardPins           DashboardPin[]
+  dashboardWidgets        DashboardWidget[]
   agentChatSessions       AgentChatSession[]
   staffNotes              StaffNote[]
   staffTasks              StaffTask[]
@@ -490,7 +490,6 @@ model User {
   crmActivities           CrmActivity[]
   automationRules         AutomationRule[]         @relation("AutomationRuleCreatedBy")
   campaigns               Campaign[]               @relation("CampaignCreatedBy")
-  dashboardPins           DashboardPin[]
   agentChatSessions       AgentChatSession[]
 
   @@map("users")
@@ -2635,31 +2634,36 @@ model LoyaltyRedemption {
   @@map("loyalty_redemptions")
 }
 
-/// A staff member's pinned report widget (T12.12). Each row pins one section of a
-/// drill-down report (`metric` + `section`) to that user's admin dashboard, scoped
-/// to the gym they pinned it in. Deliberately kept OUT of the tenant Prisma
-/// extension's auto-scoped models (like {@link CheckIn}): the pins service pins the
-/// tenant explicitly (`gymId` from the request context) and additionally filters by
-/// the authenticated `userId`, since a pin is per-user, not gym-wide. The
-/// (gym, user, metric, section) tuple is unique so re-pinning the same widget is
-/// idempotent.
-model DashboardPin {
+/// One widget a gym has chosen to show in one dashboard segment. Gym-scoped and
+/// SHARED: unlike the per-user `DashboardPin` it replaces, every staff member at
+/// the gym sees the same dashboard, so a manager arranging it arranges it for the
+/// team.
+///
+/// `segment` and `widgetKey` are plain strings, not Prisma enums: the catalogue in
+/// `@fit/types` (`DASHBOARD_WIDGET_CATALOG`) is the source of truth, and a row
+/// naming a key the catalogue no longer defines is dropped at read time rather
+/// than migrated. That keeps adding a segment or a widget a code-only change.
+///
+/// No rows for a `(gym, segment)` means "never configured", which reads as the
+/// catalogue default — so the API refuses to store an empty selection, otherwise
+/// "the owner removed everything" would be indistinguishable from it.
+model DashboardWidget {
   id        String   @id @default(cuid())
   gymId     String
-  userId    String
-  /// The drill-down report the pinned widget belongs to (`revenue` / `members` /
-  /// `attendance`); validated against `reportMetricSchema` in `@fit/types`.
-  metric    String
-  /// The pinned section's stable id within that report (e.g. `revenue-over-time`).
-  section   String
+  /// The dashboard segment this widget sits in; validated against
+  /// `configurableDashboardSegmentSchema` in `@fit/types`.
+  segment   String
+  /// Catalogue key, `<segment>.<name>` (e.g. `revenue.over-time`).
+  widgetKey String
+  /// Display order within the segment, 0-based and dense.
+  position  Int
   createdAt DateTime @default(now())
 
-  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
-  @@unique([gymId, userId, metric, section])
-  @@index([gymId, userId])
-  @@map("dashboard_pins")
+  @@unique([gymId, segment, widgetKey])
+  @@index([gymId, segment, position])
+  @@map("dashboard_widgets")
 }
 
 /// A time-off request's lifecycle (T12.14). Starts `pending`; a manager
