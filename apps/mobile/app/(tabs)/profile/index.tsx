@@ -561,7 +561,7 @@ export default function ProfileScreen() {
             </View>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push('/profile/training')}
+              onPress={() => router.push('/profile/billing')}
               className="h-9 justify-center rounded-btn border border-white/15 bg-white/[0.07] px-3.5 active:bg-white/[0.12]"
             >
               <Text className="text-xs font-semibold text-white">
@@ -709,6 +709,13 @@ export default function ProfileScreen() {
               label={t('member.profile.mobile.menu.training')}
               hint={t('member.profile.mobile.menu.trainingHint')}
               onPress={() => router.push('/profile/training')}
+            />
+            <MenuRow
+              glyph="🧾"
+              tone="iris"
+              label={t('member.profile.mobile.menu.billing')}
+              hint={t('member.profile.mobile.menu.billingHint')}
+              onPress={() => router.push('/profile/billing')}
             />
             <MenuRow
               glyph="🧑‍🏫"

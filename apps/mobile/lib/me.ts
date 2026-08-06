@@ -62,6 +62,73 @@ export async function fetchMeSubscription({
 }
 
 /**
+ * One line of the member's billing history, as `GET /me/subscription` returns it.
+ *
+ * Deliberately declared here rather than reusing `@fit/types`' `MemberInvoice`:
+ * that one describes the *admin* member-detail row (`number`, `issuedAt`, a
+ * downloadable PDF), while this endpoint sends the member's own thinner
+ * projection — `date`, no invoice number. The portal's membership page keeps the
+ * same local shape for the same reason.
+ */
+export interface MemberBillingInvoice {
+  id: string;
+  /** ISO instant the invoice was raised. */
+  date: string;
+  /** Amount in minor currency units (tetri). */
+  amount: number;
+  currency: string;
+  /** Settlement state — `PAID` / `PENDING` / `FAILED` / `REFUNDED`. */
+  status: string;
+}
+
+/**
+ * Fetch the member's billing history from `GET /me/subscription` — the same read
+ * as {@link fetchMeSubscription}, projected onto the `invoices` it also returns.
+ *
+ * Hand-parsed rather than Zod'd because a malformed row must not take the whole
+ * list down: an unreadable entry is dropped and the rest still render, which is
+ * the right failure for a history screen. `[]` on `401`/`403`, or for a member
+ * who has never been invoiced.
+ */
+export async function fetchMeInvoices({ signal }: FetchMeArgs = {}): Promise<
+  MemberBillingInvoice[]
+> {
+  const response = await apiFetch('/me/subscription', {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    return [];
+  }
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Failed to load billing history (${response.status})`);
+  }
+
+  const body = (await response.json().catch(() => null)) as { invoices?: unknown } | null;
+  const rows = Array.isArray(body?.invoices) ? body.invoices : [];
+
+  return rows.flatMap((entry): MemberBillingInvoice[] => {
+    if (!entry || typeof entry !== 'object') return [];
+    const r = entry as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id : null;
+    const date = typeof r.date === 'string' ? r.date : null;
+    if (!id || !date) return [];
+    return [
+      {
+        id,
+        date,
+        amount: typeof r.amount === 'number' ? r.amount : 0,
+        currency: typeof r.currency === 'string' ? r.currency : 'GEL',
+        status: typeof r.status === 'string' ? r.status : 'PAID',
+      },
+    ];
+  });
+}
+
+/**
  * Fetch the signed-in member's profile via `GET /me/profile`, parsed and
  * validated. Returns `null` on a `401`/`403` so the caller falls back to the
  * session identity.

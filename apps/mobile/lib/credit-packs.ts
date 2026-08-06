@@ -12,7 +12,12 @@
 // (the token can no longer read this member) degrades to an empty list rather than
 // throwing — the card then simply shows "No PT sessions left".
 
-import { creditPackSummarySchema, type CreditPackSummary } from '@fit/types';
+import {
+  creditPackCatalogueEntrySchema,
+  creditPackSummarySchema,
+  type CreditPackCatalogueEntry,
+  type CreditPackSummary,
+} from '@fit/types';
 import { apiFetch } from './api-client';
 
 /** Arguments for {@link fetchMyCreditPacks}. */
@@ -51,4 +56,34 @@ export async function fetchMyCreditPacks({ signal }: FetchCreditPacksArgs = {}):
 /** Sum the live `remainingCredits` across `packs` — the member's PT session balance. */
 export function totalRemainingCredits(packs: CreditPackSummary[]): number {
   return packs.reduce((sum, pack) => sum + pack.remainingCredits, 0);
+}
+
+/**
+ * Fetch the gym's buyable credit packs via `GET /credit-packs/catalogue` — the
+ * "Buy credits" picker, the counterpart to {@link fetchMyCreditPacks}'s "what I
+ * already hold". The portal's membership page reads the same endpoint.
+ *
+ * Degrades to `[]` on a `401`/`403` for the same reason as above: the screen
+ * should render its balance with no purchase option rather than fail whole.
+ */
+export async function fetchCreditPackCatalogue({ signal }: FetchCreditPacksArgs = {}): Promise<
+  CreditPackCatalogueEntry[]
+> {
+  const response = await apiFetch('/credit-packs/catalogue', {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    return [];
+  }
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ?? `Failed to load credit-pack catalogue (${response.status})`);
+  }
+
+  const body = (await response.json()) as { packs?: unknown };
+  const packs = Array.isArray(body.packs) ? body.packs : [];
+  return packs.map((pack) => creditPackCatalogueEntrySchema.parse(pack));
 }

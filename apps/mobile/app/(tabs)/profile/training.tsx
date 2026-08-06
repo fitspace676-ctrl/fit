@@ -1,13 +1,23 @@
-import { useMemo, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
-import { useI18n, useTheme } from '../../../providers';
+import type { PackageSummary } from '@fit/types';
+import { useI18n, useTheme, useToast } from '../../../providers';
 import { useActiveGymId } from '../../../hooks/useActiveGym';
 import { usePackages } from '../../../hooks/usePackages';
 import { useMemberBookings } from '../../../hooks/useMemberBookings';
 import { PackageCard } from '../../../components/packages/PackageCard';
 import { BookingCard } from '../../../components/bookings/BookingCard';
+import { checkout } from '../../../lib/checkout';
 
 /**
  * Personal Training screen (T6.6), reachable from the Profile tab. Two sections
@@ -26,11 +36,66 @@ import { BookingCard } from '../../../components/bookings/BookingCard';
 export default function TrainingScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const toast = useToast();
   const insets = useSafeAreaInsets();
 
   const gymId = useActiveGymId();
   const packages = usePackages(gymId);
   const bookings = useMemberBookings(gymId, 'upcoming');
+
+  // The id of the plan being bought, so only its own card spins while every
+  // other button dims — one purchase at a time, and it is obvious which one.
+  const [buyingId, setBuyingId] = useState<string | null>(null);
+
+  /**
+   * Buy `pkg` behind a confirmation. The prompt says the payment is settled at
+   * the gym, because it is: `POST /checkout` reserves the membership but there
+   * is no gateway behind it yet, and a button that reads like it charges a card
+   * would be a lie.
+   *
+   * The API's coded failures each get their own sentence — "no longer on sale"
+   * and "you already have a membership" are things the member can act on, and
+   * collapsing them into one generic error would strand them.
+   */
+  const onBuy = useCallback(
+    (pkg: PackageSummary) => {
+      Alert.alert(
+        t('training.packages.confirmTitle', { name: pkg.name }),
+        t('training.packages.confirmBody'),
+        [
+          { text: t('training.packages.cancel'), style: 'cancel' },
+          {
+            text: t('training.packages.confirmCta'),
+            style: 'default',
+            onPress: () => {
+              setBuyingId(pkg.id);
+              void checkout({ productType: 'package', productId: pkg.id })
+                .then((result) => {
+                  if (result.ok) {
+                    toast.success(t('training.packages.boughtToast', { name: pkg.name }));
+                    // The purchase changes what the member holds, so re-read the
+                    // catalogue (a one-per-member plan may drop off it).
+                    void packages.refetch();
+                    return;
+                  }
+                  const message =
+                    result.code === 'PRODUCT_UNAVAILABLE'
+                      ? t('training.packages.errUnavailable')
+                      : result.code === 'ALREADY_SUBSCRIBED'
+                        ? t('training.packages.errAlreadySubscribed')
+                        : result.code === 'FORBIDDEN'
+                          ? t('training.packages.errNoMembership')
+                          : t('training.packages.errGeneric');
+                  toast.error(message);
+                })
+                .finally(() => setBuyingId(null));
+            },
+          },
+        ],
+      );
+    },
+    [packages, t, toast],
+  );
 
   const packageList = useMemo(() => packages.data ?? [], [packages.data]);
   const upcoming = useMemo(() => bookings.data ?? [], [bookings.data]);
@@ -78,7 +143,13 @@ export default function TrainingScreen() {
         ) : (
           <View style={{ gap: 12 }}>
             {packageList.map((pkg) => (
-              <PackageCard key={pkg.id} pkg={pkg} />
+              <PackageCard
+                key={pkg.id}
+                pkg={pkg}
+                onBuy={onBuy}
+                busy={buyingId === pkg.id}
+                disabled={buyingId !== null && buyingId !== pkg.id}
+              />
             ))}
           </View>
         )}
