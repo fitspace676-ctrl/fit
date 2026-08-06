@@ -75,6 +75,23 @@ describe('SegmentedDashboard', () => {
     );
   });
 
+  // The load-bearing one. `initialSegment` is the server's parse of the URL at
+  // request time; `?segment=` is what the URL says NOW, and every client-side tab
+  // switch moves the second without the first. So the two are made to disagree
+  // here, and the query has to win — without this case, deleting the URL parse
+  // outright and returning `initialSegment` would still pass every other test,
+  // because in all of them the prop and the expected answer coincide.
+  it('prefers the live query over the segment the server first rendered', () => {
+    navigationMock.setSearch('segment=members');
+    renderShell('overview');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute(
+      'aria-labelledby',
+      'dashboard-tab-members',
+    );
+    expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
+    expect(screen.getByTestId('panel')).toHaveTextContent('members');
+  });
+
   // `?segment=` is user-editable. An unrecognised value must land on the default
   // rather than reach SegmentPanel as a segment the API has never heard of.
   it('falls back to the default segment on an unrecognised query value', () => {
