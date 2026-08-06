@@ -27,7 +27,7 @@
 | `apps/admin/test/next-navigation-mock.ts` **new**                                                  | Shared Vitest mock for `useRouter` / `usePathname` / `useSearchParams`. No test mocks these today; three new tests need them. |
 | `apps/admin/app/(dashboard)/dashboard-header.tsx` **new**                                          | `<h1>`, subtitle, and the tab-appropriate date filter. Sole writer of `?period=` / `?from=` / `?to=` / `?range=`.             |
 | `apps/admin/app/(dashboard)/overview/metric-strip.tsx` **new**                                     | Nine metrics, two tiers, one container. Absorbs `DeltaChip`.                                                                  |
-| `apps/admin/app/(dashboard)/overview/recent-activity-card.tsx` **new**                             | `RecentCheckInsCard` + `RecentMembersCard` behind a tab switch.                                                               |
+| `apps/admin/app/(dashboard)/overview/recent-activity-card.tsx` **new**                             | The two recent feeds behind a tab switch, owning the single card they share.                                                  |
 | `apps/admin/app/(dashboard)/overview/overview-view.tsx` **modified**                               | Header removed, KPI rows replaced by the strip, cards regrouped into main column + rail.                                      |
 | `apps/admin/app/(dashboard)/segments/segmented-dashboard.tsx` **modified**                         | Renders the header; wraps its contents in one `role="tabpanel"`.                                                              |
 | `apps/admin/app/(dashboard)/segments/segment-tabs.tsx` **modified**                                | `id` + `aria-controls` on each tab.                                                                                           |
@@ -1282,7 +1282,7 @@ trend."
 
 ### Task 5: Merge the two recent-activity cards
 
-`RecentCheckInsCard` and `RecentMembersCard` are two full-width cards stacked at the foot of the page. They are the same kind of thing — a short feed of recent rows — and belong behind one switch.
+`RecentCheckInsCard` and `RecentMembersCard` are two full-width cards stacked at the foot of the page. They are the same kind of thing — a short feed of recent rows — and belong behind one switch, sharing one card between them.
 
 **Files:**
 
@@ -1294,7 +1294,7 @@ trend."
 **Interfaces:**
 
 - Consumes: nothing from earlier tasks.
-- Produces: `RecentActivityCard({ data }: { data: DashboardOverviewResponse })`. Task 6 places it in the rail. `RecentCheckInsCard` and `RecentMembersCard` keep their existing signatures and stay exported from `recent-cards.tsx`.
+- Produces: `RecentActivityCard({ data }: { data: DashboardOverviewResponse })`. Task 6 places it in the rail. `recent-cards.tsx` now exports `RecentCheckInsBody`, `RecentMembersBody` and `LiveNowPill` — the two `*Card` exports are renamed away, not kept alongside.
 
 - [ ] **Step 1: Add the switch's accessible name**
 
@@ -1324,8 +1324,9 @@ import type { DashboardOverviewResponse } from '@fit/types';
 // The two feeds are already covered by their own rendering; this test is about
 // the switch between them, so stand them in with markers.
 vi.mock('./recent-cards', () => ({
-  RecentCheckInsCard: () => <div>check-ins feed</div>,
-  RecentMembersCard: () => <div>members feed</div>,
+  RecentCheckInsBody: () => <div>check-ins feed</div>,
+  RecentMembersBody: () => <div>members feed</div>,
+  LiveNowPill: () => <span>live</span>,
 }));
 
 const { RecentActivityCard } = await import('./recent-activity-card');
@@ -1407,7 +1408,7 @@ import { useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { useRovingTablist } from '../segments/use-roving-tablist';
-import { RecentCheckInsCard, RecentMembersCard } from './recent-cards';
+import { LiveNowPill, RecentCheckInsBody, RecentMembersBody } from './recent-cards';
 
 const FEEDS = ['checkIns', 'members'] as const;
 type Feed = (typeof FEEDS)[number];
@@ -1420,12 +1421,19 @@ const styles = stylex.create({
   },
   tabs: {
     display: 'flex',
+    alignItems: 'center',
+    // The tab labels take the space; the live pill is pushed to the far end.
+    justifyContent: 'space-between',
     gap: '0.25rem',
     paddingInline: '1.25rem',
     paddingTop: '1rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
     borderBottomColor: 'var(--color-border)',
+  },
+  tabList: {
+    display: 'flex',
+    gap: '0.25rem',
   },
   tab: {
     marginBottom: '-1px',
@@ -1463,31 +1471,65 @@ export function RecentActivityCard({ data }: { data: DashboardOverviewResponse }
 
   return (
     <Card variant="default" padding={0} xstyle={styles.card}>
-      <div role="tablist" aria-label={t('recentActivity.aria')} {...stylex.props(styles.tabs)}>
-        {FEEDS.map((value, index) => {
-          const isActive = value === feed;
-          return (
-            <button
-              key={value}
-              ref={registerRef(index)}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
-              onClick={() => setFeed(value)}
-              onKeyDown={(event) => onKeyDown(event, index)}
-              {...stylex.props(styles.tab, isActive && styles.active)}
-            >
-              {labels[value]}
-            </button>
-          );
-        })}
+      <div {...stylex.props(styles.tabs)}>
+        <div role="tablist" aria-label={t('recentActivity.aria')} {...stylex.props(styles.tabList)}>
+          {FEEDS.map((value, index) => {
+            const isActive = value === feed;
+            return (
+              <button
+                key={value}
+                ref={registerRef(index)}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => setFeed(value)}
+                onKeyDown={(event) => onKeyDown(event, index)}
+                {...stylex.props(styles.tab, isActive && styles.active)}
+              >
+                {labels[value]}
+              </button>
+            );
+          })}
+        </div>
+        {/* The live pill belonged to the check-ins card's own head; it follows
+            that feed rather than sitting over the members list too. */}
+        {feed === 'checkIns' ? <LiveNowPill /> : null}
       </div>
-      {feed === 'checkIns' ? <RecentCheckInsCard data={data} /> : <RecentMembersCard data={data} />}
+      {feed === 'checkIns' ? <RecentCheckInsBody data={data} /> : <RecentMembersBody data={data} />}
     </Card>
   );
 }
 ```
+
+**Why the feeds become bodies rather than staying cards.** `RecentCheckInsCard` and `RecentMembersCard` each render their own Astryx `Card` — `variant="default"` unconditionally applies a border, the card background and a radius — and each renders its own `<h2>` title in a `cardHead`. Nesting them inside this card would draw two borders and two backgrounds, and print the feed's title twice: once as the tab label, once as the heading below it. Step 4a below strips both from the feeds, leaving the list, and moves the check-ins live pill out as its own tiny export so this card can place it in the tab row.
+
+- [ ] **Step 4a: Reduce the two feeds to bodies**
+
+In `apps/admin/app/(dashboard)/overview/recent-cards.tsx`:
+
+1. Rename `RecentCheckInsCard` → `RecentCheckInsBody` and `RecentMembersCard` → `RecentMembersBody`. Nothing else in the console imports the old names — `RecentActivityCard` is their only consumer — so this is a rename, not a deprecation.
+2. In each, delete the `<Card variant="default" padding={0} xstyle={styles.card}>` wrapper and the `<div {...stylex.props(styles.cardHead)}>` block, returning the `rows.length === 0 ? <EmptyState…> : <ul…>` expression directly (wrap in a fragment if needed).
+3. Add the live pill as its own export, reusing the styles already in that file:
+
+```tsx
+/**
+ * The "live" pill that used to sit in the check-ins card's head. Exported so
+ * `RecentActivityCard` can put it in the tab row beside that feed's tab, instead
+ * of the head this feed no longer has.
+ */
+export function LiveNowPill() {
+  const t = useTranslations('admin.dashboard');
+  return (
+    <span {...stylex.props(styles.livePill)}>
+      <span {...stylex.props(styles.liveDot)} />
+      {t('inGymNow.live')}
+    </span>
+  );
+}
+```
+
+4. Leave `styles.card` and `styles.cardHead` in place if other components in the file still use them; delete them only if the two renames orphaned them. `pnpm --filter @fit/admin lint` will tell you.
 
 - [ ] **Step 5: Run the test and watch it pass**
 
@@ -1507,7 +1549,7 @@ In `overview-view.tsx`, replace the import and the two trailing cards.
 import { RecentActivityCard } from './recent-activity-card';
 ```
 
-Delete `import { RecentCheckInsCard, RecentMembersCard } from './recent-cards';` and replace both trailing elements:
+Delete `import { RecentCheckInsCard, RecentMembersCard } from './recent-cards';` — those names no longer exist — and replace both trailing elements:
 
 ```tsx
 {
@@ -1527,7 +1569,7 @@ with:
 <RecentActivityCard data={data} />
 ```
 
-`recent-cards.tsx` keeps both exports — `RecentActivityCard` is now their only consumer.
+`recent-cards.tsx` exports only the two bodies and the pill now; `RecentActivityCard` is their only consumer.
 
 - [ ] **Step 7: Verify**
 
