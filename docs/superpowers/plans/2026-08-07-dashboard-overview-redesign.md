@@ -165,7 +165,7 @@ pnpm --filter @fit/admin type-check
 pnpm --filter @fit/admin test
 ```
 
-Expected: type-check clean; 29 tests passing across 5 files.
+Expected: type-check clean; the full admin suite green, with one more test in `segment-tabs.test.tsx` than before. Do not treat an absolute suite count as the gate — the suite spans the whole admin app and grows as this plan proceeds; the gate is "green, and my new tests are in it".
 
 - [ ] **Step 7: Commit**
 
@@ -330,6 +330,23 @@ describe('SegmentedDashboard', () => {
     );
   });
 
+  // The load-bearing one. `initialSegment` is the server's parse of the URL at
+  // request time; `?segment=` is what the URL says NOW, and every client-side tab
+  // switch moves the second without the first. So the two are made to disagree
+  // here, and the query has to win — without this case, deleting the URL parse
+  // outright and returning `initialSegment` would still pass every other test,
+  // because in all of them the prop and the expected answer coincide.
+  it('prefers the live query over the segment the server first rendered', () => {
+    navigationMock.setSearch('segment=members');
+    renderShell('overview');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute(
+      'aria-labelledby',
+      'dashboard-tab-members',
+    );
+    expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
+    expect(screen.getByTestId('panel')).toHaveTextContent('members');
+  });
+
   // `?segment=` is user-editable. An unrecognised value must land on the default
   // rather than reach SegmentPanel as a segment the API has never heard of.
   it('falls back to the default segment on an unrecognised query value', () => {
@@ -403,7 +420,7 @@ describe('SegmentedDashboard', () => {
 pnpm --filter @fit/admin test -- segmented-dashboard
 ```
 
-Expected: FAIL — `Cannot find module '@/test/next-navigation-mock'` if Step 1 was skipped, otherwise all six assertions run against the real component. Any failure here is a genuine defect: read it before changing the test.
+Expected: FAIL — `Cannot find module '@/test/next-navigation-mock'` if Step 1 was skipped, otherwise all seven tests run against the real component. Any failure here is a genuine defect: read it before changing the test.
 
 - [ ] **Step 4: Make the tests pass**
 
@@ -438,7 +455,7 @@ pnpm --filter @fit/admin type-check
 pnpm --filter @fit/admin test
 ```
 
-Expected: type-check clean; 35 tests across 6 files.
+Expected: type-check clean; the full admin suite green, including the 7 new tests in `segmented-dashboard.test.tsx`.
 
 - [ ] **Step 7: Commit**
 
@@ -819,7 +836,7 @@ pnpm --filter @fit/admin type-check
 pnpm --filter @fit/admin test
 ```
 
-Expected: type-check clean; 41 tests across 7 files.
+Expected: type-check clean; the full admin suite green, including the 6 new tests in `dashboard-header.test.tsx`.
 
 Then, with the dev server running (`pnpm --filter @fit/admin dev`), open `http://localhost:3002/admin` and confirm: the title shows on every tab; Overview shows the period control and no range control; clicking Sales swaps it for a `7d / 30d / 12w` control; changing that control refetches the widgets.
 
@@ -1243,7 +1260,7 @@ pnpm --filter @fit/admin test
 pnpm check:tailwind-guardrail
 ```
 
-Expected: type-check clean (a failure here means a leftover `KpiCard` reference); 46 tests across 8 files; guardrail clean.
+Expected: type-check clean (a failure here means a leftover `KpiCard` reference); the full admin suite green, including the 5 new tests in `metric-strip.test.tsx`; guardrail clean.
 
 - [ ] **Step 9: Commit**
 
@@ -1519,7 +1536,7 @@ pnpm --filter @fit/admin type-check
 pnpm --filter @fit/admin test
 ```
 
-Expected: type-check clean; 49 tests across 9 files.
+Expected: type-check clean; the full admin suite green, including the 3 new tests in `recent-activity-card.test.tsx`.
 
 - [ ] **Step 8: Commit**
 
@@ -1753,7 +1770,7 @@ pnpm --filter @fit/admin lint
 pnpm check:tailwind-guardrail
 ```
 
-Expected: all clean, 49 tests passing.
+Expected: all clean, the full admin suite green.
 
 Then look at `http://localhost:3002/admin` once more: the headings should sit quietly above their content instead of competing with it, in both light and dark themes.
 
