@@ -13,8 +13,17 @@ export default defineConfig({
     alias: {
       // Component tests never run the StyleX SWC build (Next-only), so
       // `stylex.create()` throws unless it's swapped for a pass-through shim.
-      // See `test/stylex-mock.ts` for the full rationale.
+      // See `test/stylex-mock.ts` for the full rationale, AND for the note on
+      // keeping this shim's export surface (and this alias list) in sync with
+      // what the app actually imports — both live in that one file's header.
       '@stylexjs/stylex': fileURLToPath(new URL('./test/stylex-mock.ts', import.meta.url)),
+      // Mirrors tsconfig.json's `paths` (`"@/*": ["./*"]`) — the app's only
+      // path alias today. Vite doesn't read tsconfig `paths` on its own, so
+      // without this, any component importing e.g. `@/components/ui` fails to
+      // resolve under Vitest with "Failed to resolve import", even though the
+      // same file builds and type-checks fine. If tsconfig.json ever adds a
+      // second alias, add its mapping here too.
+      '@/': fileURLToPath(new URL('./', import.meta.url)),
     },
   },
   test: {
