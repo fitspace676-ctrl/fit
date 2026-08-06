@@ -64,9 +64,18 @@ const styles = stylex.create({
 export function SegmentPanel({
   segment,
   range,
+  onLoaded,
 }: {
   segment: ConfigurableDashboardSegment;
   range: DashboardRange;
+  /**
+   * The widget keys a segment actually resolved to, reported on every load
+   * (cached ones included). The shell holds no other source of truth for what a
+   * segment is showing — the server can only guess the catalogue default without
+   * fetching all five segments — so this is what lets the "Add widget" picker
+   * tick the boxes that are really on screen. Must be referentially stable.
+   */
+  onLoaded?: (segment: ConfigurableDashboardSegment, widgetKeys: string[]) => void;
 }) {
   const t = useTranslations('admin.dashboard.segments');
   const locale = useLocale();
@@ -121,6 +130,10 @@ export function SegmentPanel({
       setData(cached);
       setError(null);
       setMinHeight(undefined);
+      onLoaded?.(
+        shown,
+        cached.widgets.map((widget) => widget.key),
+      );
       return;
     }
 
@@ -132,6 +145,10 @@ export function SegmentPanel({
       if (result.ok) {
         cache.current.set(key, result.data);
         setData(result.data);
+        onLoaded?.(
+          shown,
+          result.data.widgets.map((widget) => widget.key),
+        );
       } else {
         setError(result.error);
       }
@@ -140,7 +157,7 @@ export function SegmentPanel({
     return () => {
       cancelled = true;
     };
-  }, [shown, range, attempt]);
+  }, [shown, range, attempt, onLoaded]);
 
   /**
    * Retry the segment currently on screen. Deleting its own cache entry (a
@@ -157,11 +174,11 @@ export function SegmentPanel({
   return (
     <div
       ref={bodyRef}
-      // Not styling — plain attributes the StyleX-shimmed test suite (which
+      // Not styling — a plain attribute the StyleX-shimmed test suite (which
       // cannot see the `exiting`/`entering` classes) can assert the swap phase
       // through directly, since production CSS reads `exiting`/`entering` off
-      // that same state, not off this attribute.
-      data-testid="segment-panel"
+      // that same state, not off this attribute. It is unique in the tree, so it
+      // is also how the tests select the panel — no `data-testid` needed.
       data-phase={exiting ? 'exiting' : 'entering'}
       style={minHeight ? { minHeight } : undefined}
       {...stylex.props(styles.panel, exiting ? styles.exiting : styles.entering)}

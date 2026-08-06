@@ -148,17 +148,25 @@ describe('SegmentPanel', () => {
   // the test-only StyleX shim collapses to one fixed class and so cannot
   // observe — see apps/admin/test/stylex-mock.ts.
   it('resets the swap instead of sticking exited when the tab bounces back to the segment already shown', async () => {
-    const { rerender } = renderPanel('sales');
+    const { container, rerender } = renderPanel('sales');
     await screen.findByText('Top plans');
-    expect(screen.getByTestId('segment-panel')).toHaveAttribute('data-phase', 'entering');
+
+    /** The panel root — `data-phase` is unique in the tree, so it is the handle. */
+    function phase(): string | null {
+      const root = container.querySelector('[data-phase]');
+      if (root === null) throw new Error('No panel rendered.');
+      return root.getAttribute('data-phase');
+    }
+
+    expect(phase()).toBe('entering');
 
     // Switch away — starts the 120ms exit before `shown` itself flips.
     rerender(panel('members'));
-    expect(screen.getByTestId('segment-panel')).toHaveAttribute('data-phase', 'exiting');
+    expect(phase()).toBe('exiting');
 
     // Bounce back to `sales` before that timer fires. `shown` never stopped
     // being `sales`, so this must cancel the exit and rest — not hang faded out.
     rerender(panel('sales'));
-    expect(screen.getByTestId('segment-panel')).toHaveAttribute('data-phase', 'entering');
+    expect(phase()).toBe('entering');
   });
 });
