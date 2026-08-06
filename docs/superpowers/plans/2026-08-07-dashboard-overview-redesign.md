@@ -1854,3 +1854,47 @@ sentence case, so neither locale changes."
 **Known gaps, deliberate:** the spec's `revenue-card.tsx` range toggle keeps its current styling; only its `gridColumn` and heading change. `in-gym-now.tsx` moves into the rail without internal changes.
 
 **Type consistency:** `MetricStrip({ data })`, `RecentActivityCard({ data })` and `DashboardHeader({ active, period, range })` are used in Tasks 3–6 exactly as declared in their Interfaces blocks. `DashboardResolvedPeriod` is the exported name in `packages/types/src/dashboard.ts:116`. `navigationMock` exposes `replace` / `push` / `refresh` / `setSearch` / `reset` / `factory`, and Tasks 2 and 3 use only those.
+
+---
+
+## Verification still owed
+
+Every automated gate is green on `d1ff5a6` — type-check, `eslint --max-warnings 0`,
+the Tailwind guardrail (222 migrated files), and 121/121 tests across 14 files.
+The Next dev server also hot-reloaded through all fourteen commits without a
+compile error, so the StyleX SWC pass accepts every style object here.
+
+**None of it has been rendered.** The dashboard sits behind an auth gate needing
+the API on port 3000 and a Postgres instance; Docker was unavailable for the whole
+of this work, so `/admin` answers 307 to the sign-in page. No test can substitute:
+the suite's StyleX shim strips computed styles, so a layout defect passes every
+check in this repository.
+
+Four fixes in the final wave were derived by reading source alone and correct
+defects that only a browser can confirm. Look at these first, in this order:
+
+1. **The rail at 1024px and at 1280px+** — `recent-cards.tsx`'s feed dropped its
+   third column because the rail's track is `minmax(280px, 1fr)` from 1024px up.
+   Check the rows are legible and that the body's `1.25rem` inset lines up with the
+   tab row above it.
+2. **The metric strip at 375px and ~900px** — tier two has five real cells plus a
+   sixth `aria-hidden` filler, because an empty grid area would show through as a
+   solid block of `--color-border`. Confirm no grey rectangle at either width, and
+   none at 1440px where the filler is `display: none`.
+3. **The sticky rail on a short viewport** (1280×800) — it now caps at
+   `calc(100dvh - 6rem)` with `overflow-y: auto`. Confirm the bottom of the recent
+   feed is reachable once the rail pins.
+4. **Dark theme on the strip's hairlines** — they are grid gaps showing the
+   container's `--color-border` through, which is `#FFFFFF1A` in dark.
+
+Also worth a glance while there: the tier-two labels in Georgian at ~1024px
+(`ვადაგადაცილებული გადახდები` is the longest string in either locale and gets a
+fifth of the strip), and the mobile source order, where the live occupancy card now
+sits below the revenue chart, schedule and plan mix rather than first.
+
+### Known gap, accepted
+
+Changing `?period=` no longer dims the KPI numbers while the server re-fetches.
+`DashboardHeader` runs its own `useTransition` and only disables its own controls;
+`?range=` still dims via `overview-view.tsx`. Documented at the top of
+`overview-view.tsx` rather than plumbed across the component boundary.
