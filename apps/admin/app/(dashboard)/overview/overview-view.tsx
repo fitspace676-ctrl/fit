@@ -42,13 +42,34 @@ const styles = stylex.create({
     transitionProperty: 'opacity',
     transitionDuration: '150ms',
   },
-  gridThirds: {
+  workArea: {
     display: 'grid',
-    gap: '1rem',
+    gap: '1.5rem',
+    alignItems: 'start',
     gridTemplateColumns: {
       default: '1fr',
-      '@media (min-width: 1024px)': 'repeat(3, minmax(0, 1fr))',
+      '@media (min-width: 1024px)': 'minmax(0, 2.2fr) minmax(280px, 1fr)',
     },
+  },
+  column: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    // `minWidth: 0` stops a wide chart or a long table from forcing the whole
+    // grid track wider than its share — the standard grid-blowout guard.
+    minWidth: 0,
+  },
+  rail: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    minWidth: 0,
+    position: {
+      default: 'static',
+      '@media (min-width: 1280px)': 'sticky',
+    },
+    // Clears the console's fixed chrome, then a little breathing room.
+    top: '5rem',
   },
 });
 
@@ -84,23 +105,25 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
     <div {...stylex.props(styles.page, isPending && styles.pending)}>
       <MetricStrip data={data} />
 
-      <section {...stylex.props(styles.gridThirds)}>
-        <InGymNow data={data} />
-      </section>
+      <div {...stylex.props(styles.workArea)}>
+        <div {...stylex.props(styles.column)}>
+          <RevenueCard data={data} money={money} onSelectRange={selectRange} disabled={isPending} />
+          <ScheduleCard data={data} />
+          <PlanMixCard data={data} />
+        </div>
 
-      {/* Revenue + plan mix */}
-      <section {...stylex.props(styles.gridThirds)}>
-        <RevenueCard data={data} money={money} onSelectRange={selectRange} disabled={isPending} />
-        <PlanMixCard data={data} />
-      </section>
-
-      {/* Today's schedule + alerts */}
-      <section {...stylex.props(styles.gridThirds)}>
-        <ScheduleCard data={data} />
-        <AlertsCard data={data} />
-      </section>
-
-      <RecentActivityCard data={data} />
+        {/*
+          The rail is what is happening right now — live occupancy, anything that
+          needs attention, and the feed of what just happened. It sticks on wide
+          screens so scrolling the revenue chart never scrolls the gym's live
+          count off the page.
+        */}
+        <div {...stylex.props(styles.rail)}>
+          <InGymNow data={data} />
+          <AlertsCard data={data} />
+          <RecentActivityCard data={data} />
+        </div>
+      </div>
     </div>
   );
 }

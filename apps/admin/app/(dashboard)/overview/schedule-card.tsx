@@ -7,15 +7,10 @@ import type { DashboardOverviewResponse } from '@fit/types';
 import { EmptyState, formatTime } from './format';
 
 const styles = stylex.create({
-  // The schedule card spans two of the three grid columns on lg+.
   cardWide: {
     display: 'flex',
     flexDirection: 'column',
     padding: '1.25rem',
-    gridColumn: {
-      default: 'auto',
-      '@media (min-width: 1024px)': 'span 2',
-    },
   },
   sectionLabel: {
     margin: 0,

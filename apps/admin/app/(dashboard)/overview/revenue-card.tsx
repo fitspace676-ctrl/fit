@@ -15,15 +15,10 @@ const RANGE_VALUES = ['7d', '30d', '12w'] as const satisfies readonly DashboardR
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 const styles = stylex.create({
-  // The revenue card spans two of the three grid columns on lg+.
   cardWide: {
     display: 'flex',
     flexDirection: 'column',
     padding: '1.25rem',
-    gridColumn: {
-      default: 'auto',
-      '@media (min-width: 1024px)': 'span 2',
-    },
   },
   revenueHead: {
     display: 'flex',
