@@ -22,10 +22,16 @@ const styles = stylex.create({
   accentInk: {
     color: 'var(--color-accent)',
   },
-  // The comparison chart's second series. Semantic, not decorative: it is always
-  // the money going back out.
+  // The comparison chart's second series where that series is money going back
+  // out — refunds, cancellations. Semantic, not decorative.
   negativeInk: {
     color: 'var(--color-error)',
+  },
+  // The comparison chart's second series where BOTH series are ordinary figures
+  // being compared — two revenue streams, say. The error tone would claim the
+  // second one is a problem, which is a statement the chart has no business making.
+  neutralInk: {
+    color: 'var(--color-brand)',
   },
   donutWrap: {
     position: 'relative',
@@ -267,8 +273,14 @@ export interface DualPoint {
  * Two series over one x-axis, for comparisons where the pair only means anything
  * read together (sales against refunds). The primary series keeps
  * {@link AreaChart}'s gradient-filled accent treatment; the secondary is a
- * stroke-only overlay in the error tone, so it reads as a line laid over the
- * first rather than a second competing area.
+ * stroke-only overlay, so it reads as a line laid over the first rather than a
+ * second competing area.
+ *
+ * `secondaryTone` says what that second series MEANS, and the default is the
+ * original one: `negative` for money going back out, `neutral` where both series
+ * are ordinary figures being compared. Drawing two healthy revenue streams with
+ * one of them in the error tone would be the chart asserting a problem nobody
+ * reported.
  *
  * Both series scale to the SHARED maximum. Scaling each to its own max would draw
  * a trivial refund column exactly as tall as a large sales one — the comparison
@@ -278,10 +290,12 @@ export function DualAreaChart({
   data,
   height = 180,
   ariaLabel = 'Comparison chart',
+  secondaryTone = 'negative',
 }: {
   data: DualPoint[];
   height?: number;
   ariaLabel?: string;
+  secondaryTone?: 'negative' | 'neutral';
 }) {
   const width = 640;
   const pad = 8;
@@ -326,7 +340,10 @@ export function DualAreaChart({
       <AccentAreaGradient id={gradientId} />
       {primaryArea && <path d={primaryArea} fill={`url(#${gradientId})`} stroke="none" />}
       <SeriesPath d={primaryLine} ink={styles.accentInk} />
-      <SeriesPath d={secondaryLine} ink={styles.negativeInk} />
+      <SeriesPath
+        d={secondaryLine}
+        ink={secondaryTone === 'neutral' ? styles.neutralInk : styles.negativeInk}
+      />
     </svg>
   );
 }
