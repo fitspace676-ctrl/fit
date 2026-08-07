@@ -62,9 +62,26 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-inner)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-brand)',
+    },
     paddingInline: '0.75rem',
     paddingBlock: '0.5rem',
+    // The row publishes its own hover as a custom property, and the two text
+    // lines below consume it to stop clipping. StyleX has no descendant
+    // selectors, so this is how a parent's state reaches a child — and hovering
+    // ANYWHERE on the row has to work, because the clipped name is a few pixels
+    // wide and is a hopeless target on its own.
+    //
+    // `:focus-within` comes along for the keyboard: these rows will carry a link
+    // to the member's profile, and a name that only opens for a mouse would be
+    // half an affordance.
+    '--recent-line-clip': {
+      default: 'nowrap',
+      ':hover': 'normal',
+      ':focus-within': 'normal',
+    },
   },
   avatar: {
     display: 'grid',
@@ -91,7 +108,8 @@ const styles = stylex.create({
     display: 'block',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    whiteSpace: 'var(--recent-line-clip, nowrap)',
+    overflowWrap: 'anywhere',
     fontSize: '0.875rem',
     fontWeight: 600,
     color: 'var(--color-text-primary)',
@@ -100,7 +118,8 @@ const styles = stylex.create({
     display: 'block',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    whiteSpace: 'var(--recent-line-clip, nowrap)',
+    overflowWrap: 'anywhere',
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
