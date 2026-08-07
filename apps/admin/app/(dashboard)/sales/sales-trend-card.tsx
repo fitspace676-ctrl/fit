@@ -24,7 +24,7 @@ import {
 } from '@fit/types';
 import { AreaChart, type AreaPoint } from '../charts';
 import { EmptyState } from '../overview/format';
-import { formatBucket } from './format';
+import { formatBucket } from '../format';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },

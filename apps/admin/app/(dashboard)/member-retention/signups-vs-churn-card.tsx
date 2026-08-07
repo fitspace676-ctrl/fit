@@ -1,16 +1,19 @@
 'use client';
 
-// New sales against refunds, over the tab's window.
+// Joins against memberships that ended, over the tab's window.
 //
-// Both series are dated by when the money actually moved: sales by the payment's
-// `createdAt`, refunds by the refund's own. That is deliberately NOT how the
-// "Refunded" KPI is computed (it sums this window's payments' running refunded
-// totals), so the two can legitimately differ. The caption says which this is.
+// `DualAreaChart` scales both series to a SHARED maximum, which is the whole
+// point here: a month with 40 joins and 3 cancellations must LOOK like that. Two
+// independently-scaled series would draw them the same height.
+//
+// Churn is dated by a subscription's terminal instant — `canceledAt` for a
+// cancellation, `updatedAt` for an expiry — not by when its period would have run
+// out.
 
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
-import type { SalesComparisonPoint } from '@fit/types';
+import type { SignupsChurnPoint } from '@fit/types';
 import { DualAreaChart, type DualPoint } from '../charts';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
@@ -42,8 +45,8 @@ const styles = stylex.create({
   },
   legendItem: { display: 'flex', alignItems: 'center', gap: '0.375rem' },
   swatch: { width: '0.75rem', height: '0.1875rem', borderRadius: 'var(--radius-full)' },
-  swatchSales: { backgroundColor: 'var(--color-accent)' },
-  swatchRefunds: { backgroundColor: 'var(--color-error)' },
+  swatchSignups: { backgroundColor: 'var(--color-accent)' },
+  swatchChurned: { backgroundColor: 'var(--color-error)' },
   axisRow: {
     marginTop: '0.25rem',
     display: 'flex',
@@ -54,15 +57,14 @@ const styles = stylex.create({
   },
 });
 
-export function SalesVsRefundsCard({ points }: { points: SalesComparisonPoint[] }) {
-  const t = useTranslations('admin.dashboard.sales');
+export function SignupsVsChurnCard({ points }: { points: SignupsChurnPoint[] }) {
+  const t = useTranslations('admin.dashboard.members');
   const locale = useLocale();
 
-  // Money is carried in MINOR units; the chart plots major units.
   const data: DualPoint[] = points.map((point) => ({
     label: point.label,
-    primary: point.sales / 100,
-    secondary: point.refunds / 100,
+    primary: point.signups,
+    secondary: point.churned,
   }));
   const hasData = data.some((point) => point.primary !== 0 || point.secondary !== 0);
   const first = points[0]?.label;
@@ -71,30 +73,30 @@ export function SalesVsRefundsCard({ points }: { points: SalesComparisonPoint[] 
   return (
     <Card variant="default" padding={0} xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('vsRefunds.title')}</h2>
-        <p {...stylex.props(styles.caption)}>{t('vsRefunds.caption')}</p>
+        <h2 {...stylex.props(styles.title)}>{t('signupsVsChurn.title')}</h2>
+        <p {...stylex.props(styles.caption)}>{t('signupsVsChurn.caption')}</p>
       </div>
 
       {hasData ? (
         <>
-          <DualAreaChart data={data} ariaLabel={t('vsRefunds.chartAria')} />
+          <DualAreaChart data={data} ariaLabel={t('signupsVsChurn.chartAria')} />
           <div {...stylex.props(styles.axisRow)}>
             <span>{first ? formatBucket(locale, first) : null}</span>
             <span>{last ? formatBucket(locale, last) : null}</span>
           </div>
           <div {...stylex.props(styles.legend)}>
             <span {...stylex.props(styles.legendItem)}>
-              <span {...stylex.props(styles.swatch, styles.swatchSales)} aria-hidden="true" />
-              {t('vsRefunds.sales')}
+              <span {...stylex.props(styles.swatch, styles.swatchSignups)} aria-hidden="true" />
+              {t('signupsVsChurn.signups')}
             </span>
             <span {...stylex.props(styles.legendItem)}>
-              <span {...stylex.props(styles.swatch, styles.swatchRefunds)} aria-hidden="true" />
-              {t('vsRefunds.refunds')}
+              <span {...stylex.props(styles.swatch, styles.swatchChurned)} aria-hidden="true" />
+              {t('signupsVsChurn.churned')}
             </span>
           </div>
         </>
       ) : (
-        <EmptyState>{t('vsRefunds.empty')}</EmptyState>
+        <EmptyState>{t('signupsVsChurn.empty')}</EmptyState>
       )}
     </Card>
   );
