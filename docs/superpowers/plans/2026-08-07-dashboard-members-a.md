@@ -1686,18 +1686,57 @@ git commit -m "feat(admin): add the Members KPI strip"
 
 **Interfaces:**
 
-- Consumes: `AreaChart` / `AreaPoint`, `DualAreaChart` / `DualPoint` from `../charts`; `EmptyState` from `../overview/format`; `formatBucket` from `../sales/format`; `SALES_GRANULARITIES`, `ReportSeriesPoint`, `SignupsChurnPoint`, `MembersGranularity` from `@fit/types`.
+- Consumes: `AreaChart` / `AreaPoint`, `DualAreaChart` / `DualPoint` from `../charts`; `EmptyState` from `../overview/format`; `formatBucket` from `../format` (moved there by this task's Step 1); `SALES_GRANULARITIES`, `ReportSeriesPoint`, `SignupsChurnPoint`, `MembersGranularity` from `@fit/types`.
 - Produces:
   - `ActiveMembersCard({ points, granularity, current, onSelectGranularity, disabled })` — `points: ReportSeriesPoint[]`, `current: number`, `onSelectGranularity: (next: MembersGranularity) => void`, `disabled: boolean`.
   - `SignupsVsChurnCard({ points }: { points: SignupsChurnPoint[] })`.
 
 **Read first:** `apps/admin/app/(dashboard)/sales/sales-trend-card.tsx` and `sales-vs-refunds-card.tsx`. These are their siblings — same `Card variant="default" padding={0}` shell, same head/title/caption/`SegmentedControl` arrangement, same `axisRow`, same legend treatment.
 
-**Reuse, do not re-create:** `formatBucket` already exists at `apps/admin/app/(dashboard)/sales/format.ts` and is UTC-safe. Import it from there. Do not write a second copy, and do not move it — Plan B may relocate both tabs' formatters to a shared module, but that is not this task.
+**Move `formatBucket` up a level FIRST, then use it.** It currently lives at `apps/admin/app/(dashboard)/sales/format.ts`. A second tab needing it makes that the wrong home: `members/*` importing from `sales/*` couples two sibling features through a filename that advertises neither, and deleting or restructuring the Sales tab would break Members in a way no grep on feature names would surface.
+
+Step 1 of this task moves it to `apps/admin/app/(dashboard)/format.ts` — one level up, beside `charts.tsx`, which is where this directory already keeps things both tabs share. `sales/format.ts` is deleted and its two importers re-pointed. The function itself is copied verbatim, **including both UTC guards** (`timeZone: 'UTC'` in the `Intl.DateTimeFormat` options and the `T00:00:00.000Z` suffix when constructing the `Date`) — dropping either shifts a bucket by a day for users west of UTC.
+
+This is a pure move: no behaviour changes, and `pnpm --filter @fit/admin test` must stay green with no test edited.
 
 **`flexShrink` warning:** the Sales trend card carries an explicit comment about NOT setting `flexShrink: 0` on the controls row, because an unshrinkable flex item is sized from its single-line max-content and `Card` clips the overflow, making trailing segments unclickable. This card has one control rather than two so the risk is lower, but do not add `flexShrink: 0`.
 
-- [ ] **Step 1: Write the active-members card**
+- [ ] **Step 1: Move `formatBucket` out of the Sales directory**
+
+Create `apps/admin/app/(dashboard)/format.ts`:
+
+```ts
+// Formatting helpers shared by the dashboard's hand-built tabs.
+//
+// Lives beside `charts.tsx` rather than inside any one tab's directory: two tabs
+// render the same `YYYY-MM-DD` bucket labels on their axes, and a formatter owned
+// by whichever tab happened to need it first couples the others to that tab's
+// filename.
+
+/**
+ * A `YYYY-MM-DD` bucket start as a locale short date. UTC in, UTC out.
+ *
+ * Both UTC guards are load-bearing: the `T00:00:00.000Z` suffix pins the instant
+ * and `timeZone: 'UTC'` pins the rendering. Dropping either shifts every bucket by
+ * a day for viewers west of UTC.
+ */
+export function formatBucket(locale: string, bucket: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${bucket}T00:00:00.000Z`));
+}
+```
+
+Delete `apps/admin/app/(dashboard)/sales/format.ts`, and re-point its two importers — `sales/sales-trend-card.tsx` and `sales/sales-vs-refunds-card.tsx` — from `'./format'` to `'../format'`.
+
+- [ ] **Step 2: Confirm the move changed nothing**
+
+Run: `pnpm --filter @fit/admin test && pnpm --filter @fit/admin type-check`
+Expected: PASS, with **no test file edited**. A pure move cannot need one.
+
+- [ ] **Step 3: Write the active-members card**
 
 Create `apps/admin/app/(dashboard)/members/active-members-card.tsx`:
 
@@ -1725,7 +1764,7 @@ import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/Segme
 import { SALES_GRANULARITIES, type MembersGranularity, type ReportSeriesPoint } from '@fit/types';
 import { AreaChart, type AreaPoint } from '../charts';
 import { EmptyState } from '../overview/format';
-import { formatBucket } from '../sales/format';
+import { formatBucket } from '../format';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -1825,7 +1864,7 @@ export function ActiveMembersCard({
 }
 ```
 
-- [ ] **Step 2: Write the signups-vs-churn card**
+- [ ] **Step 4: Write the signups-vs-churn card**
 
 Create `apps/admin/app/(dashboard)/members/signups-vs-churn-card.tsx`:
 
@@ -1848,7 +1887,7 @@ import { Card } from '@astryxdesign/core/Card';
 import type { SignupsChurnPoint } from '@fit/types';
 import { DualAreaChart, type DualPoint } from '../charts';
 import { EmptyState } from '../overview/format';
-import { formatBucket } from '../sales/format';
+import { formatBucket } from '../format';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -1935,12 +1974,12 @@ export function SignupsVsChurnCard({ points }: { points: SignupsChurnPoint[] }) 
 }
 ```
 
-- [ ] **Step 3: Verify and commit**
+- [ ] **Step 5: Verify and commit**
 
 Run: `pnpm --filter @fit/admin type-check && pnpm check:tailwind-guardrail && pnpm --filter @fit/admin test`
 
 ```bash
-git add "apps/admin/app/(dashboard)/members/active-members-card.tsx" "apps/admin/app/(dashboard)/members/signups-vs-churn-card.tsx"
+git add "apps/admin/app/(dashboard)/format.ts" "apps/admin/app/(dashboard)/sales/" "apps/admin/app/(dashboard)/members/active-members-card.tsx" "apps/admin/app/(dashboard)/members/signups-vs-churn-card.tsx"
 git commit -m "feat(admin): add the Members growth cards"
 ```
 
@@ -1955,7 +1994,7 @@ git commit -m "feat(admin): add the Members growth cards"
 
 **Interfaces:**
 
-- Consumes: `AreaChart` with null support (Task 4); `BarChart` / `BarDatum` from `../charts`; `EmptyState`; `formatBucket` from `../sales/format`; `RetentionPoint`, `RetentionWindow`, `MemberStatusSlice` from `@fit/types`.
+- Consumes: `AreaChart` with null support (Task 4); `BarChart` / `BarDatum` from `../charts`; `EmptyState`; `formatBucket` from `../format` (Task 8 moved it there); `RetentionPoint`, `RetentionWindow`, `MemberStatusSlice` from `@fit/types`.
 - Produces:
   - `RetentionCard({ points, window, onSelectWindow, disabled })` — `points: RetentionPoint[]`, `window: RetentionWindow`, `onSelectWindow: (next: RetentionWindow) => void`.
   - `StatusBreakdownCard({ slices }: { slices: MemberStatusSlice[] })`.
@@ -1987,7 +2026,7 @@ import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/Segme
 import type { RetentionPoint, RetentionWindow } from '@fit/types';
 import { AreaChart, type AreaPoint } from '../charts';
 import { EmptyState } from '../overview/format';
-import { formatBucket } from '../sales/format';
+import { formatBucket } from '../format';
 
 /** The windows the control offers, ascending. */
 const WINDOWS = ['30', '60', '90'] as const satisfies readonly RetentionWindow[];
