@@ -22,6 +22,11 @@ const styles = stylex.create({
   accentInk: {
     color: 'var(--color-accent)',
   },
+  // The comparison chart's second series. Semantic, not decorative: it is always
+  // the money going back out.
+  negativeInk: {
+    color: 'var(--color-error)',
+  },
   donutWrap: {
     position: 'relative',
     display: 'inline-grid',
@@ -96,6 +101,55 @@ const styles = stylex.create({
 /*  AreaChart                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The accent gradient both area charts fill under: opaque-ish at the top, clear
+ * at the baseline. Rendered inside its own `<defs>` so a caller only has to place
+ * it and reference `id`. The colour resolves through `currentColor` off a StyleX
+ * `color`, so `light-dark()` tracks the active theme automatically.
+ */
+function AccentAreaGradient({ id }: { id: string }) {
+  return (
+    <defs>
+      <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+        <stop
+          offset="0%"
+          {...stylex.props(styles.accentInk)}
+          stopColor="currentColor"
+          stopOpacity={0.32}
+        />
+        <stop
+          offset="100%"
+          {...stylex.props(styles.accentInk)}
+          stopColor="currentColor"
+          stopOpacity={0}
+        />
+      </linearGradient>
+    </defs>
+  );
+}
+
+/**
+ * One plotted series stroke. `ink` is a StyleX style supplying the `color` the
+ * stroke reads through `currentColor` — `styles.accentInk` for a primary series,
+ * `styles.negativeInk` for a comparison overlay. Renders nothing for an empty
+ * path, so callers can pass an unguarded `''`.
+ */
+function SeriesPath({ d, ink }: { d: string; ink: stylex.StyleXStyles }) {
+  if (!d) return null;
+  return (
+    <path
+      d={d}
+      fill="none"
+      {...stylex.props(ink)}
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+}
+
 /** One plotted point of an {@link AreaChart}: an x-axis label and its value. */
 export interface AreaPoint {
   label: string;
@@ -153,35 +207,88 @@ export function AreaChart({
       {...stylex.props(styles.areaSvg)}
       style={{ height }}
     >
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop
-            offset="0%"
-            {...stylex.props(styles.accentInk)}
-            stopColor="currentColor"
-            stopOpacity={0.32}
-          />
-          <stop
-            offset="100%"
-            {...stylex.props(styles.accentInk)}
-            stopColor="currentColor"
-            stopOpacity={0}
-          />
-        </linearGradient>
-      </defs>
+      <AccentAreaGradient id={gradientId} />
       {area && <path d={area} fill={`url(#${gradientId})`} stroke="none" />}
-      {line && (
-        <path
-          d={line}
-          fill="none"
-          {...stylex.props(styles.accentInk)}
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      )}
+      <SeriesPath d={line} ink={styles.accentInk} />
+    </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  DualAreaChart                                                               */
+/* -------------------------------------------------------------------------- */
+
+/** One plotted bucket of a {@link DualAreaChart} — two values sharing an x. */
+export interface DualPoint {
+  label: string;
+  primary: number;
+  secondary: number;
+}
+
+/**
+ * Two series over one x-axis, for comparisons where the pair only means anything
+ * read together (sales against refunds). The primary series keeps
+ * {@link AreaChart}'s gradient-filled accent treatment; the secondary is a
+ * stroke-only overlay in the error tone, so it reads as a line laid over the
+ * first rather than a second competing area.
+ *
+ * Both series scale to the SHARED maximum. Scaling each to its own max would draw
+ * a trivial refund column exactly as tall as a large sales one — the comparison
+ * the chart exists to make would be the one thing it got wrong.
+ */
+export function DualAreaChart({
+  data,
+  height = 180,
+  ariaLabel = 'Comparison chart',
+}: {
+  data: DualPoint[];
+  height?: number;
+  ariaLabel?: string;
+}) {
+  const width = 640;
+  const pad = 8;
+  const max = Math.max(1, ...data.flatMap((d) => [d.primary, d.secondary]));
+  const n = data.length;
+
+  const project = (value: number, i: number) => ({
+    x: n <= 1 ? width / 2 : (i / (n - 1)) * (width - pad * 2) + pad,
+    y: height - pad - (value / max) * (height - pad * 2),
+  });
+
+  const path = (pick: (d: DualPoint) => number) =>
+    data
+      .map((d, i) => {
+        const p = project(pick(d), i);
+        return `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+      })
+      .join(' ');
+
+  const primaryLine = path((d) => d.primary);
+  const secondaryLine = path((d) => d.secondary);
+  const firstX = data.length > 0 ? project(0, 0).x : 0;
+  const lastX = data.length > 0 ? project(0, data.length - 1).x : 0;
+  const primaryArea =
+    data.length > 0
+      ? `${primaryLine} L${lastX.toFixed(1)},${height - pad} L${firstX.toFixed(1)},${height - pad} Z`
+      : '';
+
+  // `useId()` yields a document-unique, SSR-safe id; strip the framework's `:`
+  // delimiters so it is a valid `url(#…)` fragment reference.
+  const gradientId = `dual-fill-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={ariaLabel}
+      {...stylex.props(styles.areaSvg)}
+      style={{ height }}
+    >
+      <AccentAreaGradient id={gradientId} />
+      {primaryArea && <path d={primaryArea} fill={`url(#${gradientId})`} stroke="none" />}
+      <SeriesPath d={primaryLine} ink={styles.accentInk} />
+      <SeriesPath d={secondaryLine} ink={styles.negativeInk} />
     </svg>
   );
 }
