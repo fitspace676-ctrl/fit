@@ -196,6 +196,10 @@ describe('SegmentedDashboard', () => {
     navigationMock.setSearch('segment=sales');
     renderShell('sales');
     expect(screen.getByText('Sales view')).toBeInTheDocument();
+    // The second half of the name, which the test used to leave unclaimed. The
+    // panel mock renders `data-testid="panel"`, so that is what has to be absent
+    // — asserting on prose the mock never emits would pass vacuously.
+    expect(screen.queryByTestId('panel')).not.toBeInTheDocument();
   });
 
   // The picker configures a catalogue; the two hand-built views have none.

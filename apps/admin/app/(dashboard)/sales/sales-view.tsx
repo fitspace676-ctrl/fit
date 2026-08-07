@@ -12,9 +12,16 @@
 // another, and the numbers would not reconcile.
 //
 // Fetch/cache/retry follows `segments/segment-panel.tsx`: responses are cached by
-// the composite of both controls for the page's life, so flipping back to a
-// visited combination is instant; a failure is an inline alert scoped to the tab,
-// and Retry drops only its own cache entry.
+// the composite of both controls for as long as this component stays MOUNTED, so
+// flipping back to a visited combination is instant; a failure is an alert scoped
+// to the tab, and Retry drops only its own cache entry.
+//
+// Note the mount, not the page: the shell renders this tab conditionally, so
+// leaving Sales for another tab unmounts it and the cache goes with it. That is a
+// deliberate difference from `SegmentPanel`, which the shell keeps mounted-and-
+// hidden precisely to preserve its cache — Sales holds one response per
+// combination rather than a whole segment's widget set, so refetching on return
+// costs a single request.
 //
 // Motion: changing either control settles the tab as a short diagonal cascade
 // rather than a single hard swap — the same idea `segments/widget-grid.tsx`

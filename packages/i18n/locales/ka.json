@@ -153,7 +153,11 @@
       },
       "sales": {
         "granularityLabel": "დეტალურობა",
-        "granularity": { "daily": "დღიური", "weekly": "კვირეული", "monthly": "თვიური" },
+        "granularity": {
+          "daily": "დღიური",
+          "weekly": "კვირეული",
+          "monthly": "თვიური"
+        },
         "window": {
           "daily": "ბოლო 30 დღე",
           "weekly": "ბოლო 12 კვირა",
@@ -191,8 +195,15 @@
         "method": {
           "title": "გაყიდვები გადახდის მეთოდით",
           "share": "სალარო {pos}% · ონლაინ {online}%",
-          "channel": { "pos": "სალარო", "online": "ონლაინ" },
-          "name": { "cash": "ნაღდი", "card": "ბარათი", "member-account": "წევრის ანგარიში" },
+          "channel": {
+            "pos": "სალარო",
+            "online": "ონლაინ"
+          },
+          "name": {
+            "cash": "ნაღდი",
+            "card": "ბარათი",
+            "member-account": "წევრის ანგარიში"
+          },
           "row": "{channel} · {name}",
           "empty": "ამ პერიოდში გადახდა არ დაფიქსირებულა."
         },
@@ -205,9 +216,6 @@
         "retry": "ხელახლა"
       },
       "widgets": {
-        "salesPaymentMethod": "გაყიდვები გადახდის მეთოდით",
-        "salesTopProducts": "ყველაზე გაყიდვადი პროდუქტები",
-        "salesTopPlans": "ყველაზე გაყიდვადი პაკეტები",
         "membersNewSignups": "ახალი წევრები",
         "membersChurn": "წევრების გადინება",
         "revenueOverTime": "შემოსავალი დროში",
@@ -241,7 +249,9 @@
         "quiet": "ახლა მშვიდადაა — დღეს ჯერ არავინ შემოსულა.",
         "capacity": "დატვირთვის {pct}% გამოყენებულია {areas, plural, one {# ზონაში} other {# ზონაში}}."
       },
-      "metrics": { "aria": "ძირითადი მაჩვენებლები" },
+      "metrics": {
+        "aria": "ძირითადი მაჩვენებლები"
+      },
       "kpi": {
         "todaysRevenue": "დღევანდელი შემოსავალი",
         "checkInsToday": "დღევანდელი შემოსვლები",
@@ -309,7 +319,9 @@
           "suspended": "შეჩერებული"
         }
       },
-      "recentActivity": { "aria": "ბოლო აქტივობა" },
+      "recentActivity": {
+        "aria": "ბოლო აქტივობა"
+      },
       "relative": {
         "justNow": "ახლახან",
         "minutes": "{mins}წთ წინ",

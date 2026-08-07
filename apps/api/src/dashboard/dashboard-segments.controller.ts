@@ -71,9 +71,10 @@ export class DashboardSegmentsController {
 }
 
 /**
- * Resolve the `:segment` path param. `overview` is rejected rather than answered
- * with an empty success: it is server-rendered and carries no catalogue, so a
- * client asking for it has a bug worth surfacing.
+ * Resolve the `:segment` path param. `overview` and `sales` are rejected rather
+ * than answered with an empty success: both are hand-built views that carry no
+ * catalogue, so a client asking this endpoint for either has a bug worth
+ * surfacing.
  */
 function parseSegment(raw: string): ConfigurableDashboardSegment {
   const parsed = configurableDashboardSegmentSchema.safeParse(raw);

@@ -81,6 +81,22 @@ is not read as total gym revenue.
 so bucketing a refund by it would place the refund in the _sale's_ bucket. The
 refunds series therefore reads `Refund` rows, which carry their own `createdAt`.
 
+**A sale fully refunded inside the window disappears from the sales side.** Every
+read here filters `status: CAPTURED`, and `Payment.status` flips to `REFUNDED`
+once refunds reach the full `amount` — so a sale made AND fully refunded inside
+the window is excluded from `grossSales`, from `refunded`, and from the trends,
+while its `Refund` row still draws a refunds bar with no matching sales bar. Net
+figures are unaffected (gross and refunded cancel), so `netSales` and
+`revenueOverTime` stay correct; `grossSales` and `refunded` under-report.
+
+This is inherited from the existing `revenue` and `pos` drill-downs, which filter
+the same way, and it is left consistent with them rather than fixed on one
+surface — `status: { in: [CAPTURED, REFUNDED] }` would fix all three together and
+is the right shape for a follow-up, since partial refunds stay `CAPTURED` and the
+semantics hold. Until then the `refundedHint` copy ("Against sales in this
+window") overstates what the tile counts, and the two-series chart makes the
+orphaned refund bar more visible here than the same gap ever was in Reports.
+
 The refunds _KPI_ still sums `refundedAmount` over the window's payments, matching
 the existing drill-downs. **The two figures can legitimately differ**: a sale made
 inside the window and refunded after it counts in the KPI but not the trend, and a

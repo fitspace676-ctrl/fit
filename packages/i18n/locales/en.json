@@ -153,7 +153,11 @@
       },
       "sales": {
         "granularityLabel": "Granularity",
-        "granularity": { "daily": "Daily", "weekly": "Weekly", "monthly": "Monthly" },
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
         "window": {
           "daily": "Last 30 days",
           "weekly": "Last 12 weeks",
@@ -191,8 +195,15 @@
         "method": {
           "title": "Sales by payment method",
           "share": "POS {pos}% · Online {online}%",
-          "channel": { "pos": "POS", "online": "Online" },
-          "name": { "cash": "Cash", "card": "Card", "member-account": "Member account" },
+          "channel": {
+            "pos": "POS",
+            "online": "Online"
+          },
+          "name": {
+            "cash": "Cash",
+            "card": "Card",
+            "member-account": "Member account"
+          },
           "row": "{channel} · {name}",
           "empty": "No payments in this window."
         },
@@ -205,9 +216,6 @@
         "retry": "Retry"
       },
       "widgets": {
-        "salesPaymentMethod": "Sales by payment method",
-        "salesTopProducts": "Top-selling products",
-        "salesTopPlans": "Top-selling plans",
         "membersNewSignups": "New member signups",
         "membersChurn": "Member churn",
         "revenueOverTime": "Revenue over time",
@@ -241,7 +249,9 @@
         "quiet": "Quiet right now — no members checked in today yet.",
         "capacity": "{pct}% of capacity in use across {areas, plural, one {# area} other {# areas}}."
       },
-      "metrics": { "aria": "Key metrics" },
+      "metrics": {
+        "aria": "Key metrics"
+      },
       "kpi": {
         "todaysRevenue": "Today's revenue",
         "checkInsToday": "Check-ins today",
@@ -309,7 +319,9 @@
           "suspended": "Suspended"
         }
       },
-      "recentActivity": { "aria": "Recent activity" },
+      "recentActivity": {
+        "aria": "Recent activity"
+      },
       "relative": {
         "justNow": "just now",
         "minutes": "{mins}m ago",
