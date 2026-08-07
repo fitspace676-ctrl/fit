@@ -15,7 +15,6 @@ import { useMemo } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
-import { Badge } from '@astryxdesign/core/Badge';
 import type { DashboardKpi, DashboardOverviewResponse } from '@fit/types';
 
 const styles = stylex.create({
@@ -64,6 +63,36 @@ const styles = stylex.create({
   label: {
     fontSize: '0.75rem',
     fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
+  // A delta is a footnote to the numeral above it. `alignSelf: start` is what
+  // keeps it that size in a stretch-aligned grid cell.
+  delta: {
+    alignSelf: 'flex-start',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    borderRadius: 'var(--radius-full)',
+    paddingInline: '0.4375rem',
+    paddingBlock: '0.125rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  deltaUp: {
+    color: 'var(--color-text-green)',
+    backgroundColor: 'var(--color-background-green)',
+  },
+  deltaDown: {
+    color: 'var(--color-text-red)',
+    backgroundColor: 'var(--color-background-red)',
+  },
+  // The unit rides at two thirds of the numeral and in secondary ink, so `GEL`
+  // stops competing with the figure it qualifies.
+  unit: {
+    fontSize: '0.66em',
+    fontWeight: 600,
     color: 'var(--color-text-secondary)',
   },
   valueLarge: {
@@ -122,22 +151,22 @@ export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
       <div {...stylex.props(styles.tier, styles.tierOne)}>
         <KpiCell
           label={t('kpi.revenue')}
-          value={money.format(data.kpis.todaysRevenue.value / 100)}
+          value={money.parts(data.kpis.todaysRevenue.value / 100)}
           kpi={data.kpis.todaysRevenue}
         />
         <KpiCell
           label={t('kpi.checkIns')}
-          value={count.format(data.kpis.checkInsToday.value)}
+          value={count.parts(data.kpis.checkInsToday.value)}
           kpi={data.kpis.checkInsToday}
         />
         <KpiCell
           label={t('kpi.newMembers')}
-          value={count.format(data.kpis.newMembers7d.value)}
+          value={count.parts(data.kpis.newMembers7d.value)}
           kpi={data.kpis.newMembers7d}
         />
         <KpiCell
           label={t('secondaryKpi.revenueThisMonth')}
-          value={money.format(data.secondaryKpis.revenueThisMonth.value / 100)}
+          value={money.parts(data.secondaryKpis.revenueThisMonth.value / 100)}
           kpi={data.secondaryKpis.revenueThisMonth}
         />
       </div>
@@ -172,11 +201,27 @@ export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
 }
 
 /** A tier-one cell: the larger numeral plus its period-over-period delta. */
-function KpiCell({ label, value, kpi }: { label: string; value: string; kpi: DashboardKpi }) {
+function KpiCell({
+  label,
+  value,
+  kpi,
+}: {
+  label: string;
+  value: { digits: string; unit: string; unitFirst: boolean };
+  kpi: DashboardKpi;
+}) {
   return (
     <div {...stylex.props(styles.cell)}>
       <span {...stylex.props(styles.label)}>{label}</span>
-      <span {...stylex.props(styles.valueLarge)}>{value}</span>
+      <span {...stylex.props(styles.valueLarge)}>
+        {value.unitFirst && value.unit ? (
+          <span {...stylex.props(styles.unit)}>{value.unit} </span>
+        ) : null}
+        {value.digits}
+        {!value.unitFirst && value.unit ? (
+          <span {...stylex.props(styles.unit)}> {value.unit}</span>
+        ) : null}
+      </span>
       <DeltaChip kpi={kpi} />
     </div>
   );
@@ -194,9 +239,18 @@ function CountCell({ label, value, hint }: { label: string; value: string; hint?
 }
 
 /**
- * The delta badge, moved here verbatim from the KPI cards this strip replaces.
+ * The period-over-period delta.
+ *
+ * A chip sized to its own content, NOT the Astryx `Badge` this used to use: in a
+ * stretch-aligned grid cell that badge grew to the full column, so a single-digit
+ * percentage arrived as a full-width block of alarm colour. A delta is a footnote
+ * to the number above it, and it should occupy a footnote's worth of the tile.
+ *
  * `deltaPct === null` means the comparison window has no data — said plainly
  * rather than shown as a 0% change, which would read as "flat".
+ *
+ * The arrow rides with the colour deliberately: status colour alone is not an
+ * encoding a colourblind reader can use.
  */
 function DeltaChip({ kpi }: { kpi: DashboardKpi }) {
   const t = useTranslations('admin.dashboard');
@@ -205,9 +259,9 @@ function DeltaChip({ kpi }: { kpi: DashboardKpi }) {
   }
   const good = kpi.deltaPct >= 0;
   return (
-    <Badge
-      variant={good ? 'success' : 'error'}
-      label={`${good ? '▲' : '▼'} ${Math.abs(kpi.deltaPct)}%`}
-    />
+    <span {...stylex.props(styles.delta, good ? styles.deltaUp : styles.deltaDown)}>
+      <span aria-hidden="true">{good ? '▲' : '▼'}</span>
+      {Math.abs(kpi.deltaPct)}%
+    </span>
   );
 }

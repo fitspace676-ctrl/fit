@@ -82,4 +82,35 @@ describe('createNumberFormat', () => {
     expect(createNumberFormat('en', money).format(0.5)).toBe(intl('en', money, 0.5));
     expect(createNumberFormat('en', money).format(-0.5)).toBe(intl('en', money, -0.5));
   });
+
+  // A display figure sets its unit apart from its numeral. Which side the unit
+  // belongs on is the locale's business, not the caller's.
+  describe('parts', () => {
+    it('splits a currency into digits and its symbol, per locale', () => {
+      expect(
+        createNumberFormat('ka', { style: 'currency', currency: 'GEL' }).parts(1234.5),
+      ).toEqual({ digits: '1234,50', unit: '₾', unitFirst: false });
+      expect(
+        createNumberFormat('en', { style: 'currency', currency: 'USD' }).parts(1234.5),
+      ).toEqual({ digits: '1,234.50', unit: '$', unitFirst: true });
+    });
+
+    it('leaves a plain number whole, with no unit', () => {
+      expect(createNumberFormat('en').parts(1234)).toEqual({
+        digits: '1,234',
+        unit: '',
+        unitFirst: false,
+      });
+    });
+
+    it('keeps the digits and unit reassemblable into the formatted string', () => {
+      for (const locale of locales) {
+        const fmt = createNumberFormat(locale, { style: 'currency', currency: 'GEL' });
+        const { digits, unit, unitFirst } = fmt.parts(42);
+        expect(fmt.format(42).replace(/[\s\u00a0]/g, '')).toBe(
+          (unitFirst ? unit + digits : digits + unit).replace(/[\s\u00a0]/g, ''),
+        );
+      }
+    });
+  });
 });

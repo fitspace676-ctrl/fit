@@ -79,10 +79,12 @@ describe('MetricStrip', () => {
   // counts with no baseline, and inventing a trend for them would be a lie.
   it('shows a signed delta only for the four metrics that have one', () => {
     const strip = renderStrip();
-    expect(within(strip).getByText('▲ 8%')).toBeInTheDocument();
-    expect(within(strip).getByText('▼ 3%')).toBeInTheDocument();
-    expect(within(strip).getByText('▲ 12%')).toBeInTheDocument();
-    expect(within(strip).queryByText(/▲ 0%/)).not.toBeInTheDocument();
+    expect(within(strip).getByText((_, node) => node?.textContent === '▲8%')).toBeInTheDocument();
+    expect(within(strip).getByText((_, node) => node?.textContent === '▼3%')).toBeInTheDocument();
+    expect(within(strip).getByText((_, node) => node?.textContent === '▲12%')).toBeInTheDocument();
+    expect(
+      within(strip).queryByText((_, node) => node?.textContent === '▲0%'),
+    ).not.toBeInTheDocument();
   });
 
   it('says so when a metric has no prior window to compare against', () => {

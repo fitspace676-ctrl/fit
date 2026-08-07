@@ -83,6 +83,16 @@ export interface NumberFormatOptions {
  */
 export interface NumberFormatter {
   format(value: number): string;
+  /**
+   * The same output, split so a display figure can set its unit apart — the
+   * currency symbol or code at a smaller size beside a large numeral, the way a
+   * headline number is set rather than the way a sentence is.
+   *
+   * `unit` is empty for a plain number. `unitFirst` says which side it belongs
+   * on, because that is a property of the locale, not of the caller: Georgian
+   * writes `5 ₾` and English `$5`.
+   */
+  parts(value: number): { digits: string; unit: string; unitFirst: boolean };
 }
 
 /** Round half away from zero, the rule `Intl` applies by default. */
@@ -132,7 +142,23 @@ export function createNumberFormat(
     maximumFractionDigits,
   );
 
+  const shape2 = shape;
+  const currencySymbol = (): string => {
+    const code = options.currency ?? '';
+    return SYMBOLS[resolved][code] ?? code;
+  };
+
   return {
+    parts(value: number) {
+      const whole = this.format(value);
+      if (!isCurrency) return { digits: whole, unit: '', unitFirst: false };
+      const symbol = currencySymbol();
+      const unitFirst = shape2.currency.position === 'prefix';
+      const digits = unitFirst
+        ? whole.slice(whole.indexOf(symbol) + symbol.length).replace(/^[\s\u00a0]+/, '')
+        : whole.slice(0, whole.lastIndexOf(symbol)).replace(/[\s\u00a0]+$/, '');
+      return { digits: digits.replace(/^-/, '-'), unit: symbol, unitFirst };
+    },
     format(value: number): string {
       const rounded = roundHalfExpand(value, maximumFractionDigits);
       const negative = rounded < 0 || Object.is(rounded, -0);

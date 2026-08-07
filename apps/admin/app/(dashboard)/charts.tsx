@@ -22,6 +22,12 @@ const styles = stylex.create({
   plot: {
     position: 'relative',
     width: '100%',
+    // A top-light behind the plot. It is what stops a chart reading as a sticker
+    // ON the card and starts it reading as part of it — the depth cue the flat
+    // fill was missing. Two percent of the accent, which is under the threshold
+    // where it becomes a colour of its own.
+    backgroundImage: 'radial-gradient(120% 80% at 50% 0%, var(--chart-glow-1) 0%, transparent 62%)',
+    backgroundBlendMode: 'screen',
   },
   areaSvg: {
     width: '100%',
