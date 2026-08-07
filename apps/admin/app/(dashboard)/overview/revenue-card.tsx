@@ -77,7 +77,7 @@ export function RevenueCard({
     label: t(`weekdays.${WEEKDAY_KEYS[new Date(`${p.date}T00:00:00.000Z`).getUTCDay()]}`),
     value: p.value / 100,
   }));
-  const hasData = points.some((p) => p.value > 0);
+  const hasData = points.some((p) => p.value !== null && p.value > 0);
 
   return (
     <Card variant="default" padding={0} xstyle={styles.cardWide}>
