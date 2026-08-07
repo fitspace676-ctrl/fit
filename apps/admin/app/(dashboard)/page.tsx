@@ -7,10 +7,7 @@ import {
   dashboardPeriodSchema,
   dashboardDateSchema,
   dashboardSegmentSchema,
-  widgetsForSegment,
-  CONFIGURABLE_DASHBOARD_SEGMENTS,
   DEFAULT_DASHBOARD_SEGMENT,
-  type ConfigurableDashboardSegment,
   type DashboardRange,
   type DashboardPeriod,
   type DashboardSegment,
@@ -114,24 +111,7 @@ export default async function DashboardPage({
     );
   }
 
-  // The picker needs each segment's CURRENT selection to check its boxes. The
-  // catalogue default stands in until a segment is opened and its stored
-  // selection arrives with the panel's own fetch.
-  const selectedKeys = Object.fromEntries(
-    CONFIGURABLE_DASHBOARD_SEGMENTS.map((value) => [
-      value,
-      widgetsForSegment(value).map((widget) => widget.key),
-    ]),
-  ) as Record<ConfigurableDashboardSegment, string[]>;
-
-  return (
-    <SegmentedDashboard
-      overview={overview}
-      initialSegment={segment}
-      selectedKeys={selectedKeys}
-      range={range}
-    />
-  );
+  return <SegmentedDashboard overview={overview} initialSegment={segment} />;
 }
 
 /** The role-degraded welcome shown to staff without `ReportView` (and as a fallback). */

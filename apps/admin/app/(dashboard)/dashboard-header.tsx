@@ -8,19 +8,17 @@
 // tab, leaving those tabs untitled and their `?range=` unreachable even though it
 // was still deciding what their widgets fetched.
 //
-// Which filter it shows is deliberate, not incidental:
-//   - Overview  → `period`, which bounds the KPI numbers on that tab. `?range=`
-//     keeps its own toggle inside `RevenueCard`, next to the chart it redraws.
-//   - a segment → `range`, which keys every widget fetch on that tab. `period` is
-//     not offered, because nothing on a segment tab reads it.
-//   - Sales, Members → NEITHER. Both are hand-built views that read no URL param
-//     at all: each owns a `granularity` control that picks the window and the
-//     bucket together, plus its own narrowing controls, all as local state.
-//     Offering `?range=` here would stack a second, dead time filter forty pixels
-//     above a live one — and one that still fires a navigation, so it would look
-//     broken rather than absent.
-// Showing both everywhere would put a dead control on each tab; showing neither
-// is what the bug was.
+// It shows the period filter on OVERVIEW and nothing anywhere else.
+//
+// That asymmetry is deliberate. Overview is server-rendered from `?period=`, so
+// its filter belongs in the chrome. Every other tab is a hand-built view owning a
+// `granularity` control that picks its window and its bucket together, next to the
+// chart it redraws — a second time filter up here would be a dead one.
+//
+// This file used to carry a `?range=` control for the configurable widget tabs.
+// Those tabs are gone. `?range=` itself is NOT: the Overview's `RevenueCard` still
+// writes it and the server still reads it for that card's series — it simply has
+// no control in the header any more.
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -28,13 +26,7 @@ import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { DateRangeInput, type DateRange } from '@astryxdesign/core/DateRangeInput';
-import {
-  isHandBuiltSegment,
-  type DashboardPeriod,
-  type DashboardRange,
-  type DashboardResolvedPeriod,
-  type DashboardSegment,
-} from '@fit/types';
+import type { DashboardPeriod, DashboardResolvedPeriod, DashboardSegment } from '@fit/types';
 
 /** The period values offered by the header date filter, in ascending span order. */
 const PERIOD_VALUES = [
@@ -43,9 +35,6 @@ const PERIOD_VALUES = [
   'month',
   'custom',
 ] as const satisfies readonly DashboardPeriod[];
-
-/** The range values offered on a segment tab, in ascending span order. */
-const RANGE_VALUES = ['7d', '30d', '12w'] as const satisfies readonly DashboardRange[];
 
 const styles = stylex.create({
   header: {
@@ -85,11 +74,9 @@ const styles = stylex.create({
 export function DashboardHeader({
   active,
   period,
-  range,
 }: {
   active: DashboardSegment;
   period: DashboardResolvedPeriod;
-  range: DashboardRange;
 }) {
   const t = useTranslations('admin.dashboard');
   const router = useRouter();
@@ -122,12 +109,6 @@ export function DashboardHeader({
     params.set('period', 'custom');
     params.set('from', next.start);
     params.set('to', next.end);
-    apply(params);
-  }
-
-  function selectRange(next: DashboardRange): void {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('range', next);
     apply(params);
   }
 
@@ -167,19 +148,7 @@ export function DashboardHeader({
               isDisabled={isPending}
             />
           </>
-        ) : isHandBuiltSegment(active) ? null : (
-          <SegmentedControl
-            value={range}
-            onChange={(next) => selectRange(next as DashboardRange)}
-            label={t('period.rangeAria')}
-            size="sm"
-            isDisabled={isPending}
-          >
-            {RANGE_VALUES.map((value) => (
-              <SegmentedControlItem key={value} value={value} label={t(`ranges.${value}`)} />
-            ))}
-          </SegmentedControl>
-        )}
+        ) : null}
       </div>
     </header>
   );

@@ -17,18 +17,15 @@
 // to the tab, and Retry drops only its own cache entry.
 //
 // Note the mount, not the page: the shell renders this tab conditionally, so
-// leaving Sales for another tab unmounts it and the cache goes with it. That is a
-// deliberate difference from `SegmentPanel`, which the shell keeps mounted-and-
-// hidden precisely to preserve its cache — Sales holds one response per
-// combination rather than a whole segment's widget set, so refetching on return
-// costs a single request.
+// leaving Sales for another tab unmounts it and the cache goes with it. One
+// response per combination is cheap enough that refetching on return costs a
+// single request.
 //
 // Motion: changing either control settles the tab as a short diagonal cascade
-// rather than a single hard swap — the same idea `segments/widget-grid.tsx`
-// applies to a segment's widgets. It matters most on a CACHED combination, where
+// rather than a single hard swap. It matters most on a CACHED combination, where
 // the response is already in hand and the numbers would otherwise simply jump.
 //
-// Unlike `widget-grid.tsx` this is a TRANSITION replayed from state, not a
+// This is a TRANSITION replayed from state, not a
 // keyframe replayed by remounting. `SalesTrendCard` owns the two segmented
 // controls, and remounting it would drop keyboard focus from the very button the
 // user just pressed. Instead `settled` flips false on a data change and true on

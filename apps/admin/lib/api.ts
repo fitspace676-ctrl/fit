@@ -28,8 +28,6 @@ import type {
   DashboardRevenueQuery,
   DashboardRevenueResponse,
   DashboardPeriod,
-  ConfigurableDashboardSegment,
-  DashboardSegmentResponse,
   AdminAnalyticsResponse,
   AnalyticsRange,
   CreateMemberInput,
@@ -1669,27 +1667,6 @@ export async function fetchDashboardOverview(params?: {
 }
 
 /**
- * `GET /admin/dashboard/segments/:segment` — one segment's widgets resolved to
- * their live report sections. `range` shapes every widget in the segment; the
- * API falls back to the dashboard default on an unknown value.
- */
-export async function fetchDashboardSegment(
-  segment: ConfigurableDashboardSegment,
-  range?: DashboardRange,
-): Promise<DashboardSegmentResponse> {
-  const query = range ? `?range=${encodeURIComponent(range)}` : '';
-  const res = await fetch(
-    `${apiBaseUrl()}/admin/dashboard/segments/${encodeURIComponent(segment)}${query}`,
-    {
-      headers: await authHeaders(),
-      // Segments reflect live tenant state — never serve a stale snapshot.
-      cache: 'no-store',
-    },
-  );
-  return unwrap<DashboardSegmentResponse>(res);
-}
-
-/**
  * `GET /dashboard/sales` — the hand-built Sales tab in one payload. Both params
  * scope the whole response, so the tab never shows two cards describing different
  * windows; the API `.catch`es unknown values to its own defaults.
@@ -1782,29 +1759,6 @@ export async function fetchDashboardStaff(
     cache: 'no-store',
   });
   return unwrap<DashboardStaffResponse>(res);
-}
-
-/**
- * `PUT /admin/dashboard/segments/:segment/widgets` — replace the segment's widget
- * selection with `widgetKeys`, in display order. Gym-wide: this changes what every
- * colleague sees.
- */
-export async function saveDashboardSegmentWidgets(
-  segment: ConfigurableDashboardSegment,
-  widgetKeys: string[],
-): Promise<void> {
-  const res = await fetch(
-    `${apiBaseUrl()}/admin/dashboard/segments/${encodeURIComponent(segment)}/widgets`,
-    {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-      body: JSON.stringify({ widgetKeys }),
-      cache: 'no-store',
-    },
-  );
-  if (!res.ok && res.status !== 204) {
-    await unwrap<void>(res);
-  }
 }
 
 // ── Reception / check-in (T4.12) ──────────────────────────────────────────────

@@ -21,9 +21,7 @@ const messages = {
         custom: 'Custom',
         aria: 'Dashboard period',
         rangeLabel: 'Custom date range',
-        rangeAria: 'Widget range',
       },
-      ranges: { '7d': '7d', '30d': '30d', '12w': '12w' },
     },
   },
 };
@@ -33,7 +31,7 @@ const period: DashboardResolvedPeriod = { period: 'today', from: '2026-08-07', t
 function renderHeader(active: DashboardSegment = 'overview') {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <DashboardHeader active={active} period={period} range="7d" />
+      <DashboardHeader active={active} period={period} />
     </NextIntlClientProvider>,
   );
 }
@@ -56,24 +54,18 @@ describe('DashboardHeader', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Widget range' })).not.toBeInTheDocument();
   });
 
-  it('offers the range filter on a segment tab and no period filter', () => {
-    renderHeader('staff');
-    expect(screen.getByRole('radiogroup', { name: 'Widget range' })).toBeInTheDocument();
-    expect(screen.queryByRole('radiogroup', { name: 'Dashboard period' })).not.toBeInTheDocument();
-  });
-
-  // Sales and Members are hand-built and read no URL param: each has its own
-  // granularity control picking the window. A `?range=` here would be a second,
-  // DEAD time filter sitting forty pixels above a live one — and one that still
-  // fires a navigation, so it would read as broken rather than absent.
-  it.each(['sales', 'members', 'revenue', 'classes'] as const)(
-    'offers neither filter on the %s tab',
+  // Every tab but Overview is a hand-built view owning its own granularity
+  // control, next to the chart it redraws. A second time filter up here would be
+  // a dead one — and one that still fires a navigation, so it would read as
+  // broken rather than absent.
+  it.each(['sales', 'members', 'revenue', 'classes', 'staff'] as const)(
+    'offers no filter at all on the %s tab',
     (segment) => {
       renderHeader(segment);
-      expect(screen.queryByRole('radiogroup', { name: 'Widget range' })).not.toBeInTheDocument();
       expect(
         screen.queryByRole('radiogroup', { name: 'Dashboard period' }),
       ).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Custom date range/ })).not.toBeInTheDocument();
     },
   );
 
@@ -91,13 +83,6 @@ describe('DashboardHeader', () => {
     renderHeader('overview');
     await userEvent.click(screen.getByRole('radio', { name: 'This Month' }));
     expect(navigationMock.replace).toHaveBeenCalledWith('/?period=month');
-  });
-
-  it('writes the chosen range to the query from a segment tab', async () => {
-    navigationMock.setSearch('segment=staff');
-    renderHeader('staff');
-    await userEvent.click(screen.getByRole('radio', { name: '30d' }));
-    expect(navigationMock.replace).toHaveBeenCalledWith('/?segment=staff&range=30d');
   });
 
   // `selectCustomRange` (including its `if (!next) return` guard and its

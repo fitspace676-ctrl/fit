@@ -146,10 +146,7 @@
         "members": "Members",
         "revenue": "Revenue",
         "classes": "Classes",
-        "staff": "Staff",
-        "retry": "Retry",
-        "loadError": "Couldn't load this segment.",
-        "empty": "No widgets in this segment yet."
+        "staff": "Staff"
       },
       "sales": {
         "granularityLabel": "Granularity",
@@ -477,18 +474,6 @@
         },
         "loadError": "Couldn't load staff.",
         "retry": "Retry"
-      },
-      "widgets": {
-        "staffSessionsPerTrainer": "Sessions per trainer"
-      },
-      "picker": {
-        "open": "Add widget",
-        "title": "Add widget",
-        "shared": "This layout is shared with everyone at your gym.",
-        "lastWidget": "Each segment keeps at least one widget.",
-        "apply": "Save",
-        "cancel": "Cancel",
-        "saveError": "Couldn't save your widgets."
       },
       "greeting": {
         "morning": "Good morning",
