@@ -411,8 +411,6 @@
         "retry": "Retry"
       },
       "widgets": {
-        "classesMostBooked": "Most booked classes",
-        "classesPeakHours": "Peak hours",
         "staffSessionsPerTrainer": "Sessions per trainer"
       },
       "picker": {

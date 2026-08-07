@@ -411,8 +411,6 @@
         "retry": "ხელახლა"
       },
       "widgets": {
-        "classesMostBooked": "ყველაზე დაჯავშნადი ჯგუფურები",
-        "classesPeakHours": "პიკის საათები",
         "staffSessionsPerTrainer": "სესიები ტრენერზე"
       },
       "picker": {

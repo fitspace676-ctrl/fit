@@ -7,7 +7,7 @@ import type { DashboardSegmentsService } from './dashboard-segments.service';
 
 function setup() {
   const get = vi.fn().mockResolvedValue({
-    segment: 'classes',
+    segment: 'staff',
     range: '7d',
     currency: 'GEL',
     widgets: [],
@@ -20,21 +20,21 @@ function setup() {
 describe('DashboardSegmentsController', () => {
   it('reads a segment at the requested range', async () => {
     const { controller, get } = setup();
-    await controller.get('classes', '12w');
-    expect(get).toHaveBeenCalledWith('classes', '12w');
+    await controller.get('staff', '12w');
+    expect(get).toHaveBeenCalledWith('staff', '12w');
   });
 
   it('defaults an omitted range rather than erroring', async () => {
     const { controller, get } = setup();
-    await controller.get('classes', undefined);
-    expect(get).toHaveBeenCalledWith('classes', '7d');
+    await controller.get('staff', undefined);
+    expect(get).toHaveBeenCalledWith('staff', '7d');
   });
 
   it('defaults a range outside the dashboard vocabulary', async () => {
     const { controller, get } = setup();
     // `12m` is valid for a drill-down but not for the dashboard's range control.
-    await controller.get('classes', '12m');
-    expect(get).toHaveBeenCalledWith('classes', '7d');
+    await controller.get('staff', '12m');
+    expect(get).toHaveBeenCalledWith('staff', '7d');
   });
 
   // Overview is server-rendered and has no catalogue. Answering with an empty
@@ -45,13 +45,16 @@ describe('DashboardSegmentsController', () => {
     expect(get).not.toHaveBeenCalled();
   });
 
-  // `sales`, `members` and `revenue` are hand-built views with no catalogue, so
-  // asking the segments API for any of them is a client bug worth surfacing —
-  // exactly like `overview`. The console routes them to their own views instead.
-  it.each(['sales', 'members', 'revenue'])('rejects the hand-built %s segment', async (segment) => {
-    const { controller } = setup();
-    await expect(controller.get(segment, '7d')).rejects.toThrow(new RegExp(segment));
-  });
+  // Four hand-built views with no catalogue, so asking the segments API for any of
+  // them is a client bug worth surfacing — exactly like `overview`. The console
+  // routes each to its own view instead.
+  it.each(['sales', 'members', 'revenue', 'classes'])(
+    'rejects the hand-built %s segment',
+    async (segment) => {
+      const { controller } = setup();
+      await expect(controller.get(segment, '7d')).rejects.toThrow(new RegExp(segment));
+    },
+  );
 
   it('refuses an unknown segment', async () => {
     const { controller } = setup();
@@ -60,13 +63,13 @@ describe('DashboardSegmentsController', () => {
 
   it('saves a widget selection', async () => {
     const { controller, setWidgets } = setup();
-    await controller.setWidgets('classes', { widgetKeys: ['classes.peak-hours'] });
-    expect(setWidgets).toHaveBeenCalledWith('classes', ['classes.peak-hours']);
+    await controller.setWidgets('staff', { widgetKeys: ['staff.sessions-per-trainer'] });
+    expect(setWidgets).toHaveBeenCalledWith('staff', ['staff.sessions-per-trainer']);
   });
 
   it('refuses an empty widget selection', async () => {
     const { controller, setWidgets } = setup();
-    await expect(controller.setWidgets('classes', { widgetKeys: [] })).rejects.toThrow(
+    await expect(controller.setWidgets('staff', { widgetKeys: [] })).rejects.toThrow(
       BadRequestException,
     );
     expect(setWidgets).not.toHaveBeenCalled();

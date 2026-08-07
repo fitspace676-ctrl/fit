@@ -7,9 +7,9 @@
 // those two it is written with `router.replace`, so switching tabs does not
 // stack history entries — and the back button leaves the dashboard rather than
 // stepping back through segments. The hand-built tabs render their own views —
-// `overview` the server-fetched control room, `sales`, `members` and `revenue`
-// their own client-fetched ones; every other tab hands off to the lazily-fetched
-// panel.
+// `overview` the server-fetched control room, and `sales`, `members`, `revenue`
+// and `classes` their own client-fetched ones; every other tab hands off to the
+// lazily-fetched panel.
 
 import { useCallback, useState, useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -28,6 +28,7 @@ import { OverviewView } from '../overview/overview-view';
 import { SalesView } from '../sales/sales-view';
 import { MembersView } from '../member-retention/members-view';
 import { RevenueView } from '../revenue-insights/revenue-view';
+import { ClassesView } from '../class-insights/classes-view';
 import { AddWidgetDialog } from './add-widget-dialog';
 import { SegmentPanel } from './segment-panel';
 import { SegmentTabs } from './segment-tabs';
@@ -163,6 +164,7 @@ export function SegmentedDashboard({
         {active === 'sales' ? <SalesView /> : null}
         {active === 'members' ? <MembersView /> : null}
         {active === 'revenue' ? <RevenueView /> : null}
+        {active === 'classes' ? <ClassesView /> : null}
 
         {lastSegment !== null ? (
           <div

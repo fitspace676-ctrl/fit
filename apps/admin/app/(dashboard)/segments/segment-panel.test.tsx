@@ -30,12 +30,12 @@ const messages = {
 
 function response(title: string): DashboardSegmentResponse {
   return {
-    segment: 'classes',
+    segment: 'staff',
     range: '7d',
     currency: 'GEL',
     widgets: [
       {
-        key: 'classes.most-booked',
+        key: 'staff.sessions-per-trainer',
         size: 'md',
         section: { kind: 'series', id: 'revenue-by-plan', title, unit: 'money', points: [] },
       },
@@ -43,7 +43,7 @@ function response(title: string): DashboardSegmentResponse {
   };
 }
 
-function panel(segment: 'classes' | 'staff', range: '7d' | '30d' = '7d') {
+function panel(segment: 'staff', range: '7d' | '30d' = '7d') {
   return (
     <NextIntlClientProvider locale="en" messages={messages}>
       <SegmentPanel segment={segment} range={range} />
@@ -51,7 +51,7 @@ function panel(segment: 'classes' | 'staff', range: '7d' | '30d' = '7d') {
   );
 }
 
-function renderPanel(segment: 'classes' | 'staff' = 'classes') {
+function renderPanel(segment: 'staff' = 'staff') {
   return render(panel(segment));
 }
 
@@ -64,31 +64,34 @@ describe('SegmentPanel', () => {
   it('fetches the segment and renders its widgets', async () => {
     renderPanel();
     expect(await screen.findByText('Peak hours')).toBeInTheDocument();
-    expect(loadSegmentAction).toHaveBeenCalledWith('classes', '7d');
+    expect(loadSegmentAction).toHaveBeenCalledWith('staff', '7d');
   });
 
-  // The cache is what makes the transition animate instead of spin.
-  it('does not refetch a segment it has already loaded', async () => {
-    const { rerender } = renderPanel('classes');
+  // The cache is what makes the transition animate instead of spin. Driven by the
+  // RANGE rather than the segment: the cache is keyed on `segment:range`, so both
+  // exercise the same path — and with one configurable segment left there is no
+  // second one to switch to.
+  it('does not refetch a combination it has already loaded', async () => {
+    const { rerender } = renderPanel('staff');
     await screen.findByText('Peak hours');
 
-    loadSegmentAction.mockResolvedValue({ ok: true, data: response('Revenue over time') });
-    rerender(panel('staff'));
-    await screen.findByText('Revenue over time');
+    loadSegmentAction.mockResolvedValue({ ok: true, data: response('Sessions per trainer') });
+    rerender(panel('staff', '30d'));
+    await screen.findByText('Sessions per trainer');
 
-    rerender(panel('classes'));
+    rerender(panel('staff', '7d'));
     await screen.findByText('Peak hours');
 
     expect(loadSegmentAction).toHaveBeenCalledTimes(2);
   });
 
   it('refetches when the range changes', async () => {
-    const { rerender } = renderPanel('classes');
+    const { rerender } = renderPanel('staff');
     await screen.findByText('Peak hours');
 
-    rerender(panel('classes', '30d'));
+    rerender(panel('staff', '30d'));
 
-    await waitFor(() => expect(loadSegmentAction).toHaveBeenCalledWith('classes', '30d'));
+    await waitFor(() => expect(loadSegmentAction).toHaveBeenCalledWith('staff', '30d'));
   });
 
   // A failed segment must not take the rest of the dashboard down with it.
@@ -113,60 +116,43 @@ describe('SegmentPanel', () => {
     expect(await screen.findByText('No widgets in this segment yet.')).toBeInTheDocument();
   });
 
-  // Regression (fix round 1, Finding 1): `attempt` used to gate every cache
-  // hit, not just the retried segment's — so retrying ANY segment quietly
-  // defeated the cache for EVERY segment, forever. Reproduces the reviewer's
-  // exact sequence: cache `classes`, fail + retry `staff`, come back to
-  // `classes` — it must be served from cache, not refetched.
-  it('keeps other segments cached across an unrelated retry', async () => {
-    const { rerender } = renderPanel('classes');
+  // Regression (fix round 1, Finding 1): `attempt` used to gate every cache hit,
+  // not just the retried combination's — so retrying ANYTHING quietly defeated the
+  // cache for EVERYTHING, forever. Reproduced across ranges rather than across
+  // segments, which is the same cache key and the only form the fixture can take
+  // now: cache 7d, fail + retry 30d, come back to 7d — it must be served from
+  // cache, not refetched.
+  it('keeps other combinations cached across an unrelated retry', async () => {
+    const { rerender } = renderPanel('staff');
     await screen.findByText('Peak hours');
     expect(loadSegmentAction).toHaveBeenCalledTimes(1);
 
     loadSegmentAction.mockResolvedValueOnce({ ok: false, error: 'boom' });
-    rerender(panel('staff'));
+    rerender(panel('staff', '30d'));
     await screen.findByText("Couldn't load this segment.");
     expect(loadSegmentAction).toHaveBeenCalledTimes(2);
 
-    loadSegmentAction.mockResolvedValueOnce({ ok: true, data: response('Revenue over time') });
+    loadSegmentAction.mockResolvedValueOnce({ ok: true, data: response('Sessions per trainer') });
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await screen.findByText('Revenue over time');
+    await screen.findByText('Sessions per trainer');
     expect(loadSegmentAction).toHaveBeenCalledTimes(3);
 
-    // The retry above must not have poisoned `classes`'s cache entry.
-    rerender(panel('classes'));
+    // The retry above must not have poisoned the 7d entry.
+    rerender(panel('staff', '7d'));
     await screen.findByText('Peak hours');
     expect(loadSegmentAction).toHaveBeenCalledTimes(3);
   });
 
-  // Regression (fix round 1, Finding 2): switching away and back to the
-  // segment already on screen, inside the 120ms exit window, used to leave
-  // the panel stuck in the "exiting" phase forever (the timeout that would
-  // have cleared it gets cancelled by the bounce-back, and the early return
-  // for "nothing to swap" never reset the flag). `data-phase` is a plain
-  // attribute standing in for the `exiting`/`entering` StyleX classes, which
-  // the test-only StyleX shim collapses to one fixed class and so cannot
-  // observe — see apps/admin/test/stylex-mock.ts.
-  it('resets the swap instead of sticking exited when the tab bounces back to the segment already shown', async () => {
-    const { container, rerender } = renderPanel('classes');
-    await screen.findByText('Peak hours');
-
-    /** The panel root — `data-phase` is unique in the tree, so it is the handle. */
-    function phase(): string | null {
-      const root = container.querySelector('[data-phase]');
-      if (root === null) throw new Error('No panel rendered.');
-      return root.getAttribute('data-phase');
-    }
-
-    expect(phase()).toBe('entering');
-
-    // Switch away — starts the 120ms exit before `shown` itself flips.
-    rerender(panel('staff'));
-    expect(phase()).toBe('exiting');
-
-    // Bounce back to `classes` before that timer fires. `shown` never stopped
-    // being `classes`, so this must cancel the exit and rest — not hang faded out.
-    rerender(panel('classes'));
-    expect(phase()).toBe('entering');
-  });
+  // Regression (fix round 1, Finding 2) — DELETED, not skipped.
+  //
+  // It drove the staged exit/enter swap by rerendering the panel with a DIFFERENT
+  // segment, and `classes` was the last one available to switch to. With `staff`
+  // alone in the catalogue no caller can hand this component two segments, so the
+  // swap machinery it covered is unreachable from the app and the case cannot be
+  // written without a cast that lies about the types.
+  //
+  // The machinery is still in `segment-panel.tsx`. Restore this case from
+  // git history (`git log -S "bounces back" -- apps/admin`) the moment a second
+  // configurable segment returns — and if none ever does, delete the swap code
+  // with it rather than leaving an untested path behind.
 });

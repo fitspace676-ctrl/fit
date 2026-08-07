@@ -28,6 +28,9 @@ vi.mock('../member-retention/members-view', () => ({
 vi.mock('../revenue-insights/revenue-view', () => ({
   RevenueView: () => <div>Revenue view</div>,
 }));
+vi.mock('../class-insights/classes-view', () => ({
+  ClassesView: () => <div>Classes view</div>,
+}));
 vi.mock('./segment-panel', () => ({
   SegmentPanel: ({ segment }: { segment: ConfigurableDashboardSegment }) => (
     <div data-testid="panel">{segment}</div>
@@ -68,8 +71,7 @@ const messages = {
 };
 
 const selectedKeys = {
-  classes: ['classes.most-booked'],
-  staff: [],
+  staff: ['staff.sessions-per-trainer'],
 };
 
 // A real resolved period, not `{}` — the header (rendered for real, not
@@ -97,20 +99,17 @@ describe('SegmentedDashboard', () => {
   });
 
   it('labels the panel with whichever tab is active', () => {
-    navigationMock.setSearch('segment=classes');
-    renderShell('classes');
-    expect(screen.getByRole('tabpanel')).toHaveAttribute(
-      'aria-labelledby',
-      'dashboard-tab-classes',
-    );
+    navigationMock.setSearch('segment=staff');
+    renderShell('staff');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'dashboard-tab-staff');
   });
 
   // The bug this shell fixes: the header used to live inside OverviewView, so
   // every other tab opened untitled. Assert the real (unmocked) header
   // renders its title on a segment tab, not just on Overview.
   it('titles the page on a segment tab, not just on Overview', () => {
-    navigationMock.setSearch('segment=classes');
-    renderShell('classes');
+    navigationMock.setSearch('segment=staff');
+    renderShell('staff');
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
   });
 
@@ -121,14 +120,11 @@ describe('SegmentedDashboard', () => {
   // outright and returning `initialSegment` would still pass every other test,
   // because in all of them the prop and the expected answer coincide.
   it('prefers the live query over the segment the server first rendered', () => {
-    navigationMock.setSearch('segment=classes');
+    navigationMock.setSearch('segment=staff');
     renderShell('overview');
-    expect(screen.getByRole('tabpanel')).toHaveAttribute(
-      'aria-labelledby',
-      'dashboard-tab-classes',
-    );
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'dashboard-tab-staff');
     expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
-    expect(screen.getByTestId('panel')).toHaveTextContent('classes');
+    expect(screen.getByTestId('panel')).toHaveTextContent('staff');
   });
 
   // `?segment=` is user-editable. An unrecognised value must land on the default
@@ -150,8 +146,8 @@ describe('SegmentedDashboard', () => {
     // click drops `?segment=`, so the next render sees an empty query AND an
     // `initialSegment` the server re-parsed as `overview`. Re-rendering with the
     // segment still selected would prove nothing — `active` would never leave it.
-    navigationMock.setSearch('segment=classes');
-    const { rerender } = renderShell('classes');
+    navigationMock.setSearch('segment=staff');
+    const { rerender } = renderShell('staff');
     expect(screen.getByTestId('panel')).toBeVisible();
 
     navigationMock.setSearch('');
@@ -172,8 +168,8 @@ describe('SegmentedDashboard', () => {
   });
 
   it('drops the segment param entirely when returning to the default tab', async () => {
-    navigationMock.setSearch('segment=classes&range=30d');
-    renderShell('classes');
+    navigationMock.setSearch('segment=staff&range=30d');
+    renderShell('staff');
     await userEvent.click(screen.getByRole('tab', { name: 'Overview' }));
     expect(navigationMock.replace).toHaveBeenCalledWith('/?range=30d');
   });
@@ -181,13 +177,13 @@ describe('SegmentedDashboard', () => {
   it('writes the chosen segment to the query without touching the other params', async () => {
     navigationMock.setSearch('range=30d');
     renderShell('overview');
-    await userEvent.click(screen.getByRole('tab', { name: 'Classes' }));
-    expect(navigationMock.replace).toHaveBeenCalledWith('/?range=30d&segment=classes');
+    await userEvent.click(screen.getByRole('tab', { name: 'Staff' }));
+    expect(navigationMock.replace).toHaveBeenCalledWith('/?range=30d&segment=staff');
   });
 
   it('offers the widget picker on a segment tab but not on Overview', () => {
-    navigationMock.setSearch('segment=classes');
-    const { unmount } = renderShell('classes');
+    navigationMock.setSearch('segment=staff');
+    const { unmount } = renderShell('staff');
     expect(screen.getByRole('button', { name: 'Add widget' })).toBeInTheDocument();
     unmount();
 
@@ -209,6 +205,13 @@ describe('SegmentedDashboard', () => {
   // The bug the screenshot caught: Members became a hand-built view, so the
   // segments API stopped answering for it — and the shell, still routing it to
   // the panel, asked anyway and rendered "Couldn't load this segment."
+  it('renders the hand-built classes view, not the widget panel', () => {
+    navigationMock.setSearch('segment=classes');
+    renderShell('classes');
+    expect(screen.getByText('Classes view')).toBeInTheDocument();
+    expect(screen.queryByTestId('panel')).not.toBeInTheDocument();
+  });
+
   it('renders the hand-built revenue view, not the widget panel', () => {
     navigationMock.setSearch('segment=revenue');
     renderShell('revenue');
@@ -225,7 +228,7 @@ describe('SegmentedDashboard', () => {
 
   // The picker configures a catalogue; the three hand-built views have none.
   it('hides the widget picker on every hand-built tab', () => {
-    for (const segment of ['sales', 'members', 'revenue'] as const) {
+    for (const segment of ['sales', 'members', 'revenue', 'classes'] as const) {
       navigationMock.setSearch(`segment=${segment}`);
       const { unmount } = renderShell(segment);
       expect(screen.queryByRole('button', { name: /add widget/i })).not.toBeInTheDocument();

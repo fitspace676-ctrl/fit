@@ -47,25 +47,30 @@ describe('dashboard segment catalogue', () => {
   });
 
   it('returns a segment its widgets in catalogue order', () => {
-    expect(widgetsForSegment('classes').map((widget) => widget.key)).toEqual([
-      'classes.most-booked',
-      'classes.peak-hours',
+    expect(widgetsForSegment('staff').map((widget) => widget.key)).toEqual([
+      'staff.sessions-per-trainer',
     ]);
   });
 
   it('finds a widget by key and misses on an unknown one', () => {
-    expect(findDashboardWidget('classes.most-booked')?.segment).toBe('classes');
-    expect(findDashboardWidget('classes.nope')).toBeUndefined();
+    expect(findDashboardWidget('staff.sessions-per-trainer')?.segment).toBe('staff');
+    expect(findDashboardWidget('staff.nope')).toBeUndefined();
   });
 
-  // `sales`, `members` and `revenue` are hand-built views now, so the picker must
-  // not offer any of them — while the tab bar must still show all three.
+  // Four hand-built views now, so the picker must offer none of them — while the
+  // tab bar must still show every one.
   it('keeps the hand-built tabs out of the configurable segments but in the tab bar', () => {
     for (const segment of HAND_BUILT_SEGMENTS) {
       expect(CONFIGURABLE_DASHBOARD_SEGMENTS).not.toContain(segment);
       expect(DASHBOARD_SEGMENTS).toContain(segment);
     }
-    expect(DASHBOARD_SEGMENTS.slice(0, 4)).toEqual(['overview', 'sales', 'members', 'revenue']);
+    expect(DASHBOARD_SEGMENTS.slice(0, 5)).toEqual([
+      'overview',
+      'sales',
+      'members',
+      'revenue',
+      'classes',
+    ]);
   });
 
   // The console splits every tab on this guard alone — a tab it misjudges either
@@ -92,6 +97,13 @@ describe('dashboard segment catalogue', () => {
       false,
     );
     expect(findDashboardWidget('revenue.over-time')).toBeUndefined();
+  });
+
+  it('no longer defines any classes widget', () => {
+    expect(DASHBOARD_WIDGET_CATALOG.some((widget) => widget.key.startsWith('classes.'))).toBe(
+      false,
+    );
+    expect(findDashboardWidget('classes.most-booked')).toBeUndefined();
   });
 
   it('no longer defines any members widget', () => {
