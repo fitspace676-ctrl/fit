@@ -404,7 +404,7 @@ Create `apps/api/src/dashboard/dashboard-members.service.spec.ts`:
 
 ```ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { InvoiceStatus, PaymentStatus, SubscriptionStatus } from '@fit/db';
+import { InvoiceStatus, PaymentStatus, Role, SubscriptionStatus } from '@fit/db';
 import type { DashboardMembersQuery } from '@fit/types';
 import { DashboardMembersService } from './dashboard-members.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -462,6 +462,7 @@ function setup(
   return {
     service: new DashboardMembersService(prisma),
     memberFindMany,
+    memberCount,
     subscriptionFindMany,
     paymentFindMany,
     invoiceFindMany,
@@ -496,16 +497,11 @@ describe('DashboardMembersService.get — trash', () => {
   // leave unfiltered — a gym that trashed half its roster would see its average
   // halve for no reason.
   it('excludes trashed members from the LTV denominator too', async () => {
-    const { service } = setup();
+    const { service, memberCount } = setup();
     await service.get(QUERY);
 
-    const prismaCount = (
-      service as unknown as {
-        prisma: { client: { gymMember: { count: ReturnType<typeof vi.fn> } } };
-      }
-    ).prisma.client.gymMember.count;
-    const args = prismaCount.mock.calls[0]?.[0] as { where: Record<string, unknown> };
-    expect(args.where).toMatchObject({ deletedAt: null });
+    const args = memberCount.mock.calls[0]?.[0] as { where: Record<string, unknown> };
+    expect(args.where).toMatchObject({ role: Role.MEMBER, deletedAt: null });
   });
 });
 
