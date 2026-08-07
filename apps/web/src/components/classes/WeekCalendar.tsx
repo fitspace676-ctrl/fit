@@ -17,6 +17,7 @@ import {
   startOfWeek,
   weekDays,
 } from './date-utils';
+import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11.12): the week grid is rebuilt on the Astryx `Card` over
 // the Fit brand theme, with the 7-column time grid, hour gridlines, and
@@ -258,7 +259,7 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
                   {...stylex.props(styles.headCell, isToday && styles.headCellToday)}
                 >
                   <p {...stylex.props(styles.headDow)}>
-                    {day.toLocaleDateString(locale, { weekday: 'short' })}
+                    {createDateTimeFormat(locale, { weekday: 'short' }).format(day)}
                   </p>
                   <p {...stylex.props(styles.headDate, isToday && styles.headDateToday)}>
                     {day.getDate()}

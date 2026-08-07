@@ -11,6 +11,7 @@ import { MAX_FREEZE_DURATION_DAYS } from '@fit/types';
 import { useRouter } from '@/src/i18n/navigation';
 import { Icon, useToast } from '@/src/components/ui';
 import { freezeSubscriptionAction, unfreezeSubscriptionAction } from '@/app/actions/subscriptions';
+import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11.16): the "Pause membership" self-service card is rebuilt
 // on the Astryx design system over the Fit brand theme — the header, allowance
@@ -198,11 +199,11 @@ export function FreezeCard({
 
   const fmtDate = (iso: string | null) =>
     iso
-      ? new Date(iso).toLocaleDateString(locale, {
+      ? createDateTimeFormat(locale, {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
-        })
+        }).format(new Date(iso))
       : '—';
 
   function submitFreeze(): void {

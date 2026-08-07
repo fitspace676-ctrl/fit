@@ -31,6 +31,7 @@ import {
   searchMembersForBookingAction,
   type MemberSearchResult,
 } from './actions';
+import { createDateTimeFormat } from '@fit/i18n';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -1210,7 +1211,7 @@ function initials(label: string): string {
 
 /** Localised full day (e.g. "Monday, Jun 1"), read on the gym's clock. */
 function formatDay(iso: string, locale: string, timeZone: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return createDateTimeFormat(locale, {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
@@ -1220,7 +1221,7 @@ function formatDay(iso: string, locale: string, timeZone: string): string {
 
 /** Localised `HH:MM` for an ISO instant, read on the gym's clock like the grid. */
 function formatTime(iso: string, locale: string, timeZone: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return createDateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
     timeZone,

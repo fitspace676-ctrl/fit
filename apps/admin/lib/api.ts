@@ -17,6 +17,16 @@ import type {
   DashboardStatsResponse,
   DashboardOverviewResponse,
   DashboardRange,
+  DashboardSalesQuery,
+  DashboardSalesResponse,
+  DashboardClassesQuery,
+  DashboardClassesResponse,
+  DashboardStaffQuery,
+  DashboardStaffResponse,
+  DashboardMembersQuery,
+  DashboardMembersResponse,
+  DashboardRevenueQuery,
+  DashboardRevenueResponse,
   DashboardPeriod,
   AdminAnalyticsResponse,
   AnalyticsRange,
@@ -177,10 +187,6 @@ import type {
   ReportFormat,
   ReportDrilldown,
   ReportMetric,
-  DashboardPin,
-  DashboardPinsResponse,
-  DashboardWidgetsResponse,
-  CreateDashboardPin,
   ListAutomationRulesQuery,
   ListAutomationRulesResponse,
   ListAutomationTemplatesResponse,
@@ -1660,6 +1666,101 @@ export async function fetchDashboardOverview(params?: {
   return unwrap<DashboardOverviewResponse>(res);
 }
 
+/**
+ * `GET /dashboard/sales` — the hand-built Sales tab in one payload. Both params
+ * scope the whole response, so the tab never shows two cards describing different
+ * windows; the API `.catch`es unknown values to its own defaults.
+ */
+export async function fetchDashboardSales(
+  query: DashboardSalesQuery,
+): Promise<DashboardSalesResponse> {
+  const qs = new URLSearchParams({
+    granularity: query.granularity,
+    productType: query.productType,
+  });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/sales?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Sales figures reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardSalesResponse>(res);
+}
+
+/**
+ * `GET /dashboard/members` — the hand-built Members tab in one payload. All three
+ * params scope the whole response, so the tab never shows two cards describing
+ * different windows; the API `.catch`es unknown values to its own defaults.
+ */
+export async function fetchDashboardMembers(
+  query: DashboardMembersQuery,
+): Promise<DashboardMembersResponse> {
+  const qs = new URLSearchParams({
+    granularity: query.granularity,
+    retentionWindow: query.retentionWindow,
+    expiringWindow: query.expiringWindow,
+  });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/members?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Membership figures reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardMembersResponse>(res);
+}
+
+/**
+ * `GET /dashboard/revenue` — the hand-built Revenue tab in one payload. Both
+ * params scope the whole response, so the tab never shows two cards describing
+ * different windows; the API `.catch`es unknown values to its own defaults.
+ */
+export async function fetchDashboardRevenue(
+  query: DashboardRevenueQuery,
+): Promise<DashboardRevenueResponse> {
+  const qs = new URLSearchParams({
+    granularity: query.granularity,
+    projectionWindow: query.projectionWindow,
+  });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/revenue?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Revenue reflects live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardRevenueResponse>(res);
+}
+
+/**
+ * `GET /dashboard/classes` — the hand-built Classes tab in one payload. The
+ * granularity scopes the whole response, so the tab never shows two cards
+ * describing different windows.
+ */
+export async function fetchDashboardClasses(
+  query: DashboardClassesQuery,
+): Promise<DashboardClassesResponse> {
+  const qs = new URLSearchParams({ granularity: query.granularity });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/classes?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Class figures reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardClassesResponse>(res);
+}
+
+/**
+ * `GET /dashboard/staff` — the hand-built Staff tab in one payload. The
+ * granularity scopes the delivery figures; the rota inside the response is a
+ * standing weekly schedule and does not move with it.
+ */
+export async function fetchDashboardStaff(
+  query: DashboardStaffQuery,
+): Promise<DashboardStaffResponse> {
+  const qs = new URLSearchParams({ granularity: query.granularity });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/staff?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Staffing figures reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardStaffResponse>(res);
+}
+
 // ── Reception / check-in (T4.12) ──────────────────────────────────────────────
 
 /** `GET /admin/check-ins/stats` — the reception KPI snapshot (today's figures). */
@@ -2022,50 +2123,6 @@ export async function fetchReportDrilldown(
     },
   );
   return unwrap<ReportDrilldown>(res);
-}
-
-/** `GET /admin/dashboard/pins` — the caller's pinned report widgets (bare pins). */
-export async function fetchDashboardPins(): Promise<DashboardPinsResponse> {
-  const res = await fetch(`${apiBaseUrl()}/admin/dashboard/pins`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<DashboardPinsResponse>(res);
-}
-
-/**
- * `GET /admin/dashboard/pins/widgets` — the caller's pins resolved to their live
- * report sections, for the dashboard to render the pinned widgets.
- */
-export async function fetchDashboardWidgets(): Promise<DashboardWidgetsResponse> {
-  const res = await fetch(`${apiBaseUrl()}/admin/dashboard/pins/widgets`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<DashboardWidgetsResponse>(res);
-}
-
-/** `POST /admin/dashboard/pins` — pin one report section (idempotent). */
-export async function addDashboardPin(input: CreateDashboardPin): Promise<DashboardPin> {
-  const res = await fetch(`${apiBaseUrl()}/admin/dashboard/pins`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<DashboardPin>(res);
-}
-
-/** `DELETE /admin/dashboard/pins/:id` — unpin one of the caller's widgets. */
-export async function removeDashboardPin(id: string): Promise<void> {
-  const res = await fetch(`${apiBaseUrl()}/admin/dashboard/pins/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  if (!res.ok && res.status !== 204) {
-    await unwrap<void>(res);
-  }
 }
 
 /**

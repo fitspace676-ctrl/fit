@@ -65,3 +65,6 @@ Thumbs.db
 
 # Claude Code agent worktrees (transient, auto-cleaned)
 .claude/worktrees/
+
+# superpowers scratch (brainstorm mockups, SDD ledgers) — never committed
+.superpowers/

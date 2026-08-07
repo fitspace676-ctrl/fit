@@ -13,7 +13,8 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { locales, type Locale } from '@fit/i18n';
+import { locales } from '@fit/i18n';
+import type { Locale } from '@fit/i18n';
 import { LOCALE_COOKIE } from '@/i18n/locale-cookie';
 
 /** One year, in seconds — how long an explicit locale choice is remembered. */

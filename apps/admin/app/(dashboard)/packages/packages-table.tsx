@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminPackagePlanRow, PackagePlanSort, PackagePlanStatus, SortDir } from '@fit/types';
 import { Badge, Btn, Card, type Tone } from '@/components/ui';
 import { formatPrice, intervalSuffix, sessionLabel } from './format';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 /** Visual treatment per plan status — green active, slate inactive. */
 const STATUS_STYLES: Record<PackagePlanStatus, { label: string; tone: Tone }> = {
@@ -33,7 +34,11 @@ function formatDate(iso: string | null): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(defaultLocale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /**

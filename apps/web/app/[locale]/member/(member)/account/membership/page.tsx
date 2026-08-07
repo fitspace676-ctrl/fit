@@ -18,6 +18,7 @@ import { formatMoney } from '@/lib/shop';
 import { ButtonLink, Icon } from '@/src/components/ui';
 import { FreezeCard } from './freeze-card';
 import { BuyCreditsCard } from './buy-credits-card';
+import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11.16): the member membership screen is rebuilt on the
 // Astryx design system over the Fit brand theme. The status badge, the gradient
@@ -383,11 +384,11 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
 
   const fmtDate = (iso: string | null) =>
     iso
-      ? new Date(iso).toLocaleDateString(activeLocale, {
+      ? createDateTimeFormat(activeLocale, {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
-        })
+        }).format(new Date(iso))
       : '—';
 
   return (
@@ -556,11 +557,11 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
                   <tr key={inv.id}>
                     <td {...stylex.props(styles.td, styles.tdMono)}>{inv.id}</td>
                     <td {...stylex.props(styles.td)}>
-                      {new Date(inv.date).toLocaleDateString(activeLocale, {
+                      {createDateTimeFormat(activeLocale, {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
-                      })}
+                      }).format(new Date(inv.date))}
                     </td>
                     <td {...stylex.props(styles.td, styles.tdAmount)}>
                       {formatMoney(inv.amount, inv.currency, activeLocale)}

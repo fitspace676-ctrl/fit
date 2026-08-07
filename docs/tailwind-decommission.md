@@ -88,6 +88,7 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/(dashboard)/page.tsx`                      | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/dashboard-view.tsx`            | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/charts.tsx`                    | T11.18 | ✅     |
+| `apps/admin/app/(dashboard)/overview`                      | T11.18 | ✅     |
 | `apps/admin/app/(dashboard)/members`                       | T11.19 | ✅     |
 | `apps/admin/app/(dashboard)/classes`                       | T11.20 | ✅     |
 | `apps/admin/app/(dashboard)/staff`                         | T11.21 | ✅     |
@@ -98,6 +99,7 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/admin/app/(dashboard)/shop`                          | T11.22 | ✅     |
 | `apps/admin/app/(dashboard)/reports`                       | T11.22 | ✅     |
 | `apps/admin/components/pos`                                | T11.22 | ✅     |
+| `apps/admin/app/(dashboard)/segments`                      | DS-9   | ✅     |
 
 ### Rows retired by the IA consolidation
 

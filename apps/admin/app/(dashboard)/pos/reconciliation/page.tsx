@@ -14,6 +14,7 @@ import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ReconciliationDateForm } from './reconciliation-date-form';
 import { CashCountForm } from './cash-count-form';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
   title: 'Cash reconciliation - Fit Admin',
@@ -291,7 +292,15 @@ export default async function ReconciliationPage({
           <CashCountForm expectedCash={report.expectedCash} currency={report.currency} />
 
           <p {...stylex.props(styles.generatedAt)}>
-            Generated {new Date(report.generatedAt).toLocaleString()}.
+            Generated{' '}
+            {createDateTimeFormat(defaultLocale, {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }).format(new Date(report.generatedAt))}
+            .
           </p>
         </div>
       ) : null}

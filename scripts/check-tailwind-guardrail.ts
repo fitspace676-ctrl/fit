@@ -130,6 +130,11 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/admin/app/(dashboard)/page.tsx',
   'apps/admin/app/(dashboard)/dashboard-view.tsx',
   'apps/admin/app/(dashboard)/charts.tsx',
+  // Dashboard-segments task 8 — the control-room overview split out of the
+  // single `dashboard-view.tsx` (now a re-export) into `overview/`. Guarded as
+  // a directory: every card file it holds is still the same Astryx + StyleX
+  // T11.18 build, just relocated.
+  'apps/admin/app/(dashboard)/overview',
   // T11.19 — admin members (list + detail + create/edit): the roster rebuilt on the
   // Astryx DataTable + FilterChips + TableSearch kit, plan-mix and profile/schedule
   // cards on Astryx Card/Badge/Avatar, and the create/edit forms on the Astryx Form
@@ -178,6 +183,14 @@ const MIGRATED_PATHS: readonly string[] = [
   // palette), save-as-template and the templates gallery. Born on Astryx +
   // brand-tokened StyleX — never had Tailwind — and guarded so it stays that way.
   'apps/admin/app/(dashboard)/automation',
+  // Dashboard-segments task 9 — the segment tab bar (`segment-tabs.tsx`) that
+  // switches the dashboard between Overview/Sales/Members/Revenue/Classes/Staff.
+  // Reimplements `@fit/ui-web`'s `Tabs` ARIA contract (tablist, roving tabindex,
+  // arrow/Home/End navigation) directly in StyleX rather than importing that
+  // Tailwind-classed primitive. Born on Astryx + brand-tokened StyleX — never had
+  // Tailwind — and guarded so it stays that way. First (and so far only) file in
+  // `segments/`, so guarded as a directory to cover its siblings as they land.
+  'apps/admin/app/(dashboard)/segments',
 ];
 
 /** Class composers whose string arguments end up as `className`. */

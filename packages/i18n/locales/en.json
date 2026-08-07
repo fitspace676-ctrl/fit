@@ -136,10 +136,344 @@
         "month": "This Month",
         "custom": "Custom",
         "aria": "Dashboard period",
-        "rangeLabel": "Custom date range"
+        "rangeLabel": "Custom date range",
+        "rangeAria": "Widget range"
       },
-      "pinned": {
-        "title": "Pinned reports"
+      "segments": {
+        "aria": "Dashboard segments",
+        "overview": "Overview",
+        "sales": "Sales",
+        "members": "Members",
+        "revenue": "Revenue",
+        "classes": "Classes",
+        "staff": "Staff"
+      },
+      "sales": {
+        "granularityLabel": "Granularity",
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "productTypeLabel": "Product type",
+        "productType": {
+          "all": "All sales",
+          "memberships": "Memberships",
+          "session-packs": "Class & PT packs",
+          "retail": "Retail & POS"
+        },
+        "kpi": {
+          "grossSales": "Gross sales",
+          "netSales": "Net sales",
+          "refunded": "Refunded",
+          "avgSale": "Avg sale"
+        },
+        "kpiCaption": "{window} · {productType} · captured payments only — subscription renewals bill separately.",
+        "refundedHint": "Against sales in this window",
+        "trend": {
+          "title": "Revenue over time",
+          "caption": "{window} · {productType} · {total} net",
+          "chartAria": "Net revenue per period",
+          "empty": "No revenue in this window."
+        },
+        "vsRefunds": {
+          "title": "New sales vs refunds",
+          "caption": "Each dated by when it was taken",
+          "chartAria": "Sales against refunds per period",
+          "sales": "Sales",
+          "refunds": "Refunds",
+          "empty": "No sales or refunds in this window."
+        },
+        "method": {
+          "title": "Sales by payment method",
+          "share": "POS {pos}% · Online {online}%",
+          "channel": {
+            "pos": "POS",
+            "online": "Online"
+          },
+          "name": {
+            "cash": "Cash",
+            "card": "Card",
+            "member-account": "Member account"
+          },
+          "row": "{channel} · {name}",
+          "empty": "No payments in this window."
+        },
+        "topSellers": {
+          "title": "Top sellers",
+          "orders": "{count, plural, one {# order} other {# orders}}",
+          "empty": "Nothing sold in this window."
+        },
+        "loadError": "Couldn't load sales.",
+        "retry": "Retry"
+      },
+      "members": {
+        "granularityLabel": "Granularity",
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "kpi": {
+          "activeMembers": "Active members",
+          "newSignups": "New signups",
+          "churned": "Churned",
+          "avgLtv": "Avg LTV"
+        },
+        "kpiCaption": "{window} · LTV is lifetime value to date, not a forecast",
+        "active": {
+          "title": "Total active members",
+          "caption": "{window} · {total} now",
+          "chartAria": "Active members per period",
+          "empty": "No members in this window."
+        },
+        "signupsVsChurn": {
+          "title": "Signups vs cancellations",
+          "caption": "Joins against memberships that ended",
+          "chartAria": "Signups against cancellations per period",
+          "signups": "Signups",
+          "churned": "Cancellations",
+          "empty": "No joins or cancellations in this window."
+        },
+        "retention": {
+          "title": "Retention rate",
+          "windowLabel": "Retention window",
+          "window": {
+            "30": "30d",
+            "60": "60d",
+            "90": "90d"
+          },
+          "caption": "Members still here {days} days on",
+          "chartAria": "Retention rate per period",
+          "gapNote": "Gaps are periods with nobody to retain — not 0%.",
+          "empty": "Not enough history to measure retention yet."
+        },
+        "status": {
+          "title": "Members by status",
+          "name": {
+            "trial": "Trial",
+            "active": "Active",
+            "past-due": "Past due",
+            "frozen": "Frozen",
+            "canceled": "Cancelled",
+            "expired": "Expired"
+          },
+          "empty": "No memberships on record."
+        },
+        "loadError": "Couldn't load members.",
+        "retry": "Retry"
+      },
+      "revenue": {
+        "granularityLabel": "Granularity",
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "kpi": {
+          "totalRevenue": "Total revenue",
+          "mrr": "Recurring / mo",
+          "revenuePerMember": "Per member",
+          "outstandingTotal": "Outstanding"
+        },
+        "kpiCaption": "{window} · recurring and outstanding are current, not windowed",
+        "trend": {
+          "title": "Revenue over time",
+          "caption": "Memberships against sales & POS",
+          "chartAria": "Revenue per period, memberships against sales",
+          "recurring": "Memberships",
+          "oneOff": "Sales & POS",
+          "empty": "No revenue in this window."
+        },
+        "mrr": {
+          "title": "Recurring revenue",
+          "caption": "Monthly value of active plans · {total} now",
+          "chartAria": "Monthly recurring revenue per period",
+          "note": "Earlier periods are reconstructed from today's plans.",
+          "empty": "No active plans to bill yet."
+        },
+        "projected": {
+          "title": "Coming in",
+          "windowLabel": "Projection window",
+          "window": {
+            "7": "7d",
+            "30": "30d"
+          },
+          "caption": "{total} due in the next {days} days",
+          "chartAria": "Scheduled charges per day",
+          "atRisk": "{count} past due · {total} at risk",
+          "empty": "No charges scheduled in this window."
+        },
+        "outstanding": {
+          "title": "Outstanding invoices",
+          "caption": "Gym-wide, whatever the chart is showing",
+          "count": "{count} unsettled",
+          "overdue": "{count} overdue · {total}",
+          "failed": "{count} failed charges · {total}",
+          "empty": "Nothing unsettled."
+        },
+        "byLocation": {
+          "title": "Revenue by location",
+          "caption": "Sales & POS only — a subscription names no location.",
+          "empty": "No located revenue in this window."
+        },
+        "loadError": "Couldn't load revenue.",
+        "retry": "Retry"
+      },
+      "classes": {
+        "granularityLabel": "Granularity",
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "kpi": {
+          "classesHeld": "Classes held",
+          "seatsBooked": "Seats booked",
+          "noShowRate": "No-show rate",
+          "utilizationRate": "Utilization"
+        },
+        "kpiCaption": "{window} · cancelled classes are excluded throughout",
+        "noValue": "—",
+        "bookings": {
+          "title": "Bookings over time",
+          "caption": "Seats held, by when the class runs",
+          "chartAria": "Seats booked per period",
+          "empty": "No bookings in this window."
+        },
+        "attendance": {
+          "title": "Attendance rate",
+          "caption": "Of the bookings that were marked",
+          "chartAria": "Attendance rate per period",
+          "coverage": "{coverage}% of finished bookings were marked",
+          "coverageUnknown": "No classes have finished in this window yet",
+          "gapNote": "Gaps are periods with nothing marked — not 0%.",
+          "empty": "Nothing has been marked in this window."
+        },
+        "utilization": {
+          "title": "Utilization",
+          "caption": "Seats booked against seats offered",
+          "chartAria": "Utilization per period",
+          "gapNote": "Gaps are periods with no capacity to fill — not 0%.",
+          "empty": "No classes with capacity in this window."
+        },
+        "pt": {
+          "title": "PT sessions",
+          "caption": "Booked one-to-one sessions",
+          "chartAria": "PT sessions per period",
+          "empty": "No PT sessions in this window."
+        },
+        "topTypes": {
+          "title": "Most booked classes",
+          "caption": "Top {count} by seats booked",
+          "row": "{sessions} sessions · {utilization} full",
+          "empty": "No classes booked in this window."
+        },
+        "heatmap": {
+          "title": "When demand lands",
+          "caption": "Seats booked by weekday and hour (UTC)",
+          "chartAria": "Seats booked by weekday and hour",
+          "weekday": {
+            "mon": "Mon",
+            "tue": "Tue",
+            "wed": "Wed",
+            "thu": "Thu",
+            "fri": "Fri",
+            "sat": "Sat",
+            "sun": "Sun"
+          },
+          "empty": "No bookings to map in this window."
+        },
+        "loadError": "Couldn't load classes.",
+        "retry": "Retry"
+      },
+      "staff": {
+        "granularityLabel": "Granularity",
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "kpi": {
+          "trainersDelivering": "Trainers delivering",
+          "sessionsDelivered": "Sessions delivered",
+          "utilizationRate": "Trainer utilization",
+          "scheduledHoursPerWeek": "Scheduled / week"
+        },
+        "kpiCaption": "{window} · the rota is a standing week and does not follow it",
+        "noValue": "—",
+        "sessions": {
+          "title": "Sessions delivered",
+          "caption": "Classes taught against one-to-one sessions",
+          "chartAria": "Sessions delivered per period",
+          "classes": "Classes",
+          "pt": "PT",
+          "empty": "No sessions delivered in this window."
+        },
+        "utilization": {
+          "title": "Trainer utilization",
+          "caption": "Delivered hours against stated availability",
+          "excluded": "{count} trainers have no availability set",
+          "empty": "No trainer has availability set yet."
+        },
+        "perTrainer": {
+          "title": "Delivery per trainer",
+          "caption": "Top {count} by sessions",
+          "row": "{classes} classes · {pt} PT · {hours}h",
+          "empty": "No sessions delivered in this window."
+        },
+        "coverage": {
+          "title": "Shift coverage",
+          "caption": "The standing weekly rota — scheduled, not worked",
+          "weekday": {
+            "mon": "Mon",
+            "tue": "Tue",
+            "wed": "Wed",
+            "thu": "Thu",
+            "fri": "Fri",
+            "sat": "Sat",
+            "sun": "Sun"
+          },
+          "row": "{staff} staff",
+          "empty": "No shifts scheduled."
+        },
+        "gaps": {
+          "title": "Blind spots",
+          "caption": "What this tab cannot count",
+          "leave": "{count} staff-days of approved leave",
+          "noShifts": "{count} staff with no shift scheduled",
+          "noAvailability": "{count} trainers with no availability set",
+          "noTrainer": "{count} classes with no trainer assigned",
+          "invalidShifts": "{count} shifts that do not end after they start",
+          "none": "Nothing missing — every figure above is complete."
+        },
+        "loadError": "Couldn't load staff.",
+        "retry": "Retry"
       },
       "greeting": {
         "morning": "Good morning",
@@ -156,6 +490,9 @@
         "of": "of {capacity}",
         "quiet": "Quiet right now — no members checked in today yet.",
         "capacity": "{pct}% of capacity in use across {areas, plural, one {# area} other {# areas}}."
+      },
+      "metrics": {
+        "aria": "Key metrics"
       },
       "kpi": {
         "todaysRevenue": "Today's revenue",
@@ -178,7 +515,7 @@
         "expiringSoonHint": "Within 7 days",
         "renewalsDueHint": "This month"
       },
-      "revenue": {
+      "revenueCard": {
         "title": "Revenue",
         "caption": "{range} · total {total}",
         "range7d": "Last 7 days",
@@ -223,6 +560,9 @@
           "invited": "Invited",
           "suspended": "Suspended"
         }
+      },
+      "recentActivity": {
+        "aria": "Recent activity"
       },
       "relative": {
         "justNow": "just now",
@@ -293,13 +633,7 @@
       "drilldown": {
         "heading": "Drill-down reports",
         "back": "Back to reports",
-        "pin": "Pin",
-        "pinned": "Pinned",
-        "unpin": "Unpin",
-        "emptySection": "No data in this range.",
-        "notAuthorized": "Your role does not have permission to pin reports.",
-        "pinInvalid": "That widget can't be pinned.",
-        "pinError": "Could not update the pin (error {status})."
+        "emptySection": "No data in this range."
       }
     },
     "billingPlans": {

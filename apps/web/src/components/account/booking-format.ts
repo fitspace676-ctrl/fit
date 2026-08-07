@@ -4,6 +4,8 @@
 // never read from the clock here) so the components that use them stay easy to
 // reason about and the day labels are stable for a given render.
 
+import { createDateTimeFormat } from '@fit/i18n';
+
 /** A `t('…')` accessor — the subset of next-intl's translator these helpers use. */
 type Translate = (key: string) => string;
 
@@ -28,7 +30,7 @@ export function relativeDayLabel(iso: string, now: number, locale: string, t: Tr
   if (diffDays === 0) return t('relative.today');
   if (diffDays === 1) return t('relative.tomorrow');
   if (diffDays === -1) return t('relative.yesterday');
-  return new Date(iso).toLocaleDateString(locale, { weekday: 'short' });
+  return createDateTimeFormat(locale, { weekday: 'short' }).format(new Date(iso));
 }
 
 /** A compact duration label between two ISO instants, e.g. "45 min" / "1h 30m". */
@@ -45,5 +47,5 @@ export function formatDuration(startIso: string, endIso: string): string {
 
 /** A compact `D Mon` date label (e.g. "5 Jun") for the card's detail row. */
 export function formatShortDate(iso: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  return createDateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(iso));
 }

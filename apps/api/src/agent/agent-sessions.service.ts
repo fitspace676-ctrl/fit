@@ -26,7 +26,7 @@ type SummaryRecord = Prisma.AgentChatSessionGetPayload<{ select: typeof SUMMARY_
  * A session is per-gym **and** per-user: one staff member's chat history is
  * invisible to another, even within the same gym. `AgentChatSession` is
  * deliberately *not* in the tenant Prisma extension's scoped-model set (like
- * {@link DashboardPin}), since scoping here is per-user rather than merely
+ * `Review`), since scoping here is per-user rather than merely
  * per-gym — every query below stamps/filters `gymId` **and** `userId`
  * explicitly from {@link TenantContext} rather than relying on the extension.
  *

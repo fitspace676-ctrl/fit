@@ -12,7 +12,7 @@ import {
   type ReportMetric,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchDashboardPins, fetchReportDrilldown } from '@/lib/api';
+import { ApiError, fetchReportDrilldown } from '@/lib/api';
 import { DrilldownView } from './drilldown-view';
 
 const styles = stylex.create({
@@ -55,9 +55,8 @@ export const dynamic = 'force-dynamic';
  * against the {@link ReportMetric} enum (an unknown slug is a `404`), gates the
  * whole screen on {@link Permission.ReportView} (`OWNER` / `MANAGER`) — lower staff
  * get a plain notice, degrading by role rather than erroring — and renders the live
- * drill-down (KPIs + sections) with the caller's pins so each section's Pin control
- * reflects state. The selected `range` lives in the URL so the segmented control
- * re-fetches server-side.
+ * drill-down (KPIs + sections). The selected `range` lives in the URL so the
+ * segmented control re-fetches server-side.
  */
 export default async function ReportDrilldownPage({
   params,
@@ -88,11 +87,8 @@ export default async function ReportDrilldownPage({
   }
 
   try {
-    const [drilldown, pins] = await Promise.all([
-      fetchReportDrilldown(metric, range),
-      fetchDashboardPins(),
-    ]);
-    return <DrilldownView drilldown={drilldown} pins={pins.pins} />;
+    const drilldown = await fetchReportDrilldown(metric, range);
+    return <DrilldownView drilldown={drilldown} />;
   } catch (error) {
     const message =
       error instanceof ApiError

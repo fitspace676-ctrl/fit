@@ -21,6 +21,7 @@ import {
   selectTotal,
   usePosCart,
 } from '@/stores/pos-cart-store';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 /** A finished sale, snapshotted at completion so the success screen survives the cart reset. */
 interface CompletedSale {
@@ -937,7 +938,15 @@ function printReceipt(sale: CompletedSale, gymLabel: string): void {
     .tot td { border-top: 1px solid #000; font-weight: 700; padding-top: 6px; }
   </style></head><body>
     <h1>${escapeHtml(gymLabel)}</h1>
-    <div class="muted">${escapeHtml(new Date().toLocaleString())}</div>
+    <div class="muted">${escapeHtml(
+      createDateTimeFormat(defaultLocale, {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date()),
+    )}</div>
     ${sale.memberName ? `<div class="muted">Member: ${escapeHtml(sale.memberName)}</div>` : ''}
     <table>${lines}<tr class="sep"><td colspan="2"></td></tr>${rows.join('')}</table>
   </body></html>`);

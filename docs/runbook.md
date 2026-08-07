@@ -129,6 +129,38 @@ migration corrupted data, which is what the snapshot exists for.
 **Escalate** to the schema author before any `db restore`; a restore discards all
 writes since the snapshot.
 
+### 2a. Before `20260806160910_dashboard_widgets_replace_pins`
+
+**Run this before deploying that migration to any environment holding real data.
+It is required, not advisory.**
+
+The migration carries each gym's dashboard pins into the new shared
+`dashboard_widgets` table, then drops `dashboard_pins`. It matches a pin by its
+`(metric, section)` pair against a fixed ten-row map — the widget catalogue in
+`packages/types/src/dashboard-segments.ts`. **A pin outside that map is dropped
+silently, and the `DROP TABLE` in the same transaction destroys the evidence.**
+
+So look first:
+
+```sql
+SELECT "metric", "section", COUNT(*) AS pins
+FROM "dashboard_pins"
+GROUP BY 1, 2
+ORDER BY pins DESC;
+```
+
+Check every pair against `DASHBOARD_WIDGET_CATALOG`'s `source` fields. Any pair
+not in the catalogue is a pin that will disappear. That may be fine — the report
+sections behind some pins no longer exist — but it must be a **seen and accepted**
+loss, recorded in the deploy notes, not a discovery afterwards.
+
+If a pair should survive, stop and add it to the catalogue and to the migration's
+mapping table before deploying, rather than migrating and reconstructing later.
+
+Dev held zero pins when this migration was written, so the live run exercised
+nothing; the backfill's evidence is a synthetic rehearsal only. Treat the first
+environment with real pins as the first real test.
+
 ---
 
 ## 3. Billing job stuck

@@ -3,7 +3,8 @@ import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { localeNames, type Locale } from '@fit/i18n';
+import { localeNames } from '@fit/i18n';
+import type { Locale } from '@fit/i18n';
 import type { MeSubscription, MeSubscriptionStatus } from '@fit/types';
 import { useI18n, useToast } from '../../../providers';
 import { useAuth } from '../../../hooks/useAuth';

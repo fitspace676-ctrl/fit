@@ -62,7 +62,7 @@ const styles = stylex.create({
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'var(--color-border)',
-    borderRadius: 'var(--radius-surface)',
+    borderRadius: 'var(--radius-container)',
     backgroundColor: 'var(--color-background-surface)',
     padding: '1.25rem',
   },

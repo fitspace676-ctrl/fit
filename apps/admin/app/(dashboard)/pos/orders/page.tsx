@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import {
+  DEFAULT_CURRENCY,
   Permission,
   listOrdersQuerySchema,
   roleHasPermission,
@@ -15,6 +16,7 @@ import { ApiError, fetchOrders } from '@/lib/api';
 import { Badge, Icon, type Tone } from '@/components/ui';
 import { formatPrice } from '../../shop/format-price';
 import { OrdersFilters } from './orders-filters';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
   title: 'Sales log - Fit Admin',
@@ -267,7 +269,7 @@ export default async function OrdersLogPage({
   }
 
   const { data, total, page, limit } = result;
-  const currency = data[0]?.currency ?? 'GEL';
+  const currency = data[0]?.currency ?? DEFAULT_CURRENCY;
   const grossOnPage = data.reduce((sum, o) => sum + o.total, 0);
   const refundedOnPage = data.reduce((sum, o) => sum + o.refundedAmount, 0);
 
@@ -388,7 +390,15 @@ function OrderRow({ order }: { order: AdminOrderRow }) {
   const when = new Date(order.createdAt);
   return (
     <tr>
-      <td {...stylex.props(styles.td, styles.muted)}>{when.toLocaleString()}</td>
+      <td {...stylex.props(styles.td, styles.muted)}>
+        {createDateTimeFormat(defaultLocale, {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(when)}
+      </td>
       <td {...stylex.props(styles.td)}>
         <Badge tone={order.channel === 'POS' ? 'brand' : 'ink'}>{order.channel}</Badge>
       </td>

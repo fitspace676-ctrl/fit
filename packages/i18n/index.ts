@@ -36,3 +36,18 @@ export function isLocale(value: string): value is Locale {
 }
 
 export { en, ka };
+
+// Locale-correct number and money formatting that does not delegate to `Intl` —
+// browsers ship no Georgian locale data and silently fall back to en-US, which
+// both mismatches the server's render and shows English formatting to Georgian
+// users. See `src/number-format.ts`.
+export {
+  createNumberFormat,
+  type NumberFormatOptions,
+  type NumberFormatter,
+} from './src/number-format';
+export {
+  createDateTimeFormat,
+  type DateTimeFormatOptions,
+  type DateTimeFormatter,
+} from './src/date-format';

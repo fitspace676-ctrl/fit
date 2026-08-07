@@ -58,7 +58,7 @@ const styles = stylex.create({
     margin: '0.5rem',
     borderRadius: 'var(--radius-container)',
     backgroundColor: 'var(--color-background-surface)',
-    transition: 'width var(--duration-medium) var(--ease-standard)',
+    transition: 'width var(--duration-medium) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   brandLink: {
     display: 'flex',
@@ -111,7 +111,7 @@ const styles = stylex.create({
     opacity: 0,
     pointerEvents: 'none',
     transition:
-      'opacity var(--duration-medium) var(--ease-standard), color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard)',
+      'opacity var(--duration-medium) cubic-bezier(0.32, 0.72, 0, 1), color var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1), border-color var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   scrollButtonVisible: {
     opacity: 1,
@@ -137,7 +137,7 @@ const styles = stylex.create({
     padding: '0.25rem',
     borderRadius: 'var(--radius-element)',
     transition:
-      'background-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard)',
+      'background-color var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1), box-shadow var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   accordionOpen: {
     backgroundColor: 'transparent',
@@ -194,7 +194,7 @@ const styles = stylex.create({
   accordionChevron: {
     width: '0.875rem',
     height: '0.875rem',
-    transition: 'transform var(--duration-fast) var(--ease-standard)',
+    transition: 'transform var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   accordionChevronOpen: {
     transform: 'rotate(180deg)',
@@ -202,7 +202,7 @@ const styles = stylex.create({
   accordionPanel: {
     display: 'grid',
     gridTemplateRows: '0fr',
-    transition: 'grid-template-rows var(--duration-medium) var(--ease-standard)',
+    transition: 'grid-template-rows var(--duration-medium) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   accordionPanelOpen: {
     gridTemplateRows: '1fr',
@@ -254,7 +254,7 @@ const styles = stylex.create({
     width: '1rem',
     height: '1rem',
     flexShrink: 0,
-    transition: 'transform var(--duration-fast) var(--ease-standard)',
+    transition: 'transform var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   collapseIconFlipped: {
     transform: 'rotate(180deg)',
@@ -262,7 +262,7 @@ const styles = stylex.create({
   navItemHover: {
     '--color-overlay-hover': 'transparent',
     borderRadius: 'var(--radius-element)',
-    transition: 'background-color var(--duration-fast) var(--ease-standard)',
+    transition: 'background-color var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1)',
     ':hover': {
       backgroundColor: 'var(--color-neutral)',
     },

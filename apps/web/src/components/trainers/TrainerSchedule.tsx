@@ -4,6 +4,7 @@ import { Card } from '@astryxdesign/core/Card';
 import type { TrainerScheduleEntry } from '@fit/types';
 import { formatTime, groupByDay } from '@/src/components/classes/date-utils';
 import { Icon } from '@/src/components/ui';
+import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11.13): the schedule is rebuilt on the Astryx `Card` over
 // the Fit brand theme, with the day sections and rows authored in compiled
@@ -163,11 +164,11 @@ export function TrainerSchedule({ schedule }: TrainerScheduleProps) {
         {groups.map((group) => (
           <Card key={group.key} variant="default" padding={0} xstyle={styles.groupCard}>
             <p {...stylex.props(styles.dayHead)}>
-              {group.date.toLocaleDateString(locale, {
+              {createDateTimeFormat(locale, {
                 weekday: 'long',
                 month: 'short',
                 day: 'numeric',
-              })}
+              }).format(group.date)}
             </p>
             <ul {...stylex.props(styles.list)}>
               {group.items.map((entry, index) => (

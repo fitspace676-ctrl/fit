@@ -15,6 +15,7 @@ import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchSignupCatalogue } from '@/lib/signup';
 import { PRODUCT_TABS, toCards } from './product-cards';
 import { CHECKOUT_LOCATION_KEY } from './StepLocation';
+import { createNumberFormat } from '@fit/i18n';
 
 /** sessionStorage key the wizard persists the chosen product's id under (T3.9). */
 export const CHECKOUT_PACKAGE_KEY = 'checkout_packageId';
@@ -574,7 +575,7 @@ function PackageCard({
   // `priceAmount` is in minor units; format against the package's own currency.
   const price = useMemo(
     () =>
-      new Intl.NumberFormat(locale, {
+      createNumberFormat(locale, {
         style: 'currency',
         currency: pkg.currency,
         maximumFractionDigits: 2,

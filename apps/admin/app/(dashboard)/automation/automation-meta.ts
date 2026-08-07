@@ -6,6 +6,7 @@ import type {
 import { AUTOMATION_TRIGGER_CATALOG } from '@fit/types';
 import type { IconName } from '@/components/ui';
 import type { Tone } from '@/components/ui';
+import { createDateTimeFormat } from '@fit/i18n';
 
 /** The category order the trigger picker groups triggers into. */
 export const TRIGGER_CATEGORY_ORDER: readonly AutomationTriggerCategory[] = [
@@ -132,5 +133,5 @@ export function formatDate(iso: string | null | undefined, locale: string): stri
   if (!iso) return '—';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(date);
+  return createDateTimeFormat(locale, { dateStyle: 'medium' }).format(date);
 }

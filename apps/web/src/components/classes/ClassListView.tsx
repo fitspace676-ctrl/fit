@@ -8,6 +8,7 @@ import type { ClassInstanceCard } from '@fit/types';
 import { Icon } from '@/src/components/ui';
 import { ClassOccupancy } from './ClassOccupancy';
 import { formatTime, groupByDay } from './date-utils';
+import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11.12): the list view is rebuilt on the Astryx `Card` over
 // the Fit brand theme, with every row authored in compiled StyleX
@@ -230,11 +231,11 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
       {groups.map((group) => (
         <div key={group.key} {...stylex.props(styles.group)}>
           <h3 {...stylex.props(styles.groupHead)}>
-            {group.date.toLocaleDateString(locale, {
+            {createDateTimeFormat(locale, {
               weekday: 'long',
               month: 'short',
               day: 'numeric',
-            })}
+            }).format(group.date)}
             <span {...stylex.props(styles.groupCount)}>
               {t('listView.count', { count: group.items.length })}
             </span>

@@ -2,6 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { ProductRosterSummary } from '@fit/types';
 import { Card } from '@astryxdesign/core/Card';
 import { Icon, type IconName } from '@/components/ui';
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 const styles = stylex.create({
   grid: {
@@ -83,28 +84,28 @@ export function ProductsSummary({ summary }: { summary: ProductRosterSummary }) 
       label: 'Products',
       icon: 'bag',
       tone: styles.toneBrand,
-      value: productCount.toLocaleString(),
+      value: createNumberFormat(defaultLocale).format(productCount),
     },
     {
       key: 'active',
       label: 'Active',
       icon: 'check',
       tone: styles.toneSuccess,
-      value: activeCount.toLocaleString(),
+      value: createNumberFormat(defaultLocale).format(activeCount),
     },
     {
       key: 'low',
       label: 'Low stock',
       icon: 'flame',
       tone: styles.toneWarning,
-      value: lowStockCount.toLocaleString(),
+      value: createNumberFormat(defaultLocale).format(lowStockCount),
     },
     {
       key: 'out',
       label: 'Out of stock',
       icon: 'info',
       tone: styles.toneDanger,
-      value: outOfStockCount.toLocaleString(),
+      value: createNumberFormat(defaultLocale).format(outOfStockCount),
     },
   ];
 

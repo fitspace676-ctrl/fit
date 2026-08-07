@@ -29,6 +29,36 @@
 @import '@fit/astryx-theme/theme.css';
 
 /*
+ * Chart series colours.
+ *
+ * NOT the theme's `--color-text-*` tokens: those are text colours, and text
+ * colours are not series colours. Measured against the dark card surface, the
+ * pair the chart kit used to reach for (`--color-accent` + a pastel teal) scores
+ * ΔE 13.8 for normal vision against a threshold of 15 — two lines a reader with
+ * full colour vision cannot reliably tell apart.
+ *
+ * These two are snapped into the OKLCH lightness band per mode and re-validated
+ * until every check passes: lightness, chroma floor, CVD separation,
+ * normal-vision floor, and contrast against the surface. Worst adjacent pair is
+ * ΔE 27.8 in both modes.
+ *
+ * A third series is deliberately absent. Nothing here draws one, and if
+ * something ever does it gets validated then — the first question being whether
+ * that chart wants small multiples instead.
+ *
+ * See docs/superpowers/specs/2026-08-07-dashboard-chart-restyle-design.md.
+ */
+:root {
+  --chart-series-1: light-dark(#6b5dcf, #7e74e1);
+  --chart-series-2: light-dark(#ab5a00, #be7100);
+  /* The glow under series 1. Same hue, carried by opacity rather than a second
+     colour, so it can never drift from the stroke it sits behind. */
+  --chart-glow-1: light-dark(rgb(107 93 207 / 0.28), rgb(126 116 225 / 0.34));
+  /* Reference lines, crosshairs and the grid: recessive by construction. */
+  --chart-guide: light-dark(rgb(23 23 23 / 0.16), rgb(250 250 250 / 0.18));
+}
+
+/*
  * Bind `color-scheme` to the console's theme toggle — the `.dark` class the
  * ThemeProvider stamps on <html>. Astryx's design tokens are `light-dark()`
  * values that `color-scheme` resolves; the base (in `@layer astryx-theme`) sets

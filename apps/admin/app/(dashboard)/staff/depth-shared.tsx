@@ -5,6 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import type { StaffMember } from '@fit/types';
 import { Icon, Select } from '@/components/ui';
+import { createDateTimeFormat } from '@fit/i18n';
 
 /**
  * Shared visual language + helpers for the Staff-console depth tabs (T12.15) —
@@ -285,7 +286,9 @@ export function formatDate(iso: string, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
+        date,
+      );
 }
 
 /** Format an ISO instant as a short local date-time. */
@@ -293,10 +296,10 @@ export function formatDateTime(iso: string, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleString(locale, {
+    : createDateTimeFormat(locale, {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-      });
+      }).format(date);
 }

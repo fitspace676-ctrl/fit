@@ -10,7 +10,8 @@
 // it always wins, so the device language only seeds the very first run.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { defaultLocale, isLocale, type Locale } from '@fit/i18n';
+import { defaultLocale, isLocale } from '@fit/i18n';
+import type { Locale } from '@fit/i18n';
 
 /** AsyncStorage key under which the user's chosen locale is persisted. */
 const LOCALE_STORAGE_KEY = 'fit.locale';

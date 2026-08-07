@@ -33,7 +33,7 @@ const styles = stylex.create({
     padding: '1.25rem',
     textAlign: 'left',
     borderWidth: 0,
-    borderRadius: 'var(--radius-surface)',
+    borderRadius: 'var(--radius-container)',
     backgroundColor: 'transparent',
     cursor: 'pointer',
     transitionProperty: 'transform, box-shadow',

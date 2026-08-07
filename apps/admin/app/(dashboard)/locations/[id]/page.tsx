@@ -9,6 +9,7 @@ import { Card } from '@astryxdesign/core/Card';
 import { Badge, Icon, type Tone } from '@/components/ui';
 import { formatDayHours, weekdayLabel } from '../format-hours';
 import { LocationActions } from './location-actions';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 const styles = stylex.create({
   page: {
@@ -182,7 +183,11 @@ function formatDate(iso: string | null): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(defaultLocale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /**

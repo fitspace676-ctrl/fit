@@ -204,7 +204,7 @@ export class ReportDrilldownService {
       orderBy: { createdAt: 'asc' },
     });
 
-    const currency = payments[payments.length - 1]?.currency ?? (await this.resolveCurrency());
+    const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
 
     const overTime = emptyBuckets(win);
     const byPlan = new Map<string, number>();
@@ -933,7 +933,7 @@ export class ReportDrilldownService {
       orderBy: { createdAt: 'asc' },
     });
 
-    const currency = payments[payments.length - 1]?.currency ?? (await this.resolveCurrency());
+    const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
 
     const overTime = emptyBuckets(win);
     const byMethod = new Map<string, number>();
@@ -1149,11 +1149,11 @@ export class ReportDrilldownService {
   }
 
   /**
-   * The gym's reporting currency — the most recent captured payment's currency,
-   * falling back to the schema default when the gym has taken none, mirroring
-   * {@link ReportsService.resolveCurrency}.
+   * The gym's ISO-4217 currency. Public because a dashboard segment holding no
+   * resolvable widget still has to report the currency its (absent) money figures
+   * would be in, without computing a whole report to learn it.
    */
-  private async resolveCurrency(): Promise<string> {
+  async currency(): Promise<string> {
     const latest = await this.prisma.client.payment.findFirst({
       where: { status: PaymentStatus.CAPTURED },
       orderBy: { createdAt: 'desc' },

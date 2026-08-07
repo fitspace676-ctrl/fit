@@ -15,6 +15,7 @@ import { fetchClassInstances } from '@/lib/classes';
 import { ButtonLink, CountUp, Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { MembershipHero } from '@/src/components/member/home/membership-hero';
+import { createDateTimeFormat } from '@fit/i18n';
 
 export const metadata: Metadata = { title: 'Home — Fit' };
 
@@ -438,7 +439,7 @@ async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
 
 /** Format an ISO instant's time (HH:mm) in the active locale. */
 function timeOf(iso: string, locale: string): string {
-  return new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  return createDateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 }
 
 /** A short, friendly day label (Today / Tomorrow / weekday) for an instant. */
@@ -450,7 +451,7 @@ function dayLabel(iso: string, locale: string, today: string, tomorrow: string):
   );
   if (dayDiff === 0) return today;
   if (dayDiff === 1) return tomorrow;
-  return d.toLocaleDateString(locale, { weekday: 'short' });
+  return createDateTimeFormat(locale, { weekday: 'short' }).format(d);
 }
 
 /** A "value / cap" header over a fill bar, colour-coded by how full it is —
@@ -537,7 +538,11 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
       {/* Greeting */}
       <div>
         <p {...stylex.props(styles.eyebrow)}>
-          {now.toLocaleDateString(activeLocale, { weekday: 'long', day: 'numeric', month: 'long' })}
+          {createDateTimeFormat(activeLocale, {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          }).format(now)}
         </p>
         <h1 {...stylex.props(styles.greeting)}>{t('greeting')}</h1>
       </div>

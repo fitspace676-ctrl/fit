@@ -3,8 +3,8 @@
 // @fit/admin — the reusable renderer for one drill-down report section (T12.12).
 //
 // A {@link ReportSection} is a discriminated union the API emits; this maps each
-// `kind` to the brand Astryx chart/table so the drill-down pages AND the pinned
-// dashboard widgets render identically from one place. Presentation is Astryx
+// `kind` to the brand Astryx chart/table so the drill-down pages AND the
+// dashboard's segment widgets render identically from one place. Presentation is Astryx
 // `Card` + the brand `charts.tsx` primitives over compiled StyleX (`var(--color-*)`)
 // — no Tailwind, no recharts. Money values are MINOR-unit integers formatted here
 // against the report `currency`.
@@ -12,6 +12,7 @@
 import { type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
+import { createNumberFormat } from '@fit/i18n';
 import type { ReportSection, ReportValueUnit, ReportColumnType, ReportCellValue } from '@fit/types';
 import { DataTable, type Column } from '@/components/ui';
 import { AreaChart, BarChart, Donut, Heatmap } from '../charts';
@@ -111,9 +112,9 @@ function EmptyNote({ label }: { label: string }): ReactNode {
 type KeyedRow = Record<string, ReportCellValue> & { __rk: string };
 
 /**
- * Render one section inside a brand `Card` — its title, an optional header `action`
- * (the Pin/Unpin control), and the chart/table for its `kind`. An empty series/
- * table degrades to the shared `EmptyState` rather than a broken frame.
+ * Render one section inside a brand `Card` — its title, an optional header `action`,
+ * and the chart/table for its `kind`. An empty series/table degrades to the shared
+ * `EmptyState` rather than a broken frame.
  */
 export function ReportSectionCard({
   section,
@@ -290,7 +291,7 @@ export function formatUnitValue(
   locale: string,
 ): string {
   if (unit === 'money') {
-    return new Intl.NumberFormat(locale, {
+    return createNumberFormat(locale, {
       style: 'currency',
       currency,
       maximumFractionDigits: 0,
@@ -299,7 +300,7 @@ export function formatUnitValue(
   if (unit === 'percent') {
     return `${Math.round(value * 10) / 10}%`;
   }
-  return new Intl.NumberFormat(locale).format(value);
+  return createNumberFormat(locale).format(value);
 }
 
 /** Format one table cell by its column type. `null`/empty renders an em dash. */
@@ -314,7 +315,7 @@ export function formatCell(
   }
   switch (type) {
     case 'money':
-      return new Intl.NumberFormat(locale, {
+      return createNumberFormat(locale, {
         style: 'currency',
         currency,
         minimumFractionDigits: 2,
@@ -322,7 +323,7 @@ export function formatCell(
     case 'percent':
       return `${Math.round(Number(value) * 10) / 10}%`;
     case 'number':
-      return new Intl.NumberFormat(locale).format(Number(value));
+      return createNumberFormat(locale).format(Number(value));
     default:
       return String(value);
   }

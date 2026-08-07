@@ -12,6 +12,7 @@ import { ClassDrawer } from './class-drawer';
 import { AddClassDrawer } from '../add-class-drawer';
 import type { RelationOption } from '../class-template-form';
 import { addMonths, addWeeks, monthGridDays, toIsoDate, weekDays, zonedIsoDate } from './week';
+import { createDateTimeFormat } from '@fit/i18n';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -1571,12 +1572,12 @@ function hourLabel(hour: number): string {
 
 /** Localised weekday abbreviation for a UTC day anchor (e.g. "Mon"). */
 function weekdayShort(day: Date, locale: string): string {
-  return new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day);
+  return createDateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day);
 }
 
 /** Localised `HH:MM` for an ISO instant, read on the gym's clock. */
 function formatTime(iso: string, locale: string, timeZone: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return createDateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
     timeZone,
@@ -1586,12 +1587,12 @@ function formatTime(iso: string, locale: string, timeZone: string): string {
 /** A compact "Jun 30 – Jul 6, 2026" span for the week, both anchors in UTC. */
 function formatRange(start: Date, end: Date, locale: string): string {
   const sameMonth = start.getUTCMonth() === end.getUTCMonth();
-  const startFmt = new Intl.DateTimeFormat(locale, {
+  const startFmt = createDateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     timeZone: 'UTC',
   }).format(start);
-  const endFmt = new Intl.DateTimeFormat(locale, {
+  const endFmt = createDateTimeFormat(locale, {
     month: sameMonth ? undefined : 'short',
     day: 'numeric',
     year: 'numeric',
@@ -1602,7 +1603,7 @@ function formatRange(start: Date, end: Date, locale: string): string {
 
 /** "July 2026" for the month header, in UTC. */
 function formatMonth(anchor: Date, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return createDateTimeFormat(locale, {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',

@@ -6,6 +6,8 @@
 // declarative — there is no date library in the web app's dependency set, and a
 // handful of `Date` arithmetic functions cover everything this page needs.
 
+import { createDateTimeFormat } from '@fit/i18n';
+
 /** Milliseconds in a day. */
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -94,27 +96,27 @@ export function parseWeekParam(value: string | undefined | null): Date {
  * itself groups by {@link dayKey} and never needs the long form.
  */
 export function formatDate(iso: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale, {
+  return createDateTimeFormat(locale, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  });
+  }).format(new Date(iso));
 }
 
 /** Local `HH:mm` (24-hour) for an ISO instant, in the given locale. */
 export function formatTime(iso: string, locale: string): string {
-  return new Date(iso).toLocaleTimeString(locale, {
+  return createDateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  });
+  }).format(new Date(iso));
 }
 
 /** A short label for a week range, e.g. `Jun 1 – Jun 7`. */
 export function formatWeekRange(weekStart: Date, locale: string): string {
   const end = addDays(weekStart, DAYS_IN_WEEK - 1);
-  const fmt = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' });
+  const fmt = createDateTimeFormat(locale, { month: 'short', day: 'numeric' });
   return `${fmt.format(weekStart)} – ${fmt.format(end)}`;
 }
 

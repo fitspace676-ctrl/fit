@@ -7,6 +7,7 @@ import { Icon } from '@/src/components/ui';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { fetchOrder } from '@/lib/orders';
 import { HomeCta } from '../home-cta';
+import { createNumberFormat } from '@fit/i18n';
 
 export const metadata: Metadata = {
   title: 'Order confirmed — Fit',
@@ -290,7 +291,7 @@ function OrderItemRow({
 
 /** Format a minor-unit amount as a currency string (ISO 4217). */
 function formatMoney(locale: string, amount: number, currency: string): string {
-  return new Intl.NumberFormat(locale, {
+  return createNumberFormat(locale, {
     style: 'currency',
     currency,
     maximumFractionDigits: 2,

@@ -3,6 +3,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
 import type { PublicReview } from '@fit/types';
 import { Icon } from '@/src/components/ui';
+import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11.13): the reviews section is rebuilt on the Astryx `Card`
 // over the Fit brand theme, with the aggregate header, the star glyphs, and each
@@ -179,11 +180,11 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
                   label={t('detail.reviews.ratingLabel', { rating: review.rating })}
                 />
                 <span {...stylex.props(styles.date)}>
-                  {new Date(review.createdAt).toLocaleDateString(locale, {
+                  {createDateTimeFormat(locale, {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',
-                  })}
+                  }).format(new Date(review.createdAt))}
                 </span>
               </div>
               {review.comment && <p {...stylex.props(styles.comment)}>{review.comment}</p>}
