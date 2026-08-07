@@ -704,13 +704,7 @@ Create `apps/api/src/dashboard/dashboard-members.service.ts`:
 
 ```ts
 import { Injectable } from '@nestjs/common';
-import {
-  InvoiceStatus,
-  LIVE_SUBSCRIPTION_STATUSES,
-  PaymentStatus,
-  Role,
-  SubscriptionStatus,
-} from '@fit/db';
+import { InvoiceStatus, isLiveStatus, PaymentStatus, Role, SubscriptionStatus } from '@fit/db';
 import {
   MEMBERSHIP_STATUSES,
   SALES_GRANULARITY_RANGE,
@@ -915,7 +909,12 @@ function wasLiveAt(sub: SubscriptionRow, at: Date): boolean {
   if (churnedAt !== null && churnedAt < at) return false;
   // A live-status row that has not churned was live; a terminal row that churned
   // after `at` was live then too.
-  return churnedAt !== null || LIVE_SUBSCRIPTION_STATUSES.includes(sub.status);
+  //
+  // `isLiveStatus` rather than `LIVE_SUBSCRIPTION_STATUSES.includes(...)`: the
+  // constant is a readonly TUPLE, so `.includes` narrows its parameter to the four
+  // live members and rejects the wider `SubscriptionStatus` — the predicate exists
+  // in `@fit/db` precisely to do that widening in one blessed place.
+  return churnedAt !== null || isLiveStatus(sub.status);
 }
 
 /** The distinct members holding at least one live subscription at `at`. */
@@ -936,9 +935,19 @@ function liveCountAt(subs: SubscriptionRow[], at: Date): number {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @fit/api test -- dashboard-members.service`
-Expected: PASS — 13 tests.
+Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Type-check**
+
+Run: `pnpm --filter @fit/api type-check`
+Expected: exit 0.
+
+A green test run does not imply a compiling package — Vitest transpiles per file
+and never type-checks the whole project. This service touches `@fit/db`'s enums
+and const tuples, which is exactly where a passing test can sit on top of a type
+error.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/dashboard/dashboard-members.service.ts apps/api/src/dashboard/dashboard-members.service.spec.ts
