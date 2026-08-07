@@ -2,6 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InstanceStatus, Role, TimeOffStatus, TrainerStatus } from '@fit/db';
 import { DashboardStaffService } from './dashboard-staff.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
+
+/**
+ * A stub gym locale. Every calendar bound on this surface — "today", "this
+ * month", the bucket a payment lands in — is now asked of the GYM'S zone rather
+ * than the server's, so a spec that pins a date has to say which zone it means.
+ * `UTC` here keeps the existing fixtures' arithmetic unchanged; the specs that
+ * care about the zone pass their own.
+ */
+function stubLocale(timezone = 'UTC', currency = 'GEL') {
+  return {
+    get: vi.fn().mockResolvedValue({ language: 'ka', currency, timezone }),
+  } as unknown as GymLocaleService;
+}
 
 /** Frozen "now" — a Friday — so every weekday count in the window is exact. */
 const NOW = new Date('2026-08-07T12:00:00.000Z');
@@ -13,14 +27,17 @@ function at(offset: number, hour = 10): Date {
   return new Date(base + hour * 60 * 60 * 1000);
 }
 
-function setup(rows: {
-  instances?: unknown[];
-  ptSessions?: unknown[];
-  trainers?: unknown[];
-  shiftSlots?: unknown[];
-  timeOff?: unknown[];
-  staffCount?: number;
-}) {
+function setup(
+  rows: {
+    instances?: unknown[];
+    ptSessions?: unknown[];
+    trainers?: unknown[];
+    shiftSlots?: unknown[];
+    timeOff?: unknown[];
+    staffCount?: number;
+  },
+  locales: GymLocaleService = stubLocale(),
+) {
   const instanceFindMany = vi.fn().mockResolvedValue(rows.instances ?? []);
   const ptFindMany = vi.fn().mockResolvedValue(rows.ptSessions ?? []);
   const trainerFindMany = vi.fn().mockResolvedValue(rows.trainers ?? []);
@@ -38,7 +55,7 @@ function setup(rows: {
   };
   const prisma = { client } as unknown as TenantPrismaService;
   return {
-    service: new DashboardStaffService(prisma),
+    service: new DashboardStaffService(prisma, locales),
     instanceFindMany,
     ptFindMany,
     trainerFindMany,

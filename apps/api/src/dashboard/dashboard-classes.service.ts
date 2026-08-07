@@ -9,7 +9,9 @@ import {
   type DashboardClassesResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 import { bucketKey, emptyBuckets, rate, resolveWindow } from '../reports/report-window.util';
+import { zonedParts } from '../reports/zoned-time.util';
 
 /** How many class types the ranking shows. The card's caption states it. */
 const TOP_CLASS_TYPES = 8;
@@ -57,11 +59,19 @@ interface TypeAgg {
  */
 @Injectable()
 export class DashboardClassesService {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly locales: GymLocaleService,
+  ) {}
 
   /** Build the whole Classes tab for one granularity. */
   async get(query: DashboardClassesQuery): Promise<DashboardClassesResponse> {
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity]);
+    // The gym's own calendar. Fetched BEFORE the aggregates because the window
+    // itself is a calendar question: `resolveWindow` has to know where midnight
+    // is before it can say which days the chart covers.
+    const locale = await this.locales.get();
+    const zone = locale.timezone;
+    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
     const now = new Date();
 
     const [instances, bookings, ptSessions] = await Promise.all([
@@ -98,12 +108,12 @@ export class DashboardClassesService {
       }),
     ]);
 
-    const bookingBuckets = emptyBuckets(win);
-    const ptBuckets = emptyBuckets(win);
-    const capacityBuckets = emptyBuckets(win);
-    const seatBuckets = emptyBuckets(win);
-    const attendedBuckets = emptyBuckets(win);
-    const markedBuckets = emptyBuckets(win);
+    const bookingBuckets = emptyBuckets(win, zone);
+    const ptBuckets = emptyBuckets(win, zone);
+    const capacityBuckets = emptyBuckets(win, zone);
+    const seatBuckets = emptyBuckets(win, zone);
+    const attendedBuckets = emptyBuckets(win, zone);
+    const markedBuckets = emptyBuckets(win, zone);
     const demandByHour = Array.from({ length: HEATMAP_ROWS }, () =>
       new Array<number>(HEATMAP_COLS).fill(0),
     );
@@ -121,7 +131,7 @@ export class DashboardClassesService {
         instance.template?.capacity ??
         instance.classType?.capacity ??
         0;
-      const key = bucketKey(instance.startsAt, win.bucket);
+      const key = bucketKey(instance.startsAt, win.bucket, zone);
       if (capacityBuckets.has(key)) {
         capacityBuckets.set(key, (capacityBuckets.get(key) ?? 0) + capacity);
       }
@@ -158,7 +168,7 @@ export class DashboardClassesService {
       if (row.status === BookingStatus.ATTENDED) attended += 1;
       if (row.status === BookingStatus.NO_SHOW) noShow += 1;
 
-      const key = bucketKey(occurrence.startsAt, win.bucket);
+      const key = bucketKey(occurrence.startsAt, win.bucket, zone);
       if (bookingBuckets.has(key)) {
         bookingBuckets.set(key, (bookingBuckets.get(key) ?? 0) + 1);
         seatBuckets.set(key, (seatBuckets.get(key) ?? 0) + 1);
@@ -170,9 +180,11 @@ export class DashboardClassesService {
         }
       }
 
-      // Monday-first row, to match the weekday labels the client renders.
-      const weekday = (occurrence.startsAt.getUTCDay() + 6) % 7;
-      const hour = occurrence.startsAt.getUTCHours();
+      // Monday-first row, in the GYM'S calendar. Read in UTC this was wrong
+      // twice: a 19:00 Tbilisi class landed in the 15:00 column of a chart whose
+      // title is "when demand lands", and anything before 04:00 local also
+      // landed in the previous day's ROW.
+      const { weekday, hour } = zonedParts(occurrence.startsAt, zone);
       const cells = demandByHour[weekday];
       if (cells) cells[hour] = (cells[hour] ?? 0) + 1;
 
@@ -180,7 +192,7 @@ export class DashboardClassesService {
     }
 
     for (const session of ptSessions) {
-      const key = bucketKey(session.startsAt, win.bucket);
+      const key = bucketKey(session.startsAt, win.bucket, zone);
       if (ptBuckets.has(key)) {
         ptBuckets.set(key, (ptBuckets.get(key) ?? 0) + 1);
       }

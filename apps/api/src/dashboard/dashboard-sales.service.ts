@@ -71,10 +71,14 @@ export class DashboardSalesService {
 
   /** Build the whole Sales tab for one granularity + product-type combination. */
   async get(query: DashboardSalesQuery): Promise<DashboardSalesResponse> {
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity]);
+    // The gym's own calendar. Fetched BEFORE the aggregates because the window
+    // itself is a calendar question: `resolveWindow` has to know where midnight
+    // is before it can say which days the chart covers.
+    const locale = await this.locales.get();
+    const zone = locale.timezone;
+    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
 
-    const [locale, payments, refunds] = await Promise.all([
-      this.locales.get(),
+    const [payments, refunds] = await Promise.all([
       this.prisma.client.payment.findMany({
         where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
         select: {
@@ -106,9 +110,9 @@ export class DashboardSalesService {
 
     const kept = payments.filter((payment) => matches(payment.order, query.productType));
 
-    const netByBucket = emptyBuckets(win);
-    const salesByBucket = emptyBuckets(win);
-    const refundsByBucket = emptyBuckets(win);
+    const netByBucket = emptyBuckets(win, zone);
+    const salesByBucket = emptyBuckets(win, zone);
+    const refundsByBucket = emptyBuckets(win, zone);
     const byMethod = new Map<string, number>();
     const bySeller = new Map<string, SellerTally>();
     let gross = 0;
@@ -119,7 +123,7 @@ export class DashboardSalesService {
       gross += payment.amount;
       refunded += payment.refundedAmount;
 
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, zone);
       if (netByBucket.has(key)) {
         netByBucket.set(key, (netByBucket.get(key) ?? 0) + net);
         salesByBucket.set(key, (salesByBucket.get(key) ?? 0) + payment.amount);
@@ -146,7 +150,7 @@ export class DashboardSalesService {
 
     for (const refund of refunds) {
       if (!matches(refund.order, query.productType)) continue;
-      const key = bucketKey(refund.createdAt, win.bucket);
+      const key = bucketKey(refund.createdAt, win.bucket, zone);
       if (refundsByBucket.has(key)) {
         refundsByBucket.set(key, (refundsByBucket.get(key) ?? 0) + refund.amount);
       }

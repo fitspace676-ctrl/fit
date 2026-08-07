@@ -10,6 +10,8 @@ import {
   type TrainerDelivery,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { GymLocaleService } from '../gyms/gym-locale.service';
+import { addZonedDays, zonedDayStart, zonedParts } from '../reports/zoned-time.util';
 import {
   bucketKey,
   DAY_MS,
@@ -54,11 +56,19 @@ interface TrainerAgg {
  */
 @Injectable()
 export class DashboardStaffService {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly locales: GymLocaleService,
+  ) {}
 
   /** Build the whole Staff tab for one granularity. */
   async get(query: DashboardStaffQuery): Promise<DashboardStaffResponse> {
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity]);
+    // The gym's own calendar. Fetched BEFORE the aggregates because the window
+    // itself is a calendar question: `resolveWindow` has to know where midnight
+    // is before it can say which days the chart covers.
+    const locale = await this.locales.get();
+    const zone = locale.timezone;
+    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
 
     const [instances, ptSessions, trainers, shiftSlots, timeOff, staffCount] = await Promise.all([
       this.prisma.client.classInstance.findMany({
@@ -98,13 +108,13 @@ export class DashboardStaffService {
 
     /* -- Delivery ---------------------------------------------------------- */
 
-    const classBuckets = emptyBuckets(win);
-    const ptBuckets = emptyBuckets(win);
+    const classBuckets = emptyBuckets(win, zone);
+    const ptBuckets = emptyBuckets(win, zone);
     const perTrainer = new Map<string, TrainerAgg>();
     let classesWithoutTrainer = 0;
 
     for (const occurrence of instances) {
-      const key = bucketKey(occurrence.startsAt, win.bucket);
+      const key = bucketKey(occurrence.startsAt, win.bucket, zone);
       if (occurrence.trainerId === null) {
         // Somebody taught it and this service does not know who. Counted in the
         // gaps rather than guessed into a trainer's total.
@@ -120,7 +130,7 @@ export class DashboardStaffService {
     }
 
     for (const pt of ptSessions) {
-      const key = bucketKey(pt.startsAt, win.bucket);
+      const key = bucketKey(pt.startsAt, win.bucket, zone);
       if (ptBuckets.has(key)) {
         ptBuckets.set(key, (ptBuckets.get(key) ?? 0) + 1);
       }
@@ -131,7 +141,7 @@ export class DashboardStaffService {
 
     /* -- Utilization -------------------------------------------------------- */
 
-    const counts = weekdayCounts(win);
+    const counts = weekdayCounts(win, zone);
     let ratedDelivered = 0;
     let ratedAvailable = 0;
     let trainersWithoutAvailability = 0;
@@ -182,8 +192,8 @@ export class DashboardStaffService {
 
     let leaveStaffDays = 0;
     for (const request of timeOff) {
-      const from = Math.max(startOfUtcDay(request.startDate), startOfUtcDay(win.start));
-      const to = Math.min(startOfUtcDay(request.endDate), startOfUtcDay(win.end));
+      const from = Math.max(startOfDay(request.startDate, zone), startOfDay(win.start, zone));
+      const to = Math.min(startOfDay(request.endDate, zone), startOfDay(win.end, zone));
       // Inclusive of both ends: a one-day request is one staff-day, not zero.
       if (to >= from) leaveStaffDays += Math.round((to - from) / DAY_MS) + 1;
     }
@@ -240,9 +250,15 @@ function toHours(minutes: number): number {
   return Math.round((minutes / 60) * 10) / 10;
 }
 
-/** The UTC midnight of an instant's own calendar day, as epoch ms. */
-function startOfUtcDay(at: Date): number {
-  return Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate());
+/**
+ * The instant an instant's own calendar day begins in `zone`, as epoch ms.
+ *
+ * Clamping a leave request against the window has to compare like with like: if
+ * the window's edges are the gym's days, the request's edges must be too, or a
+ * request that ends on the window's last local day gets clipped a day short.
+ */
+function startOfDay(at: Date, zone: string): number {
+  return zonedDayStart(isoDate(at, zone), zone).getTime();
 }
 
 /** One occurrence's length in minutes. */
@@ -264,13 +280,16 @@ function trainerAgg(perTrainer: Map<string, TrainerAgg>, id: string): TrainerAgg
  * How many times each weekday falls inside the window, Monday first. A weekly
  * availability means nothing until it is multiplied by this.
  */
-function weekdayCounts(win: ReportWindow): number[] {
+function weekdayCounts(win: ReportWindow, zone: string): number[] {
   const counts = new Array<number>(7).fill(0);
-  let cursor = new Date(`${isoDate(win.start)}T00:00:00.000Z`).getTime();
-  while (cursor < win.end.getTime()) {
-    const index = (new Date(cursor).getUTCDay() + 6) % 7;
+  // Walks the GYM'S calendar days, so "how many Mondays are in this window"
+  // counts the gym's Mondays. It also steps the calendar rather than adding 24h,
+  // which in a daylight-saving zone would eventually skip or double-count a day.
+  let cursor = isoDate(win.start, zone);
+  while (zonedDayStart(cursor, zone) < win.end) {
+    const index = zonedParts(zonedDayStart(cursor, zone), zone).weekday;
     counts[index] = (counts[index] ?? 0) + 1;
-    cursor += DAY_MS;
+    cursor = addZonedDays(cursor, 1, zone);
   }
   return counts;
 }

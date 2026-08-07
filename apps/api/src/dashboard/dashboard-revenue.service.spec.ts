@@ -381,3 +381,46 @@ describe('DashboardRevenueService', () => {
     });
   });
 });
+
+/*
+ * Which DAY money landed on is a calendar question. Bucketed in UTC, everything
+ * a Tbilisi gym took between midnight and 04:00 was charged to the day before.
+ */
+describe('DashboardRevenueService — the gym clock', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it('dates a payment by the gym calendar, not UTC', async () => {
+    // 21:00 UTC on the 5th is 01:00 on the 6th in Tbilisi.
+    const lateNight = new Date('2026-08-05T21:00:00.000Z');
+
+    const { service: utc } = setup({ payments: [payment({ createdAt: lateNight })] });
+    expect(
+      (await utc.get(QUERY)).revenueOverTime.find((p) => p.label === '2026-08-05')?.oneOff,
+    ).toBe(100_00);
+
+    const { service: gym } = setup(
+      { payments: [payment({ createdAt: lateNight })] },
+      stubLocale('GEL', 'Asia/Tbilisi'),
+    );
+    const series = (await gym.get(QUERY)).revenueOverTime;
+    expect(series.find((p) => p.label === '2026-08-06')?.oneOff).toBe(100_00);
+    expect(series.find((p) => p.label === '2026-08-05')?.oneOff).toBe(0);
+  });
+
+  // The series must stay dense and gap-free whichever calendar it is drawn on —
+  // a zone-shifted bucket walk is exactly where a duplicated or missing day
+  // would show up.
+  it('keeps the series dense and strictly increasing in the gym zone', async () => {
+    const { service } = setup({}, stubLocale('GEL', 'Asia/Tbilisi'));
+    const labels = (await service.get(QUERY)).revenueOverTime.map((p) => p.label);
+    expect(new Set(labels).size).toBe(labels.length);
+    expect([...labels].sort()).toEqual(labels);
+  });
+});

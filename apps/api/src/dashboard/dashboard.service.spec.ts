@@ -12,6 +12,20 @@ import type { DashboardRecentMember, DashboardSecondaryKpis } from '@fit/types';
 import { DashboardService, resolvePeriodWindow, type PeriodWindow } from './dashboard.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
+
+/**
+ * A stub gym locale. Every calendar bound on this surface — "today", "this
+ * month", the bucket a payment lands in — is now asked of the GYM'S zone rather
+ * than the server's, so a spec that pins a date has to say which zone it means.
+ * `UTC` here keeps the existing fixtures' arithmetic unchanged; the specs that
+ * care about the zone pass their own.
+ */
+function stubLocale(timezone = 'UTC', currency = 'GEL') {
+  return {
+    get: vi.fn().mockResolvedValue({ language: 'ka', currency, timezone }),
+  } as unknown as GymLocaleService;
+}
 
 /** The subset of the Prisma count arg the assertions inspect. */
 interface CountArgs {
@@ -50,7 +64,7 @@ function setup(counts?: Partial<Record<string, number>>) {
   const tenant = { gymId: 'gym_test', userId: 'user_test', role: Role.MANAGER } as TenantContext;
 
   return {
-    service: new DashboardService(prisma, tenant),
+    service: new DashboardService(prisma, tenant, stubLocale()),
     gymMember,
     trainer,
     location,
@@ -142,7 +156,7 @@ describe('DashboardService', () => {
       };
       const prisma = { client } as unknown as TenantPrismaService;
       const tenant = { gymId: 'gym_test' } as TenantContext;
-      const service = new DashboardService(prisma, tenant);
+      const service = new DashboardService(prisma, tenant, stubLocale());
       return { service, subscriptionCount, paymentAggregate };
     }
 
@@ -203,7 +217,7 @@ describe('DashboardService', () => {
       const client = { gymMember: { findMany } };
       const prisma = { client } as unknown as TenantPrismaService;
       const tenant = { gymId: 'gym_test' } as TenantContext;
-      const service = new DashboardService(prisma, tenant);
+      const service = new DashboardService(prisma, tenant, stubLocale());
 
       const result: DashboardRecentMember[] = await (
         service as unknown as { recentMembers(): Promise<DashboardRecentMember[]> }
@@ -291,5 +305,70 @@ describe('resolvePeriodWindow', () => {
     const win = resolvePeriodWindow({ period: 'custom', from: '2026-07-13' }, now);
     expect(win.fromISO).toBe('2026-07-13');
     expect(win.toISO).toBe('2026-07-15'); // `to` defaults to today
+  });
+});
+
+/*
+ * "Today" is a calendar question, and this surface used to answer it in the
+ * SERVER'S zone (`new Date(d.getFullYear(), …)`). That is the one answer that is
+ * wrong everywhere: it made today's revenue depend on which region the container
+ * runs in, and would have changed the numbers silently if the deployment moved.
+ */
+describe('resolvePeriodWindow — the gym clock', () => {
+  const NOON_UTC = new Date('2026-08-07T12:00:00.000Z');
+
+  it('starts "today" at the gym midnight, not the server one', () => {
+    const win = resolvePeriodWindow({ period: 'today' }, NOON_UTC, 'Asia/Tbilisi');
+    // Tbilisi is UTC+4, so its day began at 20:00 the previous day in UTC.
+    expect(win.start.toISOString()).toBe('2026-08-06T20:00:00.000Z');
+    expect(win.end.toISOString()).toBe('2026-08-07T20:00:00.000Z');
+    // And the label the client shows is the gym's date, not UTC's.
+    expect(win.fromISO).toBe('2026-08-07');
+  });
+
+  // 21:00 UTC is already tomorrow in Tbilisi. A gym looking at its dashboard
+  // late in the evening was being shown yesterday's window.
+  it('has already rolled over when the gym date has', () => {
+    const win = resolvePeriodWindow(
+      { period: 'today' },
+      new Date('2026-08-07T21:00:00.000Z'),
+      'Asia/Tbilisi',
+    );
+    expect(win.fromISO).toBe('2026-08-08');
+  });
+
+  it('anchors the week to the gym Monday', () => {
+    const win = resolvePeriodWindow({ period: 'week' }, NOON_UTC, 'Asia/Tbilisi');
+    // 2026-08-07 is a Friday; its week began Monday the 3rd, at Tbilisi midnight.
+    expect(win.fromISO).toBe('2026-08-03');
+    expect(win.start.toISOString()).toBe('2026-08-02T20:00:00.000Z');
+  });
+
+  it('anchors the month to the gym first', () => {
+    const win = resolvePeriodWindow({ period: 'month' }, NOON_UTC, 'Asia/Tbilisi');
+    expect(win.fromISO).toBe('2026-08-01');
+    expect(win.start.toISOString()).toBe('2026-07-31T20:00:00.000Z');
+    expect(win.end.toISOString()).toBe('2026-08-31T20:00:00.000Z');
+  });
+
+  // A custom range is typed as gym dates, so both ends have to be read that way
+  // or the last day gets clipped four hours short.
+  it('reads a custom range as gym dates, inclusive of the last one', () => {
+    const win = resolvePeriodWindow(
+      { period: 'custom', from: '2026-08-01', to: '2026-08-03' },
+      NOON_UTC,
+      'Asia/Tbilisi',
+    );
+    expect(win.start.toISOString()).toBe('2026-07-31T20:00:00.000Z');
+    expect(win.end.toISOString()).toBe('2026-08-03T20:00:00.000Z');
+    expect(win.toISO).toBe('2026-08-03');
+  });
+
+  // Defaulting to UTC is deliberate, so a caller that has not been given the
+  // gym's zone yet gets a fixed answer rather than the machine's.
+  it('defaults to UTC rather than to the machine', () => {
+    expect(resolvePeriodWindow({ period: 'today' }, NOON_UTC).start.toISOString()).toBe(
+      '2026-08-07T00:00:00.000Z',
+    );
   });
 });

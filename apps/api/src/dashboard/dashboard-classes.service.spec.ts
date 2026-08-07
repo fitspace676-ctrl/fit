@@ -2,6 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BookingStatus, InstanceStatus } from '@fit/db';
 import { DashboardClassesService } from './dashboard-classes.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
+
+/**
+ * A stub gym locale. Every calendar bound on this surface — "today", "this
+ * month", the bucket a payment lands in — is now asked of the GYM'S zone rather
+ * than the server's, so a spec that pins a date has to say which zone it means.
+ * `UTC` here keeps the existing fixtures' arithmetic unchanged; the specs that
+ * care about the zone pass their own.
+ */
+function stubLocale(timezone = 'UTC', currency = 'GEL') {
+  return {
+    get: vi.fn().mockResolvedValue({ language: 'ka', currency, timezone }),
+  } as unknown as GymLocaleService;
+}
 
 /** Frozen "now" — a Friday — so weekday and finished/unfinished are exact. */
 const NOW = new Date('2026-08-07T12:00:00.000Z');
@@ -13,7 +27,10 @@ function at(offset: number, hour = 10): Date {
   return new Date(base + hour * 60 * 60 * 1000);
 }
 
-function setup(rows: { instances?: unknown[]; bookings?: unknown[]; ptSessions?: unknown[] }) {
+function setup(
+  rows: { instances?: unknown[]; bookings?: unknown[]; ptSessions?: unknown[] },
+  locales: GymLocaleService = stubLocale(),
+) {
   const instanceFindMany = vi.fn().mockResolvedValue(rows.instances ?? []);
   const bookingFindMany = vi.fn().mockResolvedValue(rows.bookings ?? []);
   const ptFindMany = vi.fn().mockResolvedValue(rows.ptSessions ?? []);
@@ -24,7 +41,7 @@ function setup(rows: { instances?: unknown[]; bookings?: unknown[]; ptSessions?:
   };
   const prisma = { client } as unknown as TenantPrismaService;
   return {
-    service: new DashboardClassesService(prisma),
+    service: new DashboardClassesService(prisma, locales),
     instanceFindMany,
     bookingFindMany,
     ptFindMany,
@@ -224,7 +241,7 @@ describe('DashboardClassesService', () => {
 
   /* -- Heatmap ----------------------------------------------------------- */
 
-  it('lands a booking in its UTC weekday and hour', async () => {
+  it('lands a booking in its weekday and hour', async () => {
     // at(-1) is Thursday 2026-08-06, 10:00 UTC — row 3 (Mon = 0), column 10.
     const { service } = setup({ instances: [instance()], bookings: [booking()] });
     const result = await service.get(QUERY);
@@ -276,5 +293,52 @@ describe('DashboardClassesService', () => {
     expect(bookingFindMany.mock.calls[0]?.[0]).toMatchObject({
       where: { classInstance: { startsAt: { lt: NOW } } },
     });
+  });
+});
+
+/*
+ * The heatmap is titled "when demand lands", and it used to answer in UTC. For a
+ * gym on `Asia/Tbilisi` — the product's own default — that put every class four
+ * hours earlier than it happens, and anything before 04:00 local in the previous
+ * day's ROW as well.
+ */
+describe('DashboardClassesService.get — the gym clock', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('reads the demand hour on the gym clock, not the server one', async () => {
+    // 15:00 UTC on Friday 2026-08-07 is 19:00 the same day in Tbilisi.
+    const evening = new Date('2026-08-07T15:00:00.000Z');
+    const { service } = setup(
+      {
+        instances: [instance({ startsAt: evening })],
+        bookings: [booking({ instance: { startsAt: evening } })],
+      },
+      stubLocale('Asia/Tbilisi'),
+    );
+
+    const result = await service.get(QUERY);
+
+    // Friday is row 4, and the class is in the 19:00 column — not 15:00.
+    expect(result.demandByHour[4]?.[19]).toBe(1);
+    expect(result.demandByHour[4]?.[15]).toBe(0);
+  });
+
+  // The case that also moved the ROW. This instant is Thursday in UTC and
+  // already Friday at the gym, so reading it in UTC got the weekday wrong too.
+  it('rolls the weekday over with the gym date', async () => {
+    const lateNight = new Date('2026-08-06T21:00:00.000Z');
+    const { service } = setup(
+      {
+        instances: [instance({ startsAt: lateNight })],
+        bookings: [booking({ instance: { startsAt: lateNight } })],
+      },
+      stubLocale('Asia/Tbilisi'),
+    );
+
+    const result = await service.get(QUERY);
+
+    // Friday 01:00 at the gym, not Thursday 21:00.
+    expect(result.demandByHour[4]?.[1]).toBe(1);
+    expect(result.demandByHour[3]?.[21]).toBe(0);
   });
 });

@@ -57,13 +57,17 @@ export class DashboardMembersService {
 
   /** Build the whole Members tab for one control combination. */
   async get(query: DashboardMembersQuery): Promise<DashboardMembersResponse> {
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity]);
+    // The gym's own calendar. Fetched BEFORE the aggregates because the window
+    // itself is a calendar question: `resolveWindow` has to know where midnight
+    // is before it can say which days the chart covers.
+    const locale = await this.locales.get();
+    const zone = locale.timezone;
+    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
     const lookbackMs = RETENTION_DAYS[query.retentionWindow] * DAY_MS;
 
-    const [locale, members, subscriptions, memberCount, payments, invoices] = await Promise.all([
+    const [members, subscriptions, memberCount, payments, invoices] = await Promise.all([
       // In the same round trip as everything else — the gym's own currency is not
       // worth a second sequential query.
-      this.locales.get(),
       this.prisma.client.gymMember.findMany({
         where: { role: Role.MEMBER, deletedAt: null, joinedAt: { lt: win.end } },
         select: { joinedAt: true },
@@ -103,9 +107,9 @@ export class DashboardMembersService {
 
     /* -- Trends ---------------------------------------------------------- */
 
-    const activeBuckets = emptyBuckets(win);
-    const signupBuckets = emptyBuckets(win);
-    const churnBuckets = emptyBuckets(win);
+    const activeBuckets = emptyBuckets(win, zone);
+    const signupBuckets = emptyBuckets(win, zone);
+    const churnBuckets = emptyBuckets(win, zone);
     const retention: { label: string; value: number | null }[] = [];
 
     for (const [key] of activeBuckets) {
@@ -124,7 +128,7 @@ export class DashboardMembersService {
     }
 
     for (const member of members) {
-      const key = bucketKey(member.joinedAt, win.bucket);
+      const key = bucketKey(member.joinedAt, win.bucket, zone);
       if (signupBuckets.has(key)) {
         signupBuckets.set(key, (signupBuckets.get(key) ?? 0) + 1);
       }
@@ -133,7 +137,7 @@ export class DashboardMembersService {
     for (const sub of subscriptions) {
       const churnedAt = churnMoment(sub);
       if (churnedAt === null) continue;
-      const key = bucketKey(churnedAt, win.bucket);
+      const key = bucketKey(churnedAt, win.bucket, zone);
       if (churnBuckets.has(key)) {
         churnBuckets.set(key, (churnBuckets.get(key) ?? 0) + 1);
       }

@@ -32,6 +32,9 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { GymLocaleService } from '../gyms/gym-locale.service';
+import { bucketKey, emptyBuckets, resolveWindow } from '../reports/report-window.util';
+import { addZonedDays, zonedDayStart, zonedIsoDate, zonedParts } from '../reports/zoned-time.util';
 
 /** Milliseconds in a day, for window math. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -64,6 +67,7 @@ export class DashboardService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly locales: GymLocaleService,
   ) {}
 
   /** One live snapshot of the gym's headline counts for the basic KPI widgets. */
@@ -111,10 +115,14 @@ export class DashboardService {
     // The header filter's period resolves to a concrete window (+ the immediately
     // preceding equal-length window for deltas); the period-bounded KPI cards read
     // it, while the live surfaces (occupancy, schedule, check-ins) stay today-bound.
-    const win = resolvePeriodWindow(query, new Date());
+    // The gym's own calendar and currency, read from its settings. Every bound
+    // below is a calendar question, and answering it in the SERVER's zone made
+    // "today" depend on which region the container runs in.
+    const locale = await this.locales.get();
+    const zone = locale.timezone;
+    const win = resolvePeriodWindow(query, new Date(), zone);
 
     const [
-      currency,
       viewer,
       gymName,
       inGymNow,
@@ -127,19 +135,19 @@ export class DashboardService {
       alerts,
       recentCheckIns,
     ] = await Promise.all([
-      this.resolveCurrency(),
       this.resolveViewer(),
       this.resolveGymName(),
-      this.inGymNow(),
+      this.inGymNow(zone),
       this.kpis(win),
-      this.secondaryKpis(win),
+      this.secondaryKpis(win, zone),
       this.recentMembers(),
-      this.revenue(query.range),
+      this.revenue(query.range, zone),
       this.planMix(),
-      this.todaysSchedule(),
-      this.alerts(),
-      this.recentCheckIns(),
+      this.todaysSchedule(zone),
+      this.alerts(zone, locale.currency),
+      this.recentCheckIns(zone),
     ]);
+    const currency = locale.currency;
 
     return {
       currency,
@@ -161,21 +169,6 @@ export class DashboardService {
   /* ---------------------------------------------------------------------- */
   /*  Identity / currency                                                    */
   /* ---------------------------------------------------------------------- */
-
-  /**
-   * The gym's reporting currency, read from its most recent captured payment (the
-   * real currency money changed hands in); falls back to the schema default `USD`
-   * when the gym has taken no payments yet, so the empty-state UI still labels its
-   * zeros. Not fabricated — it is the currency of an actual row when one exists.
-   */
-  private async resolveCurrency(): Promise<string> {
-    const latest = await this.prisma.client.payment.findFirst({
-      where: { status: PaymentStatus.CAPTURED },
-      orderBy: { createdAt: 'desc' },
-      select: { currency: true },
-    });
-    return latest?.currency ?? 'USD';
-  }
 
   /**
    * The signed-in staff member, resolved from their own `GymMember` (auto-scoped)
@@ -218,9 +211,9 @@ export class DashboardService {
    * location to its capacity + today's check-ins carrying that `locationId`.
    * Locations ARE the gym's areas — the real mapping, not invented zones.
    */
-  private async inGymNow(): Promise<DashboardInGymNow> {
+  private async inGymNow(zone: string): Promise<DashboardInGymNow> {
     const db = this.prisma.client;
-    const dayStart = startOfToday();
+    const dayStart = startOfToday(zone);
 
     const [locations, todayCheckIns] = await Promise.all([
       db.location.findMany({
@@ -368,12 +361,15 @@ export class DashboardService {
    * forward-looking figures that are meaningless to re-window into the past, so they
    * stay pinned to "now" / "this month" regardless of the selected window.
    */
-  private async secondaryKpis(win: PeriodWindow): Promise<DashboardSecondaryKpis> {
+  private async secondaryKpis(win: PeriodWindow, zone: string): Promise<DashboardSecondaryKpis> {
     const db = this.prisma.client;
     const now = new Date();
-    const monthStart = startOfMonth(now);
-    const lastMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-    const nextMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+    const monthStart = startOfMonth(now, zone);
+    // One millisecond before this month began is inside the previous month, in
+    // whatever zone — safer than month-1 arithmetic across a year boundary.
+    const lastMonthStart = startOfMonth(new Date(monthStart.getTime() - 1), zone);
+    // 32 days past this month's start is always inside the next month.
+    const nextMonthStart = startOfMonth(new Date(monthStart.getTime() + 32 * DAY_MS), zone);
     const in7Days = new Date(now.getTime() + 7 * DAY_MS);
     const live = [...LIVE_SUBSCRIPTION_STATUSES];
 
@@ -432,17 +428,17 @@ export class DashboardService {
    * memory into a dense, gap-filled series so the chart's x-axis is continuous even
    * on days with no takings. `total` is the SUM over the window.
    */
-  private async revenue(range: DashboardRange): Promise<DashboardRevenue> {
-    const win = resolveWindow(range);
+  private async revenue(range: DashboardRange, zone: string): Promise<DashboardRevenue> {
+    const win = resolveWindow(range, zone);
     const rows = await this.prisma.client.payment.findMany({
       where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
       select: { amount: true, createdAt: true },
     });
 
-    const buckets = emptyBuckets(win);
+    const buckets = emptyBuckets(win, zone);
     let total = 0;
     for (const row of rows) {
-      const key = bucketKey(row.createdAt, win.bucket);
+      const key = bucketKey(row.createdAt, win.bucket, zone);
       const bucket = buckets.get(key);
       if (bucket !== undefined) {
         buckets.set(key, bucket + row.amount);
@@ -524,8 +520,8 @@ export class DashboardService {
    * occurrence; `capacity` is `capacityOverride ?? template.capacity`. Scoped to
    * the caller's gym via the tenant extension.
    */
-  private async todaysSchedule(): Promise<DashboardScheduleRow[]> {
-    const dayStart = startOfToday();
+  private async todaysSchedule(zone: string): Promise<DashboardScheduleRow[]> {
+    const dayStart = startOfToday(zone);
     const dayEnd = new Date(dayStart.getTime() + DAY_MS);
 
     const instances = await this.prisma.client.classInstance.findMany({
@@ -567,12 +563,12 @@ export class DashboardService {
    *   • class_full     — any today class ≥ 90% full ("<title> is <pct>% full").
    *   • payment_failed — any FAILED payment today ("Card declined").
    */
-  private async alerts(): Promise<DashboardAlert[]> {
+  private async alerts(zone: string, currency: string): Promise<DashboardAlert[]> {
     const db = this.prisma.client;
-    const dayStart = startOfToday();
+    const dayStart = startOfToday(zone);
     const dayEnd = new Date(dayStart.getTime() + DAY_MS);
 
-    const [recentPayment, failedPayments, todayInstances, currency] = await Promise.all([
+    const [recentPayment, failedPayments, todayInstances] = await Promise.all([
       db.payment.findFirst({
         where: { status: PaymentStatus.CAPTURED },
         orderBy: { createdAt: 'desc' },
@@ -597,7 +593,6 @@ export class DashboardService {
           },
         },
       }),
-      this.resolveCurrency(),
     ]);
 
     const alerts: DashboardAlert[] = [];
@@ -649,9 +644,9 @@ export class DashboardService {
    * explicitly tenant-scoped `CheckIn` read the reception feed uses, joined to the
    * member's identity + current plan name.
    */
-  private async recentCheckIns(): Promise<DashboardCheckIn[]> {
+  private async recentCheckIns(zone: string): Promise<DashboardCheckIn[]> {
     const rows = await this.prisma.client.checkIn.findMany({
-      where: { gymId: this.tenant.gymId, checkedInAt: { gte: startOfToday() } },
+      where: { gymId: this.tenant.gymId, checkedInAt: { gte: startOfToday(zone) } },
       orderBy: { checkedInAt: 'desc' },
       take: 6,
       select: {
@@ -733,71 +728,24 @@ export class DashboardService {
 /** Fixed accent palette for the plan-mix stacked bar, brand-first. */
 const PLAN_COLORS = ['#7C3AED', '#EC4899', '#2563EB', '#0EA5E9', '#10B981', '#F59E0B'];
 
-/* -------------------------------------------------------------------------- */
-/*  Pure window / bucket helpers (mirroring AnalyticsService)                   */
-/* -------------------------------------------------------------------------- */
+/*
+ * `resolveWindow` / `bucketKey` / `emptyBuckets` used to be duplicated HERE, in
+ * UTC, alongside the identical pair in `report-window.util.ts`. Two copies of
+ * bucket arithmetic is one copy too many — they had already drifted in what they
+ * accepted — and the shared pair is now timezone-aware, which this needed
+ * anyway. `WindowSpec` stays because this surface's range vocabulary is the
+ * narrower `7d|30d|12w`.
+ */
 
-/** How a range resolves into a concrete window + bucket granularity. */
-interface WindowSpec {
-  start: Date;
-  end: Date;
-  bucket: 'day' | 'week';
+/** Start of the gym's current calendar day — the "today" bound. */
+function startOfToday(zone: string): Date {
+  return startOfLocalDay(new Date(), zone);
 }
 
-/** Resolve a range token into a concrete window + bucket granularity (UTC). */
-function resolveWindow(range: DashboardRange): WindowSpec {
-  const end = new Date();
-  switch (range) {
-    case '7d':
-      return { start: new Date(end.getTime() - 7 * DAY_MS), end, bucket: 'day' };
-    case '30d':
-      return { start: new Date(end.getTime() - 30 * DAY_MS), end, bucket: 'day' };
-    case '12w':
-      return { start: new Date(end.getTime() - 12 * 7 * DAY_MS), end, bucket: 'week' };
-  }
-}
-
-/** The `YYYY-MM-DD` bucket key an instant falls into, at the given granularity (UTC). */
-function bucketKey(at: Date, bucket: 'day' | 'week'): string {
-  if (bucket === 'week') {
-    // Monday-start week: shift back to the week's Monday (UTC).
-    const day = at.getUTCDay();
-    const mondayOffset = (day + 6) % 7;
-    const monday = new Date(
-      Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate() - mondayOffset),
-    );
-    return isoDate(monday);
-  }
-  return isoDate(at);
-}
-
-/** A dense, zero-filled bucket map spanning the window, keyed by bucket start. */
-function emptyBuckets(win: WindowSpec): Map<string, number> {
-  const buckets = new Map<string, number>();
-  const step = win.bucket === 'week' ? 7 * DAY_MS : DAY_MS;
-  const firstKey = bucketKey(win.start, win.bucket);
-  let cursorMs = new Date(`${firstKey}T00:00:00.000Z`).getTime();
-  while (cursorMs < win.end.getTime()) {
-    buckets.set(isoDate(new Date(cursorMs)), 0);
-    cursorMs += step;
-  }
-  return buckets;
-}
-
-/** Format an instant as its `YYYY-MM-DD` UTC date. */
-function isoDate(at: Date): string {
-  return at.toISOString().slice(0, 10);
-}
-
-/** Start of the current calendar day in the server's zone — the "today" bound. */
-function startOfToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-/** Start of the current calendar month in the server's zone. */
-function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+/** Start of the gym's current calendar month. */
+function startOfMonth(d: Date, zone: string): Date {
+  const { year, month } = zonedParts(d, zone);
+  return zonedDayStart(`${year}-${String(month).padStart(2, '0')}-01`, zone);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -827,38 +775,40 @@ export interface PeriodWindow {
   toISO: string;
 }
 
-/** Local-zone midnight starting the given date's calendar day. */
-function startOfLocalDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+/**
+ * Midnight starting the given instant's calendar day, IN THE GYM'S ZONE.
+ *
+ * These four helpers used to read the SERVER's zone (`d.getFullYear()` and
+ * friends), which is the one answer that is wrong everywhere: it makes "today's
+ * revenue" depend on which region the container happens to run in, and silently
+ * changes the numbers if that ever moves. The gym's own zone is in its settings.
+ */
+function startOfLocalDay(d: Date, zone: string): Date {
+  return zonedDayStart(zonedIsoDate(d, zone), zone);
 }
 
 /** The date `n` calendar days after `d`'s local midnight (n may be negative). */
-function addDays(d: Date, n: number): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+function addDays(d: Date, n: number, zone: string): Date {
+  return zonedDayStart(addZonedDays(zonedIsoDate(d, zone), n, zone), zone);
 }
 
-/** Local-zone Monday starting the ISO week that contains `d`. */
-function startOfWeekMonday(d: Date): Date {
-  const day = startOfLocalDay(d);
-  const mondayOffset = (day.getDay() + 6) % 7; // 0=Sun → 6, 1=Mon → 0, …
-  return addDays(day, -mondayOffset);
+/** The gym-local Monday starting the ISO week that contains `d`. */
+function startOfWeekMonday(d: Date, zone: string): Date {
+  // `weekday` is already 0 = Monday, so it IS the offset back to Monday.
+  return addDays(d, -zonedParts(d, zone).weekday, zone);
 }
 
 /** Parse a `YYYY-MM-DD` calendar date as local midnight (invalid → today). */
-function parseLocalDate(iso: string, fallback: Date): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!match) {
-    return startOfLocalDay(fallback);
+function parseLocalDate(iso: string, fallback: Date, zone: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return startOfLocalDay(fallback, zone);
   }
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return zonedDayStart(iso, zone);
 }
 
 /** Format a local-zone date as its `YYYY-MM-DD` calendar day. */
-function localIsoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+function localIsoDate(d: Date, zone: string): string {
+  return zonedIsoDate(d, zone);
 }
 
 /**
@@ -871,6 +821,7 @@ function localIsoDate(d: Date): string {
 export function resolvePeriodWindow(
   query: { period?: DashboardPeriod; from?: string; to?: string },
   now: Date,
+  zone = 'UTC',
 ): PeriodWindow {
   const period = query.period ?? DEFAULT_DASHBOARD_PERIOD;
   let start: Date;
@@ -878,26 +829,29 @@ export function resolvePeriodWindow(
 
   switch (period) {
     case 'today':
-      start = startOfLocalDay(now);
-      end = addDays(start, 1);
+      start = startOfLocalDay(now, zone);
+      end = addDays(start, 1, zone);
       break;
     case 'week':
-      start = startOfWeekMonday(now);
-      end = addDays(start, 7);
+      start = startOfWeekMonday(now, zone);
+      end = addDays(start, 7, zone);
       break;
-    case 'month':
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    case 'month': {
+      const { year, month } = zonedParts(now, zone);
+      const first = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}-01`;
+      start = zonedDayStart(first(year, month), zone);
+      end = zonedDayStart(month === 12 ? first(year + 1, 1) : first(year, month + 1), zone);
       break;
+    }
     case 'custom': {
       // Each side defaults independently to today, so a one-sided custom range
       // (only `from` or only `to`) reads as "from that day through today".
-      const a = query.from ? parseLocalDate(query.from, now) : startOfLocalDay(now);
-      const b = query.to ? parseLocalDate(query.to, now) : startOfLocalDay(now);
+      const a = query.from ? parseLocalDate(query.from, now, zone) : startOfLocalDay(now, zone);
+      const b = query.to ? parseLocalDate(query.to, now, zone) : startOfLocalDay(now, zone);
       const lo = a <= b ? a : b;
       const hi = a <= b ? b : a;
-      start = startOfLocalDay(lo);
-      end = addDays(startOfLocalDay(hi), 1);
+      start = startOfLocalDay(lo, zone);
+      end = addDays(startOfLocalDay(hi, zone), 1, zone);
       break;
     }
   }
@@ -909,8 +863,8 @@ export function resolvePeriodWindow(
     end,
     prevStart: new Date(start.getTime() - durationMs),
     prevEnd: start,
-    fromISO: localIsoDate(start),
-    toISO: localIsoDate(addDays(end, -1)),
+    fromISO: localIsoDate(start, zone),
+    toISO: localIsoDate(addDays(end, -1, zone), zone),
   };
 }
 

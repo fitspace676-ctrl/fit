@@ -15,6 +15,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
+import { zonedDayStart } from '../reports/zoned-time.util';
 import {
   bucketKey,
   DAY_MS,
@@ -71,72 +72,75 @@ export class DashboardRevenueService {
 
   /** Build the whole Revenue tab for one control combination. */
   async get(query: DashboardRevenueQuery): Promise<DashboardRevenueResponse> {
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity]);
+    // The gym's own calendar. Fetched BEFORE the aggregates because the window
+    // itself is a calendar question: `resolveWindow` has to know where midnight
+    // is before it can say which days the chart covers.
+    const locale = await this.locales.get();
+    const zone = locale.timezone;
+    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
     const days = PROJECTION_WINDOW_DAYS[query.projectionWindow];
     const now = new Date();
     // Calendar day, not instant: a charge due later today belongs in today's
     // bucket, and an invoice due today is not yet late.
-    const todayStart = new Date(`${isoDate(now)}T00:00:00.000Z`);
+    const todayStart = zonedDayStart(isoDate(now, zone), zone);
     const horizon = new Date(todayStart.getTime() + days * DAY_MS);
 
-    const [locale, payments, paidInvoices, unsettled, subscriptions, locationCount] =
-      await Promise.all([
-        this.locales.get(),
-        this.prisma.client.payment.findMany({
-          where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
-          select: {
-            amount: true,
-            refundedAmount: true,
-            currency: true,
-            createdAt: true,
-            order: { select: { location: { select: { name: true } } } },
-          },
-          orderBy: { createdAt: 'asc' },
-        }),
-        // `orderId: null` is the double-count guard — see the class comment.
-        this.prisma.client.invoice.findMany({
-          where: {
-            status: InvoiceStatus.PAID,
-            orderId: null,
-            issuedAt: { gte: win.start, lt: win.end },
-          },
-          select: { amount: true, currency: true, issuedAt: true },
-          orderBy: { issuedAt: 'asc' },
-        }),
-        // Gym-wide and NOT window-scoped: a debt does not stop being owed because
-        // the chart is showing last week.
-        this.prisma.client.invoice.findMany({
-          where: { status: { in: [InvoiceStatus.PENDING, InvoiceStatus.FAILED] } },
-          select: { amount: true, status: true, dueDate: true },
-        }),
-        // Every subscription, not just the window's: the MRR trend needs state at
-        // instants BEFORE the window opens.
-        this.prisma.client.subscription.findMany({
-          where: { member: { deletedAt: null } },
-          select: {
-            memberId: true,
-            status: true,
-            createdAt: true,
-            canceledAt: true,
-            updatedAt: true,
-            priceAmount: true,
-            interval: true,
-            currentPeriodEnd: true,
-            cancelAtPeriodEnd: true,
-          },
-        }),
-        this.prisma.client.location.count({ where: { status: LocationStatus.ACTIVE } }),
-      ]);
+    const [payments, paidInvoices, unsettled, subscriptions, locationCount] = await Promise.all([
+      this.prisma.client.payment.findMany({
+        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        select: {
+          amount: true,
+          refundedAmount: true,
+          currency: true,
+          createdAt: true,
+          order: { select: { location: { select: { name: true } } } },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      // `orderId: null` is the double-count guard — see the class comment.
+      this.prisma.client.invoice.findMany({
+        where: {
+          status: InvoiceStatus.PAID,
+          orderId: null,
+          issuedAt: { gte: win.start, lt: win.end },
+        },
+        select: { amount: true, currency: true, issuedAt: true },
+        orderBy: { issuedAt: 'asc' },
+      }),
+      // Gym-wide and NOT window-scoped: a debt does not stop being owed because
+      // the chart is showing last week.
+      this.prisma.client.invoice.findMany({
+        where: { status: { in: [InvoiceStatus.PENDING, InvoiceStatus.FAILED] } },
+        select: { amount: true, status: true, dueDate: true },
+      }),
+      // Every subscription, not just the window's: the MRR trend needs state at
+      // instants BEFORE the window opens.
+      this.prisma.client.subscription.findMany({
+        where: { member: { deletedAt: null } },
+        select: {
+          memberId: true,
+          status: true,
+          createdAt: true,
+          canceledAt: true,
+          updatedAt: true,
+          priceAmount: true,
+          interval: true,
+          currentPeriodEnd: true,
+          cancelAtPeriodEnd: true,
+        },
+      }),
+      this.prisma.client.location.count({ where: { status: LocationStatus.ACTIVE } }),
+    ]);
 
     /* -- The two revenue streams ----------------------------------------- */
 
-    const recurringBuckets = emptyBuckets(win);
-    const oneOffBuckets = emptyBuckets(win);
+    const recurringBuckets = emptyBuckets(win, zone);
+    const oneOffBuckets = emptyBuckets(win, zone);
     const byLocation = new Map<string, number>();
 
     for (const payment of payments) {
       const net = payment.amount - payment.refundedAmount;
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, zone);
       if (oneOffBuckets.has(key)) {
         oneOffBuckets.set(key, (oneOffBuckets.get(key) ?? 0) + net);
       }
@@ -145,7 +149,7 @@ export class DashboardRevenueService {
     }
 
     for (const invoice of paidInvoices) {
-      const key = bucketKey(invoice.issuedAt, win.bucket);
+      const key = bucketKey(invoice.issuedAt, win.bucket, zone);
       if (recurringBuckets.has(key)) {
         recurringBuckets.set(key, (recurringBuckets.get(key) ?? 0) + invoice.amount);
       }
@@ -209,7 +213,7 @@ export class DashboardRevenueService {
       }
       if (sub.cancelAtPeriodEnd) continue;
       if (sub.currentPeriodEnd < todayStart || sub.currentPeriodEnd >= horizon) continue;
-      const key = isoDate(sub.currentPeriodEnd);
+      const key = isoDate(sub.currentPeriodEnd, zone);
       projectedBuckets.set(key, (projectedBuckets.get(key) ?? 0) + sub.priceAmount);
     }
 
