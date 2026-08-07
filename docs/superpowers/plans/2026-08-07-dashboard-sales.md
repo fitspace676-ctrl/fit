@@ -1141,9 +1141,11 @@ git commit -m "feat(api): expose GET /dashboard/sales"
 **Interfaces:**
 
 - Consumes: the existing `styles.areaSvg` / `styles.accentInk` in `charts.tsx`, and `useId` (already imported there).
-- Produces: `export interface DualPoint { label: string; primary: number; secondary: number }` and `export function DualAreaChart({ data, height?, ariaLabel?, primaryLabel?, secondaryLabel? })`. Task 8 renders it.
+- Produces: `export interface DualPoint { label: string; primary: number; secondary: number }` and `export function DualAreaChart({ data, height?, ariaLabel? })`. Task 8 renders it. Also produces two **file-private** helpers, `AccentAreaGradient` and `SeriesPath`, which `AreaChart` is refitted onto in the same task.
 
 Both series scale to the **shared** max — two independently-scaled series would make a small refund column look as tall as a large sales one, which is a lying chart. The primary series keeps `AreaChart`'s accent gradient; the secondary is a stroke-only overlay in `var(--color-error)`.
+
+**Extraction first, then the new chart.** `DualAreaChart` needs `AreaChart`'s gradient and draws two strokes differing only in colour. Copying either would leave three near-identical blocks in one file, so Step 4 extracts both pieces and refits `AreaChart` onto them before Step 6 adds the new chart. The extraction is a pure refactor: `AreaChart`'s rendered output must not change, which is what Step 5 checks.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1226,7 +1228,79 @@ In `charts.tsx`, inside the existing top-level `stylex.create({ … })`, add nex
   },
 ```
 
-- [ ] **Step 4: Add the component**
+- [ ] **Step 4: Extract the two shared SVG pieces**
+
+`DualAreaChart` needs `AreaChart`'s gradient and draws two strokes that differ
+only in colour. Copying either would be three near-identical blocks in one file,
+so extract them **first** and refit `AreaChart` onto them — this step must leave
+`AreaChart` rendering byte-identical output.
+
+In `charts.tsx`, insert immediately **before** `AreaChart`:
+
+```tsx
+/**
+ * The accent gradient both area charts fill under: opaque-ish at the top, clear
+ * at the baseline. Rendered inside its own `<defs>` so a caller only has to place
+ * it and reference `id`. The colour resolves through `currentColor` off a StyleX
+ * `color`, so `light-dark()` tracks the active theme automatically.
+ */
+function AccentAreaGradient({ id }: { id: string }) {
+  return (
+    <defs>
+      <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+        <stop
+          offset="0%"
+          {...stylex.props(styles.accentInk)}
+          stopColor="currentColor"
+          stopOpacity={0.32}
+        />
+        <stop
+          offset="100%"
+          {...stylex.props(styles.accentInk)}
+          stopColor="currentColor"
+          stopOpacity={0}
+        />
+      </linearGradient>
+    </defs>
+  );
+}
+
+/**
+ * One plotted series stroke. `ink` is a StyleX style supplying the `color` the
+ * stroke reads through `currentColor` — `styles.accentInk` for a primary series,
+ * `styles.negativeInk` for a comparison overlay. Renders nothing for an empty
+ * path, so callers can pass an unguarded `''`.
+ */
+function SeriesPath({ d, ink }: { d: string; ink: stylex.StyleXStyles }) {
+  if (!d) return null;
+  return (
+    <path
+      d={d}
+      fill="none"
+      {...stylex.props(ink)}
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+}
+```
+
+Then, inside `AreaChart`'s returned `<svg>`, replace the whole `<defs>…</defs>`
+block with `<AccentAreaGradient id={gradientId} />`, and replace the
+`{line && (<path d={line} … />)}` block with
+`<SeriesPath d={line} ink={styles.accentInk} />`. Leave everything else in
+`AreaChart` — including `gradientId` and the area `<path>` — untouched.
+
+- [ ] **Step 5: Verify `AreaChart` still renders identically**
+
+Run: `pnpm --filter @fit/admin test`
+Expected: PASS. No existing test may change. If one breaks, the extraction
+changed behaviour — fix the extraction, not the test.
+
+- [ ] **Step 6: Add the component**
 
 In `charts.tsx`, insert after `AreaChart`'s closing brace and before the `/* Donut */` divider:
 
@@ -1302,58 +1376,21 @@ export function DualAreaChart({
       {...stylex.props(styles.areaSvg)}
       style={{ height }}
     >
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop
-            offset="0%"
-            {...stylex.props(styles.accentInk)}
-            stopColor="currentColor"
-            stopOpacity={0.32}
-          />
-          <stop
-            offset="100%"
-            {...stylex.props(styles.accentInk)}
-            stopColor="currentColor"
-            stopOpacity={0}
-          />
-        </linearGradient>
-      </defs>
+      <AccentAreaGradient id={gradientId} />
       {primaryArea && <path d={primaryArea} fill={`url(#${gradientId})`} stroke="none" />}
-      {primaryLine && (
-        <path
-          d={primaryLine}
-          fill="none"
-          {...stylex.props(styles.accentInk)}
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      )}
-      {secondaryLine && (
-        <path
-          d={secondaryLine}
-          fill="none"
-          {...stylex.props(styles.negativeInk)}
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      )}
+      <SeriesPath d={primaryLine} ink={styles.accentInk} />
+      <SeriesPath d={secondaryLine} ink={styles.negativeInk} />
     </svg>
   );
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [ ] **Step 7: Run test to verify it passes**
 
 Run: `pnpm --filter @fit/admin test -- charts`
 Expected: PASS — 4 tests.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add "apps/admin/app/(dashboard)/charts.tsx" "apps/admin/app/(dashboard)/charts.test.tsx"
