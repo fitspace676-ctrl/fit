@@ -14,6 +14,7 @@ export * from './src/classes-admin';
 export * from './src/class-types-admin';
 export * from './src/credit-packs';
 export * from './src/dashboard';
+export * from './src/dashboard-classes';
 export * from './src/dashboard-members';
 export * from './src/dashboard-revenue';
 export * from './src/dashboard-segments';
