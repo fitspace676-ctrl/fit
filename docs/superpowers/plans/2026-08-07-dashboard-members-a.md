@@ -70,7 +70,7 @@ Tasks 1–10 are additive: the Members tab keeps showing the old widget grid thr
 
 **Interfaces:**
 
-- Consumes: `reportSeriesPointSchema` from `./reports-drilldown`; `salesGranularitySchema`, `SALES_GRANULARITY_RANGE` from `./dashboard-sales`.
+- Consumes: `reportSeriesPointSchema` from `./reports-drilldown`; `salesGranularitySchema` from `./dashboard-sales`. (`SALES_GRANULARITY_RANGE` is consumed by Task 2's service, not here.)
 - Produces: `membersGranularitySchema`, `retentionWindowSchema`, `expiringWindowSchema`, `dashboardMembersQuerySchema`, `dashboardMembersResponseSchema`, `MEMBERSHIP_STATUSES`, and the types `MembersGranularity`, `RetentionWindow`, `ExpiringWindow`, `MembershipStatus`, `MembersKpis`, `SignupsChurnPoint`, `RetentionPoint`, `MembershipStatusSlice`, `DashboardMembersQuery`, `DashboardMembersResponse`.
 
 **Note on `expiringWindow`:** it is declared here and echoed by the API, but nothing in Plan A reads it. Plan B's expiring-soon card is its consumer. It is in the contract now so the query shape does not change under Plan B — a shipped contract that gains a required-ish field later forces a second round of client changes.
