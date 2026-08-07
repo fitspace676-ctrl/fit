@@ -15,12 +15,97 @@ import { Fragment, useEffect, useId, useState, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 const styles = stylex.create({
-  areaSvg: {
+  // The chart is an SVG under an HTML overlay. Everything that must keep its
+  // shape — markers, chips, the crosshair, the tooltip — lives in the overlay,
+  // because the SVG stretches (`preserveAspectRatio="none"`) and would squash a
+  // circle into an ellipse and a label into italics.
+  plot: {
+    position: 'relative',
     width: '100%',
   },
+  areaSvg: {
+    width: '100%',
+    display: 'block',
+  },
+  overlay: {
+    position: 'absolute',
+    insetInline: 0,
+    insetBlock: 0,
+    pointerEvents: 'none',
+  },
+  marker: {
+    position: 'absolute',
+    width: '0.5rem',
+    height: '0.5rem',
+    marginLeft: '-0.25rem',
+    marginTop: '-0.25rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--chart-series-1)',
+    // The 2px surface ring that keeps a mark legible where it overlaps its own
+    // line — the spacer rule from the dataviz mark specs.
+    boxShadow: '0 0 0 2px var(--color-background-card)',
+  },
+  chip: {
+    position: 'absolute',
+    transform: 'translate(-50%, -140%)',
+    whiteSpace: 'nowrap',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border-emphasized)',
+    backgroundColor: 'var(--color-background-popover)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.1875rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  crosshair: {
+    position: 'absolute',
+    insetBlock: 0,
+    width: '1px',
+    backgroundColor: 'var(--chart-guide)',
+  },
+  tooltip: {
+    position: 'absolute',
+    top: 0,
+    transform: 'translateX(-50%)',
+    whiteSpace: 'nowrap',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border-emphasized)',
+    backgroundColor: 'var(--color-background-popover)',
+    boxShadow: 'var(--shadow-high)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.6875rem',
+    color: 'var(--color-text-primary)',
+  },
+  tooltipLabel: {
+    display: 'block',
+    fontFamily: 'var(--font-family-code)',
+    color: 'var(--color-text-secondary)',
+  },
+  // The mean line's own label, sat at the right edge of the plot.
+  guideLabel: {
+    position: 'absolute',
+    right: 0,
+    transform: 'translateY(-50%)',
+    paddingInline: '0.25rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    color: 'var(--color-text-secondary)',
+    backgroundColor: 'var(--color-background-card)',
+  },
+  seriesOne: { color: 'var(--chart-series-1)' },
+  seriesTwo: { color: 'var(--chart-series-2)' },
+  glowOne: { color: 'var(--chart-glow-1)' },
+  guideInk: { color: 'var(--chart-guide)' },
   // The line + gradient stops resolve their paint from `color` via currentColor.
   accentInk: {
-    color: 'var(--color-accent)',
+    color: 'var(--chart-series-1)',
   },
   // The comparison chart's second series where that series is money going back
   // out — refunds, cancellations. Semantic, not decorative.
@@ -31,8 +116,12 @@ const styles = stylex.create({
   // being compared — two revenue streams, say. The error tone would claim the
   // second one is a problem, which is a statement the chart has no business
   // making; the accent would make it indistinguishable from the first.
+  //
+  // This is the VALIDATED series-2 token, not a hand-picked hue: the pastel teal
+  // that used to sit here scored ΔE 13.8 against series 1 for normal vision,
+  // below the 15 floor. See `globals.css`.
   neutralInk: {
-    color: 'var(--color-text-teal)',
+    color: 'var(--chart-series-2)',
   },
   gaugeWrap: {
     position: 'relative',
@@ -197,23 +286,41 @@ export interface AreaPoint {
 }
 
 /**
- * A compact, dependency-free area/line chart on the Fit brand accent. Renders a
- * gradient-filled area under a brand stroke, scaled to the data's own max, inside a
- * responsive `viewBox` so it fills its container. An all-zero (or empty) series
- * draws a flat baseline, so the caller can still show the frame with an empty-state
- * caption rather than a broken chart.
+ * A compact, dependency-free area/line chart. Renders a gradient-filled area under
+ * a glowing series stroke, scaled to the data's own max, inside a responsive
+ * `viewBox` so it fills its container. An all-zero (or empty) series draws a flat
+ * baseline, so the caller can still show the frame with an empty-state caption
+ * rather than a broken chart.
+ *
+ * Three things sit ON TOP of the SVG rather than inside it — the end marker, its
+ * value chip, and the hover crosshair with its tooltip. The SVG stretches
+ * (`preserveAspectRatio="none"`), which turns a circle into an ellipse and a text
+ * label into italics; the overlay is plain HTML positioned in percentages, so it
+ * keeps its shape at any width.
+ *
+ * The dashed line across the plot is the series MEAN. A trend without a reference
+ * is a wiggle: the mean is what turns "it moved" into "it moved above where it
+ * usually sits". It is drawn only when there are enough points for a mean to say
+ * anything.
  */
 export function AreaChart({
   data,
   height = 180,
   ariaLabel = 'Area chart',
+  formatValue = (value) => String(value),
+  showMean = true,
 }: {
   data: AreaPoint[];
   height?: number;
   ariaLabel?: string;
+  /** How the chip and the tooltip render a value. Money and percentages differ. */
+  formatValue?: (value: number) => string;
+  showMean?: boolean;
 }) {
   const width = 640;
   const pad = 8;
+  const [hover, setHover] = useState<number | null>(null);
+
   // This filter is for TYPE SAFETY, not scale correctness: `Math.max(1, …)`
   // floors the result, so a coerced `null → 0` could never have displaced the
   // maximum anyway (0 loses to any positive value, and a negative series is
@@ -270,19 +377,113 @@ export function AreaChart({
   // delimiters so it is a valid `url(#…)` fragment reference.
   const gradientId = `area-fill-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
+  const mean =
+    showMean && present.length > 2
+      ? present.reduce((sum, d) => sum + d.value, 0) / present.length
+      : null;
+  const meanY = mean === null ? null : height - pad - (mean / max) * (height - pad * 2);
+
+  // The last point that actually carries a value — the end marker's anchor, and
+  // the only point on the chart that gets a label.
+  const lastIndex = xy.reduce((found, point, i) => (point === null ? found : i), -1);
+  const lastPoint = lastIndex === -1 ? null : xy[lastIndex];
+  const lastValue = lastIndex === -1 ? null : (data[lastIndex]?.value ?? null);
+
+  const hovered = hover === null ? null : xy[hover];
+  const hoveredValue = hover === null ? null : (data[hover]?.value ?? null);
+
+  /** Nearest bucket to the pointer, as a fraction of the plot's width. */
+  function track(event: React.PointerEvent<HTMLDivElement>): void {
+    const box = event.currentTarget.getBoundingClientRect();
+    if (box.width === 0 || n === 0) return;
+    const ratio = (event.clientX - box.left) / box.width;
+    setHover(Math.min(n - 1, Math.max(0, Math.round(ratio * (n - 1)))));
+  }
+
+  const pct = (x: number) => `${(x / width) * 100}%`;
+
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={ariaLabel}
-      {...stylex.props(styles.areaSvg)}
-      style={{ height }}
-    >
-      <AccentAreaGradient id={gradientId} />
-      {area && <path d={area} fill={`url(#${gradientId})`} stroke="none" />}
-      <SeriesPath d={line} ink={styles.accentInk} />
-    </svg>
+    <div {...stylex.props(styles.plot)} onPointerMove={track} onPointerLeave={() => setHover(null)}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={ariaLabel}
+        {...stylex.props(styles.areaSvg)}
+        style={{ height }}
+      >
+        <AccentAreaGradient id={gradientId} />
+        {meanY !== null && (
+          <line
+            x1={pad}
+            x2={width - pad}
+            y1={meanY}
+            y2={meanY}
+            {...stylex.props(styles.guideInk)}
+            stroke="currentColor"
+            strokeWidth={1}
+            strokeDasharray="4 4"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        {area && <path d={area} fill={`url(#${gradientId})`} stroke="none" />}
+        {/*
+          The glow: the same path again, wider and translucent, UNDER the stroke.
+          A blur filter would look the same and cost a full-size offscreen buffer
+          on every repaint; this costs one more path.
+        */}
+        {line && (
+          <path
+            d={line}
+            fill="none"
+            {...stylex.props(styles.glowOne)}
+            stroke="currentColor"
+            strokeWidth={7}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        <SeriesPath d={line} ink={styles.seriesOne} />
+      </svg>
+
+      <div {...stylex.props(styles.overlay)}>
+        {meanY !== null && mean !== null && (
+          <span {...stylex.props(styles.guideLabel)} style={{ top: `${(meanY / height) * 100}%` }}>
+            {formatValue(Math.round(mean))}
+          </span>
+        )}
+        {lastPoint && lastValue !== null && hover === null && (
+          <>
+            <span
+              {...stylex.props(styles.marker)}
+              style={{ left: pct(lastPoint.x), top: `${(lastPoint.y / height) * 100}%` }}
+            />
+            <span
+              {...stylex.props(styles.chip)}
+              style={{ left: pct(lastPoint.x), top: `${(lastPoint.y / height) * 100}%` }}
+            >
+              {formatValue(lastValue)}
+            </span>
+          </>
+        )}
+        {hovered && (
+          <>
+            <span {...stylex.props(styles.crosshair)} style={{ left: pct(hovered.x) }} />
+            <span
+              {...stylex.props(styles.marker)}
+              style={{ left: pct(hovered.x), top: `${(hovered.y / height) * 100}%` }}
+            />
+          </>
+        )}
+        {hover !== null && hoveredValue !== null && (
+          <span {...stylex.props(styles.tooltip)} style={{ left: pct(xy[hover]?.x ?? 0) }}>
+            <span {...stylex.props(styles.tooltipLabel)}>{data[hover]?.label}</span>
+            {formatValue(hoveredValue)}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -597,16 +798,28 @@ const barStyles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  // No filled track behind the bar. A full-width grey slab reads as a second
+  // value at 100% and competes with the mark it is supposed to frame; the row's
+  // own width already says what the maximum is. A hairline keeps the baseline
+  // legible when every bar is short.
   track: {
     height: '0.625rem',
-    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
     borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-background-muted)',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--chart-guide)',
   },
   fill: {
-    height: '100%',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent)',
+    height: '0.5rem',
+    // Rounded at the DATA end only: the bar grows from a baseline it stays
+    // anchored to, and a rounded root would float it off that line.
+    borderStartStartRadius: 0,
+    borderEndStartRadius: 0,
+    borderStartEndRadius: '4px',
+    borderEndEndRadius: '4px',
+    backgroundColor: 'var(--chart-series-1)',
     transitionProperty: 'width',
     transitionDuration: '700ms',
     transitionTimingFunction: 'ease-out',

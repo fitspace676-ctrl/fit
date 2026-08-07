@@ -65,6 +65,8 @@ describe('DualAreaChart', () => {
 });
 
 describe('AreaChart gaps', () => {
+  // The anatomy is area fill, then the glow (the same path, wider and
+  // translucent), then the stroke on top. Three paths for one unbroken series.
   it('draws one continuous path when every value is present', () => {
     const { container } = render(
       <AreaChart
@@ -75,9 +77,9 @@ describe('AreaChart gaps', () => {
         ]}
       />,
     );
-    // One area fill + one stroke.
-    expect(container.querySelectorAll('path')).toHaveLength(2);
-    expect(container.querySelectorAll('path')[1]?.getAttribute('d')).not.toContain('NaN');
+    const paths = container.querySelectorAll('path');
+    expect(paths).toHaveLength(3);
+    expect(paths[paths.length - 1]?.getAttribute('d')).not.toContain('NaN');
   });
 
   // A null is "no value here", not zero. Bridging the gap would draw a line
@@ -92,7 +94,8 @@ describe('AreaChart gaps', () => {
         ]}
       />,
     );
-    const stroke = container.querySelectorAll('path')[1]?.getAttribute('d') ?? '';
+    const paths = container.querySelectorAll('path');
+    const stroke = paths[paths.length - 1]?.getAttribute('d') ?? '';
     expect(stroke).not.toContain('NaN');
     // Two moves: one opening each side of the gap.
     expect(stroke.match(/M/g)).toHaveLength(2);
@@ -121,7 +124,8 @@ describe('AreaChart gaps', () => {
         height={100}
       />,
     );
-    const stroke = container.querySelectorAll('path')[1]?.getAttribute('d') ?? '';
+    const paths = container.querySelectorAll('path');
+    const stroke = paths[paths.length - 1]?.getAttribute('d') ?? '';
     // 100 is the max, so it sits at the top of the frame: y = pad = 8.
     expect(stroke).toContain('8.0');
   });

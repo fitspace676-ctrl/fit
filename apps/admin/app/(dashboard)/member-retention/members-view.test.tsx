@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import type { DashboardMembersResponse } from '@fit/types';
@@ -126,12 +126,16 @@ describe('MembersView', () => {
   // Three tiles are counts and one is money. Nothing else in this suite asserts a
   // formatted figure, so a stray `/ 100` on a count — or a missing one on the LTV
   // — would leave the whole admin suite green.
+  // Scoped to the KPI strip, not the whole tab: the charts now label their last
+  // point with a value chip, so a bare `getByText('42')` matches the tile AND
+  // the chip. The tile is what this case is about.
   it('renders counts as counts and the LTV as money', async () => {
     renderView();
     await screen.findByText('Total active members');
 
-    expect(screen.getByText('42')).toBeInTheDocument();
-    expect(screen.getByText('5')).toBeInTheDocument();
+    const strip = screen.getByText('Active members').closest('div')?.parentElement;
+    expect(strip).not.toBeNull();
+    expect(within(strip as HTMLElement).getByText('42')).toBeInTheDocument();
     expect(screen.getByText('GEL 180')).toBeInTheDocument();
   });
 
