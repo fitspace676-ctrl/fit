@@ -21,6 +21,8 @@ import type {
   DashboardSalesResponse,
   DashboardMembersQuery,
   DashboardMembersResponse,
+  DashboardRevenueQuery,
+  DashboardRevenueResponse,
   DashboardPeriod,
   ConfigurableDashboardSegment,
   DashboardSegmentResponse,
@@ -1722,6 +1724,26 @@ export async function fetchDashboardMembers(
     cache: 'no-store',
   });
   return unwrap<DashboardMembersResponse>(res);
+}
+
+/**
+ * `GET /dashboard/revenue` — the hand-built Revenue tab in one payload. Both
+ * params scope the whole response, so the tab never shows two cards describing
+ * different windows; the API `.catch`es unknown values to its own defaults.
+ */
+export async function fetchDashboardRevenue(
+  query: DashboardRevenueQuery,
+): Promise<DashboardRevenueResponse> {
+  const qs = new URLSearchParams({
+    granularity: query.granularity,
+    projectionWindow: query.projectionWindow,
+  });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/revenue?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Revenue reflects live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardRevenueResponse>(res);
 }
 
 /**
