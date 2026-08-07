@@ -19,6 +19,8 @@ import type {
   DashboardRange,
   DashboardSalesQuery,
   DashboardSalesResponse,
+  DashboardClassesQuery,
+  DashboardClassesResponse,
   DashboardMembersQuery,
   DashboardMembersResponse,
   DashboardRevenueQuery,
@@ -1744,6 +1746,23 @@ export async function fetchDashboardRevenue(
     cache: 'no-store',
   });
   return unwrap<DashboardRevenueResponse>(res);
+}
+
+/**
+ * `GET /dashboard/classes` — the hand-built Classes tab in one payload. The
+ * granularity scopes the whole response, so the tab never shows two cards
+ * describing different windows.
+ */
+export async function fetchDashboardClasses(
+  query: DashboardClassesQuery,
+): Promise<DashboardClassesResponse> {
+  const qs = new URLSearchParams({ granularity: query.granularity });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/classes?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Class figures reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardClassesResponse>(res);
 }
 
 /**

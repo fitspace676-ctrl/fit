@@ -338,6 +338,78 @@
         "loadError": "Couldn't load revenue.",
         "retry": "Retry"
       },
+      "classes": {
+        "granularityLabel": "Granularity",
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "kpi": {
+          "classesHeld": "Classes held",
+          "seatsBooked": "Seats booked",
+          "noShowRate": "No-show rate",
+          "utilizationRate": "Utilization"
+        },
+        "kpiCaption": "{window} · cancelled classes are excluded throughout",
+        "noValue": "—",
+        "bookings": {
+          "title": "Bookings over time",
+          "caption": "Seats held, by when the class runs",
+          "chartAria": "Seats booked per period",
+          "empty": "No bookings in this window."
+        },
+        "attendance": {
+          "title": "Attendance rate",
+          "caption": "Of the bookings that were marked",
+          "chartAria": "Attendance rate per period",
+          "coverage": "{coverage}% of finished bookings were marked",
+          "coverageUnknown": "No classes have finished in this window yet",
+          "gapNote": "Gaps are periods with nothing marked — not 0%.",
+          "empty": "Nothing has been marked in this window."
+        },
+        "utilization": {
+          "title": "Utilization",
+          "caption": "Seats booked against seats offered",
+          "chartAria": "Utilization per period",
+          "gapNote": "Gaps are periods with no capacity to fill — not 0%.",
+          "empty": "No classes with capacity in this window."
+        },
+        "pt": {
+          "title": "PT sessions",
+          "caption": "Booked one-to-one sessions",
+          "chartAria": "PT sessions per period",
+          "empty": "No PT sessions in this window."
+        },
+        "topTypes": {
+          "title": "Most booked classes",
+          "caption": "Top 8 by seats booked",
+          "row": "{sessions} sessions · {utilization} full",
+          "empty": "No classes booked in this window."
+        },
+        "heatmap": {
+          "title": "When demand lands",
+          "caption": "Seats booked by weekday and hour (UTC)",
+          "chartAria": "Seats booked by weekday and hour",
+          "weekday": {
+            "mon": "Mon",
+            "tue": "Tue",
+            "wed": "Wed",
+            "thu": "Thu",
+            "fri": "Fri",
+            "sat": "Sat",
+            "sun": "Sun"
+          },
+          "empty": "No bookings to map in this window."
+        },
+        "loadError": "Couldn't load classes.",
+        "retry": "Retry"
+      },
       "widgets": {
         "classesMostBooked": "Most booked classes",
         "classesPeakHours": "Peak hours",
