@@ -19,6 +19,8 @@ import type {
   DashboardRange,
   DashboardSalesQuery,
   DashboardSalesResponse,
+  DashboardMembersQuery,
+  DashboardMembersResponse,
   DashboardPeriod,
   ConfigurableDashboardSegment,
   DashboardSegmentResponse,
@@ -1699,6 +1701,27 @@ export async function fetchDashboardSales(
     cache: 'no-store',
   });
   return unwrap<DashboardSalesResponse>(res);
+}
+
+/**
+ * `GET /dashboard/members` — the hand-built Members tab in one payload. All three
+ * params scope the whole response, so the tab never shows two cards describing
+ * different windows; the API `.catch`es unknown values to its own defaults.
+ */
+export async function fetchDashboardMembers(
+  query: DashboardMembersQuery,
+): Promise<DashboardMembersResponse> {
+  const qs = new URLSearchParams({
+    granularity: query.granularity,
+    retentionWindow: query.retentionWindow,
+    expiringWindow: query.expiringWindow,
+  });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/members?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Membership figures reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardMembersResponse>(res);
 }
 
 /**
