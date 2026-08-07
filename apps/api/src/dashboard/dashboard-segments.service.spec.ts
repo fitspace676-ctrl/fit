@@ -100,16 +100,19 @@ describe('DashboardSegmentsService.get', () => {
   });
 
   // The reason this is worth a test: widgets spanning multiple reports must not
-  // recompute a report per widget.
+  // recompute a report per widget. `classes` is the fixture for this because its
+  // two widgets resolve to two DISTINCT metrics (`classes`.most-booked → the
+  // `classes` metric, `classes.peak-hours` → the `attendance` metric) — asserting
+  // per metric fails both if a metric is recomputed per widget and if a metric is
+  // missed entirely, which a bare total-call-count assertion would not catch.
   it('computes each distinct metric exactly once', async () => {
     const { service, run } = setup();
 
-    await service.get('members', '7d');
+    await service.get('classes', '7d');
 
-    // members.new-signups and members.churn are BOTH `members`, so the service
-    // fetches one metric, not two.
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(run.mock.calls.map((call) => call[0]).sort()).toEqual(['members']);
+    expect(run.mock.calls.filter((call) => call[0] === 'classes')).toHaveLength(1);
+    expect(run.mock.calls.filter((call) => call[0] === 'attendance')).toHaveLength(1);
+    expect(run).toHaveBeenCalledTimes(2);
   });
 
   it('passes the requested range through to the drill-down', async () => {
