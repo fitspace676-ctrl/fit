@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type {
+  DashboardClassesResponse,
   DashboardMembersResponse,
   DashboardRevenueResponse,
   DashboardSalesResponse,
@@ -9,6 +10,7 @@ import type { DashboardService } from './dashboard.service';
 import type { DashboardSalesService } from './dashboard-sales.service';
 import type { DashboardMembersService } from './dashboard-members.service';
 import type { DashboardRevenueService } from './dashboard-revenue.service';
+import type { DashboardClassesService } from './dashboard-classes.service';
 
 const EMPTY: DashboardSalesResponse = {
   granularity: 'daily',
@@ -52,6 +54,18 @@ const EMPTY_REVENUE: DashboardRevenueResponse = {
   byLocation: null,
 };
 
+const EMPTY_CLASSES: DashboardClassesResponse = {
+  granularity: 'daily',
+  kpis: { classesHeld: 0, seatsBooked: 0, noShowRate: null, utilizationRate: null },
+  bookingsOverTime: [],
+  attendanceOverTime: [],
+  utilizationOverTime: [],
+  ptSessionsOverTime: [],
+  topClassTypes: [],
+  demandByHour: [],
+  markedCoverage: null,
+};
+
 function setup() {
   const get = vi.fn().mockResolvedValue(EMPTY);
   const membersGet = vi.fn().mockResolvedValue(EMPTY_MEMBERS);
@@ -60,11 +74,14 @@ function setup() {
   const members = { get: membersGet } as unknown as DashboardMembersService;
   const revenueGet = vi.fn().mockResolvedValue(EMPTY_REVENUE);
   const revenue = { get: revenueGet } as unknown as DashboardRevenueService;
+  const classesGet = vi.fn().mockResolvedValue(EMPTY_CLASSES);
+  const classes = { get: classesGet } as unknown as DashboardClassesService;
   return {
-    controller: new DashboardController(dashboard, sales, members, revenue),
+    controller: new DashboardController(dashboard, sales, members, revenue, classes),
     get,
     membersGet,
     revenueGet,
+    classesGet,
   };
 }
 
@@ -153,5 +170,27 @@ describe('DashboardController.revenue', () => {
     const { controller, revenueGet } = setup();
     await controller.revenue({ granularity: 'hourly', projectionWindow: '999' });
     expect(revenueGet).toHaveBeenCalledWith({ granularity: 'daily', projectionWindow: '7' });
+  });
+});
+
+describe('DashboardController.classes', () => {
+  it('passes a valid query straight through', async () => {
+    const { controller, classesGet } = setup();
+
+    await controller.classes({ granularity: 'weekly' });
+
+    expect(classesGet).toHaveBeenCalledWith({ granularity: 'weekly' });
+  });
+
+  it('defaults an absent query', async () => {
+    const { controller, classesGet } = setup();
+    await controller.classes({});
+    expect(classesGet).toHaveBeenCalledWith({ granularity: 'daily' });
+  });
+
+  it('falls back to the default on an unknown granularity rather than throwing', async () => {
+    const { controller, classesGet } = setup();
+    await controller.classes({ granularity: 'hourly' });
+    expect(classesGet).toHaveBeenCalledWith({ granularity: 'daily' });
   });
 });

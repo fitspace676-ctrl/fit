@@ -1,10 +1,12 @@
 import { Controller, Get, HttpCode, HttpStatus, Query, UseGuards } from '@nestjs/common';
 import {
   Permission,
+  dashboardClassesQuerySchema,
   dashboardMembersQuerySchema,
   dashboardOverviewQuerySchema,
   dashboardRevenueQuerySchema,
   dashboardSalesQuerySchema,
+  type DashboardClassesResponse,
   type DashboardMembersResponse,
   type DashboardOverviewResponse,
   type DashboardRevenueResponse,
@@ -14,6 +16,7 @@ import {
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
+import { DashboardClassesService } from './dashboard-classes.service';
 import { DashboardMembersService } from './dashboard-members.service';
 import { DashboardRevenueService } from './dashboard-revenue.service';
 import { DashboardSalesService } from './dashboard-sales.service';
@@ -38,6 +41,7 @@ export class DashboardController {
     private readonly salesTab: DashboardSalesService,
     private readonly membersTab: DashboardMembersService,
     private readonly revenueTab: DashboardRevenueService,
+    private readonly classesTab: DashboardClassesService,
   ) {}
 
   /**
@@ -120,5 +124,22 @@ export class DashboardController {
   @RequirePermissions(Permission.ReportView)
   async revenue(@Query() query: unknown): Promise<DashboardRevenueResponse> {
     return this.revenueTab.get(dashboardRevenueQuerySchema.parse(query));
+  }
+
+  /**
+   * `GET /dashboard/classes?granularity=` — the hand-built Classes tab in one
+   * payload: four KPIs, the bookings / attendance / utilization / PT trends, the
+   * class-type ranking and the demand heatmap.
+   *
+   * The granularity scopes the WHOLE response, which is why the tab is one round
+   * trip: a partial refresh could leave two cards describing different windows.
+   * The Zod schema `.catch`es an unknown value to the default rather than raising
+   * a 400.
+   */
+  @Get('classes')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ReportView)
+  async classes(@Query() query: unknown): Promise<DashboardClassesResponse> {
+    return this.classesTab.get(dashboardClassesQuerySchema.parse(query));
   }
 }
