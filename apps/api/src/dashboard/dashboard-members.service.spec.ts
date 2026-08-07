@@ -47,8 +47,9 @@ function setup(
   rows: {
     members?: unknown[];
     subscriptions?: unknown[];
-    payments?: unknown[];
-    invoices?: unknown[];
+    paymentsTotal?: number;
+    paymentsRefunded?: number;
+    invoicesTotal?: number;
     memberCount?: number;
   } = {},
   locales: GymLocaleService = stubLocale(),
@@ -56,14 +57,23 @@ function setup(
   const memberFindMany = vi.fn().mockResolvedValue(rows.members ?? []);
   const memberCount = vi.fn().mockResolvedValue(rows.memberCount ?? 0);
   const subscriptionFindMany = vi.fn().mockResolvedValue(rows.subscriptions ?? []);
-  const paymentFindMany = vi.fn().mockResolvedValue(rows.payments ?? []);
-  const invoiceFindMany = vi.fn().mockResolvedValue(rows.invoices ?? []);
+  // LTV is summed by Postgres, so the fixtures state SUMS rather than rows —
+  // the service never sees the individual payments.
+  const paymentFindMany = vi.fn().mockResolvedValue({
+    _sum: {
+      amount: rows.paymentsTotal ?? null,
+      refundedAmount: rows.paymentsRefunded ?? null,
+    },
+  });
+  const invoiceFindMany = vi.fn().mockResolvedValue({
+    _sum: { amount: rows.invoicesTotal ?? null },
+  });
   const prisma = {
     client: {
       gymMember: { findMany: memberFindMany, count: memberCount },
       subscription: { findMany: subscriptionFindMany },
-      payment: { findMany: paymentFindMany },
-      invoice: { findMany: invoiceFindMany },
+      payment: { aggregate: paymentFindMany },
+      invoice: { aggregate: invoiceFindMany },
     },
   } as unknown as TenantPrismaService;
 
@@ -189,8 +199,9 @@ describe('DashboardMembersService.get — LTV', () => {
   it('sums member payments and subscription invoices over the member count', async () => {
     const { service } = setup({
       memberCount: 2,
-      payments: [{ amount: 10_000, refundedAmount: 1_000, currency: 'GEL' }],
-      invoices: [{ amount: 5_000, currency: 'GEL' }],
+      paymentsTotal: 10_000,
+      paymentsRefunded: 1_000,
+      invoicesTotal: 5_000,
     });
 
     const result = await service.get(QUERY);
@@ -315,5 +326,35 @@ describe('DashboardMembersService.get — signups and churn', () => {
     const result = await service.get(QUERY);
     expect(result.kpis).toEqual({ activeMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 });
     expect(result.byStatus).toEqual([]);
+  });
+});
+
+/*
+ * LTV is a member's whole life, so its read has no date floor and never will.
+ * That makes it the one query on this tab that grows without bound — and it was
+ * pulling every captured payment the gym had ever taken into Node to add up two
+ * columns. Postgres does that.
+ */
+describe('DashboardMembersService.get — LTV at scale', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('asks Postgres for the sums rather than for the rows', async () => {
+    const { service, paymentFindMany, invoiceFindMany } = setup();
+    await service.get(QUERY);
+
+    expect(paymentFindMany.mock.calls[0]?.[0]).toMatchObject({
+      _sum: { amount: true, refundedAmount: true },
+    });
+    expect(invoiceFindMany.mock.calls[0]?.[0]).toMatchObject({ _sum: { amount: true } });
+    // No `select` and no `take`: an aggregate returns one row whatever the size
+    // of the table, which is the whole point.
+    expect(paymentFindMany.mock.calls[0]?.[0]).not.toHaveProperty('select');
+  });
+
+  // `_sum` is null, not 0, when nothing matched. Left unhandled that is `NaN`
+  // all the way to the tile.
+  it('reads a gym that has taken nothing as zero, not NaN', async () => {
+    const { service } = setup({ memberCount: 3 });
+    expect((await service.get(QUERY)).kpis.avgLtv).toBe(0);
   });
 });

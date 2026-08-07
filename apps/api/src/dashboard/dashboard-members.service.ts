@@ -85,23 +85,30 @@ export class DashboardMembersService {
         },
       }),
       this.prisma.client.gymMember.count({ where: { role: Role.MEMBER, deletedAt: null } }),
-      // Guest and walk-in orders belong to no member's lifetime.
-      // Trashed members' revenue is excluded from the LTV numerator to match
-      // the denominator's exclusion — a fair average over active members only.
-      this.prisma.client.payment.findMany({
+      // AGGREGATED in Postgres, not streamed into Node. This read is unbounded
+      // by design — lifetime value means the member's whole life, so there is no
+      // date floor to apply — and it was pulling every captured payment the gym
+      // has ever taken across the wire to add up two columns. At a few dozen
+      // members that is invisible; at five years and five thousand it is
+      // hundreds of thousands of rows, on every dashboard load.
+      //
+      // Guest and walk-in orders belong to no member's lifetime. Trashed
+      // members' revenue is excluded from the numerator to match the
+      // denominator's exclusion — a fair average over active members only.
+      this.prisma.client.payment.aggregate({
         where: {
           status: PaymentStatus.CAPTURED,
           order: { memberId: { not: null }, member: { deletedAt: null } },
         },
-        select: { amount: true, refundedAmount: true, currency: true },
+        _sum: { amount: true, refundedAmount: true },
       }),
       // `orderId: null` is what stops an admin-raised invoice against an order
       // being counted alongside that order's captured payment. The `member: { deletedAt: null }`
       // filter also drops invoices with null memberId (revenue attributable to no member),
       // symmetric with the payment-side exclusion of guest orders.
-      this.prisma.client.invoice.findMany({
+      this.prisma.client.invoice.aggregate({
         where: { status: InvoiceStatus.PAID, orderId: null, member: { deletedAt: null } },
-        select: { amount: true, currency: true },
+        _sum: { amount: true },
       }),
     ]);
 
@@ -151,11 +158,10 @@ export class DashboardMembersService {
       statusCounts.set(key, (statusCounts.get(key) ?? 0) + 1);
     }
 
-    const grossFromMembers = payments.reduce(
-      (sum, payment) => sum + payment.amount - payment.refundedAmount,
-      0,
-    );
-    const fromSubscriptions = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+    // `_sum` is null when nothing matched — a gym with no payments has no sum,
+    // which is not the same fact as a sum of zero, but is worth the same here.
+    const grossFromMembers = (payments._sum.amount ?? 0) - (payments._sum.refundedAmount ?? 0);
+    const fromSubscriptions = invoices._sum.amount ?? 0;
     const lifetime = grossFromMembers + fromSubscriptions;
 
     const newSignups = [...signupBuckets.values()].reduce((sum, value) => sum + value, 0);
