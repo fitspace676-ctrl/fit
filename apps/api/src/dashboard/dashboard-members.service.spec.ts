@@ -214,6 +214,29 @@ describe('DashboardMembersService.get — LTV', () => {
     const { service } = setup({ memberCount: 0, payments: [{ amount: 500, refundedAmount: 0 }] });
     expect((await service.get(QUERY)).kpis.avgLtv).toBe(0);
   });
+
+  // Trashed members' revenue must not inflate the LTV numerator while their absence
+  // deflates the denominator. Revenue from a deleted member does not belong in their
+  // lifetime value — they are no longer part of the roster.
+  it("excludes trashed members' captured payments from the LTV numerator", async () => {
+    const { service, paymentFindMany } = setup();
+    await service.get(QUERY);
+
+    const args = paymentFindMany.mock.calls[0]?.[0] as {
+      where: { order: Record<string, unknown> };
+    };
+    expect(args.where.order).toMatchObject({ member: { deletedAt: null } });
+  });
+
+  it('excludes PAID invoices of trashed members from the LTV numerator', async () => {
+    const { service, invoiceFindMany } = setup();
+    await service.get(QUERY);
+
+    const args = invoiceFindMany.mock.calls[0]?.[0] as {
+      where: Record<string, unknown>;
+    };
+    expect(args.where).toMatchObject({ member: { deletedAt: null } });
+  });
 });
 
 describe('DashboardMembersService.get — status breakdown', () => {

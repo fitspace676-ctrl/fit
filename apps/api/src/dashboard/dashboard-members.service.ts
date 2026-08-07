@@ -56,9 +56,10 @@ interface SubscriptionRow {
  * nobody is in rather than padding them.
  *
  * Scoped by {@link TenantPrismaService}'s extension, so no query passes or trusts
- * a `gymId`. **Trash is not** — `GymMember.deletedAt` is filtered explicitly on
- * every read, which the older `members` drill-down does not do and is why its
- * figures include trashed members.
+ * a `gymId`. **Trash is filtered explicitly on every read** — `GymMember.deletedAt`
+ * and `member: { deletedAt: null }` are applied to members, subscriptions, and
+ * revenue reads alike, which the older `members` drill-down does not do and is why
+ * its figures include trashed members and their revenue.
  *
  * `LIVE_SUBSCRIPTION_STATUSES` is imported from `@fit/db`, the state machine that
  * owns the definition. Three hand-written copies of that list already exist in
@@ -92,14 +93,21 @@ export class DashboardMembersService {
       }),
       this.prisma.client.gymMember.count({ where: { role: Role.MEMBER, deletedAt: null } }),
       // Guest and walk-in orders belong to no member's lifetime.
+      // Trashed members' revenue is excluded from the LTV numerator to match
+      // the denominator's exclusion — a fair average over active members only.
       this.prisma.client.payment.findMany({
-        where: { status: PaymentStatus.CAPTURED, order: { memberId: { not: null } } },
+        where: {
+          status: PaymentStatus.CAPTURED,
+          order: { memberId: { not: null }, member: { deletedAt: null } },
+        },
         select: { amount: true, refundedAmount: true, currency: true },
       }),
       // `orderId: null` is what stops an admin-raised invoice against an order
-      // being counted alongside that order's captured payment.
+      // being counted alongside that order's captured payment. The `member: { deletedAt: null }`
+      // filter also drops invoices with null memberId (revenue attributable to no member),
+      // symmetric with the payment-side exclusion of guest orders.
       this.prisma.client.invoice.findMany({
-        where: { status: InvoiceStatus.PAID, orderId: null },
+        where: { status: InvoiceStatus.PAID, orderId: null, member: { deletedAt: null } },
         select: { amount: true, currency: true },
       }),
     ]);
