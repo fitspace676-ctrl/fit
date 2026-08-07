@@ -83,6 +83,10 @@ const styles = stylex.create({
     minWidth: 0,
     flex: 1,
   },
+  // Both text lines clip rather than wrap, because a wrapping row would make the
+  // grid's rows different heights. In the rail's 2-column step that clip is
+  // severe — a long name can come down to a letter and an ellipsis — so every
+  // row carries the full string in a `title`, and hovering gives it back.
   alertTitle: {
     display: 'block',
     overflow: 'hidden',
@@ -128,17 +132,29 @@ export function RecentCheckInsBody({ data }: { data: DashboardOverviewResponse }
     <EmptyState>{t('recentCheckIns.empty')}</EmptyState>
   ) : (
     <ul {...stylex.props(styles.checkInGrid)}>
-      {rows.map((row, i) => (
-        <li key={`${row.checkedInAt}-${i}`} {...stylex.props(styles.checkInRow)}>
-          <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
-          <span {...stylex.props(styles.alertMain)}>
-            <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
-            <span {...stylex.props(styles.alertDetail)}>
-              {row.planName ?? t('recentCheckIns.noPlan')} · {timeAgo(t, row.checkedInAt)}
+      {rows.map((row, i) => {
+        const detail = `${row.planName ?? t('recentCheckIns.noPlan')} · ${timeAgo(t, row.checkedInAt)}`;
+        return (
+          <li key={`${row.checkedInAt}-${i}`} {...stylex.props(styles.checkInRow)}>
+            <span {...stylex.props(styles.avatar)} aria-hidden="true">
+              {initials(row.name)}
             </span>
-          </span>
-        </li>
-      ))}
+            <span {...stylex.props(styles.alertMain)}>
+              {/*
+              `title` because both lines ellipsise: see `alertTitle`'s comment. It
+              is the same affordance `BarChart` and `Heatmap` give their own
+              clipped labels, and it costs no JavaScript and no layout.
+            */}
+              <span {...stylex.props(styles.alertTitle)} title={row.name}>
+                {row.name}
+              </span>
+              <span {...stylex.props(styles.alertDetail)} title={detail}>
+                {detail}
+              </span>
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -157,24 +173,33 @@ export function RecentMembersBody({ data }: { data: DashboardOverviewResponse })
     <EmptyState>{t('recentMembers.empty')}</EmptyState>
   ) : (
     <ul {...stylex.props(styles.checkInGrid)}>
-      {rows.map((row) => (
-        <li key={row.id} {...stylex.props(styles.checkInRow)}>
-          <span {...stylex.props(styles.avatar)}>{initials(row.name)}</span>
-          <span {...stylex.props(styles.alertMain)}>
-            <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
-            <span {...stylex.props(styles.alertDetail)}>
-              {row.planName ?? t('recentMembers.noPlan')}
-              {row.expiresAt
-                ? ` · ${t('recentMembers.expires', { date: formatDate(locale, row.expiresAt) })}`
-                : ''}
+      {rows.map((row) => {
+        const detail = `${row.planName ?? t('recentMembers.noPlan')}${
+          row.expiresAt
+            ? ` · ${t('recentMembers.expires', { date: formatDate(locale, row.expiresAt) })}`
+            : ''
+        }`;
+        return (
+          <li key={row.id} {...stylex.props(styles.checkInRow)}>
+            <span {...stylex.props(styles.avatar)} aria-hidden="true">
+              {initials(row.name)}
             </span>
-          </span>
-          <Badge
-            variant={memberStatusVariant(row.status)}
-            label={t(`recentMembers.status.${row.status.toLowerCase()}`)}
-          />
-        </li>
-      ))}
+            <span {...stylex.props(styles.alertMain)}>
+              {/* Both lines ellipsise in the rail — see the check-ins feed above. */}
+              <span {...stylex.props(styles.alertTitle)} title={row.name}>
+                {row.name}
+              </span>
+              <span {...stylex.props(styles.alertDetail)} title={detail}>
+                {detail}
+              </span>
+            </span>
+            <Badge
+              variant={memberStatusVariant(row.status)}
+              label={t(`recentMembers.status.${row.status.toLowerCase()}`)}
+            />
+          </li>
+        );
+      })}
     </ul>
   );
 }
