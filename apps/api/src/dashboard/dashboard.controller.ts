@@ -1,8 +1,10 @@
 import { Controller, Get, HttpCode, HttpStatus, Query, UseGuards } from '@nestjs/common';
 import {
   Permission,
+  dashboardMembersQuerySchema,
   dashboardOverviewQuerySchema,
   dashboardSalesQuerySchema,
+  type DashboardMembersResponse,
   type DashboardOverviewResponse,
   type DashboardSalesResponse,
   type DashboardStatsResponse,
@@ -10,6 +12,7 @@ import {
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
+import { DashboardMembersService } from './dashboard-members.service';
 import { DashboardSalesService } from './dashboard-sales.service';
 import { DashboardService } from './dashboard.service';
 
@@ -27,9 +30,10 @@ import { DashboardService } from './dashboard.service';
 export class DashboardController {
   constructor(
     private readonly dashboard: DashboardService,
-    // NOT `sales` — the handler below is already called `sales`, and a class
-    // cannot carry a property and a method under the same name.
+    // NOT `sales` / `members` — each handler below already owns that name, and a
+    // class cannot carry a property and a method under the same one.
     private readonly salesTab: DashboardSalesService,
+    private readonly membersTab: DashboardMembersService,
   ) {}
 
   /**
@@ -77,5 +81,23 @@ export class DashboardController {
   @RequirePermissions(Permission.ReportView)
   async sales(@Query() query: unknown): Promise<DashboardSalesResponse> {
     return this.salesTab.get(dashboardSalesQuerySchema.parse(query));
+  }
+
+  /**
+   * `GET /dashboard/members?granularity=&retentionWindow=&expiringWindow=` — the
+   * hand-built Members tab in one payload: four KPIs, the active-members trend,
+   * signups against churn, the rolling retention rate and the billing-state split.
+   *
+   * All three params scope the WHOLE response, which is why the tab is one round
+   * trip: a partial refresh could leave two cards describing different windows.
+   * `expiringWindow` is echoed but unused until the watch-lists land; it is in the
+   * query now so its shape does not change under them. The Zod schema `.catch`es
+   * unknown values to the defaults rather than raising a 400.
+   */
+  @Get('members')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ReportView)
+  async members(@Query() query: unknown): Promise<DashboardMembersResponse> {
+    return this.membersTab.get(dashboardMembersQuerySchema.parse(query));
   }
 }

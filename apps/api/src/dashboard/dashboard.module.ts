@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ReportsModule } from '../reports/reports.module';
 import { DashboardController } from './dashboard.controller';
+import { DashboardMembersService } from './dashboard-members.service';
 import { DashboardSalesService } from './dashboard-sales.service';
 import { DashboardSegmentsController } from './dashboard-segments.controller';
 import { DashboardSegmentsService } from './dashboard-segments.service';
@@ -11,13 +12,19 @@ import { DashboardService } from './dashboard.service';
  *
  * {@link DashboardController} (`/dashboard`) serves the overview segment's live
  * snapshot and the hand-built Sales tab (`/dashboard/sales`, see
- * {@link DashboardSalesService}); {@link DashboardSegmentsController}
+ * {@link DashboardSalesService}) and the Members tab (`/dashboard/members`, see
+ * {@link DashboardMembersService}); {@link DashboardSegmentsController}
  * (`/admin/dashboard/segments`) serves the configurable segments, resolving each
  * gym's chosen widgets against the drill-down reports in {@link ReportsModule}.
  */
 @Module({
   imports: [ReportsModule],
   controllers: [DashboardController, DashboardSegmentsController],
-  providers: [DashboardService, DashboardSegmentsService, DashboardSalesService],
+  providers: [
+    DashboardService,
+    DashboardSegmentsService,
+    DashboardSalesService,
+    DashboardMembersService,
+  ],
 })
 export class DashboardModule {}
