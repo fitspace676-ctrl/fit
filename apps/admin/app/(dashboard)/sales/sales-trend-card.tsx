@@ -40,7 +40,13 @@ const styles = stylex.create({
     display: 'flex',
     flexWrap: 'wrap',
     gap: '0.5rem',
-    flexShrink: 0,
+    // Deliberately NOT `flexShrink: 0`. These are two segmented controls, not
+    // one: side by side they run ~550px in English and ~610px in Georgian, and
+    // an unshrinkable flex item is sized from its single-line max-content, so
+    // its own `flexWrap` could never engage. `Card` clips its overflow, so the
+    // excess would not scroll — the trailing product-type segments would simply
+    // be cut off and unclickable, which is what happened at ordinary laptop
+    // widths in Georgian. Letting it shrink is what lets the row wrap instead.
   },
   title: {
     margin: 0,

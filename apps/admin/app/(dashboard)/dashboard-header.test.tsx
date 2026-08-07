@@ -30,7 +30,7 @@ const messages = {
 
 const period: DashboardResolvedPeriod = { period: 'today', from: '2026-08-07', to: '2026-08-07' };
 
-function renderHeader(active: 'overview' | 'sales' = 'overview') {
+function renderHeader(active: 'overview' | 'sales' | 'members' = 'overview') {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <DashboardHeader active={active} period={period} range="7d" />
@@ -44,7 +44,7 @@ describe('DashboardHeader', () => {
   });
 
   it('titles the page on every tab', () => {
-    renderHeader('sales');
+    renderHeader('members');
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
   });
 
@@ -57,8 +57,18 @@ describe('DashboardHeader', () => {
   });
 
   it('offers the range filter on a segment tab and no period filter', () => {
-    renderHeader('sales');
+    renderHeader('members');
     expect(screen.getByRole('radiogroup', { name: 'Widget range' })).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Dashboard period' })).not.toBeInTheDocument();
+  });
+
+  // Sales is hand-built and reads no URL param: its own granularity control picks
+  // the window. A `?range=` here would be a second, DEAD time filter sitting forty
+  // pixels above a live one — and one that still fires a navigation, so it would
+  // read as broken rather than absent.
+  it('offers neither filter on the hand-built Sales tab', () => {
+    renderHeader('sales');
+    expect(screen.queryByRole('radiogroup', { name: 'Widget range' })).not.toBeInTheDocument();
     expect(screen.queryByRole('radiogroup', { name: 'Dashboard period' })).not.toBeInTheDocument();
   });
 
@@ -80,7 +90,7 @@ describe('DashboardHeader', () => {
 
   it('writes the chosen range to the query from a segment tab', async () => {
     navigationMock.setSearch('segment=revenue');
-    renderHeader('sales');
+    renderHeader('members');
     await userEvent.click(screen.getByRole('radio', { name: '30d' }));
     expect(navigationMock.replace).toHaveBeenCalledWith('/?segment=revenue&range=30d');
   });

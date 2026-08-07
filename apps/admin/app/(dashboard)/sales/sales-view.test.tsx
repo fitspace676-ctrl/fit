@@ -112,6 +112,25 @@ describe('SalesView', () => {
     expect(loadSalesAction).toHaveBeenCalledWith({ granularity: 'daily', productType: 'all' });
   });
 
+  // The whole tab carries money in MINOR units and every card divides by 100
+  // itself. Nothing else in this suite asserts a formatted figure, so adding a
+  // stray `/ 100` in `SalesView` — or dropping one from a card — would leave the
+  // entire admin suite green. These are the assertions that fail if it happens.
+  it('renders money in major units, once divided, in every card', async () => {
+    renderView();
+    await screen.findByText('Revenue over time');
+
+    // KPI strip: 16_000 / 14_000 / 2_000 / 7_000 minor units.
+    expect(screen.getByText('GEL 160')).toBeInTheDocument();
+    expect(screen.getByText('GEL 20')).toBeInTheDocument();
+    expect(screen.getByText('GEL 70')).toBeInTheDocument();
+    // Four sites land on 140: the strip's net sales (14_000), the trend
+    // caption's net total (9_000 + 5_000), the payment-method bar and the top
+    // seller (14_000 each). Asserting the count pins all four at once — a card
+    // that stopped dividing would drop out of this set.
+    expect(screen.getAllByText(/GEL 140/)).toHaveLength(4);
+  });
+
   it('refetches when the granularity changes', async () => {
     const user = userEvent.setup();
     renderView();

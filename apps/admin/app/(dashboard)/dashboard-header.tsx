@@ -13,6 +13,12 @@
 //     keeps its own toggle inside `RevenueCard`, next to the chart it redraws.
 //   - a segment → `range`, which keys every widget fetch on that tab. `period` is
 //     not offered, because nothing on a segment tab reads it.
+//   - Sales    → NEITHER. It is a hand-built view that reads no URL param at
+//     all: its own `granularity` control picks the window and the bucket
+//     together, and `productType` narrows it, both as local state. Offering
+//     `?range=` here would stack a second, dead time filter forty pixels above
+//     a live one — and one that still fires a navigation, so it would look
+//     broken rather than absent.
 // Showing both everywhere would put a dead control on each tab; showing neither
 // is what the bug was.
 
@@ -160,7 +166,7 @@ export function DashboardHeader({
               isDisabled={isPending}
             />
           </>
-        ) : (
+        ) : active === 'sales' ? null : (
           <SegmentedControl
             value={range}
             onChange={(next) => selectRange(next as DashboardRange)}
