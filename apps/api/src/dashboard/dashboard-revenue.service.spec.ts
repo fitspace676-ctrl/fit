@@ -8,6 +8,18 @@ import {
 } from '@fit/db';
 import { DashboardRevenueService } from './dashboard-revenue.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
+
+/**
+ * A stub gym locale. The tab's currency comes from the gym's SETTINGS now, not
+ * from whichever payment row Postgres returned last, so every spec states it
+ * here explicitly rather than seeding a currency onto the fixture rows.
+ */
+function stubLocale(currency = 'GEL', timezone = 'UTC') {
+  return {
+    get: vi.fn().mockResolvedValue({ language: 'ka', currency, timezone }),
+  } as unknown as GymLocaleService;
+}
 
 /** Frozen "now", so every window and projection boundary in this file is exact. */
 const NOW = new Date('2026-08-07T12:00:00.000Z');
@@ -19,13 +31,16 @@ function day(offset: number): Date {
   return new Date(TODAY.getTime() + offset * DAY);
 }
 
-function setup(rows: {
-  payments?: unknown[];
-  paidInvoices?: unknown[];
-  unsettled?: unknown[];
-  subscriptions?: unknown[];
-  locations?: number;
-}) {
+function setup(
+  rows: {
+    payments?: unknown[];
+    paidInvoices?: unknown[];
+    unsettled?: unknown[];
+    subscriptions?: unknown[];
+    locations?: number;
+  },
+  locales: GymLocaleService = stubLocale(),
+) {
   const paymentFindMany = vi.fn().mockResolvedValue(rows.payments ?? []);
   // The two invoice reads are distinguished by their `where.status` shape: the
   // paid read names one status, the unsettled read names an `in` list.
@@ -45,7 +60,7 @@ function setup(rows: {
   };
   const prisma = { client } as unknown as TenantPrismaService;
   return {
-    service: new DashboardRevenueService(prisma),
+    service: new DashboardRevenueService(prisma, locales),
     paymentFindMany,
     invoiceFindMany,
     subscriptionFindMany,
@@ -327,17 +342,25 @@ describe('DashboardRevenueService', () => {
 
   /* -- Envelope --------------------------------------------------------- */
 
-  it('echoes the query and takes the currency from the latest money row', async () => {
-    const { service } = setup({ payments: [payment({ currency: 'EUR' })] });
+  it('echoes the query back', async () => {
+    const { service } = setup({});
     const result = await service.get(QUERY);
     expect(result.granularity).toBe('daily');
     expect(result.projectionWindow).toBe('7');
-    expect(result.currency).toBe('EUR');
   });
 
-  it('falls back to the default currency with no money at all', async () => {
-    const { service } = setup({});
-    expect((await service.get(QUERY)).currency).toBe('USD');
+  // The currency is the GYM'S, from settings. It used to be read off the last
+  // row of an unordered `findMany`, which made the label on every money figure
+  // whichever row Postgres happened to return last — and left a gym that had
+  // taken no money at all with a hardcoded default instead of its own setting.
+  it('labels money with the currency the gym is configured in', async () => {
+    const { service } = setup({}, stubLocale('EUR'));
+    expect((await service.get(QUERY)).currency).toBe('EUR');
+  });
+
+  it('ignores the currency stamped on the payment rows', async () => {
+    const { service } = setup({ payments: [payment({ currency: 'USD' })] }, stubLocale('GEL'));
+    expect((await service.get(QUERY)).currency).toBe('GEL');
   });
 
   it('scopes the money read to the window and the CAPTURED status', async () => {

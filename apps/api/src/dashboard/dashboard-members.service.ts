@@ -9,13 +9,8 @@ import {
   type MembershipStatusSlice,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
-import {
-  bucketKey,
-  DAY_MS,
-  DEFAULT_CURRENCY,
-  emptyBuckets,
-  resolveWindow,
-} from '../reports/report-window.util';
+import { GymLocaleService } from '../gyms/gym-locale.service';
+import { bucketKey, DAY_MS, emptyBuckets, resolveWindow } from '../reports/report-window.util';
 import { churnMoment, liveCountAt, liveMembersAt } from './subscription-timeline.util';
 
 /** Days each retention window looks back. */
@@ -55,14 +50,20 @@ const STATUS_KEYS: Record<SubscriptionStatus, MembershipStatus> = {
  */
 @Injectable()
 export class DashboardMembersService {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly locales: GymLocaleService,
+  ) {}
 
   /** Build the whole Members tab for one control combination. */
   async get(query: DashboardMembersQuery): Promise<DashboardMembersResponse> {
     const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity]);
     const lookbackMs = RETENTION_DAYS[query.retentionWindow] * DAY_MS;
 
-    const [members, subscriptions, memberCount, payments, invoices] = await Promise.all([
+    const [locale, members, subscriptions, memberCount, payments, invoices] = await Promise.all([
+      // In the same round trip as everything else — the gym's own currency is not
+      // worth a second sequential query.
+      this.locales.get(),
       this.prisma.client.gymMember.findMany({
         where: { role: Role.MEMBER, deletedAt: null, joinedAt: { lt: win.end } },
         select: { joinedAt: true },
@@ -160,8 +161,7 @@ export class DashboardMembersService {
       granularity: query.granularity,
       retentionWindow: query.retentionWindow,
       expiringWindow: query.expiringWindow,
-      currency:
-        payments[payments.length - 1]?.currency ?? invoices[0]?.currency ?? DEFAULT_CURRENCY,
+      currency: locale.currency,
       kpis: {
         activeMembers: liveMembersAt(subscriptions, win.end).size,
         newSignups,

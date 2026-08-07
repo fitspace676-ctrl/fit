@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { GymsModule } from '../gyms/gyms.module';
 import { ReportsModule } from '../reports/reports.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardClassesService } from './dashboard-classes.service';
@@ -23,7 +24,7 @@ import { DashboardService } from './dashboard.service';
  * deliberate migration.
  */
 @Module({
-  imports: [ReportsModule],
+  imports: [ReportsModule, GymsModule],
   controllers: [DashboardController],
   providers: [
     DashboardService,

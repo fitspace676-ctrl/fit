@@ -11,7 +11,7 @@ import {
   type SalesProductType,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
-import { ReportDrilldownService } from '../reports/report-drilldown.service';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 import { bucketKey, emptyBuckets, resolveWindow } from '../reports/report-window.util';
 
 /** `Payment.provider` for a till sale; anything else settled through a gateway. */
@@ -66,14 +66,15 @@ interface SellerTally {
 export class DashboardSalesService {
   constructor(
     private readonly prisma: TenantPrismaService,
-    private readonly drilldown: ReportDrilldownService,
+    private readonly locales: GymLocaleService,
   ) {}
 
   /** Build the whole Sales tab for one granularity + product-type combination. */
   async get(query: DashboardSalesQuery): Promise<DashboardSalesResponse> {
     const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity]);
 
-    const [payments, refunds] = await Promise.all([
+    const [locale, payments, refunds] = await Promise.all([
+      this.locales.get(),
       this.prisma.client.payment.findMany({
         where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
         select: {
@@ -157,9 +158,7 @@ export class DashboardSalesService {
     return {
       granularity: query.granularity,
       productType: query.productType,
-      // Payments are ordered oldest-first, so the last one is the most recent
-      // charge — the same currency rule the drill-downs apply.
-      currency: kept[kept.length - 1]?.currency ?? (await this.drilldown.currency()),
+      currency: locale.currency,
       kpis: {
         grossSales: gross,
         netSales: net,

@@ -3,6 +3,18 @@ import { InvoiceStatus, PaymentStatus, Role, SubscriptionStatus } from '@fit/db'
 import type { DashboardMembersQuery } from '@fit/types';
 import { DashboardMembersService } from './dashboard-members.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
+
+/**
+ * A stub gym locale. The tab's currency comes from the gym's SETTINGS now, not
+ * from whichever payment row Postgres returned last, so every spec states it
+ * here explicitly rather than seeding a currency onto the fixture rows.
+ */
+function stubLocale(currency = 'GEL', timezone = 'UTC') {
+  return {
+    get: vi.fn().mockResolvedValue({ language: 'ka', currency, timezone }),
+  } as unknown as GymLocaleService;
+}
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -39,6 +51,7 @@ function setup(
     invoices?: unknown[];
     memberCount?: number;
   } = {},
+  locales: GymLocaleService = stubLocale(),
 ) {
   const memberFindMany = vi.fn().mockResolvedValue(rows.members ?? []);
   const memberCount = vi.fn().mockResolvedValue(rows.memberCount ?? 0);
@@ -55,7 +68,7 @@ function setup(
   } as unknown as TenantPrismaService;
 
   return {
-    service: new DashboardMembersService(prisma),
+    service: new DashboardMembersService(prisma, locales),
     memberFindMany,
     memberCount,
     subscriptionFindMany,

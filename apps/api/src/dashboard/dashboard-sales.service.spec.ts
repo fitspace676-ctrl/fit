@@ -3,7 +3,18 @@ import { PaymentMethod } from '@fit/db';
 import type { DashboardSalesQuery } from '@fit/types';
 import { DashboardSalesService } from './dashboard-sales.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
-import type { ReportDrilldownService } from '../reports/report-drilldown.service';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
+
+/**
+ * A stub gym locale. The tab's currency comes from the gym's SETTINGS now, not
+ * from whichever payment row Postgres returned last, so every spec states it
+ * here explicitly rather than seeding a currency onto the fixture rows.
+ */
+function stubLocale(currency = 'GEL', timezone = 'UTC') {
+  return {
+    get: vi.fn().mockResolvedValue({ language: 'ka', currency, timezone }),
+  } as unknown as GymLocaleService;
+}
 
 /** The shape the service selects from an order, on both the payment and refund reads. */
 interface OrderStub {
@@ -46,7 +57,10 @@ function refund(over: { amount: number; createdAt: string; order?: OrderStub }) 
   };
 }
 
-function setup(rows: { payments?: unknown[]; refunds?: unknown[] } = {}) {
+function setup(
+  rows: { payments?: unknown[]; refunds?: unknown[] } = {},
+  locales: GymLocaleService = stubLocale(),
+) {
   const paymentFindMany = vi.fn().mockResolvedValue(rows.payments ?? []);
   const refundFindMany = vi.fn().mockResolvedValue(rows.refunds ?? []);
   const prisma = {
@@ -55,14 +69,10 @@ function setup(rows: { payments?: unknown[]; refunds?: unknown[] } = {}) {
       refund: { findMany: refundFindMany },
     },
   } as unknown as TenantPrismaService;
-  const currency = vi.fn().mockResolvedValue('GEL');
-  const drilldown = { currency } as unknown as ReportDrilldownService;
-
   return {
-    service: new DashboardSalesService(prisma, drilldown),
+    service: new DashboardSalesService(prisma, locales),
     paymentFindMany,
     refundFindMany,
-    currency,
   };
 }
 
@@ -107,13 +117,16 @@ describe('DashboardSalesService.get — KPIs', () => {
     expect(result.revenueOverTime.every((point) => point.value === 0)).toBe(true);
   });
 
-  it('falls back to the gym currency when no payment landed in the window', async () => {
-    const { service, currency } = setup();
+  // The currency is the GYM'S, from settings — not the one stamped on whichever
+  // payment row Postgres returned last. An empty window used to fall through to
+  // a second guess (the drill-down's "latest captured payment"); a gym that has
+  // never taken money had no answer at all and got a hardcoded default.
+  it('labels money with the currency the gym is configured in', async () => {
+    const { service } = setup({}, stubLocale('EUR'));
 
     const result = await service.get(ALL);
 
-    expect(currency).toHaveBeenCalled();
-    expect(result.currency).toBe('GEL');
+    expect(result.currency).toBe('EUR');
   });
 });
 

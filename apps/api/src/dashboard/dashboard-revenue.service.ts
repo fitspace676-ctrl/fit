@@ -14,10 +14,10 @@ import {
   type RevenueLocationSlice,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 import {
   bucketKey,
   DAY_MS,
-  DEFAULT_CURRENCY,
   emptyBuckets,
   isoDate,
   resolveWindow,
@@ -64,7 +64,10 @@ interface RevenueSubscriptionRow extends SubscriptionTimelineRow {
  */
 @Injectable()
 export class DashboardRevenueService {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly locales: GymLocaleService,
+  ) {}
 
   /** Build the whole Revenue tab for one control combination. */
   async get(query: DashboardRevenueQuery): Promise<DashboardRevenueResponse> {
@@ -76,52 +79,54 @@ export class DashboardRevenueService {
     const todayStart = new Date(`${isoDate(now)}T00:00:00.000Z`);
     const horizon = new Date(todayStart.getTime() + days * DAY_MS);
 
-    const [payments, paidInvoices, unsettled, subscriptions, locationCount] = await Promise.all([
-      this.prisma.client.payment.findMany({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
-        select: {
-          amount: true,
-          refundedAmount: true,
-          currency: true,
-          createdAt: true,
-          order: { select: { location: { select: { name: true } } } },
-        },
-        orderBy: { createdAt: 'asc' },
-      }),
-      // `orderId: null` is the double-count guard — see the class comment.
-      this.prisma.client.invoice.findMany({
-        where: {
-          status: InvoiceStatus.PAID,
-          orderId: null,
-          issuedAt: { gte: win.start, lt: win.end },
-        },
-        select: { amount: true, currency: true, issuedAt: true },
-        orderBy: { issuedAt: 'asc' },
-      }),
-      // Gym-wide and NOT window-scoped: a debt does not stop being owed because
-      // the chart is showing last week.
-      this.prisma.client.invoice.findMany({
-        where: { status: { in: [InvoiceStatus.PENDING, InvoiceStatus.FAILED] } },
-        select: { amount: true, status: true, dueDate: true },
-      }),
-      // Every subscription, not just the window's: the MRR trend needs state at
-      // instants BEFORE the window opens.
-      this.prisma.client.subscription.findMany({
-        where: { member: { deletedAt: null } },
-        select: {
-          memberId: true,
-          status: true,
-          createdAt: true,
-          canceledAt: true,
-          updatedAt: true,
-          priceAmount: true,
-          interval: true,
-          currentPeriodEnd: true,
-          cancelAtPeriodEnd: true,
-        },
-      }),
-      this.prisma.client.location.count({ where: { status: LocationStatus.ACTIVE } }),
-    ]);
+    const [locale, payments, paidInvoices, unsettled, subscriptions, locationCount] =
+      await Promise.all([
+        this.locales.get(),
+        this.prisma.client.payment.findMany({
+          where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+          select: {
+            amount: true,
+            refundedAmount: true,
+            currency: true,
+            createdAt: true,
+            order: { select: { location: { select: { name: true } } } },
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+        // `orderId: null` is the double-count guard — see the class comment.
+        this.prisma.client.invoice.findMany({
+          where: {
+            status: InvoiceStatus.PAID,
+            orderId: null,
+            issuedAt: { gte: win.start, lt: win.end },
+          },
+          select: { amount: true, currency: true, issuedAt: true },
+          orderBy: { issuedAt: 'asc' },
+        }),
+        // Gym-wide and NOT window-scoped: a debt does not stop being owed because
+        // the chart is showing last week.
+        this.prisma.client.invoice.findMany({
+          where: { status: { in: [InvoiceStatus.PENDING, InvoiceStatus.FAILED] } },
+          select: { amount: true, status: true, dueDate: true },
+        }),
+        // Every subscription, not just the window's: the MRR trend needs state at
+        // instants BEFORE the window opens.
+        this.prisma.client.subscription.findMany({
+          where: { member: { deletedAt: null } },
+          select: {
+            memberId: true,
+            status: true,
+            createdAt: true,
+            canceledAt: true,
+            updatedAt: true,
+            priceAmount: true,
+            interval: true,
+            currentPeriodEnd: true,
+            cancelAtPeriodEnd: true,
+          },
+        }),
+        this.prisma.client.location.count({ where: { status: LocationStatus.ACTIVE } }),
+      ]);
 
     /* -- The two revenue streams ----------------------------------------- */
 
@@ -215,10 +220,7 @@ export class DashboardRevenueService {
     return {
       granularity: query.granularity,
       projectionWindow: query.projectionWindow,
-      currency:
-        payments[payments.length - 1]?.currency ??
-        paidInvoices[paidInvoices.length - 1]?.currency ??
-        DEFAULT_CURRENCY,
+      currency: locale.currency,
       kpis: {
         totalRevenue: windowRevenue,
         mrr: mrrAt(subscriptions, win.end),
