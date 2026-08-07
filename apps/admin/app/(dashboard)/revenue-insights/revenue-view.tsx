@@ -286,7 +286,7 @@ export function RevenueView() {
       ) : null}
 
       <div {...stylex.props(step(0))}>
-        <RevenueKpiStrip kpis={data.kpis} granularity={data.granularity} money={money} />
+        <RevenueKpiStrip data={data} granularity={data.granularity} money={money} />
       </div>
 
       <div {...stylex.props(styles.workArea)}>

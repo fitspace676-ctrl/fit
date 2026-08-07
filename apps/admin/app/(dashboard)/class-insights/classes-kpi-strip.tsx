@@ -11,7 +11,8 @@
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
-import type { ClassesGranularity, ClassesKpis } from '@fit/types';
+import type { ClassesGranularity, ClassesKpis, DashboardClassesResponse } from '@fit/types';
+import { Sparkline } from '../charts';
 import type { T } from '../overview/format';
 
 const styles = stylex.create({
@@ -34,11 +35,20 @@ const styles = stylex.create({
     },
   },
   cell: {
+    // `relative` anchors the sparkline, which is absolutely positioned against
+    // this box and bleeds off its bottom edge.
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
     padding: '0.875rem 1rem',
     backgroundColor: 'var(--color-background-surface)',
+  },
+  // Reserves the band the sparkline occupies, so the numeral never sits on the
+  // curve. Only the tiles that HAVE a series get it — an unconditional pad would
+  // leave the others looking short of something.
+  cellSparked: {
+    paddingBottom: '2.25rem',
   },
   label: { fontSize: '0.75rem', fontWeight: 500, color: 'var(--color-text-secondary)' },
   value: {
@@ -71,13 +81,35 @@ function formatRate(t: T, value: number | null): string {
   return value === null ? t('noValue') : `${value}%`;
 }
 
+/**
+ * The series behind each tile — where one honestly exists.
+ *
+ * `noShowRate` gets none ON PURPOSE. The payload's `attendanceOverTime` is the
+ * ATTENDED share, and attended and no-show are not two sides of one coin: a
+ * booking can be marked late-cancelled and belong to neither. Plotting one under
+ * the other would be an arithmetic claim the data does not support.
+ *
+ * `classesHeld` gets none because `bookingsOverTime` counts SEATS, not sessions.
+ */
+function tileSeries(key: keyof ClassesKpis, data: DashboardClassesResponse) {
+  switch (key) {
+    case 'seatsBooked':
+      return data.bookingsOverTime.map((p) => p.value);
+    case 'utilizationRate':
+      return data.utilizationOverTime.map((p) => p.value);
+    default:
+      return null;
+  }
+}
+
 export function ClassesKpiStrip({
-  kpis,
+  data,
   granularity,
 }: {
-  kpis: ClassesKpis;
+  data: DashboardClassesResponse;
   granularity: ClassesGranularity;
 }) {
+  const kpis = data.kpis;
   const t = useTranslations('admin.dashboard.classes');
   // NOT `toLocaleString()`: that formats in the RUNTIME's default locale, which is
   // the server's in Node and the viewer's OS setting in the browser — the same
@@ -88,14 +120,18 @@ export function ClassesKpiStrip({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((tile) => (
-            <div key={tile.key} {...stylex.props(styles.cell)}>
-              <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
-              <span {...stylex.props(styles.value)}>
-                {tile.rate ? formatRate(t, kpis[tile.key]) : count.format(kpis[tile.key] ?? 0)}
-              </span>
-            </div>
-          ))}
+          {TILES.map((tile) => {
+            const series = tileSeries(tile.key, data);
+            return (
+              <div key={tile.key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
+                <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
+                <span {...stylex.props(styles.value)}>
+                  {tile.rate ? formatRate(t, kpis[tile.key]) : count.format(kpis[tile.key] ?? 0)}
+                </span>
+                {series && <Sparkline values={series} />}
+              </div>
+            );
+          })}
         </div>
       </div>
       <p {...stylex.props(styles.caption)}>

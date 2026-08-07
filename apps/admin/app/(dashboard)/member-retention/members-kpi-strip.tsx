@@ -15,7 +15,8 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { createNumberFormat, defaultLocale } from '@fit/i18n';
 import type { NumberFormatter } from '@fit/i18n';
-import type { MembersGranularity, MembersKpis } from '@fit/types';
+import type { DashboardMembersResponse, MembersGranularity, MembersKpis } from '@fit/types';
+import { Sparkline } from '../charts';
 
 const styles = stylex.create({
   wrap: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
@@ -37,11 +38,20 @@ const styles = stylex.create({
     },
   },
   cell: {
+    // `relative` anchors the sparkline, which is absolutely positioned against
+    // this box and bleeds off its bottom edge.
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
     padding: '0.875rem 1rem',
     backgroundColor: 'var(--color-background-surface)',
+  },
+  // Reserves the band the sparkline occupies, so the numeral never sits on the
+  // curve. Only the tiles that HAVE a series get it — an unconditional pad would
+  // leave the others looking short of something.
+  cellSparked: {
+    paddingBottom: '2.25rem',
   },
   label: { fontSize: '0.75rem', fontWeight: 500, color: 'var(--color-text-secondary)' },
   value: {
@@ -69,32 +79,58 @@ const TILES = [
   { key: 'avgLtv', money: true },
 ] as const satisfies readonly { key: keyof MembersKpis; money: boolean }[];
 
+/**
+ * The series behind each tile — where one honestly exists.
+ *
+ * `avgLtv` gets none. It is money taken per member over the member's whole life,
+ * averaged across the base; the payload carries no per-bucket history of it, and
+ * nothing else here is a stand-in. A borrowed curve under a number is worse than
+ * no curve.
+ */
+function tileSeries(key: keyof MembersKpis, data: DashboardMembersResponse) {
+  switch (key) {
+    case 'activeMembers':
+      return data.activeOverTime.map((p) => p.value);
+    case 'newSignups':
+      return data.signupsVsChurn.map((p) => p.signups);
+    case 'churned':
+      return data.signupsVsChurn.map((p) => p.churned);
+    default:
+      return null;
+  }
+}
+
 export function MembersKpiStrip({
-  kpis,
+  data,
   granularity,
   money,
 }: {
-  kpis: MembersKpis;
+  data: DashboardMembersResponse;
   granularity: MembersGranularity;
   money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.members');
+  const kpis = data.kpis;
 
   return (
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((tile) => (
-            <div key={tile.key} {...stylex.props(styles.cell)}>
-              <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
-              <span {...stylex.props(styles.value)}>
-                {tile.money
-                  ? // Money is carried in MINOR units; the strip shows major units.
-                    money.format(kpis[tile.key] / 100)
-                  : createNumberFormat(defaultLocale).format(kpis[tile.key])}
-              </span>
-            </div>
-          ))}
+          {TILES.map((tile) => {
+            const series = tileSeries(tile.key, data);
+            return (
+              <div key={tile.key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
+                <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
+                <span {...stylex.props(styles.value)}>
+                  {tile.money
+                    ? // Money is carried in MINOR units; the strip shows major units.
+                      money.format(kpis[tile.key] / 100)
+                    : createNumberFormat(defaultLocale).format(kpis[tile.key])}
+                </span>
+                {series && <Sparkline values={series} />}
+              </div>
+            );
+          })}
         </div>
       </div>
       <p {...stylex.props(styles.caption)}>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AnimatedCircularProgressBar, AreaChart, DualAreaChart } from './charts';
+import { AnimatedCircularProgressBar, AreaChart, DualAreaChart, Sparkline } from './charts';
 
 describe('DualAreaChart', () => {
   it('labels itself for assistive technology', () => {
@@ -199,5 +199,89 @@ describe('AnimatedCircularProgressBar', () => {
       <AnimatedCircularProgressBar value={5} max={24} ariaLabel="In the gym now" />,
     );
     expect(container.querySelector('[role="img"]')).toHaveAttribute('aria-label', 'In the gym now');
+  });
+});
+
+/** Every y coordinate in a path — data points AND Bézier control points. */
+function ys(d: string): number[] {
+  return [...d.matchAll(/[-\d.]+,([-\d.]+)/g)].map((m) => Number(m[1]));
+}
+
+// The curve was straight `L` segments and read as a jagged saw. It is now
+// monotone cubic — and monotone is the load-bearing half of that word.
+describe('AreaChart curve', () => {
+  it('draws Béziers rather than straight segments', () => {
+    const { container } = render(
+      <AreaChart
+        data={[
+          { label: 'a', value: 10 },
+          { label: 'b', value: 40 },
+          { label: 'c', value: 20 },
+        ]}
+      />,
+    );
+    const stroke = [...container.querySelectorAll('path')].pop()?.getAttribute('d') ?? '';
+    expect(stroke).toContain('C');
+    expect(stroke).not.toContain('NaN');
+  });
+
+  // The reason for monotone over Catmull-Rom. A V shape is where an unconstrained
+  // spline bulges past the trough — on a revenue chart, drawing a dip below the
+  // lowest figure anyone actually took. Both control points of the segments
+  // either side of the trough must stay within the data's own band.
+  it('never overshoots the data on a sharp trough', () => {
+    const { container } = render(
+      <AreaChart
+        data={[
+          { label: 'a', value: 100 },
+          { label: 'b', value: 2 },
+          { label: 'c', value: 2 },
+          { label: 'd', value: 100 },
+        ]}
+        height={100}
+        showMean={false}
+      />,
+    );
+    const stroke = [...container.querySelectorAll('path')].pop()?.getAttribute('d') ?? '';
+    // y is inverted: the top of the frame is `pad` (8), the trough is the largest
+    // y. 2 of 100 across a 84px band sits at 100 - 8 - 1.68 ≈ 90.3.
+    const trough = 100 - 8 - (2 / 100) * (100 - 16);
+    for (const y of ys(stroke)) {
+      expect(y).toBeLessThanOrEqual(trough + 0.05);
+      expect(y).toBeGreaterThanOrEqual(8 - 0.05);
+    }
+  });
+});
+
+describe('Sparkline', () => {
+  it('draws a filled curve for a real series', () => {
+    const { container } = render(<Sparkline values={[1, 5, 3, 9]} />);
+    const paths = container.querySelectorAll('path');
+    // Fill + stroke.
+    expect(paths).toHaveLength(2);
+    expect(paths[1]?.getAttribute('d')).toContain('C');
+  });
+
+  // A tile with nothing to show gets no chart, not an empty box with a flat line
+  // along the floor — that line reads as a measured zero.
+  it.each([
+    ['one point', [4]],
+    ['every value null', [null, null, null]],
+    ['a series flat at zero', [0, 0, 0]],
+  ])('renders nothing for %s', (_label, values) => {
+    const { container } = render(<Sparkline values={values as (number | null)[]} />);
+    expect(container.querySelector('svg')).toBeNull();
+  });
+
+  it('breaks the stroke around a gap rather than bridging it', () => {
+    const { container } = render(<Sparkline values={[4, null, 9]} />);
+    const stroke = [...container.querySelectorAll('path')].pop()?.getAttribute('d') ?? '';
+    expect(stroke.match(/M/g)).toHaveLength(2);
+  });
+
+  // It is decoration for the numeral beside it, and the numeral is already read.
+  it('is hidden from assistive technology', () => {
+    const { container } = render(<Sparkline values={[1, 2, 3]} />);
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
   });
 });

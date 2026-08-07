@@ -270,7 +270,7 @@ export function ClassesView() {
       ) : null}
 
       <div {...stylex.props(step(0))}>
-        <ClassesKpiStrip kpis={data.kpis} granularity={data.granularity} />
+        <ClassesKpiStrip data={data} granularity={data.granularity} />
       </div>
 
       <div {...stylex.props(styles.workArea)}>

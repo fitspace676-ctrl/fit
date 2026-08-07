@@ -221,6 +221,18 @@ const styles = stylex.create({
     transitionDuration: '700ms',
     transitionTimingFunction: 'ease-out',
   },
+  // The KPI-tile sparkline. It is pinned to the tile's bottom edge and bleeds
+  // into both corners — `overflow: hidden` on the strip is what trims it to the
+  // container's radius. `pointerEvents: none` because the tile may be a link and
+  // the chart must never eat the click.
+  spark: {
+    position: 'absolute',
+    insetInline: 0,
+    bottom: 0,
+    width: '100%',
+    display: 'block',
+    pointerEvents: 'none',
+  },
   occFillOk: { backgroundColor: 'var(--color-success)' },
   occFillWarn: { backgroundColor: 'var(--color-warning)' },
   occFillFull: { backgroundColor: 'var(--color-error)' },
@@ -277,6 +289,71 @@ function SeriesPath({ d, ink }: { d: string; ink: stylex.StyleXStyles }) {
       vectorEffect="non-scaling-stroke"
     />
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Curve                                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A smooth path through the points, as cubic Béziers.
+ *
+ * MONOTONE cubic (Fritsch-Carlson), not Catmull-Rom. The difference matters for
+ * data rather than for looks: a Catmull-Rom spline bulges past its control
+ * points, so between two small positive values it dips below both — and on a
+ * revenue chart that draws a loss that never happened. Monotone cubic cannot
+ * overshoot by construction: where the data turns, the tangent is flattened to
+ * zero, and elsewhere the tangent is clamped to three times the smaller
+ * neighbouring slope.
+ *
+ * Straight segments are still available by passing a single point, and a run of
+ * two points degenerates to a line, which is correct — two points describe no
+ * curvature.
+ */
+function smoothPath(points: readonly { x: number; y: number }[], open = 'M'): string {
+  if (points.length === 0) return '';
+  const [head, ...rest] = points;
+  if (!head) return '';
+  if (rest.length === 0) return `${open}${head.x.toFixed(1)},${head.y.toFixed(1)}`;
+
+  // Secant slopes between consecutive points.
+  const slopes: number[] = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i];
+    const b = points[i + 1];
+    if (!a || !b) continue;
+    const run = b.x - a.x;
+    slopes.push(run === 0 ? 0 : (b.y - a.y) / run);
+  }
+
+  // Tangents: the average of the neighbouring slopes, flattened at every turn so
+  // the curve cannot overshoot, then clamped to the Fritsch-Carlson limit.
+  const tangents: number[] = points.map((_, i) => {
+    const prev = slopes[i - 1];
+    const next = slopes[i];
+    if (prev === undefined) return next ?? 0;
+    if (next === undefined) return prev;
+    if (prev * next <= 0) return 0;
+    const mid = (prev + next) / 2;
+    const limit = 3 * Math.min(Math.abs(prev), Math.abs(next));
+    return Math.sign(mid) * Math.min(Math.abs(mid), limit);
+  });
+
+  let d = `${open}${head.x.toFixed(1)},${head.y.toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i];
+    const b = points[i + 1];
+    const ma = tangents[i] ?? 0;
+    const mb = tangents[i + 1] ?? 0;
+    if (!a || !b) continue;
+    const third = (b.x - a.x) / 3;
+    const c1x = a.x + third;
+    const c1y = a.y + ma * third;
+    const c2x = b.x - third;
+    const c2y = b.y - mb * third;
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+  }
+  return d;
 }
 
 /** One plotted point of an {@link AreaChart}: an x-axis label and its value. */
@@ -346,15 +423,20 @@ export function AreaChart({
     return d.value === null ? null : { x, y: height - pad - (d.value / max) * (height - pad * 2) };
   });
 
-  // One `M…L…` run per unbroken stretch, so the stroke restarts after each gap
-  // instead of bridging it. The `==` is deliberate, not a typo: at `i === 0`,
-  // `xy[i - 1]` is `undefined` (out of bounds), and this needs to catch that
-  // alongside an actual `null` gap, so the point still opens with `M`.
-  // Tightening it to `===` would silently break the first point's `M`.
-  const line = xy
-    .map((p, i) =>
-      p === null ? '' : `${xy[i - 1] == null ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`,
-    )
+  // Smoothed PER RUN: each unbroken stretch gets its own curve, so a gap still
+  // breaks the stroke instead of being bridged by a Bézier that spans it.
+  const runs: { x: number; y: number }[][] = [];
+  for (const point of xy) {
+    if (point === null) {
+      if (runs[runs.length - 1]?.length) runs.push([]);
+      continue;
+    }
+    if (runs.length === 0) runs.push([]);
+    runs[runs.length - 1]?.push(point);
+  }
+  const line = runs
+    .filter((run) => run.length > 0)
+    .map((run) => smoothPath(run))
     .join(' ')
     .trim();
 
@@ -372,9 +454,7 @@ export function AreaChart({
 
   const first = runPoints[0];
   const last = runPoints[runPoints.length - 1];
-  const runLine = runPoints
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
-    .join(' ');
+  const runLine = smoothPath(runPoints);
   const area =
     first && last
       ? `${runLine} L${last.x.toFixed(1)},${height - pad} L${first.x.toFixed(1)},${height - pad} Z`
@@ -978,5 +1058,92 @@ export function Heatmap({
         ))}
       </div>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Sparkline                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The micro-chart that bleeds off the bottom edge of a KPI tile.
+ *
+ * It has no axes, no labels, no hover and no tooltip, and that is the whole
+ * point: it answers "which way has this been going" and nothing else. The number
+ * above it is the fact; this is the shape of how it got there. Anything more
+ * would compete with the numeral.
+ *
+ * Scaled from ZERO to the series max, exactly like {@link AreaChart} — not from
+ * min to max. Min-max would stretch a series that sat between 980 and 1000 into
+ * a dramatic climb, which is the classic way a sparkline lies. Nulls keep their
+ * x slot and break the stroke, same as the full chart.
+ *
+ * Positioned by the caller: it expects to be laid over the tile with the tile
+ * itself supplying `position: relative` and the tile's own padding keeping the
+ * text clear of it.
+ */
+export function Sparkline({ values, height = 34 }: { values: (number | null)[]; height?: number }) {
+  const width = 160;
+  const gradientId = `spark-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+
+  const present = values.filter((v): v is number => v !== null);
+  // A series that is entirely null, or flat at zero, has no shape to draw. An
+  // empty box beats a straight line pinned to the floor, which reads as data.
+  if (present.length < 2 || Math.max(...present) <= 0) return null;
+
+  const max = Math.max(...present);
+  const n = values.length;
+  // No padding on x: the line runs edge to edge, so the tile's own bottom corner
+  // clips it. `1` of top padding keeps the 2px stroke's peak from being sheared.
+  const xy = values.map((value, i) => {
+    const x = n <= 1 ? width / 2 : (i / (n - 1)) * width;
+    return value === null ? null : { x, y: height - 1 - (value / max) * (height - 2) };
+  });
+
+  const runs: { x: number; y: number }[][] = [];
+  for (const point of xy) {
+    if (point === null) {
+      if (runs[runs.length - 1]?.length) runs.push([]);
+      continue;
+    }
+    if (runs.length === 0) runs.push([]);
+    runs[runs.length - 1]?.push(point);
+  }
+  const drawn = runs.filter((run) => run.length > 0);
+  const line = drawn.map((run) => smoothPath(run)).join(' ');
+
+  // Filled under the first run only — the same rule the full chart follows, for
+  // the same reason: a fill closed across a gap shades a region with no data.
+  const firstRun = drawn[0] ?? [];
+  const first = firstRun[0];
+  const last = firstRun[firstRun.length - 1];
+  const area =
+    first && last
+      ? `${smoothPath(firstRun)} L${last.x.toFixed(1)},${height} L${first.x.toFixed(1)},${height} Z`
+      : '';
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      {...stylex.props(styles.spark)}
+      style={{ height }}
+    >
+      <AccentAreaGradient id={gradientId} />
+      {area && <path d={area} fill={`url(#${gradientId})`} stroke="none" />}
+      {line && (
+        <path
+          d={line}
+          fill="none"
+          {...stylex.props(styles.seriesOne)}
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+    </svg>
   );
 }

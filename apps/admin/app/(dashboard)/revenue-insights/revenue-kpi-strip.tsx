@@ -11,7 +11,8 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
-import type { RevenueGranularity, RevenueKpis } from '@fit/types';
+import type { DashboardRevenueResponse, RevenueGranularity, RevenueKpis } from '@fit/types';
+import { Sparkline } from '../charts';
 
 const styles = stylex.create({
   wrap: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
@@ -33,11 +34,20 @@ const styles = stylex.create({
     },
   },
   cell: {
+    // `relative` anchors the sparkline, which is absolutely positioned against
+    // this box and bleeds off its bottom edge.
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
     padding: '0.875rem 1rem',
     backgroundColor: 'var(--color-background-surface)',
+  },
+  // Reserves the band the sparkline occupies, so the numeral never sits on top
+  // of the curve. Only the tiles that HAVE a series get it — an unconditional
+  // pad would leave the other tiles looking short of something.
+  cellSparked: {
+    paddingBottom: '2.25rem',
   },
   label: { fontSize: '0.75rem', fontWeight: 500, color: 'var(--color-text-secondary)' },
   value: {
@@ -65,28 +75,55 @@ const TILES = [
   'outstandingTotal',
 ] as const satisfies readonly (keyof RevenueKpis)[];
 
+/**
+ * The series behind each tile — where one honestly exists.
+ *
+ * Two of the four have none, and they get no sparkline rather than a borrowed
+ * one. `revenuePerMember` is a windowed average with no per-bucket history in
+ * the payload, and `outstandingTotal` is a snapshot of what is owed right now —
+ * a debt has no trend, it has an age. Drawing either against `revenueOverTime`
+ * would put a curve under a number that curve does not describe.
+ */
+function tileSeries(key: (typeof TILES)[number], data: DashboardRevenueResponse) {
+  switch (key) {
+    // The tile IS this series' sum over the window, stream split re-joined.
+    case 'totalRevenue':
+      return data.revenueOverTime.map((p) => p.recurring + p.oneOff);
+    // The tile IS this series' last point.
+    case 'mrr':
+      return data.mrrOverTime.map((p) => p.value);
+    default:
+      return null;
+  }
+}
+
 export function RevenueKpiStrip({
-  kpis,
+  data,
   granularity,
   money,
 }: {
-  kpis: RevenueKpis;
+  data: DashboardRevenueResponse;
   granularity: RevenueGranularity;
   money: NumberFormatter;
 }) {
+  const kpis = data.kpis;
   const t = useTranslations('admin.dashboard.revenue');
 
   return (
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((key) => (
-            <div key={key} {...stylex.props(styles.cell)}>
-              <span {...stylex.props(styles.label)}>{t(`kpi.${key}`)}</span>
-              {/* Money is carried in MINOR units; the strip shows major units. */}
-              <span {...stylex.props(styles.value)}>{money.format(kpis[key] / 100)}</span>
-            </div>
-          ))}
+          {TILES.map((key) => {
+            const series = tileSeries(key, data);
+            return (
+              <div key={key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
+                <span {...stylex.props(styles.label)}>{t(`kpi.${key}`)}</span>
+                {/* Money is carried in MINOR units; the strip shows major units. */}
+                <span {...stylex.props(styles.value)}>{money.format(kpis[key] / 100)}</span>
+                {series && <Sparkline values={series} />}
+              </div>
+            );
+          })}
         </div>
       </div>
       <p {...stylex.props(styles.caption)}>

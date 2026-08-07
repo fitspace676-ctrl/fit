@@ -14,7 +14,8 @@ import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import type { NumberFormatter } from '@fit/i18n';
-import type { StaffGranularity, StaffKpis } from '@fit/types';
+import type { DashboardStaffResponse, StaffGranularity, StaffKpis } from '@fit/types';
+import { Sparkline } from '../charts';
 import type { T } from '../overview/format';
 
 const styles = stylex.create({
@@ -37,11 +38,20 @@ const styles = stylex.create({
     },
   },
   cell: {
+    // `relative` anchors the sparkline, which is absolutely positioned against
+    // this box and bleeds off its bottom edge.
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
     padding: '0.875rem 1rem',
     backgroundColor: 'var(--color-background-surface)',
+  },
+  // Reserves the band the sparkline occupies, so the numeral never sits on the
+  // curve. Only the tiles that HAVE a series get it — an unconditional pad would
+  // leave the others looking short of something.
+  cellSparked: {
+    paddingBottom: '2.25rem',
   },
   label: { fontSize: '0.75rem', fontWeight: 500, color: 'var(--color-text-secondary)' },
   value: {
@@ -88,13 +98,27 @@ function formatTile(
   return count.format(value);
 }
 
+/**
+ * The series behind each tile — where one honestly exists.
+ *
+ * Only one does. `trainersDelivering` is a distinct count over the whole window,
+ * which does not decompose into per-bucket points (the same trainer in two
+ * buckets is one trainer, not two); `utilizationRate` and `scheduledHoursPerWeek`
+ * are read off the standing rota, which has no dates to bucket by at all.
+ */
+function tileSeries(key: keyof StaffKpis, data: DashboardStaffResponse) {
+  // Both halves of what a trainer delivers, which is what the tile counts.
+  return key === 'sessionsDelivered' ? data.sessionsOverTime.map((p) => p.classes + p.pt) : null;
+}
+
 export function StaffKpiStrip({
-  kpis,
+  data,
   granularity,
 }: {
-  kpis: StaffKpis;
+  data: DashboardStaffResponse;
   granularity: StaffGranularity;
 }) {
+  const kpis = data.kpis;
   const t = useTranslations('admin.dashboard.staff');
   const count = createNumberFormat(useLocale());
 
@@ -102,14 +126,18 @@ export function StaffKpiStrip({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((tile) => (
-            <div key={tile.key} {...stylex.props(styles.cell)}>
-              <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
-              <span {...stylex.props(styles.value)}>
-                {formatTile(t, count, tile.kind, kpis[tile.key])}
-              </span>
-            </div>
-          ))}
+          {TILES.map((tile) => {
+            const series = tileSeries(tile.key, data);
+            return (
+              <div key={tile.key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
+                <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
+                <span {...stylex.props(styles.value)}>
+                  {formatTile(t, count, tile.kind, kpis[tile.key])}
+                </span>
+                {series && <Sparkline values={series} />}
+              </div>
+            );
+          })}
         </div>
       </div>
       <p {...stylex.props(styles.caption)}>

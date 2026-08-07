@@ -289,7 +289,7 @@ export function MembersView() {
       ) : null}
 
       <div {...stylex.props(step(0))}>
-        <MembersKpiStrip kpis={data.kpis} granularity={data.granularity} money={money} />
+        <MembersKpiStrip data={data} granularity={data.granularity} money={money} />
       </div>
 
       <div {...stylex.props(styles.workArea)}>

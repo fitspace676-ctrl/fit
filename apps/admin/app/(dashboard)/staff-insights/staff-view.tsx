@@ -273,7 +273,7 @@ export function StaffView() {
       ) : null}
 
       <div {...stylex.props(step(0))}>
-        <StaffKpiStrip kpis={data.kpis} granularity={data.granularity} />
+        <StaffKpiStrip data={data} granularity={data.granularity} />
       </div>
 
       <div {...stylex.props(styles.workArea)}>
