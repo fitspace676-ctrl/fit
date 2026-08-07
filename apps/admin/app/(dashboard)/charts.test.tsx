@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { DualAreaChart } from './charts';
+import { AreaChart, DualAreaChart } from './charts';
 
 describe('DualAreaChart', () => {
   it('labels itself for assistive technology', () => {
@@ -61,5 +61,70 @@ describe('DualAreaChart', () => {
     const { container } = render(<DualAreaChart data={[]} />);
     expect(container.querySelector('svg')).toBeInTheDocument();
     expect(container.querySelectorAll('path')).toHaveLength(0);
+  });
+});
+
+describe('AreaChart gaps', () => {
+  it('draws one continuous path when every value is present', () => {
+    const { container } = render(
+      <AreaChart
+        data={[
+          { label: 'a', value: 10 },
+          { label: 'b', value: 20 },
+          { label: 'c', value: 30 },
+        ]}
+      />,
+    );
+    // One area fill + one stroke.
+    expect(container.querySelectorAll('path')).toHaveLength(2);
+    expect(container.querySelectorAll('path')[1]?.getAttribute('d')).not.toContain('NaN');
+  });
+
+  // A null is "no value here", not zero. Bridging the gap would draw a line
+  // through a figure that was never measured.
+  it('breaks the stroke into separate segments around a null', () => {
+    const { container } = render(
+      <AreaChart
+        data={[
+          { label: 'a', value: 10 },
+          { label: 'b', value: null },
+          { label: 'c', value: 30 },
+        ]}
+      />,
+    );
+    const stroke = container.querySelectorAll('path')[1]?.getAttribute('d') ?? '';
+    expect(stroke).not.toContain('NaN');
+    // Two moves: one opening each side of the gap.
+    expect(stroke.match(/M/g)).toHaveLength(2);
+  });
+
+  it('renders an empty frame when every value is null', () => {
+    const { container } = render(
+      <AreaChart
+        data={[
+          { label: 'a', value: null },
+          { label: 'b', value: null },
+        ]}
+      />,
+    );
+    expect(container.querySelector('svg')).toBeInTheDocument();
+    expect(container.querySelectorAll('path')).toHaveLength(0);
+  });
+
+  // The max must come from the real values only — a null coerced to 0 would be
+  // harmless here, but a null coerced via Math.max would poison the scale.
+  it('scales to the maximum of the present values', () => {
+    const { container } = render(
+      <AreaChart
+        data={[
+          { label: 'a', value: 100 },
+          { label: 'b', value: null },
+        ]}
+        height={100}
+      />,
+    );
+    const stroke = container.querySelectorAll('path')[1]?.getAttribute('d') ?? '';
+    // 100 is the max, so it sits at the top: y = height - pad = 8.
+    expect(stroke).toContain('8.0');
   });
 });

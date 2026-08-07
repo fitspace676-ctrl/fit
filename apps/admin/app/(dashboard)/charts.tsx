@@ -153,7 +153,13 @@ function SeriesPath({ d, ink }: { d: string; ink: stylex.StyleXStyles }) {
 /** One plotted point of an {@link AreaChart}: an x-axis label and its value. */
 export interface AreaPoint {
   label: string;
-  value: number;
+  /**
+   * The plotted value, or `null` for a bucket the series has no figure for. A
+   * null is NOT zero: the chart leaves a gap rather than drawing a line through a
+   * number that was never measured. Retention uses this for a window with no
+   * cohort to retain.
+   */
+  value: number | null;
 }
 
 /**
@@ -174,25 +180,47 @@ export function AreaChart({
 }) {
   const width = 640;
   const pad = 8;
-  const max = Math.max(1, ...data.map((d) => d.value));
+  const present = data.filter((d): d is AreaPoint & { value: number } => d.value !== null);
+  const max = Math.max(1, ...present.map((d) => d.value));
   const n = data.length;
 
   // x across the full width; y inverted (SVG origin is top-left), padded so the
-  // stroke never clips at the extremes.
+  // stroke never clips at the extremes. A null point keeps its x slot — the gap
+  // has to sit where the missing bucket actually is.
   const xy = data.map((d, i) => {
     const x = n <= 1 ? width / 2 : (i / (n - 1)) * (width - pad * 2) + pad;
-    const y = height - pad - (d.value / max) * (height - pad * 2);
-    return { x, y };
+    return d.value === null ? null : { x, y: height - pad - (d.value / max) * (height - pad * 2) };
   });
 
+  // One `M…L…` run per unbroken stretch, so the stroke restarts after each gap
+  // instead of bridging it.
   const line = xy
+    .map((p, i) =>
+      p === null ? '' : `${xy[i - 1] == null ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`,
+    )
+    .join(' ')
+    .trim();
+
+  // The gradient fills under the FIRST unbroken run only. Closing a fill across a
+  // gap would shade a region the data does not cover.
+  const runPoints: { x: number; y: number }[] = [];
+  for (const point of xy) {
+    if (point === null) {
+      // The run has ended. Stop at the first gap rather than resuming after it.
+      if (runPoints.length > 0) break;
+      continue;
+    }
+    runPoints.push(point);
+  }
+
+  const first = runPoints[0];
+  const last = runPoints[runPoints.length - 1];
+  const runLine = runPoints
     .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
     .join(' ');
-  const first = xy[0];
-  const last = xy[xy.length - 1];
   const area =
     first && last
-      ? `${line} L${last.x.toFixed(1)},${height - pad} L${first.x.toFixed(1)},${height - pad} Z`
+      ? `${runLine} L${last.x.toFixed(1)},${height - pad} L${first.x.toFixed(1)},${height - pad} Z`
       : '';
   // `useId()` yields a document-unique, SSR-safe id; strip the framework's `:`
   // delimiters so it is a valid `url(#…)` fragment reference.
