@@ -339,8 +339,6 @@
         "retry": "ხელახლა"
       },
       "widgets": {
-        "revenueOverTime": "შემოსავალი დროში",
-        "revenueByLocation": "შემოსავალი ფილიალებით",
         "classesMostBooked": "ყველაზე დაჯავშნადი ჯგუფურები",
         "classesPeakHours": "პიკის საათები",
         "staffSessionsPerTrainer": "სესიები ტრენერზე"

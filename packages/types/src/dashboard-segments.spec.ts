@@ -47,25 +47,25 @@ describe('dashboard segment catalogue', () => {
   });
 
   it('returns a segment its widgets in catalogue order', () => {
-    expect(widgetsForSegment('revenue').map((widget) => widget.key)).toEqual([
-      'revenue.over-time',
-      'revenue.by-location',
+    expect(widgetsForSegment('classes').map((widget) => widget.key)).toEqual([
+      'classes.most-booked',
+      'classes.peak-hours',
     ]);
   });
 
   it('finds a widget by key and misses on an unknown one', () => {
-    expect(findDashboardWidget('revenue.over-time')?.segment).toBe('revenue');
-    expect(findDashboardWidget('revenue.nope')).toBeUndefined();
+    expect(findDashboardWidget('classes.most-booked')?.segment).toBe('classes');
+    expect(findDashboardWidget('classes.nope')).toBeUndefined();
   });
 
-  // `sales` and `members` are hand-built views now, so the picker must not offer
-  // either — while the tab bar must still show both.
+  // `sales`, `members` and `revenue` are hand-built views now, so the picker must
+  // not offer any of them — while the tab bar must still show all three.
   it('keeps the hand-built tabs out of the configurable segments but in the tab bar', () => {
     for (const segment of HAND_BUILT_SEGMENTS) {
       expect(CONFIGURABLE_DASHBOARD_SEGMENTS).not.toContain(segment);
       expect(DASHBOARD_SEGMENTS).toContain(segment);
     }
-    expect(DASHBOARD_SEGMENTS.slice(0, 3)).toEqual(['overview', 'sales', 'members']);
+    expect(DASHBOARD_SEGMENTS.slice(0, 4)).toEqual(['overview', 'sales', 'members', 'revenue']);
   });
 
   // The console splits every tab on this guard alone — a tab it misjudges either
@@ -87,6 +87,13 @@ describe('dashboard segment catalogue', () => {
     expect(findDashboardWidget('sales.top-plans')).toBeUndefined();
   });
 
+  it('no longer defines any revenue widget', () => {
+    expect(DASHBOARD_WIDGET_CATALOG.some((widget) => widget.key.startsWith('revenue.'))).toBe(
+      false,
+    );
+    expect(findDashboardWidget('revenue.over-time')).toBeUndefined();
+  });
+
   it('no longer defines any members widget', () => {
     expect(DASHBOARD_WIDGET_CATALOG.some((widget) => widget.key.startsWith('members.'))).toBe(
       false,
@@ -98,8 +105,8 @@ describe('dashboard segment catalogue', () => {
   // selection cannot also mean "the owner removed everything".
   it('refuses an empty widget selection', () => {
     expect(setDashboardWidgetsSchema.safeParse({ widgetKeys: [] }).success).toBe(false);
-    expect(setDashboardWidgetsSchema.safeParse({ widgetKeys: ['revenue.over-time'] }).success).toBe(
-      true,
-    );
+    expect(
+      setDashboardWidgetsSchema.safeParse({ widgetKeys: ['classes.most-booked'] }).success,
+    ).toBe(true);
   });
 });

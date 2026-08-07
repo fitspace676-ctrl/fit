@@ -44,7 +44,6 @@ function setup() {
 /** Every section id the Spec-1 catalogue references, per metric. */
 const SECTIONS: Partial<Record<ReportMetric, string[]>> = {
   pos: ['sales-by-method', 'product-sales'],
-  revenue: ['revenue-over-time', 'revenue-by-location', 'revenue-by-plan'],
   classes: ['most-popular-classes'],
   attendance: ['peak-hours'],
   staff: ['sessions-booked-per-trainer'],
@@ -75,26 +74,26 @@ describe('DashboardSegmentsService.get', () => {
     const { service, findMany } = setup();
     findMany.mockResolvedValue([]);
 
-    const result = await service.get('revenue', '7d');
+    const result = await service.get('classes', '7d');
 
     expect(result.widgets.map((widget) => widget.key)).toEqual([
-      'revenue.over-time',
-      'revenue.by-location',
+      'classes.most-booked',
+      'classes.peak-hours',
     ]);
   });
 
   it('honours the gym stored selection and its order', async () => {
     const { service, findMany } = setup();
     findMany.mockResolvedValue([
-      { widgetKey: 'revenue.by-location' },
-      { widgetKey: 'revenue.over-time' },
+      { widgetKey: 'classes.peak-hours' },
+      { widgetKey: 'classes.most-booked' },
     ]);
 
-    const result = await service.get('revenue', '7d');
+    const result = await service.get('classes', '7d');
 
     expect(result.widgets.map((widget) => widget.key)).toEqual([
-      'revenue.by-location',
-      'revenue.over-time',
+      'classes.peak-hours',
+      'classes.most-booked',
     ]);
   });
 
@@ -119,29 +118,16 @@ describe('DashboardSegmentsService.get', () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
-  // The other branch: two widgets that share ONE metric must not each trigger
-  // their own `run` call. `revenue` is the fixture because both its widgets
-  // (`revenue.over-time`, `revenue.by-location`) resolve to the same `revenue`
-  // metric. Asserting the response still carries both widgets (not just the
-  // call count) rules out a degenerate "pass" where the service drops one
-  // widget instead of actually sharing the computed report between them.
-  it('computes a shared metric once for all the widgets that use it', async () => {
-    const { service, run } = setup();
-
-    const result = await service.get('revenue', '7d');
-
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(run).toHaveBeenCalledWith('revenue', { range: '7d' });
-    expect(result.widgets.map((widget) => widget.key)).toEqual([
-      'revenue.over-time',
-      'revenue.by-location',
-    ]);
-  });
+  // The other branch — two widgets sharing ONE metric — has no fixture left: every
+  // segment in the catalogue now resolves one metric per widget, since `revenue`
+  // (whose two widgets both read the `revenue` metric) became a hand-built view.
+  // The `classes` case above still covers the cross-metric branch. Restore a case
+  // here if a segment ever gains two widgets on one metric again.
 
   it('passes the requested range through to the drill-down', async () => {
     const { service, run } = setup();
-    await service.get('revenue', '12w');
-    expect(run).toHaveBeenCalledWith('revenue', { range: '12w' });
+    await service.get('classes', '12w');
+    expect(run).toHaveBeenCalledWith('classes', { range: '12w' });
   });
 
   it('omits a widget whose section the report no longer emits', async () => {
@@ -150,7 +136,7 @@ describe('DashboardSegmentsService.get', () => {
       Promise.resolve({ ...drilldownFor(metric), sections: [] }),
     );
 
-    const result = await service.get('revenue', '7d');
+    const result = await service.get('classes', '7d');
 
     expect(result.widgets).toEqual([]);
   });
@@ -158,32 +144,32 @@ describe('DashboardSegmentsService.get', () => {
   it('drops a stored key the catalogue no longer defines', async () => {
     const { service, findMany } = setup();
     findMany.mockResolvedValue([
-      { widgetKey: 'revenue.retired-widget' },
-      { widgetKey: 'revenue.by-location' },
+      { widgetKey: 'classes.retired-widget' },
+      { widgetKey: 'classes.peak-hours' },
     ]);
 
-    const result = await service.get('revenue', '7d');
+    const result = await service.get('classes', '7d');
 
-    expect(result.widgets.map((widget) => widget.key)).toEqual(['revenue.by-location']);
+    expect(result.widgets.map((widget) => widget.key)).toEqual(['classes.peak-hours']);
   });
 
   it('drops a stored key belonging to another segment', async () => {
     const { service, findMany } = setup();
     findMany.mockResolvedValue([
-      { widgetKey: 'classes.most-booked' },
-      { widgetKey: 'revenue.by-location' },
+      { widgetKey: 'staff.sessions-per-trainer' },
+      { widgetKey: 'classes.peak-hours' },
     ]);
 
-    const result = await service.get('revenue', '7d');
+    const result = await service.get('classes', '7d');
 
-    expect(result.widgets.map((widget) => widget.key)).toEqual(['revenue.by-location']);
+    expect(result.widgets.map((widget) => widget.key)).toEqual(['classes.peak-hours']);
   });
 
   it('scopes the read to the caller gym and the asked-for segment', async () => {
     const { service, findMany } = setup();
-    await service.get('revenue', '30d');
+    await service.get('classes', '30d');
     expect(findMany).toHaveBeenCalledWith({
-      where: { gymId: 'gym-1', segment: 'revenue' },
+      where: { gymId: 'gym-1', segment: 'classes' },
       orderBy: { position: 'asc' },
       select: { widgetKey: true },
     });
@@ -191,8 +177,8 @@ describe('DashboardSegmentsService.get', () => {
 
   it('echoes the segment, the range and the currency', async () => {
     const { service } = setup();
-    const result = await service.get('revenue', '30d');
-    expect(result.segment).toBe('revenue');
+    const result = await service.get('classes', '30d');
+    expect(result.segment).toBe('classes');
     expect(result.range).toBe('30d');
     expect(result.currency).toBe('GEL');
   });
@@ -204,13 +190,13 @@ describe('DashboardSegmentsService.setWidgets', () => {
   it('replaces the segment slice in one transaction, numbering positions densely', async () => {
     const { service, deleteMany, createMany, txDeleteMany, txCreateMany } = setup();
 
-    await service.setWidgets('revenue', ['revenue.by-location', 'revenue.over-time']);
+    await service.setWidgets('classes', ['classes.peak-hours', 'classes.most-booked']);
 
-    expect(txDeleteMany).toHaveBeenCalledWith({ where: { gymId: 'gym-1', segment: 'revenue' } });
+    expect(txDeleteMany).toHaveBeenCalledWith({ where: { gymId: 'gym-1', segment: 'classes' } });
     expect(txCreateMany).toHaveBeenCalledWith({
       data: [
-        { gymId: 'gym-1', segment: 'revenue', widgetKey: 'revenue.by-location', position: 0 },
-        { gymId: 'gym-1', segment: 'revenue', widgetKey: 'revenue.over-time', position: 1 },
+        { gymId: 'gym-1', segment: 'classes', widgetKey: 'classes.peak-hours', position: 0 },
+        { gymId: 'gym-1', segment: 'classes', widgetKey: 'classes.most-booked', position: 1 },
       ],
     });
     // The writes must go through `tx`, never the outer client — a statement on
@@ -222,14 +208,14 @@ describe('DashboardSegmentsService.setWidgets', () => {
 
   it('refuses a key the catalogue does not define', async () => {
     const { service, txDeleteMany } = setup();
-    await expect(service.setWidgets('revenue', ['revenue.nope'])).rejects.toThrow(/revenue\.nope/);
+    await expect(service.setWidgets('classes', ['classes.nope'])).rejects.toThrow(/classes\.nope/);
     expect(txDeleteMany).not.toHaveBeenCalled();
   });
 
   it('refuses a key belonging to another segment', async () => {
     const { service, txDeleteMany } = setup();
-    await expect(service.setWidgets('revenue', ['classes.most-booked'])).rejects.toThrow(
-      /classes\.most-booked/,
+    await expect(service.setWidgets('classes', ['staff.sessions-per-trainer'])).rejects.toThrow(
+      /staff\.sessions-per-trainer/,
     );
     expect(txDeleteMany).not.toHaveBeenCalled();
   });
@@ -239,15 +225,15 @@ describe('DashboardSegmentsService.setWidgets', () => {
   it('refuses a duplicated key', async () => {
     const { service, txDeleteMany } = setup();
     await expect(
-      service.setWidgets('revenue', ['revenue.by-location', 'revenue.by-location']),
-    ).rejects.toThrow(/revenue\.by-location/);
+      service.setWidgets('classes', ['classes.peak-hours', 'classes.peak-hours']),
+    ).rejects.toThrow(/classes\.peak-hours/);
     expect(txDeleteMany).not.toHaveBeenCalled();
   });
 
   it('validates every key before writing anything', async () => {
     const { service, txDeleteMany, txCreateMany } = setup();
     await expect(
-      service.setWidgets('revenue', ['revenue.by-location', 'revenue.nope']),
+      service.setWidgets('classes', ['classes.peak-hours', 'classes.nope']),
     ).rejects.toThrow();
     expect(txDeleteMany).not.toHaveBeenCalled();
     expect(txCreateMany).not.toHaveBeenCalled();

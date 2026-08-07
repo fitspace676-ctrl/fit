@@ -25,13 +25,13 @@ import { reportSectionSchema, type ReportMetric } from './reports-drilldown';
  * segment — no migration, because the stored rows carry the segment as a plain
  * string.
  *
- * `sales` and `members` are absent: both are hand-built views with their own
- * controls, like `overview`, so there is nothing for the picker to configure.
- * Stored `DashboardWidget` rows naming their retired keys are harmless —
+ * `sales`, `members` and `revenue` are absent: all three are hand-built views with
+ * their own controls, like `overview`, so there is nothing for the picker to
+ * configure. Stored `DashboardWidget` rows naming their retired keys are harmless —
  * `findDashboardWidget` already returns `undefined` for a key the catalogue no
  * longer defines.
  */
-export const CONFIGURABLE_DASHBOARD_SEGMENTS = ['revenue', 'classes', 'staff'] as const;
+export const CONFIGURABLE_DASHBOARD_SEGMENTS = ['classes', 'staff'] as const;
 
 export const configurableDashboardSegmentSchema = z.enum(CONFIGURABLE_DASHBOARD_SEGMENTS);
 export type ConfigurableDashboardSegment = z.infer<typeof configurableDashboardSegmentSchema>;
@@ -42,7 +42,7 @@ export type ConfigurableDashboardSegment = z.infer<typeof configurableDashboardS
  * picker?" — read by `segmented-dashboard.tsx` and `dashboard-header.tsx` alike,
  * so the two can never disagree about a tab.
  */
-export const HAND_BUILT_SEGMENTS = ['overview', 'sales', 'members'] as const;
+export const HAND_BUILT_SEGMENTS = ['overview', 'sales', 'members', 'revenue'] as const;
 
 export type HandBuiltDashboardSegment = (typeof HAND_BUILT_SEGMENTS)[number];
 
@@ -99,21 +99,6 @@ export interface DashboardWidgetDefinition {
  * follow-up specs, each as one new section plus one entry here.
  */
 export const DASHBOARD_WIDGET_CATALOG: readonly DashboardWidgetDefinition[] = [
-  // Revenue
-  {
-    key: 'revenue.over-time',
-    segment: 'revenue',
-    source: { metric: 'revenue', section: 'revenue-over-time' },
-    size: 'lg',
-    labelKey: 'revenueOverTime',
-  },
-  {
-    key: 'revenue.by-location',
-    segment: 'revenue',
-    source: { metric: 'revenue', section: 'revenue-by-location' },
-    size: 'md',
-    labelKey: 'revenueByLocation',
-  },
   // Classes & training
   {
     key: 'classes.most-booked',

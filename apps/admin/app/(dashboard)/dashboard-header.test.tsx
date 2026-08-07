@@ -44,7 +44,7 @@ describe('DashboardHeader', () => {
   });
 
   it('titles the page on every tab', () => {
-    renderHeader('revenue');
+    renderHeader('classes');
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
   });
 
@@ -57,7 +57,7 @@ describe('DashboardHeader', () => {
   });
 
   it('offers the range filter on a segment tab and no period filter', () => {
-    renderHeader('revenue');
+    renderHeader('classes');
     expect(screen.getByRole('radiogroup', { name: 'Widget range' })).toBeInTheDocument();
     expect(screen.queryByRole('radiogroup', { name: 'Dashboard period' })).not.toBeInTheDocument();
   });
@@ -66,11 +66,16 @@ describe('DashboardHeader', () => {
   // granularity control picking the window. A `?range=` here would be a second,
   // DEAD time filter sitting forty pixels above a live one — and one that still
   // fires a navigation, so it would read as broken rather than absent.
-  it.each(['sales', 'members'] as const)('offers neither filter on the %s tab', (segment) => {
-    renderHeader(segment);
-    expect(screen.queryByRole('radiogroup', { name: 'Widget range' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('radiogroup', { name: 'Dashboard period' })).not.toBeInTheDocument();
-  });
+  it.each(['sales', 'members', 'revenue'] as const)(
+    'offers neither filter on the %s tab',
+    (segment) => {
+      renderHeader(segment);
+      expect(screen.queryByRole('radiogroup', { name: 'Widget range' })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('radiogroup', { name: 'Dashboard period' }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it('writes the chosen period to the query', async () => {
     navigationMock.setSearch('segment=sales');
@@ -89,10 +94,10 @@ describe('DashboardHeader', () => {
   });
 
   it('writes the chosen range to the query from a segment tab', async () => {
-    navigationMock.setSearch('segment=revenue');
-    renderHeader('revenue');
+    navigationMock.setSearch('segment=classes');
+    renderHeader('classes');
     await userEvent.click(screen.getByRole('radio', { name: '30d' }));
-    expect(navigationMock.replace).toHaveBeenCalledWith('/?segment=revenue&range=30d');
+    expect(navigationMock.replace).toHaveBeenCalledWith('/?segment=classes&range=30d');
   });
 
   // `selectCustomRange` (including its `if (!next) return` guard and its

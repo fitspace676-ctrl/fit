@@ -339,8 +339,6 @@
         "retry": "Retry"
       },
       "widgets": {
-        "revenueOverTime": "Revenue over time",
-        "revenueByLocation": "Revenue by location",
         "classesMostBooked": "Most booked classes",
         "classesPeakHours": "Peak hours",
         "staffSessionsPerTrainer": "Sessions per trainer"

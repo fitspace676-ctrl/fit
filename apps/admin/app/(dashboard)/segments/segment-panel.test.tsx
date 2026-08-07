@@ -43,7 +43,7 @@ function response(title: string): DashboardSegmentResponse {
   };
 }
 
-function panel(segment: 'classes' | 'revenue', range: '7d' | '30d' = '7d') {
+function panel(segment: 'classes' | 'staff', range: '7d' | '30d' = '7d') {
   return (
     <NextIntlClientProvider locale="en" messages={messages}>
       <SegmentPanel segment={segment} range={range} />
@@ -51,7 +51,7 @@ function panel(segment: 'classes' | 'revenue', range: '7d' | '30d' = '7d') {
   );
 }
 
-function renderPanel(segment: 'classes' | 'revenue' = 'classes') {
+function renderPanel(segment: 'classes' | 'staff' = 'classes') {
   return render(panel(segment));
 }
 
@@ -73,7 +73,7 @@ describe('SegmentPanel', () => {
     await screen.findByText('Peak hours');
 
     loadSegmentAction.mockResolvedValue({ ok: true, data: response('Revenue over time') });
-    rerender(panel('revenue'));
+    rerender(panel('staff'));
     await screen.findByText('Revenue over time');
 
     rerender(panel('classes'));
@@ -116,7 +116,7 @@ describe('SegmentPanel', () => {
   // Regression (fix round 1, Finding 1): `attempt` used to gate every cache
   // hit, not just the retried segment's — so retrying ANY segment quietly
   // defeated the cache for EVERY segment, forever. Reproduces the reviewer's
-  // exact sequence: cache `classes`, fail + retry `revenue`, come back to
+  // exact sequence: cache `classes`, fail + retry `staff`, come back to
   // `classes` — it must be served from cache, not refetched.
   it('keeps other segments cached across an unrelated retry', async () => {
     const { rerender } = renderPanel('classes');
@@ -124,7 +124,7 @@ describe('SegmentPanel', () => {
     expect(loadSegmentAction).toHaveBeenCalledTimes(1);
 
     loadSegmentAction.mockResolvedValueOnce({ ok: false, error: 'boom' });
-    rerender(panel('revenue'));
+    rerender(panel('staff'));
     await screen.findByText("Couldn't load this segment.");
     expect(loadSegmentAction).toHaveBeenCalledTimes(2);
 
@@ -161,7 +161,7 @@ describe('SegmentPanel', () => {
     expect(phase()).toBe('entering');
 
     // Switch away — starts the 120ms exit before `shown` itself flips.
-    rerender(panel('revenue'));
+    rerender(panel('staff'));
     expect(phase()).toBe('exiting');
 
     // Bounce back to `classes` before that timer fires. `shown` never stopped
