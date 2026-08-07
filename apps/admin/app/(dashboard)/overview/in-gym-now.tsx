@@ -9,7 +9,7 @@ import { Text } from '@astryxdesign/core/Text';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { CountUp } from '@/components/ui';
-import { Donut } from '../charts';
+import { AnimatedCircularProgressBar } from '../charts';
 
 const pulse = stylex.keyframes({
   '0%': { opacity: 1 },
@@ -107,14 +107,20 @@ export function InGymNow({ data }: { data: DashboardOverviewResponse }) {
         </HStack>
 
         <HStack gap={5} align="center">
-          <Donut pct={pct} size={104} stroke={10}>
+          <AnimatedCircularProgressBar
+            value={current}
+            max={capacity}
+            size={104}
+            stroke={10}
+            ariaLabel={t('inGymNow.title')}
+          >
             <span {...stylex.props(styles.donutValue)}>
               <span {...stylex.props(styles.donutNumber)}>
                 <CountUp to={current} />
               </span>
               <span {...stylex.props(styles.donutCaption)}>{t('inGymNow.of', { capacity })}</span>
             </span>
-          </Donut>
+          </AnimatedCircularProgressBar>
           <p {...stylex.props(styles.inGymCopy)}>
             {current === 0
               ? t('inGymNow.quiet')

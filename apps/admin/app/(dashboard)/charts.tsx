@@ -34,6 +34,33 @@ const styles = stylex.create({
   neutralInk: {
     color: 'var(--color-text-teal)',
   },
+  gaugeWrap: {
+    position: 'relative',
+    display: 'inline-grid',
+    placeItems: 'center',
+    // Its own compositing layer, so the two transitioning arcs do not repaint the
+    // card behind them on every frame.
+    transform: 'translateZ(0)',
+  },
+  gaugeSvg: {
+    width: '100%',
+    height: '100%',
+  },
+  gaugeCenter: {
+    position: 'absolute',
+    insetInline: 0,
+    insetBlock: 0,
+    display: 'grid',
+    placeItems: 'center',
+    textAlign: 'center',
+  },
+  gaugePercent: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.5rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
   donutWrap: {
     position: 'relative',
     display: 'inline-grid',
@@ -346,6 +373,115 @@ export function DualAreaChart({
         ink={secondaryTone === 'neutral' ? styles.neutralInk : styles.negativeInk}
       />
     </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  AnimatedCircularProgressBar                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** The gauge's geometry, in the SVG's own 0–100 user units. */
+const GAUGE_RADIUS = 45;
+const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
+/** How much of the ring one percent covers. */
+const PERCENT_TO_PX = GAUGE_CIRCUMFERENCE / 100;
+/** The break between the two arcs, in percent, so they never touch. */
+const GAP_PERCENT = 5;
+
+/**
+ * Magic UI's `AnimatedCircularProgressBar`, authored in StyleX.
+ *
+ * The upstream component is Tailwind-classed, and both this file and the overview
+ * that renders it are on the Tailwind guardrail's migrated manifest
+ * (`scripts/check-tailwind-guardrail.ts`) — a `className="size-full"` here would
+ * fail CI and re-introduce the dependency the decommission is removing. So the
+ * geometry, the custom properties and the transitions are transcribed rather than
+ * installed; what arrives on screen is the same gauge.
+ *
+ * Two arcs, drawn from opposite ends and separated by a gap: the primary sweeps
+ * clockwise from twelve o'clock for `value`, and the secondary sweeps back for the
+ * remainder, so the ring reads as a filled portion of a track rather than a stroke
+ * on a circle. Both animate by transitioning `stroke-dasharray`, which is why the
+ * percent lives in a custom property rather than in the path data.
+ *
+ * `children` replaces the default percent readout — the occupancy card shows a
+ * count against a capacity, which is the figure that card is about.
+ */
+export function AnimatedCircularProgressBar({
+  value,
+  min = 0,
+  max = 100,
+  size = 104,
+  stroke = 10,
+  primaryColor = 'var(--color-accent)',
+  secondaryColor = 'var(--color-background-muted)',
+  ariaLabel,
+  children,
+}: {
+  value: number;
+  min?: number;
+  max?: number;
+  size?: number;
+  stroke?: number;
+  primaryColor?: string;
+  secondaryColor?: string;
+  ariaLabel?: string;
+  children?: ReactNode;
+}) {
+  const span = max - min;
+  const percent =
+    span <= 0 ? 0 : Math.min(100, Math.max(0, Math.round(((value - min) / span) * 100)));
+
+  const shared = {
+    cx: 50,
+    cy: 50,
+    r: GAUGE_RADIUS,
+    strokeWidth: stroke,
+    strokeDashoffset: 0,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  } as const;
+
+  return (
+    <div
+      {...stylex.props(styles.gaugeWrap)}
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label={ariaLabel}
+    >
+      <svg fill="none" viewBox="0 0 100 100" {...stylex.props(styles.gaugeSvg)}>
+        {/*
+          The remainder, drawn backwards from twelve o'clock (`scaleY(-1)`) so the
+          two arcs meet at the value rather than overlapping. Omitted above 90% —
+          at that point the gap has eaten what would be left of it.
+        */}
+        {percent <= 90 ? (
+          <circle
+            {...shared}
+            style={{
+              stroke: secondaryColor,
+              strokeDasharray: `${(90 - percent) * PERCENT_TO_PX}px ${GAUGE_CIRCUMFERENCE}px`,
+              transform: `rotate(calc(1turn - 90deg - ${GAP_PERCENT * 3.6}deg)) scaleY(-1)`,
+              transformOrigin: '50px 50px',
+              transition: 'all 1s ease 0s',
+            }}
+          />
+        ) : null}
+        <circle
+          {...shared}
+          style={{
+            stroke: primaryColor,
+            strokeDasharray: `${percent * PERCENT_TO_PX}px ${GAUGE_CIRCUMFERENCE}px`,
+            transform: 'rotate(-90deg)',
+            transformOrigin: '50px 50px',
+            transition: 'all 1s ease 0s, stroke 1s linear',
+          }}
+        />
+      </svg>
+      <span {...stylex.props(styles.gaugeCenter)}>
+        {children ?? <span {...stylex.props(styles.gaugePercent)}>{percent}</span>}
+      </span>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AreaChart, DualAreaChart } from './charts';
+import { AnimatedCircularProgressBar, AreaChart, DualAreaChart } from './charts';
 
 describe('DualAreaChart', () => {
   it('labels itself for assistive technology', () => {
@@ -124,5 +124,67 @@ describe('AreaChart gaps', () => {
     const stroke = container.querySelectorAll('path')[1]?.getAttribute('d') ?? '';
     // 100 is the max, so it sits at the top of the frame: y = pad = 8.
     expect(stroke).toContain('8.0');
+  });
+});
+
+/** The gauge's own geometry, mirrored so a change to either side is visible. */
+const CIRCUMFERENCE = 2 * Math.PI * 45;
+
+/** The arcs in paint order: the remainder first, the value on top. */
+function arcs(container: HTMLElement): SVGCircleElement[] {
+  return [...container.querySelectorAll('circle')];
+}
+
+describe('AnimatedCircularProgressBar', () => {
+  // The value lives in `stroke-dasharray`, not in the path data — that is what
+  // lets the browser transition it rather than redraw it.
+  it('draws the value as a share of the ring', () => {
+    const { container } = render(<AnimatedCircularProgressBar value={25} max={100} />);
+    const [, primary] = arcs(container);
+    expect(primary?.getAttribute('style')).toContain(`${25 * (CIRCUMFERENCE / 100)}px`);
+  });
+
+  it('scales a value against its own max, not against a hundred', () => {
+    const { container } = render(<AnimatedCircularProgressBar value={6} max={24} />);
+    // 6 of 24 is 25%, the same arc as the case above.
+    const [, primary] = arcs(container);
+    expect(primary?.getAttribute('style')).toContain(`${25 * (CIRCUMFERENCE / 100)}px`);
+  });
+
+  it('draws the remainder as a second arc until the gap eats it', () => {
+    const { container } = render(<AnimatedCircularProgressBar value={20} max={100} />);
+    expect(arcs(container)).toHaveLength(2);
+
+    const { container: full } = render(<AnimatedCircularProgressBar value={95} max={100} />);
+    expect(arcs(full)).toHaveLength(1);
+  });
+
+  // An empty gym is 0 of 24, not a division by zero, and a gym over capacity is
+  // still a full ring rather than an arc that wraps past twelve o'clock.
+  it('clamps to the ring at both ends', () => {
+    const { container: empty } = render(<AnimatedCircularProgressBar value={0} max={0} />);
+    expect(empty.textContent).toBe('0');
+
+    const { container: over } = render(<AnimatedCircularProgressBar value={30} max={24} />);
+    expect(over.textContent).toBe('100');
+  });
+
+  it('shows the percent by default and yields the centre to children', () => {
+    const { container: bare } = render(<AnimatedCircularProgressBar value={40} max={100} />);
+    expect(bare.textContent).toBe('40');
+
+    const { container: custom } = render(
+      <AnimatedCircularProgressBar value={40} max={100}>
+        <span>6 of 24</span>
+      </AnimatedCircularProgressBar>,
+    );
+    expect(custom.textContent).toBe('6 of 24');
+  });
+
+  it('announces itself as one image rather than two bare circles', () => {
+    const { container } = render(
+      <AnimatedCircularProgressBar value={5} max={24} ariaLabel="In the gym now" />,
+    );
+    expect(container.querySelector('[role="img"]')).toHaveAttribute('aria-label', 'In the gym now');
   });
 });
