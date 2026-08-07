@@ -126,12 +126,16 @@ trend uses.
 
 ### Utilization over time
 
-Per bucket, `Σ bookedCount ÷ Σ capacity` over the occurrences starting in it,
+Per bucket, `Σ seats booked ÷ Σ capacity` over the occurrences starting in it,
 excluding `CANCELED` ones. `null` where the summed capacity is zero.
 
-`bookedCount` is the denormalised seat count the booking service maintains — the
-same figure the drill-down's fill rate reads — so the tab and the report cannot
-disagree about how full a class was.
+"Seats booked" is the same count the bookings trend uses — `Booking` rows that
+held a seat — and **not** `ClassInstance.bookedCount`. The denormalised counter is
+what the drill-down's fill rate reads, and it is maintained atomically, but it is
+still a second answer to a question this tab already holds the rows for. One
+source for every seat figure on the tab is worth more here than agreeing with a
+different surface's shortcut: an owner comparing the utilization card against the
+bookings chart beside it must never find two numbers.
 
 ### PT sessions over time
 
