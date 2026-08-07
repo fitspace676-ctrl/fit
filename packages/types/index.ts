@@ -18,6 +18,7 @@ export * from './src/dashboard-classes';
 export * from './src/dashboard-members';
 export * from './src/dashboard-revenue';
 export * from './src/dashboard-segments';
+export * from './src/dashboard-staff';
 export * from './src/dashboard-sales';
 export * from './src/gym-settings';
 export * from './src/gyms';
