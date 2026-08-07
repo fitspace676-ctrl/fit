@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ReportsModule } from '../reports/reports.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardMembersService } from './dashboard-members.service';
+import { DashboardRevenueService } from './dashboard-revenue.service';
 import { DashboardSalesService } from './dashboard-sales.service';
 import { DashboardSegmentsController } from './dashboard-segments.controller';
 import { DashboardSegmentsService } from './dashboard-segments.service';
@@ -11,9 +12,10 @@ import { DashboardService } from './dashboard.service';
  * Dashboard — the staff console's tenant-scoped control room.
  *
  * {@link DashboardController} (`/dashboard`) serves the overview segment's live
- * snapshot and the hand-built Sales tab (`/dashboard/sales`, see
- * {@link DashboardSalesService}) and the Members tab (`/dashboard/members`, see
- * {@link DashboardMembersService}); {@link DashboardSegmentsController}
+ * snapshot and the three hand-built tabs — Sales (`/dashboard/sales`, see
+ * {@link DashboardSalesService}), Members (`/dashboard/members`, see
+ * {@link DashboardMembersService}) and Revenue (`/dashboard/revenue`, see
+ * {@link DashboardRevenueService}); {@link DashboardSegmentsController}
  * (`/admin/dashboard/segments`) serves the configurable segments, resolving each
  * gym's chosen widgets against the drill-down reports in {@link ReportsModule}.
  */
@@ -25,6 +27,7 @@ import { DashboardService } from './dashboard.service';
     DashboardSegmentsService,
     DashboardSalesService,
     DashboardMembersService,
+    DashboardRevenueService,
   ],
 })
 export class DashboardModule {}

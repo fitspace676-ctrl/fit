@@ -3,9 +3,11 @@ import {
   Permission,
   dashboardMembersQuerySchema,
   dashboardOverviewQuerySchema,
+  dashboardRevenueQuerySchema,
   dashboardSalesQuerySchema,
   type DashboardMembersResponse,
   type DashboardOverviewResponse,
+  type DashboardRevenueResponse,
   type DashboardSalesResponse,
   type DashboardStatsResponse,
 } from '@fit/types';
@@ -13,6 +15,7 @@ import { RequirePermissions } from '../common/decorators/require-permissions.dec
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { DashboardMembersService } from './dashboard-members.service';
+import { DashboardRevenueService } from './dashboard-revenue.service';
 import { DashboardSalesService } from './dashboard-sales.service';
 import { DashboardService } from './dashboard.service';
 
@@ -34,6 +37,7 @@ export class DashboardController {
     // class cannot carry a property and a method under the same one.
     private readonly salesTab: DashboardSalesService,
     private readonly membersTab: DashboardMembersService,
+    private readonly revenueTab: DashboardRevenueService,
   ) {}
 
   /**
@@ -99,5 +103,22 @@ export class DashboardController {
   @RequirePermissions(Permission.ReportView)
   async members(@Query() query: unknown): Promise<DashboardMembersResponse> {
     return this.membersTab.get(dashboardMembersQuerySchema.parse(query));
+  }
+
+  /**
+   * `GET /dashboard/revenue?granularity=&projectionWindow=` — the hand-built
+   * Revenue tab in one payload: four KPIs, the two-stream revenue trend, the MRR
+   * trend, the projection, the outstanding-invoice snapshot and the location
+   * breakdown.
+   *
+   * Both params scope the WHOLE response, which is why the tab is one round trip:
+   * a partial refresh could leave two cards describing different windows. The Zod
+   * schema `.catch`es unknown values to the defaults rather than raising a 400.
+   */
+  @Get('revenue')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ReportView)
+  async revenue(@Query() query: unknown): Promise<DashboardRevenueResponse> {
+    return this.revenueTab.get(dashboardRevenueQuerySchema.parse(query));
   }
 }

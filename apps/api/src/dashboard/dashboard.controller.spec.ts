@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { DashboardMembersResponse, DashboardSalesResponse } from '@fit/types';
+import type {
+  DashboardMembersResponse,
+  DashboardRevenueResponse,
+  DashboardSalesResponse,
+} from '@fit/types';
 import { DashboardController } from './dashboard.controller';
 import type { DashboardService } from './dashboard.service';
 import type { DashboardSalesService } from './dashboard-sales.service';
 import type { DashboardMembersService } from './dashboard-members.service';
+import type { DashboardRevenueService } from './dashboard-revenue.service';
 
 const EMPTY: DashboardSalesResponse = {
   granularity: 'daily',
@@ -28,13 +33,39 @@ const EMPTY_MEMBERS: DashboardMembersResponse = {
   byStatus: [],
 };
 
+const EMPTY_REVENUE: DashboardRevenueResponse = {
+  granularity: 'daily',
+  projectionWindow: '7',
+  currency: 'GEL',
+  kpis: { totalRevenue: 0, mrr: 0, revenuePerMember: 0, outstandingTotal: 0 },
+  revenueOverTime: [],
+  mrrOverTime: [],
+  projected: { total: 0, points: [], atRiskCount: 0, atRiskTotal: 0 },
+  outstanding: {
+    count: 0,
+    total: 0,
+    overdueCount: 0,
+    overdueTotal: 0,
+    failedCount: 0,
+    failedTotal: 0,
+  },
+  byLocation: null,
+};
+
 function setup() {
   const get = vi.fn().mockResolvedValue(EMPTY);
   const membersGet = vi.fn().mockResolvedValue(EMPTY_MEMBERS);
   const dashboard = {} as unknown as DashboardService;
   const sales = { get } as unknown as DashboardSalesService;
   const members = { get: membersGet } as unknown as DashboardMembersService;
-  return { controller: new DashboardController(dashboard, sales, members), get, membersGet };
+  const revenueGet = vi.fn().mockResolvedValue(EMPTY_REVENUE);
+  const revenue = { get: revenueGet } as unknown as DashboardRevenueService;
+  return {
+    controller: new DashboardController(dashboard, sales, members, revenue),
+    get,
+    membersGet,
+    revenueGet,
+  };
 }
 
 describe('DashboardController.sales', () => {
@@ -100,5 +131,27 @@ describe('DashboardController.members', () => {
       retentionWindow: '30',
       expiringWindow: '7',
     });
+  });
+});
+
+describe('DashboardController.revenue', () => {
+  it('passes a valid query straight through', async () => {
+    const { controller, revenueGet } = setup();
+
+    await controller.revenue({ granularity: 'weekly', projectionWindow: '30' });
+
+    expect(revenueGet).toHaveBeenCalledWith({ granularity: 'weekly', projectionWindow: '30' });
+  });
+
+  it('defaults an absent query', async () => {
+    const { controller, revenueGet } = setup();
+    await controller.revenue({});
+    expect(revenueGet).toHaveBeenCalledWith({ granularity: 'daily', projectionWindow: '7' });
+  });
+
+  it('falls back to the defaults on unknown values rather than throwing', async () => {
+    const { controller, revenueGet } = setup();
+    await controller.revenue({ granularity: 'hourly', projectionWindow: '999' });
+    expect(revenueGet).toHaveBeenCalledWith({ granularity: 'daily', projectionWindow: '7' });
   });
 });
