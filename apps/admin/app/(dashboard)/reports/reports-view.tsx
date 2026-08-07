@@ -18,6 +18,7 @@
 import { useMemo, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat, type NumberFormatter } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { Button } from '@astryxdesign/core/Button';
@@ -405,14 +406,14 @@ function ReportPreview({ preview, range, t }: { preview: ReportResult; range: Re
   const locale = useLocale();
   const money = useMemo(
     () =>
-      new Intl.NumberFormat(locale, {
+      createNumberFormat(locale, {
         style: 'currency',
         currency: preview.currency,
         maximumFractionDigits: 2,
       }),
     [preview.currency, locale],
   );
-  const number = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  const number = useMemo(() => createNumberFormat(locale), [locale]);
 
   // Renders as a plain anchor so the browser downloads the file, so the basePath is
   // not applied for us.
@@ -511,8 +512,8 @@ function isNumericColumn(type: ReportColumnType): boolean {
 function formatCell(
   column: ReportColumn,
   value: ReportCellValue,
-  money: Intl.NumberFormat,
-  number: Intl.NumberFormat,
+  money: NumberFormatter,
+  number: NumberFormatter,
 ): string {
   if (value === null || value === '') {
     return '—';

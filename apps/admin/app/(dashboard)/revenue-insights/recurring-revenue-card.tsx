@@ -16,6 +16,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import { Card } from '@astryxdesign/core/Card';
 import type { ReportSeriesPoint } from '@fit/types';
 import { AreaChart, type AreaPoint } from '../charts';
@@ -58,7 +59,7 @@ export function RecurringRevenueCard({
   points: ReportSeriesPoint[];
   /** MRR right now, for the caption. */
   current: number;
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.revenue');
   const locale = useLocale();

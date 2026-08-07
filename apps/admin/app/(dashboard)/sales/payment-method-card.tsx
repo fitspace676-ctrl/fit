@@ -10,6 +10,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import { Card } from '@astryxdesign/core/Card';
 import type { SalesMethodSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
@@ -37,7 +38,7 @@ export function PaymentMethodCard({
   money,
 }: {
   slices: SalesMethodSlice[];
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.sales');
 

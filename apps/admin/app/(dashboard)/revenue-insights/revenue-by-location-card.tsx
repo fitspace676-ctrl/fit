@@ -12,6 +12,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import { Card } from '@astryxdesign/core/Card';
 import type { RevenueLocationSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
@@ -41,7 +42,7 @@ export function RevenueByLocationCard({
   money,
 }: {
   slices: RevenueLocationSlice[];
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.revenue');
   const data: BarDatum[] = slices.map((slice) => ({ label: slice.location, value: slice.value }));

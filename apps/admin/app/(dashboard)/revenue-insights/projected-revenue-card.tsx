@@ -13,6 +13,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import { Card } from '@astryxdesign/core/Card';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { PROJECTION_WINDOW_DAYS, type ProjectedRevenue, type ProjectionWindow } from '@fit/types';
@@ -75,7 +76,7 @@ export function ProjectedRevenueCard({
 }: {
   projected: ProjectedRevenue;
   window: ProjectionWindow;
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
   onSelectWindow: (next: ProjectionWindow) => void;
   disabled: boolean;
 }) {

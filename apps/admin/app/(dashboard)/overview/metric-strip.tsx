@@ -14,6 +14,7 @@
 import { useMemo } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import { Badge } from '@astryxdesign/core/Badge';
 import type { DashboardKpi, DashboardOverviewResponse } from '@fit/types';
 
@@ -107,14 +108,14 @@ export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
 
   const money = useMemo(
     () =>
-      new Intl.NumberFormat(locale, {
+      createNumberFormat(locale, {
         style: 'currency',
         currency: data.currency,
         maximumFractionDigits: 0,
       }),
     [data.currency, locale],
   );
-  const count = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  const count = useMemo(() => createNumberFormat(locale), [locale]);
 
   return (
     <div role="group" aria-label={t('metrics.aria')} {...stylex.props(styles.strip)}>

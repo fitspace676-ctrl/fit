@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import { Button } from '@astryxdesign/core/Button';
 import {
   DEFAULT_PROJECTION_WINDOW,
@@ -232,7 +233,7 @@ export function RevenueView() {
 
   const money = useMemo(
     () =>
-      new Intl.NumberFormat(locale, {
+      createNumberFormat(locale, {
         style: 'currency',
         currency: data?.currency ?? 'USD',
         maximumFractionDigits: 0,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
@@ -67,7 +68,7 @@ export function RevenueCard({
   disabled,
 }: {
   data: DashboardOverviewResponse;
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
   onSelectRange: (next: DashboardRange) => void;
   disabled: boolean;
 }) {

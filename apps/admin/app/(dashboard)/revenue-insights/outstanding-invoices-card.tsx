@@ -14,6 +14,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import { Card } from '@astryxdesign/core/Card';
 import type { OutstandingInvoices } from '@fit/types';
 import { EmptyState } from '../overview/format';
@@ -63,7 +64,7 @@ export function OutstandingInvoicesCard({
   money,
 }: {
   outstanding: OutstandingInvoices;
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.revenue');
 

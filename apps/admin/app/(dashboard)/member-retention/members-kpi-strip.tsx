@@ -13,6 +13,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import type { MembersGranularity, MembersKpis } from '@fit/types';
 
 const styles = stylex.create({
@@ -74,7 +75,7 @@ export function MembersKpiStrip({
 }: {
   kpis: MembersKpis;
   granularity: MembersGranularity;
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.members');
 

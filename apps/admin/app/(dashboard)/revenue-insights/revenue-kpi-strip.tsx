@@ -10,6 +10,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import type { RevenueGranularity, RevenueKpis } from '@fit/types';
 
 const styles = stylex.create({
@@ -71,7 +72,7 @@ export function RevenueKpiStrip({
 }: {
   kpis: RevenueKpis;
   granularity: RevenueGranularity;
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.revenue');
 

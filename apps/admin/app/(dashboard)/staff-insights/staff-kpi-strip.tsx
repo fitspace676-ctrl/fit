@@ -11,9 +11,11 @@
 // granularity does.
 
 import * as stylex from '@stylexjs/stylex';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import type { StaffGranularity, StaffKpis } from '@fit/types';
 import type { T } from '../overview/format';
+import type { NumberFormatter } from '@fit/i18n';
 
 const styles = stylex.create({
   wrap: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
@@ -67,12 +69,23 @@ const TILES = [
   { key: 'scheduledHoursPerWeek', kind: 'hours' },
 ] as const satisfies readonly { key: keyof StaffKpis; kind: 'count' | 'rate' | 'hours' }[];
 
-/** A tile's value as text. `null` is the em-dash, never `0%`. */
-function formatTile(t: T, kind: 'count' | 'rate' | 'hours', value: number | null): string {
+/**
+ * A tile's value as text. `null` is the em-dash, never `0%`.
+ *
+ * The count goes through the shared formatter rather than `toLocaleString()`,
+ * which would format in the RUNTIME's default locale — the server's in Node, the
+ * viewer's OS setting in the browser.
+ */
+function formatTile(
+  t: T,
+  count: NumberFormatter,
+  kind: 'count' | 'rate' | 'hours',
+  value: number | null,
+): string {
   if (value === null) return t('noValue');
   if (kind === 'rate') return `${value}%`;
   if (kind === 'hours') return `${value}h`;
-  return value.toLocaleString();
+  return count.format(value);
 }
 
 export function StaffKpiStrip({
@@ -83,6 +96,7 @@ export function StaffKpiStrip({
   granularity: StaffGranularity;
 }) {
   const t = useTranslations('admin.dashboard.staff');
+  const count = createNumberFormat(useLocale());
 
   return (
     <div {...stylex.props(styles.wrap)}>
@@ -92,7 +106,7 @@ export function StaffKpiStrip({
             <div key={tile.key} {...stylex.props(styles.cell)}>
               <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
               <span {...stylex.props(styles.value)}>
-                {formatTile(t, tile.kind, kpis[tile.key])}
+                {formatTile(t, count, tile.kind, kpis[tile.key])}
               </span>
             </div>
           ))}

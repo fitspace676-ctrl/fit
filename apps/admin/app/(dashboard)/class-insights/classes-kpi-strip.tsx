@@ -9,7 +9,8 @@
 // confident claim about a fact nobody recorded.
 
 import * as stylex from '@stylexjs/stylex';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import type { ClassesGranularity, ClassesKpis } from '@fit/types';
 import type { T } from '../overview/format';
 
@@ -78,6 +79,10 @@ export function ClassesKpiStrip({
   granularity: ClassesGranularity;
 }) {
   const t = useTranslations('admin.dashboard.classes');
+  // NOT `toLocaleString()`: that formats in the RUNTIME's default locale, which is
+  // the server's in Node and the viewer's OS setting in the browser — the same
+  // hydration mismatch the money figures had, waiting for a count above 999.
+  const count = createNumberFormat(useLocale());
 
   return (
     <div {...stylex.props(styles.wrap)}>
@@ -87,7 +92,7 @@ export function ClassesKpiStrip({
             <div key={tile.key} {...stylex.props(styles.cell)}>
               <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
               <span {...stylex.props(styles.value)}>
-                {tile.rate ? formatRate(t, kpis[tile.key]) : (kpis[tile.key] ?? 0).toLocaleString()}
+                {tile.rate ? formatRate(t, kpis[tile.key]) : count.format(kpis[tile.key] ?? 0)}
               </span>
             </div>
           ))}

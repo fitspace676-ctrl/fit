@@ -32,6 +32,7 @@
 import { useMemo, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import type { DashboardOverviewResponse, DashboardRange } from '@fit/types';
 import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
@@ -113,7 +114,7 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
 
   const money = useMemo(
     () =>
-      new Intl.NumberFormat(locale, {
+      createNumberFormat(locale, {
         style: 'currency',
         currency: data.currency,
         maximumFractionDigits: 0,

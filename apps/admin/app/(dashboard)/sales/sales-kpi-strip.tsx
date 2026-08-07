@@ -14,6 +14,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import type { NumberFormatter } from '@fit/i18n';
 import type { SalesGranularity, SalesKpis, SalesProductType } from '@fit/types';
 
 const styles = stylex.create({
@@ -85,7 +86,7 @@ export function SalesKpiStrip({
   kpis: SalesKpis;
   granularity: SalesGranularity;
   productType: SalesProductType;
-  money: Intl.NumberFormat;
+  money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.sales');
 
