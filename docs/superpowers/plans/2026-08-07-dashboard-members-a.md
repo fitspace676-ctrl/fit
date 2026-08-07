@@ -1120,6 +1120,7 @@ git commit -m "feat(api): expose GET /dashboard/members"
 
 - Modify: `apps/admin/app/(dashboard)/charts.tsx` (`AreaPoint`, `AreaChart`)
 - Modify: `apps/admin/app/(dashboard)/charts.test.tsx` (add a describe block)
+- Modify: `apps/admin/app/(dashboard)/overview/revenue-card.tsx` (one line — see Step 4)
 
 **Interfaces:**
 
@@ -1279,18 +1280,32 @@ The JSX below is unchanged — it already renders `{area && …}` and
 `<SeriesPath d={line} ink={styles.accentInk} />`, both of which handle an empty
 string by rendering nothing.
 
-- [ ] **Step 4: Run the full admin suite**
+- [ ] **Step 4: Repair the one caller the widening breaks**
+
+Widening a shared type is not complete until its callers compile. Exactly one
+breaks: `apps/admin/app/(dashboard)/overview/revenue-card.tsx:80` narrows with
+`p.value > 0`, which TypeScript now rejects (`TS18047: 'p.value' is possibly
+'null'`) even though that component only ever builds non-null points.
+
+```tsx
+const hasData = points.some((p) => p.value !== null && p.value > 0);
+```
+
+Nothing else in the app needs touching: `sales/sales-trend-card.tsx` already
+tests `point.value !== 0`, which type-checks against the widened type unchanged.
+
+- [ ] **Step 5: Run the full admin suite**
 
 Run: `pnpm --filter @fit/admin test`
 Expected: PASS. **No existing test may change.** If one breaks, the widening
 altered behaviour for a caller that passes numbers — fix the geometry, not the test.
 
-- [ ] **Step 5: Type-check and commit**
+- [ ] **Step 6: Type-check and commit**
 
 Run: `pnpm --filter @fit/admin type-check && pnpm check:tailwind-guardrail`
 
 ```bash
-git add "apps/admin/app/(dashboard)/charts.tsx" "apps/admin/app/(dashboard)/charts.test.tsx"
+git add "apps/admin/app/(dashboard)/charts.tsx" "apps/admin/app/(dashboard)/charts.test.tsx" "apps/admin/app/(dashboard)/overview/revenue-card.tsx"
 git commit -m "feat(admin): let AreaChart break its line at a null value"
 ```
 
