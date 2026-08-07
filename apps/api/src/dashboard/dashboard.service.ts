@@ -659,6 +659,7 @@ export class DashboardService {
         checkedInAt: true,
         member: {
           select: {
+            id: true,
             user: { select: { name: true, email: true } },
             subscriptions: {
               where: {
@@ -681,6 +682,7 @@ export class DashboardService {
     });
 
     return rows.map((row) => ({
+      memberId: row.member.id,
       name: row.member.user.name ?? row.member.user.email,
       planName: row.member.subscriptions[0]?.plan?.name ?? null,
       method: row.method,

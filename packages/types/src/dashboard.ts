@@ -292,6 +292,11 @@ export type DashboardAlert = z.infer<typeof dashboardAlertSchema>;
 
 /** One row of the live recent-check-ins feed. */
 export const dashboardCheckInSchema = z.object({
+  /**
+   * The `GymMember` who arrived, so the row can link to their profile — the feed
+   * is a list of people, and a list of people that cannot be opened is a dead end.
+   */
+  memberId: z.string(),
   /** The member's display name (or email when unnamed). */
   name: z.string(),
   /** The member's current subscription plan name, or `null`. */

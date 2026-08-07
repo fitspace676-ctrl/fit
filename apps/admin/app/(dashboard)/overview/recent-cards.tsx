@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import { Badge } from '@astryxdesign/core/Badge';
 import type { DashboardOverviewResponse } from '@fit/types';
@@ -68,20 +69,52 @@ const styles = stylex.create({
     },
     paddingInline: '0.75rem',
     paddingBlock: '0.5rem',
-    // The row publishes its own hover as a custom property, and the two text
-    // lines below consume it to stop clipping. StyleX has no descendant
-    // selectors, so this is how a parent's state reaches a child — and hovering
-    // ANYWHERE on the row has to work, because the clipped name is a few pixels
-    // wide and is a hopeless target on its own.
+    // The anchor for the tooltip below, and the reason it can sit outside the
+    // row's own box without moving anything.
+    position: 'relative',
+    textDecoration: 'none',
+    color: 'inherit',
+    // The row publishes its hover so the tooltip — a CHILD — can react to it.
+    // StyleX has no descendant selectors; a custom property is how a parent's
+    // state reaches a child. Hovering anywhere on the row has to work, because
+    // the clipped name is a few pixels wide and hopeless as a target on its own.
     //
-    // `:focus-within` comes along for the keyboard: these rows will carry a link
-    // to the member's profile, and a name that only opens for a mouse would be
-    // half an affordance.
-    '--recent-line-clip': {
-      default: 'nowrap',
-      ':hover': 'normal',
-      ':focus-within': 'normal',
+    // `:focus-within` rides along so the keyboard gets the same reveal when the
+    // row's link is tabbed to.
+    '--recent-tip': {
+      default: '0',
+      ':hover': '1',
+      ':focus-within': '1',
     },
+  },
+  // A tooltip, not a reflow. The previous attempt un-clipped the text in place,
+  // which in a 130px rail column wrapped a name to one character per line and
+  // blew the row to the height of the card. This floats above the row instead:
+  // `position: absolute` keeps it out of the layout entirely, so nothing moves.
+  tip: {
+    position: 'absolute',
+    bottom: 'calc(100% + 0.25rem)',
+    left: 0,
+    zIndex: 20,
+    maxWidth: '18rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-surface)',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.375rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-primary)',
+    opacity: 'var(--recent-tip, 0)',
+    // Inert while hidden, and never a hover target of its own.
+    pointerEvents: 'none',
+    transitionProperty: 'opacity',
+    transitionDuration: '0.12s',
   },
   avatar: {
     display: 'grid',
@@ -100,16 +133,15 @@ const styles = stylex.create({
     minWidth: 0,
     flex: 1,
   },
-  // Both text lines clip rather than wrap, because a wrapping row would make the
-  // grid's rows different heights. In the rail's 2-column step that clip is
-  // severe — a long name can come down to a letter and an ellipsis — so every
-  // row carries the full string in a `title`, and hovering gives it back.
+  // Both text lines clip rather than wrap: a wrapping row would make the grid's
+  // rows different heights, and in the rail's narrow column it wraps to one
+  // character per line. The clip is severe — a long name comes down to a letter
+  // and an ellipsis — so the full string is shown in the floating `tip` above.
   alertTitle: {
     display: 'block',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'var(--recent-line-clip, nowrap)',
-    overflowWrap: 'anywhere',
+    whiteSpace: 'nowrap',
     fontSize: '0.875rem',
     fontWeight: 600,
     color: 'var(--color-text-primary)',
@@ -118,8 +150,7 @@ const styles = stylex.create({
     display: 'block',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'var(--recent-line-clip, nowrap)',
-    overflowWrap: 'anywhere',
+    whiteSpace: 'nowrap',
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
@@ -154,23 +185,27 @@ export function RecentCheckInsBody({ data }: { data: DashboardOverviewResponse }
       {rows.map((row, i) => {
         const detail = `${row.planName ?? t('recentCheckIns.noPlan')} · ${timeAgo(t, row.checkedInAt)}`;
         return (
-          <li key={`${row.checkedInAt}-${i}`} {...stylex.props(styles.checkInRow)}>
-            <span {...stylex.props(styles.avatar)} aria-hidden="true">
-              {initials(row.name)}
-            </span>
-            <span {...stylex.props(styles.alertMain)}>
+          <li key={`${row.checkedInAt}-${i}`}>
+            <Link
+              href={`/members/${row.memberId}`}
+              {...stylex.props(styles.checkInRow)}
+              title={`${row.name} — ${detail}`}
+            >
               {/*
-              `title` because both lines ellipsise: see `alertTitle`'s comment. It
-              is the same affordance `BarChart` and `Heatmap` give their own
-              clipped labels, and it costs no JavaScript and no layout.
-            */}
-              <span {...stylex.props(styles.alertTitle)} title={row.name}>
-                {row.name}
+                Duplicates the two lines below, so `aria-hidden`: a screen reader
+                reads the row, not the tooltip that exists for a clipped one.
+              */}
+              <span {...stylex.props(styles.tip)} aria-hidden="true">
+                {row.name} — {detail}
               </span>
-              <span {...stylex.props(styles.alertDetail)} title={detail}>
-                {detail}
+              <span {...stylex.props(styles.avatar)} aria-hidden="true">
+                {initials(row.name)}
               </span>
-            </span>
+              <span {...stylex.props(styles.alertMain)}>
+                <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
+                <span {...stylex.props(styles.alertDetail)}>{detail}</span>
+              </span>
+            </Link>
           </li>
         );
       })}
@@ -199,23 +234,27 @@ export function RecentMembersBody({ data }: { data: DashboardOverviewResponse })
             : ''
         }`;
         return (
-          <li key={row.id} {...stylex.props(styles.checkInRow)}>
-            <span {...stylex.props(styles.avatar)} aria-hidden="true">
-              {initials(row.name)}
-            </span>
-            <span {...stylex.props(styles.alertMain)}>
-              {/* Both lines ellipsise in the rail — see the check-ins feed above. */}
-              <span {...stylex.props(styles.alertTitle)} title={row.name}>
-                {row.name}
+          <li key={row.id}>
+            <Link
+              href={`/members/${row.id}`}
+              {...stylex.props(styles.checkInRow)}
+              title={`${row.name} — ${detail}`}
+            >
+              <span {...stylex.props(styles.tip)} aria-hidden="true">
+                {row.name} — {detail}
               </span>
-              <span {...stylex.props(styles.alertDetail)} title={detail}>
-                {detail}
+              <span {...stylex.props(styles.avatar)} aria-hidden="true">
+                {initials(row.name)}
               </span>
-            </span>
-            <Badge
-              variant={memberStatusVariant(row.status)}
-              label={t(`recentMembers.status.${row.status.toLowerCase()}`)}
-            />
+              <span {...stylex.props(styles.alertMain)}>
+                <span {...stylex.props(styles.alertTitle)}>{row.name}</span>
+                <span {...stylex.props(styles.alertDetail)}>{detail}</span>
+              </span>
+              <Badge
+                variant={memberStatusVariant(row.status)}
+                label={t(`recentMembers.status.${row.status.toLowerCase()}`)}
+              />
+            </Link>
           </li>
         );
       })}

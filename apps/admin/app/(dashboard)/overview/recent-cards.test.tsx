@@ -21,6 +21,7 @@ function data(): DashboardOverviewResponse {
   return {
     recentCheckIns: [
       {
+        memberId: 'm1',
         name: LONG_NAME,
         planName: 'Unlimited annual membership',
         checkedInAt: '2026-08-07T10:00:00Z',
@@ -47,25 +48,39 @@ function renderBody(node: React.ReactNode) {
 }
 
 // The rail is `minmax(280px, 1fr)` and each row holds an avatar, two lines and a
-// badge, so a real Georgian name ellipsises down to a letter or two. The text is
-// still THERE — it just cannot be read, and the row is the only place the console
-// shows who checked in. A `title` gives it back on hover, which is what
-// `BarChart` and `Heatmap` already do for their own clipped labels.
+// badge, so a real Georgian name ellipsises down to a letter or two. The row is
+// the only place the console says who checked in or who joined, so it has to give
+// the name back — as a tooltip that floats, and as a link that opens the person.
 describe('recent feeds', () => {
   it.each([
     ['check-ins', <RecentCheckInsBody key="c" data={data()} />],
     ['members', <RecentMembersBody key="m" data={data()} />],
-  ])('reveals the full name on hover in the %s feed', (_label, node) => {
+  ])('carries the full name and detail in the %s feed row', (_label, node) => {
     renderBody(node);
-    expect(screen.getByText(LONG_NAME)).toHaveAttribute('title', LONG_NAME);
+    const title = screen.getByRole('link').getAttribute('title') ?? '';
+    expect(title).toContain(LONG_NAME);
+    expect(title).toContain('Unlimited annual membership');
   });
 
+  // The floating copy is what a hover actually shows: the clipped text stays
+  // clipped, and this sits above the row instead of reflowing it.
   it.each([
     ['check-ins', <RecentCheckInsBody key="c" data={data()} />],
     ['members', <RecentMembersBody key="m" data={data()} />],
-  ])('reveals the clipped detail line too in the %s feed', (_label, node) => {
+  ])('renders a floating copy of the name in the %s feed', (_label, node) => {
     const { container } = renderBody(node);
-    const detail = container.querySelector('[title*="Unlimited annual membership"]');
-    expect(detail).not.toBeNull();
+    const tip = container.querySelector('[aria-hidden="true"]');
+    expect(container.textContent).toContain(LONG_NAME);
+    expect(tip).not.toBeNull();
+  });
+
+  it('opens the member behind a check-in row', () => {
+    renderBody(<RecentCheckInsBody data={data()} />);
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/members/m1');
+  });
+
+  it('opens the member behind a recent-members row', () => {
+    renderBody(<RecentMembersBody data={data()} />);
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/members/m1');
   });
 });
