@@ -71,7 +71,7 @@ Tasks 1–10 are additive: the Members tab keeps showing the old widget grid thr
 **Interfaces:**
 
 - Consumes: `reportSeriesPointSchema` from `./reports-drilldown`; `salesGranularitySchema`, `SALES_GRANULARITY_RANGE` from `./dashboard-sales`.
-- Produces: `membersGranularitySchema`, `retentionWindowSchema`, `expiringWindowSchema`, `dashboardMembersQuerySchema`, `dashboardMembersResponseSchema`, `MEMBER_STATUSES`, and the types `MembersGranularity`, `RetentionWindow`, `ExpiringWindow`, `MemberStatus`, `MembersKpis`, `SignupsChurnPoint`, `RetentionPoint`, `MemberStatusSlice`, `DashboardMembersQuery`, `DashboardMembersResponse`.
+- Produces: `membersGranularitySchema`, `retentionWindowSchema`, `expiringWindowSchema`, `dashboardMembersQuerySchema`, `dashboardMembersResponseSchema`, `MEMBERSHIP_STATUSES`, and the types `MembersGranularity`, `RetentionWindow`, `ExpiringWindow`, `MembershipStatus`, `MembersKpis`, `SignupsChurnPoint`, `RetentionPoint`, `MembershipStatusSlice`, `DashboardMembersQuery`, `DashboardMembersResponse`.
 
 **Note on `expiringWindow`:** it is declared here and echoed by the API, but nothing in Plan A reads it. Plan B's expiring-soon card is its consumer. It is in the contract now so the query shape does not change under Plan B — a shipped contract that gains a required-ish field later forces a second round of client changes.
 
@@ -85,7 +85,7 @@ import {
   DEFAULT_EXPIRING_WINDOW,
   DEFAULT_MEMBERS_GRANULARITY,
   DEFAULT_RETENTION_WINDOW,
-  MEMBER_STATUSES,
+  MEMBERSHIP_STATUSES,
   dashboardMembersQuerySchema,
   dashboardMembersResponseSchema,
 } from './dashboard-members';
@@ -122,11 +122,11 @@ describe('dashboardMembersQuerySchema', () => {
   });
 });
 
-describe('MEMBER_STATUSES', () => {
+describe('MEMBERSHIP_STATUSES', () => {
   // The spec shows all six, not the four the request named: PAST_DUE is a
   // problem staff must react to, and CANCELED is not the same as EXPIRED.
   it('carries all six subscription states, in lifecycle order', () => {
-    expect(MEMBER_STATUSES).toEqual([
+    expect(MEMBERSHIP_STATUSES).toEqual([
       'trial',
       'active',
       'past-due',
@@ -276,12 +276,17 @@ export type DashboardMembersQuery = z.infer<typeof dashboardMembersQuerySchema>;
  * The billing states a membership can be in, in lifecycle order — the wire form
  * of `SubscriptionStatus`.
  *
+ * Named for the MEMBERSHIP, not the member: `./members` already exports a
+ * `MemberStatus`, and it means something else entirely — `GymMemberStatus`, the
+ * ACCOUNT's own state (active / invited / suspended). This one is the billing
+ * truth. Two different questions, so two different names.
+ *
  * All six, not the four a membership dashboard obviously needs: `past-due` is a
  * failed charge staff must react to before it becomes a cancellation, and
  * `canceled` (the member left) is a different fact from `expired` (the billing
  * ran out), which a retention surface must not merge.
  */
-export const MEMBER_STATUSES = [
+export const MEMBERSHIP_STATUSES = [
   'trial',
   'active',
   'past-due',
@@ -289,8 +294,8 @@ export const MEMBER_STATUSES = [
   'canceled',
   'expired',
 ] as const;
-export const memberStatusSchema = z.enum(MEMBER_STATUSES);
-export type MemberStatus = z.infer<typeof memberStatusSchema>;
+export const membershipStatusSchema = z.enum(MEMBERSHIP_STATUSES);
+export type MembershipStatus = z.infer<typeof membershipStatusSchema>;
 
 /** One bucket of the signups-against-churn trend. */
 export const signupsChurnPointSchema = z.object({
@@ -312,11 +317,11 @@ export const retentionPointSchema = z.object({
 export type RetentionPoint = z.infer<typeof retentionPointSchema>;
 
 /** One bar of the members-by-status breakdown. */
-export const memberStatusSliceSchema = z.object({
-  status: memberStatusSchema,
+export const membershipStatusSliceSchema = z.object({
+  status: membershipStatusSchema,
   count: z.number(),
 });
-export type MemberStatusSlice = z.infer<typeof memberStatusSliceSchema>;
+export type MembershipStatusSlice = z.infer<typeof membershipStatusSliceSchema>;
 
 /** The tab's four headline figures. `avgLtv` is MINOR units; the rest are counts. */
 export const membersKpisSchema = z.object({
@@ -350,7 +355,7 @@ export const dashboardMembersResponseSchema = z.object({
   /** Rolling retention per bucket — dense, with `null` where undefined. */
   retention: z.array(retentionPointSchema),
   /** Only states with a non-zero count, in lifecycle order. */
-  byStatus: z.array(memberStatusSliceSchema),
+  byStatus: z.array(membershipStatusSliceSchema),
 });
 export type DashboardMembersResponse = z.infer<typeof dashboardMembersResponseSchema>;
 ```
@@ -707,12 +712,12 @@ import {
   SubscriptionStatus,
 } from '@fit/db';
 import {
-  MEMBER_STATUSES,
+  MEMBERSHIP_STATUSES,
   SALES_GRANULARITY_RANGE,
   type DashboardMembersQuery,
   type DashboardMembersResponse,
-  type MemberStatus,
-  type MemberStatusSlice,
+  type MembershipStatus,
+  type MembershipStatusSlice,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import {
@@ -727,7 +732,7 @@ import {
 const RETENTION_DAYS = { '30': 30, '60': 60, '90': 90 } as const;
 
 /** The wire form of each subscription state, keyed by the DB enum. */
-const STATUS_KEYS: Record<SubscriptionStatus, MemberStatus> = {
+const STATUS_KEYS: Record<SubscriptionStatus, MembershipStatus> = {
   [SubscriptionStatus.TRIAL]: 'trial',
   [SubscriptionStatus.ACTIVE]: 'active',
   [SubscriptionStatus.PAST_DUE]: 'past-due',
@@ -844,7 +849,7 @@ export class DashboardMembersService {
 
     /* -- Snapshots ------------------------------------------------------- */
 
-    const statusCounts = new Map<MemberStatus, number>();
+    const statusCounts = new Map<MembershipStatus, number>();
     for (const sub of subscriptions) {
       const key = STATUS_KEYS[sub.status];
       statusCounts.set(key, (statusCounts.get(key) ?? 0) + 1);
@@ -881,8 +886,8 @@ export class DashboardMembersService {
       retention,
       // Lifecycle order, from the contract's own list, so the chart's bars read
       // as a progression rather than in whatever order the Map filled.
-      byStatus: MEMBER_STATUSES.map(
-        (status): MemberStatusSlice => ({ status, count: statusCounts.get(status) ?? 0 }),
+      byStatus: MEMBERSHIP_STATUSES.map(
+        (status): MembershipStatusSlice => ({ status, count: statusCounts.get(status) ?? 0 }),
       ).filter((slice) => slice.count > 0),
     };
   }
@@ -1994,10 +1999,10 @@ git commit -m "feat(admin): add the Members growth cards"
 
 **Interfaces:**
 
-- Consumes: `AreaChart` with null support (Task 4); `BarChart` / `BarDatum` from `../charts`; `EmptyState`; `formatBucket` from `../format` (Task 8 moved it there); `RetentionPoint`, `RetentionWindow`, `MemberStatusSlice` from `@fit/types`.
+- Consumes: `AreaChart` with null support (Task 4); `BarChart` / `BarDatum` from `../charts`; `EmptyState`; `formatBucket` from `../format` (Task 8 moved it there); `RetentionPoint`, `RetentionWindow`, `MembershipStatusSlice` from `@fit/types`.
 - Produces:
   - `RetentionCard({ points, window, onSelectWindow, disabled })` — `points: RetentionPoint[]`, `window: RetentionWindow`, `onSelectWindow: (next: RetentionWindow) => void`.
-  - `StatusBreakdownCard({ slices }: { slices: MemberStatusSlice[] })`.
+  - `StatusBreakdownCard({ slices }: { slices: MembershipStatusSlice[] })`.
 
 **The retention card's whole reason for existing carefully:** `value` is `number | null`, and a `null` must reach `AreaChart` as `null`. Mapping it to `0` would draw a catastrophic-looking dip where the truth is "there was nobody to retain". The card also renders a one-line note under the chart saying what a gap means, because a broken line with no explanation reads as a rendering bug.
 
@@ -2156,7 +2161,7 @@ Create `apps/admin/app/(dashboard)/members/status-breakdown-card.tsx`:
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
-import type { MemberStatusSlice } from '@fit/types';
+import type { MembershipStatusSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
 
 const styles = stylex.create({
@@ -2171,7 +2176,7 @@ const styles = stylex.create({
   },
 });
 
-export function StatusBreakdownCard({ slices }: { slices: MemberStatusSlice[] }) {
+export function StatusBreakdownCard({ slices }: { slices: MembershipStatusSlice[] }) {
   const t = useTranslations('admin.dashboard.members');
 
   const data: BarDatum[] = slices.map((slice) => ({

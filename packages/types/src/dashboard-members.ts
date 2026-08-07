@@ -76,12 +76,17 @@ export type DashboardMembersQuery = z.infer<typeof dashboardMembersQuerySchema>;
  * The billing states a membership can be in, in lifecycle order — the wire form
  * of `SubscriptionStatus`.
  *
+ * Named for the MEMBERSHIP, not the member: `./members` already exports a
+ * `MemberStatus`, and it means something else entirely — `GymMemberStatus`, the
+ * ACCOUNT's own state (active / invited / suspended). This one is the billing
+ * truth. Two different questions, so two different names.
+ *
  * All six, not the four a membership dashboard obviously needs: `past-due` is a
  * failed charge staff must react to before it becomes a cancellation, and
  * `canceled` (the member left) is a different fact from `expired` (the billing
  * ran out), which a retention surface must not merge.
  */
-export const MEMBER_STATUSES = [
+export const MEMBERSHIP_STATUSES = [
   'trial',
   'active',
   'past-due',
@@ -89,8 +94,8 @@ export const MEMBER_STATUSES = [
   'canceled',
   'expired',
 ] as const;
-export const memberStatusSchema = z.enum(MEMBER_STATUSES);
-export type MemberStatus = z.infer<typeof memberStatusSchema>;
+export const membershipStatusSchema = z.enum(MEMBERSHIP_STATUSES);
+export type MembershipStatus = z.infer<typeof membershipStatusSchema>;
 
 /** One bucket of the signups-against-churn trend. */
 export const signupsChurnPointSchema = z.object({
@@ -112,11 +117,11 @@ export const retentionPointSchema = z.object({
 export type RetentionPoint = z.infer<typeof retentionPointSchema>;
 
 /** One bar of the members-by-status breakdown. */
-export const memberStatusSliceSchema = z.object({
-  status: memberStatusSchema,
+export const membershipStatusSliceSchema = z.object({
+  status: membershipStatusSchema,
   count: z.number(),
 });
-export type MemberStatusSlice = z.infer<typeof memberStatusSliceSchema>;
+export type MembershipStatusSlice = z.infer<typeof membershipStatusSliceSchema>;
 
 /** The tab's four headline figures. `avgLtv` is MINOR units; the rest are counts. */
 export const membersKpisSchema = z.object({
@@ -150,6 +155,6 @@ export const dashboardMembersResponseSchema = z.object({
   /** Rolling retention per bucket — dense, with `null` where undefined. */
   retention: z.array(retentionPointSchema),
   /** Only states with a non-zero count, in lifecycle order. */
-  byStatus: z.array(memberStatusSliceSchema),
+  byStatus: z.array(membershipStatusSliceSchema),
 });
 export type DashboardMembersResponse = z.infer<typeof dashboardMembersResponseSchema>;

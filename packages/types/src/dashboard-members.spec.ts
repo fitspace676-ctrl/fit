@@ -3,7 +3,7 @@ import {
   DEFAULT_EXPIRING_WINDOW,
   DEFAULT_MEMBERS_GRANULARITY,
   DEFAULT_RETENTION_WINDOW,
-  MEMBER_STATUSES,
+  MEMBERSHIP_STATUSES,
   dashboardMembersQuerySchema,
   dashboardMembersResponseSchema,
 } from './dashboard-members';
@@ -40,11 +40,11 @@ describe('dashboardMembersQuerySchema', () => {
   });
 });
 
-describe('MEMBER_STATUSES', () => {
+describe('MEMBERSHIP_STATUSES', () => {
   // The spec shows all six, not the four the request named: PAST_DUE is a
   // problem staff must react to, and CANCELED is not the same as EXPIRED.
   it('carries all six subscription states, in lifecycle order', () => {
-    expect(MEMBER_STATUSES).toEqual([
+    expect(MEMBERSHIP_STATUSES).toEqual([
       'trial',
       'active',
       'past-due',
