@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InvoiceStatus, isLiveStatus, PaymentStatus, Role, SubscriptionStatus } from '@fit/db';
+import { InvoiceStatus, PaymentStatus, Role, SubscriptionStatus } from '@fit/db';
 import {
   MEMBERSHIP_STATUSES,
   SALES_GRANULARITY_RANGE,
@@ -16,6 +16,7 @@ import {
   emptyBuckets,
   resolveWindow,
 } from '../reports/report-window.util';
+import { churnMoment, liveCountAt, liveMembersAt } from './subscription-timeline.util';
 
 /** Days each retention window looks back. */
 const RETENTION_DAYS = { '30': 30, '60': 60, '90': 90 } as const;
@@ -29,15 +30,6 @@ const STATUS_KEYS: Record<SubscriptionStatus, MembershipStatus> = {
   [SubscriptionStatus.CANCELED]: 'canceled',
   [SubscriptionStatus.EXPIRED]: 'expired',
 };
-
-/** The subscription fields every trend here reconstructs state from. */
-interface SubscriptionRow {
-  memberId: string;
-  status: SubscriptionStatus;
-  createdAt: Date;
-  canceledAt: Date | null;
-  updatedAt: Date;
-}
 
 /**
  * Read side of the hand-built Members dashboard tab.
@@ -55,9 +47,11 @@ interface SubscriptionRow {
  * revenue reads alike, which the older `members` drill-down does not do and is why
  * its figures include trashed members and their revenue.
  *
- * `LIVE_SUBSCRIPTION_STATUSES` is imported from `@fit/db`, the state machine that
- * owns the definition. Three hand-written copies of that list already exist in
- * this repo; this is deliberately not a fourth.
+ * The subscription-liveness reconstruction lives in `./subscription-timeline.util`,
+ * shared with the Revenue tab so the two can never disagree about how many members
+ * are active. It reads `LIVE_SUBSCRIPTION_STATUSES` from `@fit/db`, the state
+ * machine that owns the definition — three hand-written copies of that list already
+ * exist in this repo, and this is deliberately not a fourth.
  */
 @Injectable()
 export class DashboardMembersService {
@@ -188,44 +182,4 @@ export class DashboardMembersService {
       ).filter((slice) => slice.count > 0),
     };
   }
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Pure helpers                                                               */
-/* -------------------------------------------------------------------------- */
-
-/**
- * A subscription's terminal instant, or `null` while it is still live. Mirrors
- * the private helper in `report-drilldown.service.ts`; reproduced rather than
- * exported from there, so this service does not reach into another's internals.
- */
-function churnMoment(sub: SubscriptionRow): Date | null {
-  if (sub.status === SubscriptionStatus.CANCELED) return sub.canceledAt ?? sub.updatedAt;
-  if (sub.status === SubscriptionStatus.EXPIRED) return sub.updatedAt;
-  return null;
-}
-
-/** Whether a subscription existed and had not yet ended at `at`. */
-function wasLiveAt(sub: SubscriptionRow, at: Date): boolean {
-  if (sub.createdAt >= at) return false;
-  const churnedAt = churnMoment(sub);
-  if (churnedAt !== null && churnedAt < at) return false;
-  // A live-status row that has not churned was live; a terminal row that churned
-  // after `at` was live then too. The isLiveStatus predicate from @fit/db handles
-  // type widening correctly; the tuple LIVE_SUBSCRIPTION_STATUSES would not.
-  return churnedAt !== null || isLiveStatus(sub.status);
-}
-
-/** The distinct members holding at least one live subscription at `at`. */
-function liveMembersAt(subs: SubscriptionRow[], at: Date): Set<string> {
-  const ids = new Set<string>();
-  for (const sub of subs) {
-    if (wasLiveAt(sub, at)) ids.add(sub.memberId);
-  }
-  return ids;
-}
-
-/** How many distinct members held a live subscription at `at`. */
-function liveCountAt(subs: SubscriptionRow[], at: Date): number {
-  return liveMembersAt(subs, at).size;
 }
