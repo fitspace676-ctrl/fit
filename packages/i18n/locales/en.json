@@ -151,6 +151,59 @@
         "loadError": "Couldn't load this segment.",
         "empty": "No widgets in this segment yet."
       },
+      "sales": {
+        "granularityLabel": "Granularity",
+        "granularity": { "daily": "Daily", "weekly": "Weekly", "monthly": "Monthly" },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "productTypeLabel": "Product type",
+        "productType": {
+          "all": "All sales",
+          "memberships": "Memberships",
+          "session-packs": "Class & PT packs",
+          "retail": "Retail & POS"
+        },
+        "kpi": {
+          "grossSales": "Gross sales",
+          "netSales": "Net sales",
+          "refunded": "Refunded",
+          "avgSale": "Avg sale"
+        },
+        "kpiCaption": "{window} · {productType} · captured payments only — subscription renewals bill separately.",
+        "refundedHint": "Against sales in this window",
+        "trend": {
+          "title": "Revenue over time",
+          "caption": "{window} · {productType} · {total} net",
+          "chartAria": "Net revenue per period",
+          "empty": "No revenue in this window."
+        },
+        "vsRefunds": {
+          "title": "New sales vs refunds",
+          "caption": "Each dated by when it was taken",
+          "chartAria": "Sales against refunds per period",
+          "sales": "Sales",
+          "refunds": "Refunds",
+          "empty": "No sales or refunds in this window."
+        },
+        "method": {
+          "title": "Sales by payment method",
+          "share": "POS {pos}% · Online {online}%",
+          "channel": { "pos": "POS", "online": "Online" },
+          "name": { "cash": "Cash", "card": "Card", "member-account": "Member account" },
+          "row": "{channel} · {name}",
+          "empty": "No payments in this window."
+        },
+        "topSellers": {
+          "title": "Top sellers",
+          "orders": "{count, plural, one {# order} other {# orders}}",
+          "empty": "Nothing sold in this window."
+        },
+        "loadError": "Couldn't load sales.",
+        "retry": "Retry"
+      },
       "widgets": {
         "salesPaymentMethod": "Sales by payment method",
         "salesTopProducts": "Top-selling products",
