@@ -12,8 +12,8 @@
 // per member so far, and the caption says so.
 
 import * as stylex from '@stylexjs/stylex';
-import { useTranslations } from 'next-intl';
-import { createNumberFormat, defaultLocale } from '@fit/i18n';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import type { NumberFormatter } from '@fit/i18n';
 import type { DashboardMembersResponse, MembersGranularity, MembersKpis } from '@fit/types';
 import { Sparkline } from '../charts';
@@ -110,6 +110,8 @@ export function MembersKpiStrip({
   money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.members');
+  // The VIEWER's locale, not a fixed one — see `status-breakdown-card.tsx`.
+  const count = createNumberFormat(useLocale());
   const kpis = data.kpis;
 
   return (
@@ -125,7 +127,7 @@ export function MembersKpiStrip({
                   {tile.money
                     ? // Money is carried in MINOR units; the strip shows major units.
                       money.format(kpis[tile.key] / 100)
-                    : createNumberFormat(defaultLocale).format(kpis[tile.key])}
+                    : count.format(kpis[tile.key])}
                 </span>
                 {series && <Sparkline values={series} />}
               </div>

@@ -41,6 +41,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import { Button } from '@astryxdesign/core/Button';
 import {
+  DEFAULT_CURRENCY,
   DEFAULT_EXPIRING_WINDOW,
   DEFAULT_MEMBERS_GRANULARITY,
   DEFAULT_RETENTION_WINDOW,
@@ -238,7 +239,7 @@ export function MembersView() {
     () =>
       createNumberFormat(locale, {
         style: 'currency',
-        currency: data?.currency ?? 'USD',
+        currency: data?.currency ?? DEFAULT_CURRENCY,
         maximumFractionDigits: 0,
       }),
     [data?.currency, locale],

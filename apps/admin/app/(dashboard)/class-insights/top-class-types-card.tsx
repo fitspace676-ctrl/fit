@@ -14,6 +14,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
+import { TOP_CLASS_TYPES } from '@fit/types';
 import type { ClassTypeSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
 
@@ -52,7 +53,7 @@ export function TopClassTypesCard({ slices }: { slices: ClassTypeSlice[] }) {
     <Card variant="default" padding={0} xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('topTypes.title')}</h2>
-        <p {...stylex.props(styles.caption)}>{t('topTypes.caption')}</p>
+        <p {...stylex.props(styles.caption)}>{t('topTypes.caption', { count: TOP_CLASS_TYPES })}</p>
       </div>
 
       <BarChart data={data} emptyLabel={t('topTypes.empty')} />

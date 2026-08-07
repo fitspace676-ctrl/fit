@@ -13,6 +13,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
+import { TOP_TRAINERS } from '@fit/types';
 import type { TrainerDelivery } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
 
@@ -51,7 +52,7 @@ export function SessionsPerTrainerCard({ trainers }: { trainers: TrainerDelivery
     <Card variant="default" padding={0} xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('perTrainer.title')}</h2>
-        <p {...stylex.props(styles.caption)}>{t('perTrainer.caption')}</p>
+        <p {...stylex.props(styles.caption)}>{t('perTrainer.caption', { count: TOP_TRAINERS })}</p>
       </div>
 
       <BarChart data={data} emptyLabel={t('perTrainer.empty')} />

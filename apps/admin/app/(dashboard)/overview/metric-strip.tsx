@@ -131,6 +131,28 @@ const styles = stylex.create({
   },
 });
 
+/** How many standing counts the second tier holds. */
+const SECONDARY_TILES = 5;
+
+/**
+ * Filler cells needed below 1024px, DERIVED rather than assumed.
+ *
+ * The hairlines are the 1px grid gap showing the container's border colour
+ * through, with each cell painting over it — which means an UNFILLED grid area
+ * shows as a solid block of border colour rather than as empty space. Below
+ * 1024px the tier is 2 then 3 columns, so the cell count has to be divisible by
+ * both, and five is divisible by neither.
+ *
+ * This used to be a single hand-placed `<div>`, correct only for exactly five
+ * tiles. A sixth would have tiled by accident; a seventh would have shown the
+ * block again, silently, and only at some widths.
+ *
+ * From 1024px up the tier is 5 columns and the fillers are hidden — that
+ * breakpoint still assumes {@link SECONDARY_TILES} is 5, which is what the
+ * strip's test pins.
+ */
+const FILLERS = (6 - (SECONDARY_TILES % 6)) % 6;
+
 export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
   const locale = useLocale();
@@ -172,29 +194,27 @@ export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
       </div>
 
       <div {...stylex.props(styles.tier, styles.tierTwo)}>
-        <CountCell
-          label={t('secondaryKpi.activeMembers')}
-          value={count.format(data.secondaryKpis.activeMembers)}
-        />
-        <CountCell
-          label={t('secondaryKpi.overduePayments')}
-          value={count.format(data.secondaryKpis.overduePayments)}
-        />
-        <CountCell
-          label={t('secondaryKpi.classes')}
-          value={count.format(data.secondaryKpis.classesToday)}
-        />
-        <CountCell
-          label={t('secondaryKpi.expiringSoon')}
-          value={count.format(data.secondaryKpis.expiringSoon)}
-          hint={t('secondaryKpi.expiringSoonHint')}
-        />
-        <CountCell
-          label={t('secondaryKpi.renewalsDue')}
-          value={count.format(data.secondaryKpis.renewalsDue)}
-          hint={t('secondaryKpi.renewalsDueHint')}
-        />
-        <div aria-hidden="true" {...stylex.props(styles.cell, styles.filler)} />
+        {[
+          { key: 'activeMembers', value: data.secondaryKpis.activeMembers },
+          { key: 'overduePayments', value: data.secondaryKpis.overduePayments },
+          { key: 'classes', value: data.secondaryKpis.classesToday },
+          { key: 'expiringSoon', value: data.secondaryKpis.expiringSoon, hint: true },
+          { key: 'renewalsDue', value: data.secondaryKpis.renewalsDue, hint: true },
+        ].map((tile) => (
+          <CountCell
+            key={tile.key}
+            label={t(`secondaryKpi.${tile.key}`)}
+            value={count.format(tile.value)}
+            hint={tile.hint ? t(`secondaryKpi.${tile.key}Hint`) : undefined}
+          />
+        ))}
+        {Array.from({ length: FILLERS }, (_, i) => (
+          <div
+            key={`filler-${i}`}
+            aria-hidden="true"
+            {...stylex.props(styles.cell, styles.filler)}
+          />
+        ))}
       </div>
     </div>
   );

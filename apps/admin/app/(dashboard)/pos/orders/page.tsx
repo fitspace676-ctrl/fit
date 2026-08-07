@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import {
+  DEFAULT_CURRENCY,
   Permission,
   listOrdersQuerySchema,
   roleHasPermission,
@@ -268,7 +269,7 @@ export default async function OrdersLogPage({
   }
 
   const { data, total, page, limit } = result;
-  const currency = data[0]?.currency ?? 'GEL';
+  const currency = data[0]?.currency ?? DEFAULT_CURRENCY;
   const grossOnPage = data.reduce((sum, o) => sum + o.total, 0);
   const refundedOnPage = data.reduce((sum, o) => sum + o.refundedAmount, 0);
 

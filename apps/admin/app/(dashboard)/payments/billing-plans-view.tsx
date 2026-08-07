@@ -18,6 +18,7 @@
 // so the cards, segment counts and KPIs all re-derive from one source of truth.
 
 import { useMemo, useState, useTransition } from 'react';
+import { DEFAULT_CURRENCY } from '@fit/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -108,7 +109,7 @@ export function BillingPlansView({
   // KPIs describe the whole catalogue, not the current segment. MRR + subscribers
   // count every live subscriber, even on an archived plan (deactivating a plan
   // never cancels its live subscriptions).
-  const currency = plans[0]?.currency ?? 'USD';
+  const currency = plans[0]?.currency ?? DEFAULT_CURRENCY;
   const totalSubscribers = plans.reduce((sum, p) => sum + p.subscriberCount, 0);
   const totalMrrMinor = plans.reduce((sum, p) => sum + planMonthlyRevenue(p), 0);
   const avgPerMemberMinor = totalSubscribers > 0 ? Math.round(totalMrrMinor / totalSubscribers) : 0;

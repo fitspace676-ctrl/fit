@@ -47,6 +47,13 @@ export type DashboardClassesQuery = z.infer<typeof dashboardClassesQuerySchema>;
 /* -------------------------------------------------------------------------- */
 
 /** Demand heatmap dimensions: Monday–Sunday by hour 0–23, UTC. */
+/**
+ * How many class types the ranking shows. In the shared contract, not the
+ * service, because the CARD'S CAPTION states the number — and a cap that lives
+ * only next to its `slice` leaves that caption free to drift into a lie.
+ */
+export const TOP_CLASS_TYPES = 8;
+
 export const HEATMAP_ROWS = 7;
 export const HEATMAP_COLS = 24;
 

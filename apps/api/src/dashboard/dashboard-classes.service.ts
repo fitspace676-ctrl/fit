@@ -3,6 +3,7 @@ import { BookingStatus, InstanceStatus } from '@fit/db';
 import {
   HEATMAP_COLS,
   HEATMAP_ROWS,
+  TOP_CLASS_TYPES,
   SALES_GRANULARITY_RANGE,
   type ClassTypeSlice,
   type DashboardClassesQuery,
@@ -14,7 +15,6 @@ import { bucketKey, emptyBuckets, rate, resolveWindow } from '../reports/report-
 import { zonedParts } from '../reports/zoned-time.util';
 
 /** How many class types the ranking shows. The card's caption states it. */
-const TOP_CLASS_TYPES = 8;
 
 /** Fallback name for an occurrence whose template and type are both gone. */
 const UNNAMED_CLASS = 'Class';

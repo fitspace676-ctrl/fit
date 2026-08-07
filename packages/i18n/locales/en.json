@@ -385,7 +385,7 @@
         },
         "topTypes": {
           "title": "Most booked classes",
-          "caption": "Top 8 by seats booked",
+          "caption": "Top {count} by seats booked",
           "row": "{sessions} sessions · {utilization} full",
           "empty": "No classes booked in this window."
         },
@@ -443,7 +443,7 @@
         },
         "perTrainer": {
           "title": "Delivery per trainer",
-          "caption": "Top 8 by sessions",
+          "caption": "Top {count} by sessions",
           "row": "{classes} classes · {pt} PT · {hours}h",
           "empty": "No sessions delivered in this window."
         },

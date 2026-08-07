@@ -104,3 +104,43 @@ describe('MetricStrip', () => {
     expect(within(strip).getByText('0')).toBeInTheDocument();
   });
 });
+
+/*
+ * The hairlines are the 1px grid gap showing the container's border colour
+ * through, with each cell painting over it. That makes an UNFILLED grid area a
+ * solid block of border colour rather than empty space — so the tier's cell
+ * count has to tile at every breakpoint, and the filler cells exist for that.
+ *
+ * There used to be exactly one, hand-placed, correct only for exactly five
+ * tiles. Adding a sixth would have broken the layout silently and only at some
+ * widths. These tests turn that into a loud failure.
+ */
+describe('metric strip tiling', () => {
+  function tierTwo(): Element {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+        <MetricStrip data={overview()} />
+      </NextIntlClientProvider>,
+    );
+    // The strip is two tier rows; the second holds the standing counts.
+    const strip = screen.getByRole('group', { name: 'Key metrics' });
+    const tiers = [...strip.children];
+    const last = tiers[tiers.length - 1];
+    if (!last) throw new Error('no second tier');
+    return last;
+  }
+
+  it('tiles the second tier at both the 2-column and 3-column breakpoints', () => {
+    const cells = tierTwo().children.length;
+    expect(cells % 2).toBe(0);
+    expect(cells % 3).toBe(0);
+  });
+
+  // The 1024px+ rule is `repeat(5, …)` and hides the fillers, so it tiles only
+  // while there are exactly five real tiles. If this fails, that media query
+  // needs its column count changed alongside — it will not adapt on its own.
+  it('still has the five real tiles the 5-column breakpoint assumes', () => {
+    const real = [...tierTwo().children].filter((el) => el.getAttribute('aria-hidden') !== 'true');
+    expect(real).toHaveLength(5);
+  });
+});

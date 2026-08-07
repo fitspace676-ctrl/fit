@@ -235,7 +235,7 @@ describe('DashboardMembersService.get — LTV', () => {
   });
 
   it('reports zero LTV rather than dividing by zero when the gym has no members', async () => {
-    const { service } = setup({ memberCount: 0, payments: [{ amount: 500, refundedAmount: 0 }] });
+    const { service } = setup({ memberCount: 0, paymentsTotal: 500 });
     expect((await service.get(QUERY)).kpis.avgLtv).toBe(0);
   });
 

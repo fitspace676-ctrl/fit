@@ -41,6 +41,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import { Button } from '@astryxdesign/core/Button';
 import {
+  DEFAULT_CURRENCY,
   DEFAULT_PROJECTION_WINDOW,
   DEFAULT_REVENUE_GRANULARITY,
   type DashboardRevenueResponse,
@@ -235,7 +236,7 @@ export function RevenueView() {
     () =>
       createNumberFormat(locale, {
         style: 'currency',
-        currency: data?.currency ?? 'USD',
+        currency: data?.currency ?? DEFAULT_CURRENCY,
         maximumFractionDigits: 0,
       }),
     [data?.currency, locale],
