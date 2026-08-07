@@ -99,12 +99,17 @@ describe('DashboardSegmentsService.get', () => {
     ]);
   });
 
-  // The reason this is worth a test: widgets spanning multiple reports must not
-  // recompute a report per widget. `classes` is the fixture for this because its
-  // two widgets resolve to two DISTINCT metrics (`classes`.most-booked → the
-  // `classes` metric, `classes.peak-hours` → the `attendance` metric) — asserting
-  // per metric fails both if a metric is recomputed per widget and if a metric is
-  // missed entirely, which a bare total-call-count assertion would not catch.
+  // This test and the next one together guard the two branches of the same
+  // dedup logic. No single segment in the current catalogue exercises both at
+  // once — the old `sales` fixture did (three widgets, two of them sharing
+  // `pos`), but `sales` is now a hand-built view with no catalogue entries.
+  // This one is the cross-metric branch: widgets spanning multiple reports must
+  // not recompute a report per widget. `classes` is the fixture because its two
+  // widgets resolve to two DISTINCT metrics (`classes.most-booked` → the
+  // `classes` metric, `classes.peak-hours` → the `attendance` metric) —
+  // asserting per metric fails both if a metric is recomputed per widget and if
+  // a metric is missed entirely, which a bare total-call-count assertion would
+  // not catch.
   it('computes each distinct metric exactly once', async () => {
     const { service, run } = setup();
 
@@ -113,6 +118,25 @@ describe('DashboardSegmentsService.get', () => {
     expect(run.mock.calls.filter((call) => call[0] === 'classes')).toHaveLength(1);
     expect(run.mock.calls.filter((call) => call[0] === 'attendance')).toHaveLength(1);
     expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  // The other branch: two widgets that share ONE metric must not each trigger
+  // their own `run` call. `members` is the fixture because both its widgets
+  // (`members.new-signups`, `members.churn`) resolve to the same `members`
+  // metric. Asserting the response still carries both widgets (not just the
+  // call count) rules out a degenerate "pass" where the service drops one
+  // widget instead of actually sharing the computed report between them.
+  it('computes a shared metric once for all the widgets that use it', async () => {
+    const { service, run } = setup();
+
+    const result = await service.get('members', '7d');
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith('members', { range: '7d' });
+    expect(result.widgets.map((widget) => widget.key)).toEqual([
+      'members.new-signups',
+      'members.churn',
+    ]);
   });
 
   it('passes the requested range through to the drill-down', async () => {
