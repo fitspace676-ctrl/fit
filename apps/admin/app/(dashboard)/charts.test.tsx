@@ -4,6 +4,7 @@ import {
   AnimatedCircularProgressBar,
   AreaChart,
   DualAreaChart,
+  Heatmap,
   SeriesSwatch,
   Sparkline,
 } from './charts';
@@ -360,5 +361,38 @@ describe('DualAreaChart hover', () => {
     expect(screen.getByText('on 2026-08-01')).toBeInTheDocument();
     fireEvent.pointerLeave(plot);
     expect(screen.queryByText('on 2026-08-01')).toBeNull();
+  });
+});
+
+// The label column used to be an `auto` track. `justify-content` resolves to
+// `stretch` by default, and with every cell track a fixed `1rem` that one
+// flexible track absorbed the whole of a wide card's free width — the labels sat
+// at its right edge and the heatmap looked shoved into the far half of the box.
+describe('Heatmap sizing', () => {
+  function grid(cols: number): HTMLElement | null {
+    const { container } = render(
+      <Heatmap
+        rowLabels={['Mon', 'Tue']}
+        colLabels={Array.from({ length: cols }, (_, i) => String(i))}
+        cells={[
+          [1, 2],
+          [3, 4],
+        ]}
+      />,
+    );
+    return container.querySelector('[role="img"]');
+  }
+
+  it('pins the label column to its content and gives the width to the cells', () => {
+    const columns = grid(24)?.style.gridTemplateColumns ?? '';
+    expect(columns.startsWith('max-content')).toBe(true);
+    expect(columns).not.toContain('auto');
+    // Each hour is a flexible track with a floor, so the row spans the card and
+    // still has something to scroll at when the card is narrower than the floor.
+    expect(columns).toContain('repeat(24, minmax(1rem, 1fr))');
+  });
+
+  it('tracks the column count it was given', () => {
+    expect(grid(7)?.style.gridTemplateColumns).toContain('repeat(7,');
   });
 });

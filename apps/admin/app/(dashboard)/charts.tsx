@@ -1106,7 +1106,6 @@ const heatStyles = stylex.create({
   grid: {
     display: 'grid',
     gap: '2px',
-    minWidth: 'max-content',
   },
   corner: {},
   colLabel: {
@@ -1123,8 +1122,12 @@ const heatStyles = stylex.create({
     color: 'var(--color-text-secondary)',
   },
   cell: {
-    width: '1rem',
-    height: '1rem',
+    // No fixed width: the track sizes the cell now (see `gridTemplateColumns`
+    // below), and the square comes from the aspect ratio rather than from a
+    // matching height. A hard `1rem` here would have kept the cells small and
+    // handed the leftover width straight back to the label column.
+    width: '100%',
+    aspectRatio: '1',
     borderRadius: '3px',
     // Brand accent, tinted per-cell by opacity set inline off the value.
     backgroundColor: 'var(--color-accent)',
@@ -1157,7 +1160,22 @@ export function Heatmap({
         role="img"
         aria-label={ariaLabel}
         {...stylex.props(heatStyles.grid)}
-        style={{ gridTemplateColumns: `auto repeat(${cols}, 1rem)` }}
+        /*
+          `max-content` for the labels, NOT `auto`.
+          
+          An `auto` track is flexible for alignment: with `justify-content`
+          resolving to `stretch` (its `normal` default) and every other track a
+          fixed `1rem`, the label column absorbed ALL the free space — on a wide
+          card it grew to a few hundred pixels, the labels sat at its right edge
+          because they are right-aligned, and the grid read as a heatmap shoved
+          into the far half of an empty box. `max-content` pins that column to
+          the widest label, and `1fr` hands the free width to the cells.
+
+          The `1rem` floor is what keeps `overflow-x: auto` on the wrapper
+          meaningful: below roughly 480px the grid stops shrinking and scrolls
+          instead of crushing 24 hours into slivers.
+        */
+        style={{ gridTemplateColumns: `max-content repeat(${cols}, minmax(1rem, 1fr))` }}
       >
         <span {...stylex.props(heatStyles.corner)} />
         {colLabels.map((label, index) => (
