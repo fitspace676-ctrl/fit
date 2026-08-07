@@ -28,33 +28,50 @@
 - **Every user-visible string is an i18n key** in **both** `packages/i18n/locales/en.json` and `ka.json`.
 - **Prettier + eslint run on commit.** If the hook rejects, run `npx prettier --write <files>` and re-commit.
 
+## Directory note — read before Task 5
+
+The tab's files live in **`apps/admin/app/(dashboard)/member-retention/`**, NOT
+`members/`.
+
+`(dashboard)/members/` already exists and is a different feature: the member
+**roster** route (`/members`) with its own `page.tsx`, table, filters, drawers and
+an `actions.ts` carrying a dozen create / update / trash / freeze actions. The
+Sales tab had no such collision — there is no `/sales` route — so copying its
+`(dashboard)/<tab>/` shape here would have buried five analytics components and a
+Server Action inside an unrelated page's directory.
+
+`member-retention` names what the tab is for and cannot be mistaken for the
+roster. Note that the roster's `actions.ts` already exports its own
+`ActionResult`; the tab's is a separate module with its own, exactly as the Sales
+tab has its own.
+
 ## File Structure
 
-| File                                                           | Responsibility                    | Task |
-| -------------------------------------------------------------- | --------------------------------- | ---- |
-| `packages/types/src/dashboard-members.ts`                      | Query + response contract         | 1    |
-| `packages/types/src/dashboard-members.spec.ts`                 | Contract tests                    | 1    |
-| `packages/types/index.ts`                                      | Re-export                         | 1    |
-| `apps/api/src/dashboard/dashboard-members.service.ts`          | The aggregation                   | 2    |
-| `apps/api/src/dashboard/dashboard-members.service.spec.ts`     | Aggregation tests                 | 2    |
-| `apps/api/src/dashboard/dashboard.controller.ts`               | `GET /dashboard/members`          | 3    |
-| `apps/api/src/dashboard/dashboard.controller.spec.ts`          | Route tests                       | 3    |
-| `apps/api/src/dashboard/dashboard.module.ts`                   | Provider wiring                   | 3    |
-| `apps/admin/app/(dashboard)/charts.tsx`                        | `AreaChart` gap support           | 4    |
-| `apps/admin/app/(dashboard)/charts.test.tsx`                   | Gap tests                         | 4    |
-| `apps/admin/lib/api.ts`                                        | `fetchDashboardMembers`           | 5    |
-| `apps/admin/app/(dashboard)/members/actions.ts`                | `loadMembersAction`               | 5    |
-| `packages/i18n/locales/{en,ka}.json`                           | `admin.dashboard.members.*`       | 6    |
-| `apps/admin/app/(dashboard)/members/members-kpi-strip.tsx`     | Four tiles                        | 7    |
-| `apps/admin/app/(dashboard)/members/active-members-card.tsx`   | Trend + granularity control       | 8    |
-| `apps/admin/app/(dashboard)/members/signups-vs-churn-card.tsx` | `DualAreaChart`                   | 8    |
-| `apps/admin/app/(dashboard)/members/retention-card.tsx`        | Trend + 30/60/90 control          | 9    |
-| `apps/admin/app/(dashboard)/members/status-breakdown-card.tsx` | `BarChart` over six statuses      | 9    |
-| `apps/admin/app/(dashboard)/members/members-view.tsx`          | Fetch, cache, controls, layout    | 10   |
-| `apps/admin/app/(dashboard)/members/members-view.test.tsx`     | View tests                        | 10   |
-| `packages/types/src/dashboard-segments.ts`                     | Drop `members` from configurables | 11   |
-| `apps/admin/app/(dashboard)/segments/segmented-dashboard.tsx`  | Render `MembersView`              | 11   |
-| `apps/admin/app/(dashboard)/dashboard-header.tsx`              | No `?range=` on `members`         | 11   |
+| File                                                                    | Responsibility                    | Task |
+| ----------------------------------------------------------------------- | --------------------------------- | ---- |
+| `packages/types/src/dashboard-members.ts`                               | Query + response contract         | 1    |
+| `packages/types/src/dashboard-members.spec.ts`                          | Contract tests                    | 1    |
+| `packages/types/index.ts`                                               | Re-export                         | 1    |
+| `apps/api/src/dashboard/dashboard-members.service.ts`                   | The aggregation                   | 2    |
+| `apps/api/src/dashboard/dashboard-members.service.spec.ts`              | Aggregation tests                 | 2    |
+| `apps/api/src/dashboard/dashboard.controller.ts`                        | `GET /dashboard/members`          | 3    |
+| `apps/api/src/dashboard/dashboard.controller.spec.ts`                   | Route tests                       | 3    |
+| `apps/api/src/dashboard/dashboard.module.ts`                            | Provider wiring                   | 3    |
+| `apps/admin/app/(dashboard)/charts.tsx`                                 | `AreaChart` gap support           | 4    |
+| `apps/admin/app/(dashboard)/charts.test.tsx`                            | Gap tests                         | 4    |
+| `apps/admin/lib/api.ts`                                                 | `fetchDashboardMembers`           | 5    |
+| `apps/admin/app/(dashboard)/member-retention/actions.ts`                | `loadMembersAction`               | 5    |
+| `packages/i18n/locales/{en,ka}.json`                                    | `admin.dashboard.members.*`       | 6    |
+| `apps/admin/app/(dashboard)/member-retention/members-kpi-strip.tsx`     | Four tiles                        | 7    |
+| `apps/admin/app/(dashboard)/member-retention/active-members-card.tsx`   | Trend + granularity control       | 8    |
+| `apps/admin/app/(dashboard)/member-retention/signups-vs-churn-card.tsx` | `DualAreaChart`                   | 8    |
+| `apps/admin/app/(dashboard)/member-retention/retention-card.tsx`        | Trend + 30/60/90 control          | 9    |
+| `apps/admin/app/(dashboard)/member-retention/status-breakdown-card.tsx` | `BarChart` over six statuses      | 9    |
+| `apps/admin/app/(dashboard)/member-retention/members-view.tsx`          | Fetch, cache, controls, layout    | 10   |
+| `apps/admin/app/(dashboard)/member-retention/members-view.test.tsx`     | View tests                        | 10   |
+| `packages/types/src/dashboard-segments.ts`                              | Drop `members` from configurables | 11   |
+| `apps/admin/app/(dashboard)/segments/segmented-dashboard.tsx`           | Render `MembersView`              | 11   |
+| `apps/admin/app/(dashboard)/dashboard-header.tsx`                       | No `?range=` on `members`         | 11   |
 
 Tasks 1–10 are additive: the Members tab keeps showing the old widget grid throughout. Task 11 is the only breaking change and carries all its test fallout.
 
@@ -1316,7 +1333,7 @@ git commit -m "feat(admin): let AreaChart break its line at a null value"
 **Files:**
 
 - Modify: `apps/admin/lib/api.ts` (add after `fetchDashboardSales`)
-- Create: `apps/admin/app/(dashboard)/members/actions.ts`
+- Create: `apps/admin/app/(dashboard)/member-retention/actions.ts`
 
 **Interfaces:**
 
@@ -1352,7 +1369,7 @@ export async function fetchDashboardMembers(
 
 - [ ] **Step 2: Add the server action**
 
-Create `apps/admin/app/(dashboard)/members/actions.ts`:
+Create `apps/admin/app/(dashboard)/member-retention/actions.ts`:
 
 ```ts
 'use server';
@@ -1403,7 +1420,7 @@ export async function loadMembersAction(
 Run: `pnpm --filter @fit/admin type-check`
 
 ```bash
-git add apps/admin/lib/api.ts "apps/admin/app/(dashboard)/members/actions.ts"
+git add apps/admin/lib/api.ts "apps/admin/app/(dashboard)/member-retention/actions.ts"
 git commit -m "feat(admin): add the Members tab data layer"
 ```
 
@@ -1574,7 +1591,7 @@ git commit -m "feat(i18n): add the Members dashboard tab copy"
 
 **Files:**
 
-- Create: `apps/admin/app/(dashboard)/members/members-kpi-strip.tsx`
+- Create: `apps/admin/app/(dashboard)/member-retention/members-kpi-strip.tsx`
 
 **Interfaces:**
 
@@ -1587,7 +1604,7 @@ git commit -m "feat(i18n): add the Members dashboard tab copy"
 
 - [ ] **Step 1: Write the component**
 
-Create `apps/admin/app/(dashboard)/members/members-kpi-strip.tsx`:
+Create `apps/admin/app/(dashboard)/member-retention/members-kpi-strip.tsx`:
 
 ```tsx
 'use client';
@@ -1700,7 +1717,7 @@ export function MembersKpiStrip({
 Run: `pnpm --filter @fit/admin type-check && pnpm check:tailwind-guardrail && pnpm --filter @fit/admin test`
 
 ```bash
-git add "apps/admin/app/(dashboard)/members/members-kpi-strip.tsx"
+git add "apps/admin/app/(dashboard)/member-retention/members-kpi-strip.tsx"
 git commit -m "feat(admin): add the Members KPI strip"
 ```
 
@@ -1710,8 +1727,8 @@ git commit -m "feat(admin): add the Members KPI strip"
 
 **Files:**
 
-- Create: `apps/admin/app/(dashboard)/members/active-members-card.tsx`
-- Create: `apps/admin/app/(dashboard)/members/signups-vs-churn-card.tsx`
+- Create: `apps/admin/app/(dashboard)/member-retention/active-members-card.tsx`
+- Create: `apps/admin/app/(dashboard)/member-retention/signups-vs-churn-card.tsx`
 
 **Interfaces:**
 
@@ -1767,7 +1784,7 @@ Expected: PASS, with **no test file edited**. A pure move cannot need one.
 
 - [ ] **Step 3: Write the active-members card**
 
-Create `apps/admin/app/(dashboard)/members/active-members-card.tsx`:
+Create `apps/admin/app/(dashboard)/member-retention/active-members-card.tsx`:
 
 ```tsx
 'use client';
@@ -1895,7 +1912,7 @@ export function ActiveMembersCard({
 
 - [ ] **Step 4: Write the signups-vs-churn card**
 
-Create `apps/admin/app/(dashboard)/members/signups-vs-churn-card.tsx`:
+Create `apps/admin/app/(dashboard)/member-retention/signups-vs-churn-card.tsx`:
 
 ```tsx
 'use client';
@@ -2008,7 +2025,7 @@ export function SignupsVsChurnCard({ points }: { points: SignupsChurnPoint[] }) 
 Run: `pnpm --filter @fit/admin type-check && pnpm check:tailwind-guardrail && pnpm --filter @fit/admin test`
 
 ```bash
-git add "apps/admin/app/(dashboard)/format.ts" "apps/admin/app/(dashboard)/sales/" "apps/admin/app/(dashboard)/members/active-members-card.tsx" "apps/admin/app/(dashboard)/members/signups-vs-churn-card.tsx"
+git add "apps/admin/app/(dashboard)/format.ts" "apps/admin/app/(dashboard)/sales/" "apps/admin/app/(dashboard)/member-retention/active-members-card.tsx" "apps/admin/app/(dashboard)/member-retention/signups-vs-churn-card.tsx"
 git commit -m "feat(admin): add the Members growth cards"
 ```
 
@@ -2018,8 +2035,8 @@ git commit -m "feat(admin): add the Members growth cards"
 
 **Files:**
 
-- Create: `apps/admin/app/(dashboard)/members/retention-card.tsx`
-- Create: `apps/admin/app/(dashboard)/members/status-breakdown-card.tsx`
+- Create: `apps/admin/app/(dashboard)/member-retention/retention-card.tsx`
+- Create: `apps/admin/app/(dashboard)/member-retention/status-breakdown-card.tsx`
 
 **Interfaces:**
 
@@ -2032,7 +2049,7 @@ git commit -m "feat(admin): add the Members growth cards"
 
 - [ ] **Step 1: Write the retention card**
 
-Create `apps/admin/app/(dashboard)/members/retention-card.tsx`:
+Create `apps/admin/app/(dashboard)/member-retention/retention-card.tsx`:
 
 ```tsx
 'use client';
@@ -2166,7 +2183,7 @@ export function RetentionCard({
 
 - [ ] **Step 2: Write the status breakdown card**
 
-Create `apps/admin/app/(dashboard)/members/status-breakdown-card.tsx`:
+Create `apps/admin/app/(dashboard)/member-retention/status-breakdown-card.tsx`:
 
 ```tsx
 'use client';
@@ -2226,7 +2243,7 @@ export function StatusBreakdownCard({ slices }: { slices: MembershipStatusSlice[
 Run: `pnpm --filter @fit/admin type-check && pnpm check:tailwind-guardrail && pnpm --filter @fit/admin test`
 
 ```bash
-git add "apps/admin/app/(dashboard)/members/retention-card.tsx" "apps/admin/app/(dashboard)/members/status-breakdown-card.tsx"
+git add "apps/admin/app/(dashboard)/member-retention/retention-card.tsx" "apps/admin/app/(dashboard)/member-retention/status-breakdown-card.tsx"
 git commit -m "feat(admin): add the Members retention and status cards"
 ```
 
@@ -2236,8 +2253,8 @@ git commit -m "feat(admin): add the Members retention and status cards"
 
 **Files:**
 
-- Create: `apps/admin/app/(dashboard)/members/members-view.tsx`
-- Create: `apps/admin/app/(dashboard)/members/members-view.test.tsx`
+- Create: `apps/admin/app/(dashboard)/member-retention/members-view.tsx`
+- Create: `apps/admin/app/(dashboard)/member-retention/members-view.test.tsx`
 
 **Interfaces:**
 
@@ -2254,7 +2271,7 @@ git commit -m "feat(admin): add the Members retention and status cards"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/admin/app/(dashboard)/members/members-view.test.tsx`:
+Create `apps/admin/app/(dashboard)/member-retention/members-view.test.tsx`:
 
 ```tsx
 import { describe, expect, it, vi, beforeEach } from 'vitest';
@@ -2514,7 +2531,7 @@ Expected: FAIL — cannot resolve `./members-view`.
 
 - [ ] **Step 3: Write the view**
 
-Create `apps/admin/app/(dashboard)/members/members-view.tsx`. Copy `sales/sales-view.tsx` and change only what the interfaces above require. The parts that must survive the copy unchanged:
+Create `apps/admin/app/(dashboard)/member-retention/members-view.tsx`. Copy `sales/sales-view.tsx` and change only what the interfaces above require. The parts that must survive the copy unchanged:
 
 - the whole `styles` block, so the two tabs share a layout exactly;
 - the `motion` block, `STAGGER_MS`, `settled` state and its `requestAnimationFrame` effect;
@@ -2685,7 +2702,7 @@ Expected: PASS — 9 tests.
 Run: `pnpm --filter @fit/admin type-check && pnpm check:tailwind-guardrail`
 
 ```bash
-git add "apps/admin/app/(dashboard)/members/members-view.tsx" "apps/admin/app/(dashboard)/members/members-view.test.tsx"
+git add "apps/admin/app/(dashboard)/member-retention/members-view.tsx" "apps/admin/app/(dashboard)/member-retention/members-view.test.tsx"
 git commit -m "feat(admin): assemble the Members tab view"
 ```
 
@@ -2843,7 +2860,7 @@ Update the file's header comment: the `- Sales → NEITHER` bullet becomes `- Sa
 
 - [ ] **Step 6: Update the admin specs**
 
-- `segmented-dashboard.test.tsx`: mock `../members/members-view` to render `Members view`; change the `selectedKeys` fixture's `members` key to `revenue`; re-point every `renderShell('members')` at `'revenue'`; add a test that `?segment=members` renders `Members view` and no `data-testid="panel"`; extend the "hides the widget picker" test to cover `members`.
+- `segmented-dashboard.test.tsx`: mock `../member-retention/members-view` to render `Members view`; change the `selectedKeys` fixture's `members` key to `revenue`; re-point every `renderShell('members')` at `'revenue'`; add a test that `?segment=members` renders `Members view` and no `data-testid="panel"`; extend the "hides the widget picker" test to cover `members`.
 - `segment-panel.test.tsx`: change the segment union from `'members' | 'revenue'` to `'revenue' | 'classes'`, default `'revenue'`, and the fixture's `segment` / `key` to `'revenue'` / `'revenue.over-time'`.
 - `add-widget-dialog.test.tsx`: replace the `members` selection fixtures with `revenue` ones (`ALL_REVENUE = ['revenue.over-time', 'revenue.by-location']`), `initialSegment="revenue"`, label fixtures `revenueOverTime` / `revenueByLocation`, and the save assertion targeting `('revenue', [...])`.
 - `dashboard-header.test.tsx`: change `renderHeader`'s union to `'overview' | 'sales' | 'members' | 'revenue'`, re-point the `'members'` calls at `'revenue'`, and extend the hand-built test to assert `members` shows neither filter too.
