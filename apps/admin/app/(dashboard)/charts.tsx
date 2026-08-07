@@ -622,13 +622,11 @@ export function DualAreaChart({
     y: height - pad - (value / max) * (height - pad * 2),
   });
 
+  // Both series ride the same monotone smoother the single-series chart uses, so
+  // the two charts do not disagree about what a curve looks like. `DualPoint` has
+  // no nullable value, so there are no gaps to break here — every bucket is dense.
   const path = (pick: (d: DualPoint) => number) =>
-    data
-      .map((d, i) => {
-        const p = project(pick(d), i);
-        return `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-      })
-      .join(' ');
+    smoothPath(data.map((d, i) => project(pick(d), i)));
 
   const primaryLine = path((d) => d.primary);
   const secondaryLine = path((d) => d.secondary);
@@ -644,22 +642,39 @@ export function DualAreaChart({
   const gradientId = `dual-fill-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={ariaLabel}
-      {...stylex.props(styles.areaSvg)}
-      style={{ height }}
-    >
-      <AccentAreaGradient id={gradientId} />
-      {primaryArea && <path d={primaryArea} fill={`url(#${gradientId})`} stroke="none" />}
-      <SeriesPath d={primaryLine} ink={styles.accentInk} />
-      <SeriesPath
-        d={secondaryLine}
-        ink={secondaryTone === 'neutral' ? styles.neutralInk : styles.negativeInk}
-      />
-    </svg>
+    // The same `plot` wrapper the single-series chart uses, for its top-light.
+    // Without it this card reads as a flat sticker beside its restyled neighbours.
+    <div {...stylex.props(styles.plot)}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={ariaLabel}
+        {...stylex.props(styles.areaSvg)}
+        style={{ height }}
+      >
+        <AccentAreaGradient id={gradientId} />
+        {primaryArea && <path d={primaryArea} fill={`url(#${gradientId})`} stroke="none" />}
+        {/* The glow: the primary path again, wider and translucent, UNDER it. */}
+        {primaryLine && (
+          <path
+            d={primaryLine}
+            fill="none"
+            {...stylex.props(styles.glowOne)}
+            stroke="currentColor"
+            strokeWidth={7}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        <SeriesPath d={primaryLine} ink={styles.accentInk} />
+        <SeriesPath
+          d={secondaryLine}
+          ink={secondaryTone === 'neutral' ? styles.neutralInk : styles.negativeInk}
+        />
+      </svg>
+    </div>
   );
 }
 

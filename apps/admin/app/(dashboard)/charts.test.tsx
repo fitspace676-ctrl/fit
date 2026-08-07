@@ -25,8 +25,9 @@ describe('DualAreaChart', () => {
         ]}
       />,
     );
-    // Area fill + primary stroke + secondary stroke.
-    expect(container.querySelectorAll('path')).toHaveLength(3);
+    // Area fill, the glow (the primary again, wider and translucent), then the
+    // two strokes on top.
+    expect(container.querySelectorAll('path')).toHaveLength(4);
   });
 
   // Two independently-scaled series would draw a 2 as tall as a 20. Here the
@@ -44,11 +45,16 @@ describe('DualAreaChart', () => {
         height={100}
       />,
     );
+    // The two strokes are the LAST two paths in paint order — read them from the
+    // end rather than by a fixed index, so adding a layer underneath (the glow
+    // did exactly that) does not silently repoint this at the wrong path.
     const paths = [...container.querySelectorAll('path')];
-    const primary = paths[1]?.getAttribute('d') ?? '';
-    const secondary = paths[2]?.getAttribute('d') ?? '';
-    const primaryTopY = primary.split(/[ML]/).pop()?.split(',')[1];
-    const secondaryTopY = secondary.split(/[ML]/).pop()?.split(',')[1];
+    const primary = paths[paths.length - 2]?.getAttribute('d') ?? '';
+    const secondary = paths[paths.length - 1]?.getAttribute('d') ?? '';
+    /** The y of the path's final point — the last number in the last pair. */
+    const endY = (d: string) => d.match(/,([-\d.]+)\s*$/)?.[1];
+    const primaryTopY = endY(primary);
+    const secondaryTopY = endY(secondary);
     // Primary hits the shared max (100) and peaks at the top of the frame;
     // secondary tops out at 10 against that same shared max, so it must stay
     // low. Pin the exact secondary y so the test checks the real arithmetic,
