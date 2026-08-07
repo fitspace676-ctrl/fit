@@ -215,6 +215,59 @@
         "loadError": "Couldn't load sales.",
         "retry": "Retry"
       },
+      "members": {
+        "granularityLabel": "Granularity",
+        "granularity": { "daily": "Daily", "weekly": "Weekly", "monthly": "Monthly" },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "kpi": {
+          "activeMembers": "Active members",
+          "newSignups": "New signups",
+          "churned": "Churned",
+          "avgLtv": "Avg LTV"
+        },
+        "kpiCaption": "{window} · LTV is lifetime value to date, not a forecast",
+        "active": {
+          "title": "Total active members",
+          "caption": "{window} · {total} now",
+          "chartAria": "Active members per period",
+          "empty": "No members in this window."
+        },
+        "signupsVsChurn": {
+          "title": "Signups vs cancellations",
+          "caption": "Joins against memberships that ended",
+          "chartAria": "Signups against cancellations per period",
+          "signups": "Signups",
+          "churned": "Cancellations",
+          "empty": "No joins or cancellations in this window."
+        },
+        "retention": {
+          "title": "Retention rate",
+          "windowLabel": "Retention window",
+          "window": { "30": "30d", "60": "60d", "90": "90d" },
+          "caption": "Members still here {days} days on",
+          "chartAria": "Retention rate per period",
+          "gapNote": "Gaps are periods with nobody to retain — not 0%.",
+          "empty": "Not enough history to measure retention yet."
+        },
+        "status": {
+          "title": "Members by status",
+          "name": {
+            "trial": "Trial",
+            "active": "Active",
+            "past-due": "Past due",
+            "frozen": "Frozen",
+            "canceled": "Cancelled",
+            "expired": "Expired"
+          },
+          "empty": "No memberships on record."
+        },
+        "loadError": "Couldn't load members.",
+        "retry": "Retry"
+      },
       "widgets": {
         "membersNewSignups": "New member signups",
         "membersChurn": "Member churn",
