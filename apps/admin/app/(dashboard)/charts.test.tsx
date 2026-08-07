@@ -151,6 +151,15 @@ describe('AnimatedCircularProgressBar', () => {
     expect(primary?.getAttribute('style')).toContain(`${25 * (CIRCUMFERENCE / 100)}px`);
   });
 
+  // A round cap on a zero-length dash paints a dot. On an occupancy gauge that
+  // dot sits at twelve o'clock reading as one person in an empty gym.
+  it('paints nothing at zero, not a dot', () => {
+    const { container } = render(<AnimatedCircularProgressBar value={0} max={24} />);
+    const circles = arcs(container);
+    expect(circles).toHaveLength(1);
+    expect(circles[0]?.getAttribute('style')).toContain('var(--color-background-muted)');
+  });
+
   it('draws the remainder as a second arc until the gap eats it', () => {
     const { container } = render(<AnimatedCircularProgressBar value={20} max={100} />);
     expect(arcs(container)).toHaveLength(2);

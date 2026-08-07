@@ -467,16 +467,24 @@ export function AnimatedCircularProgressBar({
             }}
           />
         ) : null}
-        <circle
-          {...shared}
-          style={{
-            stroke: primaryColor,
-            strokeDasharray: `${percent * PERCENT_TO_PX}px ${GAUGE_CIRCUMFERENCE}px`,
-            transform: 'rotate(-90deg)',
-            transformOrigin: '50px 50px',
-            transition: 'all 1s ease 0s, stroke 1s linear',
-          }}
-        />
+        {/*
+          Omitted at zero. A round cap on a zero-length dash still paints a dot,
+          so an empty gym drew a mark at twelve o'clock that reads as one person
+          — or as a smudge. Upstream has the same artefact; an occupancy gauge
+          cannot afford it, because zero is the number this card shows most.
+        */}
+        {percent > 0 ? (
+          <circle
+            {...shared}
+            style={{
+              stroke: primaryColor,
+              strokeDasharray: `${percent * PERCENT_TO_PX}px ${GAUGE_CIRCUMFERENCE}px`,
+              transform: 'rotate(-90deg)',
+              transformOrigin: '50px 50px',
+              transition: 'all 1s ease 0s, stroke 1s linear',
+            }}
+          />
+        ) : null}
       </svg>
       <span {...stylex.props(styles.gaugeCenter)}>
         {children ?? <span {...stylex.props(styles.gaugePercent)}>{percent}</span>}
