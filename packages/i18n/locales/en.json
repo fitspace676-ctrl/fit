@@ -410,6 +410,74 @@
         "loadError": "Couldn't load classes.",
         "retry": "Retry"
       },
+      "staff": {
+        "granularityLabel": "Granularity",
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "kpi": {
+          "trainersDelivering": "Trainers delivering",
+          "sessionsDelivered": "Sessions delivered",
+          "utilizationRate": "Trainer utilization",
+          "scheduledHoursPerWeek": "Scheduled / week"
+        },
+        "kpiCaption": "{window} · the rota is a standing week and does not follow it",
+        "noValue": "—",
+        "sessions": {
+          "title": "Sessions delivered",
+          "caption": "Classes taught against one-to-one sessions",
+          "chartAria": "Sessions delivered per period",
+          "classes": "Classes",
+          "pt": "PT",
+          "empty": "No sessions delivered in this window."
+        },
+        "utilization": {
+          "title": "Trainer utilization",
+          "caption": "Delivered hours against stated availability",
+          "excluded": "{count} trainers have no availability set",
+          "empty": "No trainer has availability set yet."
+        },
+        "perTrainer": {
+          "title": "Delivery per trainer",
+          "caption": "Top 8 by sessions",
+          "row": "{classes} classes · {pt} PT · {hours}h",
+          "empty": "No sessions delivered in this window."
+        },
+        "coverage": {
+          "title": "Shift coverage",
+          "caption": "The standing weekly rota — scheduled, not worked",
+          "weekday": {
+            "mon": "Mon",
+            "tue": "Tue",
+            "wed": "Wed",
+            "thu": "Thu",
+            "fri": "Fri",
+            "sat": "Sat",
+            "sun": "Sun"
+          },
+          "row": "{staff} staff",
+          "empty": "No shifts scheduled."
+        },
+        "gaps": {
+          "title": "Blind spots",
+          "caption": "What this tab cannot count",
+          "leave": "{count} staff-days of approved leave",
+          "noShifts": "{count} staff with no shift scheduled",
+          "noAvailability": "{count} trainers with no availability set",
+          "noTrainer": "{count} classes with no trainer assigned",
+          "invalidShifts": "{count} shifts that do not end after they start",
+          "none": "Nothing missing — every figure above is complete."
+        },
+        "loadError": "Couldn't load staff.",
+        "retry": "Retry"
+      },
       "widgets": {
         "staffSessionsPerTrainer": "Sessions per trainer"
       },

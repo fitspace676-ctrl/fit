@@ -21,6 +21,8 @@ import type {
   DashboardSalesResponse,
   DashboardClassesQuery,
   DashboardClassesResponse,
+  DashboardStaffQuery,
+  DashboardStaffResponse,
   DashboardMembersQuery,
   DashboardMembersResponse,
   DashboardRevenueQuery,
@@ -1763,6 +1765,23 @@ export async function fetchDashboardClasses(
     cache: 'no-store',
   });
   return unwrap<DashboardClassesResponse>(res);
+}
+
+/**
+ * `GET /dashboard/staff` — the hand-built Staff tab in one payload. The
+ * granularity scopes the delivery figures; the rota inside the response is a
+ * standing weekly schedule and does not move with it.
+ */
+export async function fetchDashboardStaff(
+  query: DashboardStaffQuery,
+): Promise<DashboardStaffResponse> {
+  const qs = new URLSearchParams({ granularity: query.granularity });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/staff?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Staffing figures reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardStaffResponse>(res);
 }
 
 /**

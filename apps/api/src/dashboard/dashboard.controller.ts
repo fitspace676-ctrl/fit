@@ -2,11 +2,13 @@ import { Controller, Get, HttpCode, HttpStatus, Query, UseGuards } from '@nestjs
 import {
   Permission,
   dashboardClassesQuerySchema,
+  dashboardStaffQuerySchema,
   dashboardMembersQuerySchema,
   dashboardOverviewQuerySchema,
   dashboardRevenueQuerySchema,
   dashboardSalesQuerySchema,
   type DashboardClassesResponse,
+  type DashboardStaffResponse,
   type DashboardMembersResponse,
   type DashboardOverviewResponse,
   type DashboardRevenueResponse,
@@ -17,6 +19,7 @@ import { RequirePermissions } from '../common/decorators/require-permissions.dec
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { DashboardClassesService } from './dashboard-classes.service';
+import { DashboardStaffService } from './dashboard-staff.service';
 import { DashboardMembersService } from './dashboard-members.service';
 import { DashboardRevenueService } from './dashboard-revenue.service';
 import { DashboardSalesService } from './dashboard-sales.service';
@@ -42,6 +45,7 @@ export class DashboardController {
     private readonly membersTab: DashboardMembersService,
     private readonly revenueTab: DashboardRevenueService,
     private readonly classesTab: DashboardClassesService,
+    private readonly staffTab: DashboardStaffService,
   ) {}
 
   /**
@@ -141,5 +145,21 @@ export class DashboardController {
   @RequirePermissions(Permission.ReportView)
   async classes(@Query() query: unknown): Promise<DashboardClassesResponse> {
     return this.classesTab.get(dashboardClassesQuerySchema.parse(query));
+  }
+
+  /**
+   * `GET /dashboard/staff?granularity=` — the hand-built Staff tab in one payload:
+   * four KPIs, the delivery trend, per-trainer delivery and utilization, the
+   * standing weekly rota, and the counts the tab cannot include.
+   *
+   * The granularity scopes the WHOLE response, which is why the tab is one round
+   * trip. The rota is deliberately unaffected by it: a recurring weekly schedule
+   * carries no dates.
+   */
+  @Get('staff')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ReportView)
+  async staff(@Query() query: unknown): Promise<DashboardStaffResponse> {
+    return this.staffTab.get(dashboardStaffQuerySchema.parse(query));
   }
 }

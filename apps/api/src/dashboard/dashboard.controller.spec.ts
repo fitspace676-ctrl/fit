@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type {
   DashboardClassesResponse,
+  DashboardStaffResponse,
   DashboardMembersResponse,
   DashboardRevenueResponse,
   DashboardSalesResponse,
@@ -11,6 +12,7 @@ import type { DashboardSalesService } from './dashboard-sales.service';
 import type { DashboardMembersService } from './dashboard-members.service';
 import type { DashboardRevenueService } from './dashboard-revenue.service';
 import type { DashboardClassesService } from './dashboard-classes.service';
+import type { DashboardStaffService } from './dashboard-staff.service';
 
 const EMPTY: DashboardSalesResponse = {
   granularity: 'daily',
@@ -66,6 +68,26 @@ const EMPTY_CLASSES: DashboardClassesResponse = {
   markedCoverage: null,
 };
 
+const EMPTY_STAFF: DashboardStaffResponse = {
+  granularity: 'daily',
+  kpis: {
+    trainersDelivering: 0,
+    sessionsDelivered: 0,
+    utilizationRate: null,
+    scheduledHoursPerWeek: 0,
+  },
+  sessionsOverTime: [],
+  trainers: [],
+  shiftCoverage: [],
+  gaps: {
+    leaveStaffDays: 0,
+    staffWithoutShifts: 0,
+    trainersWithoutAvailability: 0,
+    classesWithoutTrainer: 0,
+    invalidShiftSlots: 0,
+  },
+};
+
 function setup() {
   const get = vi.fn().mockResolvedValue(EMPTY);
   const membersGet = vi.fn().mockResolvedValue(EMPTY_MEMBERS);
@@ -76,12 +98,15 @@ function setup() {
   const revenue = { get: revenueGet } as unknown as DashboardRevenueService;
   const classesGet = vi.fn().mockResolvedValue(EMPTY_CLASSES);
   const classes = { get: classesGet } as unknown as DashboardClassesService;
+  const staffGet = vi.fn().mockResolvedValue(EMPTY_STAFF);
+  const staff = { get: staffGet } as unknown as DashboardStaffService;
   return {
-    controller: new DashboardController(dashboard, sales, members, revenue, classes),
+    controller: new DashboardController(dashboard, sales, members, revenue, classes, staff),
     get,
     membersGet,
     revenueGet,
     classesGet,
+    staffGet,
   };
 }
 
@@ -192,5 +217,27 @@ describe('DashboardController.classes', () => {
     const { controller, classesGet } = setup();
     await controller.classes({ granularity: 'hourly' });
     expect(classesGet).toHaveBeenCalledWith({ granularity: 'daily' });
+  });
+});
+
+describe('DashboardController.staff', () => {
+  it('passes a valid query straight through', async () => {
+    const { controller, staffGet } = setup();
+
+    await controller.staff({ granularity: 'monthly' });
+
+    expect(staffGet).toHaveBeenCalledWith({ granularity: 'monthly' });
+  });
+
+  it('defaults an absent query', async () => {
+    const { controller, staffGet } = setup();
+    await controller.staff({});
+    expect(staffGet).toHaveBeenCalledWith({ granularity: 'daily' });
+  });
+
+  it('falls back to the default on an unknown granularity rather than throwing', async () => {
+    const { controller, staffGet } = setup();
+    await controller.staff({ granularity: 'hourly' });
+    expect(staffGet).toHaveBeenCalledWith({ granularity: 'daily' });
   });
 });
