@@ -29,13 +29,17 @@ describe('DualAreaChart', () => {
     expect(container.querySelectorAll('path')).toHaveLength(3);
   });
 
-  // Two independently-scaled series would draw a 2 as tall as a 20.
-  it('scales both series to the shared maximum', () => {
+  // Two independently-scaled series would draw a 2 as tall as a 20. Here the
+  // series have different own-maxes (primary peaks at 100, secondary at 10) so
+  // shared-vs-independent scaling actually produces different output: under a
+  // buggy per-series implementation, secondary would ALSO peak at the top,
+  // matching primary's y exactly, since it would be scaled against its own max.
+  it('scales both series to the shared maximum, not each series to its own', () => {
     const { container } = render(
       <DualAreaChart
         data={[
-          { label: 'a', primary: 100, secondary: 0 },
-          { label: 'b', primary: 100, secondary: 100 },
+          { label: 'a', primary: 10, secondary: 10 },
+          { label: 'b', primary: 100, secondary: 10 },
         ]}
         height={100}
       />,
@@ -43,10 +47,14 @@ describe('DualAreaChart', () => {
     const paths = [...container.querySelectorAll('path')];
     const primary = paths[1]?.getAttribute('d') ?? '';
     const secondary = paths[2]?.getAttribute('d') ?? '';
-    // The point where both series hit 100 must sit at the same y.
     const primaryTopY = primary.split(/[ML]/).pop()?.split(',')[1];
     const secondaryTopY = secondary.split(/[ML]/).pop()?.split(',')[1];
-    expect(primaryTopY).toBe(secondaryTopY);
+    // Primary hits the shared max (100) and peaks at the top of the frame;
+    // secondary tops out at 10 against that same shared max, so it must stay
+    // low. Pin the exact secondary y so the test checks the real arithmetic,
+    // not just an inequality.
+    expect(secondaryTopY).not.toBe(primaryTopY);
+    expect(secondaryTopY).toBe('83.6');
   });
 
   it('renders an empty frame rather than crashing on no data', () => {
