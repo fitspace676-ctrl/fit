@@ -151,6 +151,19 @@ and every terminal state are excluded. `kpis.mrr` is the value computed at
 necessarily the last point of `mrrOverTime` (that point is its own bucket's
 _start_).
 
+**"`ACTIVE` at that instant" is decided by `updatedAt`, the boundary of what the
+row knows.** At or after `updatedAt`, today's `status` is exact, so only `ACTIVE`
+counts. Before `updatedAt` the row has changed since, so today's status says
+nothing about then; the subscription counts unless it is a `TRIAL` that never
+converted at all. A currently-frozen subscription therefore contributes up to the
+day it froze and not after, a past-due one up to the day it lapsed, and a
+cancelled one up to its churn.
+
+Without that boundary the trend would be wrong in an obvious direction: applying
+today's `ACTIVE`-only filter to every past instant would erase everyone who has
+since churned, and a gym that lost half its base would draw a flat, low line
+across its whole history.
+
 ### Revenue per member
 
 Window net revenue (both streams) ÷ members holding a **live** subscription at the
