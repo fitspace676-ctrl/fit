@@ -17,6 +17,8 @@ import type {
   DashboardStatsResponse,
   DashboardOverviewResponse,
   DashboardRange,
+  DashboardSalesQuery,
+  DashboardSalesResponse,
   DashboardPeriod,
   ConfigurableDashboardSegment,
   DashboardSegmentResponse,
@@ -1677,6 +1679,26 @@ export async function fetchDashboardSegment(
     },
   );
   return unwrap<DashboardSegmentResponse>(res);
+}
+
+/**
+ * `GET /dashboard/sales` — the hand-built Sales tab in one payload. Both params
+ * scope the whole response, so the tab never shows two cards describing different
+ * windows; the API `.catch`es unknown values to its own defaults.
+ */
+export async function fetchDashboardSales(
+  query: DashboardSalesQuery,
+): Promise<DashboardSalesResponse> {
+  const qs = new URLSearchParams({
+    granularity: query.granularity,
+    productType: query.productType,
+  });
+  const res = await fetch(`${apiBaseUrl()}/dashboard/sales?${qs.toString()}`, {
+    headers: await authHeaders(),
+    // Sales figures reflect live tenant state — never serve a stale snapshot.
+    cache: 'no-store',
+  });
+  return unwrap<DashboardSalesResponse>(res);
 }
 
 /**
