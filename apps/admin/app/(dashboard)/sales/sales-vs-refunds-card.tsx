@@ -11,8 +11,9 @@ import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
 import type { SalesComparisonPoint } from '@fit/types';
-import { DualAreaChart, type DualPoint } from '../charts';
+import { DualAreaChart, SeriesSwatch, type DualPoint } from '../charts';
 import { EmptyState } from '../overview/format';
+import type { NumberFormatter } from '@fit/i18n';
 import { formatBucket } from '../format';
 
 const styles = stylex.create({
@@ -41,9 +42,6 @@ const styles = stylex.create({
     color: 'var(--color-text-secondary)',
   },
   legendItem: { display: 'flex', alignItems: 'center', gap: '0.375rem' },
-  swatch: { width: '0.75rem', height: '0.1875rem', borderRadius: 'var(--radius-full)' },
-  swatchSales: { backgroundColor: 'var(--color-accent)' },
-  swatchRefunds: { backgroundColor: 'var(--color-error)' },
   axisRow: {
     marginTop: '0.25rem',
     display: 'flex',
@@ -54,7 +52,13 @@ const styles = stylex.create({
   },
 });
 
-export function SalesVsRefundsCard({ points }: { points: SalesComparisonPoint[] }) {
+export function SalesVsRefundsCard({
+  points,
+  money,
+}: {
+  points: SalesComparisonPoint[];
+  money: NumberFormatter;
+}) {
   const t = useTranslations('admin.dashboard.sales');
   const locale = useLocale();
 
@@ -77,18 +81,25 @@ export function SalesVsRefundsCard({ points }: { points: SalesComparisonPoint[] 
 
       {hasData ? (
         <>
-          <DualAreaChart data={data} ariaLabel={t('vsRefunds.chartAria')} />
+          <DualAreaChart
+            data={data}
+            ariaLabel={t('vsRefunds.chartAria')}
+            formatValue={(value) => money.format(value / 100)}
+            formatLabel={(label) => formatBucket(locale, label)}
+            primaryLabel={t('vsRefunds.sales')}
+            secondaryLabel={t('vsRefunds.refunds')}
+          />
           <div {...stylex.props(styles.axisRow)}>
             <span>{first ? formatBucket(locale, first) : null}</span>
             <span>{last ? formatBucket(locale, last) : null}</span>
           </div>
           <div {...stylex.props(styles.legend)}>
             <span {...stylex.props(styles.legendItem)}>
-              <span {...stylex.props(styles.swatch, styles.swatchSales)} aria-hidden="true" />
+              <SeriesSwatch tone="primary" />
               {t('vsRefunds.sales')}
             </span>
             <span {...stylex.props(styles.legendItem)}>
-              <span {...stylex.props(styles.swatch, styles.swatchRefunds)} aria-hidden="true" />
+              <SeriesSwatch tone="negative" />
               {t('vsRefunds.refunds')}
             </span>
           </div>

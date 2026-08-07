@@ -19,8 +19,9 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { SALES_GRANULARITIES, type SessionsPoint, type StaffGranularity } from '@fit/types';
-import { DualAreaChart, type DualPoint } from '../charts';
+import { DualAreaChart, SeriesSwatch, type DualPoint } from '../charts';
 import { EmptyState } from '../overview/format';
+import { createNumberFormat } from '@fit/i18n';
 import { formatBucket } from '../format';
 
 const styles = stylex.create({
@@ -56,11 +57,6 @@ const styles = stylex.create({
     color: 'var(--color-text-secondary)',
   },
   legendItem: { display: 'flex', alignItems: 'center', gap: '0.375rem' },
-  swatch: { width: '0.75rem', height: '0.1875rem', borderRadius: 'var(--radius-full)' },
-  swatchClasses: { backgroundColor: 'var(--color-accent)' },
-  // Matches `neutralInk` in `charts.tsx` — a legend that names a different
-  // colour from the line is worse than no legend.
-  swatchPt: { backgroundColor: 'var(--color-text-teal)' },
   axisRow: {
     marginTop: '0.25rem',
     display: 'flex',
@@ -84,6 +80,7 @@ export function SessionsTrendCard({
 }) {
   const t = useTranslations('admin.dashboard.staff');
   const locale = useLocale();
+  const count = createNumberFormat(locale);
 
   const data: DualPoint[] = points.map((point) => ({
     label: point.label,
@@ -121,18 +118,26 @@ export function SessionsTrendCard({
             tone is reserved for money going back out, and using it here would draw
             the till's takings as if they were a problem.
           */}
-          <DualAreaChart data={data} ariaLabel={t('sessions.chartAria')} secondaryTone="neutral" />
+          <DualAreaChart
+            data={data}
+            ariaLabel={t('sessions.chartAria')}
+            secondaryTone="neutral"
+            formatValue={(value) => count.format(value)}
+            formatLabel={(label) => formatBucket(locale, label)}
+            primaryLabel={t('sessions.classes')}
+            secondaryLabel={t('sessions.pt')}
+          />
           <div {...stylex.props(styles.axisRow)}>
             <span>{first ? formatBucket(locale, first) : null}</span>
             <span>{last ? formatBucket(locale, last) : null}</span>
           </div>
           <div {...stylex.props(styles.legend)}>
             <span {...stylex.props(styles.legendItem)}>
-              <span {...stylex.props(styles.swatch, styles.swatchClasses)} aria-hidden="true" />
+              <SeriesSwatch tone="primary" />
               {t('sessions.classes')}
             </span>
             <span {...stylex.props(styles.legendItem)}>
-              <span {...stylex.props(styles.swatch, styles.swatchPt)} aria-hidden="true" />
+              <SeriesSwatch tone="neutral" />
               {t('sessions.pt')}
             </span>
           </div>

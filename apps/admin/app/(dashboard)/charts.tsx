@@ -46,7 +46,11 @@ const styles = stylex.create({
     marginLeft: '-0.25rem',
     marginTop: '-0.25rem',
     borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--chart-series-1)',
+    // `currentColor`, so a caller can tint the marker to the series it marks by
+    // passing an ink style alongside. The single-series chart passes none and
+    // falls back to the accent below.
+    backgroundColor: 'currentColor',
+    color: 'var(--chart-series-1)',
     // The 2px surface ring that keeps a mark legible where it overlaps its own
     // line — the spacer rule from the dataviz mark specs.
     boxShadow: '0 0 0 2px var(--color-background-card)',
@@ -88,6 +92,13 @@ const styles = stylex.create({
     paddingBlock: '0.375rem',
     fontSize: '0.6875rem',
     color: 'var(--color-text-primary)',
+  },
+  tooltipRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
   },
   tooltipLabel: {
     display: 'block',
@@ -233,6 +244,15 @@ const styles = stylex.create({
     display: 'block',
     pointerEvents: 'none',
   },
+  swatch: {
+    width: '0.75rem',
+    height: '0.1875rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    // Paints from the SAME `color` the matching stroke reads through
+    // `currentColor`, which is the whole point of this component.
+    backgroundColor: 'currentColor',
+  },
   occFillOk: { backgroundColor: 'var(--color-success)' },
   occFillWarn: { backgroundColor: 'var(--color-warning)' },
   occFillFull: { backgroundColor: 'var(--color-error)' },
@@ -289,6 +309,32 @@ function SeriesPath({ d, ink }: { d: string; ink: stylex.StyleXStyles }) {
       vectorEffect="non-scaling-stroke"
     />
   );
+}
+
+/** The three inks a series can be drawn in, by the job the series does. */
+export type SeriesTone = 'primary' | 'neutral' | 'negative';
+
+const TONE_INK: Record<SeriesTone, stylex.StyleXStyles> = {
+  primary: styles.accentInk,
+  neutral: styles.neutralInk,
+  negative: styles.negativeInk,
+};
+
+/**
+ * A legend's colour chip.
+ *
+ * It exists so a legend CANNOT name a different colour from the line it labels.
+ * Every legend on the dashboard used to hard-code its own token, and when the
+ * series palette was re-validated they silently drifted: the second series went
+ * orange while its swatch stayed on the pastel teal that had just been retired
+ * for failing the CVD separation check, and every "primary" swatch sat on
+ * `--color-accent` (#9184F1) while its line painted `--chart-series-1` (#7e74e1).
+ *
+ * Both the chip and the stroke now resolve from `TONE_INK`, so the only way to
+ * change one is to change both.
+ */
+export function SeriesSwatch({ tone }: { tone: SeriesTone }) {
+  return <span {...stylex.props(styles.swatch, TONE_INK[tone])} aria-hidden="true" />;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -606,14 +652,26 @@ export function DualAreaChart({
   height = 180,
   ariaLabel = 'Comparison chart',
   secondaryTone = 'negative',
+  formatValue = (value) => String(value),
+  primaryLabel,
+  secondaryLabel,
+  formatLabel = (label) => label,
 }: {
   data: DualPoint[];
   height?: number;
   ariaLabel?: string;
-  secondaryTone?: 'negative' | 'neutral';
+  secondaryTone?: Extract<SeriesTone, 'negative' | 'neutral'>;
+  /** How the tooltip renders a value. Money and counts differ. */
+  formatValue?: (value: number) => string;
+  /** The two series' names, so the tooltip says which figure is which. */
+  primaryLabel?: string;
+  secondaryLabel?: string;
+  /** Turns a bucket key (`YYYY-MM-DD`) into the date the reader expects. */
+  formatLabel?: (label: string) => string;
 }) {
   const width = 640;
   const pad = 8;
+  const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(1, ...data.flatMap((d) => [d.primary, d.secondary]));
   const n = data.length;
 
@@ -641,10 +699,21 @@ export function DualAreaChart({
   // delimiters so it is a valid `url(#…)` fragment reference.
   const gradientId = `dual-fill-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
+  const hoveredRow = hover === null ? null : (data[hover] ?? null);
+  const pct = (x: number) => `${(x / width) * 100}%`;
+
+  /** Nearest bucket to the pointer, as a fraction of the plot's width. */
+  function track(event: React.PointerEvent<HTMLDivElement>): void {
+    const box = event.currentTarget.getBoundingClientRect();
+    if (box.width === 0 || n === 0) return;
+    const ratio = (event.clientX - box.left) / box.width;
+    setHover(Math.min(n - 1, Math.max(0, Math.round(ratio * (n - 1)))));
+  }
+
   return (
     // The same `plot` wrapper the single-series chart uses, for its top-light.
     // Without it this card reads as a flat sticker beside its restyled neighbours.
-    <div {...stylex.props(styles.plot)}>
+    <div {...stylex.props(styles.plot)} onPointerMove={track} onPointerLeave={() => setHover(null)}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="none"
@@ -668,12 +737,54 @@ export function DualAreaChart({
             vectorEffect="non-scaling-stroke"
           />
         )}
-        <SeriesPath d={primaryLine} ink={styles.accentInk} />
-        <SeriesPath
-          d={secondaryLine}
-          ink={secondaryTone === 'neutral' ? styles.neutralInk : styles.negativeInk}
-        />
+        <SeriesPath d={primaryLine} ink={TONE_INK.primary} />
+        <SeriesPath d={secondaryLine} ink={TONE_INK[secondaryTone]} />
       </svg>
+
+      {/*
+        The hover layer, in HTML rather than SVG for the same reason the
+        single-series chart's is: `preserveAspectRatio="none"` stretches the
+        viewBox, which would turn a marker circle into an ellipse and the label
+        into italics. Both series are read at once — with two lines on one scale,
+        the question is always what the SECOND one was doing at that moment.
+      */}
+      <div {...stylex.props(styles.overlay)}>
+        {hoveredRow && (
+          <>
+            <span
+              {...stylex.props(styles.crosshair)}
+              style={{ left: pct(project(0, hover ?? 0).x) }}
+            />
+            <span
+              {...stylex.props(styles.marker, TONE_INK.primary)}
+              style={{
+                left: pct(project(hoveredRow.primary, hover ?? 0).x),
+                top: `${(project(hoveredRow.primary, hover ?? 0).y / height) * 100}%`,
+              }}
+            />
+            <span
+              {...stylex.props(styles.marker, TONE_INK[secondaryTone])}
+              style={{
+                left: pct(project(hoveredRow.secondary, hover ?? 0).x),
+                top: `${(project(hoveredRow.secondary, hover ?? 0).y / height) * 100}%`,
+              }}
+            />
+            <span {...stylex.props(styles.tooltip)} style={{ left: pct(project(0, hover ?? 0).x) }}>
+              <span {...stylex.props(styles.tooltipLabel)}>{formatLabel(hoveredRow.label)}</span>
+              <span {...stylex.props(styles.tooltipRow)}>
+                <SeriesSwatch tone="primary" />
+                {primaryLabel ? `${primaryLabel} ` : ''}
+                {formatValue(hoveredRow.primary)}
+              </span>
+              <span {...stylex.props(styles.tooltipRow)}>
+                <SeriesSwatch tone={secondaryTone} />
+                {secondaryLabel ? `${secondaryLabel} ` : ''}
+                {formatValue(hoveredRow.secondary)}
+              </span>
+            </span>
+          </>
+        )}
+      </div>
     </div>
   );
 }

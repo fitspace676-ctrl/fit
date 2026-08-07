@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { AnimatedCircularProgressBar, AreaChart, DualAreaChart, Sparkline } from './charts';
+import { fireEvent, render, screen } from '@testing-library/react';
+import {
+  AnimatedCircularProgressBar,
+  AreaChart,
+  DualAreaChart,
+  SeriesSwatch,
+  Sparkline,
+} from './charts';
 
 describe('DualAreaChart', () => {
   it('labels itself for assistive technology', () => {
@@ -289,5 +295,70 @@ describe('Sparkline', () => {
   it('is hidden from assistive technology', () => {
     const { container } = render(<Sparkline values={[1, 2, 3]} />);
     expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+});
+
+// The legends had silently drifted from the lines they labelled: the second
+// series went orange when the palette was re-validated, while its swatch stayed
+// on the pastel teal that had just FAILED the CVD separation check. Both now
+// resolve from one table, and this is the test that says so.
+describe('SeriesSwatch', () => {
+  // NOT a colour test. StyleX is MOCKED in this environment — `stylex.props`
+  // returns the same `"stylex-mock"` class for every style — so any assertion
+  // comparing the chip's compiled class to the stroke's passes trivially,
+  // whatever the two actually paint. A test that cannot fail is worse than none,
+  // so the colour parity is enforced structurally instead: both the chip and the
+  // stroke resolve from the single `TONE_INK` table in `charts.tsx`, and the
+  // shipped CSS is checked at build time.
+  it('is decoration beside a name the reader already has', () => {
+    const { container } = render(<SeriesSwatch tone="primary" />);
+    expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+  });
+});
+
+/**
+ * A pointer move at `clientX`.
+ *
+ * Dispatched as a `MouseEvent`, not via `fireEvent.pointerMove`: jsdom does not
+ * implement `PointerEvent`, so testing-library falls back to a bare `Event` and
+ * `clientX` is silently dropped — the handler runs and reads `undefined`.
+ */
+function move(el: HTMLElement, clientX: number): void {
+  fireEvent(el, new MouseEvent('pointermove', { clientX, bubbles: true }));
+}
+
+describe('DualAreaChart hover', () => {
+  const rows = [
+    { label: '2026-08-01', primary: 100, secondary: 20 },
+    { label: '2026-08-02', primary: 300, secondary: 40 },
+  ];
+
+  it('reads BOTH series at the hovered bucket, each named', () => {
+    const { container } = render(
+      <DualAreaChart
+        data={rows}
+        primaryLabel="Memberships"
+        secondaryLabel="Sales & POS"
+        formatValue={(v) => `${v} GEL`}
+        formatLabel={(l) => `on ${l}`}
+      />,
+    );
+    const plot = container.firstElementChild as HTMLElement;
+    plot.getBoundingClientRect = () => ({ left: 0, width: 100 }) as DOMRect;
+    move(plot, 100);
+
+    expect(screen.getByText('on 2026-08-02')).toBeInTheDocument();
+    expect(screen.getByText(/Memberships 300 GEL/)).toBeInTheDocument();
+    expect(screen.getByText(/Sales & POS 40 GEL/)).toBeInTheDocument();
+  });
+
+  it('clears the readout when the pointer leaves', () => {
+    const { container } = render(<DualAreaChart data={rows} formatLabel={(l) => `on ${l}`} />);
+    const plot = container.firstElementChild as HTMLElement;
+    plot.getBoundingClientRect = () => ({ left: 0, width: 100 }) as DOMRect;
+    move(plot, 0);
+    expect(screen.getByText('on 2026-08-01')).toBeInTheDocument();
+    fireEvent.pointerLeave(plot);
+    expect(screen.queryByText('on 2026-08-01')).toBeNull();
   });
 });

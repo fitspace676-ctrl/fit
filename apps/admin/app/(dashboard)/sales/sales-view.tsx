@@ -309,7 +309,7 @@ export function SalesView() {
             />
           </div>
           <div {...stylex.props(step(2))}>
-            <SalesVsRefundsCard points={data.salesVsRefunds} />
+            <SalesVsRefundsCard points={data.salesVsRefunds} money={money} />
           </div>
         </div>
 

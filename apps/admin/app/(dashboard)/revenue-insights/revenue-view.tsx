@@ -294,6 +294,7 @@ export function RevenueView() {
           <div {...stylex.props(step(1))}>
             <RevenueTrendCard
               points={data.revenueOverTime}
+              money={money}
               granularity={granularity}
               onSelectGranularity={setGranularity}
               disabled={pending}
