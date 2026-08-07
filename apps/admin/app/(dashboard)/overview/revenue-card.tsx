@@ -83,9 +83,9 @@ export function RevenueCard({
     <Card variant="default" padding={0} xstyle={styles.cardWide}>
       <div {...stylex.props(styles.revenueHead)}>
         <div>
-          <h2 {...stylex.props(styles.sectionLabel)}>{t('revenue.title')}</h2>
+          <h2 {...stylex.props(styles.sectionLabel)}>{t('revenueCard.title')}</h2>
           <p {...stylex.props(styles.revenueCaption)}>
-            {t('revenue.caption', {
+            {t('revenueCard.caption', {
               range: t(rangeCaptionKey(data.revenue.range)),
               total: money.format(data.revenue.total / 100),
             })}
@@ -94,7 +94,7 @@ export function RevenueCard({
         <SegmentedControl
           value={data.revenue.range}
           onChange={(next) => onSelectRange(next as DashboardRange)}
-          label={t('revenue.rangeAria')}
+          label={t('revenueCard.rangeAria')}
           size="sm"
           isDisabled={disabled}
           xstyle={styles.rangeControl}
@@ -107,7 +107,7 @@ export function RevenueCard({
 
       {hasData ? (
         <>
-          <AreaChart data={points} ariaLabel={t('revenue.chartAria')} />
+          <AreaChart data={points} ariaLabel={t('revenueCard.chartAria')} />
           <div {...stylex.props(styles.axisRow)}>
             {points.map((p, i) => (
               <span key={i}>{p.label}</span>
@@ -115,7 +115,7 @@ export function RevenueCard({
           </div>
         </>
       ) : (
-        <EmptyState>{t('revenue.empty')}</EmptyState>
+        <EmptyState>{t('revenueCard.empty')}</EmptyState>
       )}
     </Card>
   );
@@ -125,10 +125,10 @@ export function RevenueCard({
 function rangeCaptionKey(range: DashboardRange): string {
   switch (range) {
     case '7d':
-      return 'revenue.range7d';
+      return 'revenueCard.range7d';
     case '30d':
-      return 'revenue.range30d';
+      return 'revenueCard.range30d';
     case '12w':
-      return 'revenue.range12w';
+      return 'revenueCard.range12w';
   }
 }

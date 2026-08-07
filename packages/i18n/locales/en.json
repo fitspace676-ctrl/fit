@@ -217,7 +217,11 @@
       },
       "members": {
         "granularityLabel": "Granularity",
-        "granularity": { "daily": "Daily", "weekly": "Weekly", "monthly": "Monthly" },
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
         "window": {
           "daily": "Last 30 days",
           "weekly": "Last 12 weeks",
@@ -247,7 +251,11 @@
         "retention": {
           "title": "Retention rate",
           "windowLabel": "Retention window",
-          "window": { "30": "30d", "60": "60d", "90": "90d" },
+          "window": {
+            "30": "30d",
+            "60": "60d",
+            "90": "90d"
+          },
           "caption": "Members still here {days} days on",
           "chartAria": "Retention rate per period",
           "gapNote": "Gaps are periods with nobody to retain — not 0%.",
@@ -266,6 +274,68 @@
           "empty": "No memberships on record."
         },
         "loadError": "Couldn't load members.",
+        "retry": "Retry"
+      },
+      "revenue": {
+        "granularityLabel": "Granularity",
+        "granularity": {
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "window": {
+          "daily": "Last 30 days",
+          "weekly": "Last 12 weeks",
+          "monthly": "Last 12 months"
+        },
+        "kpi": {
+          "totalRevenue": "Total revenue",
+          "mrr": "Recurring / mo",
+          "revenuePerMember": "Per member",
+          "outstandingTotal": "Outstanding"
+        },
+        "kpiCaption": "{window} · recurring and outstanding are current, not windowed",
+        "trend": {
+          "title": "Revenue over time",
+          "caption": "Memberships against sales & POS",
+          "chartAria": "Revenue per period, memberships against sales",
+          "recurring": "Memberships",
+          "oneOff": "Sales & POS",
+          "empty": "No revenue in this window."
+        },
+        "mrr": {
+          "title": "Recurring revenue",
+          "caption": "Monthly value of active plans · {total} now",
+          "chartAria": "Monthly recurring revenue per period",
+          "note": "Earlier periods are reconstructed from today's plans.",
+          "empty": "No active plans to bill yet."
+        },
+        "projected": {
+          "title": "Coming in",
+          "windowLabel": "Projection window",
+          "window": {
+            "7": "7d",
+            "30": "30d"
+          },
+          "caption": "{total} due in the next {days} days",
+          "chartAria": "Scheduled charges per day",
+          "atRisk": "{count} past due · {total} at risk",
+          "empty": "No charges scheduled in this window."
+        },
+        "outstanding": {
+          "title": "Outstanding invoices",
+          "caption": "Gym-wide, whatever the chart is showing",
+          "count": "{count} unsettled",
+          "overdue": "{count} overdue · {total}",
+          "failed": "{count} failed charges · {total}",
+          "empty": "Nothing unsettled."
+        },
+        "byLocation": {
+          "title": "Revenue by location",
+          "caption": "Sales & POS only — a subscription names no location.",
+          "empty": "No located revenue in this window."
+        },
+        "loadError": "Couldn't load revenue.",
         "retry": "Retry"
       },
       "widgets": {
@@ -324,7 +394,7 @@
         "expiringSoonHint": "Within 7 days",
         "renewalsDueHint": "This month"
       },
-      "revenue": {
+      "revenueCard": {
         "title": "Revenue",
         "caption": "{range} · total {total}",
         "range7d": "Last 7 days",
