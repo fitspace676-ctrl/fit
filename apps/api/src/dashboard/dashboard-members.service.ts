@@ -1,11 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  InvoiceStatus,
-  LIVE_SUBSCRIPTION_STATUSES,
-  PaymentStatus,
-  Role,
-  SubscriptionStatus,
-} from '@fit/db';
+import { InvoiceStatus, isLiveStatus, PaymentStatus, Role, SubscriptionStatus } from '@fit/db';
 import {
   MEMBERSHIP_STATUSES,
   SALES_GRANULARITY_RANGE,
@@ -217,8 +211,9 @@ function wasLiveAt(sub: SubscriptionRow, at: Date): boolean {
   const churnedAt = churnMoment(sub);
   if (churnedAt !== null && churnedAt < at) return false;
   // A live-status row that has not churned was live; a terminal row that churned
-  // after `at` was live then too.
-  return churnedAt !== null || LIVE_SUBSCRIPTION_STATUSES.includes(sub.status);
+  // after `at` was live then too. The isLiveStatus predicate from @fit/db handles
+  // type widening correctly; the tuple LIVE_SUBSCRIPTION_STATUSES would not.
+  return churnedAt !== null || isLiveStatus(sub.status);
 }
 
 /** The distinct members holding at least one live subscription at `at`. */
