@@ -6,9 +6,9 @@
 // and `?period=`, so a shared or bookmarked link opens on the right tab. Like
 // those two it is written with `router.replace`, so switching tabs does not
 // stack history entries — and the back button leaves the dashboard rather than
-// stepping back through segments. `overview` renders the server-fetched control
-// room and `sales` the hand-built sales view; every other tab hands off to the
-// lazily-fetched panel.
+// stepping back through segments. The hand-built tabs render their own views —
+// `overview` the server-fetched control room, `sales` and `members` their own
+// client-fetched ones; every other tab hands off to the lazily-fetched panel.
 
 import { useCallback, useState, useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -16,6 +16,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   DEFAULT_DASHBOARD_SEGMENT,
   dashboardSegmentSchema,
+  isHandBuiltSegment,
   type ConfigurableDashboardSegment,
   type DashboardOverviewResponse,
   type DashboardRange,
@@ -24,6 +25,7 @@ import {
 import { DashboardHeader } from '../dashboard-header';
 import { OverviewView } from '../overview/overview-view';
 import { SalesView } from '../sales/sales-view';
+import { MembersView } from '../member-retention/members-view';
 import { AddWidgetDialog } from './add-widget-dialog';
 import { SegmentPanel } from './segment-panel';
 import { SegmentTabs } from './segment-tabs';
@@ -43,12 +45,15 @@ const styles = stylex.create({
 });
 
 /**
- * The configurable segment a tab maps to, or `null` for the two hand-built views.
- * `overview` and `sales` have no catalogue, so neither the lazily-fetched panel
- * nor the "Add widget" picker applies to them.
+ * The configurable segment a tab maps to, or `null` for a hand-built view. The
+ * split comes from `HAND_BUILT_SEGMENTS` rather than a list repeated here: a tab
+ * promoted to a hand-built view loses its catalogue in the same commit, and a
+ * shell still routing it to the panel would ask the segments API for a segment
+ * it now rejects — which is exactly what put "Couldn't load this segment." on
+ * the Members tab.
  */
 function configurableSegment(segment: DashboardSegment): ConfigurableDashboardSegment | null {
-  return segment === 'overview' || segment === 'sales' ? null : segment;
+  return isHandBuiltSegment(segment) ? null : segment;
 }
 
 export function SegmentedDashboard({
@@ -154,6 +159,7 @@ export function SegmentedDashboard({
       <div id="dashboard-tabpanel" role="tabpanel" aria-labelledby={`dashboard-tab-${active}`}>
         {active === 'overview' ? <OverviewView data={overview} /> : null}
         {active === 'sales' ? <SalesView /> : null}
+        {active === 'members' ? <MembersView /> : null}
 
         {lastSegment !== null ? (
           <div

@@ -22,29 +22,36 @@ import { reportSectionSchema, type ReportMetric } from './reports-drilldown';
 
 /**
  * The segments whose widget set a gym can choose. Extend this list to add a
- * segment (e.g. `leads` once CRM ships) — no migration, because the stored rows
- * carry the segment as a plain string.
+ * segment — no migration, because the stored rows carry the segment as a plain
+ * string.
  *
- * `sales` is deliberately absent: it is a hand-built view
- * (`admin/app/(dashboard)/sales/sales-view.tsx`) with its own controls, like
- * `overview`, so there is nothing for the picker to configure. Stored
- * `DashboardWidget` rows naming the retired `sales.*` keys are harmless — the
- * keys are plain strings and `findDashboardWidget` already returns `undefined`
- * for a key the catalogue no longer defines.
+ * `sales` and `members` are absent: both are hand-built views with their own
+ * controls, like `overview`, so there is nothing for the picker to configure.
+ * Stored `DashboardWidget` rows naming their retired keys are harmless —
+ * `findDashboardWidget` already returns `undefined` for a key the catalogue no
+ * longer defines.
  */
-export const CONFIGURABLE_DASHBOARD_SEGMENTS = ['members', 'revenue', 'classes', 'staff'] as const;
+export const CONFIGURABLE_DASHBOARD_SEGMENTS = ['revenue', 'classes', 'staff'] as const;
 
 export const configurableDashboardSegmentSchema = z.enum(CONFIGURABLE_DASHBOARD_SEGMENTS);
 export type ConfigurableDashboardSegment = z.infer<typeof configurableDashboardSegmentSchema>;
 
 /**
- * Every dashboard tab, in display order. `overview` and `sales` are the two
- * hand-built views and are listed explicitly; the rest come from the configurable
- * list, so adding a segment there still adds its tab.
+ * The tabs that are hand-built views rather than widget grids. The single source
+ * of truth for "does this tab read the shell's `?range=` and offer the widget
+ * picker?" — read by `segmented-dashboard.tsx` and `dashboard-header.tsx` alike,
+ * so the two can never disagree about a tab.
+ */
+export const HAND_BUILT_SEGMENTS = ['overview', 'sales', 'members'] as const;
+
+export type HandBuiltDashboardSegment = (typeof HAND_BUILT_SEGMENTS)[number];
+
+/**
+ * Every dashboard tab, in display order — the hand-built views first, then the
+ * configurable ones, so adding a segment there still adds its tab.
  */
 export const DASHBOARD_SEGMENTS = [
-  'overview',
-  'sales',
+  ...HAND_BUILT_SEGMENTS,
   ...CONFIGURABLE_DASHBOARD_SEGMENTS,
 ] as const;
 
@@ -53,6 +60,18 @@ export type DashboardSegment = z.infer<typeof dashboardSegmentSchema>;
 
 /** The tab shown when `?segment=` is absent or unrecognised. */
 export const DEFAULT_DASHBOARD_SEGMENT: DashboardSegment = 'overview';
+
+/**
+ * Whether a tab is one of the hand-built views. A type guard rather than a plain
+ * boolean so the FALSE branch narrows to {@link ConfigurableDashboardSegment} —
+ * which is what lets a caller hand the remainder straight to the segment panel
+ * or the picker without a cast that a later segment could silently invalidate.
+ */
+export function isHandBuiltSegment(
+  segment: DashboardSegment,
+): segment is HandBuiltDashboardSegment {
+  return (HAND_BUILT_SEGMENTS as readonly DashboardSegment[]).includes(segment);
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Widget catalogue                                                            */
@@ -80,21 +99,6 @@ export interface DashboardWidgetDefinition {
  * follow-up specs, each as one new section plus one entry here.
  */
 export const DASHBOARD_WIDGET_CATALOG: readonly DashboardWidgetDefinition[] = [
-  // Members
-  {
-    key: 'members.new-signups',
-    segment: 'members',
-    source: { metric: 'members', section: 'new-members-over-time' },
-    size: 'lg',
-    labelKey: 'membersNewSignups',
-  },
-  {
-    key: 'members.churn',
-    segment: 'members',
-    source: { metric: 'members', section: 'churn-rate-trend' },
-    size: 'lg',
-    labelKey: 'membersChurn',
-  },
   // Revenue
   {
     key: 'revenue.over-time',

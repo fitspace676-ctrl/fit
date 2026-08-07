@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
-import type { DashboardResolvedPeriod } from '@fit/types';
+import type { DashboardResolvedPeriod, DashboardSegment } from '@fit/types';
 import { navigationMock } from '@/test/next-navigation-mock';
 
 vi.mock('next/navigation', () => navigationMock.factory());
@@ -30,7 +30,7 @@ const messages = {
 
 const period: DashboardResolvedPeriod = { period: 'today', from: '2026-08-07', to: '2026-08-07' };
 
-function renderHeader(active: 'overview' | 'sales' | 'members' = 'overview') {
+function renderHeader(active: DashboardSegment = 'overview') {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <DashboardHeader active={active} period={period} range="7d" />
@@ -44,7 +44,7 @@ describe('DashboardHeader', () => {
   });
 
   it('titles the page on every tab', () => {
-    renderHeader('members');
+    renderHeader('revenue');
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
   });
 
@@ -57,17 +57,17 @@ describe('DashboardHeader', () => {
   });
 
   it('offers the range filter on a segment tab and no period filter', () => {
-    renderHeader('members');
+    renderHeader('revenue');
     expect(screen.getByRole('radiogroup', { name: 'Widget range' })).toBeInTheDocument();
     expect(screen.queryByRole('radiogroup', { name: 'Dashboard period' })).not.toBeInTheDocument();
   });
 
-  // Sales is hand-built and reads no URL param: its own granularity control picks
-  // the window. A `?range=` here would be a second, DEAD time filter sitting forty
-  // pixels above a live one — and one that still fires a navigation, so it would
-  // read as broken rather than absent.
-  it('offers neither filter on the hand-built Sales tab', () => {
-    renderHeader('sales');
+  // Sales and Members are hand-built and read no URL param: each has its own
+  // granularity control picking the window. A `?range=` here would be a second,
+  // DEAD time filter sitting forty pixels above a live one — and one that still
+  // fires a navigation, so it would read as broken rather than absent.
+  it.each(['sales', 'members'] as const)('offers neither filter on the %s tab', (segment) => {
+    renderHeader(segment);
     expect(screen.queryByRole('radiogroup', { name: 'Widget range' })).not.toBeInTheDocument();
     expect(screen.queryByRole('radiogroup', { name: 'Dashboard period' })).not.toBeInTheDocument();
   });
@@ -90,7 +90,7 @@ describe('DashboardHeader', () => {
 
   it('writes the chosen range to the query from a segment tab', async () => {
     navigationMock.setSearch('segment=revenue');
-    renderHeader('members');
+    renderHeader('revenue');
     await userEvent.click(screen.getByRole('radio', { name: '30d' }));
     expect(navigationMock.replace).toHaveBeenCalledWith('/?segment=revenue&range=30d');
   });

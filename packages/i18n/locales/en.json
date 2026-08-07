@@ -269,8 +269,6 @@
         "retry": "Retry"
       },
       "widgets": {
-        "membersNewSignups": "New member signups",
-        "membersChurn": "Member churn",
         "revenueOverTime": "Revenue over time",
         "revenueByLocation": "Revenue by location",
         "classesMostBooked": "Most booked classes",

@@ -30,12 +30,12 @@ const messages = {
 
 function response(title: string): DashboardSegmentResponse {
   return {
-    segment: 'members',
+    segment: 'classes',
     range: '7d',
     currency: 'GEL',
     widgets: [
       {
-        key: 'members.churn',
+        key: 'classes.most-booked',
         size: 'md',
         section: { kind: 'series', id: 'revenue-by-plan', title, unit: 'money', points: [] },
       },
@@ -43,7 +43,7 @@ function response(title: string): DashboardSegmentResponse {
   };
 }
 
-function panel(segment: 'members' | 'revenue', range: '7d' | '30d' = '7d') {
+function panel(segment: 'classes' | 'revenue', range: '7d' | '30d' = '7d') {
   return (
     <NextIntlClientProvider locale="en" messages={messages}>
       <SegmentPanel segment={segment} range={range} />
@@ -51,44 +51,44 @@ function panel(segment: 'members' | 'revenue', range: '7d' | '30d' = '7d') {
   );
 }
 
-function renderPanel(segment: 'members' | 'revenue' = 'members') {
+function renderPanel(segment: 'classes' | 'revenue' = 'classes') {
   return render(panel(segment));
 }
 
 describe('SegmentPanel', () => {
   beforeEach(() => {
     loadSegmentAction.mockReset();
-    loadSegmentAction.mockResolvedValue({ ok: true, data: response('Top plans') });
+    loadSegmentAction.mockResolvedValue({ ok: true, data: response('Peak hours') });
   });
 
   it('fetches the segment and renders its widgets', async () => {
     renderPanel();
-    expect(await screen.findByText('Top plans')).toBeInTheDocument();
-    expect(loadSegmentAction).toHaveBeenCalledWith('members', '7d');
+    expect(await screen.findByText('Peak hours')).toBeInTheDocument();
+    expect(loadSegmentAction).toHaveBeenCalledWith('classes', '7d');
   });
 
   // The cache is what makes the transition animate instead of spin.
   it('does not refetch a segment it has already loaded', async () => {
-    const { rerender } = renderPanel('members');
-    await screen.findByText('Top plans');
+    const { rerender } = renderPanel('classes');
+    await screen.findByText('Peak hours');
 
-    loadSegmentAction.mockResolvedValue({ ok: true, data: response('New members') });
+    loadSegmentAction.mockResolvedValue({ ok: true, data: response('Revenue over time') });
     rerender(panel('revenue'));
-    await screen.findByText('New members');
+    await screen.findByText('Revenue over time');
 
-    rerender(panel('members'));
-    await screen.findByText('Top plans');
+    rerender(panel('classes'));
+    await screen.findByText('Peak hours');
 
     expect(loadSegmentAction).toHaveBeenCalledTimes(2);
   });
 
   it('refetches when the range changes', async () => {
-    const { rerender } = renderPanel('members');
-    await screen.findByText('Top plans');
+    const { rerender } = renderPanel('classes');
+    await screen.findByText('Peak hours');
 
-    rerender(panel('members', '30d'));
+    rerender(panel('classes', '30d'));
 
-    await waitFor(() => expect(loadSegmentAction).toHaveBeenCalledWith('members', '30d'));
+    await waitFor(() => expect(loadSegmentAction).toHaveBeenCalledWith('classes', '30d'));
   });
 
   // A failed segment must not take the rest of the dashboard down with it.
@@ -98,10 +98,10 @@ describe('SegmentPanel', () => {
 
     expect(await screen.findByText("Couldn't load this segment.")).toBeInTheDocument();
 
-    loadSegmentAction.mockResolvedValue({ ok: true, data: response('Top plans') });
+    loadSegmentAction.mockResolvedValue({ ok: true, data: response('Peak hours') });
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
-    expect(await screen.findByText('Top plans')).toBeInTheDocument();
+    expect(await screen.findByText('Peak hours')).toBeInTheDocument();
   });
 
   it('states plainly when a segment resolves to no widgets', async () => {
@@ -116,11 +116,11 @@ describe('SegmentPanel', () => {
   // Regression (fix round 1, Finding 1): `attempt` used to gate every cache
   // hit, not just the retried segment's — so retrying ANY segment quietly
   // defeated the cache for EVERY segment, forever. Reproduces the reviewer's
-  // exact sequence: cache `members`, fail + retry `revenue`, come back to
-  // `members` — it must be served from cache, not refetched.
+  // exact sequence: cache `classes`, fail + retry `revenue`, come back to
+  // `classes` — it must be served from cache, not refetched.
   it('keeps other segments cached across an unrelated retry', async () => {
-    const { rerender } = renderPanel('members');
-    await screen.findByText('Top plans');
+    const { rerender } = renderPanel('classes');
+    await screen.findByText('Peak hours');
     expect(loadSegmentAction).toHaveBeenCalledTimes(1);
 
     loadSegmentAction.mockResolvedValueOnce({ ok: false, error: 'boom' });
@@ -128,14 +128,14 @@ describe('SegmentPanel', () => {
     await screen.findByText("Couldn't load this segment.");
     expect(loadSegmentAction).toHaveBeenCalledTimes(2);
 
-    loadSegmentAction.mockResolvedValueOnce({ ok: true, data: response('New members') });
+    loadSegmentAction.mockResolvedValueOnce({ ok: true, data: response('Revenue over time') });
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await screen.findByText('New members');
+    await screen.findByText('Revenue over time');
     expect(loadSegmentAction).toHaveBeenCalledTimes(3);
 
-    // The retry above must not have poisoned `members`'s cache entry.
-    rerender(panel('members'));
-    await screen.findByText('Top plans');
+    // The retry above must not have poisoned `classes`'s cache entry.
+    rerender(panel('classes'));
+    await screen.findByText('Peak hours');
     expect(loadSegmentAction).toHaveBeenCalledTimes(3);
   });
 
@@ -148,8 +148,8 @@ describe('SegmentPanel', () => {
   // the test-only StyleX shim collapses to one fixed class and so cannot
   // observe — see apps/admin/test/stylex-mock.ts.
   it('resets the swap instead of sticking exited when the tab bounces back to the segment already shown', async () => {
-    const { container, rerender } = renderPanel('members');
-    await screen.findByText('Top plans');
+    const { container, rerender } = renderPanel('classes');
+    await screen.findByText('Peak hours');
 
     /** The panel root — `data-phase` is unique in the tree, so it is the handle. */
     function phase(): string | null {
@@ -164,9 +164,9 @@ describe('SegmentPanel', () => {
     rerender(panel('revenue'));
     expect(phase()).toBe('exiting');
 
-    // Bounce back to `members` before that timer fires. `shown` never stopped
-    // being `members`, so this must cancel the exit and rest — not hang faded out.
-    rerender(panel('members'));
+    // Bounce back to `classes` before that timer fires. `shown` never stopped
+    // being `classes`, so this must cancel the exit and rest — not hang faded out.
+    rerender(panel('classes'));
     expect(phase()).toBe('entering');
   });
 });

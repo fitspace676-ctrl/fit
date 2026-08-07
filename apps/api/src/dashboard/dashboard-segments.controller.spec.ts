@@ -7,7 +7,7 @@ import type { DashboardSegmentsService } from './dashboard-segments.service';
 
 function setup() {
   const get = vi.fn().mockResolvedValue({
-    segment: 'members',
+    segment: 'revenue',
     range: '7d',
     currency: 'GEL',
     widgets: [],
@@ -20,21 +20,21 @@ function setup() {
 describe('DashboardSegmentsController', () => {
   it('reads a segment at the requested range', async () => {
     const { controller, get } = setup();
-    await controller.get('members', '12w');
-    expect(get).toHaveBeenCalledWith('members', '12w');
+    await controller.get('revenue', '12w');
+    expect(get).toHaveBeenCalledWith('revenue', '12w');
   });
 
   it('defaults an omitted range rather than erroring', async () => {
     const { controller, get } = setup();
-    await controller.get('members', undefined);
-    expect(get).toHaveBeenCalledWith('members', '7d');
+    await controller.get('revenue', undefined);
+    expect(get).toHaveBeenCalledWith('revenue', '7d');
   });
 
   it('defaults a range outside the dashboard vocabulary', async () => {
     const { controller, get } = setup();
     // `12m` is valid for a drill-down but not for the dashboard's range control.
-    await controller.get('members', '12m');
-    expect(get).toHaveBeenCalledWith('members', '7d');
+    await controller.get('revenue', '12m');
+    expect(get).toHaveBeenCalledWith('revenue', '7d');
   });
 
   // Overview is server-rendered and has no catalogue. Answering with an empty
@@ -45,11 +45,12 @@ describe('DashboardSegmentsController', () => {
     expect(get).not.toHaveBeenCalled();
   });
 
-  // `sales` is a hand-built view with no catalogue, so asking the segments API
-  // for it is a client bug worth surfacing — exactly like `overview`.
-  it('rejects the hand-built sales segment', async () => {
+  // `sales` and `members` are hand-built views with no catalogue, so asking the
+  // segments API for either is a client bug worth surfacing — exactly like
+  // `overview`. The console must route them to their own views instead.
+  it.each(['sales', 'members'])('rejects the hand-built %s segment', async (segment) => {
     const { controller } = setup();
-    await expect(controller.get('sales', '7d')).rejects.toThrow(/sales/);
+    await expect(controller.get(segment, '7d')).rejects.toThrow(new RegExp(segment));
   });
 
   it('refuses an unknown segment', async () => {
@@ -59,13 +60,13 @@ describe('DashboardSegmentsController', () => {
 
   it('saves a widget selection', async () => {
     const { controller, setWidgets } = setup();
-    await controller.setWidgets('members', { widgetKeys: ['members.churn'] });
-    expect(setWidgets).toHaveBeenCalledWith('members', ['members.churn']);
+    await controller.setWidgets('revenue', { widgetKeys: ['revenue.by-location'] });
+    expect(setWidgets).toHaveBeenCalledWith('revenue', ['revenue.by-location']);
   });
 
   it('refuses an empty widget selection', async () => {
     const { controller, setWidgets } = setup();
-    await expect(controller.setWidgets('members', { widgetKeys: [] })).rejects.toThrow(
+    await expect(controller.setWidgets('revenue', { widgetKeys: [] })).rejects.toThrow(
       BadRequestException,
     );
     expect(setWidgets).not.toHaveBeenCalled();

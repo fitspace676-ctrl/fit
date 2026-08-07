@@ -269,8 +269,6 @@
         "retry": "ხელახლა"
       },
       "widgets": {
-        "membersNewSignups": "ახალი წევრები",
-        "membersChurn": "წევრების გადინება",
         "revenueOverTime": "შემოსავალი დროში",
         "revenueByLocation": "შემოსავალი ფილიალებით",
         "classesMostBooked": "ყველაზე დაჯავშნადი ჯგუფურები",

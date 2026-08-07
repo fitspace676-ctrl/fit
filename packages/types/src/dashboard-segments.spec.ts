@@ -5,6 +5,8 @@ import {
   DASHBOARD_SEGMENTS,
   DASHBOARD_WIDGET_CATALOG,
   findDashboardWidget,
+  HAND_BUILT_SEGMENTS,
+  isHandBuiltSegment,
   setDashboardWidgetsSchema,
   widgetsForSegment,
 } from './dashboard-segments';
@@ -45,9 +47,9 @@ describe('dashboard segment catalogue', () => {
   });
 
   it('returns a segment its widgets in catalogue order', () => {
-    expect(widgetsForSegment('members').map((widget) => widget.key)).toEqual([
-      'members.new-signups',
-      'members.churn',
+    expect(widgetsForSegment('revenue').map((widget) => widget.key)).toEqual([
+      'revenue.over-time',
+      'revenue.by-location',
     ]);
   });
 
@@ -56,17 +58,40 @@ describe('dashboard segment catalogue', () => {
     expect(findDashboardWidget('revenue.nope')).toBeUndefined();
   });
 
-  // `sales` is a hand-built view now, so the picker must not offer it — while the
-  // tab bar must still show it.
-  it('keeps sales out of the configurable segments but in the tab bar', () => {
-    expect(CONFIGURABLE_DASHBOARD_SEGMENTS).not.toContain('sales');
-    expect(DASHBOARD_SEGMENTS).toContain('sales');
-    expect(DASHBOARD_SEGMENTS[1]).toBe('sales');
+  // `sales` and `members` are hand-built views now, so the picker must not offer
+  // either — while the tab bar must still show both.
+  it('keeps the hand-built tabs out of the configurable segments but in the tab bar', () => {
+    for (const segment of HAND_BUILT_SEGMENTS) {
+      expect(CONFIGURABLE_DASHBOARD_SEGMENTS).not.toContain(segment);
+      expect(DASHBOARD_SEGMENTS).toContain(segment);
+    }
+    expect(DASHBOARD_SEGMENTS.slice(0, 3)).toEqual(['overview', 'sales', 'members']);
+  });
+
+  // The console splits every tab on this guard alone — a tab it misjudges either
+  // asks the segments API for a catalogue that does not exist (the Members bug)
+  // or renders no view at all.
+  it('sorts every tab into exactly one of hand-built and configurable', () => {
+    for (const segment of DASHBOARD_SEGMENTS) {
+      expect(isHandBuiltSegment(segment)).toBe(
+        (HAND_BUILT_SEGMENTS as readonly string[]).includes(segment),
+      );
+      expect(isHandBuiltSegment(segment)).toBe(
+        !(CONFIGURABLE_DASHBOARD_SEGMENTS as readonly string[]).includes(segment),
+      );
+    }
   });
 
   it('no longer defines any sales widget', () => {
     expect(DASHBOARD_WIDGET_CATALOG.some((widget) => widget.key.startsWith('sales.'))).toBe(false);
     expect(findDashboardWidget('sales.top-plans')).toBeUndefined();
+  });
+
+  it('no longer defines any members widget', () => {
+    expect(DASHBOARD_WIDGET_CATALOG.some((widget) => widget.key.startsWith('members.'))).toBe(
+      false,
+    );
+    expect(findDashboardWidget('members.churn')).toBeUndefined();
   });
 
   // "No stored rows" is read as "use the catalogue default", so an empty
