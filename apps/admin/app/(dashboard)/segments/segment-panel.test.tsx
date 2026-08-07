@@ -30,12 +30,12 @@ const messages = {
 
 function response(title: string): DashboardSegmentResponse {
   return {
-    segment: 'sales',
+    segment: 'members',
     range: '7d',
     currency: 'GEL',
     widgets: [
       {
-        key: 'sales.top-plans',
+        key: 'members.churn',
         size: 'md',
         section: { kind: 'series', id: 'revenue-by-plan', title, unit: 'money', points: [] },
       },
@@ -43,7 +43,7 @@ function response(title: string): DashboardSegmentResponse {
   };
 }
 
-function panel(segment: 'sales' | 'members', range: '7d' | '30d' = '7d') {
+function panel(segment: 'members' | 'revenue', range: '7d' | '30d' = '7d') {
   return (
     <NextIntlClientProvider locale="en" messages={messages}>
       <SegmentPanel segment={segment} range={range} />
@@ -51,7 +51,7 @@ function panel(segment: 'sales' | 'members', range: '7d' | '30d' = '7d') {
   );
 }
 
-function renderPanel(segment: 'sales' | 'members' = 'sales') {
+function renderPanel(segment: 'members' | 'revenue' = 'members') {
   return render(panel(segment));
 }
 
@@ -64,31 +64,31 @@ describe('SegmentPanel', () => {
   it('fetches the segment and renders its widgets', async () => {
     renderPanel();
     expect(await screen.findByText('Top plans')).toBeInTheDocument();
-    expect(loadSegmentAction).toHaveBeenCalledWith('sales', '7d');
+    expect(loadSegmentAction).toHaveBeenCalledWith('members', '7d');
   });
 
   // The cache is what makes the transition animate instead of spin.
   it('does not refetch a segment it has already loaded', async () => {
-    const { rerender } = renderPanel('sales');
+    const { rerender } = renderPanel('members');
     await screen.findByText('Top plans');
 
     loadSegmentAction.mockResolvedValue({ ok: true, data: response('New members') });
-    rerender(panel('members'));
+    rerender(panel('revenue'));
     await screen.findByText('New members');
 
-    rerender(panel('sales'));
+    rerender(panel('members'));
     await screen.findByText('Top plans');
 
     expect(loadSegmentAction).toHaveBeenCalledTimes(2);
   });
 
   it('refetches when the range changes', async () => {
-    const { rerender } = renderPanel('sales');
+    const { rerender } = renderPanel('members');
     await screen.findByText('Top plans');
 
-    rerender(panel('sales', '30d'));
+    rerender(panel('members', '30d'));
 
-    await waitFor(() => expect(loadSegmentAction).toHaveBeenCalledWith('sales', '30d'));
+    await waitFor(() => expect(loadSegmentAction).toHaveBeenCalledWith('members', '30d'));
   });
 
   // A failed segment must not take the rest of the dashboard down with it.
@@ -116,15 +116,15 @@ describe('SegmentPanel', () => {
   // Regression (fix round 1, Finding 1): `attempt` used to gate every cache
   // hit, not just the retried segment's — so retrying ANY segment quietly
   // defeated the cache for EVERY segment, forever. Reproduces the reviewer's
-  // exact sequence: cache `sales`, fail + retry `members`, come back to
-  // `sales` — it must be served from cache, not refetched.
+  // exact sequence: cache `members`, fail + retry `revenue`, come back to
+  // `members` — it must be served from cache, not refetched.
   it('keeps other segments cached across an unrelated retry', async () => {
-    const { rerender } = renderPanel('sales');
+    const { rerender } = renderPanel('members');
     await screen.findByText('Top plans');
     expect(loadSegmentAction).toHaveBeenCalledTimes(1);
 
     loadSegmentAction.mockResolvedValueOnce({ ok: false, error: 'boom' });
-    rerender(panel('members'));
+    rerender(panel('revenue'));
     await screen.findByText("Couldn't load this segment.");
     expect(loadSegmentAction).toHaveBeenCalledTimes(2);
 
@@ -133,8 +133,8 @@ describe('SegmentPanel', () => {
     await screen.findByText('New members');
     expect(loadSegmentAction).toHaveBeenCalledTimes(3);
 
-    // The retry above must not have poisoned `sales`'s cache entry.
-    rerender(panel('sales'));
+    // The retry above must not have poisoned `members`'s cache entry.
+    rerender(panel('members'));
     await screen.findByText('Top plans');
     expect(loadSegmentAction).toHaveBeenCalledTimes(3);
   });
@@ -148,7 +148,7 @@ describe('SegmentPanel', () => {
   // the test-only StyleX shim collapses to one fixed class and so cannot
   // observe — see apps/admin/test/stylex-mock.ts.
   it('resets the swap instead of sticking exited when the tab bounces back to the segment already shown', async () => {
-    const { container, rerender } = renderPanel('sales');
+    const { container, rerender } = renderPanel('members');
     await screen.findByText('Top plans');
 
     /** The panel root — `data-phase` is unique in the tree, so it is the handle. */
@@ -161,12 +161,12 @@ describe('SegmentPanel', () => {
     expect(phase()).toBe('entering');
 
     // Switch away — starts the 120ms exit before `shown` itself flips.
-    rerender(panel('members'));
+    rerender(panel('revenue'));
     expect(phase()).toBe('exiting');
 
-    // Bounce back to `sales` before that timer fires. `shown` never stopped
-    // being `sales`, so this must cancel the exit and rest — not hang faded out.
-    rerender(panel('sales'));
+    // Bounce back to `members` before that timer fires. `shown` never stopped
+    // being `members`, so this must cancel the exit and rest — not hang faded out.
+    rerender(panel('members'));
     expect(phase()).toBe('entering');
   });
 });

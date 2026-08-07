@@ -45,16 +45,28 @@ describe('dashboard segment catalogue', () => {
   });
 
   it('returns a segment its widgets in catalogue order', () => {
-    expect(widgetsForSegment('sales').map((widget) => widget.key)).toEqual([
-      'sales.payment-method',
-      'sales.top-products',
-      'sales.top-plans',
+    expect(widgetsForSegment('members').map((widget) => widget.key)).toEqual([
+      'members.new-signups',
+      'members.churn',
     ]);
   });
 
   it('finds a widget by key and misses on an unknown one', () => {
     expect(findDashboardWidget('revenue.over-time')?.segment).toBe('revenue');
     expect(findDashboardWidget('revenue.nope')).toBeUndefined();
+  });
+
+  // `sales` is a hand-built view now, so the picker must not offer it — while the
+  // tab bar must still show it.
+  it('keeps sales out of the configurable segments but in the tab bar', () => {
+    expect(CONFIGURABLE_DASHBOARD_SEGMENTS).not.toContain('sales');
+    expect(DASHBOARD_SEGMENTS).toContain('sales');
+    expect(DASHBOARD_SEGMENTS[1]).toBe('sales');
+  });
+
+  it('no longer defines any sales widget', () => {
+    expect(DASHBOARD_WIDGET_CATALOG.some((widget) => widget.key.startsWith('sales.'))).toBe(false);
+    expect(findDashboardWidget('sales.top-plans')).toBeUndefined();
   });
 
   // "No stored rows" is read as "use the catalogue default", so an empty

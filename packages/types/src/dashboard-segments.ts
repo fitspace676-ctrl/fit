@@ -24,20 +24,29 @@ import { reportSectionSchema, type ReportMetric } from './reports-drilldown';
  * The segments whose widget set a gym can choose. Extend this list to add a
  * segment (e.g. `leads` once CRM ships) — no migration, because the stored rows
  * carry the segment as a plain string.
+ *
+ * `sales` is deliberately absent: it is a hand-built view
+ * (`admin/app/(dashboard)/sales/sales-view.tsx`) with its own controls, like
+ * `overview`, so there is nothing for the picker to configure. Stored
+ * `DashboardWidget` rows naming the retired `sales.*` keys are harmless — the
+ * keys are plain strings and `findDashboardWidget` already returns `undefined`
+ * for a key the catalogue no longer defines.
  */
-export const CONFIGURABLE_DASHBOARD_SEGMENTS = [
-  'sales',
-  'members',
-  'revenue',
-  'classes',
-  'staff',
-] as const;
+export const CONFIGURABLE_DASHBOARD_SEGMENTS = ['members', 'revenue', 'classes', 'staff'] as const;
 
 export const configurableDashboardSegmentSchema = z.enum(CONFIGURABLE_DASHBOARD_SEGMENTS);
 export type ConfigurableDashboardSegment = z.infer<typeof configurableDashboardSegmentSchema>;
 
-/** Every dashboard tab, in display order — `overview` first, then the configurable ones. */
-export const DASHBOARD_SEGMENTS = ['overview', ...CONFIGURABLE_DASHBOARD_SEGMENTS] as const;
+/**
+ * Every dashboard tab, in display order. `overview` and `sales` are the two
+ * hand-built views and are listed explicitly; the rest come from the configurable
+ * list, so adding a segment there still adds its tab.
+ */
+export const DASHBOARD_SEGMENTS = [
+  'overview',
+  'sales',
+  ...CONFIGURABLE_DASHBOARD_SEGMENTS,
+] as const;
 
 export const dashboardSegmentSchema = z.enum(DASHBOARD_SEGMENTS);
 export type DashboardSegment = z.infer<typeof dashboardSegmentSchema>;
@@ -71,28 +80,6 @@ export interface DashboardWidgetDefinition {
  * follow-up specs, each as one new section plus one entry here.
  */
 export const DASHBOARD_WIDGET_CATALOG: readonly DashboardWidgetDefinition[] = [
-  // Sales
-  {
-    key: 'sales.payment-method',
-    segment: 'sales',
-    source: { metric: 'pos', section: 'sales-by-method' },
-    size: 'md',
-    labelKey: 'salesPaymentMethod',
-  },
-  {
-    key: 'sales.top-products',
-    segment: 'sales',
-    source: { metric: 'pos', section: 'product-sales' },
-    size: 'md',
-    labelKey: 'salesTopProducts',
-  },
-  {
-    key: 'sales.top-plans',
-    segment: 'sales',
-    source: { metric: 'revenue', section: 'revenue-by-plan' },
-    size: 'md',
-    labelKey: 'salesTopPlans',
-  },
   // Members
   {
     key: 'members.new-signups',

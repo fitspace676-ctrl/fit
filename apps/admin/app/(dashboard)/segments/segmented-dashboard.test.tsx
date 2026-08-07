@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
-import type { ConfigurableDashboardSegment, DashboardOverviewResponse } from '@fit/types';
+import type {
+  ConfigurableDashboardSegment,
+  DashboardOverviewResponse,
+  DashboardSegment,
+} from '@fit/types';
 import { navigationMock } from '@/test/next-navigation-mock';
 
 vi.mock('next/navigation', () => navigationMock.factory());
@@ -14,6 +18,9 @@ vi.mock('next/navigation', () => navigationMock.factory());
 // here would hide whether that wiring actually works.
 vi.mock('../overview/overview-view', () => ({
   OverviewView: () => <div data-testid="overview" />,
+}));
+vi.mock('../sales/sales-view', () => ({
+  SalesView: () => <div>Sales view</div>,
 }));
 vi.mock('./segment-panel', () => ({
   SegmentPanel: ({ segment }: { segment: ConfigurableDashboardSegment }) => (
@@ -55,8 +62,7 @@ const messages = {
 };
 
 const selectedKeys = {
-  sales: ['sales.top-plans'],
-  members: [],
+  members: ['members.churn'],
   revenue: [],
   classes: [],
   staff: [],
@@ -68,7 +74,7 @@ const overviewFixture = {
   period: { period: 'today', from: '2026-08-07', to: '2026-08-07' },
 } as DashboardOverviewResponse;
 
-function renderShell(initialSegment: 'overview' | ConfigurableDashboardSegment = 'overview') {
+function renderShell(initialSegment: DashboardSegment = 'overview') {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <SegmentedDashboard
@@ -140,8 +146,8 @@ describe('SegmentedDashboard', () => {
     // click drops `?segment=`, so the next render sees an empty query AND an
     // `initialSegment` the server re-parsed as `overview`. Re-rendering with the
     // segment still selected would prove nothing — `active` would never leave it.
-    navigationMock.setSearch('segment=sales');
-    const { rerender } = renderShell('sales');
+    navigationMock.setSearch('segment=members');
+    const { rerender } = renderShell('members');
     expect(screen.getByTestId('panel')).toBeVisible();
 
     navigationMock.setSearch('');
@@ -162,8 +168,8 @@ describe('SegmentedDashboard', () => {
   });
 
   it('drops the segment param entirely when returning to the default tab', async () => {
-    navigationMock.setSearch('segment=sales&range=30d');
-    renderShell('sales');
+    navigationMock.setSearch('segment=members&range=30d');
+    renderShell('members');
     await userEvent.click(screen.getByRole('tab', { name: 'Overview' }));
     expect(navigationMock.replace).toHaveBeenCalledWith('/?range=30d');
   });
@@ -176,13 +182,31 @@ describe('SegmentedDashboard', () => {
   });
 
   it('offers the widget picker on a segment tab but not on Overview', () => {
-    navigationMock.setSearch('segment=sales');
-    const { unmount } = renderShell('sales');
+    navigationMock.setSearch('segment=members');
+    const { unmount } = renderShell('members');
     expect(screen.getByRole('button', { name: 'Add widget' })).toBeInTheDocument();
     unmount();
 
     navigationMock.setSearch('');
     renderShell('overview');
     expect(screen.queryByRole('button', { name: 'Add widget' })).not.toBeInTheDocument();
+  });
+
+  it('renders the hand-built sales view, not the widget panel', () => {
+    navigationMock.setSearch('segment=sales');
+    renderShell('sales');
+    expect(screen.getByText('Sales view')).toBeInTheDocument();
+  });
+
+  // The picker configures a catalogue; the two hand-built views have none.
+  it('hides the widget picker on both hand-built tabs', () => {
+    navigationMock.setSearch('segment=sales');
+    const { unmount } = renderShell('sales');
+    expect(screen.queryByRole('button', { name: /add widget/i })).not.toBeInTheDocument();
+    unmount();
+
+    navigationMock.setSearch('');
+    renderShell('overview');
+    expect(screen.queryByRole('button', { name: /add widget/i })).not.toBeInTheDocument();
   });
 });

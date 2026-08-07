@@ -7,7 +7,8 @@
 // those two it is written with `router.replace`, so switching tabs does not
 // stack history entries — and the back button leaves the dashboard rather than
 // stepping back through segments. `overview` renders the server-fetched control
-// room unchanged; every other tab hands off to the lazily-fetched panel.
+// room and `sales` the hand-built sales view; every other tab hands off to the
+// lazily-fetched panel.
 
 import { useCallback, useState, useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -22,6 +23,7 @@ import {
 } from '@fit/types';
 import { DashboardHeader } from '../dashboard-header';
 import { OverviewView } from '../overview/overview-view';
+import { SalesView } from '../sales/sales-view';
 import { AddWidgetDialog } from './add-widget-dialog';
 import { SegmentPanel } from './segment-panel';
 import { SegmentTabs } from './segment-tabs';
@@ -39,6 +41,15 @@ const styles = stylex.create({
   // UA sheet's `[hidden] { display: none }`.
   hidden: { display: 'none' },
 });
+
+/**
+ * The configurable segment a tab maps to, or `null` for the two hand-built views.
+ * `overview` and `sales` have no catalogue, so neither the lazily-fetched panel
+ * nor the "Add widget" picker applies to them.
+ */
+function configurableSegment(segment: DashboardSegment): ConfigurableDashboardSegment | null {
+  return segment === 'overview' || segment === 'sales' ? null : segment;
+}
 
 export function SegmentedDashboard({
   overview,
@@ -62,20 +73,21 @@ export function SegmentedDashboard({
   // paint; this covers every client-side navigation after it.
   const parsed = dashboardSegmentSchema.safeParse(searchParams.get('segment'));
   const active: DashboardSegment = parsed.success ? parsed.data : initialSegment;
+  const activeConfigurable = configurableSegment(active);
 
   // The last configurable segment the user opened. The panel stays MOUNTED at
-  // this segment while Overview is on screen, so its fetch cache (a ref, and so
-  // only as long-lived as the mount) survives a trip through Overview and the
-  // return trip is instant. `null` until a segment is opened, so a dashboard
-  // that is never taken off Overview costs no segment request at all.
+  // this segment while a hand-built view is on screen, so its fetch cache (a ref,
+  // and so only as long-lived as the mount) survives a trip through Overview or
+  // Sales and the return trip is instant. `null` until a configurable segment is
+  // opened, so a dashboard that never leaves those two costs no segment request.
   const [lastSegment, setLastSegment] = useState<ConfigurableDashboardSegment | null>(
-    initialSegment === 'overview' ? null : initialSegment,
+    configurableSegment(initialSegment),
   );
-  if (active !== 'overview' && active !== lastSegment) {
+  if (activeConfigurable !== null && activeConfigurable !== lastSegment) {
     // Render-phase set on the CURRENT component (React re-renders immediately,
     // before committing) — the alternative is an effect, which would paint one
     // frame of the old segment first.
-    setLastSegment(active);
+    setLastSegment(activeConfigurable);
   }
 
   // Bumped when the picker saves. It re-keys the panel, and remounting is what
@@ -121,8 +133,12 @@ export function SegmentedDashboard({
 
       <div {...stylex.props(styles.bar)}>
         <SegmentTabs active={active} onSelect={select} />
-        {active !== 'overview' ? (
-          <AddWidgetDialog initialSegment={active} selectedKeys={selections} onSaved={onSaved} />
+        {activeConfigurable !== null ? (
+          <AddWidgetDialog
+            initialSegment={activeConfigurable}
+            selectedKeys={selections}
+            onSaved={onSaved}
+          />
         ) : null}
       </div>
 
@@ -137,12 +153,13 @@ export function SegmentedDashboard({
       */}
       <div id="dashboard-tabpanel" role="tabpanel" aria-labelledby={`dashboard-tab-${active}`}>
         {active === 'overview' ? <OverviewView data={overview} /> : null}
+        {active === 'sales' ? <SalesView /> : null}
 
         {lastSegment !== null ? (
           <div
             key={savedAt}
-            hidden={active === 'overview'}
-            {...stylex.props(active === 'overview' && styles.hidden)}
+            hidden={activeConfigurable === null}
+            {...stylex.props(activeConfigurable === null && styles.hidden)}
           >
             <SegmentPanel segment={lastSegment} range={range} onLoaded={noteSelection} />
           </div>
