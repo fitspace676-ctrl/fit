@@ -34,7 +34,7 @@ const styles = stylex.create({
   },
   scroll: {
     overflowX: 'auto',
-    borderRadius: 'var(--radius-surface)',
+    borderRadius: 'var(--radius-container)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'var(--color-border)',

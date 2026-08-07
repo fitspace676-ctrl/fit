@@ -23,9 +23,9 @@ const styles = stylex.create({
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'var(--color-border)',
-    borderRadius: 'var(--radius-outer)',
+    borderRadius: 'var(--radius-container)',
     overflow: 'hidden',
-    backgroundColor: 'var(--color-surface)',
+    backgroundColor: 'var(--color-background-surface)',
   },
   grid: {
     display: 'grid',
@@ -41,7 +41,7 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.25rem',
     padding: '0.875rem 1rem',
-    backgroundColor: 'var(--color-surface)',
+    backgroundColor: 'var(--color-background-surface)',
   },
   label: { fontSize: '0.75rem', fontWeight: 500, color: 'var(--color-text-secondary)' },
   value: {

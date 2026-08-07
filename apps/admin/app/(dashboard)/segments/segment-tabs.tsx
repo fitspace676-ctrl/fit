@@ -47,11 +47,11 @@ const styles = stylex.create({
     transitionDuration: '0.15s',
     outline: 'none',
     ':hover': { color: 'var(--color-text-primary)' },
-    ':focus-visible': { outline: '2px solid var(--color-brand)', outlineOffset: '-2px' },
+    ':focus-visible': { outline: '2px solid var(--color-accent)', outlineOffset: '-2px' },
   },
   active: {
-    borderBottomColor: 'var(--color-brand)',
-    color: 'var(--color-brand)',
+    borderBottomColor: 'var(--color-accent)',
+    color: 'var(--color-accent)',
   },
 });
 

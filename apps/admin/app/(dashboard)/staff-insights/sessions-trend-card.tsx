@@ -58,7 +58,9 @@ const styles = stylex.create({
   legendItem: { display: 'flex', alignItems: 'center', gap: '0.375rem' },
   swatch: { width: '0.75rem', height: '0.1875rem', borderRadius: 'var(--radius-full)' },
   swatchClasses: { backgroundColor: 'var(--color-accent)' },
-  swatchPt: { backgroundColor: 'var(--color-brand)' },
+  // Matches `neutralInk` in `charts.tsx` — a legend that names a different
+  // colour from the line is worse than no legend.
+  swatchPt: { backgroundColor: 'var(--color-text-teal)' },
   axisRow: {
     marginTop: '0.25rem',
     display: 'flex',

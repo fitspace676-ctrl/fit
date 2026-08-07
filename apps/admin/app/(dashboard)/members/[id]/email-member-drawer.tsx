@@ -17,7 +17,7 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.875rem',
     padding: '0.875rem 1rem',
-    borderRadius: 'var(--radius-surface)',
+    borderRadius: 'var(--radius-container)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'var(--color-border)',
@@ -100,7 +100,7 @@ const styles = stylex.create({
     fontFamily: 'var(--font-family-body)',
     cursor: 'pointer',
     transition:
-      'background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard)',
+      'background-color var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1), border-color var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1), color var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   chipActive: {
     borderColor: 'var(--color-accent)',

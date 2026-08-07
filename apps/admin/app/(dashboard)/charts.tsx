@@ -29,9 +29,10 @@ const styles = stylex.create({
   },
   // The comparison chart's second series where BOTH series are ordinary figures
   // being compared — two revenue streams, say. The error tone would claim the
-  // second one is a problem, which is a statement the chart has no business making.
+  // second one is a problem, which is a statement the chart has no business
+  // making; the accent would make it indistinguishable from the first.
   neutralInk: {
-    color: 'var(--color-brand)',
+    color: 'var(--color-text-teal)',
   },
   donutWrap: {
     position: 'relative',

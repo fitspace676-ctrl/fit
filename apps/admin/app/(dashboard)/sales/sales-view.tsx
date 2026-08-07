@@ -104,7 +104,7 @@ const styles = stylex.create({
   skeleton: {
     height: '24rem',
     borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'var(--color-surface-muted)',
+    backgroundColor: 'var(--color-background-muted)',
   },
   // The same message as `status`, but as a strip above content that is still on
   // screen — the previous combination's figures, which stay usable.

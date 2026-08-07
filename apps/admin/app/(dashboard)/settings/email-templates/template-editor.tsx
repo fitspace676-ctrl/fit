@@ -39,7 +39,7 @@ const styles = stylex.create({
     height: '1rem',
     flexShrink: 0,
     color: 'var(--color-text-secondary)',
-    transition: 'transform var(--duration-fast) var(--ease-standard)',
+    transition: 'transform var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   chevronOpen: { transform: 'rotate(180deg)' },
   body: {

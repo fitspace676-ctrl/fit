@@ -79,7 +79,7 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     fontWeight: 650,
     transition:
-      'transform var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard)',
+      'transform var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1), opacity var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1), border-color var(--duration-fast) cubic-bezier(0.32, 0.72, 0, 1)',
     transform: {
       default: 'translateY(0)',
       ':hover': 'translateY(-2px)',
@@ -105,7 +105,7 @@ const styles = stylex.create({
     WebkitBackdropFilter: 'blur(2px)',
     opacity: 0,
     pointerEvents: 'none',
-    transition: 'opacity var(--duration-medium) var(--ease-standard)',
+    transition: 'opacity var(--duration-medium) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   scrimOpen: {
     opacity: 1,
@@ -128,7 +128,7 @@ const styles = stylex.create({
     boxShadow: 'var(--shadow-high)',
     overflow: 'hidden',
     transform: 'translateX(calc(100% + 1rem))',
-    transition: 'transform var(--duration-medium) var(--ease-standard)',
+    transition: 'transform var(--duration-medium) cubic-bezier(0.32, 0.72, 0, 1)',
   },
   panelOpen: {
     transform: 'translateX(0)',
