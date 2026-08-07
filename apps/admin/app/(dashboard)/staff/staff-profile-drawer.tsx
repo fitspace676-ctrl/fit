@@ -15,6 +15,7 @@ import {
 } from './staff-form-fields';
 import { loadStaffScheduleAction } from './depth-actions';
 import { updateStaffProfileAction, updateStaffRoleAction } from './actions';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 const FORM_ID = 'staff-profile-form';
 
@@ -373,7 +374,7 @@ export function StaffProfileDrawer({
             )}
             {detail(
               t('profileDrawer.joined'),
-              new Date(member.joinedAt).toLocaleDateString(),
+              createDateTimeFormat(defaultLocale, {}).format(new Date(member.joinedAt)),
               false,
               true,
             )}

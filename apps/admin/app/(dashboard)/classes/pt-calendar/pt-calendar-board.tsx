@@ -14,6 +14,7 @@ import { addWeeks, toIsoDate, weekDays } from '../schedule/week';
 import { AddPtSessionDrawer, type ClassTypeOption } from './add-pt-session-drawer';
 import type { TrainerOption } from './trainer-select';
 import { cancelPtSessionAction, completePtSessionAction } from './pt-session-actions';
+import { createDateTimeFormat } from '@fit/i18n';
 
 // The time-grid runs 06:00–22:00 (matching the class schedule), each hour 3.5rem
 // tall, and session blocks are absolutely positioned by their UTC clock time.
@@ -395,10 +396,10 @@ function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`;
 }
 function weekdayShort(day: Date, locale: string): string {
-  return new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day);
+  return createDateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day);
 }
 function formatTime(iso: string, locale: string, timeZone: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return createDateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
     timeZone,
@@ -547,9 +548,7 @@ export function PtCalendarBoard({
   const rangeLabel = useMemo(() => {
     const last = days[days.length - 1] ?? monday;
     const fmt = (d: Date) =>
-      new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(
-        d,
-      );
+      createDateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
     return `${fmt(monday)} – ${fmt(last)}`;
   }, [days, monday, locale]);
 

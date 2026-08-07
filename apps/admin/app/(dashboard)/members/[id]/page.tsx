@@ -19,6 +19,7 @@ import { Badge, Icon, type IconName, type Tone } from '@/components/ui';
 import { MemberActions } from './member-actions';
 import { MemberTabs } from './member-tabs';
 import { EmailMemberDrawer } from './email-member-drawer';
+import { createDateTimeFormat, createNumberFormat, defaultLocale } from '@fit/i18n';
 
 /** Translator for the `admin.members` namespace (from `getTranslations`). */
 type T = Awaited<ReturnType<typeof getTranslations>>;
@@ -256,10 +257,10 @@ const styles = stylex.create({
 /** Format a minor-unit amount as a Georgian Lari (or currency) amount. */
 function formatAmount(minorUnits: number, currency: string): string {
   const symbol = currency === 'GEL' ? '₾' : currency === 'USD' ? '$' : `${currency} `;
-  return `${symbol}${(minorUnits / 100).toLocaleString('en-US', {
+  return `${symbol}${createNumberFormat(defaultLocale, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  })}`;
+  }).format(minorUnits / 100)}`;
 }
 
 /** "March 2025" from an ISO instant, or an em dash when absent/invalid. */
@@ -268,7 +269,7 @@ function formatMonthYear(iso: string | null, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+    : createDateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(date);
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -277,7 +278,9 @@ function formatDate(iso: string | null, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
+        date,
+      );
 }
 
 /** Render a member's initials for the avatar placeholder. */

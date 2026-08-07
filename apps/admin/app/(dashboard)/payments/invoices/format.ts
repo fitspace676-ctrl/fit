@@ -5,6 +5,7 @@
 // a *day* rather than a moment and must not drift with the viewer's timezone.
 
 import type { InvoiceType } from '@fit/types';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 /** The selectable invoice types and their human labels, in display order. */
 export const INVOICE_TYPES: ReadonlyArray<{ value: InvoiceType; label: string }> = [
@@ -36,7 +37,7 @@ export function formatInvoiceDate(iso: string | null): string {
   if (Number.isNaN(date.getTime())) {
     return '—';
   }
-  return new Intl.DateTimeFormat(undefined, {
+  return createDateTimeFormat(defaultLocale, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

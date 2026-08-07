@@ -18,7 +18,8 @@
 import { useMemo, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { createNumberFormat, type NumberFormatter } from '@fit/i18n';
+import { createNumberFormat } from '@fit/i18n';
+import type { NumberFormatter } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { Button } from '@astryxdesign/core/Button';

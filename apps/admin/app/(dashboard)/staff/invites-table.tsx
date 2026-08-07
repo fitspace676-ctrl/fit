@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { ROLE_TONES } from './role-meta';
 import { inviteStaffAction, revokeInviteAction } from './actions';
+import { createDateTimeFormat } from '@fit/i18n';
 
 const styles = stylex.create({
   stack: {
@@ -107,7 +108,9 @@ function formatDate(iso: string, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
+        date,
+      );
 }
 
 /**

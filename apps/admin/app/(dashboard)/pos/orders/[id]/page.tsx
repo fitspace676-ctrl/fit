@@ -8,6 +8,7 @@ import { getServerSession } from '@/lib/session';
 import { ApiError, fetchOrder } from '@/lib/api';
 import { Badge, Icon, type Tone } from '@/components/ui';
 import { formatPrice } from '../../../shop/format-price';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
   title: 'Sale - Fit Admin',
@@ -192,7 +193,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <Badge tone={STATUS_TONES[order.status] ?? 'ink'}>{order.status}</Badge>
             <Badge tone={order.channel === 'POS' ? 'brand' : 'ink'}>{order.channel}</Badge>
             <span {...stylex.props(styles.metaItem)}>
-              {new Date(order.createdAt).toLocaleString()}
+              {createDateTimeFormat(defaultLocale, {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }).format(new Date(order.createdAt))}
             </span>
             <span {...stylex.props(styles.metaItem, styles.mono)}>{order.id}</span>
           </div>
@@ -306,7 +313,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 {order.refunds.map((refund) => (
                   <tr key={refund.id}>
                     <td {...stylex.props(styles.td, styles.muted)}>
-                      {new Date(refund.createdAt).toLocaleString()}
+                      {createDateTimeFormat(defaultLocale, {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }).format(new Date(refund.createdAt))}
                     </td>
                     <td {...stylex.props(styles.td)}>{refund.reason}</td>
                     <td {...stylex.props(styles.td, styles.muted)}>
@@ -330,7 +343,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             {order.statusTimeline.map((entry, index) => (
               <div key={`${entry.status}-${index}`} {...stylex.props(styles.timelineRow)}>
                 <span {...stylex.props(styles.timelineWhen)}>
-                  {new Date(entry.at).toLocaleString()}
+                  {createDateTimeFormat(defaultLocale, {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }).format(new Date(entry.at))}
                 </span>
                 <Badge tone={STATUS_TONES[entry.status] ?? 'ink'}>{entry.status}</Badge>
               </div>

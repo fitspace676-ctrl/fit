@@ -15,6 +15,7 @@ import { ApiError, fetchOrders } from '@/lib/api';
 import { Badge, Icon, type Tone } from '@/components/ui';
 import { formatPrice } from '../../shop/format-price';
 import { OrdersFilters } from './orders-filters';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
   title: 'Sales log - Fit Admin',
@@ -388,7 +389,15 @@ function OrderRow({ order }: { order: AdminOrderRow }) {
   const when = new Date(order.createdAt);
   return (
     <tr>
-      <td {...stylex.props(styles.td, styles.muted)}>{when.toLocaleString()}</td>
+      <td {...stylex.props(styles.td, styles.muted)}>
+        {createDateTimeFormat(defaultLocale, {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(when)}
+      </td>
       <td {...stylex.props(styles.td)}>
         <Badge tone={order.channel === 'POS' ? 'brand' : 'ink'}>{order.channel}</Badge>
       </td>

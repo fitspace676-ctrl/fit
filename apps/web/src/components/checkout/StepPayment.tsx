@@ -12,6 +12,7 @@ import { CHECKOUT_LOCATION_KEY } from './StepLocation';
 import { CHECKOUT_PACKAGE_KEY, CHECKOUT_PRODUCT_TYPE_KEY } from './StepPackage';
 import { toCards } from './product-cards';
 import { CHECKOUT_CUSTOMER_KEY } from './StepDetails';
+import { createNumberFormat } from '@fit/i18n';
 
 /**
  * Online-payment feature flag (T10.8), inlined into the client bundle from
@@ -451,7 +452,7 @@ export function StepPayment({ gymId, locationId, packageId, productType }: StepP
 function Money({ locale, amount, currency }: { locale: string; amount: number; currency: string }) {
   const formatted = useMemo(
     () =>
-      new Intl.NumberFormat(locale, {
+      createNumberFormat(locale, {
         style: 'currency',
         currency,
         maximumFractionDigits: 2,

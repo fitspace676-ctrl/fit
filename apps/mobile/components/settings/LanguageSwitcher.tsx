@@ -1,4 +1,5 @@
-import { localeNames, type Locale } from '@fit/i18n';
+import { localeNames } from '@fit/i18n';
+import type { Locale } from '@fit/i18n';
 import { Pressable, Text, View } from 'react-native';
 import { useI18n } from '../../providers/I18nProvider';
 import { useTheme } from '../../providers/ThemeProvider';

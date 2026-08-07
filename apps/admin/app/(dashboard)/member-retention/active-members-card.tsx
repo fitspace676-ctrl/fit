@@ -22,6 +22,7 @@ import { SALES_GRANULARITIES, type MembersGranularity, type ReportSeriesPoint } 
 import { AreaChart, type AreaPoint } from '../charts';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
+import { createNumberFormat } from '@fit/i18n';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -88,7 +89,7 @@ export function ActiveMembersCard({
           <p {...stylex.props(styles.caption)}>
             {t('active.caption', {
               window: t(`window.${granularity}`),
-              total: current.toLocaleString(),
+              total: createNumberFormat(locale).format(current),
             })}
           </p>
         </div>

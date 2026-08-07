@@ -10,7 +10,8 @@ import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/Segme
 import { Switch } from '@astryxdesign/core/Switch';
 import { TabList, Tab } from '@astryxdesign/core/TabList';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { locales, type Locale } from '@fit/i18n';
+import { locales } from '@fit/i18n';
+import type { Locale } from '@fit/i18n';
 import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
 import { Icon, useToast } from '@/src/components/ui';
 import { useTheme } from '@/src/components/theme/theme-provider';

@@ -13,6 +13,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
 import type { NumberFormatter } from '@fit/i18n';
 import type { MembersGranularity, MembersKpis } from '@fit/types';
 
@@ -90,7 +91,7 @@ export function MembersKpiStrip({
                 {tile.money
                   ? // Money is carried in MINOR units; the strip shows major units.
                     money.format(kpis[tile.key] / 100)
-                  : kpis[tile.key].toLocaleString()}
+                  : createNumberFormat(defaultLocale).format(kpis[tile.key])}
               </span>
             </div>
           ))}

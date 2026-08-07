@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Card, CountUp, Icon, type IconName } from '@/components/ui';
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 /**
  * One dashboard KPI widget, on the formacore design system: an icon, an animated
@@ -31,8 +32,8 @@ export function KpiCard({ label, value, total, href, icon = 'chart' }: KpiCardPr
         {label}
       </p>
       <p className="mt-2 text-xs tabular-nums text-ink-500 dark:text-ink-400">
-        {total.toLocaleString()} total
-        {inactive > 0 ? ` · ${inactive.toLocaleString()} inactive` : ''}
+        {createNumberFormat(defaultLocale).format(total)} total
+        {inactive > 0 ? ` · ${createNumberFormat(defaultLocale).format(inactive)} inactive` : ''}
       </p>
     </Card>
   );

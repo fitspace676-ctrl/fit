@@ -7,6 +7,7 @@
 // drift on the money/plan format.
 
 import type { PackageBillingInterval } from '@fit/types';
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 /** Assumed minor units per major unit (USD/EUR/GEL — all two-decimal). */
 const MINOR_PER_MAJOR = 100;
@@ -19,7 +20,7 @@ const MINOR_PER_MAJOR = 100;
 export function formatPrice(amountMinor: number, currency: string): string {
   const major = amountMinor / MINOR_PER_MAJOR;
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(major);
+    return createNumberFormat(defaultLocale, { style: 'currency', currency }).format(major);
   } catch {
     return `${major.toFixed(2)} ${currency}`;
   }

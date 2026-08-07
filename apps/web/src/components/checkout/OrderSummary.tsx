@@ -2,6 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import { getTranslations } from 'next-intl/server';
 import type { CheckoutProductType } from '@fit/types';
 import { Icon } from '@/src/components/ui';
+import { createNumberFormat } from '@fit/i18n';
 
 /**
  * The wizard's running order summary — what the buyer has chosen so far, held in
@@ -215,7 +216,7 @@ export async function OrderSummary({ locale, locationName, product }: OrderSumma
 
 /** Format a minor-unit amount against its own currency (ISO 4217). */
 function formatMoney(locale: string, amount: number, currency: string): string {
-  return new Intl.NumberFormat(locale, {
+  return createNumberFormat(locale, {
     style: 'currency',
     currency,
     maximumFractionDigits: 2,

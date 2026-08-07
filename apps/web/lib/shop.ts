@@ -8,6 +8,7 @@
 // `productSummarySchema`, so the two storefronts can never drift.
 
 import { productSummarySchema, type ProductSummary } from '@fit/types';
+import { createNumberFormat } from '@fit/i18n';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -54,7 +55,7 @@ export async function fetchProducts({
  */
 export function formatMoney(amount: number, currency: string, locale: string): string {
   try {
-    return new Intl.NumberFormat(locale, {
+    return createNumberFormat(locale, {
       style: 'currency',
       currency,
       maximumFractionDigits: 2,

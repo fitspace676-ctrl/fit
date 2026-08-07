@@ -8,6 +8,7 @@
 import type { CampaignStatus, MarketingChannel, PromoCodeRow, PromoStatus } from '@fit/types';
 import type { IconName } from '@/components/ui';
 import type { Tone } from '@/components/ui';
+import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 
 /** The channel each campaign/template targets, in the order the pickers show them. */
 export const CHANNEL_ORDER: readonly MarketingChannel[] = ['email', 'sms', 'push'];
@@ -57,11 +58,11 @@ export function formatDate(iso: string | null, locale: string): string {
   if (!iso) {
     return '';
   }
-  return new Date(iso).toLocaleDateString(locale, {
+  return createDateTimeFormat(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  });
+  }).format(new Date(iso));
 }
 
 /** Format an ISO timestamp as a short, locale-aware date + time (blank when null). */
@@ -69,13 +70,13 @@ export function formatDateTime(iso: string | null, locale: string): string {
   if (!iso) {
     return '';
   }
-  return new Date(iso).toLocaleString(locale, {
+  return createDateTimeFormat(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  });
+  }).format(new Date(iso));
 }
 
 /** Round a MINOR-unit amount to whole major units for a "minimum spend" input. */
@@ -96,10 +97,10 @@ export const PROMO_STATUS_TONES: Record<PromoStatus, Tone> = {
 
 /** Format a MINOR-unit amount as a whole-lari (₾) figure — the app's money format. */
 export function formatMoney(minor: number, locale: string): string {
-  return `₾${minorToMajor(minor).toLocaleString(locale, {
+  return `₾${createNumberFormat(locale, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  })}`;
+  }).format(minorToMajor(minor))}`;
 }
 
 /**

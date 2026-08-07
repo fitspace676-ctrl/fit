@@ -9,7 +9,8 @@ import {
   setSessionCookies,
   type RefreshedTokens,
 } from '@/lib/session-refresh';
-import { isLocale, type Locale } from '@fit/i18n';
+import { isLocale } from '@fit/i18n';
+import type { Locale } from '@fit/i18n';
 import { routing } from '@/src/i18n/routing';
 
 /**

@@ -16,6 +16,7 @@ import { useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
 import type { MembershipStatusSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1.25rem' },
@@ -42,7 +43,7 @@ export function StatusBreakdownCard({ slices }: { slices: MembershipStatusSlice[
       <h2 {...stylex.props(styles.title)}>{t('status.title')}</h2>
       <BarChart
         data={data}
-        formatValue={(value) => value.toLocaleString()}
+        formatValue={(value) => createNumberFormat(defaultLocale).format(value)}
         emptyLabel={t('status.empty')}
       />
     </Card>

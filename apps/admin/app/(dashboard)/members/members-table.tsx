@@ -32,6 +32,7 @@ import {
 import { MEMBER_TRASH_RETENTION_DAYS } from '@fit/types';
 import { MembersFilters } from './members-filters';
 import { bulkExportMembersAction, setMemberTrashedAction } from './actions';
+import { createDateTimeFormat } from '@fit/i18n';
 
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -378,7 +379,9 @@ function formatDate(iso: string | null, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
+        date,
+      );
 }
 
 /**

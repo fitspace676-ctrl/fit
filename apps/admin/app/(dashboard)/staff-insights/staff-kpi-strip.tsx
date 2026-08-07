@@ -13,9 +13,9 @@
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
+import type { NumberFormatter } from '@fit/i18n';
 import type { StaffGranularity, StaffKpis } from '@fit/types';
 import type { T } from '../overview/format';
-import type { NumberFormatter } from '@fit/i18n';
 
 const styles = stylex.create({
   wrap: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },

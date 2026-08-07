@@ -12,6 +12,7 @@ import type {
   RecurrenceWeekday,
 } from '@fit/types';
 import type { Tone } from '@/components/ui';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 /** Visual treatment per template status — success active, warning paused. */
 export const STATUS_STYLES: Record<ClassTemplateStatus, { label: string; tone: Tone }> = {
@@ -25,7 +26,11 @@ export function formatDateTime(iso: string | null): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(defaultLocale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /** Render a `YYYY-MM-DD` validity date as a short local date, or an em dash when absent. */
@@ -34,7 +39,11 @@ export function formatDate(date: string | null): string {
   const parsed = new Date(`${date}T00:00:00`);
   return Number.isNaN(parsed.getTime())
     ? date
-    : parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(defaultLocale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(parsed);
 }
 
 /** Render a duration in minutes as a compact `1h 30m` / `45m` label. */

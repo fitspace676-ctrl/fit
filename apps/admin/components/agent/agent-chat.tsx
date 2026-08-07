@@ -28,6 +28,7 @@ import { Icon } from '@/components/ui';
 import { useAgentChat } from './use-agent-chat';
 import { newSessionId, sessionTitle, useSessions, type AgentSessionMeta } from './use-sessions';
 import type { ChatAttachment } from './types';
+import { createDateTimeFormat } from '@fit/i18n';
 
 /** Upload limits — keep the model's token cost (and the operator's bill) bounded. */
 const MAX_FILES = 4;
@@ -470,7 +471,7 @@ export function AgentChat() {
   /** Short localized timestamp for a session row. */
   const formatTime = useCallback(
     (ts: string): string =>
-      new Intl.DateTimeFormat(locale, {
+      createDateTimeFormat(locale, {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',

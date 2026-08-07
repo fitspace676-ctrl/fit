@@ -7,6 +7,7 @@ import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
 import { Badge, Icon, type Tone } from '@/components/ui';
 import { creditsLabel, formatPrice, intervalLabel, intervalSuffix } from '../format';
 import { PlanActions } from './plan-actions';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
   title: 'Subscription plan - Fit Admin',
@@ -28,7 +29,11 @@ function formatDate(iso: string | null): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(defaultLocale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /**

@@ -46,3 +46,8 @@ export {
   type NumberFormatOptions,
   type NumberFormatter,
 } from './src/number-format';
+export {
+  createDateTimeFormat,
+  type DateTimeFormatOptions,
+  type DateTimeFormatter,
+} from './src/date-format';

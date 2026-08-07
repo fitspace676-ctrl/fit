@@ -9,6 +9,7 @@ import {
 import { Card } from '@astryxdesign/core/Card';
 import { Badge, type Tone } from '@/components/ui';
 import { StockAdjuster } from '../low-stock/stock-adjuster';
+import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 /** How each ledger reason reads to staff, and the tone its delta wears. */
 const REASON_LABELS: Record<StockMovementReason, string> = {
@@ -236,7 +237,13 @@ export function StockPanel({
               {movements.map((movement) => (
                 <tr key={movement.id}>
                   <td {...stylex.props(styles.td, styles.muted)}>
-                    {new Date(movement.createdAt).toLocaleString()}
+                    {createDateTimeFormat(defaultLocale, {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }).format(new Date(movement.createdAt))}
                   </td>
                   <td {...stylex.props(styles.td)}>
                     {movement.variantIndex === null ? product.name : movement.variantLabel}

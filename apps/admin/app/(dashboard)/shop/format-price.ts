@@ -5,20 +5,30 @@
 // human-readable major-unit value the staff member sees and types, so the admin
 // surfaces never drift on the money format.
 
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
+
 /** Assumed minor units per major unit (USD/EUR/GEL — all two-decimal). */
 const MINOR_PER_MAJOR = 100;
 
 /**
- * Format a minor-unit amount as a localized currency string, e.g. `$29.99`. Falls
- * back to a plain `29.99 USD` when the currency code isn't one `Intl` recognises.
+ * Format a minor-unit amount as a localized currency string, e.g. `$29.99`.
+ *
+ * `locale` defaults to the platform's rather than the RUNTIME's: this used to pass
+ * `undefined`, which formats in whatever locale the host happens to prefer — the
+ * server's in Node and the viewer's OS setting in the browser, which is both
+ * non-deterministic and a hydration mismatch waiting to happen.
+ *
+ * An unknown currency code renders as the code itself, the way CLDR does it, so
+ * there is no throwing path left to catch.
  */
-export function formatPrice(amountMinor: number, currency: string): string {
-  const major = amountMinor / MINOR_PER_MAJOR;
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(major);
-  } catch {
-    return `${major.toFixed(2)} ${currency}`;
-  }
+export function formatPrice(
+  amountMinor: number,
+  currency: string,
+  locale: string = defaultLocale,
+): string {
+  return createNumberFormat(locale, { style: 'currency', currency }).format(
+    amountMinor / MINOR_PER_MAJOR,
+  );
 }
 
 /**

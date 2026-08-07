@@ -33,6 +33,7 @@ import {
   grantMemberCreditPackAction,
   unfreezeMemberSubscriptionAction,
 } from '../actions';
+import { createDateTimeFormat, createNumberFormat, defaultLocale } from '@fit/i18n';
 
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
 type T = ReturnType<typeof useTranslations>;
@@ -652,10 +653,10 @@ const styles = stylex.create({
 /** Format minor currency units as a Georgian Lari amount. */
 function formatAmount(minorUnits: number, currency: string): string {
   const symbol = currency === 'GEL' ? '₾' : currency === 'USD' ? '$' : `${currency} `;
-  return `${symbol}${(minorUnits / 100).toLocaleString('en-US', {
+  return `${symbol}${createNumberFormat(defaultLocale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`;
+  }).format(minorUnits / 100)}`;
 }
 
 /** Format an ISO instant as a short local date. */
@@ -663,7 +664,9 @@ function formatDate(iso: string, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
+        date,
+      );
 }
 
 /** Format an ISO instant as a short local date-time. */
@@ -671,12 +674,12 @@ function formatDateTime(iso: string, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleString(locale, {
+    : createDateTimeFormat(locale, {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-      });
+      }).format(date);
 }
 
 /** A profile display value, falling back to an em dash when unset. */
@@ -1129,7 +1132,9 @@ function CurrentPlanCard({
       <div {...stylex.props(styles.priceRow)}>
         <span {...stylex.props(styles.priceValue)}>
           {currency === 'GEL' ? '₾' : currency === 'USD' ? '$' : `${currency} `}
-          {(plan.priceAmount / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+          {createNumberFormat(defaultLocale, { maximumFractionDigits: 0 }).format(
+            plan.priceAmount / 100,
+          )}
         </span>
         <span {...stylex.props(styles.priceInterval)}>
           {t('detail.perInterval', { interval: t(`detail.${intervalKey}`) })}

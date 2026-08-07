@@ -13,6 +13,7 @@ import { ApiError, fetchLowStockProducts } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Badge, Icon, type IconName } from '@/components/ui';
 import { StockAdjuster } from './stock-adjuster';
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
   title: 'Inventory · Low stock - Fit Admin',
@@ -383,7 +384,9 @@ export default async function LowStockPage({
           {tiles.map((tile) => (
             <Card key={tile.key} variant="default" padding={0} xstyle={styles.tile}>
               <Icon name={tile.icon} {...stylex.props(styles.tileIcon, tile.tone)} />
-              <div {...stylex.props(styles.tileValue)}>{tile.value.toLocaleString()}</div>
+              <div {...stylex.props(styles.tileValue)}>
+                {createNumberFormat(defaultLocale).format(tile.value)}
+              </div>
               <div {...stylex.props(styles.tileLabel)}>{tile.label}</div>
             </Card>
           ))}
@@ -457,7 +460,7 @@ export default async function LowStockPage({
             <tfoot>
               <tr {...stylex.props(styles.footRow)}>
                 <td colSpan={colSpan} {...stylex.props(styles.footCell)}>
-                  {report.data.length.toLocaleString()} product
+                  {createNumberFormat(defaultLocale).format(report.data.length)} product
                   {report.data.length === 1 ? '' : 's'} at or below {threshold} on hand.
                 </td>
               </tr>

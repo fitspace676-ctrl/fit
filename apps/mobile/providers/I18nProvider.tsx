@@ -1,4 +1,5 @@
-import { defaultLocale, isLocale, locales, messages, type Locale } from '@fit/i18n';
+import { defaultLocale, isLocale, locales, messages } from '@fit/i18n';
+import type { Locale } from '@fit/i18n';
 import {
   createContext,
   useCallback,

@@ -5,6 +5,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations } from 'next-intl/server';
 import type { AutomationStats } from '@fit/types';
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 const styles = stylex.create({
   grid: {
@@ -41,9 +42,12 @@ export async function AutomationStatsCards({ stats }: { stats: AutomationStats }
   const t = await getTranslations('admin.automation.stats');
   const cards: { label: string; value: string }[] = [
     { label: t('active'), value: `${stats.activeRules} / ${stats.totalRules}` },
-    { label: t('totalRuns'), value: stats.totalRuns.toLocaleString() },
-    { label: t('messagesSent'), value: stats.messagesSent.toLocaleString() },
-    { label: t('last30'), value: stats.sentLast30Days.toLocaleString() },
+    { label: t('totalRuns'), value: createNumberFormat(defaultLocale).format(stats.totalRuns) },
+    {
+      label: t('messagesSent'),
+      value: createNumberFormat(defaultLocale).format(stats.messagesSent),
+    },
+    { label: t('last30'), value: createNumberFormat(defaultLocale).format(stats.sentLast30Days) },
   ];
   return (
     <div {...stylex.props(styles.grid)}>

@@ -5,6 +5,8 @@
 // by whichever tab happened to need it first couples the others to that tab's
 // filename.
 
+import { createDateTimeFormat } from '@fit/i18n';
+
 /**
  * A `YYYY-MM-DD` bucket start as a locale short date. UTC in, UTC out.
  *
@@ -13,7 +15,7 @@
  * a day for viewers west of UTC.
  */
 export function formatBucket(locale: string, bucket: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return createDateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     timeZone: 'UTC',

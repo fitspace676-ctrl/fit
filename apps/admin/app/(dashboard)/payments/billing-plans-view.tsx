@@ -36,6 +36,7 @@ import { setSubscriptionPlanActiveAction } from './actions';
 import { formatPrice, intervalSuffix } from './format';
 import { NewPlanDrawer } from './new-plan-drawer';
 import type { PlanClassTypeOption } from './subscription-plan-form';
+import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 type Segment = 'active' | 'archived';
 
@@ -117,8 +118,16 @@ export function BillingPlansView({
     icon: IconName;
     value: string;
   }> = [
-    { key: 'activePlans', icon: 'ticket', value: activePlans.length.toLocaleString() },
-    { key: 'subscribers', icon: 'users', value: totalSubscribers.toLocaleString() },
+    {
+      key: 'activePlans',
+      icon: 'ticket',
+      value: createNumberFormat(defaultLocale).format(activePlans.length),
+    },
+    {
+      key: 'subscribers',
+      icon: 'users',
+      value: createNumberFormat(defaultLocale).format(totalSubscribers),
+    },
     { key: 'mrr', icon: 'card', value: formatPrice(Math.round(totalMrrMinor), currency) },
     { key: 'avgPerMember', icon: 'chart', value: formatPrice(avgPerMemberMinor, currency) },
   ];
@@ -328,7 +337,7 @@ function PlanCard({
       <div className="mt-4 flex items-center gap-3 border-t border-ink-200 pt-4 dark:border-white/10">
         <div>
           <div className="font-display text-base font-extrabold tabular-nums text-ink-900 dark:text-white">
-            {plan.subscriberCount.toLocaleString()}
+            {createNumberFormat(defaultLocale).format(plan.subscriberCount)}
           </div>
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-500 dark:text-ink-400">
             {t('subscribersLabel')}

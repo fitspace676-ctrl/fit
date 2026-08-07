@@ -5,6 +5,7 @@
 import { createElement, type ReactNode } from 'react';
 import type { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
+import { createDateTimeFormat } from '@fit/i18n';
 
 /** Translator for the `admin.dashboard` namespace (from `useTranslations`). */
 export type T = ReturnType<typeof useTranslations>;
@@ -34,12 +35,12 @@ export function EmptyState({ children }: { children: ReactNode }) {
 }
 
 export function formatTime(locale: string, iso: string): string {
-  return new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  return createDateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 }
 
 /** Locale-formatted short date for the recent-members "expires" line. */
 export function formatDate(locale: string, iso: string): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso));
+  return createDateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso));
 }
 
 /** Map a `GymMemberStatus` string to an Astryx Badge variant. */
