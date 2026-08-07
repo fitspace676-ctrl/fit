@@ -180,6 +180,13 @@ export function AreaChart({
 }) {
   const width = 640;
   const pad = 8;
+  // This filter is for TYPE SAFETY, not scale correctness: `Math.max(1, …)`
+  // floors the result, so a coerced `null → 0` could never have displaced the
+  // maximum anyway (0 loses to any positive value, and a negative series is
+  // floored to 1 first). Without the filter `data.map((d) => d.value)` is a
+  // `(number | null)[]`, which `Math.max` can't accept — that's the actual
+  // reason it's here. Don't delete it and reach for `?? 0` to satisfy the
+  // compiler; that would quietly reintroduce null-as-zero elsewhere.
   const present = data.filter((d): d is AreaPoint & { value: number } => d.value !== null);
   const max = Math.max(1, ...present.map((d) => d.value));
   const n = data.length;
@@ -193,7 +200,10 @@ export function AreaChart({
   });
 
   // One `M…L…` run per unbroken stretch, so the stroke restarts after each gap
-  // instead of bridging it.
+  // instead of bridging it. The `==` is deliberate, not a typo: at `i === 0`,
+  // `xy[i - 1]` is `undefined` (out of bounds), and this needs to catch that
+  // alongside an actual `null` gap, so the point still opens with `M`.
+  // Tightening it to `===` would silently break the first point's `M`.
   const line = xy
     .map((p, i) =>
       p === null ? '' : `${xy[i - 1] == null ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`,

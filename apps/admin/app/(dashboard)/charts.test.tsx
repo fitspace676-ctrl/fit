@@ -111,9 +111,7 @@ describe('AreaChart gaps', () => {
     expect(container.querySelectorAll('path')).toHaveLength(0);
   });
 
-  // The max must come from the real values only — a null coerced to 0 would be
-  // harmless here, but a null coerced via Math.max would poison the scale.
-  it('scales to the maximum of the present values', () => {
+  it('renders a single present value at full height when the rest are null', () => {
     const { container } = render(
       <AreaChart
         data={[
@@ -124,7 +122,7 @@ describe('AreaChart gaps', () => {
       />,
     );
     const stroke = container.querySelectorAll('path')[1]?.getAttribute('d') ?? '';
-    // 100 is the max, so it sits at the top: y = height - pad = 8.
+    // 100 is the max, so it sits at the top of the frame: y = pad = 8.
     expect(stroke).toContain('8.0');
   });
 });
