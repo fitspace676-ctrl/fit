@@ -13,7 +13,7 @@ import { Card } from '@astryxdesign/core/Card';
 import type { SalesComparisonPoint } from '@fit/types';
 import { DualAreaChart, type DualPoint } from '../charts';
 import { EmptyState } from '../overview/format';
-import { formatBucket } from './sales-trend-card';
+import { formatBucket } from './format';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },

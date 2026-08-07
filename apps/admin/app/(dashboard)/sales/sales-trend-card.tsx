@@ -24,6 +24,7 @@ import {
 } from '@fit/types';
 import { AreaChart, type AreaPoint } from '../charts';
 import { EmptyState } from '../overview/format';
+import { formatBucket } from './format';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -150,13 +151,4 @@ export function SalesTrendCard({
       )}
     </Card>
   );
-}
-
-/** A `YYYY-MM-DD` bucket start as a locale short date. UTC in, UTC out. */
-export function formatBucket(locale: string, bucket: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${bucket}T00:00:00.000Z`));
 }
