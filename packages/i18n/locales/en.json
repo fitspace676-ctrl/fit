@@ -612,7 +612,6 @@
     },
     "reports": {
       "title": "Reports",
-      "description": "Generate and export operational reports for your gym — every figure computed live from your real data.",
       "noAccess": "Your role does not have access to reports. Ask an owner or manager for the reporting permission.",
       "loadError": "Could not load reports ({status}): {message}",
       "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
@@ -623,18 +622,19 @@
       "range12m": "12 months",
       "catalogueLabel": "Report catalogue",
       "columnCount": "{count, plural, one {# column} other {# columns}}",
-      "run": "Run",
-      "viewing": "Viewing",
-      "selectPrompt": "Pick a report above to preview its rows and download it as CSV or XLSX.",
+      "selectPrompt": "Pick a report from the list to preview its rows and download it as CSV or XLSX.",
       "rowCount": "{count, plural, =0 {No rows} one {# row} other {# rows}}",
       "downloadCsv": "CSV",
       "downloadXlsx": "XLSX",
       "emptyRows": "No data in this period yet.",
       "drilldown": {
-        "heading": "Drill-down reports",
         "back": "Back to reports",
         "emptySection": "No data in this range."
-      }
+      },
+      "searchLabel": "Search reports",
+      "searchPlaceholder": "Search reports",
+      "noMatches": "No report matches \"{query}\".",
+      "clearSearch": "Clear search"
     },
     "billingPlans": {
       "title": "Billing",

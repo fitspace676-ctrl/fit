@@ -86,8 +86,8 @@ describe('ReportsController', () => {
 
     it('defaults the range when omitted', async () => {
       const { controller, runReport } = setup();
-      await controller.run('membership-growth', {});
-      expect(runReport).toHaveBeenCalledWith('membership-growth', { range: '30d' });
+      await controller.run('membership-movement', {});
+      expect(runReport).toHaveBeenCalledWith('membership-movement', { range: '30d' });
     });
 
     it('rejects an unknown report key with 400', async () => {

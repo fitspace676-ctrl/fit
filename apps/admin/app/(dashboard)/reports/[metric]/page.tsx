@@ -14,33 +14,7 @@ import {
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchReportDrilldown } from '@/lib/api';
 import { DrilldownView } from './drilldown-view';
-
-const styles = stylex.create({
-  notice: {
-    margin: 0,
-    borderRadius: 'var(--radius-inner)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-    paddingInline: '1rem',
-    paddingBlock: '0.75rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
-  alert: {
-    margin: 0,
-    borderRadius: 'var(--radius-inner)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-error)',
-    backgroundColor: 'var(--color-error-muted)',
-    paddingInline: '1rem',
-    paddingBlock: '0.75rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-error)',
-  },
-});
+import { chrome } from '../report-chrome';
 
 export const metadata: Metadata = {
   title: 'Report - Fit Admin',
@@ -83,7 +57,7 @@ export default async function ReportDrilldownPage({
     : DEFAULT_REPORT_DRILLDOWN_RANGE;
 
   if (!canViewReports) {
-    return <p {...stylex.props(styles.notice)}>{t('noAccess')}</p>;
+    return <p {...stylex.props(chrome.notice)}>{t('noAccess')}</p>;
   }
 
   try {
@@ -95,7 +69,7 @@ export default async function ReportDrilldownPage({
         ? t('loadError', { status: error.status, message: error.message })
         : t('apiUnreachable');
     return (
-      <p role="alert" {...stylex.props(styles.alert)}>
+      <p role="alert" {...stylex.props(chrome.alert)}>
         {message}
       </p>
     );

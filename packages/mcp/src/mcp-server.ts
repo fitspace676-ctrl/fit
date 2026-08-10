@@ -1154,13 +1154,13 @@ export function createFitMcpServer(token: string): McpServer {
     {
       title: 'Run report',
       description:
-        'Run one report by key (revenue-by-channel|attendance-by-class|membership-growth|no-show-rate) ' +
+        'Run one report by key (revenue-by-channel|attendance-by-class|membership-movement|no-show-rate) ' +
         'over an optional range (7d|30d|12w|12m, default 30d).',
       inputSchema: {
         key: z.enum([
           'revenue-by-channel',
           'attendance-by-class',
-          'membership-growth',
+          'membership-movement',
           'no-show-rate',
         ]),
         range: z.enum(['7d', '30d', '12w', '12m']).optional(),

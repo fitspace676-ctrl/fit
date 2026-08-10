@@ -156,6 +156,11 @@ export class OrdersService {
     const promoDiscount = promo?.discount ?? 0;
     const chargedTotal = receipt.total - promoDiscount;
 
+    // Who rang this sale, resolved before the transaction opens so the lookup does
+    // not hold a write transaction open (same reason the promo is resolved above).
+    const soldById = await this.currentStaffId();
+    const actor = this.tenant.userId ?? null;
+
     const sale = await this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
@@ -166,6 +171,10 @@ export class OrdersService {
           memberId: memberId ?? null,
           // The branch the till belongs to, when the gym runs more than one.
           locationId: locationId ?? null,
+          // The operator behind the till, for the sales-by-staff report. Null when
+          // the caller is unauthenticated or holds no staff row at this gym — an
+          // unattributed sale, never a guessed one.
+          soldById,
           customerName: receipt.memberName ?? null,
           items: {
             create: [
@@ -186,7 +195,9 @@ export class OrdersService {
           },
           // Record the opening transition so the order's status timeline (T7.9) is
           // generated from the same append-only log every other transition writes to.
-          statusEvents: { create: { status: OrderStatus.PAID } },
+          // The actor was previously omitted here, which left the till's opening
+          // entry as the one transition in the timeline with no operator on it.
+          statusEvents: { create: { status: OrderStatus.PAID, actor } },
         },
         select: { id: true },
       });
@@ -424,6 +435,8 @@ export class OrdersService {
   async refundOrder(orderId: string, input: RefundOrderInput): Promise<RefundOrderResponse> {
     const gymId = this.tenant.gymId;
     const actor = this.tenant.userId ?? null;
+    // Resolved outside the transaction, as in `recordSale`.
+    const processedById = await this.currentStaffId();
 
     return this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
@@ -456,6 +469,10 @@ export class OrdersService {
           amount: input.amount,
           reason: input.reason,
           restockItems: input.restockItems,
+          // Per refund, not per order: a payment can accrue several partial refunds
+          // and only the last one writes a status event, so the order-level `actor`
+          // cannot name who issued each of them.
+          processedById,
         },
         select: { id: true },
       });
@@ -486,6 +503,36 @@ export class OrdersService {
 
       return { refundId: refund.id };
     });
+  }
+
+  /**
+   * The caller's staff row at the current gym, for the columns that record who did
+   * something (`Order.soldById`, `Refund.processedById`). Null when the request has
+   * no authenticated user — a subdomain-resolved public request — or when the
+   * authenticated user holds no membership at this gym.
+   *
+   * It returns a {@link GymMember} id rather than the JWT's user id because those
+   * columns are gym-scoped staff references: one person may be staff at several
+   * gyms, and "sales by staff member" is a question about this gym's roster. A user
+   * id would also not join to anything the report can put a name to.
+   *
+   * `findFirst`, not `findUnique` on the `(userId, gymId)` unique: the tenant
+   * extension scopes reads by injecting `gymId` into the `where`, and `findUnique`
+   * is deliberately NOT one of the operations it scopes. Looking the row up by
+   * `userId` alone therefore resolves within this gym by construction, where a
+   * compound-unique lookup would run across every gym and rely on this method
+   * passing the right one.
+   */
+  private async currentStaffId(): Promise<string | null> {
+    const userId = this.tenant.userId ?? null;
+    if (!userId) {
+      return null;
+    }
+    const staff = await this.prisma.client.gymMember.findFirst({
+      where: { userId },
+      select: { id: true },
+    });
+    return staff?.id ?? null;
   }
 
   /**

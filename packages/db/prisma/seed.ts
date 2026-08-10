@@ -920,6 +920,9 @@ async function enrichDowntown(gymId: string): Promise<void> {
   }
 
   // ── Staff (login fixtures, one per non-MEMBER role) ─────────────────────
+  // The staff membership ids are kept because the till sales below are attributed
+  // to them — `Order.soldById` is a `GymMember`, not a `User`.
+  const staffIdByEmail = new Map<string, string>();
   for (const staff of DEMO_STAFF) {
     const user = await prisma.user.upsert({
       where: { email: staff.email },
@@ -932,7 +935,7 @@ async function enrichDowntown(gymId: string): Promise<void> {
       },
       select: { id: true },
     });
-    await prisma.gymMember.upsert({
+    const membership = await prisma.gymMember.upsert({
       where: { userId_gymId: { userId: user.id, gymId } },
       update: { role: staff.role, status: GymMemberStatus.ACTIVE },
       create: {
@@ -941,7 +944,9 @@ async function enrichDowntown(gymId: string): Promise<void> {
         role: staff.role,
         status: GymMemberStatus.ACTIVE,
       },
+      select: { id: true },
     });
+    staffIdByEmail.set(staff.email, membership.id);
   }
 
   // ── Retail shop catalogue (upsert by name) ──────────────────────────────
@@ -994,6 +999,193 @@ async function enrichDowntown(gymId: string): Promise<void> {
         popular: spec.popular,
         status: PackagePlanStatus.ACTIVE,
       },
+    });
+  }
+
+  // ── Till sales (POS), attributed to the staff who rang them ─────────────
+  await ensureTillSales(gymId, staffIdByEmail);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Till sales                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Retail sales rung up at the desk, spread over the last three weeks.
+ *
+ * These exist so the sales-by-staff, payment-method, POS-transaction-log and
+ * refunds-detail reports have something real to aggregate. The membership
+ * payments seeded elsewhere cannot stand in for them: those are the self-serve
+ * purchase wizard's (`provider: 'stub'`, no seller), and attributing them to a
+ * staff member would credit somebody with a sale nobody rang.
+ *
+ * `soldBy` names a {@link DEMO_STAFF} email; only the manager and the
+ * receptionist work the till, so the trainer never appears as a seller. Prices
+ * mirror {@link DEMO_PRODUCTS} so a line total reconciles against the catalogue.
+ */
+const DEMO_TILL_SALES: ReadonlyArray<{
+  daysAgo: number;
+  hour: number;
+  soldBy: string;
+  method: PaymentMethod;
+  lines: Array<{ label: string; unitPrice: number; qty: number }>;
+  /** Set when the sale was later refunded, with the operator's note. */
+  refund?: { reason: string; processedBy: string; daysAgo: number };
+}> = [
+  {
+    daysAgo: 0,
+    hour: 9,
+    soldBy: 'reception@downtown.demo',
+    method: PaymentMethod.CASH,
+    lines: [{ label: 'Insulated Shaker Bottle', unitPrice: 2500, qty: 1 }],
+  },
+  {
+    daysAgo: 0,
+    hour: 14,
+    soldBy: 'manager@downtown.demo',
+    method: PaymentMethod.CARD,
+    lines: [
+      { label: 'Whey Protein 1kg', unitPrice: 8900, qty: 1 },
+      { label: 'Microfibre Gym Towel', unitPrice: 1800, qty: 2 },
+    ],
+  },
+  {
+    daysAgo: 2,
+    hour: 18,
+    soldBy: 'reception@downtown.demo',
+    method: PaymentMethod.CARD,
+    lines: [{ label: 'Branded Training Tee', unitPrice: 4500, qty: 2 }],
+    // A partial return: the customer kept one tee. Partial refunds are exactly the
+    // case the order-level status event could never attribute, so the seed carries
+    // one to prove the refunds-detail report reads its operator.
+    refund: {
+      reason: 'Wrong size, one returned',
+      processedBy: 'manager@downtown.demo',
+      daysAgo: 1,
+    },
+  },
+  {
+    daysAgo: 5,
+    hour: 11,
+    soldBy: 'manager@downtown.demo',
+    method: PaymentMethod.MEMBER_ACCOUNT,
+    lines: [{ label: 'Resistance Bands Set', unitPrice: 3900, qty: 1 }],
+  },
+  {
+    daysAgo: 9,
+    hour: 16,
+    soldBy: 'reception@downtown.demo',
+    method: PaymentMethod.CASH,
+    lines: [
+      { label: 'Microfibre Gym Towel', unitPrice: 1800, qty: 1 },
+      { label: 'Insulated Shaker Bottle', unitPrice: 2500, qty: 1 },
+    ],
+  },
+  {
+    daysAgo: 16,
+    hour: 12,
+    soldBy: 'manager@downtown.demo',
+    method: PaymentMethod.CARD,
+    lines: [{ label: 'Whey Protein 1kg', unitPrice: 8900, qty: 2 }],
+  },
+  {
+    daysAgo: 20,
+    hour: 8,
+    soldBy: 'reception@downtown.demo',
+    method: PaymentMethod.CASH,
+    lines: [{ label: 'Branded Training Tee', unitPrice: 4500, qty: 1 }],
+  },
+];
+
+/**
+ * Idempotently write {@link DEMO_TILL_SALES} as `pos`-provider orders, each with
+ * its priced lines, its captured payment, and its opening status event — the same
+ * shape `OrdersService.recordSale` writes, so the reports read seeded and
+ * real-world sales through one code path.
+ *
+ * Guarded per sale on an existing `pos` payment at the same instant, so re-running
+ * the seed never stacks duplicate takings (mirroring `ensurePayment`).
+ */
+async function ensureTillSales(
+  gymId: string,
+  staffIdByEmail: ReadonlyMap<string, string>,
+): Promise<void> {
+  for (const sale of DEMO_TILL_SALES) {
+    const soldAt = daysAgo(sale.daysAgo);
+    soldAt.setHours(sale.hour, 0, 0, 0);
+
+    const existing = await prisma.payment.findFirst({
+      where: { gymId, provider: 'pos', createdAt: soldAt },
+      select: { id: true },
+    });
+    if (existing) {
+      continue;
+    }
+
+    const soldById = staffIdByEmail.get(sale.soldBy) ?? null;
+    const total = sale.lines.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
+
+    const order = await prisma.order.create({
+      data: {
+        gymId,
+        soldById,
+        total,
+        currency: 'GEL',
+        status: OrderStatus.PAID,
+        createdAt: soldAt,
+        updatedAt: soldAt,
+        items: {
+          create: sale.lines.map((line) => ({
+            // The POS folds the quantity into the label only when more than one
+            // was sold, and records the raw `qty` regardless.
+            label: line.qty > 1 ? `${line.label} ×${line.qty}` : line.label,
+            amount: line.unitPrice * line.qty,
+            qty: line.qty,
+          })),
+        },
+        statusEvents: { create: { status: OrderStatus.PAID, at: soldAt } },
+      },
+      select: { id: true },
+    });
+
+    const payment = await prisma.payment.create({
+      data: {
+        gymId,
+        orderId: order.id,
+        amount: total,
+        currency: 'GEL',
+        status: PaymentStatus.CAPTURED,
+        method: sale.method,
+        provider: 'pos',
+        createdAt: soldAt,
+        updatedAt: soldAt,
+      },
+      select: { id: true },
+    });
+
+    if (!sale.refund) {
+      continue;
+    }
+    // One line's worth came back, leaving the payment partially refunded and the
+    // order still PAID — which is why no status event is written here either.
+    const refundedAt = daysAgo(sale.refund.daysAgo);
+    refundedAt.setHours(sale.hour, 30, 0, 0);
+    const refundAmount = sale.lines[0]!.unitPrice;
+    await prisma.refund.create({
+      data: {
+        gymId,
+        orderId: order.id,
+        paymentId: payment.id,
+        amount: refundAmount,
+        reason: sale.refund.reason,
+        restockItems: true,
+        processedById: staffIdByEmail.get(sale.refund.processedBy) ?? null,
+        createdAt: refundedAt,
+      },
+    });
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { refundedAmount: refundAmount },
     });
   }
 }

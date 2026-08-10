@@ -186,6 +186,7 @@ import type {
   ReportRange,
   ReportFormat,
   ReportDrilldown,
+  ReportDrilldownRange,
   ReportMetric,
   ListAutomationRulesQuery,
   ListAutomationRulesResponse,
@@ -2094,6 +2095,34 @@ export async function fetchReportExport(
   const qs = params.toString();
   return fetch(
     `${apiBaseUrl()}/admin/reports/${encodeURIComponent(key)}/export${qs ? `?${qs}` : ''}`,
+    {
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+}
+
+/**
+ * Fetch one DRILL-DOWN's file export as a raw upstream `Response`, so the route
+ * handler can pipe its body straight through. Mirrors {@link fetchReportExport};
+ * the drill-down is keyed by metric rather than by catalogue key.
+ */
+export async function fetchReportDrilldownExport(
+  metric: ReportMetric,
+  query: { range?: ReportDrilldownRange; format?: ReportFormat } = {},
+): Promise<Response> {
+  const params = new URLSearchParams();
+  if (query.range) {
+    params.set('range', query.range);
+  }
+  if (query.format) {
+    params.set('format', query.format);
+  }
+  const qs = params.toString();
+  return fetch(
+    `${apiBaseUrl()}/admin/reports/drilldown/${encodeURIComponent(metric)}/export${
+      qs ? `?${qs}` : ''
+    }`,
     {
       headers: await authHeaders(),
       cache: 'no-store',

@@ -30,6 +30,18 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'Review',
   'Order',
   'Payment',
+  // The financial children of an order. Both duplicate `gymId` from their parent
+  // so they can be aggregated without a join, and the reports do exactly that —
+  // reading them directly rather than through the parent. Until they were listed
+  // here that made them unscoped: `dashboard-sales.service.ts` summed refunds
+  // across EVERY gym into one tenant's chart, because its `refund.findMany`
+  // filtered on the window alone and nothing added the gym.
+  //
+  // `OrderItem` is deliberately NOT here: it carries no `gymId` of its own (see
+  // its model doc), so scoping it would filter on a column that does not exist.
+  // A line is reached through its already-scoped `Order`.
+  'Refund',
+  'PromoRedemption',
   'SubscriptionPlan',
   'Subscription',
   'Invoice',
