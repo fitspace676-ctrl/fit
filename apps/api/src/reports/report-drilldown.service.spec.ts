@@ -35,6 +35,8 @@ function setup() {
   const reviewFindMany = vi.fn().mockResolvedValue([]);
   const loyaltyLedgerEntryFindMany = vi.fn().mockResolvedValue([]);
   const loyaltyRedemptionFindMany = vi.fn().mockResolvedValue([]);
+  const refundFindMany = vi.fn().mockResolvedValue([]);
+  const orderFindMany = vi.fn().mockResolvedValue([]);
 
   const client = {
     payment: { findMany: paymentFindMany, findFirst: paymentFindFirst },
@@ -46,6 +48,8 @@ function setup() {
     review: { findMany: reviewFindMany },
     loyaltyLedgerEntry: { findMany: loyaltyLedgerEntryFindMany },
     loyaltyRedemption: { findMany: loyaltyRedemptionFindMany },
+    refund: { findMany: refundFindMany },
+    order: { findMany: orderFindMany },
   };
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1', userId: 'user-1' } as unknown as TenantContext;
@@ -63,6 +67,27 @@ function setup() {
     reviewFindMany,
     loyaltyLedgerEntryFindMany,
     loyaltyRedemptionFindMany,
+    refundFindMany,
+    orderFindMany,
+  };
+}
+
+/** A captured-payment row as the SALES drill-down's `select` projects it. */
+function salePayment(
+  amount: number,
+  createdAt: string,
+  method: PaymentMethod,
+  seller: { id: string; first: string; last: string } | null,
+) {
+  return {
+    amount,
+    currency: 'GEL',
+    method,
+    createdAt: new Date(createdAt),
+    order: {
+      soldById: seller?.id ?? null,
+      soldBy: seller ? { firstName: seller.first, lastName: seller.last, user: null } : null,
+    },
   };
 }
 
@@ -145,6 +170,96 @@ describe('ReportDrilldownService', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  describe('sales', () => {
+    it('subtracts a refund on the day it was ISSUED, not from the sale that earned it', async () => {
+      const { service, paymentFindMany, refundFindMany } = setup();
+      paymentFindMany.mockResolvedValue([
+        salePayment(10_000, '2026-05-20T09:00:00.000Z', PaymentMethod.CARD, null),
+      ]);
+      // The refund lands eight days after the sale — a different bucket.
+      refundFindMany.mockResolvedValue([
+        {
+          amount: 4_000,
+          createdAt: new Date('2026-05-28T09:00:00.000Z'),
+          orderId: 'cmzzzzzzzzwxyz9876',
+          reason: 'Returned',
+          processedBy: { firstName: 'Mariam', lastName: 'Beridze', user: null },
+        },
+      ]);
+
+      const result = await service.run('sales', { range: '30d' });
+
+      const series = result.sections.find(
+        (s) => s.id === 'net-sales-over-time',
+      ) as ReportSeriesSection;
+      const saleDay = series.points.find((p) => p.label === '2026-05-20');
+      const refundDay = series.points.find((p) => p.label === '2026-05-28');
+      // The sale's own day keeps its full value; the refund shows as a negative on
+      // its own. Netting it back onto 2026-05-20 would restate a reported day.
+      expect(saleDay?.value).toBe(10_000);
+      expect(refundDay?.value).toBe(-4_000);
+      expect(result.kpis).toEqual([
+        { id: 'gross-sales', label: 'Gross sales', value: 10_000, unit: 'money' },
+        { id: 'refunds', label: 'Refunds', value: 4_000, unit: 'money' },
+        { id: 'net-sales', label: 'Net sales', value: 6_000, unit: 'money' },
+        { id: 'sale-count', label: 'Sales', value: 1, unit: 'count' },
+      ]);
+    });
+
+    it('splits the settlement mix and gives sales with no seller their own bar', async () => {
+      const { service, paymentFindMany } = setup();
+      const mariam = { id: 'staff-1', first: 'Mariam', last: 'Beridze' };
+      paymentFindMany.mockResolvedValue([
+        salePayment(9_000, '2026-05-20T09:00:00.000Z', PaymentMethod.CARD, mariam),
+        salePayment(2_500, '2026-05-21T09:00:00.000Z', PaymentMethod.CASH, mariam),
+        // A self-serve online purchase — captured, but nobody sold it.
+        salePayment(12_000, '2026-05-22T09:00:00.000Z', PaymentMethod.CARD, null),
+      ]);
+
+      const result = await service.run('sales', { range: '30d' });
+
+      const method = result.sections.find(
+        (s) => s.id === 'sales-mix-by-method',
+      ) as ReportBreakdownSection;
+      expect(method.items).toEqual([
+        { label: 'Card', value: 21_000 },
+        { label: 'Cash', value: 2_500 },
+      ]);
+
+      const seller = result.sections.find(
+        (s) => s.id === 'sales-by-seller',
+      ) as ReportBreakdownSection;
+      expect(seller.items).toEqual([
+        { label: 'Unattributed', value: 12_000 },
+        { label: 'Mariam Beridze', value: 11_500 },
+      ]);
+    });
+
+    it('lists recent refunds with the operator who issued each one', async () => {
+      const { service, refundFindMany } = setup();
+      refundFindMany.mockResolvedValue([
+        {
+          amount: 4_500,
+          createdAt: new Date('2026-06-07T10:30:00.000Z'),
+          orderId: 'cmabcdefgh12345678',
+          reason: 'Wrong size, one returned',
+          processedBy: { firstName: 'Mariam', lastName: 'Beridze', user: null },
+        },
+      ]);
+
+      const result = await service.run('sales', { range: '30d' });
+
+      const table = result.sections.find((s) => s.id === 'recent-refunds') as ReportTableSection;
+      expect(table.rows[0]).toEqual({
+        date: '2026-06-07',
+        order: '12345678',
+        amount: 4_500,
+        reason: 'Wrong size, one returned',
+        processedBy: 'Mariam Beridze',
+      });
+    });
   });
 
   describe('revenue', () => {

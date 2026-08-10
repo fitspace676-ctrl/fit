@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_REPORT_RANGE,
   formatReportCsvCell,
+  groupReportsBySegment,
   REPORT_CATALOG,
   REPORT_DEFINITIONS,
+  REPORT_DIGEST_KEYS,
   REPORT_KEYS,
+  REPORT_SEGMENTS,
   reportCsvRow,
   reportExportQuerySchema,
   reportQuerySchema,
@@ -27,6 +30,47 @@ describe('report definitions', () => {
       expect(columns.length).toBeGreaterThan(0);
       const keys = columns.map((c) => c.key);
       expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+
+  it('files every report under a real segment', () => {
+    for (const key of REPORT_KEYS) {
+      expect(REPORT_SEGMENTS).toContain(REPORT_DEFINITIONS[key].segment);
+    }
+  });
+});
+
+describe('groupReportsBySegment', () => {
+  it('groups in segment order and keeps each segment’s catalogue order', () => {
+    const grouped = groupReportsBySegment(REPORT_CATALOG);
+
+    const order = grouped.map((g) => g.segment);
+    expect(order).toEqual([...REPORT_SEGMENTS].filter((s) => order.includes(s)));
+    for (const group of grouped) {
+      expect(group.reports.every((r) => r.segment === group.segment)).toBe(true);
+    }
+    // Nothing is lost in the grouping.
+    expect(grouped.flatMap((g) => g.reports.map((r) => r.key)).sort()).toEqual(
+      [...REPORT_KEYS].sort(),
+    );
+  });
+
+  it('omits a segment that has no reports rather than rendering an empty heading', () => {
+    const salesOnly = REPORT_CATALOG.filter((r) => r.segment === 'sales');
+
+    const grouped = groupReportsBySegment(salesOnly);
+
+    expect(grouped.map((g) => g.segment)).toEqual(['sales']);
+  });
+});
+
+describe('report digest', () => {
+  it('is a CURATED list, not every report in the catalogue', () => {
+    // The digest used to alias REPORT_KEYS, which meant adding a report to the
+    // console silently added a section to everyone's weekly email.
+    expect(REPORT_DIGEST_KEYS.length).toBeLessThan(REPORT_KEYS.length);
+    for (const key of REPORT_DIGEST_KEYS) {
+      expect(REPORT_KEYS).toContain(key);
     }
   });
 });

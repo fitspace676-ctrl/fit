@@ -58,6 +58,10 @@ function setup(over?: {
   settings?: unknown;
   grouped?: Array<{ method: string; _sum: { amount: number | null }; _count: { _all: number } }>;
   enrollMember?: ReturnType<typeof vi.fn>;
+  /** JWT `sub` on the request; omitted for an unauthenticated (subdomain) caller. */
+  userId?: string;
+  /** The caller's staff row at this gym, or null when they hold no membership here. */
+  staff?: { id: string } | null;
 }) {
   const sendReceiptEmail = vi.fn<() => Promise<boolean>>(() =>
     Promise.resolve(over?.delivered ?? true),
@@ -77,10 +81,15 @@ function setup(over?: {
   const tx = { order: { create: orderCreate }, payment: { create: paymentCreate } };
   const $transaction = vi.fn((cb: (client: typeof tx) => unknown) => cb(tx));
   const email = { sendReceiptEmail } as unknown as EmailService;
-  const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  const tenant = { gymId: 'gym-1', userId: over?.userId } as unknown as TenantContext;
+  // `findFirst`, not `findUnique` — the tenant extension scopes reads by injecting
+  // `gymId` into the `where`, and `findUnique` is not one of the operations it
+  // scopes, so a compound-unique lookup here would run across every gym.
+  const gymMemberFindFirst = vi.fn((_args: unknown) => Promise.resolve(over?.staff ?? null));
   const prisma = {
     client: {
       gym: { findUnique },
+      gymMember: { findFirst: gymMemberFindFirst },
       payment: { groupBy },
       $transaction,
     },
@@ -92,6 +101,7 @@ function setup(over?: {
     enrollMember,
     sendReceiptEmail,
     findUnique,
+    gymMemberFindFirst,
     orderCreate,
     paymentCreate,
     groupBy,
@@ -173,8 +183,9 @@ describe('OrdersService.recordSale', () => {
       { label: 'Protein bar ×2', amount: 500, qty: 2 },
       { label: 'Towel', amount: 300, qty: 1 },
     ]);
-    // The opening PAID transition is logged for the status timeline (T7.9).
-    expect(orderArgs.data.statusEvents.create).toEqual({ status: 'PAID' });
+    // The opening PAID transition is logged for the status timeline (T7.9). This
+    // `setup()` has no authenticated caller, so the transition has no actor.
+    expect(orderArgs.data.statusEvents.create).toEqual({ status: 'PAID', actor: null });
 
     const paymentArgs = paymentCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(paymentArgs.data).toMatchObject({
@@ -185,6 +196,53 @@ describe('OrdersService.recordSale', () => {
       method: 'CARD',
       provider: 'pos',
     });
+  });
+
+  it('attributes the sale to the staff member who rang it', async () => {
+    const { service, orderCreate, gymMemberFindFirst } = setup({
+      userId: 'user-7',
+      staff: { id: 'staff-7' },
+    });
+
+    await service.recordSale(saleInput);
+
+    // Looked up by user id alone: the tenant extension injects the gym, so this
+    // can never resolve a staff row belonging to another gym.
+    expect(gymMemberFindFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-7' },
+      select: { id: true },
+    });
+    const orderArgs = orderCreate.mock.calls[0]![0] as {
+      data: Record<string, unknown> & { statusEvents: { create: Record<string, unknown> } };
+    };
+    // The staff row, not the user id: "sales by staff member" is a question about
+    // this gym's roster.
+    expect(orderArgs.data.soldById).toBe('staff-7');
+    // The opening transition names the same operator, which it never used to.
+    expect(orderArgs.data.statusEvents.create).toEqual({ status: 'PAID', actor: 'user-7' });
+  });
+
+  it('leaves the sale unattributed when the request carries no authenticated user', async () => {
+    const { service, orderCreate, gymMemberFindFirst } = setup();
+
+    await service.recordSale(saleInput);
+
+    // No user to resolve, so the lookup is skipped entirely rather than run with
+    // an undefined id.
+    expect(gymMemberFindFirst).not.toHaveBeenCalled();
+    const orderArgs = orderCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(orderArgs.data.soldById).toBeNull();
+  });
+
+  it('leaves the sale unattributed when the caller holds no membership at this gym', async () => {
+    const { service, orderCreate } = setup({ userId: 'user-7', staff: null });
+
+    await service.recordSale(saleInput);
+
+    // A null seller is the honest answer. Falling back to the user id would put a
+    // value in the column that is not a staff row and would break the report's join.
+    const orderArgs = orderCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(orderArgs.data.soldById).toBeNull();
   });
 
   it('rejects a member-account sale with no member attached', async () => {
@@ -309,6 +367,8 @@ function adminSetup(over?: {
   orderAggregate?: { _sum: { total: number | null } };
   paymentAggregate?: { _sum: { refundedAmount: number | null } };
   productFindMany?: unknown[];
+  /** The caller's staff row at this gym; pass `null` for a caller with none. */
+  staff?: { id: string } | null;
 }) {
   const orderFindMany = vi.fn((_args: unknown) => Promise.resolve(over?.orderFindMany ?? []));
   const orderCount = vi.fn((_args: unknown) => Promise.resolve(over?.orderCount ?? 0));
@@ -339,6 +399,9 @@ function adminSetup(over?: {
 
   const email = {} as unknown as EmailService;
   const tenant = { gymId: 'gym-1', userId: 'user-1' } as unknown as TenantContext;
+  const gymMemberFindFirst = vi.fn((_args: unknown) =>
+    Promise.resolve(over?.staff === undefined ? { id: 'staff-1' } : over.staff),
+  );
   const prisma = {
     client: {
       order: {
@@ -347,6 +410,7 @@ function adminSetup(over?: {
         findFirst: orderFindFirst,
         aggregate: orderAggregate,
       },
+      gymMember: { findFirst: gymMemberFindFirst },
       payment: { aggregate: paymentAggregate },
       $transaction,
     },
@@ -355,6 +419,7 @@ function adminSetup(over?: {
   const enrollment = enrollmentStub();
   return {
     service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment, promoStub()),
+    gymMemberFindFirst,
     orderFindMany,
     orderCount,
     orderFindFirst,
@@ -616,6 +681,59 @@ describe('OrdersService.refundOrder', () => {
     expect(statusEventCreate.mock.calls[0]![0]).toMatchObject({
       data: { status: 'REFUNDED', actor: 'user-1' },
     });
+  });
+
+  it('records the operator on the refund row itself', async () => {
+    const { service, refundCreate, gymMemberFindFirst } = adminSetup({
+      orderFindFirst: {
+        id: 'order-1',
+        status: 'PAID',
+        payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+        items: [],
+      },
+    });
+
+    await service.refundOrder('order-1', { amount: 1000, reason: 'Returned', restockItems: false });
+
+    expect(gymMemberFindFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      select: { id: true },
+    });
+    expect(refundCreate.mock.calls[0]![0]).toMatchObject({ data: { processedById: 'staff-1' } });
+  });
+
+  it('records the operator on a PARTIAL refund, which logs no status event to carry one', async () => {
+    const { service, refundCreate, statusEventCreate } = adminSetup({
+      orderFindFirst: {
+        id: 'order-1',
+        status: 'PAID',
+        payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+        items: [],
+      },
+    });
+
+    await service.refundOrder('order-1', { amount: 400, reason: 'Partial', restockItems: false });
+
+    // This is the case the order-level status event could never cover: a partial
+    // refund writes no transition, so before this the operator was unrecorded.
+    expect(statusEventCreate).not.toHaveBeenCalled();
+    expect(refundCreate.mock.calls[0]![0]).toMatchObject({ data: { processedById: 'staff-1' } });
+  });
+
+  it('leaves the refund unattributed when the caller holds no membership at this gym', async () => {
+    const { service, refundCreate } = adminSetup({
+      staff: null,
+      orderFindFirst: {
+        id: 'order-1',
+        status: 'PAID',
+        payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+        items: [],
+      },
+    });
+
+    await service.refundOrder('order-1', { amount: 400, reason: 'Partial', restockItems: false });
+
+    expect(refundCreate.mock.calls[0]![0]).toMatchObject({ data: { processedById: null } });
   });
 
   it('leaves a partial refund PAID without a status event', async () => {

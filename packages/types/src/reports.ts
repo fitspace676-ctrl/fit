@@ -38,19 +38,77 @@ export type ReportRange = AnalyticsRange;
 /** The default window when a report query omits `range`. */
 export const DEFAULT_REPORT_RANGE: ReportRange = DEFAULT_ANALYTICS_RANGE;
 
+/* -------------------------------------------------------------------------- */
+/*  Segments                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The groups the Reports hub files its catalogue under.
+ *
+ * These are the dashboard's own segments (`./dashboard-segments`) minus
+ * `overview`, which is a summary of the others rather than a subject of its own.
+ * Sharing the vocabulary is the point: a figure called "net sales" has to mean
+ * the same thing on the Sales dashboard tab and in a Sales report, and the surest
+ * way to keep that true is for both to be filed under the same word.
+ *
+ * A segment with no reports yet is simply absent from the hub — the grouping is
+ * derived from the catalogue, never hardcoded alongside it.
+ */
+export const REPORT_SEGMENTS = ['sales', 'members', 'revenue', 'classes', 'staff'] as const;
+
+/** A report segment — {@link REPORT_SEGMENTS}. */
+export const reportSegmentSchema = z.enum(REPORT_SEGMENTS);
+export type ReportSegment = z.infer<typeof reportSegmentSchema>;
+
+/** Display copy for each segment heading in the hub. */
+export const REPORT_SEGMENT_LABEL: Record<ReportSegment, string> = {
+  sales: 'Sales',
+  members: 'Members',
+  revenue: 'Revenue',
+  classes: 'Classes & training',
+  staff: 'Trainers & staff',
+};
+
 /**
  * The report catalogue keys (T4.8). Stable, URL-safe slugs used as the `:report`
- * path segment and as the {@link REPORT_DEFINITIONS} map keys:
- *   • `revenue-by-channel`  — captured takings split POS vs ONLINE.
- *   • `attendance-by-class` — attended / no-show per class template + trainer.
- *   • `membership-growth`   — new + cumulative members bucketed across the window.
- *   • `no-show-rate`        — no-show rate per trainer.
+ * path segment and as the {@link REPORT_DEFINITIONS} map keys.
+ *
+ * Ordered by segment so the catalogue reads in the hub's own order. Each report's
+ * segment lives on its {@link ReportDefinition}, not in this list.
  */
 export const REPORT_KEYS = [
+  // Sales
+  'sales-summary',
+  'sales-by-payment-method',
+  'plan-performance',
+  'sales-by-staff',
+  'discounts-and-promotions',
+  'refunds-detail',
+  'pos-transaction-log',
+  // Members
+  'membership-movement',
+  'retention-and-churn',
+  'members-at-risk',
+  'expiring-memberships',
+  'member-roster',
+  'member-check-in-log',
+  'upcoming-occasions',
+  // Revenue
+  'revenue-summary',
   'revenue-by-channel',
+  'revenue-by-location',
+  'outstanding-invoices',
+  'projected-revenue',
+  'refunds-accounting',
+  // Classes
   'attendance-by-class',
-  'membership-growth',
+  'class-utilization',
+  'class-cancellations',
+  'waitlist-demand',
+  'pt-sessions',
   'no-show-rate',
+  // Staff
+  'trainer-performance',
 ] as const;
 
 /** A report catalogue key — {@link REPORT_KEYS}. */
@@ -94,9 +152,11 @@ export interface ReportColumn {
   type: ReportColumnType;
 }
 
-/** A report's static description — its key, display copy, and column shape. */
+/** A report's static description — its key, segment, display copy, and column shape. */
 export interface ReportDefinition {
   key: ReportKey;
+  /** The hub group this report is filed under — see {@link REPORT_SEGMENTS}. */
+  segment: ReportSegment;
   name: string;
   description: string;
   columns: ReportColumn[];
@@ -109,8 +169,220 @@ export interface ReportDefinition {
  * and cell types, so the three surfaces can never drift.
  */
 export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
+  /* ---- Sales ------------------------------------------------------------ */
+
+  'sales-summary': {
+    key: 'sales-summary',
+    segment: 'sales',
+    name: 'Sales summary',
+    description: 'Gross takings, refunds and net sales per period across the window.',
+    columns: [
+      { key: 'period', label: 'Period', type: 'date' },
+      { key: 'orders', label: 'Orders', type: 'number' },
+      { key: 'gross', label: 'Gross', type: 'money' },
+      { key: 'refunded', label: 'Refunded', type: 'money' },
+      { key: 'net', label: 'Net', type: 'money' },
+    ],
+  },
+  'sales-by-payment-method': {
+    key: 'sales-by-payment-method',
+    segment: 'sales',
+    name: 'Sales by payment method',
+    description: 'How sales were settled — cash, card, or a member account.',
+    columns: [
+      { key: 'method', label: 'Method', type: 'text' },
+      { key: 'orders', label: 'Orders', type: 'number' },
+      { key: 'gross', label: 'Gross', type: 'money' },
+      { key: 'refunded', label: 'Refunded', type: 'money' },
+      { key: 'net', label: 'Net', type: 'money' },
+    ],
+  },
+  'plan-performance': {
+    key: 'plan-performance',
+    segment: 'sales',
+    name: 'Plan performance',
+    description: 'Sales count and revenue per plan or package, ranked by revenue.',
+    columns: [
+      { key: 'plan', label: 'Plan', type: 'text' },
+      { key: 'orders', label: 'Sales', type: 'number' },
+      { key: 'revenue', label: 'Revenue', type: 'money' },
+    ],
+  },
+  'sales-by-staff': {
+    key: 'sales-by-staff',
+    segment: 'sales',
+    name: 'Sales by staff member',
+    description: 'Who rang up what at the till, for commission and incentive tracking.',
+    columns: [
+      { key: 'staff', label: 'Staff member', type: 'text' },
+      { key: 'role', label: 'Role', type: 'text' },
+      { key: 'orders', label: 'Sales', type: 'number' },
+      { key: 'gross', label: 'Gross', type: 'money' },
+      { key: 'net', label: 'Net', type: 'money' },
+    ],
+  },
+  'discounts-and-promotions': {
+    key: 'discounts-and-promotions',
+    segment: 'sales',
+    name: 'Discounts & promotions',
+    description: 'Every promo code redeemed in the window and what it gave away.',
+    columns: [
+      { key: 'code', label: 'Code', type: 'text' },
+      { key: 'discountType', label: 'Type', type: 'text' },
+      { key: 'redemptions', label: 'Redemptions', type: 'number' },
+      { key: 'discountGiven', label: 'Given away', type: 'money' },
+    ],
+  },
+  'refunds-detail': {
+    key: 'refunds-detail',
+    segment: 'sales',
+    name: 'Refunds detail',
+    description: 'Every refund line by line — amount, reason, and who processed it.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'order', label: 'Order', type: 'text' },
+      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'reason', label: 'Reason', type: 'text' },
+      { key: 'processedBy', label: 'Processed by', type: 'text' },
+    ],
+  },
+  'pos-transaction-log': {
+    key: 'pos-transaction-log',
+    segment: 'sales',
+    name: 'POS transaction log',
+    description: 'Receipt-level till detail for reconciliation and disputes.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'order', label: 'Order', type: 'text' },
+      { key: 'items', label: 'Items', type: 'text' },
+      { key: 'method', label: 'Method', type: 'text' },
+      { key: 'total', label: 'Total', type: 'money' },
+      { key: 'staff', label: 'Sold by', type: 'text' },
+    ],
+  },
+
+  /* ---- Members ---------------------------------------------------------- */
+
+  'membership-movement': {
+    key: 'membership-movement',
+    segment: 'members',
+    name: 'Membership movement',
+    description: 'Signups, cancellations and the net change per period, with the running total.',
+    columns: [
+      { key: 'period', label: 'Period', type: 'date' },
+      { key: 'newMembers', label: 'New', type: 'number' },
+      { key: 'cancellations', label: 'Cancelled', type: 'number' },
+      { key: 'netChange', label: 'Net change', type: 'number' },
+      { key: 'totalMembers', label: 'Total members', type: 'number' },
+    ],
+  },
+  'retention-and-churn': {
+    key: 'retention-and-churn',
+    segment: 'members',
+    name: 'Retention & churn',
+    description:
+      'Churn measured over rolling 30, 60 and 90-day windows ending at each period. Retention is the complement of the 30-day rate.',
+    columns: [
+      { key: 'period', label: 'Period', type: 'date' },
+      { key: 'churned', label: 'Cancelled', type: 'number' },
+      { key: 'retentionRate30', label: 'Retention (30d)', type: 'percent' },
+      { key: 'churnRate30', label: 'Churn (30d)', type: 'percent' },
+      { key: 'churnRate60', label: 'Churn (60d)', type: 'percent' },
+      { key: 'churnRate90', label: 'Churn (90d)', type: 'percent' },
+    ],
+  },
+  'members-at-risk': {
+    key: 'members-at-risk',
+    segment: 'members',
+    name: 'Members at risk',
+    description:
+      'Members who are still paying but have stopped turning up — call list, longest absence first.',
+    columns: [
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'plan', label: 'Plan', type: 'text' },
+      { key: 'lastVisit', label: 'Last visit', type: 'date' },
+      { key: 'daysAway', label: 'Days away', type: 'number' },
+      { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'email', label: 'Email', type: 'text' },
+    ],
+  },
+  'expiring-memberships': {
+    key: 'expiring-memberships',
+    segment: 'members',
+    name: 'Expiring memberships',
+    description:
+      'Memberships running out inside the selected window, with the plan and how to reach them.',
+    columns: [
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'plan', label: 'Plan', type: 'text' },
+      { key: 'expiresOn', label: 'Expires', type: 'date' },
+      { key: 'daysLeft', label: 'Days left', type: 'number' },
+      { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'email', label: 'Email', type: 'text' },
+    ],
+  },
+  'member-roster': {
+    key: 'member-roster',
+    segment: 'members',
+    name: 'Member roster',
+    description: 'Every member with their status, plan, join date and last visit.',
+    columns: [
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'status', label: 'Status', type: 'text' },
+      { key: 'plan', label: 'Plan', type: 'text' },
+      { key: 'joined', label: 'Joined', type: 'date' },
+      { key: 'lastVisit', label: 'Last visit', type: 'date' },
+      { key: 'email', label: 'Email', type: 'text' },
+    ],
+  },
+  'member-check-in-log': {
+    key: 'member-check-in-log',
+    segment: 'members',
+    name: 'Check-in log',
+    description: 'Every visit in the window — who came in, when, how, and to which branch.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'method', label: 'Method', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'upcoming-occasions': {
+    key: 'upcoming-occasions',
+    segment: 'members',
+    name: 'Birthdays & anniversaries',
+    description:
+      'Birthdays and joining anniversaries falling inside the selected window, soonest first.',
+    columns: [
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'occasion', label: 'Occasion', type: 'text' },
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'years', label: 'Years', type: 'number' },
+      { key: 'phone', label: 'Phone', type: 'text' },
+    ],
+  },
+
+  /* ---- Revenue ---------------------------------------------------------- */
+
+  'revenue-summary': {
+    key: 'revenue-summary',
+    segment: 'revenue',
+    name: 'Revenue summary',
+    description:
+      'Net revenue per period beside the recurring base: MRR and average revenue per member, both as they stood at the end of each period.',
+    columns: [
+      { key: 'period', label: 'Period', type: 'date' },
+      { key: 'revenue', label: 'Revenue', type: 'money' },
+      { key: 'mrr', label: 'MRR', type: 'money' },
+      { key: 'activeMembers', label: 'Subscribed', type: 'number' },
+      { key: 'arpm', label: 'Avg / member', type: 'money' },
+    ],
+  },
   'revenue-by-channel': {
     key: 'revenue-by-channel',
+    segment: 'revenue',
     name: 'Revenue by channel',
     description: 'Captured takings split by sales channel (POS vs online), net of refunds.',
     columns: [
@@ -121,30 +393,156 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
       { key: 'net', label: 'Net', type: 'money' },
     ],
   },
+  'revenue-by-location': {
+    key: 'revenue-by-location',
+    segment: 'revenue',
+    name: 'Revenue by location',
+    description:
+      'Takings split across branches. Sales that never recorded a branch are grouped under "No location" rather than dropped.',
+    columns: [
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'orders', label: 'Orders', type: 'number' },
+      { key: 'gross', label: 'Gross', type: 'money' },
+      { key: 'refunded', label: 'Refunded', type: 'money' },
+      { key: 'net', label: 'Net', type: 'money' },
+    ],
+  },
+  'outstanding-invoices': {
+    key: 'outstanding-invoices',
+    segment: 'revenue',
+    name: 'Outstanding invoices',
+    description: 'Unpaid and failed invoices, longest overdue first, with who owes what.',
+    columns: [
+      { key: 'invoice', label: 'Invoice', type: 'text' },
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'dueDate', label: 'Due', type: 'date' },
+      { key: 'daysOverdue', label: 'Days overdue', type: 'number' },
+      { key: 'status', label: 'Status', type: 'text' },
+    ],
+  },
+  'projected-revenue': {
+    key: 'projected-revenue',
+    segment: 'revenue',
+    name: 'Projected revenue',
+    description:
+      'Subscription renewals falling due in the window ahead, and what they are scheduled to charge.',
+    columns: [
+      { key: 'period', label: 'Period', type: 'date' },
+      { key: 'renewals', label: 'Renewals due', type: 'number' },
+      { key: 'expected', label: 'Expected', type: 'money' },
+    ],
+  },
+  'refunds-accounting': {
+    key: 'refunds-accounting',
+    segment: 'revenue',
+    name: 'Refunds (accounting)',
+    description:
+      'Refunds per period against the takings they reverse — the books view. Chargebacks are not included: no dispute data reaches the system yet.',
+    columns: [
+      { key: 'period', label: 'Period', type: 'date' },
+      { key: 'refunds', label: 'Refunds', type: 'number' },
+      { key: 'refunded', label: 'Refunded', type: 'money' },
+      { key: 'gross', label: 'Gross taken', type: 'money' },
+      { key: 'shareOfGross', label: 'Share of gross', type: 'percent' },
+    ],
+  },
+
+  /* ---- Classes ---------------------------------------------------------- */
+
   'attendance-by-class': {
     key: 'attendance-by-class',
-    name: 'Attendance by class',
-    description: 'Attended vs no-show bookings per class, with the attendance rate.',
+    segment: 'classes',
+    name: 'Class attendance',
+    description: 'Seats booked, attended and missed per class, with both rates.',
     columns: [
       { key: 'class', label: 'Class', type: 'text' },
       { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'booked', label: 'Booked', type: 'number' },
       { key: 'attended', label: 'Attended', type: 'number' },
       { key: 'noShow', label: 'No-shows', type: 'number' },
       { key: 'attendanceRate', label: 'Attendance rate', type: 'percent' },
+      { key: 'noShowRate', label: 'No-show rate', type: 'percent' },
     ],
   },
-  'membership-growth': {
-    key: 'membership-growth',
-    name: 'Membership growth',
-    description: 'New and cumulative members across the reporting window.',
+  'class-utilization': {
+    key: 'class-utilization',
+    segment: 'classes',
+    name: 'Class utilization',
+    description:
+      'Seats booked against seats offered per class — which sessions run full and which run empty.',
     columns: [
-      { key: 'period', label: 'Period', type: 'date' },
-      { key: 'newMembers', label: 'New members', type: 'number' },
-      { key: 'cumulativeMembers', label: 'Total members', type: 'number' },
+      { key: 'class', label: 'Class', type: 'text' },
+      { key: 'sessions', label: 'Sessions', type: 'number' },
+      { key: 'capacity', label: 'Seats offered', type: 'number' },
+      { key: 'booked', label: 'Seats booked', type: 'number' },
+      { key: 'utilization', label: 'Utilization', type: 'percent' },
     ],
   },
+  'class-cancellations': {
+    key: 'class-cancellations',
+    segment: 'classes',
+    name: 'Cancellations & no-shows',
+    description:
+      'Line-item list of who cancelled or failed to turn up, for policy and no-show fees.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'class', label: 'Class', type: 'text' },
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'outcome', label: 'Outcome', type: 'text' },
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+    ],
+  },
+  'waitlist-demand': {
+    key: 'waitlist-demand',
+    segment: 'classes',
+    name: 'Waitlist demand',
+    description:
+      'How often a class filled up and how many were turned away — where another session would pay.',
+    columns: [
+      { key: 'class', label: 'Class', type: 'text' },
+      { key: 'sessions', label: 'Sessions', type: 'number' },
+      { key: 'sessionsFull', label: 'Sessions full', type: 'number' },
+      { key: 'waitlisted', label: 'Waitlisted', type: 'number' },
+      { key: 'fullRate', label: 'Full rate', type: 'percent' },
+    ],
+  },
+  'pt-sessions': {
+    key: 'pt-sessions',
+    segment: 'classes',
+    name: 'PT sessions',
+    description:
+      'Personal-training sessions per trainer. Revenue is not included: a PT session carries no price, and the money sits in the credit pack that paid for it.',
+    columns: [
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'sessions', label: 'Sessions', type: 'number' },
+      { key: 'completed', label: 'Completed', type: 'number' },
+      { key: 'cancelled', label: 'Cancelled', type: 'number' },
+      { key: 'completionRate', label: 'Completion rate', type: 'percent' },
+    ],
+  },
+  /* ---- Trainers & staff ------------------------------------------------- */
+
+  'trainer-performance': {
+    key: 'trainer-performance',
+    segment: 'staff',
+    name: 'Trainer performance',
+    description:
+      'Sessions delivered per trainer — group classes and personal training — with how full their classes ran.',
+    columns: [
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'classes', label: 'Classes', type: 'number' },
+      { key: 'ptSessions', label: 'PT sessions', type: 'number' },
+      { key: 'seatsOffered', label: 'Seats offered', type: 'number' },
+      { key: 'seatsBooked', label: 'Seats booked', type: 'number' },
+      { key: 'utilization', label: 'Utilization', type: 'percent' },
+    ],
+  },
+
   'no-show-rate': {
     key: 'no-show-rate',
+    segment: 'classes',
     name: 'No-show rate',
     description: 'Completed bookings and no-show rate per trainer.',
     columns: [
@@ -158,6 +556,25 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
 
 /** The catalogue as an ordered list, for the Reports hub's `GET /admin/reports`. */
 export const REPORT_CATALOG: ReportDefinition[] = REPORT_KEYS.map((key) => REPORT_DEFINITIONS[key]);
+
+/**
+ * The catalogue grouped for the hub, in {@link REPORT_SEGMENTS} order, with each
+ * segment's reports in {@link REPORT_KEYS} order.
+ *
+ * DERIVED from the catalogue rather than hand-maintained beside it: a segment
+ * appears only once a report claims it, so a segment that is still on the roadmap
+ * cannot render as an empty heading, and adding a report cannot leave the grouping
+ * out of date.
+ */
+export function groupReportsBySegment(
+  reports: readonly ReportDefinition[],
+): Array<{ segment: ReportSegment; label: string; reports: ReportDefinition[] }> {
+  return REPORT_SEGMENTS.map((segment) => ({
+    segment,
+    label: REPORT_SEGMENT_LABEL[segment],
+    reports: reports.filter((report) => report.segment === segment),
+  })).filter((group) => group.reports.length > 0);
+}
 
 /** Successful `GET /admin/reports` response — the report catalogue. */
 export interface ReportCatalogResponse {
@@ -222,11 +639,21 @@ export const REPORT_DIGEST_RANGE: Record<ReportDigestCadence, ReportRange> = {
 };
 
 /**
- * The reports, in order, that a digest includes — the full catalogue. Kept as its
- * own list (rather than inlining {@link REPORT_KEYS}) so the digest's contents can
- * be curated independently of the on-screen catalogue if they ever diverge.
+ * The reports, in order, that a digest includes — a CURATED list, not the whole
+ * catalogue.
+ *
+ * This used to be an alias for {@link REPORT_KEYS}, which meant every report added
+ * to the console silently joined the weekly email to every owner and manager. The
+ * catalogue has since grown past what anyone wants in an inbox, so the digest now
+ * names its four sections outright: a new report reaches the digest only when
+ * somebody decides it should.
  */
-export const REPORT_DIGEST_KEYS: readonly ReportKey[] = REPORT_KEYS;
+export const REPORT_DIGEST_KEYS: readonly ReportKey[] = [
+  'sales-summary',
+  'membership-movement',
+  'attendance-by-class',
+  'no-show-rate',
+];
 
 /**
  * One report inside a digest — the same shape a live `GET /admin/reports/:report`
@@ -256,8 +683,12 @@ export interface ReportDigest {
 /**
  * Assumed minor units per major unit for the exporters' `money` columns (USD/EUR/
  * GEL — all two-decimal this milestone), mirroring the orders CSV export (T4.11).
+ *
+ * Exported because the drill-down export flattens its own money the same way, and
+ * a second copy of `100` is exactly how two exports of the same figure start
+ * disagreeing.
  */
-const REPORT_MINOR_PER_MAJOR = 100;
+export const REPORT_MINOR_PER_MAJOR = 100;
 
 /** Round to one decimal place (percentage columns in the file exports). */
 function round1(n: number): number {

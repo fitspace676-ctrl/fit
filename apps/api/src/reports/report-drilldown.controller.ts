@@ -6,17 +6,23 @@ import {
   HttpStatus,
   Param,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { z } from 'zod';
 import {
   Permission,
   REPORT_METRIC_CATALOG,
+  reportDrilldownExportQuerySchema,
   reportDrilldownQuerySchema,
   reportMetricSchema,
   type ReportDrilldown,
   type ReportMetricDefinition,
 } from '@fit/types';
+
+/** MIME type for a `.xlsx` workbook. */
+const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -48,6 +54,41 @@ export class ReportDrilldownController {
   @RequirePermissions(Permission.ReportView)
   catalog(): { metrics: ReportMetricDefinition[] } {
     return { metrics: REPORT_METRIC_CATALOG };
+  }
+
+  /**
+   * `GET /admin/reports/drilldown/:metric/export?range=&format=` — download the whole
+   * drill-down as a file: a CSV of titled blocks, or an XLSX with the KPI summary
+   * and one tab per section.
+   *
+   * Declared BEFORE the `:metric` preview route so the literal `export` segment is
+   * never captured as a metric — the same ordering the catalogue controller needs.
+   */
+  @Get(':metric/export')
+  @RequirePermissions(Permission.ReportView)
+  async export(
+    @Param('metric') metric: string,
+    @Query() query: unknown,
+    @Res() res: Response,
+  ): Promise<void> {
+    const parsedMetric = parse(reportMetricSchema, metric);
+    const params = parse(reportDrilldownExportQuerySchema, query);
+    const filename = `report-${parsedMetric}-${params.range}.${params.format}`;
+
+    if (params.format === 'xlsx') {
+      const workbook = await this.drilldown.buildDrilldownXlsx(parsedMetric, params);
+      res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(workbook);
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    for await (const chunk of this.drilldown.streamDrilldownCsv(parsedMetric, params)) {
+      res.write(chunk);
+    }
+    res.end();
   }
 
   /**

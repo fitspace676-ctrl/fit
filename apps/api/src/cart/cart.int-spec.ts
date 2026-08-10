@@ -129,6 +129,10 @@ describe('CartService (integration)', () => {
     expect(orders[0]!.fulfillment).toBe('DELIVERY');
     expect(orders[0]!.deliveryAddress).toBe('1 Main St');
     expect(orders[0]!.locationId).toBeNull();
+    // Nobody sold this: the shop is self-serve, so the sales-by-staff attribution
+    // stays null even though the buyer is signed in. Attributing a self-checkout to
+    // the person who made it would credit a member with a staff sale.
+    expect(orders[0]!.soldById).toBeNull();
   });
 
   it('removes out-of-stock lines at checkout with OUT_OF_STOCK', async () => {

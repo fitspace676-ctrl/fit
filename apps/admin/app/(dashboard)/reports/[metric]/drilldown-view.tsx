@@ -14,9 +14,11 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
+import { Button } from '@astryxdesign/core/Button';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type { ReportDrilldown, ReportRange } from '@fit/types';
 import { Icon } from '@/components/ui';
+import { adminPath } from '@/lib/base-path';
 import { ReportSectionCard, formatUnitValue } from '../report-sections';
 
 /** The range options offered by the segmented control, in ascending span order. */
@@ -76,8 +78,26 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
+  // The range picker and the downloads share the header's right-hand side, so a
+  // narrow viewport wraps them as one block rather than stranding the buttons.
+  controls: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
   rangeControl: {
     alignSelf: 'flex-start',
+  },
+  downloads: {
+    display: 'flex',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  iconSm: {
+    width: '1rem',
+    height: '1rem',
   },
   kpiRow: {
     display: 'grid',
@@ -132,6 +152,14 @@ export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
 
   const busy = isNavigating;
 
+  /** The download URL for this drill-down at the range currently on screen. */
+  const exportHref = (format: 'csv' | 'xlsx'): string =>
+    adminPath(
+      `/reports/${encodeURIComponent(drilldown.metric)}/export?range=${encodeURIComponent(
+        drilldown.range,
+      )}&format=${format}`,
+    );
+
   return (
     <div {...stylex.props(styles.page, busy && styles.pending)}>
       <Link href="/reports" {...stylex.props(styles.back)}>
@@ -144,22 +172,47 @@ export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
           <h1 {...stylex.props(styles.title)}>{drilldown.name}</h1>
           <p {...stylex.props(styles.description)}>{drilldown.description}</p>
         </div>
-        <SegmentedControl
-          value={drilldown.range}
-          onChange={(next) => selectRange(next as ReportRange)}
-          label={t('reportingRange')}
-          size="sm"
-          isDisabled={busy}
-          xstyle={styles.rangeControl}
-        >
-          {RANGE_OPTIONS.map((option) => (
-            <SegmentedControlItem
-              key={option.value}
-              value={option.value}
-              label={t(option.labelKey)}
+        <div {...stylex.props(styles.controls)}>
+          <SegmentedControl
+            value={drilldown.range}
+            onChange={(next) => selectRange(next as ReportRange)}
+            label={t('reportingRange')}
+            size="sm"
+            isDisabled={busy}
+            xstyle={styles.rangeControl}
+          >
+            {RANGE_OPTIONS.map((option) => (
+              <SegmentedControlItem
+                key={option.value}
+                value={option.value}
+                label={t(option.labelKey)}
+              />
+            ))}
+          </SegmentedControl>
+
+          {/*
+            Plain anchors, not buttons: the browser has to perform the download,
+            so the basePath is applied by hand (`adminPath`) rather than by the
+            router. The XLSX carries one tab per section; the CSV carries the same
+            sections as titled blocks.
+          */}
+          <div {...stylex.props(styles.downloads)}>
+            <Button
+              label={t('downloadCsv')}
+              variant="secondary"
+              size="sm"
+              href={exportHref('csv')}
+              icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
             />
-          ))}
-        </SegmentedControl>
+            <Button
+              label={t('downloadXlsx')}
+              variant="secondary"
+              size="sm"
+              href={exportHref('xlsx')}
+              icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+            />
+          </div>
+        </div>
       </header>
 
       {drilldown.kpis.length > 0 && (

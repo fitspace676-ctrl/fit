@@ -11,6 +11,8 @@ import {
 } from '@fit/db';
 import {
   REPORT_METRIC_DEFINITIONS,
+  reportCsvRow,
+  reportXlsxRow,
   type ReportDrilldown,
   type ReportDrilldownQuery,
   type ReportDrilldownRow,
@@ -20,6 +22,8 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { drilldownTables } from './drilldown-tabular.util';
+import { buildWorkbook } from './xlsx';
 import {
   bucketKey,
   DEFAULT_CURRENCY,
@@ -140,6 +144,48 @@ export class ReportDrilldownService {
   }
 
   /**
+   * Stream one drill-down as CSV: each section in screen order, introduced by its
+   * title, then its header row and its rows, separated by a blank line.
+   *
+   * A drill-down is several tables of different widths, and a single CSV cannot be
+   * a grid of all of them at once. Titled blocks are the honest compromise — every
+   * figure on the screen appears, and a reader (or a spreadsheet's text import)
+   * can tell where one table ends and the next begins. The XLSX export is the one
+   * to reach for when the sections need to stay separately sortable; it puts each
+   * on its own tab.
+   */
+  async *streamDrilldownCsv(
+    metric: ReportMetric,
+    query: ReportDrilldownQuery,
+  ): AsyncGenerator<string> {
+    const tables = drilldownTables(await this.run(metric, query));
+    let first = true;
+    for (const table of tables) {
+      if (!first) {
+        yield '\r\n';
+      }
+      first = false;
+      yield `${csvCell(table.title)}\r\n`;
+      yield `${table.columns.map((column) => csvCell(column.label)).join(',')}\r\n`;
+      for (const row of table.rows) {
+        yield `${reportCsvRow(table.columns, row).map(csvCell).join(',')}\r\n`;
+      }
+    }
+  }
+
+  /** Build one drill-down as an XLSX workbook — the KPI summary plus a tab per section. */
+  async buildDrilldownXlsx(metric: ReportMetric, query: ReportDrilldownQuery): Promise<Buffer> {
+    const tables = drilldownTables(await this.run(metric, query));
+    return buildWorkbook(
+      tables.map((table) => ({
+        name: table.title,
+        headers: table.columns.map((column) => column.label),
+        rows: table.rows.map((row) => reportXlsxRow(table.columns, row)),
+      })),
+    );
+  }
+
+  /**
    * Resolve one report section to its live data — the read behind a pinned
    * dashboard widget. Returns `null` when the metric no longer emits that section
    * id (a report changed shape), so the dashboard silently drops a stale pin rather
@@ -157,6 +203,8 @@ export class ReportDrilldownService {
 
   private compute(metric: ReportMetric, win: ReportWindow): Promise<ComputedDrilldown> {
     switch (metric) {
+      case 'sales':
+        return this.sales(win);
       case 'revenue':
         return this.revenue(win);
       case 'members':
@@ -172,6 +220,174 @@ export class ReportDrilldownService {
       case 'loyalty':
         return this.loyalty(win);
     }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Sales                                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * The Sales drill-down — the segment's seven catalogue reports as one chart-first
+   * page, the way the Members drill-down presents its own.
+   *
+   * The sales lens differs from the Revenue one in what it treats as a period's
+   * figure. Revenue reads `Payment.refundedAmount`, which nets a refund back
+   * against the sale that earned it. Sales counts money in and money out on the
+   * days they MOVED — a refund issued today reduces today, not the month the sale
+   * was reported in. Both are legitimate; they answer different questions, which is
+   * why the two metrics coexist rather than one deriving from the other.
+   */
+  private async sales(win: ReportWindow): Promise<ComputedDrilldown> {
+    const [payments, refunds, planOrders] = await Promise.all([
+      this.prisma.client.payment.findMany({
+        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        select: {
+          amount: true,
+          currency: true,
+          method: true,
+          createdAt: true,
+          order: {
+            select: {
+              soldById: true,
+              soldBy: {
+                select: { firstName: true, lastName: true, user: { select: { name: true } } },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.client.refund.findMany({
+        where: { createdAt: { gte: win.start, lt: win.end } },
+        select: {
+          amount: true,
+          createdAt: true,
+          orderId: true,
+          reason: true,
+          processedBy: {
+            select: { firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.client.order.findMany({
+        where: {
+          packageId: { not: null },
+          createdAt: { gte: win.start, lt: win.end },
+          payment: { is: { status: PaymentStatus.CAPTURED } },
+        },
+        select: { total: true, package: { select: { name: true } } },
+      }),
+    ]);
+
+    const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
+
+    const grossBuckets = emptyBuckets(win);
+    const refundBuckets = emptyBuckets(win);
+    const byMethod = new Map<string, number>();
+    const bySeller = new Map<string, { label: string; value: number }>();
+    let gross = 0;
+
+    for (const payment of payments) {
+      gross += payment.amount;
+      const key = bucketKey(payment.createdAt, win.bucket);
+      if (grossBuckets.has(key)) {
+        grossBuckets.set(key, (grossBuckets.get(key) ?? 0) + payment.amount);
+      }
+      const method = SALES_METHOD_LABEL[payment.method] ?? payment.method;
+      byMethod.set(method, (byMethod.get(method) ?? 0) + payment.amount);
+
+      const sellerKey = payment.order?.soldById ?? UNATTRIBUTED_SELLER_KEY;
+      const seller = bySeller.get(sellerKey) ?? {
+        label: payment.order?.soldBy ? sellerName(payment.order.soldBy) : UNATTRIBUTED_SELLER_LABEL,
+        value: 0,
+      };
+      seller.value += payment.amount;
+      bySeller.set(sellerKey, seller);
+    }
+
+    let refunded = 0;
+    for (const refund of refunds) {
+      refunded += refund.amount;
+      const key = bucketKey(refund.createdAt, win.bucket);
+      if (refundBuckets.has(key)) {
+        refundBuckets.set(key, (refundBuckets.get(key) ?? 0) + refund.amount);
+      }
+    }
+
+    const byPlan = new Map<string, number>();
+    for (const order of planOrders) {
+      if (!order.package) {
+        continue;
+      }
+      byPlan.set(order.package.name, (byPlan.get(order.package.name) ?? 0) + order.total);
+    }
+
+    const kpis: ReportKpi[] = [
+      { id: 'gross-sales', label: 'Gross sales', value: gross, unit: 'money' },
+      { id: 'refunds', label: 'Refunds', value: refunded, unit: 'money' },
+      { id: 'net-sales', label: 'Net sales', value: gross - refunded, unit: 'money' },
+      { id: 'sale-count', label: 'Sales', value: payments.length, unit: 'count' },
+    ];
+
+    const sections: ReportSection[] = [
+      {
+        kind: 'series',
+        id: 'net-sales-over-time',
+        title: 'Net sales over time',
+        unit: 'money',
+        points: [...grossBuckets.entries()].map(([label, value]) => ({
+          label,
+          value: value - (refundBuckets.get(label) ?? 0),
+        })),
+      },
+      {
+        kind: 'breakdown',
+        id: 'sales-mix-by-method',
+        title: 'Sales by payment method',
+        unit: 'money',
+        items: sortedBreakdown(byMethod),
+      },
+      {
+        kind: 'breakdown',
+        id: 'sales-by-seller',
+        title: 'Sales by staff member',
+        unit: 'money',
+        items: [...bySeller.values()]
+          .sort((a, b) => b.value - a.value)
+          .map((entry) => ({ label: entry.label, value: entry.value })),
+      },
+      {
+        kind: 'breakdown',
+        id: 'top-selling-plans',
+        title: 'Top selling plans',
+        unit: 'money',
+        items: sortedBreakdown(byPlan),
+      },
+      {
+        kind: 'table',
+        id: 'recent-refunds',
+        title: 'Recent refunds',
+        columns: [
+          { key: 'date', label: 'Date', type: 'date' },
+          { key: 'order', label: 'Order', type: 'text' },
+          { key: 'amount', label: 'Amount', type: 'money' },
+          { key: 'reason', label: 'Reason', type: 'text' },
+          { key: 'processedBy', label: 'Processed by', type: 'text' },
+        ],
+        rows: refunds.slice(0, DRILLDOWN_TABLE_ROWS).map((refund) => ({
+          date: isoDate(refund.createdAt),
+          order: refund.orderId.slice(-8).toUpperCase(),
+          amount: refund.amount,
+          reason: refund.reason,
+          processedBy: refund.processedBy
+            ? sellerName(refund.processedBy)
+            : UNATTRIBUTED_SELLER_LABEL,
+        })),
+      },
+    ];
+
+    return { currency, kpis, sections };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1194,6 +1410,44 @@ function isTerminalBefore(
 /** The `YYYY-MM-01` month key an instant falls into (UTC). */
 function monthStart(at: Date): string {
   return isoDate(new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)));
+}
+
+/** Escape one CSV field (RFC 4180) — quote + double embedded quotes when needed. */
+function csvCell(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/** Display labels for the settlement methods the till records. */
+const SALES_METHOD_LABEL: Record<string, string> = {
+  CASH: 'Cash',
+  CARD: 'Card',
+  MEMBER_ACCOUNT: 'Member account',
+};
+
+/** Label + grouping key for a sale or refund with no staff member behind it. */
+const UNATTRIBUTED_SELLER_LABEL = 'Unattributed';
+const UNATTRIBUTED_SELLER_KEY = '__unattributed__';
+
+/**
+ * Rows a drill-down's detail table carries. A drill-down is a screen, not an
+ * export — the catalogue report beside it is what produces the full list — so the
+ * table shows the most recent handful and stops. Matches the loyalty drill-down's
+ * existing cut-off.
+ */
+const DRILLDOWN_TABLE_ROWS = 20;
+
+/**
+ * A staff member's display name. Staff rows carry their own split first/last name;
+ * an invited or plain membership has neither, and the cross-gym `User` name is the
+ * fallback.
+ */
+function sellerName(staff: {
+  firstName?: string | null;
+  lastName?: string | null;
+  user?: { name: string | null } | null;
+}): string {
+  const split = [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim();
+  return split || staff.user?.name?.trim() || UNATTRIBUTED_SELLER_LABEL;
 }
 
 /** A label→value map as breakdown items, richest first, dropping empty slices. */

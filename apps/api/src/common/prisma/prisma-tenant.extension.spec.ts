@@ -34,6 +34,27 @@ describe('scopeArgs', () => {
     });
   });
 
+  it('scopes the financial children the reports read directly — Refund and PromoRedemption', () => {
+    // Both carry their own `gymId` (duplicated from the parent order / promo code
+    // precisely so they can be queried without a join), and both are now read
+    // directly by the reports rather than only through a scoped parent.
+    expect(
+      scopeArgs('Refund', 'findMany', { where: { createdAt: { gte: new Date(0) } } }, state()),
+    ).toMatchObject({ where: { gymId: 'gym-a' } });
+    expect(
+      scopeArgs('PromoRedemption', 'findMany', { where: { promoCodeId: 'p-1' } }, state()),
+    ).toMatchObject({ where: { gymId: 'gym-a' } });
+  });
+
+  it('does NOT scope OrderItem — it has no gymId of its own', () => {
+    // An order line is reached only through its already-scoped `Order`. Adding it
+    // to the scoped set would inject a filter on a column the table does not have,
+    // and every line query in the app would fail.
+    const args = { where: { orderId: 'o-1' } };
+    expect(scopeArgs('OrderItem', 'findMany', args, state())).toBe(args);
+    expect(TENANT_SCOPED_MODELS.has('OrderItem')).toBe(false);
+  });
+
   it('appends gymId even when the read has no where at all', () => {
     expect(scopeArgs('GymMember', 'findMany', undefined, state())).toEqual({
       where: { gymId: 'gym-a' },

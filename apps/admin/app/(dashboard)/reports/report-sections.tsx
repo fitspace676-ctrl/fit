@@ -16,6 +16,7 @@ import { createNumberFormat } from '@fit/i18n';
 import type { ReportSection, ReportValueUnit, ReportColumnType, ReportCellValue } from '@fit/types';
 import { DataTable, type Column } from '@/components/ui';
 import { AreaChart, BarChart, Donut, Heatmap } from '../charts';
+import { chrome } from './report-chrome';
 
 const styles = stylex.create({
   card: {
@@ -28,13 +29,6 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.75rem',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
   },
   axisRow: {
     display: 'flex',
@@ -132,7 +126,7 @@ export function ReportSectionCard({
   return (
     <Card variant="default" padding={5} xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h3 {...stylex.props(styles.title)}>{section.title}</h3>
+        <h3 {...stylex.props(chrome.cardHeading)}>{section.title}</h3>
         {action}
       </div>
       <SectionBody section={section} currency={currency} locale={locale} emptyLabel={emptyLabel} />

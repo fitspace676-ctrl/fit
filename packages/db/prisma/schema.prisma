@@ -661,7 +661,16 @@ model GymMember {
   gym                Gym                  @relation(fields: [gymId], references: [id], onDelete: Cascade)
   bookings           Booking[]
   reviews            Review[]
-  orders             Order[]
+  /// Orders this person BOUGHT. Named because {@link Order} now points at
+  /// `GymMember` twice — once for the buyer, once for the staff member who rang
+  /// the sale — and Prisma cannot tell two relations between the same pair apart
+  /// on its own.
+  orders             Order[]              @relation("OrderBuyer")
+  /// Orders this staff member SOLD, for the sales-by-staff report. Empty for a
+  /// plain member, and for every sale that predates the attribution.
+  sales              Order[]              @relation("OrderSeller")
+  /// Refunds this staff member processed.
+  refundsProcessed   Refund[]
   subscriptions      Subscription[]
   creditPacks        CreditPack[]
   goals              MemberGoal[]
@@ -900,16 +909,16 @@ model ProductCategory {
 }
 
 model Product {
-  id          String        @id @default(cuid())
-  gymId       String
-  name        String
-  description String        @default("")
-  priceAmount Int           @default(0)
-  costAmount  Int?
-  currency    String        @default("USD")
-  images      String[]      @default([])
-  variants    Json          @default("[]")
-  status      ProductStatus @default(ACTIVE)
+  id                String        @id @default(cuid())
+  gymId             String
+  name              String
+  description       String        @default("")
+  priceAmount       Int           @default(0)
+  costAmount        Int?
+  currency          String        @default("USD")
+  images            String[]      @default([])
+  variants          Json          @default("[]")
+  status            ProductStatus @default(ACTIVE)
   /// On-hand count for the **base** position — the product sold as-is, with no
   /// variant chosen (the `"<productId>:base"` reference the cart already uses).
   /// `null` means this product's stock is not tracked, which is what every
@@ -917,15 +926,15 @@ model Product {
   /// never counts its towels is not nagged about them. Products that DO carry
   /// variants keep their counts per variant inside `variants`, and this stays
   /// null — the two are alternatives, never summed.
-  stock       Int?
+  stock             Int?
   /// Per-product reorder cushion. `null` falls back to the shared default, so a
   /// gym only sets this for the few lines whose turnover differs from the rest.
   lowStockThreshold Int?
   /// Optional shelf — `null` is "uncategorised", the state every product starts in
   /// and the state it returns to if its category is deleted.
-  categoryId  String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  categoryId        String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   gym       Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
   category  ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -1406,13 +1415,27 @@ model Order {
   /// names a `locationId` instead). Captured at checkout and shown to staff so the
   /// in-house courier knows where to take the order.
   deliveryAddress String?
+  /// The staff member who rang this sale, as a gym-scoped {@link GymMember} rather
+  /// than a cross-gym `User` — "sales by staff member" is a question about this
+  /// gym's roster, and one person may hold staff roles at several gyms.
+  ///
+  /// Null is the normal state for a sale nobody rang: the member-facing purchase
+  /// wizard and the online shop are self-serve, so attributing them to a staff
+  /// member would invent a seller. It is also null for every POS sale recorded
+  /// before this column existed, which is why the report has to treat "unknown"
+  /// as its own bucket rather than as a zero.
+  soldById        String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
   gym          Gym                @relation(fields: [gymId], references: [id], onDelete: Cascade)
   package      PackagePlan?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
   location     Location?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  member       GymMember?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  member       GymMember?         @relation("OrderBuyer", fields: [memberId], references: [id], onDelete: SetNull)
+  /// `SetNull`, not `Cascade`: a staff member leaving the gym must never delete
+  /// the sales they rang, the same way `member` keeps the order when a membership
+  /// is purged.
+  soldBy       GymMember?         @relation("OrderSeller", fields: [soldById], references: [id], onDelete: SetNull)
   items        OrderItem[]
   payment      Payment?
   refunds      Refund[]
@@ -1426,6 +1449,9 @@ model Order {
   /// Backs the admin order roster (T7.9): a tenant's orders scanned newest-first,
   /// optionally narrowed by status, with the `createdAt` ordering index-served.
   @@index([gymId, createdAt])
+  /// Backs the sales-by-staff report: a tenant's sales for a date window grouped
+  /// by seller, served from the index instead of scanning every order in the gym.
+  @@index([gymId, soldById, createdAt])
   @@map("orders")
 }
 
@@ -1491,22 +1517,39 @@ model OrderStatusEvent {
 /// were damaged). `gymId` is duplicated from the order for direct tenant-scoped
 /// reporting, mirroring {@link Payment}. Cascade-deletes with its order or gym.
 model Refund {
-  id           String   @id @default(cuid())
-  gymId        String
-  orderId      String
-  paymentId    String
-  amount       Int
-  reason       String
-  restockItems Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id            String   @id @default(cuid())
+  gymId         String
+  orderId       String
+  paymentId     String
+  amount        Int
+  reason        String
+  restockItems  Boolean  @default(true)
+  /// The staff member who issued this refund.
+  ///
+  /// It belongs on the refund, not on the order. A payment may accrue several
+  /// partial refunds, and the order-level `REFUNDED` status event is written only
+  /// once the capture is fully reversed — so its `actor` can name at most one
+  /// operator per order, and names none at all until the last partial lands. The
+  /// refunds-detail report needs the operator per line, which is here.
+  ///
+  /// Null for refunds issued before this column existed, and for any future
+  /// system-initiated reversal with no operator behind it.
+  processedById String?
+  createdAt     DateTime @default(now())
 
-  gym     Gym     @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  gym         Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  order       Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment     Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  /// `SetNull` for the same reason as `Order.soldBy`: losing the staff row must
+  /// not erase the refund it explains.
+  processedBy GymMember? @relation(fields: [processedById], references: [id], onDelete: SetNull)
 
   @@index([gymId])
   @@index([orderId])
   @@index([paymentId])
+  /// Backs the refunds-detail report: a tenant's refunds for a date window, read
+  /// newest-first, without scanning every refund the gym has ever issued.
+  @@index([gymId, createdAt])
   @@map("refunds")
 }
 

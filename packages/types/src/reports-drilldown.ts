@@ -18,7 +18,7 @@
 
 import { z } from 'zod';
 import { analyticsRangeSchema, DEFAULT_ANALYTICS_RANGE, type AnalyticsRange } from './analytics';
-import { reportColumnTypeSchema } from './reports';
+import { reportColumnTypeSchema, reportFormatSchema } from './reports';
 
 /* -------------------------------------------------------------------------- */
 /*  Request                                                                     */
@@ -46,6 +46,7 @@ export const DEFAULT_REPORT_DRILLDOWN_RANGE: ReportDrilldownRange = DEFAULT_ANAL
  * framework, so the enum is the single place a new drill-down registers.
  */
 export const REPORT_METRICS = [
+  'sales',
   'revenue',
   'members',
   'attendance',
@@ -64,6 +65,16 @@ export const reportDrilldownQuerySchema = z.object({
   range: reportDrilldownRangeSchema.default(DEFAULT_REPORT_DRILLDOWN_RANGE),
 });
 export type ReportDrilldownQuery = z.infer<typeof reportDrilldownQuerySchema>;
+
+/**
+ * `GET /admin/reports/drilldown/:metric/export?range=&format=` query — the file
+ * download. Reuses the catalogue's {@link reportFormatSchema} so a drill-down and a
+ * catalogue report offer the same two formats under the same two names.
+ */
+export const reportDrilldownExportQuerySchema = reportDrilldownQuerySchema.extend({
+  format: reportFormatSchema.default('csv'),
+});
+export type ReportDrilldownExportQuery = z.infer<typeof reportDrilldownExportQuerySchema>;
 
 /* -------------------------------------------------------------------------- */
 /*  Metric catalogue                                                            */
@@ -84,6 +95,22 @@ export interface ReportMetricDefinition {
  * so the section slugs the API emits and the labels the UI shows can never drift.
  */
 export const REPORT_METRIC_DEFINITIONS: Record<ReportMetric, ReportMetricDefinition> = {
+  sales: {
+    metric: 'sales',
+    name: 'Sales',
+    description:
+      'Net sales over time, the settlement mix, who sold what, top plans, and recent refunds.',
+    // Section ids are globally unique across metrics (the pin picker keys widgets
+    // on them), so these are named for the sales lens rather than reusing the
+    // `pos` metric's `daily-sales` / `sales-by-method`.
+    sections: [
+      'net-sales-over-time',
+      'sales-mix-by-method',
+      'sales-by-seller',
+      'top-selling-plans',
+      'recent-refunds',
+    ],
+  },
   revenue: {
     metric: 'revenue',
     name: 'Revenue',
