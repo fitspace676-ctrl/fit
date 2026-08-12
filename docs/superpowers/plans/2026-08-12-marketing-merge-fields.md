@@ -559,22 +559,26 @@ const KNOWN_MERGE_KEYS = new Set([...MARKETING_MERGE_TOKEN_NAMES, ...AUTOMATION_
 
 Delete the whole `MARKETING_MERGE_FIELDS` constant (the ten-entry array). Keep the `MarketingMergeField` interface and `MarketingCatalogResponse` exactly as they are — both are still the wire contract.
 
-- [ ] **Step 4: Fix the now-broken import**
+- [ ] **Step 4: Point `catalog()` at the new catalogue**
 
-In `apps/api/src/marketing/marketing.service.ts`, remove `MARKETING_MERGE_FIELDS,` from the `@fit/types` import list. `catalog()` will not compile yet — that is expected and Task 5 fixes it. To keep this task's commit green, change line 95 to:
+In `apps/api/src/marketing/marketing.service.ts`, swap `MARKETING_MERGE_FIELDS,` for `MARKETING_MERGE_FIELD_DEFS,` in the `@fit/types` import list, and change `catalog()` to:
 
 ```ts
   catalog(): MarketingCatalogResponse {
-    return { channels: MARKETING_CHANNEL_CATALOG, mergeFields: [] };
+    return {
+      channels: MARKETING_CHANNEL_CATALOG,
+      // Unfiltered for now. Task 5 makes this per-gym; serving the whole
+      // catalogue in the meantime keeps the endpoint honest and every existing
+      // assertion about it true.
+      mergeFields: MARKETING_MERGE_FIELD_DEFS.map((field) => ({
+        token: field.token,
+        label: field.label,
+      })),
+    };
   }
 ```
 
-with a comment on the line above:
-
-```ts
-// Filled from the gym's settings in the next task; an empty palette is the
-// honest interim, not a silent fallback to a hardcoded list.
-```
+Do **not** weaken any existing assertion to accommodate this task. `marketing.service.spec.ts:99` asserts the catalog contains `{{first_name}}`; that token is in the new catalogue, so the assertion keeps passing untouched.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -585,7 +589,7 @@ Run: `cd apps/api && npx tsc --noEmit`
 Expected: no errors.
 
 Run: `cd apps/api && npx vitest run src/marketing`
-Expected: PASS. `marketing.service.spec.ts:99` asserts the catalog contains `{{first_name}}` — it will now fail. Update that assertion to expect an empty `mergeFields` array, and add a `// restored in the settings-driven catalog test` comment; Task 5 replaces it properly.
+Expected: PASS, with `marketing.service.spec.ts` unmodified.
 
 - [ ] **Step 6: Commit**
 
@@ -1036,7 +1040,7 @@ Read the top of `marketing.service.spec.ts` to see how it fakes Prisma. Introduc
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/api && npx vitest run src/marketing/marketing.service.spec.ts`
-Expected: FAIL — `catalog()` returns `mergeFields: []` from Task 3.
+Expected: FAIL on the two new cases — Task 3's `catalog()` is synchronous and ignores settings, so `await` yields a non-promise and the toggled-off field is still offered.
 
 - [ ] **Step 3: Make `catalog()` gym-aware**
 
