@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
 import { AnalyticsService } from './analytics.service';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -15,7 +16,8 @@ function isCurrent(date: Date, now: number): boolean {
 }
 
 interface Config {
-  latestPaymentCurrency?: string | null;
+  /** The gym's configured currency (Settings → General) — what every figure is labelled in. */
+  gymCurrency?: string;
   revenue?: { current: number; previous: number };
   members?: { active: number; joinedNow: number; joinedPrev: number };
   attendance?: {
@@ -36,7 +38,7 @@ interface Config {
 function setup(config: Config = {}) {
   const now = Date.now();
   const c: Required<Config> = {
-    latestPaymentCurrency: 'GEL',
+    gymCurrency: 'GEL',
     revenue: { current: 10000, previous: 5000 },
     members: { active: 120, joinedNow: 10, joinedPrev: 5 },
     attendance: { attendedNow: 8, noShowNow: 2, attendedPrev: 6, noShowPrev: 4 },
@@ -68,11 +70,7 @@ function setup(config: Config = {}) {
   };
 
   const payment = {
-    findFirst: vi
-      .fn()
-      .mockResolvedValue(
-        c.latestPaymentCurrency === null ? null : { currency: c.latestPaymentCurrency },
-      ),
+    findFirst: vi.fn().mockResolvedValue(null),
     aggregate: vi.fn((args: { where: { createdAt: { gte: Date } } }) => {
       const amount = isCurrent(args.where.createdAt.gte, now)
         ? c.revenue.current
@@ -132,7 +130,12 @@ function setup(config: Config = {}) {
     client: { payment, gymMember, booking, subscription, subscriptionPlan, classTemplate },
   } as unknown as TenantPrismaService;
 
-  return { service: new AnalyticsService(prisma) };
+  const locale = {
+    get: () =>
+      Promise.resolve({ language: 'en', currency: c.gymCurrency, timezone: 'Asia/Tbilisi' }),
+  } as unknown as GymLocaleService;
+
+  return { service: new AnalyticsService(prisma, locale) };
 }
 
 describe('AnalyticsService', () => {
@@ -159,8 +162,10 @@ describe('AnalyticsService', () => {
     expect(result.range).toBe('30d');
   });
 
-  it('falls back to USD when the gym has taken no payments', async () => {
-    const { service } = setup({ latestPaymentCurrency: null });
+  it("labels money in the gym's configured currency, not one inferred from payments", async () => {
+    // A gym that has taken no money at all still reports in what it configured —
+    // the old behaviour read the latest payment row and said USD when there was none.
+    const { service } = setup({ gymCurrency: 'USD' });
     const result = await service.getAnalytics('30d');
     expect(result.currency).toBe('USD');
   });

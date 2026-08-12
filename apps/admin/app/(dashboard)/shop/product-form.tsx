@@ -13,6 +13,7 @@ import {
   type ProductVariant,
 } from '@fit/types';
 import { Btn } from '@/components/ui';
+import { useGymCurrency } from '@/components/gym-currency';
 import { inputToMinor, minorToInput } from './format-price';
 import {
   createProductAction,
@@ -222,9 +223,6 @@ const styles = stylex.create({
       color: 'var(--color-text-secondary)',
     },
   },
-  uppercase: {
-    textTransform: 'uppercase',
-  },
   priceRow: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -251,6 +249,15 @@ const styles = stylex.create({
     width: '8rem',
     flexDirection: 'column',
     gap: '0.25rem',
+  },
+  currencyValue: {
+    margin: 0,
+    display: 'flex',
+    height: '2.5rem',
+    alignItems: 'center',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
   },
   stockHint: {
     margin: 0,
@@ -478,6 +485,7 @@ function blankVariant(): VariantDraft {
  */
 export function ProductForm(props: Props) {
   const router = useRouter();
+  const gymCurrency = useGymCurrency();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -489,7 +497,7 @@ export function ProductForm(props: Props) {
         description: '',
         priceAmount: 0,
         costAmount: null,
-        currency: 'USD',
+        currency: gymCurrency,
         images: [],
         variants: [],
         stock: null,
@@ -503,7 +511,9 @@ export function ProductForm(props: Props) {
   const [cost, setCost] = useState(
     initial.costAmount === null ? '' : minorToInput(initial.costAmount),
   );
-  const [currency, setCurrency] = useState(initial.currency);
+  // A saved product keeps the currency it was created in; a new one is priced in
+  // the gym's configured currency. Either way it is displayed, never edited.
+  const currency = isEdit ? initial.currency : gymCurrency;
   const [images, setImages] = useState<string[]>(initial.images);
   const [variants, setVariants] = useState<VariantDraft[]>(initial.variants.map(toDraft));
   // Both kept as strings so an empty field stays empty — '' means "not tracked" /
@@ -630,7 +640,6 @@ export function ProductForm(props: Props) {
       description,
       priceAmount: inputToMinor(price) ?? 0,
       costAmount: cost.trim() === '' ? null : inputToMinor(cost),
-      currency,
       images,
       variants: cleanedVariants,
       // A product that carries variants counts per variant, so its base figure is
@@ -768,7 +777,7 @@ export function ProductForm(props: Props) {
       <div {...stylex.props(styles.priceRow)}>
         <div {...stylex.props(styles.priceGroup)}>
           <label htmlFor="product-price" {...stylex.props(styles.label)}>
-            Base price
+            Base price ({currency})
           </label>
           <input
             id="product-price"
@@ -801,20 +810,10 @@ export function ProductForm(props: Props) {
           />
         </div>
         <div {...stylex.props(styles.currencyGroup)}>
-          <label htmlFor="product-currency" {...stylex.props(styles.label)}>
-            Currency
-          </label>
-          <input
-            id="product-currency"
-            name="currency"
-            type="text"
-            maxLength={3}
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value.toUpperCase())}
-            placeholder="USD"
-            autoComplete="off"
-            {...stylex.props(styles.input, styles.uppercase)}
-          />
+          <span {...stylex.props(styles.label)}>Currency</span>
+          {/* Read-only: the gym prices in one currency, set in Settings → General.
+              A per-product override is what let a GEL gym create USD products. */}
+          <p {...stylex.props(styles.currencyValue)}>{currency}</p>
         </div>
       </div>
 

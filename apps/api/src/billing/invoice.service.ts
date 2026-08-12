@@ -1,5 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { InvoiceStatus, InvoiceType, Prisma, formatInvoiceNumber } from '@fit/db';
+import { InvoiceStatus, InvoiceType, Prisma } from '@fit/db';
+import {
+  formatInvoiceNumber,
+  gymSettingsStoredSchema,
+  invoiceNumberCarriesYear,
+  type GymInvoiceSettings,
+  type InvoiceNumbering,
+} from '@fit/types';
+
+/**
+ * The `invoice_sequences` bucket a gym-wide (year-less) run of numbers lives in.
+ *
+ * The counter is keyed `(gymId, year)`. Zero is not a fiscal year any invoice can be
+ * issued in, so it is free to mean "not partitioned by year" — the bucket the
+ * `prefix-number` shape draws from, where the run continues across January instead of
+ * restarting into duplicates.
+ */
+const GYM_WIDE_SEQUENCE_BUCKET = 0;
 
 /**
  * The slice of an interactive-transaction Prisma client {@link InvoiceService} needs:
@@ -19,6 +36,18 @@ export interface InvoiceTxClient {
       data: Prisma.InvoiceUncheckedCreateInput;
       select: { id: true; number: true; seq: true; year: true };
     }): Promise<IssuedInvoice>;
+  };
+  /**
+   * The gym row the numbering settings are read off. `Gym` is the tenant *root*
+   * (keyed by `id`, with no `gymId` scalar), so it sits outside the tenant
+   * extension's scoped-model set on the scoped client — which is why the read below
+   * pins `id` explicitly rather than trusting the client to scope it.
+   */
+  gym: {
+    findFirst(args: {
+      where: { id: string };
+      select: { settings: true };
+    }): Promise<{ settings: Prisma.JsonValue } | null>;
   };
 }
 
@@ -77,15 +106,23 @@ export interface IssuedInvoice {
 @Injectable()
 export class InvoiceService {
   /**
-   * Allocate the next sequence number for `(gymId, year)` and insert the invoice, all
-   * inside `tx`. The number is `"<year>-<seq0001>"` (see {@link formatInvoiceNumber}),
-   * unique within the gym by the `@@unique([gymId, number])` index that the atomic
-   * counter can never violate.
+   * Allocate the next sequence number and insert the invoice, all inside `tx`.
+   *
+   * The reference is composed from the gym's Settings → Invoicing — its prefix, its
+   * chosen shape, and the sequence number the year starts from — so what the settings
+   * screen previews is what the roster shows. It stays unique within the gym by the
+   * `@@unique([gymId, number])` index that the atomic counter can never violate.
+   *
+   * The settings are read inside the transaction rather than injected, because the two
+   * clients that mint invoices differ (the scoped enrolment client and the unscoped
+   * billing job) and only the transaction is common to both.
    */
   async issue(tx: InvoiceTxClient, input: IssueInvoiceInput): Promise<IssuedInvoice> {
     const issuedAt = input.issuedAt ?? new Date();
     const year = issuedAt.getUTCFullYear();
-    const seq = await this.allocateSeq(tx, input.gymId, year);
+    const settings = await this.invoiceSettings(tx, input.gymId);
+    const numbering: InvoiceNumbering = { prefix: settings.prefix, format: settings.format };
+    const seq = await this.allocateSeq(tx, input.gymId, year, numbering, settings.startNumber);
 
     return tx.invoice.create({
       data: {
@@ -93,7 +130,7 @@ export class InvoiceService {
         memberId: input.memberId,
         subscriptionId: input.subscriptionId ?? null,
         orderId: input.orderId ?? null,
-        number: formatInvoiceNumber(year, seq),
+        number: formatInvoiceNumber(year, seq, numbering),
         year,
         seq,
         amount: input.amount,
@@ -109,25 +146,59 @@ export class InvoiceService {
   }
 
   /**
-   * Atomically claim the next `seq` for `(gymId, year)` from the `invoice_sequences`
-   * counter. A single `INSERT … ON CONFLICT DO UPDATE … RETURNING` either seeds the
-   * gym-year at `1` or increments the running `lastNumber`, returning the value to use
-   * — so two charges racing for the same gym-year serialise on the row and receive
-   * distinct, gap-free numbers (the row-level lock the update takes is the
-   * concurrency guarantee, not the surrounding transaction). Raw SQL because Prisma
-   * has no read-old-then-increment-and-return primitive; parameterised, and the
-   * `gymId` is passed explicitly so it is correct on the unscoped billing-job client
-   * too (raw queries bypass the tenant extension).
+   * The gym's Settings → Invoicing block, fully defaulted.
+   *
+   * Never throws for a missing or malformed blob: a gym that has never opened the
+   * settings screen has `settings: null`, and the schema fills every default from
+   * that. Refusing to raise an invoice because nobody has visited Settings would be a
+   * worse failure than the one this guards against — and this runs on the money path.
    */
-  private async allocateSeq(tx: InvoiceTxClient, gymId: string, year: number): Promise<number> {
+  private async invoiceSettings(tx: InvoiceTxClient, gymId: string): Promise<GymInvoiceSettings> {
+    const gym = await tx.gym.findFirst({ where: { id: gymId }, select: { settings: true } });
+    return gymSettingsStoredSchema.parse(gym?.settings ?? {}).invoice;
+  }
+
+  /**
+   * Atomically claim the next `seq` from the `invoice_sequences` counter. A single
+   * `INSERT … ON CONFLICT DO UPDATE … RETURNING` either seeds the bucket at the gym's
+   * configured starting number or advances the running `lastNumber`, returning the
+   * value to use — so two charges racing for the same bucket serialise on the row and
+   * receive distinct numbers (the row-level lock the update takes is the concurrency
+   * guarantee, not the surrounding transaction). Raw SQL because Prisma has no
+   * read-old-then-increment-and-return primitive; parameterised, and the `gymId` is
+   * passed explicitly so it is correct on the unscoped billing-job client too (raw
+   * queries bypass the tenant extension).
+   *
+   * **The bucket** is the fiscal year for the shapes that print it, so each January
+   * starts fresh. A shape *without* the year (`INV-1000`) cannot restart — next
+   * January's `INV-1000` would be a duplicate of this one — so it draws from a single
+   * gym-wide bucket, stored under year `0`: not a fiscal year, and therefore free to
+   * mean "this gym's one continuous run".
+   *
+   * **The starting number** floors the allocation rather than only seeding it
+   * (`GREATEST`), so a gym that raises it sees the change on its next invoice instead
+   * of next January. Lowering it is inert: the counter never goes backwards over
+   * numbers already handed out.
+   */
+  private async allocateSeq(
+    tx: InvoiceTxClient,
+    gymId: string,
+    year: number,
+    numbering: InvoiceNumbering,
+    startNumber: number,
+  ): Promise<number> {
+    const bucket = invoiceNumberCarriesYear(numbering) ? year : GYM_WIDE_SEQUENCE_BUCKET;
     const rows = await tx.$queryRawUnsafe<Array<{ lastNumber: number }>>(
       `INSERT INTO "invoice_sequences" ("gymId", "year", "lastNumber", "updatedAt")
-       VALUES ($1, $2, 1, now())
+       VALUES ($1, $2, $3, now())
        ON CONFLICT ("gymId", "year")
-       DO UPDATE SET "lastNumber" = "invoice_sequences"."lastNumber" + 1, "updatedAt" = now()
+       DO UPDATE SET
+         "lastNumber" = GREATEST("invoice_sequences"."lastNumber" + 1, $3),
+         "updatedAt" = now()
        RETURNING "lastNumber"`,
       gymId,
-      year,
+      bucket,
+      startNumber,
     );
     return rows[0]!.lastNumber;
   }

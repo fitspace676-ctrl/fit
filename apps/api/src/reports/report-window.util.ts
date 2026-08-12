@@ -24,9 +24,6 @@ import { addZonedDays, zonedDayStart, zonedIsoDate, zonedParts } from './zoned-t
 /** Milliseconds in a day, for window math. */
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Fallback reporting currency when the gym has taken no payments (schema default). */
-export const DEFAULT_CURRENCY = 'USD';
-
 /** The reporting window a report is computed over, with its series bucket. */
 export interface ReportWindow {
   /** Inclusive start of the window. */

@@ -5,6 +5,7 @@
 // admin surfaces never drift on the display format.
 
 import {
+  MIDNIGHT_CLOSE,
   WEEKDAYS,
   WEEKDAY_LABELS,
   type DayHours,
@@ -37,14 +38,18 @@ export function hoursForDate(hours: LocationHours, date: Date): DayHours {
  * Whether the branch is open at the given instant, per its weekly hours. Closed
  * on a `closed` day; otherwise the local `HH:MM` clock must fall in `[open,
  * close)`. Times are zero-padded 24-hour strings, so a lexical compare is a
- * correct time compare (no same-day range crosses midnight — the schema requires
- * `close > open`).
+ * correct time compare.
+ *
+ * A `close` of {@link MIDNIGHT_CLOSE} is the end of the day, not the start of it:
+ * the window simply runs to the day's end, so a branch open 09:00–00:00 reads as
+ * open at 23:30 rather than closed since nine in the morning.
  */
 export function isOpenAt(hours: LocationHours, date: Date): boolean {
   const day = hoursForDate(hours, date);
   if (day.closed) return false;
   const now = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-  return now >= day.open && now < day.close;
+  if (now < day.open) return false;
+  return day.close === MIDNIGHT_CLOSE || now < day.close;
 }
 
 /** A weekday's label, e.g. `Monday`. */

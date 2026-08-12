@@ -64,69 +64,9 @@ export function triggerNeedsDays(trigger: AutomationTriggerType): boolean {
   return TRIGGER_META.get(trigger)?.needsDays ?? false;
 }
 
-// ---------------------------------------------------------------------------
-// Merge variables — the tokens the message editor can insert. Ported from the
-// gym-admin prototype's variable palette; the executor fills them in at send.
-// Grouped so the editor can render category headers.
-// ---------------------------------------------------------------------------
-
-/** One insertable merge field: the raw token and the i18n key for its label. */
-export interface MergeVariable {
-  token: string;
-  key: string;
-}
-
-/** A named group of merge variables shown together in the editor. */
-export interface MergeVariableGroup {
-  category: string;
-  variables: readonly MergeVariable[];
-}
-
-/** The merge-variable palette, grouped by the entity the tokens resolve against. */
-export const MERGE_VARIABLE_GROUPS: readonly MergeVariableGroup[] = [
-  {
-    category: 'member',
-    variables: [
-      { token: '{{member_first_name}}', key: 'memberFirstName' },
-      { token: '{{member_last_name}}', key: 'memberLastName' },
-      { token: '{{member_email}}', key: 'memberEmail' },
-      { token: '{{member_phone}}', key: 'memberPhone' },
-      { token: '{{member_plan_name}}', key: 'memberPlanName' },
-      { token: '{{member_expiry_date}}', key: 'memberExpiryDate' },
-      { token: '{{member_checkin_count}}', key: 'memberCheckinCount' },
-      { token: '{{member_points_balance}}', key: 'memberPointsBalance' },
-      { token: '{{member_location}}', key: 'memberLocation' },
-    ],
-  },
-  {
-    category: 'class',
-    variables: [
-      { token: '{{class_name}}', key: 'className' },
-      { token: '{{class_date}}', key: 'classDate' },
-      { token: '{{class_time}}', key: 'classTime' },
-      { token: '{{class_trainer_name}}', key: 'classTrainerName' },
-      { token: '{{class_location}}', key: 'classLocation' },
-    ],
-  },
-  {
-    category: 'payment',
-    variables: [
-      { token: '{{payment_amount}}', key: 'paymentAmount' },
-      { token: '{{payment_due_date}}', key: 'paymentDueDate' },
-      { token: '{{payment_plan_name}}', key: 'paymentPlanName' },
-      { token: '{{payment_invoice_number}}', key: 'paymentInvoiceNumber' },
-    ],
-  },
-  {
-    category: 'business',
-    variables: [
-      { token: '{{business_name}}', key: 'businessName' },
-      { token: '{{business_location_name}}', key: 'businessLocationName' },
-      { token: '{{business_phone}}', key: 'businessPhone' },
-      { token: '{{business_address}}', key: 'businessAddress' },
-    ],
-  },
-];
+// The merge-field catalogue now lives in `@fit/types`
+// (`AUTOMATION_MERGE_FIELDS`), shared with the Settings screen that curates it
+// and the executor's resolver that fills the tokens.
 
 /** Format an ISO timestamp as a short localized date, or an em dash when absent. */
 export function formatDate(iso: string | null | undefined, locale: string): string {

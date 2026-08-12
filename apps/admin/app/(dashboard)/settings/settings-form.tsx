@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -8,25 +8,38 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { z } from 'zod';
 import {
+  AUTOMATION_MERGE_FIELDS,
+  AUTOMATION_MERGE_GROUPS,
+  DEFAULT_CURRENCY,
+  DEFAULT_TIMEZONE,
   GYM_LOGO_MAX_WIDTH,
-  HEX_COLOR_PATTERN,
-  MAX_CANCELLATION_CUTOFF_HOURS,
-  MAX_PENALTY_AMOUNT,
-  SUPPORTED_LANGUAGES,
+  MARKETING_MERGE_FIELD_DEFS,
+  MARKETING_MERGE_GROUPS,
+  REPORT_CATALOG,
+  STAFF_COLUMN_FIELDS,
+  STAFF_SECTION_FIELDS,
   WEEKDAYS,
-  gymLanguageSchema,
+  enabledPaymentMethods,
+  formatInvoiceNumber,
+  groupReportsBySegment,
+  gymAutomationFieldsSettingsSchema,
+  gymMarketingFieldsSettingsSchema,
+  gymReportsSettingsSchema,
+  gymStaffDirectorySettingsSchema,
   invoiceNumberFormatSchema,
+  isValidDayWindow,
   isValidTimeZone,
-  penaltyTypeSchema,
-  refundPolicyModeSchema,
-  waitlistModeSchema,
-  type GymLanguage,
+  type AdminLocationRow,
+  type AutomationFieldToggle,
+  type GymAutomationFieldsSettings,
+  type GymMarketingFieldsSettings,
+  type GymReportsSettings,
   type GymSettings,
+  type GymStaffDirectorySettings,
   type InvoiceNumberFormat,
-  type PenaltyType,
-  type RefundPolicyMode,
+  type MarketingFieldToggle,
+  type ReportToggle,
   type UpdateGymSettingsInput,
-  type WaitlistMode,
   type Weekday,
   type WeeklyHours,
 } from '@fit/types';
@@ -48,7 +61,12 @@ import {
   type FieldErrors,
   type IconName,
 } from '@/components/ui';
-import { finalizeGymLogoAction, requestLogoUploadAction, updateGymSettingsAction } from './actions';
+import {
+  finalizeGymLogoAction,
+  renameLocationAction,
+  requestLogoUploadAction,
+  updateGymSettingsAction,
+} from './actions';
 
 /** Accepted logo MIME types, matching the storage service's extension map. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
@@ -57,8 +75,32 @@ const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 /** `HH:MM` 24-hour time, mirroring the schema pattern in `@fit/types`. */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-/** Common currencies for the picker; the gym's current code is always included. */
-const COMMON_CURRENCIES = ['GEL', 'USD', 'EUR', 'GBP', 'RUB', 'TRY', 'AMD', 'AZN', 'UAH'];
+/**
+ * The currencies a gym may price in — GEL (the platform default) and USD. A gym
+ * already stored on some other ISO code still sees its own code in the list (via
+ * {@link withCurrent}), so opening Settings can never silently re-price it.
+ */
+const COMMON_CURRENCIES = [DEFAULT_CURRENCY, 'USD'];
+
+/**
+ * The zones offered at the top of the picker, before the full IANA list. The
+ * console's own market first, then the zones its gyms and their head offices are
+ * actually run from — enough that nobody scrolls past `Africa/…` to find home.
+ */
+const COMMON_TIMEZONES = [
+  'Asia/Tbilisi',
+  'Europe/Istanbul',
+  'Asia/Baku',
+  'Asia/Yerevan',
+  'Europe/Kyiv',
+  'Europe/Moscow',
+  'Europe/Berlin',
+  'Europe/London',
+  'Asia/Dubai',
+  'America/New_York',
+  'America/Los_Angeles',
+  'UTC',
+];
 
 /** A reasonable fallback set when `Intl.supportedValuesOf` is unavailable. */
 const FALLBACK_TIMEZONES = [
@@ -133,11 +175,6 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1.25rem',
-  },
-  colorRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '1.5rem',
   },
   subSection: {
     borderTopWidth: '1px',
@@ -394,33 +431,70 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-warning)',
   },
-  // Color field
-  colorField: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  colorRowInner: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  colorInput: {
-    height: '2.75rem',
-    width: '3.5rem',
+  deviceZoneBtn: {
+    alignSelf: 'flex-start',
+    borderStyle: 'none',
+    background: 'none',
+    padding: 0,
     cursor: 'pointer',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    textDecorationLine: {
+      default: 'none',
+      ':hover': 'underline',
+    },
+    color: 'var(--color-text-accent)',
+  },
+  // Locations card
+  locationRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-background-muted)',
+    padding: '0.75rem',
+    boxShadow: 'inset 0 0 0 1px var(--color-border)',
+  },
+  locationInput: {
+    minWidth: '12rem',
+    flex: '1 1 16rem',
+    height: '2.5rem',
     borderRadius: 'var(--radius-element)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':focus': 'var(--color-accent)',
+    },
     backgroundColor: 'var(--color-background-surface)',
-    padding: '0.25rem',
-  },
-  colorHex: {
-    fontFamily: 'var(--font-family-code)',
+    paddingInline: '0.625rem',
     fontSize: '0.875rem',
-    textTransform: 'uppercase',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+  },
+  locationMeta: {
+    flexBasis: '100%',
+    margin: 0,
+    fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
+  },
+  locationInactive: {
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--color-text-secondary)',
+  },
+  locationError: {
+    margin: 0,
+    flexBasis: '100%',
+    fontSize: '0.75rem',
+    color: 'var(--color-error)',
   },
   // Day row
   dayRow: {
@@ -602,49 +676,10 @@ function withCurrent(base: string[], current: string): string[] {
 
 /** The settings form value shape — one flat mirror of `GymSettings` the form edits. */
 interface SettingsFormValues {
-  brand: { name: string; logoUrl: string | null; primaryColor: string; secondaryColor: string };
+  brand: { name: string; logoUrl: string | null };
   business: { address: string; phone: string; email: string; website: string };
-  locale: { language: GymLanguage; currency: string; timezone: string };
+  locale: { currency: string; timezone: string };
   hours: WeeklyHours;
-  notifications: { fromName: string; fromEmail: string; replyTo: string };
-  booking: {
-    cancellationCutoffHours: number;
-    lateCancellationPenalty: number;
-    lateCancellationPenaltyType: PenaltyType;
-    bookingWindowDays: number;
-    maxBookingsPerDay: number;
-    maxBookingsPerWeek: number;
-    waitlistMode: WaitlistMode;
-  };
-  noShow: {
-    penalty: number;
-    penaltyType: PenaltyType;
-    penaltyDays: number;
-    autoCancelMinutes: number;
-  };
-  freeze: {
-    minFreezeDays: number;
-    maxFreezeDays: number;
-    maxFreezeDaysPerYear: number;
-    freezeFee: number;
-    requiresApproval: boolean;
-  };
-  guestPass: {
-    passesPerMonth: number;
-    price: number;
-    durationDays: number;
-    requiresWaiver: boolean;
-    mustBeAccompanied: boolean;
-    sameGuestCooldownDays: number;
-  };
-  trial: {
-    durationDays: number;
-    price: number;
-    includesClasses: boolean;
-    maxClassBookings: number;
-    requiresPaymentMethod: boolean;
-    conversionDiscountPercent: number;
-  };
   memberIntake: {
     name: boolean;
     surname: boolean;
@@ -659,39 +694,22 @@ interface SettingsFormValues {
     paymentMethod: boolean;
     medicalNotes: boolean;
   };
+  staffDirectory: GymStaffDirectorySettings;
+  automationFields: GymAutomationFieldsSettings;
+  marketingFields: GymMarketingFieldsSettings;
+  reports: GymReportsSettings;
   payments: { acceptCash: boolean; acceptCard: boolean; acceptPrepaidCredits: boolean };
   invoice: { prefix: string; startNumber: number; format: InvoiceNumberFormat };
-  tax: {
-    enabled: boolean;
-    membershipRate: number;
-    classRate: number;
-    productRate: number;
-    serviceRate: number;
-  };
-  refund: { mode: RefundPolicyMode; windowDays: number };
   receipt: { emailEnabled: boolean; printEnabled: boolean };
-  autoRenewal: {
-    enabled: boolean;
-    retryAttempts: number;
-    retryIntervalDays: number;
-    renewalReminderDays: number;
-  };
 }
 
 /** Every boolean form path — the `name`s {@link SwitchRow} may bind to. */
 type BoolFieldName =
-  | 'freeze.requiresApproval'
-  | 'guestPass.requiresWaiver'
-  | 'guestPass.mustBeAccompanied'
-  | 'trial.includesClasses'
-  | 'trial.requiresPaymentMethod'
   | 'payments.acceptCash'
   | 'payments.acceptCard'
   | 'payments.acceptPrepaidCredits'
-  | 'tax.enabled'
   | 'receipt.emailEnabled'
   | 'receipt.printEnabled'
-  | 'autoRenewal.enabled'
   | 'memberIntake.name'
   | 'memberIntake.surname'
   | 'memberIntake.email'
@@ -703,7 +721,19 @@ type BoolFieldName =
   | 'memberIntake.emergencyContact'
   | 'memberIntake.membershipPlan'
   | 'memberIntake.paymentMethod'
-  | 'memberIntake.medicalNotes';
+  | 'memberIntake.medicalNotes'
+  | 'staffDirectory.lastName'
+  | 'staffDirectory.role'
+  | 'staffDirectory.location'
+  | 'staffDirectory.email'
+  | 'staffDirectory.phone'
+  | 'staffDirectory.status'
+  | 'staffDirectory.joined'
+  | 'staffDirectory.whosWorking'
+  | 'staffDirectory.roles'
+  | `automationFields.${AutomationFieldToggle}`
+  | `marketingFields.${MarketingFieldToggle}`
+  | `reports.${ReportToggle}`;
 
 /** The rail sections, in order — each maps onto a slice of the real settings contract. */
 type SectionKey =
@@ -711,38 +741,28 @@ type SectionKey =
   | 'business'
   | 'locations'
   | 'hours'
-  | 'booking'
-  | 'noShow'
-  | 'freeze'
-  | 'guestPass'
-  | 'trial'
   | 'membership'
+  | 'staff'
+  | 'automation'
+  | 'marketing'
+  | 'reports'
   | 'payments'
   | 'invoice'
-  | 'tax'
-  | 'refund'
-  | 'receipt'
-  | 'autoRenewal'
-  | 'notifications';
+  | 'receipt';
 
 const SECTIONS: { key: SectionKey; icon: IconName }[] = [
   { key: 'general', icon: 'home' },
   { key: 'business', icon: 'phone' },
   { key: 'locations', icon: 'pin' },
   { key: 'hours', icon: 'clock' },
-  { key: 'booking', icon: 'calendar' },
-  { key: 'noShow', icon: 'eyeOff' },
-  { key: 'freeze', icon: 'moon' },
-  { key: 'guestPass', icon: 'ticket' },
-  { key: 'trial', icon: 'spark' },
   { key: 'membership', icon: 'shield' },
+  { key: 'staff', icon: 'users' },
+  { key: 'automation', icon: 'bolt' },
+  { key: 'marketing', icon: 'mail' },
+  { key: 'reports', icon: 'chart' },
   { key: 'payments', icon: 'card' },
   { key: 'invoice', icon: 'tag' },
-  { key: 'tax', icon: 'chart' },
-  { key: 'refund', icon: 'arrowLeft' },
   { key: 'receipt', icon: 'mail' },
-  { key: 'autoRenewal', icon: 'bolt' },
-  { key: 'notifications', icon: 'bell' },
 ];
 
 /** Which rail section holds the first validation error, so a failed save jumps there. */
@@ -750,19 +770,14 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
   if (errors.brand || errors.locale) return 'general';
   if (errors.business) return 'business';
   if (errors.hours) return 'hours';
-  if (errors.booking) return 'booking';
-  if (errors.noShow) return 'noShow';
-  if (errors.freeze) return 'freeze';
-  if (errors.guestPass) return 'guestPass';
-  if (errors.trial) return 'trial';
   if (errors.memberIntake) return 'membership';
+  if (errors.staffDirectory) return 'staff';
+  if (errors.automationFields) return 'automation';
+  if (errors.marketingFields) return 'marketing';
+  if (errors.reports) return 'reports';
   if (errors.payments) return 'payments';
   if (errors.invoice) return 'invoice';
-  if (errors.tax) return 'tax';
-  if (errors.refund) return 'refund';
   if (errors.receipt) return 'receipt';
-  if (errors.autoRenewal) return 'autoRenewal';
-  if (errors.notifications) return 'notifications';
   return null;
 }
 
@@ -770,7 +785,7 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
  * The gym settings form (T2.12 / T12.17), rebuilt to the formacore settings
  * artboard on the shared form kit (T1.7) and extended to gym-admin parity. A
  * section rail (General · Business · Business hours · Booking · No-show · Freeze ·
- * Guest passes · Trials · Membership · Payments · Invoicing · Tax · Refunds ·
+ * Guest passes · Trials · Membership · Payments · Invoicing ·
  * Receipts · Auto-renewal · Notifications) swaps between cards over one
  * `useZodForm` instance, and a sticky save bar surfaces the moment the form is
  * dirty — Discard resets to the last-saved truth, Save submits the whole
@@ -782,7 +797,14 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
  * next Save keeps it. On a clean submit the form resets to the server's normalised
  * response, clearing the dirty state and dismissing the save bar.
  */
-export function SettingsForm({ initial }: { initial: GymSettings }) {
+export function SettingsForm({
+  initial,
+  locations = [],
+}: {
+  initial: GymSettings;
+  /** The gym's branches, for the Locations card's inline rename. Empty is normal. */
+  locations?: AdminLocationRow[];
+}) {
   const t = useTranslations('admin.settings');
   const router = useRouter();
   const { toast } = useToast();
@@ -811,7 +833,9 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         open: z.string().regex(TIME_PATTERN, t('errors.time')),
         close: z.string().regex(TIME_PATTERN, t('errors.time')),
       })
-      .refine((d) => d.closed || d.close > d.open, {
+      // `00:00` closes the day at midnight rather than before it opens — see
+      // `isValidDayWindow`. Without it a gym open until midnight had to say 23:59.
+      .refine((d) => d.closed || isValidDayWindow(d.open, d.close), {
         message: t('errors.closeAfterOpen'),
         path: ['close'],
       });
@@ -829,8 +853,6 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
       brand: z.object({
         name: z.string().trim().min(1, t('errors.nameRequired')).max(100),
         logoUrl: z.string().url().nullable(),
-        primaryColor: z.string().regex(HEX_COLOR_PATTERN, t('errors.color')),
-        secondaryColor: z.string().regex(HEX_COLOR_PATTERN, t('errors.color')),
       }),
       business: z.object({
         address: z.string().trim().max(200),
@@ -839,61 +861,10 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         website: z.string().trim().max(200),
       }),
       locale: z.object({
-        language: gymLanguageSchema,
         currency: z.string().regex(/^[A-Z]{3}$/, t('errors.currency')),
         timezone: z.string().refine(isValidTimeZone, t('errors.timezone')),
       }),
       hours: z.object({ mon: day, tue: day, wed: day, thu: day, fri: day, sat: day, sun: day }),
-      notifications: z.object({
-        fromName: z.string().trim().max(100),
-        fromEmail: emailOrEmpty,
-        replyTo: emailOrEmpty,
-      }),
-      booking: z.object({
-        cancellationCutoffHours: z
-          .number({ invalid_type_error: t('errors.cutoffNumber') })
-          .int(t('errors.cutoffNumber'))
-          .min(0, t('errors.cutoffMin'))
-          .max(
-            MAX_CANCELLATION_CUTOFF_HOURS,
-            t('errors.cutoffMax', { max: MAX_CANCELLATION_CUTOFF_HOURS }),
-          ),
-        lateCancellationPenalty: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
-        lateCancellationPenaltyType: penaltyTypeSchema,
-        bookingWindowDays: num({ min: 0, max: 365, int: true }),
-        maxBookingsPerDay: num({ min: 0, max: 100, int: true }),
-        maxBookingsPerWeek: num({ min: 0, max: 500, int: true }),
-        waitlistMode: waitlistModeSchema,
-      }),
-      noShow: z.object({
-        penalty: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
-        penaltyType: penaltyTypeSchema,
-        penaltyDays: num({ min: 0, max: 365, int: true }),
-        autoCancelMinutes: num({ min: 0, max: 240, int: true }),
-      }),
-      freeze: z.object({
-        minFreezeDays: num({ min: 0, max: 365, int: true }),
-        maxFreezeDays: num({ min: 0, max: 365, int: true }),
-        maxFreezeDaysPerYear: num({ min: 0, max: 365, int: true }),
-        freezeFee: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
-        requiresApproval: z.boolean(),
-      }),
-      guestPass: z.object({
-        passesPerMonth: num({ min: 0, max: 100, int: true }),
-        price: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
-        durationDays: num({ min: 1, max: 30, int: true }),
-        requiresWaiver: z.boolean(),
-        mustBeAccompanied: z.boolean(),
-        sameGuestCooldownDays: num({ min: 0, max: 365, int: true }),
-      }),
-      trial: z.object({
-        durationDays: num({ min: 0, max: 365, int: true }),
-        price: num({ min: 0, max: MAX_PENALTY_AMOUNT }),
-        includesClasses: z.boolean(),
-        maxClassBookings: num({ min: 0, max: 100, int: true }),
-        requiresPaymentMethod: z.boolean(),
-        conversionDiscountPercent: num({ min: 0, max: 100 }),
-      }),
       memberIntake: z.object({
         name: z.boolean(),
         surname: z.boolean(),
@@ -908,36 +879,34 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
         paymentMethod: z.boolean(),
         medicalNotes: z.boolean(),
       }),
-      payments: z.object({
-        acceptCash: z.boolean(),
-        acceptCard: z.boolean(),
-        acceptPrepaidCredits: z.boolean(),
-      }),
+      // The staff-page toggles are a plain boolean map, so the contract's own
+      // schema is the form schema — no field-by-field restatement to drift.
+      staffDirectory: gymStaffDirectorySettingsSchema,
+      automationFields: gymAutomationFieldsSettingsSchema,
+      // Same reasoning as `automationFields` — the contract's own schema is the
+      // form schema.
+      marketingFields: gymMarketingFieldsSettingsSchema,
+      // Same reasoning again — the contract's own schema is the form schema.
+      reports: gymReportsSettingsSchema,
+      // A till that accepts nothing cannot ring up a sale, so the last method
+      // standing may not be switched off. The API refuses the same save; checking
+      // here means the operator is told before the round trip, on the screen where
+      // the switch was just flipped.
+      payments: z
+        .object({
+          acceptCash: z.boolean(),
+          acceptCard: z.boolean(),
+          acceptPrepaidCredits: z.boolean(),
+        })
+        .refine((value) => enabledPaymentMethods(value).length > 0, t('payments.noneEnabled')),
       invoice: z.object({
         prefix: z.string().trim().max(10),
         startNumber: num({ min: 1, max: 1_000_000_000, int: true }),
         format: invoiceNumberFormatSchema,
       }),
-      tax: z.object({
-        enabled: z.boolean(),
-        membershipRate: num({ min: 0, max: 100 }),
-        classRate: num({ min: 0, max: 100 }),
-        productRate: num({ min: 0, max: 100 }),
-        serviceRate: num({ min: 0, max: 100 }),
-      }),
-      refund: z.object({
-        mode: refundPolicyModeSchema,
-        windowDays: num({ min: 0, max: 365, int: true }),
-      }),
       receipt: z.object({
         emailEnabled: z.boolean(),
         printEnabled: z.boolean(),
-      }),
-      autoRenewal: z.object({
-        enabled: z.boolean(),
-        retryAttempts: num({ min: 0, max: 10, int: true }),
-        retryIntervalDays: num({ min: 0, max: 30, int: true }),
-        renewalReminderDays: num({ min: 0, max: 90, int: true }),
       }),
     });
   }, [t]);
@@ -958,8 +927,6 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
       brand: {
         name: values.brand.name,
         logoUrl: values.brand.logoUrl,
-        primaryColor: values.brand.primaryColor,
-        secondaryColor: values.brand.secondaryColor,
       },
       business: {
         address: values.business.address.trim() || null,
@@ -969,23 +936,14 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
       },
       locale: values.locale,
       hours: values.hours,
-      notifications: {
-        fromName: values.notifications.fromName.trim() || null,
-        fromEmail: values.notifications.fromEmail.trim() || null,
-        replyTo: values.notifications.replyTo.trim() || null,
-      },
-      booking: values.booking,
-      noShow: values.noShow,
-      freeze: values.freeze,
-      guestPass: values.guestPass,
-      trial: values.trial,
       memberIntake: values.memberIntake,
+      staffDirectory: values.staffDirectory,
+      automationFields: values.automationFields,
+      marketingFields: values.marketingFields,
+      reports: values.reports,
       payments: values.payments,
       invoice: values.invoice,
-      tax: values.tax,
-      refund: values.refund,
       receipt: values.receipt,
-      autoRenewal: values.autoRenewal,
     };
     const result = await updateGymSettingsAction(input);
     if (result.ok) {
@@ -1029,20 +987,9 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                   autoComplete="off"
                   required
                 />
-                <div {...stylex.props(styles.colorRow)}>
-                  <ColorField name="brand.primaryColor" label={t('general.primaryColor')} />
-                  <ColorField name="brand.secondaryColor" label={t('general.secondaryColor')} />
-                </div>
                 <div {...stylex.props(styles.subSection)}>
                   <p {...stylex.props(styles.legend)}>{t('general.localeLegend')}</p>
                   <div {...stylex.props(styles.localeGrid)}>
-                    <SelectField name="locale.language" label={t('general.language')}>
-                      {SUPPORTED_LANGUAGES.map((code) => (
-                        <option key={code} value={code}>
-                          {t(`language.${code}`)}
-                        </option>
-                      ))}
-                    </SelectField>
                     <SelectField name="locale.currency" label={t('general.currency')}>
                       {currencyOptions.map((code) => (
                         <option key={code} value={code}>
@@ -1050,18 +997,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                         </option>
                       ))}
                     </SelectField>
-                    <SelectField
-                      name="locale.timezone"
-                      label={t('general.timezone')}
-                      hint={t('general.timezoneHint')}
-                      fieldClassName={stylex.props(styles.spanTwo).className}
-                    >
-                      {timezoneOptions.map((tz) => (
-                        <option key={tz} value={tz}>
-                          {tz}
-                        </option>
-                      ))}
-                    </SelectField>
+                    <TimeZoneField options={timezoneOptions} stored={initial.locale.timezone} />
                   </div>
                 </div>
               </div>
@@ -1110,265 +1046,6 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
             </SectionCard>
           ) : null}
 
-          {section === 'booking' ? (
-            <SectionCard title={t('booking.title')} description={t('booking.subtitle')}>
-              <div {...stylex.props(styles.stack5col)}>
-                <NumberField
-                  name="booking.cancellationCutoffHours"
-                  label={t('booking.cutoffLabel')}
-                  min={0}
-                  max={MAX_CANCELLATION_CUTOFF_HOURS}
-                  step={1}
-                  hint={<BookingHint />}
-                  fieldClassName={stylex.props(styles.maxXs).className}
-                />
-                <div {...stylex.props(styles.grid2)}>
-                  <NumberField
-                    name="booking.lateCancellationPenalty"
-                    label={t('booking.lateCancellationPenaltyLabel')}
-                    min={0}
-                    max={MAX_PENALTY_AMOUNT}
-                    step="any"
-                  />
-                  <SelectField
-                    name="booking.lateCancellationPenaltyType"
-                    label={t('booking.penaltyTypeLabel')}
-                  >
-                    {penaltyTypeSchema.options.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {t(`penaltyType.${opt}`)}
-                      </option>
-                    ))}
-                  </SelectField>
-                </div>
-                <div {...stylex.props(styles.subSection)}>
-                  <p {...stylex.props(styles.legend)}>{t('booking.limitsLegend')}</p>
-                  <div {...stylex.props(styles.localeGrid)}>
-                    <NumberField
-                      name="booking.bookingWindowDays"
-                      label={t('booking.bookingWindowLabel')}
-                      hint={t('booking.bookingWindowHint')}
-                      min={0}
-                      max={365}
-                      step={1}
-                    />
-                    <SelectField name="booking.waitlistMode" label={t('booking.waitlistModeLabel')}>
-                      {waitlistModeSchema.options.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {t(`waitlistMode.${opt}`)}
-                        </option>
-                      ))}
-                    </SelectField>
-                    <NumberField
-                      name="booking.maxBookingsPerDay"
-                      label={t('booking.maxPerDayLabel')}
-                      hint={t('booking.zeroUnlimited')}
-                      min={0}
-                      max={100}
-                      step={1}
-                    />
-                    <NumberField
-                      name="booking.maxBookingsPerWeek"
-                      label={t('booking.maxPerWeekLabel')}
-                      hint={t('booking.zeroUnlimited')}
-                      min={0}
-                      max={500}
-                      step={1}
-                    />
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          {section === 'noShow' ? (
-            <SectionCard title={t('noShow.title')} description={t('noShow.subtitle')}>
-              <div {...stylex.props(styles.stack5col)}>
-                <div {...stylex.props(styles.grid2)}>
-                  <NumberField
-                    name="noShow.penalty"
-                    label={t('noShow.penaltyLabel')}
-                    min={0}
-                    max={MAX_PENALTY_AMOUNT}
-                    step="any"
-                  />
-                  <SelectField name="noShow.penaltyType" label={t('noShow.penaltyTypeLabel')}>
-                    {penaltyTypeSchema.options.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {t(`penaltyType.${opt}`)}
-                      </option>
-                    ))}
-                  </SelectField>
-                  <NumberField
-                    name="noShow.penaltyDays"
-                    label={t('noShow.penaltyDaysLabel')}
-                    hint={t('noShow.penaltyDaysHint')}
-                    min={0}
-                    max={365}
-                    step={1}
-                  />
-                  <NumberField
-                    name="noShow.autoCancelMinutes"
-                    label={t('noShow.autoCancelLabel')}
-                    hint={t('noShow.autoCancelHint')}
-                    min={0}
-                    max={240}
-                    step={1}
-                  />
-                </div>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          {section === 'freeze' ? (
-            <SectionCard title={t('freeze.title')} description={t('freeze.subtitle')}>
-              <div {...stylex.props(styles.stack5col)}>
-                <div {...stylex.props(styles.localeGrid)}>
-                  <NumberField
-                    name="freeze.minFreezeDays"
-                    label={t('freeze.minLabel')}
-                    hint={t('freeze.zeroNoLimit')}
-                    min={0}
-                    max={365}
-                    step={1}
-                  />
-                  <NumberField
-                    name="freeze.maxFreezeDays"
-                    label={t('freeze.maxLabel')}
-                    hint={t('freeze.zeroNoLimit')}
-                    min={0}
-                    max={365}
-                    step={1}
-                  />
-                  <NumberField
-                    name="freeze.maxFreezeDaysPerYear"
-                    label={t('freeze.perYearLabel')}
-                    hint={t('freeze.zeroNoLimit')}
-                    min={0}
-                    max={365}
-                    step={1}
-                  />
-                  <NumberField
-                    name="freeze.freezeFee"
-                    label={t('freeze.feeLabel')}
-                    min={0}
-                    max={MAX_PENALTY_AMOUNT}
-                    step="any"
-                  />
-                </div>
-                <div {...stylex.props(styles.switchList)}>
-                  <SwitchRow
-                    name="freeze.requiresApproval"
-                    label={t('freeze.requiresApprovalLabel')}
-                    description={t('freeze.requiresApprovalDesc')}
-                  />
-                </div>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          {section === 'guestPass' ? (
-            <SectionCard title={t('guestPass.title')} description={t('guestPass.subtitle')}>
-              <div {...stylex.props(styles.stack5col)}>
-                <div {...stylex.props(styles.localeGrid)}>
-                  <NumberField
-                    name="guestPass.passesPerMonth"
-                    label={t('guestPass.passesPerMonthLabel')}
-                    hint={t('guestPass.zeroDisables')}
-                    min={0}
-                    max={100}
-                    step={1}
-                  />
-                  <NumberField
-                    name="guestPass.price"
-                    label={t('guestPass.priceLabel')}
-                    min={0}
-                    max={MAX_PENALTY_AMOUNT}
-                    step="any"
-                  />
-                  <NumberField
-                    name="guestPass.durationDays"
-                    label={t('guestPass.durationLabel')}
-                    min={1}
-                    max={30}
-                    step={1}
-                  />
-                  <NumberField
-                    name="guestPass.sameGuestCooldownDays"
-                    label={t('guestPass.cooldownLabel')}
-                    hint={t('guestPass.cooldownHint')}
-                    min={0}
-                    max={365}
-                    step={1}
-                  />
-                </div>
-                <div {...stylex.props(styles.switchList)}>
-                  <SwitchRow
-                    name="guestPass.requiresWaiver"
-                    label={t('guestPass.requiresWaiverLabel')}
-                    description={t('guestPass.requiresWaiverDesc')}
-                  />
-                  <SwitchRow
-                    name="guestPass.mustBeAccompanied"
-                    label={t('guestPass.mustBeAccompaniedLabel')}
-                    description={t('guestPass.mustBeAccompaniedDesc')}
-                  />
-                </div>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          {section === 'trial' ? (
-            <SectionCard title={t('trial.title')} description={t('trial.subtitle')}>
-              <div {...stylex.props(styles.stack5col)}>
-                <div {...stylex.props(styles.localeGrid)}>
-                  <NumberField
-                    name="trial.durationDays"
-                    label={t('trial.durationLabel')}
-                    hint={t('trial.zeroDisables')}
-                    min={0}
-                    max={365}
-                    step={1}
-                  />
-                  <NumberField
-                    name="trial.price"
-                    label={t('trial.priceLabel')}
-                    min={0}
-                    max={MAX_PENALTY_AMOUNT}
-                    step="any"
-                  />
-                  <NumberField
-                    name="trial.maxClassBookings"
-                    label={t('trial.maxClassBookingsLabel')}
-                    hint={t('trial.zeroUnlimited')}
-                    min={0}
-                    max={100}
-                    step={1}
-                  />
-                  <NumberField
-                    name="trial.conversionDiscountPercent"
-                    label={t('trial.conversionDiscountLabel')}
-                    min={0}
-                    max={100}
-                    step="any"
-                  />
-                </div>
-                <div {...stylex.props(styles.switchList)}>
-                  <SwitchRow
-                    name="trial.includesClasses"
-                    label={t('trial.includesClassesLabel')}
-                    description={t('trial.includesClassesDesc')}
-                  />
-                  <SwitchRow
-                    name="trial.requiresPaymentMethod"
-                    label={t('trial.requiresPaymentLabel')}
-                    description={t('trial.requiresPaymentDesc')}
-                  />
-                </div>
-              </div>
-            </SectionCard>
-          ) : null}
-
           {section === 'membership' ? (
             <SectionCard title={t('membership.title')} description={t('membership.subtitle')}>
               <div {...stylex.props(styles.switchList)}>
@@ -1403,6 +1080,118 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
             </SectionCard>
           ) : null}
 
+          {section === 'staff' ? (
+            <>
+              <SectionCard
+                title={t('staff.columns.title')}
+                description={t('staff.columns.subtitle')}
+              >
+                <div {...stylex.props(styles.switchList)}>
+                  {STAFF_COLUMN_FIELDS.map((field) => (
+                    <SwitchRow
+                      key={field}
+                      name={`staffDirectory.${field}`}
+                      label={t(`staff.fields.${field}`)}
+                    />
+                  ))}
+                </div>
+              </SectionCard>
+              <SectionCard
+                title={t('staff.sections.title')}
+                description={t('staff.sections.subtitle')}
+              >
+                <div {...stylex.props(styles.switchList)}>
+                  {STAFF_SECTION_FIELDS.map((field) => (
+                    <SwitchRow
+                      key={field}
+                      name={`staffDirectory.${field}`}
+                      label={t(`staff.fields.${field}`)}
+                    />
+                  ))}
+                </div>
+              </SectionCard>
+            </>
+          ) : null}
+
+          {section === 'automation' ? (
+            <>
+              {AUTOMATION_MERGE_GROUPS.map((group) => (
+                <SectionCard
+                  key={group}
+                  title={t(`automation.groups.${group}`)}
+                  description={t(`automation.groupHints.${group}`)}
+                >
+                  <div {...stylex.props(styles.switchList)}>
+                    {AUTOMATION_MERGE_FIELDS.filter((field) => field.group === group).map(
+                      (field) => (
+                        <SwitchRow
+                          key={field.key}
+                          name={`automationFields.${field.key as AutomationFieldToggle}`}
+                          label={t(`automation.fields.${field.key}`)}
+                          // The token is the point of the row — staff paste it, and
+                          // seeing it here is how they learn the spelling.
+                          description={field.token}
+                        />
+                      ),
+                    )}
+                  </div>
+                </SectionCard>
+              ))}
+            </>
+          ) : null}
+
+          {section === 'marketing' ? (
+            <>
+              {MARKETING_MERGE_GROUPS.map((group) => (
+                <SectionCard
+                  key={group}
+                  title={t(`marketing.groups.${group}`)}
+                  description={t(`marketing.groupHints.${group}`)}
+                >
+                  <div {...stylex.props(styles.switchList)}>
+                    {MARKETING_MERGE_FIELD_DEFS.filter((field) => field.group === group).map(
+                      (field) => (
+                        <SwitchRow
+                          key={field.key}
+                          name={`marketingFields.${field.key as MarketingFieldToggle}`}
+                          label={field.label}
+                          // The token is the point of the row — staff paste it, and
+                          // seeing it here is how they learn the spelling.
+                          description={field.token}
+                        />
+                      ),
+                    )}
+                  </div>
+                </SectionCard>
+              ))}
+            </>
+          ) : null}
+
+          {section === 'reports' ? (
+            <>
+              {groupReportsBySegment(REPORT_CATALOG).map((group) => (
+                <SectionCard
+                  key={group.segment}
+                  title={group.label}
+                  description={t(`reports.groupHints.${group.segment}`)}
+                >
+                  <div {...stylex.props(styles.switchList)}>
+                    {group.reports.map((report) => (
+                      <SwitchRow
+                        key={report.key}
+                        name={`reports.${report.key as ReportToggle}`}
+                        label={report.name}
+                        // The purpose is what a gym decides by — "Refunds detail" alone
+                        // does not say whether it is the one they need.
+                        description={report.description}
+                      />
+                    ))}
+                  </div>
+                </SectionCard>
+              ))}
+            </>
+          ) : null}
+
           {section === 'payments' ? (
             <SectionCard title={t('payments.title')} description={t('payments.subtitle')}>
               <div {...stylex.props(styles.switchList)}>
@@ -1422,6 +1211,7 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
                   description={t('payments.acceptPrepaidDesc')}
                 />
               </div>
+              <PaymentsWarning />
             </SectionCard>
           ) : null}
 
@@ -1458,75 +1248,6 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
             </SectionCard>
           ) : null}
 
-          {section === 'tax' ? (
-            <SectionCard title={t('tax.title')} description={t('tax.subtitle')}>
-              <div {...stylex.props(styles.stack5col)}>
-                <div {...stylex.props(styles.switchList)}>
-                  <SwitchRow
-                    name="tax.enabled"
-                    label={t('tax.enabledLabel')}
-                    description={t('tax.enabledDesc')}
-                  />
-                </div>
-                <div {...stylex.props(styles.subSection)}>
-                  <p {...stylex.props(styles.legend)}>{t('tax.ratesLegend')}</p>
-                  <div {...stylex.props(styles.localeGrid)}>
-                    <NumberField
-                      name="tax.membershipRate"
-                      label={t('tax.membershipRateLabel')}
-                      min={0}
-                      max={100}
-                      step="any"
-                    />
-                    <NumberField
-                      name="tax.classRate"
-                      label={t('tax.classRateLabel')}
-                      min={0}
-                      max={100}
-                      step="any"
-                    />
-                    <NumberField
-                      name="tax.productRate"
-                      label={t('tax.productRateLabel')}
-                      min={0}
-                      max={100}
-                      step="any"
-                    />
-                    <NumberField
-                      name="tax.serviceRate"
-                      label={t('tax.serviceRateLabel')}
-                      min={0}
-                      max={100}
-                      step="any"
-                    />
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          {section === 'refund' ? (
-            <SectionCard title={t('refund.title')} description={t('refund.subtitle')}>
-              <div {...stylex.props(styles.grid2)}>
-                <SelectField name="refund.mode" label={t('refund.modeLabel')}>
-                  {refundPolicyModeSchema.options.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {t(`refundMode.${opt}`)}
-                    </option>
-                  ))}
-                </SelectField>
-                <NumberField
-                  name="refund.windowDays"
-                  label={t('refund.windowLabel')}
-                  hint={t('refund.windowHint')}
-                  min={0}
-                  max={365}
-                  step={1}
-                />
-              </div>
-            </SectionCard>
-          ) : null}
-
           {section === 'receipt' ? (
             <SectionCard title={t('receipt.title')} description={t('receipt.subtitle')}>
               <div {...stylex.props(styles.switchList)}>
@@ -1544,75 +1265,10 @@ export function SettingsForm({ initial }: { initial: GymSettings }) {
             </SectionCard>
           ) : null}
 
-          {section === 'autoRenewal' ? (
-            <SectionCard title={t('autoRenewal.title')} description={t('autoRenewal.subtitle')}>
-              <div {...stylex.props(styles.stack5col)}>
-                <div {...stylex.props(styles.switchList)}>
-                  <SwitchRow
-                    name="autoRenewal.enabled"
-                    label={t('autoRenewal.enabledLabel')}
-                    description={t('autoRenewal.enabledDesc')}
-                  />
-                </div>
-                <div {...stylex.props(styles.localeGrid)}>
-                  <NumberField
-                    name="autoRenewal.retryAttempts"
-                    label={t('autoRenewal.retryAttemptsLabel')}
-                    min={0}
-                    max={10}
-                    step={1}
-                  />
-                  <NumberField
-                    name="autoRenewal.retryIntervalDays"
-                    label={t('autoRenewal.retryIntervalLabel')}
-                    min={0}
-                    max={30}
-                    step={1}
-                  />
-                  <NumberField
-                    name="autoRenewal.renewalReminderDays"
-                    label={t('autoRenewal.reminderLabel')}
-                    hint={t('autoRenewal.reminderHint')}
-                    min={0}
-                    max={90}
-                    step={1}
-                    fieldClassName={stylex.props(styles.spanTwo).className}
-                  />
-                </div>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          {section === 'notifications' ? (
-            <SectionCard title={t('notifications.title')} description={t('notifications.subtitle')}>
-              <div {...stylex.props(styles.stack4)}>
-                <TextField
-                  name="notifications.fromName"
-                  label={t('notifications.fromNameLabel')}
-                  placeholder={t('notifications.fromNamePlaceholder')}
-                  autoComplete="off"
-                />
-                <TextField
-                  name="notifications.fromEmail"
-                  type="email"
-                  label={t('notifications.fromEmailLabel')}
-                  placeholder={t('notifications.fromEmailPlaceholder')}
-                  autoComplete="off"
-                />
-                <TextField
-                  name="notifications.replyTo"
-                  type="email"
-                  label={t('notifications.replyToLabel')}
-                  placeholder={t('notifications.replyToPlaceholder')}
-                  autoComplete="off"
-                />
-              </div>
-            </SectionCard>
-          ) : null}
-
           {section === 'locations' ? (
             <SectionCard title={t('locations.title')} description={t('locations.subtitle')}>
               <div {...stylex.props(styles.stack4)}>
+                <LocationNames locations={locations} />
                 <p {...stylex.props(styles.cardDesc)}>{t('locations.description')}</p>
                 <div>
                   <Link href="/locations" className={buttonClasses('primary', 'sm')}>
@@ -1636,8 +1292,6 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
     brand: {
       name: settings.brand.name,
       logoUrl: settings.brand.logoUrl,
-      primaryColor: settings.brand.primaryColor,
-      secondaryColor: settings.brand.secondaryColor,
     },
     business: {
       address: settings.business.address ?? '',
@@ -1646,54 +1300,10 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       website: settings.business.website ?? '',
     },
     locale: {
-      language: settings.locale.language,
       currency: settings.locale.currency,
       timezone: settings.locale.timezone,
     },
     hours: settings.hours,
-    notifications: {
-      fromName: settings.notifications.fromName ?? '',
-      fromEmail: settings.notifications.fromEmail ?? '',
-      replyTo: settings.notifications.replyTo ?? '',
-    },
-    booking: {
-      cancellationCutoffHours: settings.booking.cancellationCutoffHours,
-      lateCancellationPenalty: settings.booking.lateCancellationPenalty,
-      lateCancellationPenaltyType: settings.booking.lateCancellationPenaltyType,
-      bookingWindowDays: settings.booking.bookingWindowDays,
-      maxBookingsPerDay: settings.booking.maxBookingsPerDay,
-      maxBookingsPerWeek: settings.booking.maxBookingsPerWeek,
-      waitlistMode: settings.booking.waitlistMode,
-    },
-    noShow: {
-      penalty: settings.noShow.penalty,
-      penaltyType: settings.noShow.penaltyType,
-      penaltyDays: settings.noShow.penaltyDays,
-      autoCancelMinutes: settings.noShow.autoCancelMinutes,
-    },
-    freeze: {
-      minFreezeDays: settings.freeze.minFreezeDays,
-      maxFreezeDays: settings.freeze.maxFreezeDays,
-      maxFreezeDaysPerYear: settings.freeze.maxFreezeDaysPerYear,
-      freezeFee: settings.freeze.freezeFee,
-      requiresApproval: settings.freeze.requiresApproval,
-    },
-    guestPass: {
-      passesPerMonth: settings.guestPass.passesPerMonth,
-      price: settings.guestPass.price,
-      durationDays: settings.guestPass.durationDays,
-      requiresWaiver: settings.guestPass.requiresWaiver,
-      mustBeAccompanied: settings.guestPass.mustBeAccompanied,
-      sameGuestCooldownDays: settings.guestPass.sameGuestCooldownDays,
-    },
-    trial: {
-      durationDays: settings.trial.durationDays,
-      price: settings.trial.price,
-      includesClasses: settings.trial.includesClasses,
-      maxClassBookings: settings.trial.maxClassBookings,
-      requiresPaymentMethod: settings.trial.requiresPaymentMethod,
-      conversionDiscountPercent: settings.trial.conversionDiscountPercent,
-    },
     memberIntake: {
       name: settings.memberIntake.name,
       surname: settings.memberIntake.surname,
@@ -1708,6 +1318,10 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       paymentMethod: settings.memberIntake.paymentMethod,
       medicalNotes: settings.memberIntake.medicalNotes,
     },
+    staffDirectory: settings.staffDirectory,
+    automationFields: settings.automationFields,
+    marketingFields: settings.marketingFields,
+    reports: settings.reports,
     payments: {
       acceptCash: settings.payments.acceptCash,
       acceptCard: settings.payments.acceptCard,
@@ -1718,23 +1332,9 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       startNumber: settings.invoice.startNumber,
       format: settings.invoice.format,
     },
-    tax: {
-      enabled: settings.tax.enabled,
-      membershipRate: settings.tax.membershipRate,
-      classRate: settings.tax.classRate,
-      productRate: settings.tax.productRate,
-      serviceRate: settings.tax.serviceRate,
-    },
-    refund: { mode: settings.refund.mode, windowDays: settings.refund.windowDays },
     receipt: {
       emailEnabled: settings.receipt.emailEnabled,
       printEnabled: settings.receipt.printEnabled,
-    },
-    autoRenewal: {
-      enabled: settings.autoRenewal.enabled,
-      retryAttempts: settings.autoRenewal.retryAttempts,
-      retryIntervalDays: settings.autoRenewal.retryIntervalDays,
-      renewalReminderDays: settings.autoRenewal.renewalReminderDays,
     },
   };
 }
@@ -1963,26 +1563,203 @@ function LogoField() {
   );
 }
 
-/** A paired colour-picker swatch + hex readout, bound to the form by `name`. */
-function ColorField({
-  name,
-  label,
-}: {
-  name: 'brand.primaryColor' | 'brand.secondaryColor';
-  label: string;
-}) {
-  const { control, register } = useFormContext<SettingsFormValues>();
-  const value = useWatch({ control, name });
-  const id = useId();
+/**
+ * This browser's own IANA zone, or `null` when the runtime will not name one.
+ *
+ * Resolved after mount rather than during render: the server render has no device
+ * to ask (it would answer with the *server's* zone), and a value that differs
+ * between the two renders is a hydration mismatch.
+ */
+function useDeviceTimeZone(): string | null {
+  const [zone, setZone] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setZone(resolved && isValidTimeZone(resolved) ? resolved : null);
+    } catch {
+      setZone(null);
+    }
+  }, []);
+  return zone;
+}
+
+/**
+ * The gym's time zone.
+ *
+ * The IANA database has ~430 zones, and a flat alphabetical list of them is a
+ * scroll from `Africa/Abidjan` to wherever the gym actually is. So the picker
+ * opens on a short **Suggested** group — this computer's zone, the gym's saved
+ * one, the platform default, and the handful this console is actually used from —
+ * with the complete list still underneath for everyone else. A one-click "use
+ * where you are now" sits below the field while the two differ.
+ *
+ * The device zone is a suggestion, never an override. The zone every displayed
+ * time is rendered in belongs to the *gym*, not to whichever staff laptop is
+ * signed in — a manager opening the console from another country must not silently
+ * re-stamp the class schedule. So it is offered and the choice stays explicit.
+ */
+function TimeZoneField({ options, stored }: { options: string[]; stored: string }) {
+  const t = useTranslations('admin.settings');
+  const { control, setValue } = useFormContext<SettingsFormValues>();
+  const current = useWatch({ control, name: 'locale.timezone' });
+  const device = useDeviceTimeZone();
+
+  // Keyed off `stored`, not the live field value: the shortlist must not reshuffle
+  // under the cursor while the select is open and the user is changing zones.
+  const suggested = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const tz of [device, stored, DEFAULT_TIMEZONE, ...COMMON_TIMEZONES]) {
+      if (!tz || seen.has(tz) || !isValidTimeZone(tz)) continue;
+      seen.add(tz);
+      out.push(tz);
+    }
+    return out;
+  }, [device, stored]);
+
+  // A zone the browser reports but `Intl.supportedValuesOf` omits still has to be
+  // selectable, or the shortcut would set a value with no matching option.
+  const list = useMemo(() => (device ? withCurrent(options, device) : options), [options, device]);
+
   return (
-    <div {...stylex.props(styles.colorField)}>
-      <label htmlFor={id} {...stylex.props(styles.fieldLabel)}>
-        {label}
-      </label>
-      <div {...stylex.props(styles.colorRowInner)}>
-        <input id={id} type="color" {...register(name)} {...stylex.props(styles.colorInput)} />
-        <span {...stylex.props(styles.colorHex)}>{value}</span>
-      </div>
+    <div {...stylex.props(styles.spanTwo, styles.stack2)}>
+      <SelectField
+        name="locale.timezone"
+        label={t('general.timezone')}
+        hint={t('general.timezoneHint')}
+      >
+        <optgroup label={t('general.timezoneSuggested')}>
+          {suggested.map((tz) => (
+            <option key={`suggested-${tz}`} value={tz}>
+              {tz}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label={t('general.timezoneAll')}>
+          {list.map((tz) => (
+            <option key={tz} value={tz}>
+              {tz}
+            </option>
+          ))}
+        </optgroup>
+      </SelectField>
+      {device && device !== current ? (
+        <div>
+          <button
+            type="button"
+            onClick={() => setValue('locale.timezone', device, { shouldDirty: true })}
+            {...stylex.props(styles.deviceZoneBtn)}
+          >
+            {t('general.useDeviceTimezone', { zone: device })}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The Locations card's inline rename list: one row per branch, each a name box and
+ * a Save that is live only while the name differs from the stored one.
+ *
+ * Deliberately outside the settings `useZodForm` — a branch name is a
+ * `PATCH /admin/locations/:id`, not part of `PATCH /gyms/settings`, so renaming
+ * here must not arm the settings save bar (and its Save button is a `type="button"`,
+ * since the whole page already sits inside one form). Everything else about a
+ * branch — address, hours, photo, status — stays in the full locations manager.
+ */
+function LocationNames({ locations }: { locations: AdminLocationRow[] }) {
+  const t = useTranslations('admin.settings');
+  const router = useRouter();
+  const { toast } = useToast();
+  // Saved names start from the server payload and advance only on a confirmed
+  // rename, so each row can tell "edited" from "already stored".
+  const [saved, setSaved] = useState<Record<string, string>>(() =>
+    Object.fromEntries(locations.map((location) => [location.id, location.name])),
+  );
+  const [drafts, setDrafts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(locations.map((location) => [location.id, location.name])),
+  );
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [errorId, setErrorId] = useState<string | null>(null);
+
+  if (locations.length === 0) {
+    return <p {...stylex.props(styles.cardDesc)}>{t('locations.empty')}</p>;
+  }
+
+  async function rename(id: string): Promise<void> {
+    const next = (drafts[id] ?? '').trim();
+    if (!next || next === saved[id]) return;
+    setPendingId(id);
+    setErrorId(null);
+    try {
+      const result = await renameLocationAction(id, next);
+      if (result.ok) {
+        setSaved((current) => ({ ...current, [id]: result.data.name }));
+        setDrafts((current) => ({ ...current, [id]: result.data.name }));
+        toast(t('locations.renamed', { name: result.data.name }), {
+          tone: 'success',
+          icon: 'check',
+        });
+        router.refresh();
+      } else {
+        setErrorId(id);
+        toast(result.error, { tone: 'danger', icon: 'info' });
+      }
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  return (
+    <div {...stylex.props(styles.stack2)}>
+      {locations.map((location) => {
+        const draft = drafts[location.id] ?? '';
+        const dirty = draft.trim() !== saved[location.id] && draft.trim().length > 0;
+        const pending = pendingId === location.id;
+        return (
+          <div key={location.id} {...stylex.props(styles.locationRow)}>
+            <input
+              type="text"
+              value={draft}
+              maxLength={120}
+              aria-label={t('locations.nameAria', { name: saved[location.id] ?? location.name })}
+              onChange={(event) =>
+                setDrafts((current) => ({ ...current, [location.id]: event.target.value }))
+              }
+              // Enter saves the row instead of submitting the settings form around it.
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                if (dirty && !pending) void rename(location.id);
+              }}
+              disabled={pending}
+              {...stylex.props(styles.locationInput)}
+            />
+            {location.status === 'INACTIVE' ? (
+              <span {...stylex.props(styles.locationInactive)}>{t('locations.inactive')}</span>
+            ) : null}
+            <Btn
+              type="button"
+              v="outline"
+              size="sm"
+              icon="check"
+              disabled={!dirty || pending}
+              onClick={() => void rename(location.id)}
+            >
+              {pending ? t('locations.renaming') : t('locations.rename')}
+            </Btn>
+            {location.address ? (
+              <p {...stylex.props(styles.locationMeta)}>{location.address}</p>
+            ) : null}
+            {errorId === location.id ? (
+              <p role="alert" {...stylex.props(styles.locationError)}>
+                {t('locations.renameFailed')}
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2046,31 +1823,42 @@ function DayRow({ day }: { day: Weekday }) {
   );
 }
 
-/** The live cancellation-policy explainer under the cutoff field. */
-function BookingHint() {
+/**
+ * The payments section's own rule: a till that accepts nothing cannot ring up a
+ * sale, so the last method standing may not be switched off.
+ *
+ * Watched live rather than read off the submit-time zod error, because the rule
+ * constrains the group and not any one switch: it must appear the moment the last
+ * one goes off, and clear the moment one comes back — neither of which a
+ * field-keyed error would do. The schema refuses the save regardless.
+ */
+function PaymentsWarning() {
   const t = useTranslations('admin.settings');
   const { control } = useFormContext<SettingsFormValues>();
-  const value = useWatch({ control, name: 'booking.cancellationCutoffHours' });
-  if (!Number.isFinite(value) || value <= 0) return <>{t('booking.hintNone')}</>;
-  return <>{t('booking.hintActive', { count: value })}</>;
+  const payments = useWatch({ control, name: 'payments' });
+  if (!payments || enabledPaymentMethods(payments).length > 0) {
+    return null;
+  }
+  return <p {...stylex.props(styles.dayError)}>{t('payments.noneEnabled')}</p>;
 }
 
-/** A live sample invoice number, reflecting the chosen prefix + format. */
+/**
+ * A live sample invoice number, reflecting the chosen prefix + format.
+ *
+ * Built with the API's own {@link formatInvoiceNumber} rather than a copy of the rule,
+ * so the sample shown here is the reference the next invoice is actually stamped with.
+ */
 function InvoiceHint() {
   const t = useTranslations('admin.settings');
   const { control } = useFormContext<SettingsFormValues>();
   const prefix = useWatch({ control, name: 'invoice.prefix' });
   const start = useWatch({ control, name: 'invoice.startNumber' });
   const format = useWatch({ control, name: 'invoice.format' });
-  const seq = Number.isFinite(start) ? String(Math.trunc(start)).padStart(4, '0') : '0000';
-  const pfx = (prefix ?? '').trim() || 'INV';
-  const year = new Date().getFullYear();
-  const sample =
-    format === 'prefix-number'
-      ? `${pfx}-${seq}`
-      : format === 'year-number'
-        ? `${year}-${seq}`
-        : `${pfx}-${year}-${seq}`;
+  const seq = Number.isFinite(start) ? Math.trunc(start) : 0;
+  const sample = formatInvoiceNumber(new Date().getFullYear(), seq, {
+    prefix: prefix ?? '',
+    format,
+  });
   return <>{t('invoice.preview', { sample })}</>;
 }
 

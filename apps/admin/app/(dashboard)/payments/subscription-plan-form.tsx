@@ -9,6 +9,7 @@ import {
   type SubscriptionPlanStatus,
 } from '@fit/types';
 import { Badge, Btn, Card, Icon } from '@/components/ui';
+import { useGymCurrency } from '@/components/gym-currency';
 import {
   SUBSCRIPTION_INTERVALS,
   formatPrice,
@@ -42,14 +43,6 @@ const CREATE_STATUSES: ReadonlyArray<{ value: SubscriptionPlanStatus; label: str
   { value: 'ACTIVE', label: 'Active' },
   { value: 'INACTIVE', label: 'Inactive' },
 ];
-
-/**
- * The currency every new plan is priced in. The console serves Georgian gyms, so a
- * free-text ISO field was only ever a way to typo a plan into the wrong currency.
- * Existing plans keep whatever they were created with — the form shows the stored
- * code rather than rewriting it to GEL on save.
- */
-const DEFAULT_CURRENCY = 'GEL';
 
 /** Shared field styling so create + edit render identically. */
 const FIELD_CLASS =
@@ -140,6 +133,7 @@ function parseAllowance(value: string): number {
  */
 export function SubscriptionPlanForm(props: Props) {
   const router = useRouter();
+  const gymCurrency = useGymCurrency();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -153,7 +147,7 @@ export function SubscriptionPlanForm(props: Props) {
         name: '',
         description: '',
         priceAmount: 0,
-        currency: DEFAULT_CURRENCY,
+        currency: gymCurrency,
         interval: 'MONTH',
         features: [],
         popular: false,
@@ -182,8 +176,12 @@ export function SubscriptionPlanForm(props: Props) {
    */
   const [createdPlanId, setCreatedPlanId] = useState<string | null>(null);
 
-  // Fixed for the lifetime of the form: a new plan is priced in GEL, an existing one
-  // keeps its stored code.
+  /**
+   * Fixed for the lifetime of the form: a new plan is priced in the gym's own
+   * configured currency (Settings → General), an existing one keeps its stored
+   * code. A free-text ISO field was only ever a way to typo a plan into a currency
+   * the gym does not sell in; the API stamps the gym's currency on create either way.
+   */
   const currency = initial.currency;
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>): void {
@@ -194,7 +192,6 @@ export function SubscriptionPlanForm(props: Props) {
       name,
       description,
       priceAmount: inputToMinor(price),
-      currency,
       interval,
       // Perks, the credit allowance and the trial were dropped from the form. The
       // columns still exist, so an edit round-trips whatever the plan already holds

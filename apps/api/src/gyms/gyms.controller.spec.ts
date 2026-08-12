@@ -20,7 +20,7 @@ function setup() {
     }),
   );
   const resolveBySubdomain = vi.fn<(slug: string) => Promise<GymBySubdomainResponse>>(() =>
-    Promise.resolve({ gymId: 'gym-1', name: 'Downtown Strength', brand: null }),
+    Promise.resolve({ gymId: 'gym-1', name: 'Downtown Strength', brand: null, contact: null }),
   );
   const gyms = { list, resolveBySubdomain } as unknown as GymsService;
   return { controller: new GymsController(gyms), list, resolveBySubdomain };
@@ -51,7 +51,12 @@ describe('GymsController', () => {
 
       // Slug schema lower-cases before the lookup.
       expect(ctx.resolveBySubdomain).toHaveBeenCalledWith('downtown');
-      expect(result).toEqual({ gymId: 'gym-1', name: 'Downtown Strength', brand: null });
+      expect(result).toEqual({
+        gymId: 'gym-1',
+        name: 'Downtown Strength',
+        brand: null,
+        contact: null,
+      });
     });
 
     it('returns 404 GYM_NOT_FOUND for a reserved label without hitting the service', async () => {

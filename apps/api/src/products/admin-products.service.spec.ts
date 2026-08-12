@@ -12,6 +12,7 @@ import {
 import { AdminProductsService } from './admin-products.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
 
 const VARIANTS: ProductVariants = productVariantsSchema.parse([
   { name: 'Small', sku: 'TS-S', priceAmount: 2500, stock: 10 },
@@ -97,9 +98,13 @@ function setup(overrides?: {
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  // The gym prices in GEL; a created product must be stamped with that, not USD.
+  const locale = {
+    get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
+  } as unknown as GymLocaleService;
 
   return {
-    service: new AdminProductsService(prisma, tenant),
+    service: new AdminProductsService(prisma, tenant, locale),
     findMany,
     count,
     findFirst,
@@ -118,7 +123,6 @@ const createInput = (over?: Partial<CreateProductData>): CreateProductData => ({
   description: 'A soft cotton training tee.',
   priceAmount: 2999,
   costAmount: null,
-  currency: 'USD',
   images: ['https://cdn.example.com/a.jpg'],
   variants: VARIANTS,
   stock: null,
@@ -133,7 +137,6 @@ const updateInput = (over?: Partial<UpdateProductData>): UpdateProductData => ({
   description: 'Updated copy.',
   priceAmount: 3499,
   costAmount: null,
-  currency: 'EUR',
   images: ['https://cdn.example.com/c.jpg'],
   variants: VARIANTS,
   stock: null,
@@ -407,7 +410,8 @@ describe('AdminProductsService', () => {
         name: 'New Tee',
         priceAmount: 2999,
         costAmount: null,
-        currency: 'USD',
+        // Stamped from the gym's own locale, not from the request body.
+        currency: 'GEL',
         status: 'INACTIVE',
         images: ['https://cdn.example.com/a.jpg'],
         variants: VARIANTS,
@@ -477,11 +481,12 @@ describe('AdminProductsService', () => {
         name: 'Branded Tee',
         description: 'Updated copy.',
         priceAmount: 3499,
-        currency: 'EUR',
         images: ['https://cdn.example.com/c.jpg'],
         variants: VARIANTS,
       });
       expect(data).not.toHaveProperty('status');
+      // An existing product keeps the currency it was created in.
+      expect(data).not.toHaveProperty('currency');
     });
 
     it('throws 404 for an unknown / cross-tenant id', async () => {

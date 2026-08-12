@@ -1,4 +1,4 @@
-// @fit/types — gym settings contracts (brand, locale, business hours, notifications).
+// @fit/types — gym settings contracts (brand, locale, business hours, policies).
 //
 // Shapes crossing the API boundary for the staff console's gym-configuration
 // page (T4.8): `GET /gyms/settings`, `PATCH /gyms/settings`, and the logo
@@ -14,6 +14,7 @@
 
 import { z } from 'zod';
 import { locationHoursSchema, type LocationHours } from './locations-admin';
+import { paymentMethodSchema, type PaymentMethod } from './orders';
 
 /**
  * The gym's default business hours — the same seven-day shape a location's
@@ -123,20 +124,6 @@ export const gymLocaleSchema = z.object({
 
 /** The gym's locale settings — {@link gymLocaleSchema}. */
 export type GymLocale = z.infer<typeof gymLocaleSchema>;
-
-/**
- * Notification settings for the gym's outbound email: the `fromEmail` /
- * `fromName` member mail is sent as, and an optional `replyTo`. All nullable —
- * an unset value falls back to the platform default sender at send time.
- */
-export const gymNotificationsSchema = z.object({
-  fromEmail: z.string().email().nullable().default(null),
-  fromName: z.string().trim().max(100).nullable().default(null),
-  replyTo: z.string().email().nullable().default(null),
-});
-
-/** The gym's notification settings — {@link gymNotificationsSchema}. */
-export type GymNotifications = z.infer<typeof gymNotificationsSchema>;
 
 /** Penalty amount interpretation shared by the cancellation + no-show policies. */
 export const penaltyTypeSchema = z.enum(['fixed', 'percentage']);
@@ -274,12 +261,20 @@ export const gymTrialSettingsSchema = z.object({
 export type GymTrialSettings = z.infer<typeof gymTrialSettingsSchema>;
 
 /**
- * Which inputs the member-create form shows — the admin-console Add-Member drawer
- * and the POS till's, which are the same form reading this same config. Every field
- * is a visibility toggle; `name`/`email` are required by `createMemberSchema` so they
- * default on (the Settings UI warns when they are turned off). `surname` is a
- * UI-only split joined onto `name`; `startDate` is intentionally absent (removed
- * from the drawer — the API defaults enrolment to today).
+ * Which inputs the member-create form asks for — the admin-console Add-Member drawer
+ * and the POS till's, which are the same form reading this same config.
+ *
+ * A field that is **on** is shown *and* required; a field that is off is not shown
+ * at all. There is no third state where the desk is offered a box it may ignore,
+ * because that is the state that produced rosters full of half-filled profiles at
+ * gyms that had deliberately switched the field on. {@link requiredIntakeFields}
+ * derives the mandatory set (and names the handful of exemptions); the create form
+ * and the API both enforce it from there.
+ *
+ * `name`/`email` are required by `createMemberSchema` regardless, so they default on
+ * (the Settings UI warns when they are turned off). `surname` is a UI-only split
+ * joined onto `name`; `startDate` is intentionally absent (removed from the drawer —
+ * the API defaults enrolment to today).
  *
  * The identity and contact fields default **on**: a gym that registers someone
  * without a date of birth, a national id or a next of kin generally wanted them and
@@ -313,6 +308,250 @@ export const gymMemberIntakeSettingsSchema = z.object({
 /** The Add-Member drawer field-visibility config — {@link gymMemberIntakeSettingsSchema}. */
 export type GymMemberIntakeSettings = z.infer<typeof gymMemberIntakeSettingsSchema>;
 
+/** One member-intake toggle — a key of {@link gymMemberIntakeSettingsSchema}. */
+export type MemberIntakeField = keyof GymMemberIntakeSettings;
+
+/**
+ * The intake toggles that are visibility-only: switching them on shows the input
+ * but never makes it mandatory.
+ *
+ * `name`/`email` because {@link createMemberSchema} already requires them — they
+ * are the member's identity, not a configurable extra. `membershipPlan` and
+ * `paymentMethod` because both live in the enrolment block the POS till hides
+ * structurally (at the till the enrolment *is* the cart), so requiring a field
+ * its operator cannot see would make creating a walk-in impossible — and "no plan
+ * yet" is a legitimate state for one anyway.
+ */
+const ALWAYS_OPTIONAL_INTAKE_FIELDS = [
+  'name',
+  'email',
+  'membershipPlan',
+  'paymentMethod',
+] as const satisfies readonly MemberIntakeField[];
+
+/**
+ * Which fields a member-create must actually supply, given the gym's toggles.
+ *
+ * This is the single statement of the "on means required" policy: the admin form
+ * marks these inputs required and the API rejects a create that omits one, both
+ * by calling this — so the console and the server can never drift into disagreeing
+ * about what the gym asked for.
+ *
+ * `surname` is included, but only the browser can act on it: the form joins it
+ * onto `name` before the request is sent, so by the time the API sees the payload
+ * there is no separate surname left to check.
+ */
+export function requiredIntakeFields(intake: GymMemberIntakeSettings): MemberIntakeField[] {
+  return (Object.keys(intake) as MemberIntakeField[]).filter(
+    (field) =>
+      intake[field] &&
+      !(ALWAYS_OPTIONAL_INTAKE_FIELDS as readonly MemberIntakeField[]).includes(field),
+  );
+}
+
+/**
+ * What the staff page shows — which roster columns, and which blocks of the page
+ * itself.
+ *
+ * Unlike {@link gymMemberIntakeSettingsSchema}, nothing here is made mandatory:
+ * these are display choices, not data-collection policy. On shows it, off hides it.
+ *
+ * Every default reproduces the page as it stands, so a gym that never opens this
+ * screen sees no change. That is why the four fields the roster already carries but
+ * has never rendered (`location`, `email`, `phone`, `joined`) start **off** despite
+ * the data being there — surfacing them is the gym's decision, not an upgrade
+ * applied to everyone.
+ *
+ * First name has no toggle. It is the row's identity and its click target; a roster
+ * of anonymous rows is not a leaner roster.
+ */
+export const gymStaffDirectorySettingsSchema = z.object({
+  // -- Roster columns --
+  lastName: z.boolean().default(true),
+  role: z.boolean().default(true),
+  status: z.boolean().default(true),
+  location: z.boolean().default(false),
+  email: z.boolean().default(false),
+  phone: z.boolean().default(false),
+  joined: z.boolean().default(false),
+  // -- Page blocks --
+  whosWorking: z.boolean().default(true),
+  roles: z.boolean().default(true),
+});
+
+/** The staff-page display config — {@link gymStaffDirectorySettingsSchema}. */
+export type GymStaffDirectorySettings = z.infer<typeof gymStaffDirectorySettingsSchema>;
+
+/** One staff-page toggle — a key of {@link gymStaffDirectorySettingsSchema}. */
+export type StaffDirectoryField = keyof GymStaffDirectorySettings;
+
+/**
+ * The toggles that add a column to the roster, in the order they appear after the
+ * always-present first-name column.
+ */
+export const STAFF_COLUMN_FIELDS = [
+  'lastName',
+  'role',
+  'location',
+  'email',
+  'phone',
+  'status',
+  'joined',
+] as const satisfies readonly StaffDirectoryField[];
+
+/**
+ * The toggles that add a block to the page: the "who's working now" card first
+ * (it sits above the tabs), then the tabs in the order they are offered.
+ */
+export const STAFF_SECTION_FIELDS = [
+  'whosWorking',
+  'roles',
+] as const satisfies readonly StaffDirectoryField[];
+
+/**
+ * Which merge fields the automation rule editor offers.
+ *
+ * Every key is one entry of `AUTOMATION_MERGE_FIELDS`; switching it off removes
+ * that chip from the picker. Existing rule bodies are untouched — a token already
+ * saved in a message still expands on send, because hiding a chip is a statement
+ * about what staff are offered next time, not a retroactive edit of their rules.
+ *
+ * All default **on**: the catalogue is curated to fields the executor can actually
+ * fill, so there is nothing here a gym needs protecting from. A gym that finds the
+ * palette noisy trims it; that is the whole feature.
+ */
+export const gymAutomationFieldsSettingsSchema = z.object({
+  // -- The person --
+  memberFirstName: z.boolean().default(true),
+  memberLastName: z.boolean().default(true),
+  memberFullName: z.boolean().default(true),
+  memberEmail: z.boolean().default(true),
+  memberPhone: z.boolean().default(true),
+  memberStatus: z.boolean().default(true),
+  memberJoinDate: z.boolean().default(true),
+  memberBirthday: z.boolean().default(true),
+  memberCheckinCount: z.boolean().default(true),
+  memberPointsBalance: z.boolean().default(true),
+  // -- Their membership --
+  membershipPlanName: z.boolean().default(true),
+  membershipExpiryDate: z.boolean().default(true),
+  membershipDaysLeft: z.boolean().default(true),
+  membershipPrice: z.boolean().default(true),
+  membershipRenewalDate: z.boolean().default(true),
+  // -- The gym --
+  businessName: z.boolean().default(true),
+  businessPhone: z.boolean().default(true),
+  businessAddress: z.boolean().default(true),
+  businessEmail: z.boolean().default(true),
+  businessWebsite: z.boolean().default(true),
+});
+
+/** The automation merge-field palette config — {@link gymAutomationFieldsSettingsSchema}. */
+export type GymAutomationFieldsSettings = z.infer<typeof gymAutomationFieldsSettingsSchema>;
+
+/** One merge-field toggle — a key of {@link gymAutomationFieldsSettingsSchema}. */
+export type AutomationFieldToggle = keyof GymAutomationFieldsSettings;
+
+/**
+ * Which merge fields the marketing composer offers — one key per
+ * `MARKETING_MERGE_FIELD_DEFS` entry.
+ *
+ * Switching a key off removes that chip from the picker. Saved templates and
+ * campaigns are untouched — a token already in a body still expands, because
+ * hiding a chip is a statement about what staff are offered next time, not a
+ * retroactive edit.
+ *
+ * All default **on**: the catalogue is curated to fields the resolver can fill, so
+ * there is nothing here a gym needs protecting from.
+ */
+export const gymMarketingFieldsSettingsSchema = z.object({
+  // -- The person --
+  firstName: z.boolean().default(true),
+  lastName: z.boolean().default(true),
+  fullName: z.boolean().default(true),
+  email: z.boolean().default(true),
+  phone: z.boolean().default(true),
+  joinDate: z.boolean().default(true),
+  birthday: z.boolean().default(true),
+  memberStatus: z.boolean().default(true),
+  // -- Their membership --
+  planName: z.boolean().default(true),
+  expiryDate: z.boolean().default(true),
+  daysUntilExpiry: z.boolean().default(true),
+  paymentAmount: z.boolean().default(true),
+  renewalDate: z.boolean().default(true),
+  // -- The gym --
+  businessName: z.boolean().default(true),
+  businessPhone: z.boolean().default(true),
+  businessEmail: z.boolean().default(true),
+  businessAddress: z.boolean().default(true),
+  businessWebsite: z.boolean().default(true),
+});
+
+/** The marketing merge-field palette config — {@link gymMarketingFieldsSettingsSchema}. */
+export type GymMarketingFieldsSettings = z.infer<typeof gymMarketingFieldsSettingsSchema>;
+
+/** One marketing merge-field toggle — a key of {@link gymMarketingFieldsSettingsSchema}. */
+export type MarketingFieldToggle = keyof GymMarketingFieldsSettings;
+
+/**
+ * Which reports the Reports hub offers.
+ *
+ * Every key is one entry of `REPORT_KEYS`; switching it off removes that report
+ * from the hub's tabs and chips. It does NOT revoke access — the preview and
+ * export routes keep serving a disabled report to anyone holding
+ * `Permission.ReportView`, so a bookmarked link and a scheduled export both keep
+ * working. Hiding a card is housekeeping; withholding a report is a permission,
+ * and a toggle that half-enforced access would be worse than one that plainly
+ * does not.
+ *
+ * All default **on**: the catalogue is the product's own list, so a gym that
+ * never opens Settings sees exactly what it saw before this existed.
+ *
+ * Keys are the report keys verbatim rather than camel-cased, so the drift test
+ * can compare this object's keys against `REPORT_KEYS` directly.
+ */
+export const gymReportsSettingsSchema = z.object({
+  // Sales
+  'sales-summary': z.boolean().default(true),
+  'sales-by-payment-method': z.boolean().default(true),
+  'plan-performance': z.boolean().default(true),
+  'sales-by-staff': z.boolean().default(true),
+  'discounts-and-promotions': z.boolean().default(true),
+  'refunds-detail': z.boolean().default(true),
+  'pos-transaction-log': z.boolean().default(true),
+  // Members
+  'membership-movement': z.boolean().default(true),
+  'retention-and-churn': z.boolean().default(true),
+  'members-at-risk': z.boolean().default(true),
+  'expiring-memberships': z.boolean().default(true),
+  'member-roster': z.boolean().default(true),
+  'member-check-in-log': z.boolean().default(true),
+  'upcoming-occasions': z.boolean().default(true),
+  // Revenue
+  'revenue-summary': z.boolean().default(true),
+  'revenue-by-channel': z.boolean().default(true),
+  'revenue-by-location': z.boolean().default(true),
+  'outstanding-invoices': z.boolean().default(true),
+  'projected-revenue': z.boolean().default(true),
+  'refunds-accounting': z.boolean().default(true),
+  // Classes
+  'attendance-by-class': z.boolean().default(true),
+  'class-utilization': z.boolean().default(true),
+  'class-cancellations': z.boolean().default(true),
+  'waitlist-demand': z.boolean().default(true),
+  'pt-sessions': z.boolean().default(true),
+  'no-show-rate': z.boolean().default(true),
+  // Staff
+  'trainer-performance': z.boolean().default(true),
+});
+
+/** The report visibility config — {@link gymReportsSettingsSchema}. */
+export type GymReportsSettings = z.infer<typeof gymReportsSettingsSchema>;
+
+/** One report toggle — a key of {@link GymReportsSettings}. */
+export type ReportToggle = keyof GymReportsSettings;
+
 /** Which payment methods the POS + checkout accept. */
 export const gymPaymentMethodsSchema = z.object({
   acceptCash: z.boolean().default(true),
@@ -322,6 +561,41 @@ export const gymPaymentMethodsSchema = z.object({
 
 /** The gym's accepted payment methods — {@link gymPaymentMethodsSchema}. */
 export type GymPaymentMethods = z.infer<typeof gymPaymentMethodsSchema>;
+
+/**
+ * Which toggle governs each settlement method.
+ *
+ * `acceptPrepaidCredits` maps to `member_account`: the balance a member pays from
+ * *is* their account, so the setting and the till's third button are one policy
+ * wearing two names. Written as a total record so adding a settlement method to
+ * {@link paymentMethodSchema} fails to compile until it is given a toggle, rather
+ * than silently defaulting to "always accepted".
+ */
+const PAYMENT_METHOD_TOGGLES = {
+  cash: 'acceptCash',
+  card: 'acceptCard',
+  member_account: 'acceptPrepaidCredits',
+} as const satisfies Record<PaymentMethod, keyof GymPaymentMethods>;
+
+/**
+ * The settlement methods this gym accepts, in the till's display order.
+ *
+ * The single statement of the "a switched-off method cannot be used" policy: the
+ * POS renders exactly these buttons and the API refuses a sale settled with
+ * anything outside them, both by calling this — so the screen and the server can
+ * never disagree about what the gym accepts.
+ */
+export function enabledPaymentMethods(payments: GymPaymentMethods): PaymentMethod[] {
+  return paymentMethodSchema.options.filter((method) => payments[PAYMENT_METHOD_TOGGLES[method]]);
+}
+
+/** Whether this gym accepts `method` — {@link enabledPaymentMethods} for one method. */
+export function isPaymentMethodEnabled(
+  payments: GymPaymentMethods,
+  method: PaymentMethod,
+): boolean {
+  return payments[PAYMENT_METHOD_TOGGLES[method]];
+}
 
 /** How invoice numbers are composed. */
 export const invoiceNumberFormatSchema = z.enum([
@@ -346,38 +620,60 @@ export const gymInvoiceSettingsSchema = z.object({
 /** The gym's invoice settings — {@link gymInvoiceSettingsSchema}. */
 export type GymInvoiceSettings = z.infer<typeof gymInvoiceSettingsSchema>;
 
-/**
- * Tax settings: a master `enabled` switch and per-category rates (percent, `0`–`100`).
- * All rates default to `0`; `enabled` = `false` means no tax is applied regardless.
- */
-export const gymTaxSettingsSchema = z.object({
-  enabled: z.boolean().default(false),
-  membershipRate: z.number().min(0).max(100).default(0),
-  classRate: z.number().min(0).max(100).default(0),
-  productRate: z.number().min(0).max(100).default(0),
-  serviceRate: z.number().min(0).max(100).default(0),
-});
+/** Digits the sequence number is zero-padded to (`0001`, `0042`, `1234`). */
+export const INVOICE_SEQ_PAD_WIDTH = 4;
 
-/** The gym's tax settings — {@link gymTaxSettingsSchema}. */
-export type GymTaxSettings = z.infer<typeof gymTaxSettingsSchema>;
+/** The composition an invoice reference is built from — prefix + shape. */
+export type InvoiceNumbering = Pick<GymInvoiceSettings, 'prefix' | 'format'>;
 
-/** How a refund is calculated when a membership is cancelled mid-term. */
-export const refundPolicyModeSchema = z.enum(['full', 'prorated', 'none']);
-
-/** A refund calculation mode — a member of {@link refundPolicyModeSchema}. */
-export type RefundPolicyMode = z.infer<typeof refundPolicyModeSchema>;
+/** The composition used when a caller states none — the shape that predates the setting. */
+const DEFAULT_NUMBERING: InvoiceNumbering = { prefix: '', format: 'year-number' };
 
 /**
- * Refund policy: the calculation `mode` and the `windowDays` within which a refund
- * may be requested (`0` = no window limit).
+ * Compose an invoice reference from its fiscal `year`, its sequence number `seq`, and
+ * the gym's chosen shape: `"INV-2026-1000"`, `"INV-1000"`, or `"2026-0001"`.
+ *
+ * The single statement of the numbering rule: the settings screen previews the next
+ * reference with it and the API stamps the minted invoice with it, so the sample a
+ * gym is shown is the number it actually gets. (The atomic allocation of `seq` is a
+ * database concern and stays in the API's `InvoiceService`; this half is pure.)
+ *
+ * `seq` is 1-based and zero-padded to {@link INVOICE_SEQ_PAD_WIDTH} digits; a `seq`
+ * that outgrows the pad width (≥ 10 000) renders at its natural width rather than
+ * truncating, so the reference stays unique and monotonic. A blank prefix contributes
+ * no segment at all rather than a leading dash.
+ *
+ * `numbering` defaults to the bare `"<year>-<seq>"` produced before the setting was
+ * honoured — the shape every invoice minted until then already carries.
  */
-export const gymRefundSettingsSchema = z.object({
-  mode: refundPolicyModeSchema.default('prorated'),
-  windowDays: z.number().int().min(0).max(365).default(0),
-});
+export function formatInvoiceNumber(
+  year: number,
+  seq: number,
+  numbering: InvoiceNumbering = DEFAULT_NUMBERING,
+): string {
+  const padded = String(seq).padStart(INVOICE_SEQ_PAD_WIDTH, '0');
+  const prefix = numbering.prefix.trim();
+  const segments =
+    numbering.format === 'year-number'
+      ? [String(year), padded]
+      : numbering.format === 'prefix-number'
+        ? [prefix, padded]
+        : [prefix, String(year), padded];
+  return segments.filter((segment) => segment.length > 0).join('-');
+}
 
-/** The gym's refund policy — {@link gymRefundSettingsSchema}. */
-export type GymRefundSettings = z.infer<typeof gymRefundSettingsSchema>;
+/**
+ * Whether a reference built with `numbering` carries its fiscal year.
+ *
+ * The sequence counter is partitioned by fiscal year so each January starts fresh —
+ * but a shape with no year in it would then hand out `"INV-1000"` a second time and
+ * collide with this year's. The mint site uses this to pick the counter bucket:
+ * per-year for the year-bearing shapes, one continuous gym-wide bucket for the shape
+ * without.
+ */
+export function invoiceNumberCarriesYear(numbering: InvoiceNumbering): boolean {
+  return numbering.format !== 'prefix-number';
+}
 
 /** Receipt delivery channels. */
 export const gymReceiptSettingsSchema = z.object({
@@ -387,21 +683,6 @@ export const gymReceiptSettingsSchema = z.object({
 
 /** The gym's receipt settings — {@link gymReceiptSettingsSchema}. */
 export type GymReceiptSettings = z.infer<typeof gymReceiptSettingsSchema>;
-
-/**
- * Auto-renewal policy for recurring memberships (T5.4): the master `enabled`
- * switch, the failed-charge `retryAttempts` and `retryIntervalDays` between them,
- * and how many `renewalReminderDays` before renewal a reminder is sent.
- */
-export const gymAutoRenewalSettingsSchema = z.object({
-  enabled: z.boolean().default(true),
-  retryAttempts: z.number().int().min(0).max(10).default(3),
-  retryIntervalDays: z.number().int().min(0).max(30).default(3),
-  renewalReminderDays: z.number().int().min(0).max(90).default(7),
-});
-
-/** The gym's auto-renewal policy — {@link gymAutoRenewalSettingsSchema}. */
-export type GymAutoRenewalSettings = z.infer<typeof gymAutoRenewalSettingsSchema>;
 
 /**
  * The complete settings blob as stored in `Gym.settings`. Every section defaults,
@@ -414,19 +695,19 @@ export const gymSettingsStoredSchema = z.object({
   business: gymBusinessSettingsSchema.default({}),
   locale: gymLocaleSchema.default({}),
   hours: weeklyHoursSchema.default({}),
-  notifications: gymNotificationsSchema.default({}),
   booking: gymBookingSettingsSchema.default({}),
   noShow: gymNoShowSettingsSchema.default({}),
   freeze: gymFreezeSettingsSchema.default({}),
   guestPass: gymGuestPassSettingsSchema.default({}),
   trial: gymTrialSettingsSchema.default({}),
   memberIntake: gymMemberIntakeSettingsSchema.default({}),
+  staffDirectory: gymStaffDirectorySettingsSchema.default({}),
+  automationFields: gymAutomationFieldsSettingsSchema.default({}),
+  marketingFields: gymMarketingFieldsSettingsSchema.default({}),
+  reports: gymReportsSettingsSchema.default({}),
   payments: gymPaymentMethodsSchema.default({}),
   invoice: gymInvoiceSettingsSchema.default({}),
-  tax: gymTaxSettingsSchema.default({}),
-  refund: gymRefundSettingsSchema.default({}),
   receipt: gymReceiptSettingsSchema.default({}),
-  autoRenewal: gymAutoRenewalSettingsSchema.default({}),
 });
 
 /** The stored settings blob — {@link gymSettingsStoredSchema}. */
@@ -440,26 +721,26 @@ export interface GymBrand extends GymBrandSettings {
 
 /**
  * The full gym settings as `GET /gyms/settings` returns them: the stored
- * brand/locale/hours/notifications, with the gym's `name` folded into `brand`.
+ * brand/locale/hours/policies, with the gym's `name` folded into `brand`.
  */
 export interface GymSettings {
   brand: GymBrand;
   business: GymBusinessSettings;
   locale: GymLocale;
   hours: WeeklyHours;
-  notifications: GymNotifications;
   booking: GymBookingSettings;
   noShow: GymNoShowSettings;
   freeze: GymFreezeSettings;
   guestPass: GymGuestPassSettings;
   trial: GymTrialSettings;
   memberIntake: GymMemberIntakeSettings;
+  staffDirectory: GymStaffDirectorySettings;
+  automationFields: GymAutomationFieldsSettings;
+  marketingFields: GymMarketingFieldsSettings;
+  reports: GymReportsSettings;
   payments: GymPaymentMethods;
   invoice: GymInvoiceSettings;
-  tax: GymTaxSettings;
-  refund: GymRefundSettings;
   receipt: GymReceiptSettings;
-  autoRenewal: GymAutoRenewalSettings;
 }
 
 /** Successful `GET /gyms/settings` response. */
@@ -497,26 +778,19 @@ export const updateGymSettingsSchema = z
       .strict()
       .optional(),
     hours: weeklyHoursSchema.optional(),
-    notifications: z
-      .object({
-        fromEmail: z.string().email().nullable().optional(),
-        fromName: z.string().trim().max(100).nullable().optional(),
-        replyTo: z.string().email().nullable().optional(),
-      })
-      .strict()
-      .optional(),
     booking: gymBookingSettingsSchema.partial().strict().optional(),
     noShow: gymNoShowSettingsSchema.partial().strict().optional(),
     freeze: gymFreezeSettingsSchema.partial().strict().optional(),
     guestPass: gymGuestPassSettingsSchema.partial().strict().optional(),
     trial: gymTrialSettingsSchema.partial().strict().optional(),
     memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional(),
+    staffDirectory: gymStaffDirectorySettingsSchema.partial().strict().optional(),
+    automationFields: gymAutomationFieldsSettingsSchema.partial().strict().optional(),
+    marketingFields: gymMarketingFieldsSettingsSchema.partial().strict().optional(),
+    reports: gymReportsSettingsSchema.partial().strict().optional(),
     payments: gymPaymentMethodsSchema.partial().strict().optional(),
     invoice: gymInvoiceSettingsSchema.partial().strict().optional(),
-    tax: gymTaxSettingsSchema.partial().strict().optional(),
-    refund: gymRefundSettingsSchema.partial().strict().optional(),
     receipt: gymReceiptSettingsSchema.partial().strict().optional(),
-    autoRenewal: gymAutoRenewalSettingsSchema.partial().strict().optional(),
   })
   .strict();
 
@@ -546,13 +820,34 @@ export interface UploadGymLogoResponse {
 /**
  * The public-facing brand a visitor's tenant lookup (`GET /gyms/by-subdomain`)
  * surfaces — the name plus the renderable brand assets, never the private locale
- * or notification settings.
+ * or business settings.
  */
 export interface GymPublicBrand {
   name: string;
   logoUrl: string | null;
   primaryColor: string;
   secondaryColor: string;
+}
+
+/**
+ * The gym's public contact details — the address, phone, email and website a
+ * member is meant to reach it on. Exactly the {@link GymBusinessSettings} the
+ * staff console fills in under Settings → Business info; every field is nullable
+ * and an unset one is simply not rendered.
+ *
+ * Public on purpose, and only these four: they are the details a gym prints on
+ * its own door. The rest of the settings blob (locale, sender addresses, every
+ * policy) never leaves the authenticated surface.
+ */
+export type GymPublicContact = GymBusinessSettings;
+
+/**
+ * Project a gym's raw stored settings to its {@link GymPublicContact}. Tolerates a
+ * `null` / legacy / hand-edited value by falling back to the schema defaults, so
+ * the caller always gets four fields and never has to null-check the container.
+ */
+export function gymPublicContact(rawSettings: unknown): GymPublicContact {
+  return gymSettingsStoredSchema.parse(rawSettings ?? {}).business;
 }
 
 /**

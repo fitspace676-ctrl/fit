@@ -9,6 +9,7 @@ import {
   type PackagePlanStatus,
 } from '@fit/types';
 import { Btn } from '@/components/ui';
+import { useGymCurrency } from '@/components/gym-currency';
 import { BILLING_INTERVALS, inputToMinor, minorToInput } from './format';
 import { createPackagePlanAction, updatePackagePlanAction } from './actions';
 
@@ -60,6 +61,7 @@ type Props =
  */
 export function PackagePlanForm(props: Props) {
   const router = useRouter();
+  const gymCurrency = useGymCurrency();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +72,7 @@ export function PackagePlanForm(props: Props) {
         name: '',
         description: '',
         priceAmount: 0,
-        currency: 'USD',
+        currency: gymCurrency,
         billingInterval: 'MONTH',
         sessionCount: null,
         features: [],
@@ -80,7 +82,9 @@ export function PackagePlanForm(props: Props) {
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [price, setPrice] = useState(initial.priceAmount ? minorToInput(initial.priceAmount) : '');
-  const [currency, setCurrency] = useState(initial.currency);
+  // A saved plan keeps the currency its buyers signed up in; a new one is priced
+  // in the gym's configured currency. Either way it is displayed, never edited.
+  const currency = isEdit ? initial.currency : gymCurrency;
   const [billingInterval, setBillingInterval] = useState<PackageBillingInterval>(
     initial.billingInterval,
   );
@@ -118,7 +122,6 @@ export function PackagePlanForm(props: Props) {
       name,
       description,
       priceAmount: inputToMinor(price),
-      currency,
       billingInterval,
       sessionCount: parsedSessions,
       features: cleanedFeatures,
@@ -178,7 +181,7 @@ export function PackagePlanForm(props: Props) {
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-1 flex-col gap-1">
           <label htmlFor="plan-price" className={LABEL_CLASS}>
-            Price
+            Price ({currency})
           </label>
           <input
             id="plan-price"
@@ -194,20 +197,10 @@ export function PackagePlanForm(props: Props) {
           />
         </div>
         <div className="flex w-32 flex-col gap-1">
-          <label htmlFor="plan-currency" className={LABEL_CLASS}>
-            Currency
-          </label>
-          <input
-            id="plan-currency"
-            name="currency"
-            type="text"
-            maxLength={3}
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value.toUpperCase())}
-            placeholder="USD"
-            autoComplete="off"
-            className={`${FIELD_CLASS} uppercase`}
-          />
+          <span className={LABEL_CLASS}>Currency</span>
+          {/* Read-only: the gym prices in one currency, set in Settings → General.
+              A per-plan override is what let a GEL gym create USD plans. */}
+          <p className="flex h-10 items-center font-mono text-sm text-slate-400">{currency}</p>
         </div>
       </div>
 

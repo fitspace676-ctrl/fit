@@ -17,6 +17,8 @@ import {
   decodeVariantRef,
   deriveOrderChannel,
   gymSettingsStoredSchema,
+  gymPublicContact,
+  isPaymentMethodEnabled,
   ORDER_EXPORT_COLUMNS,
   orderExportCells,
   productVariantsSchema,
@@ -85,17 +87,29 @@ export class OrdersService {
    * then delegates delivery to {@link EmailService.sendReceiptEmail}. Returns
    * `{ delivered: false }` (rather than throwing) when email delivery is
    * unconfigured, so an unconfigured dev / CI environment still completes the call.
+   *
+   * A gym that has switched emailed receipts off in Settings → Receipts is refused
+   * outright: the till hides the control, but the screen is not the boundary, and
+   * "we do not email customers" is a decision a stale tab must not overrule.
    */
   async sendReceipt(input: SendReceiptInput): Promise<SendReceiptResponse> {
     const gym = await this.prisma.client.gym.findUnique({
       where: { id: this.tenant.gymId },
-      select: { name: true },
+      select: { name: true, settings: true },
     });
+
+    const { receipt } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    if (!receipt.emailEnabled) {
+      throw new BadRequestException('This gym does not email receipts — check Settings → Receipts');
+    }
 
     const delivered = await this.email.sendReceiptEmail(
       input.email,
       input.receipt,
       gym?.name ?? undefined,
+      // Settings → Business info: the seller's own address / phone / email / site,
+      // printed under the sale so the buyer can reach the gym about it.
+      gymPublicContact(gym?.settings),
     );
 
     return { delivered };
@@ -132,6 +146,23 @@ export class OrdersService {
       // The schema already refuses this; re-asserted so a direct API caller can't
       // reach the enrolment below without a member to enrol.
       throw new BadRequestException('A membership sale must be attached to a member');
+    }
+
+    // Settings → Payments decides what the gym accepts. The till only renders the
+    // enabled buttons, but the screen is not the boundary: a stale tab left open
+    // across the settings change, a replayed request, or a direct API call would
+    // all otherwise settle a sale by a method the gym has switched off. `Gym` is
+    // the tenant root (keyed by `id`, outside the tenant extension's scoped set),
+    // so the row is pinned explicitly to the caller's own gym.
+    const gym = await this.prisma.client.gym.findFirst({
+      where: { id: gymId },
+      select: { settings: true },
+    });
+    const { payments } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    if (!isPaymentMethodEnabled(payments, receipt.paymentMethod)) {
+      throw new BadRequestException(
+        `This gym does not accept ${receipt.paymentMethod} payments — check Settings → Payments`,
+      );
     }
 
     // Enrol first — see the note above on why this precedes the payment.

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { GymsModule } from '../gyms/gyms.module';
 import { AdminSubscriptionPlansController } from './admin-subscription-plans.controller';
 import { AdminSubscriptionPlansService } from './admin-subscription-plans.service';
 
@@ -15,6 +16,9 @@ import { AdminSubscriptionPlansService } from './admin-subscription-plans.servic
  * T8 tasks; this module owns only the staff CRUD surface.
  */
 @Module({
+  // `GymsModule` for `GymLocaleService`: a new plan is priced in the gym's own
+  // configured currency rather than a hardcoded default.
+  imports: [GymsModule],
   controllers: [AdminSubscriptionPlansController],
   providers: [AdminSubscriptionPlansService],
 })

@@ -83,20 +83,19 @@ describe('EmailNotificationChannel', () => {
     expect(message.html).toContain('https://app.fit/bookings');
   });
 
-  it('renders in the gym’s configured language and uses its notification fromName', async () => {
+  // The gym's own name is the sender wordmark: Settings no longer carries an
+  // override, so the name a member joined under is the one they read.
+  it('renders in the gym’s configured language, signed with the gym’s name', async () => {
     const { channel, send } = setup({
       user: { email: 'nino@example.com', name: 'Nino' },
-      gym: {
-        name: 'Downtown',
-        settings: { locale: { language: 'ka' }, notifications: { fromName: 'Downtown Fitness' } },
-      },
+      gym: { name: 'Downtown Fitness', settings: { locale: { language: 'ka' } } },
     });
 
     await channel.deliver(INPUT);
 
     const message = send.mock.calls[0]![0] as { html: string };
     expect(message.html).toContain('გამარჯობა Nino,'); // Georgian greeting
-    expect(message.html).toContain('Downtown Fitness'); // custom sender wordmark
+    expect(message.html).toContain('Downtown Fitness'); // sender wordmark
   });
 
   it('is a pending no-op when the recipient has no deliverable address', async () => {

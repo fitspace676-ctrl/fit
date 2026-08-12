@@ -17,6 +17,7 @@ import { ReportDrilldownService } from './report-drilldown.service';
 import { rate } from './report-window.util';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
 
 /**
  * Stub the tenant-scoped Prisma delegates the drill-down reads. Gym scoping is the
@@ -53,9 +54,14 @@ function setup() {
   };
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1', userId: 'user-1' } as unknown as TenantContext;
+  // The gym's configured currency (Settings → General) — what a report falls back
+  // to when its window holds no money rows to read a currency off.
+  const locale = {
+    get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
+  } as unknown as GymLocaleService;
 
   return {
-    service: new ReportDrilldownService(prisma, tenant),
+    service: new ReportDrilldownService(prisma, tenant, locale),
     paymentFindMany,
     paymentFindFirst,
     gymMemberFindMany,
@@ -318,14 +324,13 @@ describe('ReportDrilldownService', () => {
       ]);
     });
 
-    it('falls back to the latest captured payment currency when the window is empty', async () => {
-      const { service, paymentFindMany, paymentFindFirst } = setup();
+    it("falls back to the gym's configured currency when the window is empty", async () => {
+      const { service, paymentFindMany } = setup();
       paymentFindMany.mockResolvedValue([]);
-      paymentFindFirst.mockResolvedValue({ currency: 'EUR' });
 
       const result = await service.run('revenue', { range: '30d' });
 
-      expect(result.currency).toBe('EUR');
+      expect(result.currency).toBe('GEL');
       expect(result.kpis.find((k) => k.id === 'orders')?.value).toBe(0);
       const byPlan = result.sections.find(
         (s) => s.id === 'revenue-by-plan',
@@ -626,7 +631,7 @@ describe('ReportDrilldownService', () => {
 
       expect(resolved).not.toBeNull();
       expect(resolved?.section.id).toBe('peak-hours');
-      expect(resolved?.currency).toBe('USD');
+      expect(resolved?.currency).toBe('GEL');
     });
 
     it('returns null for an unknown section id', async () => {

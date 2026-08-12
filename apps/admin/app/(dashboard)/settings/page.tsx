@@ -2,14 +2,14 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
-import { ApiError, fetchGymSettings } from '@/lib/api';
+import { ApiError, fetchGymSettings, fetchLocations } from '@/lib/api';
 import Link from 'next/link';
 import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
 export const metadata: Metadata = {
   title: 'Settings - Fit Admin',
-  description: 'Configure your gym’s brand, locale, business hours, and notifications.',
+  description: 'Configure your gym’s brand, locale, business hours, and operating policies.',
 };
 
 // Settings reflect live tenant state and the staff session token, so the page
@@ -115,7 +115,13 @@ export default async function SettingsPage() {
   const t = await getTranslations('admin.settings');
   try {
     const settings = await fetchGymSettings();
-    return <SettingsForm initial={settings} />;
+    // The branch list only feeds the Locations card's inline rename; a gym with no
+    // locations (or a roster call that fails) still gets the full settings form.
+    const locations = await fetchLocations({ limit: 100, sort: 'name', dir: 'asc' }).then(
+      (page) => page.data,
+      () => [],
+    );
+    return <SettingsForm initial={settings} locations={locations} />;
   } catch (error) {
     const message =
       error instanceof ApiError

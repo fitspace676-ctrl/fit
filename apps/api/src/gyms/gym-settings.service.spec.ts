@@ -61,7 +61,6 @@ describe('GymSettingsService', () => {
       // Spot-check a few of the deeper policy groups are present + defaulted.
       expect(result.booking).toMatchObject({ cancellationCutoffHours: 0, waitlistMode: 'auto' });
       expect(result.freeze).toMatchObject({ minFreezeDays: 0, maxFreezeDays: 0 });
-      expect(result.tax.enabled).toBe(false);
       expect(result.invoice.prefix).toBe('INV');
     });
 
@@ -131,6 +130,58 @@ describe('GymSettingsService', () => {
 
       const stored = update.mock.calls[0]?.[0]?.data?.settings as { hours: typeof hours };
       expect(stored.hours.sun.closed).toBe(true);
+    });
+
+    it('refuses to switch off the last payment method the till has left', async () => {
+      const { service, update } = setup({
+        gym: {
+          name: 'Iron Gym',
+          settings: { payments: { acceptCash: false, acceptPrepaidCredits: false } },
+        },
+      });
+
+      // Read alone the patch is unremarkable; merged onto the stored settings it
+      // leaves a till that accepts nothing, which is what makes it a 400.
+      await expect(
+        service.updateSettings({ payments: { acceptCard: false } }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('allows switching one off while another still stands', async () => {
+      const { service, update } = setup({ gym: { name: 'Iron Gym', settings: null } });
+
+      const result = await service.updateSettings({ payments: { acceptCard: false } });
+
+      expect(update).toHaveBeenCalled();
+      expect(result.payments).toEqual({
+        acceptCash: true,
+        acceptCard: false,
+        acceptPrepaidCredits: true,
+      });
+    });
+
+    // `PREFIX-0000` is the one shape that prints no year, so a year-shaped prefix
+    // would render `2026-1000` — exactly what the year-numbered shape produces, and
+    // invoice numbers are unique per gym.
+    it('refuses a four-digit prefix on the year-less invoice shape', async () => {
+      const { service, update } = setup({
+        gym: { name: 'Iron Gym', settings: { invoice: { format: 'prefix-number' } } },
+      });
+
+      await expect(service.updateSettings({ invoice: { prefix: '2026' } })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('allows a year-shaped prefix on the shapes that also print the year', async () => {
+      const { service, update } = setup({ gym: { name: 'Iron Gym', settings: null } });
+
+      const result = await service.updateSettings({ invoice: { prefix: '2026' } });
+
+      expect(update).toHaveBeenCalled();
+      expect(result.invoice).toMatchObject({ prefix: '2026', format: 'prefix-year-number' });
     });
 
     it('throws 404 when the gym is missing', async () => {

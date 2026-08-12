@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
-import { Permission, roleHasPermission } from '@fit/types';
+import { DEFAULT_CURRENCY, Permission, roleHasPermission } from '@fit/types';
 import { AdminShell, type ShellLocation, type ShellSystemState } from '@/components/admin-shell';
+import { GymCurrencyProvider } from '@/components/gym-currency';
 import { SIDEBAR_COLLAPSED_COOKIE, SIDEBAR_COLLAPSED_VALUE } from '@/lib/sidebar-collapse';
 import { getActiveGymSlug } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
-import { fetchCheckInStats, fetchLocations } from '@/lib/api';
+import { fetchCheckInStats, fetchGymSettings, fetchLocations } from '@/lib/api';
 
 /**
  * Authenticated console layout. Every page under this route group renders inside
@@ -46,6 +47,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     }
   }
 
+  // The gym prices in one currency (Settings → General). Read once here and shared
+  // through context so no money surface has to invent a fallback of its own — the
+  // POS till, the product form and the plan form all used to hardcode USD.
+  const currency = await fetchGymSettings().then(
+    (settings) => settings.locale.currency,
+    () => DEFAULT_CURRENCY,
+  );
+
   // The top-bar location switcher is populated from the gym's active locations.
   // Gated by LocationRead; on any failure the switcher simply stays empty.
   let locations: ShellLocation[] = [];
@@ -59,13 +68,15 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   }
 
   return (
-    <AdminShell
-      gymSlug={gymSlug}
-      system={system}
-      locations={locations}
-      sidebarCollapsed={sidebarCollapsed}
-    >
-      {children}
-    </AdminShell>
+    <GymCurrencyProvider currency={currency}>
+      <AdminShell
+        gymSlug={gymSlug}
+        system={system}
+        locations={locations}
+        sidebarCollapsed={sidebarCollapsed}
+      >
+        {children}
+      </AdminShell>
+    </GymCurrencyProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { extractGymSlug } from '@fit/utils';
+import type { GymPublicContact } from '@fit/types';
 import { env } from './env';
 
 /**
@@ -49,6 +50,44 @@ export async function getActiveGymId(): Promise<string | null> {
     }
     const body = (await response.json()) as { gymId?: unknown };
     return typeof body.gymId === 'string' && body.gymId.length > 0 ? body.gymId : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The active tenant's public contact details (address / phone / email / website)
+ * from the same `GET /gyms/by-subdomain/:slug` lookup, or `null` when there is no
+ * tenant in scope, the slug names no active gym, or the gym has filled none of
+ * them in. Server-only.
+ *
+ * These are the details the gym itself typed into Settings → Business info; the
+ * member portal renders whichever ones exist in its footer, so a member always has
+ * a way to reach the gym. Never throws — any failure resolves to `null` and the
+ * footer simply is not rendered.
+ */
+export async function getActiveGymContact(): Promise<GymPublicContact | null> {
+  const slug = await getActiveGymSlug();
+  if (!slug) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+      // Same short cache as the id lookup: contact details change rarely.
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as { contact?: GymPublicContact | null };
+    const contact = body.contact ?? null;
+    if (!contact) return null;
+    const hasAny = [contact.address, contact.phone, contact.email, contact.website].some(
+      (value) => typeof value === 'string' && value.trim().length > 0,
+    );
+    return hasAny ? contact : null;
   } catch {
     return null;
   }

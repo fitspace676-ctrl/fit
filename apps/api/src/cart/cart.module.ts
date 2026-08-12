@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { GymsModule } from '../gyms/gyms.module';
 import { MarketingModule } from '../marketing/marketing.module';
 import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
@@ -15,7 +16,9 @@ import { CartService } from './cart.service';
  * identity middleware verifies session tokens with.
  */
 @Module({
-  imports: [AuthModule, MarketingModule],
+  // `GymsModule` for `GymLocaleService`: an empty basket is labelled in the gym's
+  // own configured currency rather than a hardcoded one.
+  imports: [AuthModule, MarketingModule, GymsModule],
   controllers: [CartController],
   providers: [CartService],
 })

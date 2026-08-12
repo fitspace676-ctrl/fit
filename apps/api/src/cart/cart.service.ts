@@ -19,6 +19,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 
 /**
  * Sentinel stock for a position whose product does not count stock. Untracked is
@@ -26,9 +27,6 @@ import { PromoRedemptionService } from '../marketing/promo-redemption.service';
  * storefront must not refuse to sell one.
  */
 const UNLIMITED_STOCK = Number.MAX_SAFE_INTEGER;
-
-/** Currency assumed for an empty cart, before any line pins a real one. */
-const DEFAULT_CURRENCY = 'USD';
 
 /** The columns the cart re-prices from. A slim public projection of `Product`. */
 const PRODUCT_SELECT = {
@@ -110,7 +108,18 @@ export class CartService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContext,
     private readonly promos: PromoRedemptionService,
+    private readonly locale: GymLocaleService,
   ) {}
+
+  /**
+   * The currency a cart is priced in before any line pins a real one — the gym's
+   * own `settings.locale.currency`. An empty basket still has to label its zeros,
+   * and labelling them in a currency the gym does not sell in is how a GEL shop
+   * ends up showing a US$ total.
+   */
+  private async gymCurrency(): Promise<string> {
+    return (await this.locale.get()).currency;
+  }
 
   /** The resolved tenant + (optional) user for the current request. */
   private identity(): { gymId: string; userId: string | null } {
@@ -277,7 +286,8 @@ export class CartService {
     const subtotal = cart.items.reduce((sum, item) => {
       return sum + info.get(item.productVariantId)!.unitPrice * item.qty;
     }, 0);
-    const currency = info.get(cart.items[0]!.productVariantId)?.currency ?? DEFAULT_CURRENCY;
+    const currency =
+      info.get(cart.items[0]!.productVariantId)?.currency ?? (await this.gymCurrency());
 
     const member = userId
       ? await this.prisma.client.gymMember.findFirst({
@@ -616,10 +626,17 @@ export class CartService {
    */
   private async buildView(cart: CartWithItems | null): Promise<CartView> {
     if (!cart || cart.items.length === 0) {
-      return { items: [], subtotal: 0, discount: 0, total: 0, currency: DEFAULT_CURRENCY };
+      return {
+        items: [],
+        subtotal: 0,
+        discount: 0,
+        total: 0,
+        currency: await this.gymCurrency(),
+      };
     }
 
     const info = await this.loadVariantInfo(cart.items.map((item) => item.productVariantId));
+    const gymCurrency = await this.gymCurrency();
     const items: CartItemDetail[] = cart.items.map((item) => {
       const current = info.get(item.productVariantId);
       const unitPrice = current?.exists ? current.unitPrice : item.unitPrice;
@@ -632,7 +649,7 @@ export class CartService {
         unitPrice,
         qty: item.qty,
         lineTotal: unitPrice * item.qty,
-        currency: current?.currency ?? DEFAULT_CURRENCY,
+        currency: current?.currency ?? gymCurrency,
         available: Boolean(current?.exists),
       };
     });
@@ -671,7 +688,9 @@ export class CartService {
     for (const { ref, parsed } of decoded) {
       const product = parsed ? byId.get(parsed.productId) : undefined;
       if (!parsed || !product) {
-        out.set(ref, this.missingInfo(parsed?.productId ?? ''));
+        // Only reached for a line whose product is gone entirely, so paying for
+        // the settings read here costs nothing on the normal path.
+        out.set(ref, this.missingInfo(parsed?.productId ?? '', await this.gymCurrency()));
         continue;
       }
       out.set(ref, this.resolveVariant(product, parsed.variantIndex));
@@ -702,7 +721,7 @@ export class CartService {
     const parsed = productVariantsSchema.safeParse(product.variants ?? []);
     const variant = parsed.success ? parsed.data[variantIndex] : undefined;
     if (!variant) {
-      return this.missingInfo(product.id);
+      return this.missingInfo(product.id, product.currency);
     }
     return {
       exists: true,
@@ -713,8 +732,12 @@ export class CartService {
     };
   }
 
-  /** The facts for a line whose product/variant no longer exists. */
-  private missingInfo(productId: string): VariantInfo {
+  /**
+   * The facts for a line whose product/variant no longer exists. `currency` is the
+   * vanished line's best-known currency — its product's when the product survives,
+   * otherwise the gym's configured one.
+   */
+  private missingInfo(productId: string, currency: string): VariantInfo {
     return {
       exists: false,
       unitPrice: 0,
@@ -723,7 +746,7 @@ export class CartService {
       productName: '',
       variantName: null,
       imageUrl: null,
-      currency: DEFAULT_CURRENCY,
+      currency,
     };
   }
 }

@@ -9,7 +9,7 @@ import type { MarketingService } from './marketing.service';
  */
 function setup() {
   const fns = {
-    catalog: vi.fn(() => ({ channels: [], mergeFields: [] })),
+    catalog: vi.fn(() => Promise.resolve({ channels: [], mergeFields: [] })),
     listSegments: vi.fn(() => Promise.resolve({ data: [] })),
     previewCriteria: vi.fn(() => Promise.resolve({ count: 0, sample: [] })),
     previewSegment: vi.fn(() => Promise.resolve({ count: 0, sample: [] })),
@@ -42,9 +42,9 @@ function setup() {
 describe('MarketingController', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('serves the catalog', () => {
+  it('serves the catalog', async () => {
     const { controller, fns } = setup();
-    controller.catalog();
+    await controller.catalog();
     expect(fns.catalog).toHaveBeenCalledOnce();
   });
 

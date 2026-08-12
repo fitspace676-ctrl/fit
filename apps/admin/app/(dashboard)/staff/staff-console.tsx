@@ -3,7 +3,14 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { ListStaffRolesResponse, StaffMember, StaffRole, WorkingNowRow } from '@fit/types';
+import type {
+  GymStaffDirectorySettings,
+  ListStaffRolesResponse,
+  StaffDirectoryField,
+  StaffMember,
+  StaffRole,
+  WorkingNowRow,
+} from '@fit/types';
 import { Btn, Drawer, Icon, Select, Tabs } from '@/components/ui';
 import { STAFF_ROLES } from './role-meta';
 import { StaffTable } from './staff-table';
@@ -14,8 +21,19 @@ import { RolesPanel } from './roles-panel';
 import { RolesCards } from './roles-cards';
 import { WhosWorkingCard } from './whos-working-card';
 
-/** The staff-console top-level tabs — Stage 1 keeps just these two. */
+/** The staff-console top-level tabs. The roster is always one; the rest are opt-in. */
 type ConsoleTab = 'staff' | 'roles';
+
+/**
+ * The tabs a gym may switch on in Settings → Staff page, in the order they are
+ * offered there. The roster tab is deliberately absent — it is the page, not an
+ * option, and a console with no way to see the staff list would be a bug.
+ */
+const OPTIONAL_TABS: {
+  tab: ConsoleTab;
+  field: StaffDirectoryField;
+  labelKey: string;
+}[] = [{ tab: 'roles', field: 'roles', labelKey: 'tabs.rolesPermissions' }];
 
 const styles = stylex.create({
   stack: {
@@ -167,6 +185,7 @@ export function StaffConsole({
   roles,
   workingNow,
   locations,
+  display,
 }: {
   staff: StaffMember[];
   currentUserId: string | null;
@@ -175,6 +194,8 @@ export function StaffConsole({
   workingNow: WorkingNowRow[];
   /** The gym's live locations, offered as assignable-location chips in the Add drawer. */
   locations: { id: string; name: string }[];
+  /** What this gym shows — Settings → Staff page. */
+  display: GymStaffDirectorySettings;
 }) {
   const t = useTranslations('admin.staff');
   const [tab, setTab] = useState<ConsoleTab>('staff');
@@ -192,6 +213,22 @@ export function StaffConsole({
     }
     return counts;
   }, [staff]);
+
+  const tabItems = useMemo(
+    () => [
+      { value: 'staff', label: t('tabs.staffList') },
+      ...OPTIONAL_TABS.filter((option) => display[option.field]).map((option) => ({
+        value: option.tab,
+        label: t(option.labelKey),
+      })),
+    ],
+    [display, t],
+  );
+
+  // Derived rather than synced: a gym can switch off the tab a staffer is sitting
+  // on, and an effect would leave one render pointing at a tab that no longer
+  // exists. Falling back to the roster keeps the page whole in that frame.
+  const activeTab = tabItems.some((item) => item.value === tab) ? tab : 'staff';
 
   const visibleStaff = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -227,19 +264,19 @@ export function StaffConsole({
         ) : null}
       </header>
 
-      <WhosWorkingCard shifts={workingNow} />
+      {display.whosWorking ? <WhosWorkingCard shifts={workingNow} /> : null}
 
-      <Tabs
-        aria-label={t('title')}
-        value={tab}
-        onValueChange={(next) => setTab(next as ConsoleTab)}
-        items={[
-          { value: 'staff', label: t('tabs.staffList') },
-          { value: 'roles', label: t('tabs.rolesPermissions') },
-        ]}
-      />
+      {/* A lone "Staff List" tab is chrome around nothing — drop the strip. */}
+      {tabItems.length > 1 ? (
+        <Tabs
+          aria-label={t('title')}
+          value={activeTab}
+          onValueChange={(next) => setTab(next as ConsoleTab)}
+          items={tabItems}
+        />
+      ) : null}
 
-      {tab === 'staff' ? (
+      {activeTab === 'staff' ? (
         <>
           <div {...stylex.props(styles.filterRow)}>
             <div {...stylex.props(styles.searchWrap)}>
@@ -294,11 +331,12 @@ export function StaffConsole({
             canManage={canManage}
             noMatch={staff.length > 0 && visibleStaff.length === 0}
             onSelectMember={setProfileMember}
+            display={display}
           />
         </>
-      ) : (
-        <RolesCards roles={roles} staffCountByRole={roleCounts} />
-      )}
+      ) : null}
+
+      {activeTab === 'roles' ? <RolesCards roles={roles} staffCountByRole={roleCounts} /> : null}
 
       {canManage ? (
         <>

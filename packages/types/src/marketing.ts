@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { memberStatusSchema } from './members';
+import { AUTOMATION_MERGE_KEYS } from './automation-merge-fields';
+import { MARKETING_MERGE_TOKEN_NAMES } from './marketing-merge-fields';
 
 // @fit/types/marketing — the staff console's Marketing contract (T12.7):
 // campaigns, promo codes, audience segments, and message templates. Shared by
@@ -44,30 +46,23 @@ export interface MarketingMergeField {
   label: string;
 }
 
-/** The merge-field catalog (T12.7), served alongside the channels. */
-export const MARKETING_MERGE_FIELDS: readonly MarketingMergeField[] = [
-  { token: '{{first_name}}', label: 'First name' },
-  { token: '{{last_name}}', label: 'Last name' },
-  { token: '{{email}}', label: 'Email' },
-  { token: '{{phone}}', label: 'Phone' },
-  { token: '{{plan_name}}', label: 'Plan name' },
-  { token: '{{expiry_date}}', label: 'Expiry date' },
-  { token: '{{location}}', label: 'Location' },
-  { token: '{{business_name}}', label: 'Business name' },
-  { token: '{{class_name}}', label: 'Class name' },
-  { token: '{{payment_amount}}', label: 'Payment amount' },
-];
-
 /**
  * Merge values for {@link interpolateMergeFields}, keyed by the **bare** token name
  * (the token without its braces — e.g. `first_name` for `{{first_name}}`).
  */
 export type MergeValues = Record<string, string>;
 
-/** The bare names of every catalog token (`first_name`, `last_name`, …). */
-const KNOWN_MERGE_KEYS = new Set(
-  MARKETING_MERGE_FIELDS.map((field) => field.token.replace(/[{}]/g, '')),
-);
+/**
+ * The bare names of every token this interpolator recognises — the marketing
+ * catalogue plus the automation one, offered and retired alike.
+ *
+ * Both stores share this pass, and a token is only ever blanked when it is known.
+ * Leaving the automation tokens out (as this set originally did) meant an unfilled
+ * `{{member_checkin_count}}` was treated as a typo and passed through untouched —
+ * so the member received the braces. Anything a gym can insert, or could once
+ * insert, has to be listed somewhere this set reaches.
+ */
+const KNOWN_MERGE_KEYS = new Set([...MARKETING_MERGE_TOKEN_NAMES, ...AUTOMATION_MERGE_KEYS]);
 
 /**
  * Expand every `{{token}}` in `text`. A token present in `values` becomes its value;

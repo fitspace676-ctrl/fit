@@ -1,4 +1,4 @@
-import { DEFAULT_TIMEZONE, type WeeklyHours } from '@fit/types';
+import { DEFAULT_TIMEZONE, MIDNIGHT_CLOSE, type WeeklyHours } from '@fit/types';
 import { fetchGymSettings } from '@/lib/api';
 
 /** Fallback window when a gym is marked closed every day, or settings are unreadable. */
@@ -42,7 +42,9 @@ export function businessHourRange(hours: WeeklyHours): {
   for (const day of Object.values(hours)) {
     if (!day || day.closed) continue;
     const open = toHour(day.open, 'floor');
-    const close = toHour(day.close, 'ceil');
+    // `00:00` closes the day at midnight, so the grid has to run to hour 24 — read
+    // literally it would be hour 0 and collapse the whole window.
+    const close = day.close === MIDNIGHT_CLOSE ? 24 : toHour(day.close, 'ceil');
     if (open === null || close === null) continue;
     if (open < openHour) openHour = open;
     if (close > closeHour) closeHour = close;

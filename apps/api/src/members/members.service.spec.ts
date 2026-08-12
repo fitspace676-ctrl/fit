@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { GymMemberStatus, Role } from '@fit/db';
-import type { CreateMemberInput, ListMembersQuery } from '@fit/types';
+import { gymMemberIntakeSettingsSchema } from '@fit/types';
+import type { CreateMemberInput, GymMemberIntakeSettings, ListMembersQuery } from '@fit/types';
 import { MembersService } from './members.service';
 import type { AutomationExecutorService } from '../automation/automation-executor.service';
+import type { GymMemberIntakeService } from '../gyms/gym-member-intake.service';
 import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -41,8 +43,11 @@ interface MemberRecord {
   checkIns: Array<{ checkedInAt: Date }>;
   /** Staff's pinned standing; `null` lets the derivation decide. */
   kindOverride: 'MEMBER' | 'GUEST' | 'INACTIVE' | null;
-  /** Every subscription ever held — what separates a lapsed member from a guest. */
-  _count: { subscriptions: number };
+  /**
+   * Every subscription ever held — what separates a lapsed member from a guest —
+   * and the visit count behind `{{member_checkin_count}}` on the email path.
+   */
+  _count: { subscriptions: number; checkIns: number };
 }
 
 /** The subset of a Prisma `findMany` arg shape the assertions inspect. */
@@ -84,6 +89,17 @@ function setup(overrides?: {
   tasks?: unknown[];
   taskFindFirst?: { id: string } | null;
   mailerConfigured?: boolean;
+  /**
+   * The newest loyalty ledger balance behind `{{member_points_balance}}`.
+   * `undefined` means the member has no ledger row at all, which must read `0`.
+   */
+  pointsBalance?: number;
+  /**
+   * The gym's Settings → Membership toggles. Defaults to a gym that asks for
+   * nothing beyond name + email, so the create tests below stay about creation
+   * mechanics; the intake-policy tests opt fields in explicitly.
+   */
+  intake?: Partial<GymMemberIntakeSettings>;
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<MemberRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -165,6 +181,15 @@ function setup(overrides?: {
     Promise.resolve({ name: 'Iron Gym' }),
   );
 
+  // The loyalty ledger's newest row, for `{{member_points_balance}}`. No row is
+  // the common case (a member who never earned any) and must resolve to 0.
+  const loyaltyLedgerFindFirst = vi.fn<(args: unknown) => Promise<{ balanceAfter: number } | null>>(
+    () =>
+      Promise.resolve(
+        overrides?.pointsBalance === undefined ? null : { balanceAfter: overrides.pointsBalance },
+      ),
+  );
+
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
     gym: { findFirst: gymFindFirst },
@@ -187,6 +212,7 @@ function setup(overrides?: {
     booking: { findMany: bookingFindMany },
     invoice: { findMany: invoiceFindMany },
     order: { findMany: orderFindMany },
+    loyaltyLedgerEntry: { findFirst: loyaltyLedgerFindFirst },
     memberNote: { findMany: memberNoteFindMany, create: memberNoteCreate },
     memberTask: {
       findMany: memberTaskFindMany,
@@ -222,12 +248,22 @@ function setup(overrides?: {
     send: mailerSend,
   } as unknown as MailerService;
 
+  // Settings → Membership decides which intake fields a create must supply. All
+  // toggles start off here so a test only pays for the policy it is asserting.
+  const allOff = Object.fromEntries(
+    Object.keys(gymMemberIntakeSettingsSchema.parse({})).map((field) => [field, false]),
+  ) as GymMemberIntakeSettings;
+  const intake = {
+    get: vi.fn(() => Promise.resolve({ ...allOff, ...overrides?.intake })),
+  } as unknown as GymMemberIntakeService;
+
   return {
-    service: new MembersService(prisma, tenant, automation, loyalty, mailer),
+    service: new MembersService(prisma, tenant, automation, loyalty, mailer, intake),
     automationDispatch,
     loyaltyAward,
     mailerSend,
     gymFindFirst,
+    loyaltyLedgerFindFirst,
     findMany,
     count,
     findFirst,
@@ -285,7 +321,7 @@ const row = (over?: Partial<MemberRecord>): MemberRecord => ({
   subscriptions: [],
   checkIns: [],
   kindOverride: null,
-  _count: { subscriptions: 0 },
+  _count: { subscriptions: 0, checkIns: 0 },
   ...over,
 });
 
@@ -767,6 +803,97 @@ describe('MembersService', () => {
     });
   });
 
+  // Settings → Membership: a toggle that is on means the field is asked for *and*
+  // required. The console renders it required, but rendering is not enforcement —
+  // a stale tab, the till, or a direct POST all land here.
+  describe('createMember — intake policy', () => {
+    it('rejects a create missing a field the gym switched on, before touching the db', async () => {
+      const { service, userFindUnique, gymMemberCreate } = setup({
+        intake: { phone: true, personalId: true },
+      });
+
+      await expect(service.createMember(createInput({ phone: undefined }))).rejects.toMatchObject({
+        response: { code: 'MEMBER_INTAKE_REQUIRED', fields: ['phone', 'personalId'] },
+      });
+      expect(userFindUnique).not.toHaveBeenCalled();
+      expect(gymMemberCreate).not.toHaveBeenCalled();
+    });
+
+    it('accepts the same create once every switched-on field is supplied', async () => {
+      const { service, gymMemberCreate } = setup({
+        intake: { phone: true, personalId: true },
+        userFindUnique: null,
+        findFirst: row(),
+      });
+
+      await service.createMember(createInput({ phone: '555', personalId: '01001000000' }));
+
+      expect(gymMemberCreate).toHaveBeenCalled();
+    });
+
+    it('ignores a blank field the gym switched off', async () => {
+      const { service, gymMemberCreate } = setup({
+        intake: { personalId: false },
+        userFindUnique: null,
+        findFirst: row(),
+      });
+
+      await service.createMember(createInput({ personalId: undefined }));
+
+      expect(gymMemberCreate).toHaveBeenCalled();
+    });
+
+    // One toggle, two columns: a next of kin with no number is not a next of kin.
+    it('demands both halves of the emergency contact', async () => {
+      const { service } = setup({ intake: { emergencyContact: true } });
+
+      await expect(
+        service.createMember(
+          createInput({ emergencyContactName: 'Data', emergencyContactPhone: undefined }),
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'MEMBER_INTAKE_REQUIRED', fields: ['emergencyContact'] },
+      });
+    });
+
+    // Whitespace is not an answer — otherwise a space bar defeats the whole setting.
+    it('treats a whitespace-only value as missing', async () => {
+      const { service } = setup({ intake: { address: true } });
+
+      await expect(service.createMember(createInput({ address: '   ' }))).rejects.toMatchObject({
+        response: { code: 'MEMBER_INTAKE_REQUIRED', fields: ['address'] },
+      });
+    });
+
+    // The console folds surname into `name` before sending, so there is nothing
+    // separate left here to find missing — enforcing it would reject every create.
+    it('never blocks a create over surname, which arrives folded into name', async () => {
+      const { service, gymMemberCreate } = setup({
+        intake: { surname: true },
+        userFindUnique: null,
+        findFirst: row(),
+      });
+
+      await service.createMember(createInput({ name: 'Nino Beridze' }));
+
+      expect(gymMemberCreate).toHaveBeenCalled();
+    });
+
+    // The enrolment block is hidden outright at the till, so requiring either of
+    // these would make a walk-in impossible to create.
+    it('never demands membershipPlan or paymentMethod', async () => {
+      const { service, gymMemberCreate } = setup({
+        intake: { membershipPlan: true, paymentMethod: true },
+        userFindUnique: null,
+        findFirst: row(),
+      });
+
+      await service.createMember(createInput({ planId: undefined, paymentMethod: undefined }));
+
+      expect(gymMemberCreate).toHaveBeenCalled();
+    });
+  });
+
   describe('getMember — new detail sections', () => {
     it('maps profile extras, access log, purchases, notes and tasks from the joins', async () => {
       const { service } = setup({
@@ -969,6 +1096,7 @@ describe('MembersService.sendMemberEmail', () => {
           plan: { name: 'Standard' },
         },
       ],
+      _count: { subscriptions: 1, checkIns: 42 },
     });
 
   it('sends a branded email to the member, interpolating merge fields for this member', async () => {
@@ -991,6 +1119,41 @@ describe('MembersService.sendMemberEmail', () => {
     expect(message.subject).toBe('Hi Davit');
     expect(message.text).toBe('Your Standard plan renews on 2026-08-05.');
     expect(message.html).toContain('Standard');
+  });
+
+  // The drawer's template picker lists automation rule bodies beside marketing
+  // templates, so these two automation-only tokens can reach this send path.
+  // Both are *known* keys, so an unfilled one is not a visible `{{...}}` staff
+  // would catch in the preview — it is a blank in the member's inbox.
+  it('fills the check-in count and the loyalty balance an automation body may quote', async () => {
+    const { service, mailerSend, loyaltyLedgerFindFirst } = setup({
+      findFirst: emailMember(),
+      pointsBalance: 275,
+    });
+
+    await service.sendMemberEmail('gm-1', {
+      subject: 'Hi',
+      body: '{{member_checkin_count}} visits, {{member_points_balance}} points.',
+    });
+
+    expect(loyaltyLedgerFindFirst.mock.calls[0]?.[0]).toMatchObject({
+      where: { gymId: 'gym-1', memberId: 'gm-1' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const message = mailerSend.mock.calls[0]?.[0] as { text: string };
+    expect(message.text).toBe('42 visits, 275 points.');
+  });
+
+  it('reads a member with no ledger row as a zero balance, not a blank', async () => {
+    const { service, mailerSend } = setup({ findFirst: emailMember() });
+
+    await service.sendMemberEmail('gm-1', {
+      subject: 'Hi',
+      body: 'You have {{member_points_balance}} points.',
+    });
+
+    const message = mailerSend.mock.calls[0]?.[0] as { text: string };
+    expect(message.text).toBe('You have 0 points.');
   });
 
   it('404s an unknown / cross-tenant / trashed member and never sends', async () => {
@@ -1028,7 +1191,7 @@ const liveSub = () => ({
 describe('MembersService — member / guest / inactive', () => {
   it('reads a member with a live subscription as MEMBER', async () => {
     const { service } = setup({
-      findMany: [row({ subscriptions: [liveSub()], _count: { subscriptions: 1 } })],
+      findMany: [row({ subscriptions: [liveSub()], _count: { subscriptions: 1, checkIns: 0 } })],
       count: 1,
     });
 
@@ -1041,7 +1204,7 @@ describe('MembersService — member / guest / inactive', () => {
     // How a till walk-in lands on the roster: created with no subscription, so
     // nothing extra has to mark them a guest — the derivation already does.
     const { service } = setup({
-      findMany: [row({ subscriptions: [], _count: { subscriptions: 0 } })],
+      findMany: [row({ subscriptions: [], _count: { subscriptions: 0, checkIns: 0 } })],
       count: 1,
     });
 
@@ -1052,7 +1215,7 @@ describe('MembersService — member / guest / inactive', () => {
 
   it('reads a lapsed member as INACTIVE, not as a guest', async () => {
     const { service } = setup({
-      findMany: [row({ subscriptions: [], _count: { subscriptions: 2 } })],
+      findMany: [row({ subscriptions: [], _count: { subscriptions: 2, checkIns: 0 } })],
       count: 1,
     });
 
@@ -1063,7 +1226,13 @@ describe('MembersService — member / guest / inactive', () => {
 
   it('lets a staff override win over the subscription', async () => {
     const { service } = setup({
-      findMany: [row({ subscriptions: [], _count: { subscriptions: 0 }, kindOverride: 'MEMBER' })],
+      findMany: [
+        row({
+          subscriptions: [],
+          _count: { subscriptions: 0, checkIns: 0 },
+          kindOverride: 'MEMBER',
+        }),
+      ],
       count: 1,
     });
 

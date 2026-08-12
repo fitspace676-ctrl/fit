@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type {
+  CreatePackagePlanData,
   CreatePackagePlanResponse,
   GetAdminPackagePlanResponse,
   ListAdminPackagePlansResponse,
@@ -32,9 +33,9 @@ function setup() {
   const getPackagePlan = vi.fn<() => Promise<GetAdminPackagePlanResponse>>(() =>
     Promise.resolve(detail()),
   );
-  const createPackagePlan = vi.fn<() => Promise<CreatePackagePlanResponse>>(() =>
-    Promise.resolve(detail()),
-  );
+  const createPackagePlan = vi.fn<
+    (input: CreatePackagePlanData) => Promise<CreatePackagePlanResponse>
+  >(() => Promise.resolve(detail()));
   const updatePackagePlan = vi.fn<() => Promise<CreatePackagePlanResponse>>(() =>
     Promise.resolve(detail()),
   );
@@ -81,15 +82,16 @@ describe('AdminPackagePlansController', () => {
       ctx = setup();
       await ctx.controller.create({
         name: '  10 Session Pack  ',
+        // A client-sent currency is not part of the contract — the gym's own is
+        // stamped service-side — so it must be dropped here, not forwarded.
         currency: 'usd',
         sessionCount: '10',
       });
 
-      // Name trimmed, currency upper-cased, sessionCount coerced, defaults applied.
+      // Name trimmed, sessionCount coerced, defaults applied.
       expect(ctx.createPackagePlan).toHaveBeenCalledWith(
         expect.objectContaining({
           name: '10 Session Pack',
-          currency: 'USD',
           priceAmount: 0,
           billingInterval: 'MONTH',
           sessionCount: 10,
@@ -98,6 +100,7 @@ describe('AdminPackagePlansController', () => {
           features: [],
         }),
       );
+      expect(ctx.createPackagePlan.mock.calls[0]?.[0]).not.toHaveProperty('currency');
     });
 
     it('rejects a missing name with 400 without hitting the service', async () => {

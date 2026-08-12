@@ -268,20 +268,26 @@ export function TemplateFormDialog({
         </div>
 
         <div {...stylex.props(styles.mergeWrap)}>
-          <p {...stylex.props(styles.mergeHint)}>{t('content.mergeHint')}</p>
-          <div {...stylex.props(styles.mergeChips)}>
-            {catalog.mergeFields.map((field) => (
-              <button
-                key={field.token}
-                type="button"
-                title={field.token}
-                onClick={() => insertToken(field.token)}
-                {...stylex.props(styles.mergeChip)}
-              >
-                + {field.label}
-              </button>
-            ))}
-          </div>
+          {catalog.mergeFields.length === 0 ? (
+            <p {...stylex.props(styles.mergeHint)}>{t('content.mergeEmpty')}</p>
+          ) : (
+            <>
+              <p {...stylex.props(styles.mergeHint)}>{t('content.mergeHint')}</p>
+              <div {...stylex.props(styles.mergeChips)}>
+                {catalog.mergeFields.map((field) => (
+                  <button
+                    key={field.token}
+                    type="button"
+                    title={field.token}
+                    onClick={() => insertToken(field.token)}
+                    {...stylex.props(styles.mergeChip)}
+                  >
+                    + {field.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Drawer>

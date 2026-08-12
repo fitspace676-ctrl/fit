@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { PaymentMethod, PosReceipt } from '@fit/types';
+import {
+  enabledPaymentMethods,
+  type GymPaymentMethods,
+  type GymReceiptSettings,
+  type PaymentMethod,
+  type PosReceipt,
+} from '@fit/types';
 import { formatPrice, inputToMinor, minorToInput } from '@/app/(dashboard)/shop/format-price';
 import {
   emailReceiptAction,
@@ -12,6 +18,7 @@ import {
 } from '@/app/(dashboard)/pos/actions';
 import { Card } from '@astryxdesign/core/Card';
 import { Btn, Icon } from '@/components/ui';
+import { useGymCurrency } from '@/components/gym-currency';
 import {
   lineTotal,
   selectChangeDue,
@@ -38,7 +45,12 @@ interface CompletedSale {
   receipt: PosReceipt;
 }
 
-/** The three settlement methods, keyed to the `admin.pos.payment.methods` copy. */
+/**
+ * Every settlement method and its copy (`admin.pos.payment.methods`), in the order
+ * the till shows them. Which of them a given gym actually offers is decided by its
+ * Settings → Payments toggles; this stays the full catalogue, so the confirmation
+ * screen can still name the method of a sale settled before a toggle changed.
+ */
 const METHODS: ReadonlyArray<{ method: PaymentMethod; labelKey: string; hintKey: string }> = [
   { method: 'cash', labelKey: 'methods.cash', hintKey: 'methods.cashHint' },
   { method: 'card', labelKey: 'methods.card', hintKey: 'methods.cardHint' },
@@ -99,13 +111,19 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
+  // Flex, not a fixed three-column grid: a gym that accepts only cash + card is
+  // offered two buttons, and they should share the row rather than leave the third
+  // column standing empty.
   methodGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    display: 'flex',
     gap: '0.5rem',
   },
   methodBtn: {
     display: 'flex',
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    minWidth: 0,
     flexDirection: 'column',
     alignItems: 'center',
     gap: '0.25rem',
@@ -472,6 +490,15 @@ const styles = stylex.create({
  * to charge). Completing the sale snapshots a {@link CompletedSale} for the
  * confirmation screen, then `onCompleted` lets the board reset the cart.
  *
+ * Only the methods the gym accepts are offered — `payments` is Settings → Payments,
+ * resolved through {@link enabledPaymentMethods} so this screen and the API's own
+ * check on the recorded sale read the same policy from the same helper. A method
+ * switched off while the modal sits open is dropped from the selection rather than
+ * left selected and refused at the drawer.
+ *
+ * `receipt` is Settings → Receipts: which hand-overs the confirmation screen offers
+ * once the sale is settled — the printed slip, the emailed copy, both, or neither.
+ *
  * The confirmation screen offers to email the customer a receipt (T7.4) — the
  * snapshot is sent to `POST /orders/receipt`, which renders + delivers it. The
  * settlement itself is still recorded client-side; persisting an Order + Payment
@@ -479,10 +506,14 @@ const styles = stylex.create({
  */
 export function PosPayment({
   member,
+  payments,
+  receipt,
   onClose,
   onCompleted,
 }: {
   member: PosMemberRow | null;
+  payments: GymPaymentMethods;
+  receipt: GymReceiptSettings;
   onClose: () => void;
   onCompleted: () => void;
 }) {
@@ -493,7 +524,9 @@ export function PosPayment({
   const discountTotal = usePosCart(selectDiscountTotal);
   const changeDue = usePosCart(selectChangeDue);
   const itemCount = usePosCart(selectItemCount);
-  const currency = usePosCart((state) => state.items[0]?.currency ?? 'USD');
+  const gymCurrency = useGymCurrency();
+  // Empty till → the gym's own configured currency, never a hardcoded one.
+  const currency = usePosCart((state) => state.items[0]?.currency ?? gymCurrency);
   const method = usePosCart((state) => state.paymentMethod);
   const cashTendered = usePosCart((state) => state.cashTendered);
   const setPaymentMethod = usePosCart((state) => state.setPaymentMethod);
@@ -525,10 +558,27 @@ export function PosPayment({
     dialogRef.current?.focus();
   }, []);
 
+  /** The settlement buttons this gym accepts, in the till's fixed display order. */
+  const offered = useMemo(() => {
+    const accepted = enabledPaymentMethods(payments);
+    return METHODS.filter((entry) => accepted.includes(entry.method));
+  }, [payments]);
+  /** A method is picked and the gym still accepts it. */
+  const methodOffered = method !== null && offered.some((entry) => entry.method === method);
+
+  // A method the gym has since switched off must not stay selected — the sale would
+  // only be refused by the API at the drawer. Dropping it puts the operator back on
+  // the (unavoidable) choice between the methods that are still accepted.
+  useEffect(() => {
+    if (method !== null && !offered.some((entry) => entry.method === method)) {
+      setPaymentMethod(null);
+    }
+  }, [method, offered, setPaymentMethod]);
+
   const cashShort = method === 'cash' && cashTendered < total;
   const canComplete =
     total > 0 &&
-    method !== null &&
+    methodOffered &&
     !cashShort &&
     !(method === 'member_account' && member === null) &&
     !saving;
@@ -617,7 +667,7 @@ export function PosPayment({
         {...stylex.props(styles.dialog)}
       >
         {completed ? (
-          <PaymentSuccess sale={completed} onFinish={finish} />
+          <PaymentSuccess sale={completed} receipt={receipt} onFinish={finish} />
         ) : (
           <>
             <div {...stylex.props(styles.titleRow)}>
@@ -626,7 +676,7 @@ export function PosPayment({
             </div>
 
             <div {...stylex.props(styles.methodGrid)}>
-              {METHODS.map(({ method: value, labelKey, hintKey }) => {
+              {offered.map(({ method: value, labelKey, hintKey }) => {
                 const disabled = value === 'member_account' && member === null;
                 const selected = method === value;
                 return (
@@ -753,8 +803,23 @@ export function PosPayment({
   );
 }
 
-/** The post-completion confirmation: what was settled, plus change owed for cash. */
-function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () => void }) {
+/**
+ * The post-completion confirmation: what was settled, plus change owed for cash, and
+ * whichever receipt hand-overs the gym offers.
+ *
+ * Both are opt-in per gym (Settings → Receipts) — a desk that hands over nothing shows
+ * neither, which is why "Print receipt" is not simply always there: printed slips are
+ * off by default, and the button contradicted that setting for as long as it ignored it.
+ */
+function PaymentSuccess({
+  sale,
+  receipt,
+  onFinish,
+}: {
+  sale: CompletedSale;
+  receipt: GymReceiptSettings;
+  onFinish: () => void;
+}) {
   const t = useTranslations('admin.pos.payment');
   const labelKey = METHODS.find((entry) => entry.method === sale.method)?.labelKey;
   const methodLabel = labelKey ? t(labelKey) : sale.method;
@@ -801,13 +866,15 @@ function PaymentSuccess({ sale, onFinish }: { sale: CompletedSale; onFinish: () 
         ) : null}
       </dl>
 
-      <div {...stylex.props(styles.receiptActions)}>
-        <Btn v="outline" size="sm" icon="download" onClick={() => printReceipt(sale, 'Receipt')}>
-          {t('success.print')}
-        </Btn>
-      </div>
+      {receipt.printEnabled ? (
+        <div {...stylex.props(styles.receiptActions)}>
+          <Btn v="outline" size="sm" icon="download" onClick={() => printReceipt(sale, 'Receipt')}>
+            {t('success.print')}
+          </Btn>
+        </div>
+      ) : null}
 
-      <ReceiptSender sale={sale} />
+      {receipt.emailEnabled ? <ReceiptSender sale={sale} /> : null}
 
       <Btn v="primary" size="md" onClick={onFinish}>
         {t('success.newSale')}

@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from './auth';
-import type { GymPublicBrand } from './gym-settings';
+import type { GymPublicBrand, GymPublicContact } from './gym-settings';
 
 /** Minimum length of a gym slug (the tenant's subdomain label). */
 export const GYM_SLUG_MIN_LENGTH = 3;
@@ -138,4 +138,11 @@ export interface GymBySubdomainResponse {
    * `null` only if a future caller deliberately omits it.
    */
   brand: GymPublicBrand | null;
+  /**
+   * The gym's public contact details (address, phone, email, website) as filled in
+   * under Settings → Business info — what the member portal's footer offers a
+   * visitor to reach the gym on. Every field is independently nullable; a gym that
+   * has filled in nothing yields four `null`s and the portal renders no footer.
+   */
+  contact: GymPublicContact | null;
 }

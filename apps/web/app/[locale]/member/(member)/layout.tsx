@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AuroraBackground, SkipLink, ToastProvider } from '@/src/components/ui';
 import { MemberHeader } from '@/src/components/member/member-header';
+import { MemberFooter } from '@/src/components/member/member-footer';
 import { MobileTabBar } from '@/src/components/member/mobile-tab-bar';
 
 /**
@@ -33,6 +34,7 @@ export default async function MemberLayout({
         >
           {children}
         </main>
+        <MemberFooter />
         <MobileTabBar />
       </div>
     </ToastProvider>

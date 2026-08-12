@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { GymsModule } from '../gyms/gyms.module';
 import { AdminProductCategoriesController } from './admin-product-categories.controller';
 import { AdminProductCategoriesService } from './admin-product-categories.service';
 import { AdminProductsController } from './admin-products.controller';
@@ -24,6 +25,9 @@ import { ProductsService } from './products.service';
  * `RbacModule`.
  */
 @Module({
+  // `GymsModule` for `GymLocaleService`: a new product is priced in the gym's own
+  // configured currency rather than a hardcoded default.
+  imports: [GymsModule],
   controllers: [AdminProductCategoriesController, AdminProductsController, ProductsController],
   providers: [
     AdminProductCategoriesService,

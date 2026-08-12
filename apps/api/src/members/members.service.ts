@@ -43,7 +43,6 @@ import type {
   MemberRow,
   MemberTabCounts,
   MemberTaskEntry,
-  MergeValues,
   SendMemberEmailInput,
   SendMemberEmailResponse,
   SetMemberStatusResponse,
@@ -51,13 +50,21 @@ import type {
   UpdateMemberTaskInput,
   UpdateMemberResponse,
 } from '@fit/types';
-import { interpolateMergeFields, resolveMemberKind } from '@fit/types';
+import {
+  gymSettingsStoredSchema,
+  interpolateMergeFields,
+  requiredIntakeFields,
+  resolveMemberKind,
+} from '@fit/types';
+import type { GymLanguage, MemberIntakeField } from '@fit/types';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { GymMemberIntakeService } from '../gyms/gym-member-intake.service';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { MailerService } from '../mail/mailer.service';
 import { renderBrandedEmail, escapeHtml } from '../mail/branded-email';
+import { buildMemberMergeValues } from './member-merge-values';
 
 /** A subscription is "live" (occupies the member's slot) in these states — including
  *  TRIAL, a free trial that still holds the slot before it converts (T5.6). */
@@ -227,6 +234,7 @@ export class MembersService {
     private readonly automation: AutomationExecutorService,
     private readonly loyalty: LoyaltyPointsService,
     private readonly mailer: MailerService,
+    private readonly intake: GymMemberIntakeService,
   ) {}
 
   /**
@@ -297,6 +305,8 @@ export class MembersService {
    */
   async createMember(input: CreateMemberInput): Promise<CreateMemberResponse> {
     const { name, email, phone, status, planId, startDate } = input;
+
+    await this.assertIntakeSatisfied(input);
 
     const created = await this.prisma.client.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({ where: { email }, select: { id: true } });
@@ -412,6 +422,56 @@ export class MembersService {
       end.setMonth(end.getMonth() + 1);
     }
     return end;
+  }
+
+  /**
+   * Hold a create to the intake fields the gym configured in Settings → Membership:
+   * a toggle that is on means the field is asked for *and* required, so a create
+   * that leaves one blank is a `400 MEMBER_INTAKE_REQUIRED` naming what is missing.
+   *
+   * Checked here rather than in `createMemberSchema` because the answer depends on
+   * the tenant's stored settings, which a static DTO cannot reach — and checked at
+   * all because the console rendering a required input is not enforcement. A stale
+   * browser tab opened before the setting changed, the POS till, and anything
+   * hitting `POST /members` directly all reach this line.
+   *
+   * `surname` is skipped: the console joins it onto `name` before sending, so there
+   * is no separate value here to find missing. `emergencyContact` is one toggle over
+   * two columns and demands both — a next of kin with no number is not a next of kin.
+   */
+  private async assertIntakeSatisfied(input: CreateMemberInput): Promise<void> {
+    const intake = await this.intake.get();
+
+    const filled = (value: string | null | undefined): boolean => Boolean(value?.trim());
+    // Exhaustive over `MemberIntakeField` on purpose: adding a toggle to the schema
+    // without answering for it here becomes a compile error rather than a setting
+    // the console renders as mandatory and the API quietly never checks.
+    const present: Record<MemberIntakeField, boolean> = {
+      name: filled(input.name),
+      // Always satisfied: the console folds it into `name` before sending, so
+      // treating it as missing here would reject every create.
+      surname: true,
+      email: filled(input.email),
+      phone: filled(input.phone),
+      gender: Boolean(input.gender),
+      dateOfBirth: filled(input.dateOfBirth),
+      personalId: filled(input.personalId),
+      address: filled(input.address),
+      emergencyContact: filled(input.emergencyContactName) && filled(input.emergencyContactPhone),
+      medicalNotes: filled(input.medicalNotes),
+      // Never required (`requiredIntakeFields` exempts both), so the value is moot.
+      membershipPlan: true,
+      paymentMethod: true,
+    };
+
+    const missing = requiredIntakeFields(intake).filter((field) => !present[field]);
+    if (missing.length > 0) {
+      throw new BadRequestException({
+        message: `Your gym’s member form requires: ${missing.join(', ')}`,
+        code: 'MEMBER_INTAKE_REQUIRED',
+        fields: missing,
+      });
+    }
   }
 
   /**
@@ -627,13 +687,23 @@ export class MembersService {
       where: { id, role: Role.MEMBER, deletedAt: null },
       select: {
         id: true,
+        status: true,
+        joinedAt: true,
+        dateOfBirth: true,
         user: { select: { name: true, email: true, phone: true } },
         subscriptions: {
           where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
           orderBy: { currentPeriodEnd: 'desc' },
           take: 1,
-          select: { currentPeriodEnd: true, plan: { select: { name: true } } },
+          select: {
+            currentPeriodEnd: true,
+            plan: { select: { name: true, priceAmount: true, currency: true } },
+          },
         },
+        // Backs `{{member_checkin_count}}`, which the drawer's picker can offer
+        // via an automation rule body. Same select as `AutomationMergeService`'s
+        // `MEMBER_SELECT`, so the two pipelines quote the same number.
+        _count: { select: { checkIns: true } },
       },
     });
     if (!member) {
@@ -649,8 +719,15 @@ export class MembersService {
       });
     }
 
-    const gymName = await this.resolveGymName();
-    const values = this.memberMergeValues(member, gymName);
+    const { gymName, business, language } = await this.resolveGymMergeContext();
+    const values = buildMemberMergeValues({
+      member,
+      gymName,
+      business,
+      language,
+      pointsBalance: await this.pointsBalance(member.id),
+      today: new Date(),
+    });
     const subject = interpolateMergeFields(input.subject, values);
     const body = interpolateMergeFields(input.body, values);
 
@@ -670,48 +747,51 @@ export class MembersService {
     return { sent: true };
   }
 
-  /** The gym's display name, for the email "from" name + `{{business_name}}` merge. */
-  private async resolveGymName(): Promise<string> {
+  /**
+   * The gym's name, contact details and language, for a send. The language is
+   * what `{{payment_amount}}` is formatted in, so the drawer quotes a price
+   * exactly as an automation send would.
+   */
+  private async resolveGymMergeContext(): Promise<{
+    gymName: string;
+    business: { phone: string; email: string; address: string; website: string };
+    language: GymLanguage;
+  }> {
     const gym = await this.prisma.client.gym.findFirst({
       where: { id: this.tenant.gymId },
-      select: { name: true },
+      select: { name: true, settings: true },
     });
-    return gym?.name ?? 'Your gym';
+    const stored = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    return {
+      gymName: gym?.name ?? 'Your gym',
+      business: {
+        phone: stored.business.phone ?? '',
+        email: stored.business.email ?? '',
+        address: stored.business.address ?? '',
+        website: stored.business.website ?? '',
+      },
+      language: stored.locale.language,
+    };
   }
 
-  /** Build the merge-field values for a member email from the resolved row + gym name. */
-  private memberMergeValues(
-    member: {
-      user: { name: string | null; email: string; phone: string | null };
-      subscriptions: { currentPeriodEnd: Date | null; plan: { name: string } | null }[];
-    },
-    gymName: string,
-  ): MergeValues {
-    const fullName = (member.user.name ?? '').trim();
-    const [firstName, ...rest] = fullName.length > 0 ? fullName.split(/\s+/) : [''];
-    const first = firstName ?? '';
-    const lastName = rest.join(' ');
-    const sub = member.subscriptions[0];
-    const phone = member.user.phone ?? '';
-    const planName = sub?.plan?.name ?? '';
-    const expiry = sub?.currentPeriodEnd ? sub.currentPeriodEnd.toISOString().slice(0, 10) : '';
-    return {
-      // Marketing tokens plus their `{{member_*}}` automation aliases, so a template
-      // from either store is personalized on the send-time safety pass.
-      first_name: first,
-      last_name: lastName,
-      email: member.user.email,
-      phone,
-      plan_name: planName,
-      expiry_date: expiry,
-      business_name: gymName,
-      member_first_name: first,
-      member_last_name: lastName,
-      member_email: member.user.email,
-      member_phone: phone,
-      member_plan_name: planName,
-      member_expiry_date: expiry,
-    };
+  /**
+   * The member's live points balance — the `balanceAfter` the loyalty ledger last
+   * recorded, or `0` for a member who has never earned any. Backs
+   * `{{member_points_balance}}`, which the drawer's picker can offer via an
+   * automation rule body.
+   *
+   * A mirror of `AutomationMergeService.pointsBalance`, deliberately: one indexed
+   * row, read separately rather than widening the send's member select with a
+   * join. Scoped to `this.tenant.gymId` so a ledger row from another tenant can
+   * never answer for this member.
+   */
+  private async pointsBalance(memberId: string): Promise<number> {
+    const latest = await this.prisma.client.loyaltyLedgerEntry.findFirst({
+      where: { gymId: this.tenant.gymId, memberId },
+      orderBy: { createdAt: 'desc' },
+      select: { balanceAfter: true },
+    });
+    return latest?.balanceAfter ?? 0;
   }
 
   /**

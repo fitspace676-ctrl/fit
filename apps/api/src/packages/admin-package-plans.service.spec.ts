@@ -9,6 +9,7 @@ import type {
 import { AdminPackagePlansService } from './admin-package-plans.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
 
 /** A package-plan row as the service's projection selects it. */
 interface PackagePlanRecord {
@@ -80,9 +81,13 @@ function setup(overrides?: {
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  // The gym prices in GEL; a created plan must be stamped with that, not USD.
+  const locale = {
+    get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
+  } as unknown as GymLocaleService;
 
   return {
-    service: new AdminPackagePlansService(prisma, tenant),
+    service: new AdminPackagePlansService(prisma, tenant, locale),
     findMany,
     count,
     findFirst,
@@ -99,7 +104,6 @@ const createInput = (over?: Partial<CreatePackagePlanData>): CreatePackagePlanDa
   name: '10 Session Pack',
   description: 'Ten one-on-one personal training sessions.',
   priceAmount: 50000,
-  currency: 'USD',
   billingInterval: 'ONE_TIME',
   sessionCount: 10,
   features: ['Personalised plan', 'Progress tracking'],
@@ -112,7 +116,6 @@ const updateInput = (over?: Partial<UpdatePackagePlanData>): UpdatePackagePlanDa
   name: '20 Session Pack',
   description: 'Updated copy.',
   priceAmount: 90000,
-  currency: 'EUR',
   billingInterval: 'MONTH',
   sessionCount: null,
   features: ['Unlimited sessions'],
@@ -247,7 +250,8 @@ describe('AdminPackagePlansService', () => {
         gymId: 'gym-1',
         name: 'Starter Pack',
         priceAmount: 50000,
-        currency: 'USD',
+        // Stamped from the gym's own locale, not from the request body.
+        currency: 'GEL',
         billingInterval: 'ONE_TIME',
         sessionCount: null,
         features: ['Personalised plan', 'Progress tracking'],
@@ -269,13 +273,14 @@ describe('AdminPackagePlansService', () => {
         name: '20 Session Pack',
         description: 'Updated copy.',
         priceAmount: 90000,
-        currency: 'EUR',
         billingInterval: 'MONTH',
         sessionCount: null,
         features: ['Unlimited sessions'],
         popular: false,
       });
       expect(data).not.toHaveProperty('status');
+      // An existing plan keeps the currency its buyers signed up in.
+      expect(data).not.toHaveProperty('currency');
     });
 
     it('throws 404 for an unknown / cross-tenant id', async () => {

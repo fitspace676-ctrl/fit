@@ -8,9 +8,13 @@ import {
   Prisma,
   SubscriptionStatus,
 } from '@fit/db';
+import { automationActionConfigSchema, interpolateMergeFields } from '@fit/types';
 import { automationTriggerConfigSchema } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { MailerService } from '../mail/mailer.service';
+import { renderBrandedEmail, escapeHtml } from '../mail/branded-email';
+import { AutomationMergeService } from './automation-merge.service';
 import { env } from '../config/env';
 
 /**
@@ -96,6 +100,8 @@ export class AutomationExecutorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly merge: AutomationMergeService,
+    private readonly mailer: MailerService,
   ) {}
 
   /**
@@ -153,26 +159,31 @@ export class AutomationExecutorService {
   }
 
   /**
-   * Record one rule's firing. Because action delivery is stubbed, this simply
-   * writes a `SUCCESS` run summarising the action; a genuine send failure (once
-   * the senders exist) would be caught here and stored as `FAILED`. Returns
-   * whether a run row was written.
+   * Perform one rule's action and record the run. The `email` action is really
+   * delivered; the other three have no provider yet and are logged as such.
+   * Returns whether a run row was written.
+   *
+   * Delivery happens before the row is written so its outcome can be recorded
+   * truthfully — a run that says `SUCCESS` now means a message left the building
+   * (or that we said plainly why it didn't).
    */
   private async recordRun(
     gymId: string,
     rule: RuleRecord,
     context: AutomationDispatchContext,
   ): Promise<boolean> {
+    const outcome = await this.performAction(gymId, rule, context);
+
     try {
       await this.prisma.client.automationRun.create({
         data: {
           gymId,
           ruleId: rule.id,
           triggerType: rule.triggerType,
-          status: AutomationRunStatus.SUCCESS,
+          status: outcome.status,
           entityId: context.entityId ?? null,
           entityType: context.entityType ?? null,
-          detail: stubActionDetail(rule.actionType),
+          detail: outcome.detail.slice(0, 500),
         },
       });
       return true;
@@ -195,6 +206,75 @@ export class AutomationExecutorService {
         // Swallow — the original warning already recorded the problem.
       }
       return false;
+    }
+  }
+
+  /**
+   * Carry out a rule's action, returning what the run row should say about it.
+   *
+   * Never throws. `member_joined` dispatches this fire-and-forget from member
+   * creation, so a mail outage must become a `FAILED` row, not an exception
+   * escaping into a request that was only trying to add someone to the roster.
+   */
+  private async performAction(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+  ): Promise<{ status: AutomationRunStatus; detail: string }> {
+    if (rule.actionType !== AutomationActionType.email) {
+      return {
+        status: AutomationRunStatus.SUCCESS,
+        detail: undeliveredActionDetail(rule.actionType),
+      };
+    }
+
+    try {
+      const action = automationActionConfigSchema.safeParse(rule.actionConfig);
+      if (!action.success) {
+        return {
+          status: AutomationRunStatus.FAILED,
+          detail: 'Email not sent — this rule has no usable message',
+        };
+      }
+
+      const brand = await this.merge.brand(gymId);
+      const target = await this.merge.resolve(gymId, context, brand);
+      if (!target?.recipient) {
+        return {
+          status: AutomationRunStatus.SUCCESS,
+          detail: 'No recipient for this trigger — nothing sent',
+        };
+      }
+
+      // The same expansion the one-off staff email uses: a known token with no
+      // value is blanked, so a raw `{{…}}` can never reach a member.
+      const subject = interpolateMergeFields(action.data.subject ?? '', target.values);
+      const body = interpolateMergeFields(action.data.body, target.values);
+
+      const html = renderBrandedEmail({
+        senderName: brand.name,
+        heading: subject,
+        contentHtml: `<p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`,
+      });
+
+      const { sent } = await this.mailer.send({
+        to: target.recipient,
+        subject,
+        html,
+        text: body,
+      });
+
+      // An unconfigured transport is a skip, not a failure — a dev machine with no
+      // RESEND_API_KEY should read honestly rather than fill the log with FAILED.
+      return sent
+        ? { status: AutomationRunStatus.SUCCESS, detail: `Emailed ${target.recipient}` }
+        : {
+            status: AutomationRunStatus.SUCCESS,
+            detail: 'Email not sent — mail transport is not configured',
+          };
+    } catch (error) {
+      this.logger.warn(`Automation email for rule ${rule.id} failed: ${errMsg(error)}`);
+      return { status: AutomationRunStatus.FAILED, detail: `Email failed: ${errMsg(error)}` };
     }
   }
 
@@ -332,19 +412,23 @@ export class AutomationExecutorService {
   }
 }
 
-/** A short, human line describing the (stubbed) action a run performed. */
-function stubActionDetail(actionType: AutomationActionType): string {
+/**
+ * What an action with no provider yet leaves in the log.
+ *
+ * Deliberately not "queued": nothing queues these, and a run log that claims a
+ * send is worse than one that admits there isn't one. When a transport lands,
+ * this is where its branch goes.
+ */
+function undeliveredActionDetail(actionType: AutomationActionType): string {
   switch (actionType) {
-    case AutomationActionType.email:
-      return 'Queued email (stubbed executor)';
     case AutomationActionType.sms:
-      return 'Queued SMS (stubbed executor)';
+      return 'SMS is not delivered yet — logged only';
     case AutomationActionType.push_notification:
-      return 'Queued push notification (stubbed executor)';
+      return 'Push notification is not delivered yet — logged only';
     case AutomationActionType.create_task:
-      return 'Queued task creation (stubbed executor)';
+      return 'Task creation is not wired yet — logged only';
     default:
-      return 'Queued action (stubbed executor)';
+      return 'This action is not delivered yet — logged only';
   }
 }
 

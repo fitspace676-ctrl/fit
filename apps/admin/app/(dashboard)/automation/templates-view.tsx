@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { AutomationRuleRow } from '@fit/types';
+import type { AutomationRuleRow, GymAutomationFieldsSettings } from '@fit/types';
 import { Card } from '@astryxdesign/core/Card';
 import { Badge, Btn, Icon } from '@/components/ui';
 import { RuleFormDialog } from './rule-form-dialog';
@@ -110,9 +110,12 @@ const styles = stylex.create({
 export function TemplatesView({
   templates,
   canManage,
+  fields,
 }: {
   templates: AutomationRuleRow[];
   canManage: boolean;
+  /** Which merge fields this gym offers — Settings → Automation fields. */
+  fields: GymAutomationFieldsSettings;
 }) {
   const t = useTranslations('admin.automation');
   const [seed, setSeed] = useState<AutomationRuleRow | null>(null);
@@ -165,7 +168,9 @@ export function TemplatesView({
         })}
       </div>
 
-      {seed ? <RuleFormDialog mode="create" seed={seed} onClose={() => setSeed(null)} /> : null}
+      {seed ? (
+        <RuleFormDialog mode="create" seed={seed} fields={fields} onClose={() => setSeed(null)} />
+      ) : null}
     </>
   );
 }

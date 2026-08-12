@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import type { GymMemberIntakeSettings } from '@fit/types';
+import type { GymMemberIntakeSettings, GymPaymentMethods, GymReceiptSettings } from '@fit/types';
 import { usePosCart } from '@/stores/pos-cart-store';
 import {
   fetchPosLocationsAction,
@@ -87,8 +87,20 @@ const styles = stylex.create({
  * `memberIntake` is threaded straight through to the lookup's add-member drawer — the
  * gym's Settings → Membership config, so registering at the till asks for exactly what
  * registering from the roster asks for. `null` for staff who cannot create members.
+ *
+ * `payments` is the gym's Settings → Payments config, threaded to the payment modal so
+ * it offers only the settlement methods this gym accepts; `receipt` is its Settings →
+ * Receipts config, deciding which hand-overs the confirmation screen then offers.
  */
-export function PosBoard({ memberIntake }: { memberIntake: GymMemberIntakeSettings | null }) {
+export function PosBoard({
+  memberIntake,
+  payments,
+  receipt,
+}: {
+  memberIntake: GymMemberIntakeSettings | null;
+  payments: GymPaymentMethods;
+  receipt: GymReceiptSettings;
+}) {
   const addItem = usePosCart((state) => state.addItem);
   const setMember = usePosCart((state) => state.setMember);
   const clear = usePosCart((state) => state.clear);
@@ -217,6 +229,8 @@ export function PosBoard({ memberIntake }: { memberIntake: GymMemberIntakeSettin
       {isPaying ? (
         <PosPayment
           member={selectedMember}
+          payments={payments}
+          receipt={receipt}
           onClose={() => setIsPaying(false)}
           onCompleted={resetSale}
         />

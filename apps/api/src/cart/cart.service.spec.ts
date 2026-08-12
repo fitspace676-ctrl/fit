@@ -4,6 +4,7 @@ import { encodeVariantRef } from '@fit/types';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { PrismaService } from '../prisma/prisma.service';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
 import { CartService } from './cart.service';
 
 /** A stored product row as `loadVariantInfo` selects it. */
@@ -113,8 +114,14 @@ function setup(config: {
     userId: config.userId ?? null,
   } as unknown as TenantContext;
 
+  // The gym's configured currency (Settings → General) — what an empty basket is
+  // labelled in, since there is no line to read a currency off.
+  const locale = {
+    get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
+  } as unknown as GymLocaleService;
+
   return {
-    service: new CartService(prisma, tenant, new PromoRedemptionService(prisma)),
+    service: new CartService(prisma, tenant, new PromoRedemptionService(prisma), locale),
     mocks: {
       findMany,
       cartCreate,

@@ -634,6 +634,7 @@
       "searchLabel": "Search reports",
       "searchPlaceholder": "Search reports",
       "noMatches": "No report matches \"{query}\".",
+      "noneEnabled": "No reports are switched on. Settings → Reports.",
       "clearSearch": "Clear search"
     },
     "billingPlans": {
@@ -1157,7 +1158,8 @@
         "medicalSection": "Medical notes",
         "medicalPlaceholder": "Allergies, conditions, injuries…",
         "optional": "Optional",
-        "personalId": "National ID"
+        "personalId": "National ID",
+        "requiredMissing": "Please fill in: {fields}"
       },
       "actions": {
         "edit": "Edit",
@@ -1512,9 +1514,6 @@
       "manageRolesDrawer": {
         "title": "Roles & permissions"
       },
-      "values": {
-        "never": "Never"
-      },
       "kpi": {
         "total": "Total staff",
         "totalContext": "{count} active",
@@ -1538,8 +1537,9 @@
         "lastName": "Last Name",
         "role": "Role",
         "location": "Location",
+        "email": "Email",
+        "phone": "Phone",
         "status": "Status",
-        "lastLogin": "Last Login",
         "joined": "Joined",
         "actions": "Actions"
       },
@@ -1710,43 +1710,13 @@
         "unexpected": "Unexpected error"
       },
       "depth": {
-        "pickStaff": "Staff member",
-        "noStaff": "Select a staff member to continue.",
-        "saving": "Saving…",
-        "loading": "Loading…",
-        "cancel": "Cancel",
         "roles": {
           "intro": "The capabilities each staff role grants. This matrix is read-only — it mirrors exactly what the API enforces.",
           "capability": "Capability",
           "grantedAria": "Granted",
           "deniedAria": "Not granted"
         },
-        "notes": {
-          "title": "Staff notes",
-          "placeholder": "Write an internal note about this staff member…",
-          "add": "Add note",
-          "added": "Note added.",
-          "deleted": "Note deleted.",
-          "deleteAria": "Delete note",
-          "empty": "No notes yet."
-        },
-        "tasks": {
-          "title": "Assigned tasks",
-          "titlePlaceholder": "Task title",
-          "descPlaceholder": "Description (optional)",
-          "dueLabel": "Due date",
-          "add": "Add task",
-          "added": "Task added.",
-          "deleted": "Task deleted.",
-          "deleteAria": "Delete task",
-          "empty": "No tasks yet.",
-          "due": "Due {date}",
-          "noDue": "No due date",
-          "markDone": "Mark task done",
-          "markPending": "Mark task pending"
-        },
         "schedule": {
-          "title": "Weekly schedule",
           "days": {
             "0": "Mon",
             "1": "Tue",
@@ -1755,48 +1725,7 @@
             "4": "Fri",
             "5": "Sat",
             "6": "Sun"
-          },
-          "dayEmpty": "—",
-          "removeAria": "Remove shift",
-          "dayLabel": "Day",
-          "startLabel": "Start",
-          "endLabel": "End",
-          "locationLabel": "Location",
-          "locationPlaceholder": "Optional",
-          "addShift": "Add shift",
-          "invalidRange": "End time must be after start time.",
-          "unsaved": "Unsaved changes",
-          "upToDate": "Schedule up to date",
-          "save": "Save schedule",
-          "saved": "Schedule saved."
-        },
-        "timeoff": {
-          "filters": {
-            "all": "All"
-          },
-          "status": {
-            "pending": "Pending",
-            "approved": "Approved",
-            "denied": "Denied"
-          },
-          "filterAria": "Filter by status",
-          "request": "Request time off",
-          "empty": "No time-off requests.",
-          "decidedBy": "{name} · {date}",
-          "approve": "Approve",
-          "deny": "Deny",
-          "approved": "Request approved.",
-          "denied": "Request denied.",
-          "withdrawn": "Request withdrawn.",
-          "withdrawAria": "Withdraw request",
-          "requested": "Time-off request submitted.",
-          "requestTitle": "Request time off",
-          "requestBody": "Log a time-off request for a staff member.",
-          "startLabel": "Start date",
-          "endLabel": "End date",
-          "reasonLabel": "Reason",
-          "reasonPlaceholder": "Optional note…",
-          "submit": "Submit request"
+          }
         }
       }
     },
@@ -1868,25 +1797,25 @@
         "settings": "Settings"
       },
       "title": "Settings",
-      "subtitle": "Configure your gym’s brand, locale, business hours, and the sender used for member emails. These apply across the whole gym.",
+      "subtitle": "Configure your gym’s brand, locale, business hours, and operating policies. These apply across the whole gym.",
       "sections": {
         "general": "General",
         "hours": "Business hours",
         "booking": "Booking rules",
-        "notifications": "Notifications",
         "business": "Business info",
         "noShow": "No-show policy",
         "freeze": "Freeze policy",
         "guestPass": "Guest passes",
         "trial": "Trial memberships",
         "membership": "Membership",
+        "staff": "Staff page",
         "payments": "Payment methods",
         "invoice": "Invoicing",
-        "tax": "Tax",
-        "refund": "Refunds",
         "receipt": "Receipts",
-        "autoRenewal": "Auto-renewal",
-        "locations": "Locations"
+        "locations": "Locations",
+        "automation": "Automation fields",
+        "marketing": "Marketing fields",
+        "reports": "Reports"
       },
       "language": {
         "en": "English",
@@ -1912,7 +1841,10 @@
         "language": "Default language",
         "currency": "Currency",
         "timezone": "Time zone",
-        "timezoneHint": "All displayed times use this zone. Past records keep their original time."
+        "timezoneHint": "All displayed times use this zone. Past records keep their original time.",
+        "timezoneSuggested": "Suggested",
+        "timezoneAll": "All time zones",
+        "useDeviceTimezone": "Use this device’s zone ({zone})"
       },
       "logo": {
         "label": "Logo",
@@ -1953,16 +1885,6 @@
         "maxPerDayLabel": "Max bookings per day",
         "maxPerWeekLabel": "Max bookings per week",
         "zeroUnlimited": "0 means unlimited."
-      },
-      "notifications": {
-        "title": "Notifications",
-        "subtitle": "The sender shown on member emails. Leave blank to use the platform default.",
-        "fromNameLabel": "From name (optional)",
-        "fromNamePlaceholder": "e.g. Iron Gym",
-        "fromEmailLabel": "From email (optional)",
-        "fromEmailPlaceholder": "hello@yourgym.com",
-        "replyToLabel": "Reply-to (optional)",
-        "replyToPlaceholder": "support@yourgym.com"
       },
       "saveBar": {
         "unsaved": "Unsaved changes",
@@ -2059,7 +1981,7 @@
       },
       "membership": {
         "title": "Add-member form",
-        "subtitle": "Choose which inputs staff see when adding a new member.",
+        "subtitle": "Choose what staff must collect when adding a new member. Fields you switch on are shown and required.",
         "requiredWarning": "Members can't be created without this field.",
         "fields": {
           "name": "Name",
@@ -2076,6 +1998,27 @@
           "medicalNotes": "Medical notes"
         }
       },
+      "staff": {
+        "columns": {
+          "title": "Roster columns",
+          "subtitle": "Which columns your staff list shows. First name is always shown."
+        },
+        "sections": {
+          "title": "Page sections",
+          "subtitle": "Which cards and tabs appear on the staff page."
+        },
+        "fields": {
+          "lastName": "Last name",
+          "role": "Role",
+          "location": "Location",
+          "email": "Email",
+          "phone": "Phone",
+          "status": "Status",
+          "joined": "Joined",
+          "whosWorking": "Who's working now",
+          "roles": "Roles & permissions"
+        }
+      },
       "payments": {
         "title": "Payment methods",
         "subtitle": "Which methods your POS and checkout accept.",
@@ -2084,7 +2027,8 @@
         "acceptCardLabel": "Card",
         "acceptCardDesc": "Accept card payments.",
         "acceptPrepaidLabel": "Prepaid credits",
-        "acceptPrepaidDesc": "Let members pay from their prepaid credit balance."
+        "acceptPrepaidDesc": "Let members pay from their prepaid credit balance.",
+        "noneEnabled": "Keep at least one payment method on — the POS cannot settle a sale without one."
       },
       "invoice": {
         "title": "Invoice settings",
@@ -2094,24 +2038,6 @@
         "formatLabel": "Number format",
         "preview": "Next invoice: {sample}"
       },
-      "tax": {
-        "title": "Tax settings",
-        "subtitle": "Apply tax to charges, per category.",
-        "enabledLabel": "Charge tax",
-        "enabledDesc": "When off, no tax is applied regardless of the rates below.",
-        "ratesLegend": "Rates (%)",
-        "membershipRateLabel": "Memberships (%)",
-        "classRateLabel": "Classes (%)",
-        "productRateLabel": "Products (%)",
-        "serviceRateLabel": "Services (%)"
-      },
-      "refund": {
-        "title": "Refund policy",
-        "subtitle": "How a refund is calculated when a membership is cancelled mid-term.",
-        "modeLabel": "Refund method",
-        "windowLabel": "Refund window (days)",
-        "windowHint": "Days within which a refund may be requested. 0 has no limit."
-      },
       "receipt": {
         "title": "Receipt settings",
         "subtitle": "How receipts are delivered to members.",
@@ -2119,16 +2045,6 @@
         "emailEnabledDesc": "Email a receipt after each payment.",
         "printEnabledLabel": "Printed receipts",
         "printEnabledDesc": "Offer a printed receipt at the front desk."
-      },
-      "autoRenewal": {
-        "title": "Auto-renewal",
-        "subtitle": "How recurring memberships renew and retry failed charges.",
-        "enabledLabel": "Auto-renew memberships",
-        "enabledDesc": "Automatically charge and renew memberships at the end of each term.",
-        "retryAttemptsLabel": "Retry attempts",
-        "retryIntervalLabel": "Retry interval (days)",
-        "reminderLabel": "Reminder before renewal (days)",
-        "reminderHint": "How many days before renewal a reminder is sent. 0 sends none."
       },
       "penaltyType": {
         "fixed": "Fixed amount",
@@ -2143,18 +2059,75 @@
         "prefix-year-number": "PREFIX-YEAR-0000",
         "year-number": "YEAR-0000"
       },
-      "refundMode": {
-        "full": "Full refund",
-        "prorated": "Prorated",
-        "none": "No refund"
-      },
       "locations": {
         "title": "Locations",
         "subtitle": "Your gym’s branches and their capacity.",
         "description": "Manage each branch — its address, manager, capacity, and status — in the full locations manager.",
-        "cta": "Manage locations"
+        "cta": "Manage locations",
+        "empty": "No locations yet.",
+        "inactive": "Inactive",
+        "nameAria": "Name of {name}",
+        "rename": "Rename",
+        "renaming": "Renaming…",
+        "renamed": "Renamed to {name}.",
+        "renameFailed": "Couldn’t rename this location. Try again."
       },
-      "emailTemplatesLink": "Email templates"
+      "emailTemplatesLink": "Email templates",
+      "automation": {
+        "groups": {
+          "member": "Member fields",
+          "membership": "Membership fields",
+          "business": "Gym fields"
+        },
+        "groupHints": {
+          "member": "Details about the person the message is about.",
+          "membership": "Their plan, its price and when it runs out.",
+          "business": "Your gym's own name and contact details."
+        },
+        "fields": {
+          "memberFirstName": "First name",
+          "memberLastName": "Last name",
+          "memberFullName": "Full name",
+          "memberEmail": "Email",
+          "memberPhone": "Phone",
+          "memberStatus": "Status",
+          "memberJoinDate": "Join date",
+          "memberBirthday": "Birthday",
+          "memberCheckinCount": "Check-in count",
+          "memberPointsBalance": "Points balance",
+          "membershipPlanName": "Plan name",
+          "membershipExpiryDate": "Expiry date",
+          "membershipDaysLeft": "Days until expiry",
+          "membershipPrice": "Price",
+          "membershipRenewalDate": "Renewal date",
+          "businessName": "Gym name",
+          "businessPhone": "Gym phone",
+          "businessAddress": "Gym address",
+          "businessEmail": "Gym email",
+          "businessWebsite": "Gym website"
+        }
+      },
+      "marketing": {
+        "groups": {
+          "member": "Member fields",
+          "membership": "Membership fields",
+          "business": "Gym fields"
+        },
+        "groupHints": {
+          "member": "Details about the person the message is going to.",
+          "membership": "Their plan, its price and when it runs out.",
+          "business": "Your gym's own name and contact details."
+        }
+      },
+      "reports": {
+        "groupHints": {
+          "sales": "Takings, plans, discounts and refunds.",
+          "members": "Joins, churn, expiry and attendance.",
+          "revenue": "Where the money comes from, and what is still owed.",
+          "classes": "Attendance, utilisation and no-shows.",
+          "staff": "Trainer performance."
+        }
+      }
     },
     "automation": {
       "breadcrumb": {
@@ -2296,33 +2269,30 @@
       },
       "mergeGroups": {
         "member": "Member",
-        "class": "Class",
-        "payment": "Payment",
+        "membership": "Membership",
         "business": "Business"
       },
       "mergeVars": {
         "memberFirstName": "First name",
         "memberLastName": "Last name",
+        "memberFullName": "Full name",
         "memberEmail": "Email",
         "memberPhone": "Phone",
-        "memberPlanName": "Plan name",
-        "memberExpiryDate": "Expiry date",
+        "memberStatus": "Status",
+        "memberJoinDate": "Join date",
+        "memberBirthday": "Birthday",
         "memberCheckinCount": "Check-in count",
         "memberPointsBalance": "Points balance",
-        "memberLocation": "Location",
-        "className": "Class name",
-        "classDate": "Date",
-        "classTime": "Time",
-        "classTrainerName": "Trainer name",
-        "classLocation": "Location",
-        "paymentAmount": "Amount",
-        "paymentDueDate": "Due date",
-        "paymentPlanName": "Plan name",
-        "paymentInvoiceNumber": "Invoice number",
-        "businessName": "Business name",
-        "businessLocationName": "Location name",
-        "businessPhone": "Phone",
-        "businessAddress": "Address"
+        "membershipPlanName": "Plan name",
+        "membershipExpiryDate": "Expiry date",
+        "membershipDaysLeft": "Days until expiry",
+        "membershipPrice": "Price",
+        "membershipRenewalDate": "Renewal date",
+        "businessName": "Gym name",
+        "businessPhone": "Gym phone",
+        "businessAddress": "Gym address",
+        "businessEmail": "Gym email",
+        "businessWebsite": "Gym website"
       },
       "templates": {
         "saved": "Template saved.",
@@ -2482,7 +2452,8 @@
         "subjectPlaceholder": "Enter a subject line",
         "bodyLabel": "Message content",
         "bodyPlaceholder": "Write your message…",
-        "mergeHint": "Click to insert a merge field:"
+        "mergeHint": "Click to insert a merge field:",
+        "mergeEmpty": "No merge fields are switched on. Settings → Marketing fields."
       },
       "schedule": {
         "nowTitle": "Send now",
