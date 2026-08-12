@@ -18,10 +18,23 @@ import { expect, test } from '@playwright/test';
 // re-run against the same database without unique-constraint collisions.
 const RUN = Date.now();
 
+/**
+ * The roster form asks for whatever Settings → Membership has switched on, and
+ * "switched on" means *required* — so a create must supply the gym's default
+ * intake, not just a name and an address. These are the fields a default gym
+ * marks mandatory; the till's own drawer (below) fills the same set, which is the
+ * point of the two entry points sharing one config.
+ */
 const member = {
   name: `E2E Member ${RUN}`,
   email: `e2e.member.${RUN}@e2e.test`,
   phone: '+995555010101',
+  dateOfBirth: '1992-03-08',
+  gender: 'FEMALE',
+  personalId: `PID-ROSTER-${RUN}`,
+  address: '5 Chavchavadze Ave',
+  kinName: 'E2E Roster Kin',
+  kinPhone: '+995555020303',
 };
 const product = {
   name: `E2E Day Pass ${RUN}`,
@@ -56,6 +69,12 @@ test.describe.serial('Admin core flows', () => {
     await page.locator('input[name="name"]').fill(member.name);
     await page.locator('input[name="email"]').fill(member.email);
     await page.locator('input[name="phone"]').fill(member.phone);
+    await page.locator('#dateOfBirth').fill(member.dateOfBirth);
+    await page.locator('#gender').selectOption(member.gender);
+    await page.locator('#personalId').fill(member.personalId);
+    await page.locator('#address').fill(member.address);
+    await page.locator('#emergencyName').fill(member.kinName);
+    await page.locator('#emergencyPhone').fill(member.kinPhone);
     await page.getByRole('button', { name: 'Create member' }).click();
 
     // On success the form routes to the new member's detail page. The lookahead
