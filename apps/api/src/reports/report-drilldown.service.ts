@@ -22,11 +22,11 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 import { drilldownTables } from './drilldown-tabular.util';
 import { buildWorkbook } from './xlsx';
 import {
   bucketKey,
-  DEFAULT_CURRENCY,
   emptyBuckets,
   isoDate,
   rate,
@@ -125,6 +125,7 @@ export class ReportDrilldownService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly locale: GymLocaleService,
   ) {}
 
   /** Build one drill-down report for on-screen rendering. */
@@ -686,7 +687,7 @@ export class ReportDrilldownService {
       },
     ];
 
-    return { currency: DEFAULT_CURRENCY, kpis, sections };
+    return { currency: await this.currency(), kpis, sections };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -780,7 +781,7 @@ export class ReportDrilldownService {
       },
     ];
 
-    return { currency: DEFAULT_CURRENCY, kpis, sections };
+    return { currency: await this.currency(), kpis, sections };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -955,7 +956,7 @@ export class ReportDrilldownService {
       },
     ];
 
-    return { currency: DEFAULT_CURRENCY, kpis, sections };
+    return { currency: await this.currency(), kpis, sections };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1121,7 +1122,7 @@ export class ReportDrilldownService {
       },
     ];
 
-    return { currency: DEFAULT_CURRENCY, kpis, sections };
+    return { currency: await this.currency(), kpis, sections };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1361,21 +1362,17 @@ export class ReportDrilldownService {
       },
     ];
 
-    return { currency: DEFAULT_CURRENCY, kpis, sections };
+    return { currency: await this.currency(), kpis, sections };
   }
 
   /**
-   * The gym's ISO-4217 currency. Public because a dashboard segment holding no
-   * resolvable widget still has to report the currency its (absent) money figures
-   * would be in, without computing a whole report to learn it.
+   * The gym's ISO-4217 currency — its configured `settings.locale.currency`. Public
+   * because a dashboard segment holding no resolvable widget still has to report
+   * the currency its (absent) money figures would be in, without computing a whole
+   * report to learn it.
    */
   async currency(): Promise<string> {
-    const latest = await this.prisma.client.payment.findFirst({
-      where: { status: PaymentStatus.CAPTURED },
-      orderBy: { createdAt: 'desc' },
-      select: { currency: true },
-    });
-    return latest?.currency ?? DEFAULT_CURRENCY;
+    return (await this.locale.get()).currency;
   }
 }
 

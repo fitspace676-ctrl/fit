@@ -115,6 +115,9 @@ describe('GymsService.resolveBySubdomain', () => {
         primaryColor: DEFAULT_PRIMARY_COLOR,
         secondaryColor: DEFAULT_SECONDARY_COLOR,
       },
+      // A gym that has filled in no business info still answers with the four
+      // fields, all null — the portal decides there is nothing to render.
+      contact: { address: null, phone: null, email: null, website: null },
     });
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { slug: 'downtown' } }),
@@ -141,6 +144,31 @@ describe('GymsService.resolveBySubdomain', () => {
         logoUrl: 'https://cdn.example.com/logo.png',
         primaryColor: '#ff0000',
         secondaryColor: '#00ff00',
+      },
+    });
+  });
+
+  it('surfaces the gym’s own business contact details for the portal footer', async () => {
+    const { service } = setupBySubdomain({
+      id: 'gym-1',
+      name: 'Downtown Strength',
+      status: GymStatus.ACTIVE,
+      settings: {
+        business: {
+          address: '12 Rustaveli Ave, Tbilisi',
+          phone: '+995 322 00 00 00',
+          email: 'hello@downtown.example',
+          website: 'downtown.example',
+        },
+      },
+    });
+
+    await expect(service.resolveBySubdomain('downtown')).resolves.toMatchObject({
+      contact: {
+        address: '12 Rustaveli Ave, Tbilisi',
+        phone: '+995 322 00 00 00',
+        email: 'hello@downtown.example',
+        website: 'downtown.example',
       },
     });
   });

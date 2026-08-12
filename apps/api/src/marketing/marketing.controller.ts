@@ -67,7 +67,7 @@ export class MarketingController {
   @Get('catalog')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.MarketingRead)
-  catalog(): MarketingCatalogResponse {
+  catalog(): Promise<MarketingCatalogResponse> {
     return this.marketing.catalog();
   }
 

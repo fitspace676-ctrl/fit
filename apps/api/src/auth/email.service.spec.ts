@@ -344,6 +344,32 @@ describe('EmailService.sendReceiptEmail', () => {
 });
 
 describe('buildReceiptEmail', () => {
+  it('prints the gym’s contact details so the buyer can reach it about the sale', () => {
+    const { html, text } = buildReceiptEmail(cashReceipt, 'Downtown', {
+      address: '12 Rustaveli Ave',
+      phone: '+995 322 00 00 00',
+      email: 'hello@downtown.example',
+      website: 'downtown.example',
+    });
+
+    expect(html).toContain('12 Rustaveli Ave');
+    expect(html).toContain('hello@downtown.example');
+    expect(text).toContain('+995 322 00 00 00');
+    expect(text).toContain('downtown.example');
+  });
+
+  it('omits the contact block when the gym has filled none in', () => {
+    const { html, text } = buildReceiptEmail(cashReceipt, 'Downtown', {
+      address: null,
+      phone: null,
+      email: null,
+      website: null,
+    });
+
+    expect(html).toContain('Paid by Cash.');
+    expect(text.trimEnd().endsWith('Paid by Cash.')).toBe(true);
+  });
+
   it('renders each line, the subtotal, and the total', () => {
     const { subject, html, text } = buildReceiptEmail(cashReceipt, 'Downtown');
     expect(subject).toBe('Your receipt from Downtown');

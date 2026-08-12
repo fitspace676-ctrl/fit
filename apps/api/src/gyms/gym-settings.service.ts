@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@fit/db';
 import {
+  enabledPaymentMethods,
   gymSettingsStoredSchema,
   type GetGymSettingsResponse,
   type GymSettings,
@@ -24,7 +25,7 @@ const GYM_SELECT = { name: true, settings: true } satisfies Prisma.GymSelect;
 
 /**
  * The staff console's gym-configuration service (T4.8): brand, locale, default
- * business hours, and notification sender.
+ * business hours, and the gym's operating policies.
  *
  * Settings live in the `Gym.settings` JSON column. `Gym` is the tenant *root*
  * (keyed by `id`, not a `gymId` scalar), so it is intentionally outside the
@@ -68,21 +69,40 @@ export class GymSettingsService {
       business: { ...current.business, ...input.business },
       locale: { ...current.locale, ...input.locale },
       hours: input.hours ?? current.hours,
-      notifications: { ...current.notifications, ...input.notifications },
       booking: { ...current.booking, ...input.booking },
       noShow: { ...current.noShow, ...input.noShow },
       freeze: { ...current.freeze, ...input.freeze },
       guestPass: { ...current.guestPass, ...input.guestPass },
       trial: { ...current.trial, ...input.trial },
       memberIntake: { ...current.memberIntake, ...input.memberIntake },
+      staffDirectory: { ...current.staffDirectory, ...input.staffDirectory },
+      automationFields: { ...current.automationFields, ...input.automationFields },
+      marketingFields: { ...current.marketingFields, ...input.marketingFields },
+      reports: { ...current.reports, ...input.reports },
       payments: { ...current.payments, ...input.payments },
       invoice: { ...current.invoice, ...input.invoice },
-      tax: { ...current.tax, ...input.tax },
-      refund: { ...current.refund, ...input.refund },
       receipt: { ...current.receipt, ...input.receipt },
-      autoRenewal: { ...current.autoRenewal, ...input.autoRenewal },
     };
     const nextName = brandName ?? gym.name;
+
+    // A till that accepts nothing cannot ring up a sale, so the last enabled
+    // settlement method may not be switched off. Checked on the merged result,
+    // not the patch: a body turning off the one method still standing is refused
+    // even though, read alone, it only ever says "false".
+    if (enabledPaymentMethods(next.payments).length === 0) {
+      throw new BadRequestException('At least one payment method must stay enabled');
+    }
+
+    // `PREFIX-0000` is the one invoice shape that prints no year, so a prefix that
+    // *looks* like a year would render `2026-1000` — the exact reference the
+    // year-numbered shape produces. Since invoice numbers are unique per gym, a gym
+    // that had used both would eventually collide and fail to raise an invoice. The
+    // shapes that carry the year are unaffected, so only this pairing is refused.
+    if (next.invoice.format === 'prefix-number' && /^\d{4}$/.test(next.invoice.prefix.trim())) {
+      throw new BadRequestException(
+        'A four-digit prefix reads as a year — pick another prefix, or a format that includes the year',
+      );
+    }
 
     await this.prisma.client.gym.update({
       where: { id: this.tenant.gymId },
@@ -150,19 +170,19 @@ export class GymSettingsService {
       business: stored.business,
       locale: stored.locale,
       hours: stored.hours,
-      notifications: stored.notifications,
       booking: stored.booking,
       noShow: stored.noShow,
       freeze: stored.freeze,
       guestPass: stored.guestPass,
       trial: stored.trial,
       memberIntake: stored.memberIntake,
+      staffDirectory: stored.staffDirectory,
+      automationFields: stored.automationFields,
+      marketingFields: stored.marketingFields,
+      reports: stored.reports,
       payments: stored.payments,
       invoice: stored.invoice,
-      tax: stored.tax,
-      refund: stored.refund,
       receipt: stored.receipt,
-      autoRenewal: stored.autoRenewal,
     };
   }
 }

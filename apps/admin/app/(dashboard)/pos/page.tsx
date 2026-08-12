@@ -2,7 +2,13 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, gymMemberIntakeSettingsSchema, roleHasPermission } from '@fit/types';
+import {
+  Permission,
+  gymMemberIntakeSettingsSchema,
+  gymPaymentMethodsSchema,
+  gymReceiptSettingsSchema,
+  roleHasPermission,
+} from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { fetchGymSettings } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
@@ -136,16 +142,27 @@ export default async function PosPage() {
     );
   }
 
+  // One settings round trip serves the whole till. Falling back to schema defaults
+  // keeps the POS usable if it fails: every payment method accepted, the add-member
+  // drawer asking for the built-in fields. A dead settings call must not close the desk.
+  const settings = await fetchGymSettings().catch(() => null);
+
   // The till's add-member drawer hosts the roster's own form, so it needs the same
   // config-driven field visibility (Settings → Membership) — that shared config is what
   // keeps a member registered here identical to one registered from the Members screen.
-  // Only staff who can create members ever see the drawer, so skip the round trip for
-  // everyone else; fall back to schema defaults if the fetch fails so it still opens.
+  // `null` for staff who cannot create members: they never see the drawer.
   const memberIntake = canAddMember
-    ? await fetchGymSettings()
-        .then((s) => s.memberIntake)
-        .catch(() => gymMemberIntakeSettingsSchema.parse({}))
+    ? (settings?.memberIntake ?? gymMemberIntakeSettingsSchema.parse({}))
     : null;
+
+  // Settings → Payments: which settlement buttons the payment modal offers. The API
+  // enforces the same list when the sale is recorded, so a stale tab cannot outlive
+  // the setting.
+  const payments = settings?.payments ?? gymPaymentMethodsSchema.parse({});
+
+  // Settings → Receipts: which of the two hand-overs the confirmation screen offers
+  // once the sale is settled — the printed slip and the emailed copy.
+  const receipt = settings?.receipt ?? gymReceiptSettingsSchema.parse({});
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -167,7 +184,7 @@ export default async function PosPage() {
           ) : null}
         </div>
       </header>
-      <PosBoard memberIntake={memberIntake} />
+      <PosBoard memberIntake={memberIntake} payments={payments} receipt={receipt} />
     </div>
   );
 }

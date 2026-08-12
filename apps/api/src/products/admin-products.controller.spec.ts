@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type {
+  CreateProductData,
   CreateProductResponse,
   GetAdminProductResponse,
   ListAdminProductsResponse,
@@ -69,7 +70,7 @@ function setup() {
   const listLowStock = vi.fn<() => Promise<ListLowStockResponse>>(() =>
     Promise.resolve({ data: [], threshold: 5 }),
   );
-  const createProduct = vi.fn<() => Promise<CreateProductResponse>>(() =>
+  const createProduct = vi.fn<(input: CreateProductData) => Promise<CreateProductResponse>>(() =>
     Promise.resolve(detail()),
   );
   const updateProduct = vi.fn<() => Promise<CreateProductResponse>>(() =>
@@ -157,20 +158,22 @@ describe('AdminProductsController', () => {
       ctx = setup();
       await ctx.controller.create({
         name: '  Branded Tee  ',
+        // A client-sent currency is not part of the contract — the gym's own is
+        // stamped service-side — so it must be dropped here, not forwarded.
         currency: 'usd',
         variants: [{ name: 'Small', stock: '3' }],
       });
 
-      // Name trimmed, currency upper-cased, variant stock coerced, status + price defaulted.
+      // Name trimmed, variant stock coerced, status + price defaulted.
       expect(ctx.createProduct).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'Branded Tee',
-          currency: 'USD',
           priceAmount: 0,
           status: 'ACTIVE',
           variants: [{ name: 'Small', sku: '', priceAmount: null, stock: 3 }],
         }),
       );
+      expect(ctx.createProduct.mock.calls[0]?.[0]).not.toHaveProperty('currency');
     });
 
     it('rejects a missing name with 400 without hitting the service', async () => {

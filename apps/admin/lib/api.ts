@@ -2050,11 +2050,17 @@ export async function fetchAnalytics(range?: AnalyticsRange): Promise<AdminAnaly
  * `GET /admin/reports` — the report catalogue: each report's key, display copy,
  * and column shape, so the Reports hub renders its cards from the API rather than
  * hardcoding them. Gated `ReportView` API-side, the same capability analytics uses.
+ *
+ * The response is PER-GYM, not static: it is filtered by the gym's `reports`
+ * settings (Settings → Reports), so the same catalogue call returns a different
+ * set of cards for two gyms, and a different set for the same gym before and
+ * after someone edits that toggle.
  */
 export async function fetchReportCatalog(): Promise<ReportCatalogResponse> {
   const res = await fetch(`${apiBaseUrl()}/admin/reports`, {
     headers: await authHeaders(),
-    // The catalogue is static, but the session/tenant scoping is not — never cache.
+    // Per-gym AND session/tenant-scoped — caching or hoisting this call out of
+    // the request path would leak one gym's (or one moment's) catalogue into another.
     cache: 'no-store',
   });
   return unwrap<ReportCatalogResponse>(res);

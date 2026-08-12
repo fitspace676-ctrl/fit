@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { GymStatus } from '@fit/db';
 import {
   gymPublicBrand,
+  gymPublicContact,
   type GymBySubdomainResponse,
   type GymSummary,
   type ListGymsResponse,
@@ -68,6 +69,11 @@ export class GymsService {
       throw new NotFoundException({ message: 'Gym not found', code: 'GYM_NOT_FOUND' });
     }
 
-    return { gymId: gym.id, name: gym.name, brand: gymPublicBrand(gym.name, gym.settings) };
+    return {
+      gymId: gym.id,
+      name: gym.name,
+      brand: gymPublicBrand(gym.name, gym.settings),
+      contact: gymPublicContact(gym.settings),
+    };
   }
 }

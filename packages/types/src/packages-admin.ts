@@ -122,8 +122,10 @@ export type GetAdminPackagePlanResponse = AdminPackagePlanDetail;
  * The editable package-plan fields shared by the create + update bodies. `name` is
  * required; `description` is free text (empty allowed, normalised to `''`).
  * `priceAmount` is the price in the currency's minor units — a non-negative
- * integer, defaulting to `0`. `currency` is a 3-letter ISO-4217 code, upper-cased
- * and defaulting to `USD`. `billingInterval` defaults to `MONTH`. `sessionCount`
+ * integer, defaulting to `0`. `currency` is not client-settable — the API stamps
+ * the gym's own `settings.locale.currency` when the plan is created, so a gym can
+ * never end up selling in a currency it does not price in. `billingInterval`
+ * defaults to `MONTH`. `sessionCount`
  * is a positive integer or `null` (unlimited), defaulting to `null`. `features` is
  * the ordered perk list, each a short non-empty label, capped at
  * {@link MAX_PACKAGE_FEATURES}. `popular` defaults to `false`. Numbers are coerced
@@ -137,12 +139,6 @@ const packagePlanProfileFields = {
     .int('Price must be a whole number of minor units')
     .nonnegative('Price cannot be negative')
     .default(0),
-  currency: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .length(3, 'Currency must be a 3-letter ISO code')
-    .default('USD'),
   billingInterval: packageBillingIntervalSchema.default('MONTH'),
   sessionCount: z.coerce
     .number()

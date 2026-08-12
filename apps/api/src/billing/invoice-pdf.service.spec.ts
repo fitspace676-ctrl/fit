@@ -56,6 +56,7 @@ const BASE: InvoicePdfData = {
   amount: 4999,
   currency: 'GEL',
   gymName: 'Iron Yard',
+  gymContact: { address: null, phone: null, email: null, website: null },
   memberName: 'Nino Beridze',
   memberEmail: 'nino@example.com',
 };
@@ -90,6 +91,33 @@ describe('InvoicePdfService', () => {
     expect(text).toContain('Nino Beridze');
     expect(text).toContain('Total');
     expect(text).toContain('49.99 GEL');
+  });
+
+  it('prints the issuing gym’s contact details under its name', async () => {
+    const text = visibleText(
+      await service.render({
+        ...BASE,
+        gymContact: {
+          address: '12 Rustaveli Ave, Tbilisi',
+          phone: '+995 322 00 00 00',
+          email: 'hello@ironyard.example',
+          website: 'ironyard.example',
+        },
+      }),
+    );
+
+    expect(text).toContain('12 Rustaveli Ave, Tbilisi');
+    expect(text).toContain('+995 322 00 00 00');
+    expect(text).toContain('hello@ironyard.example');
+    expect(text).toContain('ironyard.example');
+  });
+
+  it('omits the contact block entirely when the gym has filled none in', async () => {
+    // The header must not grow an empty gap for a gym that has configured nothing.
+    const text = visibleText(await service.render(BASE));
+
+    expect(text).toContain('Iron Yard');
+    expect(text).toContain('BILLED TO');
   });
 
   it('does not stamp a settlement state on the document', async () => {

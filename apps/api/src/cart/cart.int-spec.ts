@@ -5,8 +5,10 @@ import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { CartService } from './cart.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 import { asTenant, disconnect, prisma, resetDb } from '../test/integration-db';
 import type { TenantState } from '../common/tenant/tenant.context';
+import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 
 /**
  * The online-shop cart, proven against a real Postgres (T7.7): the anon→user
@@ -15,10 +17,12 @@ import type { TenantState } from '../common/tenant/tenant.context';
  * exercised through the real Prisma queries the migration's tables back.
  */
 const prismaForCart = new PrismaService();
+const tenantForCart = new TenantContext();
 const service = new CartService(
   prismaForCart,
-  new TenantContext(),
+  tenantForCart,
   new PromoRedemptionService(prismaForCart),
+  new GymLocaleService(prismaForCart as unknown as TenantPrismaService, tenantForCart),
 );
 
 function anon(gymId: string): TenantState {

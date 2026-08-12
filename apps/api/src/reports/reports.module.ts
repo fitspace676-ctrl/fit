@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { GymsModule } from '../gyms/gyms.module';
 import { ReportDeliveryService } from './report-delivery.service';
 import { ReportDrilldownController } from './report-drilldown.controller';
 import { ReportDrilldownService } from './report-drilldown.service';
@@ -19,7 +20,9 @@ import { ReportsService } from './reports.service';
  * for delivery (Prisma + Redis come from their global modules).
  */
 @Module({
-  imports: [AuthModule],
+  // `GymsModule` for `GymLocaleService`: every report is denominated in the gym's
+  // configured currency instead of one inferred from its payment rows.
+  imports: [AuthModule, GymsModule],
   controllers: [ReportsController, ReportDrilldownController],
   providers: [ReportsService, ReportDeliveryService, ReportDrilldownService],
   exports: [ReportDrilldownService],

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { GymLocaleService } from './gym-locale.service';
+import { GymMemberIntakeService } from './gym-member-intake.service';
 import { GymSettingsController } from './gym-settings.controller';
 import { GymSettingsService } from './gym-settings.service';
 import { GymsController } from './gyms.controller';
@@ -21,9 +22,11 @@ import { GymsService } from './gyms.service';
  */
 @Module({
   controllers: [GymsController, GymSettingsController],
-  providers: [GymsService, GymSettingsService, GymLocaleService],
+  providers: [GymsService, GymSettingsService, GymLocaleService, GymMemberIntakeService],
   // Exported so the reporting surfaces can read the gym's currency + timezone
-  // from settings instead of guessing them from the data they are reporting on.
-  exports: [GymLocaleService],
+  // from settings instead of guessing them from the data they are reporting on,
+  // and so member creation can enforce the intake fields the gym asked for
+  // rather than trusting the client to have rendered them.
+  exports: [GymLocaleService, GymMemberIntakeService],
 })
 export class GymsModule {}

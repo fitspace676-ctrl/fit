@@ -69,12 +69,16 @@ function setup(over?: {
   const findUnique = vi.fn(() =>
     Promise.resolve(
       over?.settings !== undefined
-        ? { settings: over.settings }
+        ? { name: over.gymName ?? 'Downtown', settings: over.settings }
         : over?.gymName === undefined
           ? { name: 'Downtown' }
           : { name: over.gymName },
     ),
   );
+  // `recordSale` reads the gym's accepted payment methods; `findFirst`, not
+  // `findUnique`, because `Gym` is the tenant root and the read pins its own id.
+  // Undefined settings mean "never configured", which defaults to accepting everything.
+  const gymFindFirst = vi.fn((_args: unknown) => Promise.resolve({ settings: over?.settings }));
   const orderCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'order-1' }));
   const paymentCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'pay-1' }));
   const groupBy = vi.fn((_args: unknown) => Promise.resolve(over?.grouped ?? []));
@@ -88,7 +92,7 @@ function setup(over?: {
   const gymMemberFindFirst = vi.fn((_args: unknown) => Promise.resolve(over?.staff ?? null));
   const prisma = {
     client: {
-      gym: { findUnique },
+      gym: { findUnique, findFirst: gymFindFirst },
       gymMember: { findFirst: gymMemberFindFirst },
       payment: { groupBy },
       $transaction,
@@ -101,6 +105,7 @@ function setup(over?: {
     enrollMember,
     sendReceiptEmail,
     findUnique,
+    gymFindFirst,
     gymMemberFindFirst,
     orderCreate,
     paymentCreate,
@@ -117,8 +122,16 @@ describe('OrdersService.sendReceipt', () => {
     const result = await service.sendReceipt(input);
 
     expect(result).toEqual({ delivered: true });
-    expect(findUnique).toHaveBeenCalledWith({ where: { id: 'gym-1' }, select: { name: true } });
-    expect(sendReceiptEmail).toHaveBeenCalledWith('buyer@example.com', input.receipt, 'Downtown');
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: 'gym-1' },
+      select: { name: true, settings: true },
+    });
+    expect(sendReceiptEmail).toHaveBeenCalledWith('buyer@example.com', input.receipt, 'Downtown', {
+      address: null,
+      phone: null,
+      email: null,
+      website: null,
+    });
   });
 
   it('passes undefined for the gym name when the tenant lookup misses', async () => {
@@ -126,13 +139,56 @@ describe('OrdersService.sendReceipt', () => {
 
     await service.sendReceipt(input);
 
-    expect(sendReceiptEmail).toHaveBeenCalledWith('buyer@example.com', input.receipt, undefined);
+    expect(sendReceiptEmail).toHaveBeenCalledWith('buyer@example.com', input.receipt, undefined, {
+      address: null,
+      phone: null,
+      email: null,
+      website: null,
+    });
+  });
+
+  it('forwards the gym’s business contact details so they print on the receipt', async () => {
+    const { service, sendReceiptEmail } = setup({
+      settings: {
+        business: {
+          address: '12 Rustaveli Ave',
+          phone: '+995 322 00 00 00',
+          email: 'hello@downtown.example',
+          website: 'downtown.example',
+        },
+      },
+    });
+
+    await service.sendReceipt(input);
+
+    expect(sendReceiptEmail).toHaveBeenCalledWith('buyer@example.com', input.receipt, 'Downtown', {
+      address: '12 Rustaveli Ave',
+      phone: '+995 322 00 00 00',
+      email: 'hello@downtown.example',
+      website: 'downtown.example',
+    });
   });
 
   it('reports delivered:false when email delivery is unconfigured', async () => {
     const { service } = setup({ delivered: false });
 
     expect(await service.sendReceipt(input)).toEqual({ delivered: false });
+  });
+
+  it('refuses to email a receipt when the gym has switched emailed receipts off', async () => {
+    // The till hides the control, but a stale tab or a direct call still reaches here
+    // — and "we do not email customers" is not a decision either may overrule.
+    const { service, sendReceiptEmail } = setup({ settings: { receipt: { emailEnabled: false } } });
+
+    await expect(service.sendReceipt(input)).rejects.toBeInstanceOf(BadRequestException);
+    expect(sendReceiptEmail).not.toHaveBeenCalled();
+  });
+
+  it('still emails when only printed receipts are switched off', async () => {
+    const { service, sendReceiptEmail } = setup({ settings: { receipt: { printEnabled: false } } });
+
+    expect(await service.sendReceipt(input)).toEqual({ delivered: true });
+    expect(sendReceiptEmail).toHaveBeenCalled();
   });
 });
 
@@ -254,6 +310,41 @@ describe('OrdersService.recordSale', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a sale settled by a method the gym has switched off', async () => {
+    // Settings → Payments with Card off; the till would not offer the button, but a
+    // stale tab or a direct API call still can — and must not get a sale through.
+    const { service, orderCreate, paymentCreate } = setup({
+      settings: { payments: { acceptCard: false } },
+    });
+
+    await expect(service.recordSale(saleInput)).rejects.toBeInstanceOf(BadRequestException);
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses before enrolling, so a blocked method never leaves a subscription behind', async () => {
+    const { service, enrollMember } = setup({ settings: { payments: { acceptCard: false } } });
+
+    await expect(service.recordSale({ ...saleInput, planId: 'plan-1' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(enrollMember).not.toHaveBeenCalled();
+  });
+
+  it('accepts a method the gym still has switched on', async () => {
+    const { service, orderCreate, gymFindFirst } = setup({
+      settings: { payments: { acceptCash: false, acceptCard: true } },
+    });
+
+    await service.recordSale(saleInput);
+
+    expect(gymFindFirst).toHaveBeenCalledWith({
+      where: { id: 'gym-1' },
+      select: { settings: true },
+    });
+    expect(orderCreate).toHaveBeenCalled();
   });
 
   it('does not enrol anyone on an ordinary product sale', async () => {

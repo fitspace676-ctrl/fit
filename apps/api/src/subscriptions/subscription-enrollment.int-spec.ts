@@ -115,7 +115,8 @@ describe('SubscriptionEnrollmentService (integration)', () => {
       currency: 'GEL',
       status: 'PAID',
     });
-    expect(invoice.number).toMatch(/^\d{4}-\d{4}$/);
+    // Composed from Settings → Invoicing; a gym with no settings gets the defaults.
+    expect(invoice.number).toMatch(/^INV-\d{4}-\d{4}$/);
   });
 
   it('rejects a second enrolment while a live subscription exists (DB uniqueness backstop)', async () => {

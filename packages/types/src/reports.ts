@@ -558,6 +558,16 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
 export const REPORT_CATALOG: ReportDefinition[] = REPORT_KEYS.map((key) => REPORT_DEFINITIONS[key]);
 
 /**
+ * The report the hub opens on when the URL names none.
+ *
+ * The hub used to open on nothing: an empty preview pane beside an index where no
+ * row was marked, which is a screen with no answer to "what am I looking at". The
+ * first report in {@link REPORT_KEYS} is the catalogue's own idea of the most
+ * general one, so it is what the screen leads with.
+ */
+export const DEFAULT_REPORT_KEY: ReportKey = REPORT_KEYS[0];
+
+/**
  * The catalogue grouped for the hub, in {@link REPORT_SEGMENTS} order, with each
  * segment's reports in {@link REPORT_KEYS} order.
  *

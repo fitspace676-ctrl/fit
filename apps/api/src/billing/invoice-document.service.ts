@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { gymPublicContact } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { InvoicePdfService } from './invoice-pdf.service';
@@ -28,7 +29,7 @@ const INVOICE_PDF_SELECT = {
   amount: true,
   currency: true,
   pdfUrl: true,
-  gym: { select: { name: true } },
+  gym: { select: { name: true, settings: true } },
   member: { select: { user: { select: { name: true, email: true } } } },
 } as const;
 
@@ -86,6 +87,10 @@ export class InvoiceDocumentService {
       amount: invoice.amount,
       currency: invoice.currency,
       gymName: invoice.gym.name,
+      // Settings → Business info, printed under the gym name. Read at render time
+      // and then frozen into the cached PDF, which is right: an invoice is a
+      // snapshot of who billed you on the day, not a live view of the gym.
+      gymContact: gymPublicContact(invoice.gym.settings),
       memberName: invoice.member?.user.name ?? null,
       memberEmail: invoice.member?.user.email ?? null,
     });

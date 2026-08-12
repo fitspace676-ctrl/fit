@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -10,7 +10,8 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { ToggleButton } from '@astryxdesign/core/ToggleButton';
 import { Stack } from '@astryxdesign/core/Stack';
 import { Text } from '@astryxdesign/core/Text';
-import type { Gender, GymMemberIntakeSettings, MemberStatus } from '@fit/types';
+import { requiredIntakeFields } from '@fit/types';
+import type { Gender, GymMemberIntakeSettings, MemberIntakeField, MemberStatus } from '@fit/types';
 import { Btn, Icon } from '@/components/ui';
 import { composeName } from '@/lib/member-intake';
 import {
@@ -169,6 +170,27 @@ const styles = stylex.create({
   },
 });
 
+/**
+ * The `form.*` message key each intake toggle is named by when a submit is blocked
+ * for leaving it blank. Mostly the field's own label; `emergencyContact` and
+ * `medicalNotes` are one toggle over a whole section, so they borrow the section
+ * heading rather than naming one of their two inputs.
+ */
+const INTAKE_FIELD_LABEL: Record<MemberIntakeField, string> = {
+  name: 'name',
+  surname: 'surname',
+  email: 'email',
+  phone: 'phone',
+  gender: 'gender',
+  dateOfBirth: 'dateOfBirth',
+  personalId: 'personalId',
+  address: 'address',
+  emergencyContact: 'emergencySection',
+  membershipPlan: 'plan',
+  paymentMethod: 'paymentMethod',
+  medicalNotes: 'medicalSection',
+};
+
 /** The editable profile fields a member's create/edit form seeds from + submits. */
 export interface MemberFormInitial {
   name: string;
@@ -259,6 +281,25 @@ export function MemberForm(props: Props) {
   const show = (field: keyof GymMemberIntakeSettings): boolean =>
     isEdit || props.intake?.[field] !== false;
 
+  /**
+   * The fields this gym switched on, which are therefore mandatory — a toggle in
+   * Settings → Membership means "ask for this", not "offer a box staff may ignore".
+   *
+   * Create only. An edit must stay saveable for someone enrolled back when the
+   * field was off: their address is genuinely blank, and refusing to save an
+   * unrelated phone-number correction until a staffer invents one would punish the
+   * gym for having changed its own setting.
+   */
+  const requiredSet = useMemo(
+    () =>
+      new Set<MemberIntakeField>(isEdit || !props.intake ? [] : requiredIntakeFields(props.intake)),
+    [isEdit, props.intake],
+  );
+  const required = (field: MemberIntakeField): boolean => requiredSet.has(field);
+  /** The "· Optional" label suffix, dropped once a field is mandatory. */
+  const optionalLabel = (field: MemberIntakeField): string | undefined =>
+    required(field) ? undefined : t('form.optional');
+
   const [name, setName] = useState(seed?.name ?? '');
   const [surname, setSurname] = useState('');
   const [email, setEmail] = useState(seed?.email ?? '');
@@ -292,6 +333,36 @@ export function MemberForm(props: Props) {
   function onSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setError(null);
+
+    // The API enforces the same policy (`MEMBER_INTAKE_REQUIRED`), so this is not
+    // the guard — it is the courtesy: one message naming every missing field beats
+    // a round trip that reports them one at a time. Needed in JS rather than left
+    // to the browser because the Astryx `TextInput` renders `aria-required` without
+    // the native `required` attribute, so `phone` and `surname` would sail through.
+    const filled = (value: string): boolean => value.trim().length > 0;
+    const supplied: Record<MemberIntakeField, boolean> = {
+      name: filled(name),
+      surname: filled(surname),
+      email: filled(email),
+      phone: filled(phone),
+      gender: filled(gender),
+      dateOfBirth: filled(dateOfBirth),
+      personalId: filled(personalId),
+      address: filled(address),
+      emergencyContact: filled(emergencyName) && filled(emergencyPhone),
+      membershipPlan: filled(planId),
+      paymentMethod: filled(paymentMethod),
+      medicalNotes: filled(medicalNotes),
+    };
+    const missing = [...requiredSet].filter((field) => !supplied[field]);
+    if (missing.length > 0) {
+      setError(
+        t('form.requiredMissing', {
+          fields: missing.map((field) => t(`form.${INTAKE_FIELD_LABEL[field]}`)).join(', '),
+        }),
+      );
+      return;
+    }
 
     // Shared profile fields; empty strings clear on the API (see `memberProfileShape`).
     const profile = {
@@ -384,7 +455,8 @@ export function MemberForm(props: Props) {
               label={t('form.surname')}
               htmlName="surname"
               type="text"
-              isOptional
+              isRequired={required('surname')}
+              isOptional={!required('surname')}
               size="lg"
               width="100%"
               value={surname}
@@ -415,7 +487,8 @@ export function MemberForm(props: Props) {
               label={t('form.phone')}
               htmlName="phone"
               type="text"
-              isOptional
+              isRequired={required('phone')}
+              isOptional={!required('phone')}
               size="lg"
               width="100%"
               value={phone}
@@ -430,12 +503,13 @@ export function MemberForm(props: Props) {
                 <LabeledField
                   label={t('form.dateOfBirth')}
                   htmlFor="dateOfBirth"
-                  optional={t('form.optional')}
+                  optional={optionalLabel('dateOfBirth')}
                 >
                   <input
                     id="dateOfBirth"
                     name="dateOfBirth"
                     type="date"
+                    required={required('dateOfBirth')}
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     {...stylex.props(styles.field)}
@@ -446,11 +520,12 @@ export function MemberForm(props: Props) {
                 <LabeledField
                   label={t('form.gender')}
                   htmlFor="gender"
-                  optional={t('form.optional')}
+                  optional={optionalLabel('gender')}
                 >
                   <select
                     id="gender"
                     name="gender"
+                    required={required('gender')}
                     value={gender}
                     onChange={(e) => setGender(e.target.value)}
                     {...stylex.props(styles.field)}
@@ -466,21 +541,22 @@ export function MemberForm(props: Props) {
           ) : null}
 
           {/*
-            National id. Optional here even though the public join wizard requires
-            it: a member added at the desk may not have their document to hand,
-            and refusing to record them until they do would be worse than a blank
-            field staff can fill in later.
+            National id. Whether the desk may skip it is the gym's call, not this
+            form's: a gym that leaves the toggle on is saying it wants the document
+            recorded at signup, while one that expects members to arrive without it
+            switches the field off rather than collecting blanks.
           */}
           {show('personalId') && (
             <LabeledField
               label={t('form.personalId')}
               htmlFor="personalId"
-              optional={t('form.optional')}
+              optional={optionalLabel('personalId')}
             >
               <input
                 id="personalId"
                 name="personalId"
                 type="text"
+                required={required('personalId')}
                 value={personalId}
                 onChange={(e) => setPersonalId(e.target.value)}
                 {...stylex.props(styles.field)}
@@ -489,11 +565,16 @@ export function MemberForm(props: Props) {
           )}
 
           {show('address') && (
-            <LabeledField label={t('form.address')} htmlFor="address" optional={t('form.optional')}>
+            <LabeledField
+              label={t('form.address')}
+              htmlFor="address"
+              optional={optionalLabel('address')}
+            >
               <input
                 id="address"
                 name="address"
                 type="text"
+                required={required('address')}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 {...stylex.props(styles.field)}
@@ -511,15 +592,18 @@ export function MemberForm(props: Props) {
               {t('form.emergencySection')}
             </Text>
             <div {...stylex.props(styles.grid2)}>
+              {/* One toggle over both inputs — a next of kin with no number is
+                  not a next of kin, so neither half stands alone. */}
               <LabeledField
                 label={t('form.emergencyName')}
                 htmlFor="emergencyName"
-                optional={t('form.optional')}
+                optional={optionalLabel('emergencyContact')}
               >
                 <input
                   id="emergencyName"
                   name="emergencyName"
                   type="text"
+                  required={required('emergencyContact')}
                   value={emergencyName}
                   onChange={(e) => setEmergencyName(e.target.value)}
                   {...stylex.props(styles.field)}
@@ -528,12 +612,13 @@ export function MemberForm(props: Props) {
               <LabeledField
                 label={t('form.emergencyPhone')}
                 htmlFor="emergencyPhone"
-                optional={t('form.optional')}
+                optional={optionalLabel('emergencyContact')}
               >
                 <input
                   id="emergencyPhone"
                   name="emergencyPhone"
                   type="text"
+                  required={required('emergencyContact')}
                   value={emergencyPhone}
                   onChange={(e) => setEmergencyPhone(e.target.value)}
                   {...stylex.props(styles.field)}
@@ -617,12 +702,13 @@ export function MemberForm(props: Props) {
               <LabeledField
                 label={t('form.medicalSection')}
                 htmlFor="medicalNotes"
-                optional={t('form.optional')}
+                optional={optionalLabel('medicalNotes')}
               >
                 <textarea
                   id="medicalNotes"
                   name="medicalNotes"
                   rows={3}
+                  required={required('medicalNotes')}
                   placeholder={t('form.medicalPlaceholder')}
                   value={medicalNotes}
                   onChange={(e) => setMedicalNotes(e.target.value)}

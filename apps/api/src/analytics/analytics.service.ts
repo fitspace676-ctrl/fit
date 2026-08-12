@@ -13,6 +13,7 @@ import {
   type OrderChannel,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 
 /** Milliseconds in a day, for window math. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -49,7 +50,10 @@ interface WindowSpec {
  */
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly locale: GymLocaleService,
+  ) {}
 
   /** One range-windowed analytics snapshot for the gym's dashboards + charts. */
   async getAnalytics(
@@ -95,19 +99,15 @@ export class AnalyticsService {
   /* ---------------------------------------------------------------------- */
 
   /**
-   * The gym's reporting currency. Read from the most recent captured payment (the
-   * real currency money changed hands in); falls back to the schema default `USD`
-   * when the gym has taken no payments yet, so the empty-state UI still labels its
-   * zeros. Not fabricated — it is the currency of an actual row when one exists.
+   * The gym's reporting currency — its configured `settings.locale.currency`.
+   *
+   * This used to be inferred from the most recent captured payment, which meant a
+   * gym that had taken no money was labelled `USD` no matter what it had chosen in
+   * Settings, and one that had taken a single foreign payment was relabelled by it.
+   * The gym states its currency explicitly; that is the answer.
    */
   private async resolveCurrency(): Promise<string> {
-    const db = this.prisma.client;
-    const latest = await db.payment.findFirst({
-      where: { status: PaymentStatus.CAPTURED },
-      orderBy: { createdAt: 'desc' },
-      select: { currency: true },
-    });
-    return latest?.currency ?? 'USD';
+    return (await this.locale.get()).currency;
   }
 
   /** Captured revenue in the window, with a delta vs. the previous equal window. */

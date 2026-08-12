@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@fit/db';
+import { MARKETING_MERGE_FIELD_DEFS } from '@fit/types';
 import { MarketingService } from './marketing.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -55,6 +56,13 @@ function campaignRecord(over?: Record<string, unknown>) {
   };
 }
 
+/**
+ * The gym row `catalog()` reads settings from — mutable per test, reset in
+ * `beforeEach`. `null` models a tenant context pointing at a gym row that no
+ * longer exists (e.g. a deleted gym).
+ */
+let gymRow: { name: string; settings: unknown } | null;
+
 function setup(models?: Record<string, Record<string, unknown>>) {
   const make = (overrides?: Record<string, unknown>) => ({
     findMany: vi.fn<(a: AnyArgs) => Promise<unknown[]>>(() => Promise.resolve([])),
@@ -79,6 +87,7 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     booking: make(models?.booking),
     order: make(models?.order),
     promoRedemption: make(models?.promoRedemption),
+    gym: make({ findFirst: vi.fn(() => Promise.resolve(gymRow)), ...models?.gym }),
     // Redemption writes the ledger row and bumps the counter together, so the
     // transaction runs its callback against this same mock client.
     $transaction: vi.fn((cb: (tx: unknown) => unknown) => cb(client)),
@@ -89,13 +98,56 @@ function setup(models?: Record<string, Record<string, unknown>>) {
   return { service: new MarketingService(prisma, tenant), client };
 }
 
+beforeEach(() => {
+  gymRow = { name: 'FitSpace', settings: {} };
+});
+
 afterEach(() => vi.restoreAllMocks());
 
 describe('MarketingService.catalog', () => {
-  it('returns the channel + merge-field catalogs', () => {
+  it('returns the channel catalog', async () => {
     const { service } = setup();
-    const catalog = service.catalog();
+    const catalog = await service.catalog();
     expect(catalog.channels.map((c) => c.value)).toContain('email');
+  });
+
+  it('offers every built-in field by default', async () => {
+    const { service } = setup();
+    const catalog = await service.catalog();
+
+    expect(catalog.mergeFields.some((m) => m.token === '{{first_name}}')).toBe(true);
+    expect(catalog.mergeFields).toHaveLength(MARKETING_MERGE_FIELD_DEFS.length);
+  });
+
+  it('omits a field the gym switched off', async () => {
+    gymRow!.settings = { marketingFields: { phone: false } };
+    const { service } = setup();
+
+    const catalog = await service.catalog();
+
+    expect(catalog.mergeFields.some((m) => m.token === '{{phone}}')).toBe(false);
+    expect(catalog.mergeFields.some((m) => m.token === '{{email}}')).toBe(true);
+  });
+
+  // A retired token must never come back through the picker.
+  it('never offers a retired token', async () => {
+    const { service } = setup();
+    const catalog = await service.catalog();
+
+    expect(catalog.mergeFields.some((m) => m.token === '{{class_name}}')).toBe(false);
+    expect(catalog.mergeFields.some((m) => m.token === '{{location}}')).toBe(false);
+  });
+
+  // A tenant context can point at a gym row that no longer exists (e.g. a
+  // deleted gym); `findFirst` then resolves null, and the missing row must
+  // fall through to the full default palette rather than throwing a 500.
+  it('falls back to the default palette when the gym row is missing', async () => {
+    gymRow = null;
+    const { service } = setup();
+
+    const catalog = await service.catalog();
+
+    expect(catalog.mergeFields).toHaveLength(MARKETING_MERGE_FIELD_DEFS.length);
     expect(catalog.mergeFields.some((m) => m.token === '{{first_name}}')).toBe(true);
   });
 });

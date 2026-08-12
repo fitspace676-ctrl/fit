@@ -143,8 +143,10 @@ export type GetAdminSubscriptionPlanResponse = AdminSubscriptionPlanDetail;
  * The editable subscription-plan fields shared by the create + update bodies.
  * `name` is required; `description` is free text (empty allowed, normalised to
  * `''`). `priceAmount` is the per-interval price in the currency's minor units — a
- * non-negative integer, defaulting to `0`. `currency` is a 3-letter ISO-4217 code,
- * upper-cased and defaulting to `USD`. `interval` defaults to `MONTH`. `features`
+ * non-negative integer, defaulting to `0`. `currency` is not client-settable — the
+ * API stamps the gym's own `settings.locale.currency` when the plan is created, so
+ * every plan is priced in the currency the gym configured. `interval` defaults to
+ * `MONTH`. `features`
  * is the ordered perk list, each a short non-empty label, capped at
  * {@link MAX_SUBSCRIPTION_FEATURES}. `popular` defaults to `false`.
  * `freezeDaysPerPeriod` is the freeze allowance (max days a member may pause the
@@ -163,12 +165,6 @@ const subscriptionPlanProfileFields = {
     .int('Price must be a whole number of minor units')
     .nonnegative('Price cannot be negative')
     .default(0),
-  currency: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .length(3, 'Currency must be a 3-letter ISO code')
-    .default('USD'),
   interval: subscriptionIntervalSchema.default('MONTH'),
   features: z
     .array(z.string().trim().min(1, 'A feature cannot be empty').max(120))

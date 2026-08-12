@@ -294,10 +294,14 @@ export type GetAdminProductResponse = AdminProductDetail;
  * The editable product fields shared by the create + update bodies. `name` is
  * required; `description` is free text (empty allowed, normalised to `''`).
  * `priceAmount` is the base price in the currency's minor units — a non-negative
- * integer, defaulting to `0`. `currency` is a 3-letter ISO-4217 code, upper-cased
- * and defaulting to `USD`. `images` is the ordered gallery of R2 public URLs (each
- * a valid URL), capped at {@link MAX_PRODUCT_IMAGES}. `variants` is the full
+ * integer, defaulting to `0`. `images` is the ordered gallery of R2 public URLs
+ * (each a valid URL), capped at {@link MAX_PRODUCT_IMAGES}. `variants` is the full
  * variant list, defaulted to an empty array.
+ *
+ * `currency` is deliberately absent: a gym prices in exactly one currency, the one
+ * on `settings.locale.currency`, and the API stamps it on creation. A per-product
+ * override is what let a GEL gym end up with USD products, so the field is not
+ * client-settable at all — an existing product keeps whatever it was created in.
  */
 const productProfileFields = {
   name: z.string().trim().min(1, 'Name is required').max(160),
@@ -317,12 +321,6 @@ const productProfileFields = {
         .nullable(),
     )
     .default(null),
-  currency: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .length(3, 'Currency must be a 3-letter ISO code')
-    .default('USD'),
   images: z
     .array(z.string().trim().max(2048).url('Each image must be a valid URL'))
     .max(MAX_PRODUCT_IMAGES, `A product can have at most ${MAX_PRODUCT_IMAGES} images`)

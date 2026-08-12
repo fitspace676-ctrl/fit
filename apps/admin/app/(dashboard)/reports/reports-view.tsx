@@ -58,6 +58,7 @@ import type {
   ReportKey,
   ReportRange,
   ReportResult,
+  ReportSegment,
 } from '@fit/types';
 import { Icon, type IconName } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
@@ -112,150 +113,257 @@ const styles = stylex.create({
   },
 
   /* ---------------------------------------------------------------------- */
-  /*  Split                                                                  */
+  /*  Body                                                                   */
   /* ---------------------------------------------------------------------- */
 
-  // Below 1024px the index stacks above the preview and drops its own scroll
-  // (`indexScroll` re-opens the page's), because a nested scroll region inside a
-  // scrolling page is the wrong feel on a narrow screen.
-  split: {
-    display: 'grid',
-    alignItems: 'start',
-    gap: '1rem',
-    gridTemplateColumns: {
-      default: 'minmax(0, 1fr)',
-      '@media (min-width: 1024px)': 'minmax(0, 20rem) minmax(0, 1fr)',
-    },
-  },
-
-  /* ---------------------------------------------------------------------- */
-  /*  Index rail                                                             */
-  /* ---------------------------------------------------------------------- */
-
-  index: {
-    overflow: 'hidden',
-    // Sticky so the index stays put while a long preview table scrolls beside it.
-    //
-    // The offset is NOT arbitrary: `admin-shell.tsx` pins its 3.5rem top bar at
-    // `top: 0` with a higher z-index, so a rail stuck at `top: 1rem` slides under
-    // it and loses its first group heading. 3.5rem clears the bar; the extra 1rem
-    // is the gap between the two.
-    position: {
-      default: 'static',
-      '@media (min-width: 1024px)': 'sticky',
-    },
-    top: 'calc(3.5rem + 1rem)',
-  },
-  indexScroll: {
-    overflowY: {
-      default: 'visible',
-      '@media (min-width: 1024px)': 'auto',
-    },
-    // The viewport, less the sticky offset above and the shell's 1.5rem page
-    // gutter below, so the rail ends ON the fold rather than running past it.
-    maxHeight: {
-      default: 'none',
-      '@media (min-width: 1024px)': 'calc(100dvh - 6rem)',
-    },
-    overscrollBehavior: 'contain',
-  },
-  // Sticky inside the rail's own scroll: the segment a row belongs to stays
-  // legible while scrolling past it, which is what makes 27 rows navigable.
+  // The catalogue is TWO HORIZONTAL STRIPS above a full-width table, not a rail
+  // beside one.
   //
-  // A RECESSED BAND, not a row. The header used to sit on the card colour in
-  // secondary ink, which put it on the same plane as the rows and in weaker ink
-  // than their names — so the thing naming the group read as less important than
-  // the group, and the eye slid past it. It now drops to the page's own body
-  // colour, a step DARKER than the card the rows sit on, so the band reads as the
-  // seam between two groups rather than as another entry in the list.
+  // The rail was a 20rem column that, once the segments collapsed, held five short
+  // headings and then roughly nine hundred pixels of nothing, while a five-column
+  // table of currency ran in the remaining two thirds. A split earns its width when
+  // both sides have something to say; this one had stopped. Promoting the segments
+  // to a tab strip and their reports to a row of chips costs about 7rem of height,
+  // returns the full page width to the figures, and puts the choice that governs
+  // the screen at the top of it rather than off to one side.
   //
-  // Body colour rather than `--color-background-muted` on purpose: muted is the
-  // row hover, and a header that shares the hover's fill would make every hovered
-  // row look like a group heading.
-  groupHead: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 1,
+  // The objection this layout used to face — that the catalogue pushed the preview
+  // off screen — was about a ~1600px grid of cards. Two strips are nowhere near
+  // that: the table's first rows are still above the fold.
+  body: {
     display: 'flex',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: '0.5rem',
-    backgroundColor: 'var(--color-background-body)',
-    // Bottom edge only. The previous group's last row already draws a hairline,
-    // and that hairline is this band's top edge; adding one here would double it.
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
-    paddingInline: '0.875rem',
-    paddingBlock: '0.5625rem',
+    flexDirection: 'column',
+    gap: '1rem',
   },
-  // Full-strength ink. At this size, uppercase and tracked out, it still reads as
-  // a label rather than competing with the report names below it.
-  groupLabel: {
-    margin: 0,
-    fontSize: '0.75rem',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-    color: 'var(--color-text-primary)',
+
+  /* ---------------------------------------------------------------------- */
+  /*  Segment tabs                                                           */
+  /* ---------------------------------------------------------------------- */
+
+  // The five segments, as the screen's top-level choice.
+  //
+  // ONE ACCENT ON THE SCREEN, and it is the brand's. A previous pass coded each
+  // segment in its own hue — blue, teal, green, orange, purple — which did make the
+  // groups findable, but it put five accents on a console that already has a brand
+  // colour, and every tinted control then had to argue with the next one about
+  // which was the important thing. The segment is named in words directly above its
+  // own reports; it does not also need a colour. Indigo is now the only non-neutral
+  // in either strip, and it means exactly one thing: THIS is the one you are on.
+  //
+  // Emphasis comes from CONTRAST AND SCALE instead of hue. The labels were 11px
+  // uppercase captions in the old rail, which is the size you set something at when
+  // it annotates something more important than itself. Which of the five families
+  // you are in is the first decision this screen asks for, so the labels are 16px,
+  // in sentence case, at the scale of a page-level control.
+  //
+  // Sentence case, not the tracked-out caps: "Classes & training" in 12px caps at
+  // 0.12em is wider than the same words at 16px, and five of those overflow before
+  // the strip ever feels big.
+  // Centred, and on its own recessed track.
+  //
+  // NO RULE UNDER THE STRIP. A full-width hairline is what an underline tab bar
+  // needs, because the underline marking the active tab has to sit IN something.
+  // Once the strip is a self-contained track that argument disappears: the group
+  // has its own edges, so the line was only drawing a second horizontal rule a few
+  // pixels above the card's own.
+  //
+  // The track is what "more styled" gets spent on. A recessed 5% well with a raised
+  // indigo pill riding in it is a real material relationship — pressed into the
+  // page, one segment lifted out — where a row of bare words underlined at one end
+  // is just text with a mark under it.
+  tabsWrap: {
+    display: 'flex',
+    justifyContent: 'center',
   },
-  // Name only, one line. The purpose used to sit here as a second line and it
-  // ellipsised on 26 of the 27 rows, because the catalogue's descriptions run to
-  // twenty words and the rail is 20rem wide. A column of "…" is noise, and it
-  // doubled the row height, so barely a dozen reports fit on screen at once. The
-  // purpose is on the row's `title` and, in full and unclamped, in the pane the
-  // row opens.
-  row: {
-    display: 'grid',
-    gridTemplateColumns: 'auto minmax(0, 1fr)',
+  tabs: {
+    display: 'inline-flex',
     alignItems: 'center',
-    gap: '0.625rem',
-    width: '100%',
-    textAlign: 'left',
-    paddingInline: '0.875rem',
-    paddingBlock: '0.5rem',
+    gap: '0.125rem',
+    maxWidth: '100%',
+    // The track scrolls rather than wraps on a narrow screen: a segmented control
+    // that reflows to two lines stops reading as one row of peers.
+    overflowX: 'auto',
+    overscrollBehaviorInline: 'contain',
+    borderRadius: '0.875rem',
+    backgroundColor: 'var(--color-overlay-hover)',
+    padding: '0.25rem',
+  },
+  tab: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    flexShrink: 0,
     borderWidth: 0,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
+    borderRadius: '0.625rem',
     backgroundColor: 'transparent',
+    paddingInline: '1rem',
+    paddingBlock: '0.5625rem',
     cursor: 'pointer',
-    transitionProperty: 'background-color',
+    whiteSpace: 'nowrap',
+    fontSize: '1rem',
+    fontWeight: 600,
+    letterSpacing: '-0.015em',
+    color: 'var(--color-text-secondary)',
+    transitionProperty: 'background-color, color',
     transitionDuration: {
-      default: '160ms',
+      default: '140ms',
       '@media (prefers-reduced-motion: reduce)': '0ms',
     },
     ':hover:not(:disabled)': {
-      backgroundColor: 'var(--color-background-muted)',
+      color: 'var(--color-text-primary)',
+      backgroundColor: 'var(--color-overlay-pressed)',
+    },
+    ':focus-visible': {
+      outline: '2px solid var(--color-accent)',
+      outlineOffset: '2px',
     },
     ':disabled': {
       cursor: 'default',
     },
   },
-  // The selected row is marked by an accent rule on its leading edge, inset so it
-  // reads as part of the rail rather than as a floating ring.
-  rowActive: {
-    backgroundColor: 'var(--color-background-muted)',
-    boxShadow: 'inset 2px 0 0 0 var(--color-accent)',
+  // Solid brand indigo, labelled in `--color-background-card` for the same reason
+  // the chips are — `--color-on-accent` is white in both themes, and white on the
+  // dark theme's paler indigo measures 3.10:1. The card colour inverts with the
+  // theme and clears AA on both (4.88:1 dark, 5.26:1 light).
+  //
+  // The same fill as the active chip, deliberately: indigo means "current" on this
+  // screen, and it should not mean one thing in the top row and another in the
+  // second. Scale carries the hierarchy instead — 16px for the family you are in,
+  // 13px for the report you are reading.
+  tabActive: {
+    backgroundColor: {
+      default: 'var(--color-accent)',
+      ':hover:not(:disabled)': 'var(--color-accent)',
+    },
+    color: {
+      default: 'var(--color-background-card)',
+      ':hover:not(:disabled)': 'var(--color-background-card)',
+    },
   },
-  rowIcon: {
+  // How many reports the tab leads to. Mono and tabular so the five counts read as
+  // figures rather than drifting with their glyph widths, and carried on the tab's
+  // OWN ink at reduced opacity — a fixed grey would be unreadable once the tab
+  // under it fills with indigo.
+  tabCount: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+    fontSize: '0.75rem',
+    fontWeight: 400,
+    color: 'currentColor',
+    opacity: 0.6,
+  },
+  /* ---------------------------------------------------------------------- */
+  /*  Report chips                                                           */
+  /* ---------------------------------------------------------------------- */
+
+  // The active segment's reports, as a row of pills.
+  //
+  // WRAP, not scroll — the opposite call from the tab strip above, and for the
+  // opposite reason. The tabs are a fixed set of five the reader has to see as
+  // peers, so they stay on one line. These are up to seven of a changing set, and
+  // any of them may be the one wanted; a chip hidden past a horizontal edge is a
+  // report the reader will not find. Two rows of chips is a fine shape, a chip
+  // scrolled out of view is not.
+  // Centred under the centred track, and spaced off it — with the strip's hairline
+  // gone, the two rows need air between them or they read as one block.
+  chipRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    marginTop: '0.75rem',
+  },
+  // A SOFT CHIP: filled, borderless, on a moderate radius.
+  //
+  // The version this replaces was an outlined full-pill with the icon sitting on
+  // its own filled disc inside it — a bubble in a capsule. Three edges were being
+  // drawn per chip (the pill's stroke, the disc's fill, the glyph itself) to
+  // deliver one word, and seven of those in a row is a strip of lozenges rather
+  // than a set of choices. Every one of those edges is gone:
+  //
+  //   • No border. A 5%-tint fill gives the chip a shape without a stroke, which
+  //     is what stops seven of them reading as seven outlines.
+  //   • No disc under the icon. The glyph sits on the chip's own ink, at the
+  //     label's weight, and reads as part of the word rather than a badge beside
+  //     it.
+  //   • Radius 0.5rem, not a capsule. Full pills on dense tool chrome read as
+  //     tags — something applied to a record — and these are navigation.
+  //
+  // Selection is the one filled thing: solid brand indigo, white label, white
+  // glyph. Against six soft-grey chips it needs no border, no tint and no second
+  // hue to be found.
+  chip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.4375rem',
+    maxWidth: '100%',
+    borderWidth: 0,
+    borderRadius: '0.5rem',
+    backgroundColor: 'var(--color-overlay-hover)',
+    paddingInline: '0.6875rem',
+    paddingBlock: '0.4375rem',
+    cursor: 'pointer',
+    color: 'var(--color-text-secondary)',
+    transitionProperty: 'background-color, color',
+    transitionDuration: {
+      default: '140ms',
+      '@media (prefers-reduced-motion: reduce)': '0ms',
+    },
+    ':hover:not(:disabled)': {
+      color: 'var(--color-text-primary)',
+      backgroundColor: 'var(--color-overlay-pressed)',
+    },
+    ':focus-visible': {
+      outline: '2px solid var(--color-accent)',
+      outlineOffset: '2px',
+    },
+    ':disabled': {
+      cursor: 'default',
+    },
+  },
+  // Solid brand indigo, labelled in `--color-background-card`.
+  //
+  // NOT `--color-on-accent`. That token is white in both modes, and the dark
+  // theme's accent is the LIGHTER of the two indigos (`#9184F1` against light
+  // mode's `#6257E3`) — so white-on-accent measures 3.10:1 there and fails AA for
+  // 13px text, while passing at 5.26:1 in light. The card colour inverts with the
+  // theme exactly as needed: near-black on the pale dark-mode indigo (4.88:1) and
+  // white on the saturated light-mode one (5.26:1). One token, AA in both.
+  //
+  // Hover is re-declared, or the chip's own hover rule repaints the selected chip
+  // in plain ink and it appears to deselect itself under the cursor.
+  chipActive: {
+    backgroundColor: {
+      default: 'var(--color-accent)',
+      ':hover:not(:disabled)': 'var(--color-accent)',
+    },
+    color: {
+      default: 'var(--color-background-card)',
+      ':hover:not(:disabled)': 'var(--color-background-card)',
+    },
+  },
+  // Bare, inheriting the chip's ink, and a shade under the label's cap height so it
+  // sits with the word rather than anchoring it. No opacity of its own: the ink it
+  // inherits is already secondary when the chip is idle, and dimming the glyph on
+  // the filled chip only muddies it.
+  chipIcon: {
     width: '0.9375rem',
     height: '0.9375rem',
     flexShrink: 0,
-    color: 'var(--color-text-secondary)',
   },
-  rowIconActive: {
-    color: 'var(--color-accent)',
-  },
-  rowName: {
-    display: 'block',
+  chipName: {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     fontSize: '0.8125rem',
-    fontWeight: 600,
+    fontWeight: 500,
     letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
+    color: 'currentColor',
+  },
+  // The selected report is the only name in the row at weight 600, so the marker
+  // survives for a reader who cannot make out the indigo.
+  chipNameActive: {
+    fontWeight: 600,
   },
 
   /* ---------------------------------------------------------------------- */
@@ -461,6 +569,19 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
 const FALLBACK_ICON: IconName = 'chart';
 
 /**
+ * The hue each segment is coded in — see the `tone*` styles for why the rail is
+ * colour-coded at all, and why the coding is per SEGMENT rather than per report.
+ * Exhaustive over {@link ReportSegment}, so a segment added to the shared catalogue
+ * is a type error here rather than an uncoloured group at runtime.
+ */
+/**
+ * The segment the tab strip opens on when the URL names no report, and the fallback
+ * for a report whose segment somehow is not in the catalogue. First in
+ * `REPORT_SEGMENTS`, matching {@link DEFAULT_REPORT_KEY}'s own group.
+ */
+const DEFAULT_SEGMENT: ReportSegment = 'sales';
+
+/**
  * Whether `report` matches the search `query`, across its display name, its
  * purpose, and the segment it is filed under — so "sales" finds the whole Sales
  * group and "refund" finds the three reports about refunds regardless of which
@@ -500,6 +621,16 @@ export function ReportsView({
   const [isPending, startTransition] = useTransition();
   const [query, setQuery] = useState('');
 
+  // Which segment tab is open. Always one — the strip is a choice between five
+  // families, not a set of toggles, and a state with none chosen would leave the
+  // chip row empty for no reason a reader could act on.
+  //
+  // It starts on the segment of the report already being previewed, so the screen
+  // never loads with the marked chip on a tab you would have to find.
+  const [activeSegment, setActiveSegment] = useState<ReportSegment>(
+    () => reports.find((report) => report.key === selected)?.segment ?? DEFAULT_SEGMENT,
+  );
+
   // Filtering 27 rows is cheap, but deferring it keeps typing responsive while a
   // `?report=` transition is already re-rendering the pane beside the list.
   const deferredQuery = useDeferredValue(query);
@@ -514,15 +645,36 @@ export function ReportsView({
   // filtered. The hub never decides which groups exist: a segment with no reports
   // (or none left after the search) is absent, so a group cannot render as an
   // empty heading.
-  const groups = useMemo(() => {
-    const needle = deferredQuery.trim().toLowerCase();
-    return groupReportsBySegment(reports)
-      .map((group) => ({
-        ...group,
-        reports: group.reports.filter((report) => matchesQuery(report, group.label, needle)),
-      }))
-      .filter((group) => group.reports.length > 0);
-  }, [reports, deferredQuery]);
+  const needle = deferredQuery.trim().toLowerCase();
+  const groups = useMemo(
+    () =>
+      groupReportsBySegment(reports)
+        .map((group) => ({
+          ...group,
+          reports: group.reports.filter((report) => matchesQuery(report, group.label, needle)),
+        }))
+        .filter((group) => group.reports.length > 0),
+    [reports, needle],
+  );
+
+  // The tab strip is drawn from the filtered groups, so a search rewrites BOTH
+  // strips at once: the counts become match counts, and a segment with nothing
+  // matching drops out of the strip rather than sitting there leading nowhere.
+  //
+  // DERIVED, not stored. If the active tab is one the search just eliminated, the
+  // first surviving group stands in for it — computed during render rather than
+  // pushed back into state, because a `setState` in render to repair state is how
+  // a tab strip ends up fighting the search box for control of itself. The stored
+  // choice is left alone and comes back when the query clears.
+  const shown = groups.find((group) => group.segment === activeSegment) ?? groups[0] ?? null;
+
+  function selectReport(report: ReportDefinition): void {
+    // Follow the selection with the tab. Picking a match out of a search and then
+    // clearing the box would otherwise land the reader on whichever tab happened to
+    // be stored, with the chosen report nowhere on screen.
+    setActiveSegment(report.segment);
+    setParam('report', report.key);
+  }
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -558,11 +710,16 @@ export function ReportsView({
         </SegmentedControl>
       </div>
 
-      <div {...stylex.props(styles.split, isPending && styles.pending)}>
-        <Card variant="default" padding={0} xstyle={styles.index}>
-          <nav aria-label={t('catalogueLabel')} {...stylex.props(styles.indexScroll)}>
-            {groups.length === 0 ? (
-              <EmptyState icon="search">
+      {shown === null ? (
+        <Card variant="default" padding={0}>
+          <EmptyState icon="search">
+            {needle === '' ? (
+              // Not "no matches" — nothing was searched. This is a gym that has
+              // switched every report off, and the only place it can undo that
+              // is Settings.
+              <p {...stylex.props(styles.emptyText)}>{t('noneEnabled')}</p>
+            ) : (
+              <>
                 <p {...stylex.props(styles.emptyText)}>{t('noMatches', { query: query.trim() })}</p>
                 <Button
                   label={t('clearSearch')}
@@ -570,61 +727,96 @@ export function ReportsView({
                   size="sm"
                   onClick={() => setQuery('')}
                 />
-              </EmptyState>
-            ) : (
-              groups.map((group) => (
-                <section key={group.segment}>
-                  <div {...stylex.props(styles.groupHead)}>
-                    <h2 {...stylex.props(styles.groupLabel)}>{group.label}</h2>
-                    <span {...stylex.props(chrome.num)}>{group.reports.length}</span>
-                  </div>
-                  {group.reports.map((report) => (
-                    <IndexRow
-                      key={report.key}
-                      report={report}
-                      active={report.key === selected}
-                      disabled={isPending}
-                      onSelect={() => setParam('report', report.key)}
-                    />
-                  ))}
-                </section>
-              ))
+              </>
             )}
-          </nav>
+          </EmptyState>
         </Card>
+      ) : (
+        <div {...stylex.props(styles.body, isPending && styles.pending)}>
+          {/* `tablist` / `tab` / `tabpanel` rather than a list of links: the strip
+              swaps which reports the panel below offers without navigating, which
+              is what the tab pattern describes. The chip row is the panel, and it
+              is labelled by whichever tab is up. */}
+          <nav aria-label={t('catalogueLabel')}>
+            <div {...stylex.props(styles.tabsWrap)}>
+              <div role="tablist" {...stylex.props(styles.tabs)}>
+                {groups.map((group) => {
+                  const active = group.segment === shown.segment;
+                  return (
+                    <button
+                      key={group.segment}
+                      type="button"
+                      role="tab"
+                      id={`report-segment-${group.segment}`}
+                      aria-selected={active}
+                      aria-controls={`report-segment-panel-${group.segment}`}
+                      disabled={isPending}
+                      onClick={() => setActiveSegment(group.segment)}
+                      {...stylex.props(styles.tab, active && styles.tabActive)}
+                    >
+                      {group.label}
+                      <span {...stylex.props(styles.tabCount)}>{group.reports.length}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        {selected && preview ? (
-          <ReportPreview
-            preview={preview}
-            // `ReportResult` carries no purpose line, so the catalogue supplies it.
-            description={reports.find((report) => report.key === selected)?.description ?? null}
-            range={range}
-            t={t}
-          />
-        ) : (
-          <Card variant="default" padding={0}>
-            <EmptyState icon="chart">
-              <p {...stylex.props(styles.emptyText)}>{t('selectPrompt')}</p>
-            </EmptyState>
-          </Card>
-        )}
-      </div>
+            <div
+              role="tabpanel"
+              id={`report-segment-panel-${shown.segment}`}
+              aria-labelledby={`report-segment-${shown.segment}`}
+              {...stylex.props(styles.chipRow)}
+            >
+              {shown.reports.map((report) => (
+                <ReportChip
+                  key={report.key}
+                  report={report}
+                  active={report.key === selected}
+                  disabled={isPending}
+                  onSelect={() => selectReport(report)}
+                />
+              ))}
+            </div>
+          </nav>
+
+          {preview ? (
+            <ReportPreview
+              preview={preview}
+              // `ReportResult` carries no purpose line, so the catalogue supplies it.
+              description={reports.find((report) => report.key === selected)?.description ?? null}
+              range={range}
+              t={t}
+            />
+          ) : (
+            <Card variant="default" padding={0}>
+              <EmptyState icon="chart">
+                <p {...stylex.props(styles.emptyText)}>{t('selectPrompt')}</p>
+              </EmptyState>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Index row                                                                  */
+/*  Report chip                                                                */
 /* -------------------------------------------------------------------------- */
 
 /**
- * One report in the index. The whole row is the control — a report is picked by
- * choosing it, so a separate "Run" button inside the row would be a second target
- * for one action. `aria-current` rather than `aria-pressed`: this is navigation
- * within a list, not a toggle, and it is what tells a reader who cannot see the
- * accent rule which report the pane beside them is showing.
+ * One report in the chip row. The whole chip is the control — a report is picked by
+ * choosing it, so a separate "Run" button inside it would be a second target for one
+ * action. `aria-current` rather than `aria-pressed`: this is navigation within a
+ * set, not a toggle, and it is what tells a reader who cannot see the filled tile
+ * which report the table below them is showing.
+ *
+ * The purpose line rides on `title`, as it did on the rail's rows — the chip has
+ * room for a name and nothing else, and the same sentence is printed in full above
+ * the table the moment the chip is chosen.
  */
-function IndexRow({
+function ReportChip({
   report,
   active,
   disabled,
@@ -642,13 +834,14 @@ function IndexRow({
       disabled={disabled}
       onClick={onSelect}
       title={report.description}
-      {...stylex.props(styles.row, active && styles.rowActive)}
+      {...stylex.props(styles.chip, active && styles.chipActive)}
     >
       <Icon
         name={REPORT_ICONS[report.key] ?? FALLBACK_ICON}
-        {...stylex.props(styles.rowIcon, active && styles.rowIconActive)}
+        aria-hidden
+        {...stylex.props(styles.chipIcon)}
       />
-      <span {...stylex.props(styles.rowName)}>{report.name}</span>
+      <span {...stylex.props(styles.chipName, active && styles.chipNameActive)}>{report.name}</span>
     </button>
   );
 }

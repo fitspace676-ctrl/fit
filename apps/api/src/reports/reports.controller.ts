@@ -13,7 +13,6 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import {
   Permission,
-  REPORT_CATALOG,
   reportExportQuerySchema,
   reportKeySchema,
   reportQuerySchema,
@@ -31,10 +30,10 @@ const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreads
 /**
  * Admin-console reports API (`/admin/reports`, T4.8).
  *
- * A read-only, tenant-scoped catalogue of operational reports powering the Reports
- * screen: revenue by channel, attendance by class, membership growth, and no-show
- * rate — each previewable as JSON and downloadable as CSV or XLSX. {@link TenantGuard}
- * pins the request to one gym and {@link PermissionsGuard} gates every route on
+ * A read-only, tenant-scoped catalogue of the gym's operational reports powering
+ * the Reports screen — each previewable as JSON and downloadable as CSV or XLSX.
+ * {@link TenantGuard} pins the request to one gym and {@link PermissionsGuard}
+ * gates every route on
  * {@link Permission.ReportView} (held by `OWNER` / `MANAGER`), the same reporting
  * capability the analytics screen uses. The service scopes every aggregate to the
  * caller's gym via the tenant Prisma extension, so no handler passes a `gymId`.
@@ -51,8 +50,8 @@ export class ReportsController {
   @Get()
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ReportView)
-  catalog(): ReportCatalogResponse {
-    return { reports: REPORT_CATALOG };
+  catalog(): Promise<ReportCatalogResponse> {
+    return this.reports.catalog();
   }
 
   /**
@@ -60,6 +59,13 @@ export class ReportsController {
    * CSV (streamed page-free, small aggregate) or XLSX attachment. Declared before
    * the `:report` preview route so the literal `export` segment is never captured
    * as a report key. An unknown report or a bad `range`/`format` is a `400`.
+   *
+   * The gym's `reports` setting (Settings → Reports) is a DISPLAY preference for
+   * the catalogue only — it deliberately does NOT gate this route. A report the
+   * gym has switched off still exports here for anyone holding
+   * {@link Permission.ReportView}, because a bookmarked download link and a
+   * scheduled export are both expected to keep working after a gym tidies its
+   * hub. Do not add a settings check to this handler.
    */
   @Get(':report/export')
   @RequirePermissions(Permission.ReportView)
@@ -92,6 +98,13 @@ export class ReportsController {
    * `GET /admin/reports/:report?range=` — run one report for on-screen preview,
    * returning its columns and computed rows. `range` defaults to `30d`; an unknown
    * report key or an invalid range is a `400`.
+   *
+   * The gym's `reports` setting (Settings → Reports) is a DISPLAY preference for
+   * the catalogue only — it deliberately does NOT gate this route. A report the
+   * gym has switched off still previews here for anyone holding
+   * {@link Permission.ReportView}, because a bookmarked preview link is expected
+   * to keep working after a gym tidies its hub. Do not add a settings check to
+   * this handler.
    */
   @Get(':report')
   @HttpCode(HttpStatus.OK)

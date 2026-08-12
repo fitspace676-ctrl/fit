@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { GymsModule } from '../gyms/gyms.module';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 
@@ -12,6 +13,9 @@ import { AnalyticsService } from './analytics.service';
  * mirroring {@link DashboardModule}.
  */
 @Module({
+  // `GymsModule` for `GymLocaleService`: money figures are labelled with the gym's
+  // configured currency instead of one inferred from its payment rows.
+  imports: [GymsModule],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],
 })

@@ -125,7 +125,10 @@ export class EmailNotificationChannel implements NotificationChannelAdapter {
     }
 
     const settings = gymSettingsStoredSchema.parse(gym.settings ?? {});
-    const senderName = settings.notifications.fromName ?? gym.name;
+    // The gym's own name is the sender: the settings screen no longer carries an
+    // override, and a member recognises the gym they joined rather than a second
+    // name kept in a field nobody could see.
+    const senderName = gym.name;
 
     const email = buildNotificationEmail(
       {
@@ -146,7 +149,6 @@ export class EmailNotificationChannel implements NotificationChannelAdapter {
       subject: email.subject,
       html: email.html,
       text: email.text,
-      replyTo: settings.notifications.replyTo ?? undefined,
     });
     return { channel: this.channel, ref: id };
   }

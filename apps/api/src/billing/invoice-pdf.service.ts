@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
+import type { GymBusinessSettings } from '@fit/types';
 
 /** Everything the invoice document renders — a flat snapshot, no DB access here. */
 export interface InvoicePdfData {
@@ -15,6 +16,12 @@ export interface InvoicePdfData {
   currency: string;
   /** Issuing gym's display name (the document header). */
   gymName: string;
+  /**
+   * The issuing gym's contact details (Settings → Business info), printed under
+   * its name. Every field is nullable and an unset one is simply not drawn — an
+   * invoice from a gym that has filled in nothing looks exactly as it did before.
+   */
+  gymContact: GymBusinessSettings;
   /** Billed member's name, when known. */
   memberName: string | null;
   /** Billed member's email, when known. */
@@ -61,7 +68,7 @@ export class InvoicePdfService {
     const right = doc.page.width - PAGE_MARGIN;
     const money = formatMoney(data.amount, data.currency);
 
-    // Header — gym name (left) and the "INVOICE" wordmark + number (right).
+    // Header — gym name + contact (left) and the "INVOICE" wordmark + number (right).
     doc.fillColor(INK).font('Helvetica-Bold').fontSize(20).text(data.gymName, left, PAGE_MARGIN);
     doc
       .fillColor(BRAND)
@@ -75,16 +82,26 @@ export class InvoicePdfService {
       .text(`No. ${data.number}`, left, PAGE_MARGIN + 30, { align: 'right' })
       .text(`Issued ${formatDate(data.issuedAt)}`, { align: 'right' });
 
-    // Divider under the header.
-    doc
-      .moveTo(left, PAGE_MARGIN + 64)
-      .lineTo(right, PAGE_MARGIN + 64)
-      .strokeColor('#E5E7EB')
-      .lineWidth(1)
-      .stroke();
+    // Issuer contact, one line per filled-in field, under the gym name. The
+    // right-hand column runs to ~PAGE_MARGIN + 56, so the lines are width-capped
+    // to the left half and the divider is pushed below whichever column is taller.
+    const contactLines = issuerLines(data.gymContact);
+    let contactY = PAGE_MARGIN + 26;
+    for (const line of contactLines) {
+      doc
+        .fillColor(MUTED)
+        .font('Helvetica')
+        .fontSize(9)
+        .text(line, left, contactY, { width: (right - left) / 2 - 12, lineBreak: false });
+      contactY += 11;
+    }
+
+    // Divider under the header, clear of both columns.
+    const dividerY = Math.max(PAGE_MARGIN + 64, contactY + 4);
+    doc.moveTo(left, dividerY).lineTo(right, dividerY).strokeColor('#E5E7EB').lineWidth(1).stroke();
 
     // Bill-to block.
-    let y = PAGE_MARGIN + 84;
+    let y = dividerY + 20;
     doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(9).text('BILLED TO', left, y);
     y += 14;
     doc
@@ -137,6 +154,17 @@ export class InvoicePdfService {
         align: 'center',
       });
   }
+}
+
+/**
+ * The issuer's contact block, one line per filled-in field, in the order a reader
+ * scans an invoice header: where the gym is, how to call it, how to write to it,
+ * where to find it. An empty settings block yields no lines at all.
+ */
+function issuerLines(contact: GymBusinessSettings): string[] {
+  return [contact.address, contact.phone, contact.email, contact.website]
+    .map((value) => value?.trim() ?? '')
+    .filter((value) => value.length > 0);
 }
 
 /** Minor units → `"12.00 GEL"`. Two decimals for the standard 100-minor currencies. */

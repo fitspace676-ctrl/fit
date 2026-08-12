@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
-import { REPORT_KEYS, type ReportResult } from '@fit/types';
+import { REPORT_CATALOG, type ReportCatalogResponse, type ReportResult } from '@fit/types';
 import { ReportsController } from './reports.controller';
 import type { ReportsService } from './reports.service';
 
 function setup() {
+  const catalog = vi.fn<() => Promise<ReportCatalogResponse>>(() =>
+    Promise.resolve({ reports: REPORT_CATALOG }),
+  );
   const runReport = vi.fn<() => Promise<ReportResult>>(() =>
     Promise.resolve({
       key: 'revenue-by-channel',
@@ -24,9 +27,15 @@ function setup() {
   const streamReportCsv = vi.fn(() => csv());
   const buildReportXlsx = vi.fn<() => Promise<Buffer>>(() => Promise.resolve(Buffer.from('xlsx')));
 
-  const service = { runReport, streamReportCsv, buildReportXlsx } as unknown as ReportsService;
+  const service = {
+    catalog,
+    runReport,
+    streamReportCsv,
+    buildReportXlsx,
+  } as unknown as ReportsService;
   return {
     controller: new ReportsController(service),
+    catalog,
     runReport,
     streamReportCsv,
     buildReportXlsx,
@@ -70,10 +79,16 @@ describe('ReportsController', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('catalog', () => {
-    it('returns every report definition', () => {
-      const { controller } = setup();
-      const result = controller.catalog();
-      expect(result.reports.map((r) => r.key)).toEqual([...REPORT_KEYS]);
+    // Filtering by the gym's report-visibility settings is the service's job
+    // (see reports.service.spec.ts); the controller just has to hand back
+    // whatever the service resolves to, unmodified.
+    it('delegates to the service and returns its catalogue', async () => {
+      const { controller, catalog } = setup();
+
+      const result = await controller.catalog();
+
+      expect(catalog).toHaveBeenCalledOnce();
+      expect(result).toEqual({ reports: REPORT_CATALOG });
     });
   });
 

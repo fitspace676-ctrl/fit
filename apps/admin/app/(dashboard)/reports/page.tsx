@@ -65,8 +65,16 @@ export default async function ReportsPage({
   const { report: rawReport, range: rawRange } = await searchParams;
   const parsedRange = reportRangeSchema.safeParse(rawRange);
   const range: ReportRange = parsedRange.success ? parsedRange.data : DEFAULT_REPORT_RANGE;
+  // An unrecognised (or absent) `?report=` falls back to the catalogue's first
+  // *offered* report rather than to nothing, so the screen always opens on a real
+  // preview and the index always has a marked row when the gym offers any reports
+  // at all. A bad key is corrected rather than 404'd: the value is a view
+  // preference, and the catalogue is the authority on it. That correction can only
+  // happen once the (filtered) catalogue is in hand, so `requested` — what the URL
+  // asked for — is as far as this component goes; `ReportsBody` resolves it against
+  // the catalogue into `offered` — what the gym actually has.
   const parsedKey = reportKeySchema.safeParse(rawReport);
-  const selected: ReportKey | null = parsedKey.success ? parsedKey.data : null;
+  const requested: ReportKey | null = parsedKey.success ? parsedKey.data : null;
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -78,7 +86,7 @@ export default async function ReportsPage({
       <VisuallyHidden as="h1">{t('title')}</VisuallyHidden>
 
       {canViewReports ? (
-        <ReportsBody range={range} selected={selected} />
+        <ReportsBody range={range} requested={requested} />
       ) : (
         <p {...stylex.props(chrome.notice)}>{t('noAccess')}</p>
       )}
@@ -94,19 +102,32 @@ export default async function ReportsPage({
  */
 async function ReportsBody({
   range,
-  selected,
+  requested,
 }: {
   range: ReportRange;
-  selected: ReportKey | null;
+  requested: ReportKey | null;
 }) {
   const t = await getTranslations('admin.reports');
   try {
-    const [catalog, preview] = await Promise.all([
-      fetchReportCatalog(),
-      selected ? fetchReport(selected, range) : Promise.resolve(null),
-    ]);
+    const catalog = await fetchReportCatalog();
+
+    // The default has to come from the FILTERED catalogue, not from
+    // `DEFAULT_REPORT_KEY`: that constant is `REPORT_KEYS[0]`, and a gym that
+    // switches that one report off would otherwise land on a report its own hub
+    // is not offering. A `?report=` naming a disabled report falls back the same
+    // way an unrecognised one already does — the value is a view preference and
+    // the gym's catalogue is the authority on it.
+    const offered = catalog.reports.some((report) => report.key === requested)
+      ? requested
+      : (catalog.reports[0]?.key ?? null);
+
+    if (offered === null) {
+      return <ReportsView reports={[]} selected={null} range={range} preview={null} />;
+    }
+
+    const preview = await fetchReport(offered, range);
     return (
-      <ReportsView reports={catalog.reports} selected={selected} range={range} preview={preview} />
+      <ReportsView reports={catalog.reports} selected={offered} range={range} preview={preview} />
     );
   } catch (error) {
     const message =

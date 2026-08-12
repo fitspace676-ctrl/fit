@@ -3,6 +3,8 @@ import { AutomationActionType, AutomationTriggerType } from '@fit/db';
 import { AutomationExecutorService } from './automation-executor.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
+import type { MailerService } from '../mail/mailer.service';
+import type { AutomationMergeService } from './automation-merge.service';
 
 interface AnyArgs {
   where?: Record<string, unknown>;
@@ -16,7 +18,7 @@ interface FireRule {
   id: string;
   triggerType: AutomationTriggerType;
   actionType: AutomationActionType;
-  actionConfig: { body: string };
+  actionConfig: { body: string; subject?: string };
   triggerConfig?: { days?: number };
 }
 
@@ -37,6 +39,11 @@ function setup(overrides?: {
   subFindMany?: unknown[];
   runCreateThrows?: boolean;
   ruleFindManyThrows?: boolean;
+  /** What the merge service resolves to; `null` means "nobody to send to". */
+  mergeTarget?: { recipient: string | null; values: Record<string, string> } | null;
+  /** `false` stands in for an unconfigured mail transport (Resend key unset). */
+  mailSent?: boolean;
+  mailThrows?: boolean;
 }) {
   const ruleFindMany = vi.fn<(args: AnyArgs) => Promise<unknown[]>>(() => {
     if (overrides?.ruleFindManyThrows) return Promise.reject(new Error('db down'));
@@ -69,8 +76,43 @@ function setup(overrides?: {
   const redisSet = vi.fn(() => Promise.resolve('OK'));
   const redis = { client: { set: redisSet } } as unknown as RedisService;
 
+  // Personalisation + delivery. Defaults to a resolvable member and a working
+  // transport, so a test only states the part it is actually about.
+  const mergeResolve = vi.fn(() =>
+    Promise.resolve(
+      overrides?.mergeTarget === undefined
+        ? { recipient: 'nino@example.com', values: { member_first_name: 'Nino' } }
+        : overrides.mergeTarget,
+    ),
+  );
+  const merge = {
+    brand: vi.fn(() =>
+      Promise.resolve({
+        name: 'Iron Gym',
+        business: { address: null, phone: null, email: null, website: null },
+        language: 'en',
+        currency: 'GEL',
+      }),
+    ),
+    resolve: mergeResolve,
+  } as unknown as AutomationMergeService;
+
+  const mailSend = vi.fn<
+    (message: {
+      to: string;
+      subject: string;
+      text: string;
+    }) => Promise<{ sent: boolean; id: string | null }>
+  >(() => {
+    if (overrides?.mailThrows) return Promise.reject(new Error('resend exploded'));
+    return Promise.resolve({ sent: overrides?.mailSent ?? true, id: 'email-1' });
+  });
+  const mailer = { send: mailSend } as unknown as MailerService;
+
   return {
-    service: new AutomationExecutorService(prisma, redis),
+    service: new AutomationExecutorService(prisma, redis, merge, mailer),
+    mergeResolve,
+    mailSend,
     ruleFindMany,
     runFindFirst,
     runCreate,
@@ -196,5 +238,114 @@ describe('AutomationExecutorService.scanMembershipExpiring', () => {
     });
     expect(summary.rulesMatched).toBe(0);
     expect(subFindMany).not.toHaveBeenCalled();
+  });
+});
+
+// The executor used to write `Queued email (stubbed executor)` and send nothing,
+// which made every merge field in the rule editor decoration. These pin the
+// delivery path and, just as importantly, that the log stops overclaiming.
+describe('AutomationExecutorService — email delivery', () => {
+  it('personalises the message and mails the resolved recipient', async () => {
+    const { service, mailSend, runCreate } = setup({
+      ruleFindMany: [
+        activeRule({ actionConfig: { subject: 'Hi {{member_first_name}}', body: 'Welcome!' } }),
+      ],
+    });
+
+    await service.dispatchForGym('gym-1', 'member_joined', {
+      entityId: 'gm-1',
+      entityType: 'member',
+    });
+
+    expect(mailSend).toHaveBeenCalledTimes(1);
+    expect(mailSend.mock.calls[0]?.[0]).toMatchObject({
+      to: 'nino@example.com',
+      subject: 'Hi Nino',
+      text: 'Welcome!',
+    });
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'Emailed nino@example.com',
+    });
+  });
+
+  // A known token the trigger can't back must never reach a member as `{{…}}`.
+  it('blanks a token the trigger has no value for', async () => {
+    const { service, mailSend } = setup({
+      ruleFindMany: [activeRule({ actionConfig: { body: 'See you at {{class_name}}.' } })],
+    });
+
+    await service.dispatchForGym('gym-1', 'member_joined', {
+      entityId: 'gm-1',
+      entityType: 'member',
+    });
+
+    expect(mailSend.mock.calls[0]?.[0]?.text).toBe('See you at .');
+  });
+
+  it('says so, and stays SUCCESS, when the mail transport is unconfigured', async () => {
+    const { service, runCreate } = setup({
+      ruleFindMany: [activeRule()],
+      mailSent: false,
+    });
+
+    await service.dispatchForGym('gym-1', 'member_joined', {
+      entityId: 'gm-1',
+      entityType: 'member',
+    });
+
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'Email not sent — mail transport is not configured',
+    });
+  });
+
+  it('records FAILED without throwing when the send blows up', async () => {
+    const { service, runCreate } = setup({ ruleFindMany: [activeRule()], mailThrows: true });
+
+    // Member creation dispatches this fire-and-forget — it must never reject.
+    await expect(
+      service.dispatchForGym('gym-1', 'member_joined', {
+        entityId: 'gm-1',
+        entityType: 'member',
+      }),
+    ).resolves.toBe(1);
+
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'FAILED',
+      detail: 'Email failed: resend exploded',
+    });
+  });
+
+  it('sends nothing when the context resolves to no recipient', async () => {
+    const { service, mailSend, runCreate } = setup({
+      ruleFindMany: [activeRule()],
+      mergeTarget: null,
+    });
+
+    await service.dispatchForGym('gym-1', 'member_joined', {});
+
+    expect(mailSend).not.toHaveBeenCalled();
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'No recipient for this trigger — nothing sent',
+    });
+  });
+
+  it('logs a non-email action honestly and never touches the mailer', async () => {
+    const { service, mailSend, runCreate } = setup({
+      ruleFindMany: [activeRule({ actionType: 'sms' })],
+    });
+
+    await service.dispatchForGym('gym-1', 'member_joined', {
+      entityId: 'gm-1',
+      entityType: 'member',
+    });
+
+    expect(mailSend).not.toHaveBeenCalled();
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'SMS is not delivered yet — logged only',
+    });
   });
 });

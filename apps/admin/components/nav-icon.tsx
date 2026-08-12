@@ -33,8 +33,11 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   activity: 'M3 12h4l2 7 4-16 2 9h6',
   audit:
     'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  // Sliders, not a cog — and the same glyph `@fit/ui-web`'s `settings` icon uses,
+  // so the rail and every in-page Settings affordance read as one thing. The
+  // twelve-notch gear this replaced turned to mush at the rail's 20px.
   settings:
-    'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 12a7.4 7.4 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7.3 7.3 0 00-2-1.2L16.5 2h-4l-.4 2.6a7.3 7.3 0 00-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 000 2.4l-2 1.6 2 3.4 2.4-1a7.3 7.3 0 002 1.2l.4 2.6h4l.4-2.6a7.3 7.3 0 002-1.2l2.4 1 2-3.4-2-1.6c.06-.4.1-.8.1-1.2z',
+    'M4 7h9M17 7h3M4 17h3M11 17h9M15 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM9 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
 };
 
 /** Render the inline glyph for `name`; inherits `currentColor`. */

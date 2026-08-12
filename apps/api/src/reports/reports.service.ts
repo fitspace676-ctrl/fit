@@ -10,23 +10,27 @@ import {
 } from '@fit/db';
 import {
   deriveOrderChannel,
+  gymSettingsStoredSchema,
+  REPORT_CATALOG,
   REPORT_DEFINITIONS,
   reportCsvRow,
   reportXlsxRow,
   type OrderChannel,
+  type ReportCatalogResponse,
   type ReportColumn,
   type ReportKey,
   type ReportQuery,
   type ReportResult,
   type ReportRow,
+  type ReportToggle,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 import { buildReportWorkbook } from './xlsx';
 import {
   bucketKey,
   DAY_MS,
-  DEFAULT_CURRENCY,
   emptyBuckets,
   isoDate,
   rate,
@@ -78,7 +82,36 @@ export class ReportsService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly locale: GymLocaleService,
   ) {}
+
+  /**
+   * `GET /admin/reports` — the catalogue this gym offers.
+   *
+   * Filtered by the gym's `reports` settings, which are a DISPLAY preference: a
+   * report switched off is absent from this list, but `preview` and `export`
+   * still serve it to anyone holding `Permission.ReportView`. Do not add a
+   * permission check to those routes on the strength of this filter — a
+   * bookmarked preview link and a scheduled export are both expected to keep
+   * working after a gym tidies its hub.
+   */
+  async catalog(): Promise<ReportCatalogResponse> {
+    const gym = await this.prisma.client.gym.findFirst({
+      where: { id: this.tenant.gymId },
+      select: { settings: true },
+    });
+    const { reports } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+
+    // Fail OPEN: a report only disappears when its toggle is explicitly `false`.
+    // If a report ever reached REPORT_CATALOG without a matching toggle, reading
+    // `reports[key]` would be `undefined` — falsy — and a strict truthiness check
+    // would silently drop that report from every gym's hub. This is a display
+    // preference, so the friendlier failure is to keep showing it until someone
+    // deliberately hides it.
+    return {
+      reports: REPORT_CATALOG.filter((report) => reports[report.key as ReportToggle] !== false),
+    };
+  }
 
   /** Run one report for on-screen preview — its columns plus the computed rows. */
   async runReport(key: ReportKey, query: ReportQuery): Promise<ReportResult> {
@@ -228,35 +261,35 @@ export class ReportsService {
       case 'attendance-by-class':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.attendanceByClass(win),
         };
       case 'class-utilization':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.classUtilization(win),
         };
       case 'class-cancellations':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.classCancellations(win),
         };
       case 'waitlist-demand':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.waitlistDemand(win),
         };
       case 'pt-sessions':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.ptSessions(win),
         };
@@ -265,7 +298,7 @@ export class ReportsService {
       case 'trainer-performance':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.trainerPerformance(win),
         };
@@ -273,56 +306,56 @@ export class ReportsService {
       case 'membership-movement':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.membershipMovement(win),
         };
       case 'retention-and-churn':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.retentionAndChurn(win),
         };
       case 'members-at-risk':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.membersAtRisk(),
         };
       case 'expiring-memberships':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.expiringMemberships(win),
         };
       case 'member-roster':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.memberRoster(),
         };
       case 'member-check-in-log':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.memberCheckInLog(win),
         };
       case 'upcoming-occasions':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.upcomingOccasions(win),
         };
       case 'no-show-rate':
         return {
           name: definition.name,
-          currency: DEFAULT_CURRENCY,
+          currency: await this.resolveCurrency(),
           columns: definition.columns,
           rows: await this.noShowRate(win),
         };
@@ -330,17 +363,17 @@ export class ReportsService {
   }
 
   /**
-   * The gym's reporting currency — read from the most recent captured payment (the
-   * real currency money changed hands in), falling back to the schema default when
-   * the gym has taken no payments yet, mirroring {@link AnalyticsService}.
+   * The gym's reporting currency — its configured `settings.locale.currency`,
+   * mirroring {@link AnalyticsService}.
+   *
+   * This used to be read off the most recent captured payment, so a gym that had
+   * taken no money was reported in `USD` regardless of what it had configured, and
+   * one foreign payment relabelled every column. The gym states its currency in
+   * Settings; that is the answer, and it is the same one the POS and the catalogue
+   * use.
    */
   private async resolveCurrency(): Promise<string> {
-    const latest = await this.prisma.client.payment.findFirst({
-      where: { status: PaymentStatus.CAPTURED },
-      orderBy: { createdAt: 'desc' },
-      select: { currency: true },
-    });
-    return latest?.currency ?? DEFAULT_CURRENCY;
+    return (await this.locale.get()).currency;
   }
 
   /* ---------------------------------------------------------------------- */

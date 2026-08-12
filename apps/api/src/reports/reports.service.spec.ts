@@ -1,8 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BookingStatus } from '@fit/db';
+import { REPORT_KEYS } from '@fit/types';
 import { ReportsService } from './reports.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
+
+/**
+ * The gym row `catalog()` reads settings from — mutable per test, reset in
+ * `beforeEach`. `null` models a tenant context pointing at a gym row that no
+ * longer exists (e.g. a deleted gym).
+ */
+let gymRow: { name: string; settings: unknown } | null;
 
 /**
  * Stub the tenant-scoped Prisma delegates the reports read. The tenant extension
@@ -25,6 +34,7 @@ function setup() {
   const locationFindMany = vi.fn().mockResolvedValue([]);
   const classInstanceFindMany = vi.fn().mockResolvedValue([]);
   const ptSessionFindMany = vi.fn().mockResolvedValue([]);
+  const gymFindFirst = vi.fn(() => Promise.resolve(gymRow));
 
   const client = {
     payment: { groupBy: paymentGroupBy, findFirst: paymentFindFirst, findMany: paymentFindMany },
@@ -39,14 +49,21 @@ function setup() {
     location: { findMany: locationFindMany },
     classInstance: { findMany: classInstanceFindMany },
     ptSession: { findMany: ptSessionFindMany },
+    gym: { findFirst: gymFindFirst },
   };
   const prisma = { client } as unknown as TenantPrismaService;
   // `CheckIn` is not in the tenant extension's model set, so the check-in log pins
   // the gym itself — the stub has to carry one.
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
 
+  // The gym's configured currency (Settings → General) — every report is
+  // denominated in it rather than in whatever its last payment happened to be.
+  const locale = {
+    get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
+  } as unknown as GymLocaleService;
+
   return {
-    service: new ReportsService(prisma, tenant),
+    service: new ReportsService(prisma, tenant, locale),
     paymentGroupBy,
     paymentFindFirst,
     paymentFindMany,
@@ -61,6 +78,7 @@ function setup() {
     locationFindMany,
     classInstanceFindMany,
     ptSessionFindMany,
+    gymFindFirst,
   };
 }
 
@@ -88,7 +106,99 @@ function booking(
 }
 
 describe('ReportsService', () => {
+  beforeEach(() => {
+    gymRow = { name: 'FitSpace', settings: {} };
+  });
   afterEach(() => vi.clearAllMocks());
+
+  describe('catalog', () => {
+    it('offers every report by default', async () => {
+      const { service } = setup();
+
+      const catalog = await service.catalog();
+
+      expect(catalog.reports).toHaveLength(REPORT_KEYS.length);
+    });
+
+    it('omits a report the gym switched off', async () => {
+      const { service } = setup();
+      gymRow!.settings = { reports: { 'refunds-detail': false } };
+
+      const catalog = await service.catalog();
+
+      expect(catalog.reports.some((r) => r.key === 'refunds-detail')).toBe(false);
+      expect(catalog.reports.some((r) => r.key === 'sales-summary')).toBe(true);
+    });
+
+    it('returns an empty catalogue when every report is off, rather than throwing', async () => {
+      const { service } = setup();
+      gymRow!.settings = {
+        reports: Object.fromEntries(REPORT_KEYS.map((key) => [key, false])),
+      };
+
+      await expect(service.catalog()).resolves.toEqual({ reports: [] });
+    });
+
+    it('falls back to the full catalogue when the gym row is missing', async () => {
+      gymRow = null;
+      const { service } = setup();
+
+      const catalog = await service.catalog();
+
+      expect(catalog.reports).toHaveLength(REPORT_KEYS.length);
+    });
+
+    // The boundary this whole feature rests on. "Hidden" is not "forbidden": a
+    // future contributor's natural instinct is to make these routes 403 on a
+    // disabled report, which would break every bookmarked link and scheduled
+    // export the moment a gym tidies its hub. This test is what makes that
+    // instinct fail loudly for the ON-SCREEN PREVIEW route.
+    it('still previews a report the gym has switched off', async () => {
+      const { service } = setup();
+      gymRow!.settings = { reports: { 'sales-summary': false } };
+
+      await expect(service.runReport('sales-summary', { range: '30d' })).resolves.toBeDefined();
+    });
+
+    // The same instinct is more tempting on the EXPORT route — "don't let them
+    // download what we hid" reads as reasonable — and it does more damage: a
+    // broken bookmarked preview is an annoyance, a broken scheduled export is a
+    // job that silently stops producing. `runReport` and `streamReportCsv` only
+    // SHARE `computeReport` today; they are not the same route, so a check
+    // added to one would not be caught by a test pinning only the other. This
+    // pins the export path independently, and actually drains the generator —
+    // not just calls it — so a check placed anywhere computeReport is reached
+    // is caught, not skipped past by a lazily-never-executed iterator.
+    it('still exports a report the gym has switched off', async () => {
+      const { service } = setup();
+      gymRow!.settings = { reports: { 'sales-summary': false } };
+
+      const chunks: string[] = [];
+      for await (const chunk of service.streamReportCsv('sales-summary', { range: '30d' })) {
+        chunks.push(chunk);
+      }
+
+      // At least the header row came out, proving the generator actually ran
+      // computeReport rather than returning an inert, never-executed iterator.
+      expect(chunks.length).toBeGreaterThan(0);
+    });
+
+    // `buildReportXlsx` is the third sibling on the same computeReport funnel
+    // (reached by `GET :report/export?format=xlsx`) and shares nothing with the
+    // CSV path but `computeReport` itself — a check added at the top of this
+    // method specifically would slip past the other two boundary tests. Pinned
+    // independently, and the workbook bytes are inspected (not just "resolved")
+    // so a stub that returns an empty buffer without really building anything
+    // would not pass.
+    it('still exports XLSX for a report the gym has switched off', async () => {
+      const { service } = setup();
+      gymRow!.settings = { reports: { 'sales-summary': false } };
+
+      const workbook = await service.buildReportXlsx('sales-summary', { range: '30d' });
+
+      expect(workbook.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+    });
+  });
 
   describe('sales-summary', () => {
     it('buckets refunds by WHEN THEY WERE ISSUED, not against the original sale', async () => {

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   REPORT_DEFINITIONS,
   REPORT_DIGEST_CADENCE_LABEL,
+  type GymBusinessSettings,
   type PaymentMethod,
   type PosReceipt,
   type ReportCellValue,
@@ -289,8 +290,13 @@ export class EmailService {
    * Rejects only when Resend returns an error, which the POS treats as a failed
    * send (the sale itself already completed and is unaffected).
    */
-  async sendReceiptEmail(to: string, receipt: PosReceipt, gymName?: string): Promise<boolean> {
-    const { subject, html, text } = buildReceiptEmail(receipt, gymName);
+  async sendReceiptEmail(
+    to: string,
+    receipt: PosReceipt,
+    gymName?: string,
+    gymContact?: GymBusinessSettings,
+  ): Promise<boolean> {
+    const { subject, html, text } = buildReceiptEmail(receipt, gymName, gymContact);
 
     if (!this.isConfigured) {
       this.logger.warn(
@@ -521,11 +527,20 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export function buildReceiptEmail(
   receipt: PosReceipt,
   gymName?: string,
+  gymContact?: GymBusinessSettings,
 ): { subject: string; html: string; text: string } {
   const seller = gymName?.trim() || 'Fit';
   const money = (amount: number): string => formatReceiptMoney(amount, receipt.currency);
   const methodLabel = PAYMENT_METHOD_LABELS[receipt.paymentMethod];
   const subject = `Your receipt from ${seller}`;
+  const contactLines = [
+    gymContact?.address,
+    gymContact?.phone,
+    gymContact?.email,
+    gymContact?.website,
+  ]
+    .map((value) => value?.trim() ?? '')
+    .filter((value) => value.length > 0);
 
   const itemRowsHtml = receipt.items
     .map(
@@ -557,7 +572,14 @@ export function buildReceiptEmail(
     `<tr><td style="padding:6px 0;border-top:1px solid ${EMAIL_BRAND.border};">Subtotal</td><td style="padding:6px 0;border-top:1px solid ${EMAIL_BRAND.border};text-align:right;">${money(receipt.subtotal)}</td></tr>` +
     totalsHtml +
     `</table>` +
-    `<p style="margin:16px 0 0;font-size:13px;color:${EMAIL_BRAND.muted};">Paid by ${methodLabel}.</p>`;
+    `<p style="margin:16px 0 0;font-size:13px;color:${EMAIL_BRAND.muted};">Paid by ${methodLabel}.</p>` +
+    // The seller's own contact details (Settings → Business info), so a customer
+    // with a question about the sale can answer it from the receipt itself.
+    (contactLines.length > 0
+      ? `<p style="margin:12px 0 0;font-size:13px;line-height:20px;color:${EMAIL_BRAND.muted};">` +
+        contactLines.map((line) => escapeHtml(line)).join('<br />') +
+        `</p>`
+      : '');
 
   const html = renderBrandedEmail({
     senderName: escapeHtml(seller),
@@ -585,7 +607,8 @@ export function buildReceiptEmail(
   const text =
     `Thanks for your purchase at ${seller}.\n` +
     (receipt.memberName ? `Charged to ${receipt.memberName}.\n` : '') +
-    `\n${itemLines}\n\n${totalsLines}\n\nPaid by ${methodLabel}.`;
+    `\n${itemLines}\n\n${totalsLines}\n\nPaid by ${methodLabel}.` +
+    (contactLines.length > 0 ? `\n\n${contactLines.join('\n')}` : '');
 
   return { subject, html, text };
 }

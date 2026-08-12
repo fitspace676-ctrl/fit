@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { gymSettingsStoredSchema, type GymLocale } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { TenantContext } from '../common/tenant/tenant.context';
 
 /**
  * The gym's locale — its currency and its timezone — read from the gym's own
@@ -25,10 +26,19 @@ import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
  */
 @Injectable()
 export class GymLocaleService {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly tenant: TenantContext,
+  ) {}
 
   /**
    * The caller's gym locale, fully defaulted.
+   *
+   * The row is pinned to `tenant.gymId` explicitly. `Gym` is the tenant *root*
+   * (keyed by `id`, no `gymId` scalar), so it sits outside the Prisma tenant
+   * extension's scoped-model set — an unqualified `findFirst` here would return
+   * whichever gym Postgres handed back first, i.e. another tenant's currency and
+   * timezone on a multi-gym database.
    *
    * Never throws for a missing or malformed blob: a gym that has never opened
    * the settings screen has `settings: null`, and `gymSettingsStoredSchema`
@@ -36,7 +46,10 @@ export class GymLocaleService {
    * that nobody has configured the gym yet.
    */
   async get(): Promise<GymLocale> {
-    const gym = await this.prisma.client.gym.findFirst({ select: { settings: true } });
+    const gym = await this.prisma.client.gym.findFirst({
+      where: { id: this.tenant.gymId },
+      select: { settings: true },
+    });
     return gymSettingsStoredSchema.parse(gym?.settings ?? {}).locale;
   }
 }

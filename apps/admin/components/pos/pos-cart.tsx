@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { formatPrice } from '@/app/(dashboard)/shop/format-price';
 import { Btn } from '@/components/ui';
+import { useGymCurrency } from '@/components/gym-currency';
 import {
   lineTotal,
   selectDiscountTotal,
@@ -284,9 +285,14 @@ const styles = stylex.create({
   },
 });
 
-/** The cart's working currency — the first line's currency, or USD when empty. */
+/**
+ * The cart's working currency — the first line's currency, or the gym's own
+ * configured one while the till is empty (an empty basket still labels its zeros,
+ * and labelling them USD in a GEL gym is how the total contradicted the price tags).
+ */
 function useCartCurrency(): string {
-  return usePosCart((state) => state.items[0]?.currency ?? 'USD');
+  const gymCurrency = useGymCurrency();
+  return usePosCart((state) => state.items[0]?.currency ?? gymCurrency);
 }
 
 /**

@@ -59,10 +59,32 @@ export const WEEKDAY_LABELS: Record<Weekday, string> = {
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
+ * The closing time that means "midnight at the *end* of this day", i.e. 24:00.
+ *
+ * `00:00` is the one clock value that is both the earliest and the latest moment
+ * of a day, and a gym that shuts at midnight naturally types it. Read as the
+ * earliest it fails "close after open" for every opening time, which is why gyms
+ * were settling for `23:59` — a minute short of when they actually close.
+ */
+export const MIDNIGHT_CLOSE = '00:00';
+
+/**
+ * Whether a day's `open`/`close` pair describes a real window. Times are
+ * zero-padded 24-hour strings, so a lexical compare is a correct time compare —
+ * except for {@link MIDNIGHT_CLOSE}, which is end-of-day and therefore later than
+ * every opening time. Shared by the schema and by both admin forms so the
+ * client-side message and the API's rejection can never disagree.
+ */
+export function isValidDayWindow(open: string, close: string): boolean {
+  return close === MIDNIGHT_CLOSE || close > open;
+}
+
+/**
  * One day's opening hours. `closed` marks the branch shut that day (the times are
  * ignored and not rendered); otherwise `open`/`close` are `HH:MM` 24-hour times,
- * with `close` required to fall after `open`. Every field defaults so a bare `{}`
- * parses to a sensible 09:00–17:00 open day.
+ * with `close` required to fall after `open` — or to be {@link MIDNIGHT_CLOSE},
+ * which closes the day at 24:00. Every field defaults so a bare `{}` parses to a
+ * sensible 09:00–17:00 open day.
  */
 export const dayHoursSchema = z
   .object({
@@ -70,7 +92,7 @@ export const dayHoursSchema = z
     open: z.string().regex(TIME_PATTERN, 'Time must be HH:MM').default('09:00'),
     close: z.string().regex(TIME_PATTERN, 'Time must be HH:MM').default('17:00'),
   })
-  .refine((day) => day.closed || day.close > day.open, {
+  .refine((day) => day.closed || isValidDayWindow(day.open, day.close), {
     message: 'Closing time must be after opening time',
     path: ['close'],
   });

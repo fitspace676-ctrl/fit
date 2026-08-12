@@ -28,6 +28,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 
 /**
  * The columns the roster/detail queries select off `Product`. Every field is the
@@ -103,6 +104,7 @@ export class AdminProductsService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly locale: GymLocaleService,
   ) {}
 
   /**
@@ -334,7 +336,9 @@ export class AdminProductsService {
       totalUnits: 0,
       totalValue: 0,
       valuedPositions: 0,
-      currency: filtered[0]?.currency ?? 'USD',
+      // An empty (or fully filtered-out) inventory still has to label its zeros:
+      // fall back to the gym's configured currency, never a hardcoded one.
+      currency: filtered[0]?.currency ?? (await this.locale.get()).currency,
     };
     for (const position of filtered) {
       if (position.stock !== null) {
@@ -395,7 +399,9 @@ export class AdminProductsService {
         description: input.description,
         priceAmount: input.priceAmount,
         costAmount: input.costAmount,
-        currency: input.currency,
+        // The gym prices in exactly one currency (Settings → General); it is
+        // stamped here rather than accepted from the client.
+        currency: (await this.locale.get()).currency,
         images: input.images,
         variants: input.variants as unknown as Prisma.InputJsonValue,
         status: input.status,
@@ -446,7 +452,8 @@ export class AdminProductsService {
         description: input.description,
         priceAmount: input.priceAmount,
         costAmount: input.costAmount,
-        currency: input.currency,
+        // `currency` is intentionally untouched on edit: an existing product keeps
+        // the currency it was sold in even if the gym later switches.
         images: input.images,
         variants: input.variants as unknown as Prisma.InputJsonValue,
         categoryId: input.categoryId,

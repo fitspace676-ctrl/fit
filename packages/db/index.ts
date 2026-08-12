@@ -86,14 +86,10 @@ export {
   type RenewalAction,
 } from './prisma/subscription-billing';
 
-// Invoice-number formatting (T5.9). The pure `year`+`seq` → `"2026-0001"` rule,
-// re-exported so every mint site (enrolment / renewal / POS) renders the same
-// reference; the atomic `seq` allocation is the API's `InvoiceService`.
-export {
-  INVOICE_SEQ_PAD_WIDTH,
-  formatInvoiceNumber,
-  subscriptionInvoiceDescription,
-} from './prisma/invoice-number';
+// Invoice description wording (T5.9), re-exported so the enrolment and renewal mint
+// sites phrase a charge identically. The reference rule itself lives in `@fit/types`
+// (`formatInvoiceNumber`), beside the Settings → Invoicing schema that composes it.
+export { subscriptionInvoiceDescription } from './prisma/invoice-number';
 
 // Credit-pack expiry job (T8.5). The pure set-based UPDATE that flips lapsed credit
 // packs to `EXPIRED`, re-exported so the API / a scheduled runner share one pass.

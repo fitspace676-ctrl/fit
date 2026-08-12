@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import {
+  isValidDayWindow,
   WEEKDAYS,
   WEEKDAY_LABELS,
   type DayHours,
@@ -12,7 +13,7 @@ import {
   type LocationStatus,
   type Weekday,
 } from '@fit/types';
-import { Btn } from '@/components/ui';
+import { Btn, Switch } from '@/components/ui';
 import {
   createLocationAction,
   requestLocationPhotoUploadAction,
@@ -191,9 +192,17 @@ const styles = stylex.create({
   daysWrap: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.375rem',
+    gap: '0.5rem',
   },
+  // Mirrors Settings → Business hours: same card row, same Open switch, so a
+  // branch's hours are edited exactly the way the gym-wide default ones are.
   dayRow: {
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-background-muted)',
+    padding: '0.75rem',
+    boxShadow: 'inset 0 0 0 1px var(--color-border)',
+  },
+  dayInner: {
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -201,23 +210,36 @@ const styles = stylex.create({
   },
   dayName: {
     width: '6rem',
+    flexShrink: 0,
     fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
+    fontWeight: 600,
   },
-  closedLabel: {
+  dayNameOpen: {
+    color: 'var(--color-text-primary)',
+  },
+  dayNameClosed: {
+    color: 'var(--color-text-disabled)',
+  },
+  toggleWrap: {
+    marginLeft: 'auto',
     display: 'flex',
     alignItems: 'center',
-    gap: '0.375rem',
+    gap: '0.5rem',
+  },
+  toggleLabel: {
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
-  checkbox: {
-    borderRadius: 'var(--radius-inner)',
-    borderColor: 'var(--color-border)',
-    accentColor: 'var(--color-accent)',
+  dayError: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'var(--color-error)',
   },
   timeWrap: {
     display: 'flex',
+    flex: 1,
     alignItems: 'center',
     gap: '0.5rem',
   },
@@ -240,8 +262,9 @@ const styles = stylex.create({
     color: 'var(--color-text-secondary)',
   },
   closedAll: {
+    flex: 1,
     fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
+    color: 'var(--color-text-disabled)',
   },
   errorBanner: {
     margin: 0,
@@ -341,6 +364,25 @@ export function LocationForm(props: Props) {
     setHours((prev) => ({ ...prev, [day]: { ...prev[day], ...patch } }));
   }
 
+  /**
+   * Per-day "closing must be after opening" messages, mirroring the same rule the
+   * API enforces (`dayHoursSchema`). Surfaced next to the offending row rather than
+   * as a `400` banner after the round-trip — a branch open 22:00–06:00 is a typo to
+   * catch here, not a request to reject there.
+   */
+  const hourErrors = useMemo(() => {
+    const out: Partial<Record<Weekday, string>> = {};
+    for (const day of WEEKDAYS) {
+      const value = hours[day];
+      if (!value.closed && !isValidDayWindow(value.open, value.close)) {
+        out[day] = 'Closing time must be after opening time.';
+      }
+    }
+    return out;
+  }, [hours]);
+
+  const hasHourErrors = Object.keys(hourErrors).length > 0;
+
   /** Upload a chosen image to R2 via a presigned PUT, then store its public URL. */
   async function onPhotoChange(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0];
@@ -400,6 +442,9 @@ export function LocationForm(props: Props) {
   function onSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setError(null);
+    // The offending rows already say why; a save that the API would reject anyway
+    // is not worth the round-trip.
+    if (hasHourErrors) return;
     const profile = {
       name,
       address,
@@ -534,39 +579,53 @@ export function LocationForm(props: Props) {
         <div {...stylex.props(styles.daysWrap)}>
           {WEEKDAYS.map((day) => {
             const value = hours[day];
+            const label = WEEKDAY_LABELS[day];
             return (
               <div key={day} {...stylex.props(styles.dayRow)}>
-                <span {...stylex.props(styles.dayName)}>{WEEKDAY_LABELS[day]}</span>
-                <label {...stylex.props(styles.closedLabel)}>
-                  <input
-                    type="checkbox"
-                    checked={value.closed}
-                    onChange={(event) => setDay(day, { closed: event.target.checked })}
-                    {...stylex.props(styles.checkbox)}
-                  />
-                  Closed
-                </label>
-                {!value.closed ? (
-                  <div {...stylex.props(styles.timeWrap)}>
-                    <input
-                      type="time"
-                      aria-label={`${WEEKDAY_LABELS[day]} opening time`}
-                      value={value.open}
-                      onChange={(event) => setDay(day, { open: event.target.value })}
-                      {...stylex.props(styles.timeInput)}
-                    />
-                    <span {...stylex.props(styles.dash)}>–</span>
-                    <input
-                      type="time"
-                      aria-label={`${WEEKDAY_LABELS[day]} closing time`}
-                      value={value.close}
-                      onChange={(event) => setDay(day, { close: event.target.value })}
-                      {...stylex.props(styles.timeInput)}
+                <div {...stylex.props(styles.dayInner)}>
+                  <span
+                    {...stylex.props(
+                      styles.dayName,
+                      value.closed ? styles.dayNameClosed : styles.dayNameOpen,
+                    )}
+                  >
+                    {label}
+                  </span>
+                  {value.closed ? (
+                    <span {...stylex.props(styles.closedAll)}>Closed all day</span>
+                  ) : (
+                    <div {...stylex.props(styles.timeWrap)}>
+                      <input
+                        type="time"
+                        aria-label={`${label} opening time`}
+                        value={value.open}
+                        onChange={(event) => setDay(day, { open: event.target.value })}
+                        {...stylex.props(styles.timeInput)}
+                      />
+                      <span {...stylex.props(styles.dash)}>–</span>
+                      <input
+                        type="time"
+                        aria-label={`${label} closing time`}
+                        value={value.close}
+                        onChange={(event) => setDay(day, { close: event.target.value })}
+                        {...stylex.props(styles.timeInput)}
+                      />
+                    </div>
+                  )}
+                  <div {...stylex.props(styles.toggleWrap)}>
+                    <span {...stylex.props(styles.toggleLabel)}>Open</span>
+                    <Switch
+                      checked={!value.closed}
+                      onChange={(open) => setDay(day, { closed: !open })}
+                      label={`${label} open`}
                     />
                   </div>
-                ) : (
-                  <span {...stylex.props(styles.closedAll)}>Closed all day</span>
-                )}
+                </div>
+                {hourErrors[day] ? (
+                  <p role="alert" {...stylex.props(styles.dayError)}>
+                    {hourErrors[day]}
+                  </p>
+                ) : null}
               </div>
             );
           })}
@@ -601,7 +660,7 @@ export function LocationForm(props: Props) {
       ) : null}
 
       <div {...stylex.props(styles.actions)}>
-        <Btn type="submit" v="primary" disabled={pending || uploading}>
+        <Btn type="submit" v="primary" disabled={pending || uploading || hasHourErrors}>
           {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create location'}
         </Btn>
         <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>

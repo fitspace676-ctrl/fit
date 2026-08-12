@@ -45,7 +45,7 @@ import { GymSettingsService } from './gym-settings.service';
 export class GymSettingsController {
   constructor(private readonly settings: GymSettingsService) {}
 
-  /** `GET /gyms/settings` — the gym's full brand / locale / hours / notifications. */
+  /** `GET /gyms/settings` — the gym's full brand / locale / hours / policies. */
   @Get('settings')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.GymManage)

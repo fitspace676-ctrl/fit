@@ -11,6 +11,9 @@ import {
   type AutomationRuleRow,
   type AutomationTimingOffset,
   type AutomationTriggerType,
+  AUTOMATION_MERGE_FIELDS,
+  AUTOMATION_MERGE_GROUPS,
+  type GymAutomationFieldsSettings,
 } from '@fit/types';
 import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
 import { createAutomationRuleAction, updateAutomationRuleAction } from './actions';
@@ -18,7 +21,6 @@ import {
   ACTION_ICONS,
   ACTION_ORDER,
   CATEGORY_KEY,
-  MERGE_VARIABLE_GROUPS,
   TRIGGER_CATEGORY_ORDER,
   TRIGGER_META,
   triggerNeedsDays,
@@ -240,6 +242,8 @@ type Props = {
   /** In edit mode, the rule being edited; in create mode, an optional template to clone. */
   seed?: RuleFormSeed;
   onClose: () => void;
+  /** Which merge fields this gym offers — Settings → Automation fields. */
+  fields: GymAutomationFieldsSettings;
 };
 
 /**
@@ -250,7 +254,7 @@ type Props = {
  * `AutomationManage` Server Actions. Money-free, so state is plain strings the
  * submit coerces and the shared Zod schema re-validates.
  */
-export function RuleFormDialog({ mode, seed, onClose }: Props) {
+export function RuleFormDialog({ mode, seed, onClose, fields }: Props) {
   const t = useTranslations('admin.automation');
   const { toast } = useToast();
   const router = useRouter();
@@ -277,6 +281,23 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
     form.triggerType !== '' &&
     form.body.trim().length > 0 &&
     (!needsDays || Number.parseInt(form.days, 10) >= 1);
+
+  /**
+   * The merge-field chips, grouped for the picker and filtered to what this gym
+   * left switched on. A group whose every field is hidden drops out entirely
+   * rather than leaving a bare heading over nothing.
+   */
+  const mergeGroups = useMemo(
+    () =>
+      AUTOMATION_MERGE_GROUPS.map((group) => ({
+        group,
+        fields: AUTOMATION_MERGE_FIELDS.filter(
+          (field) =>
+            field.group === group && fields[field.key as keyof GymAutomationFieldsSettings],
+        ),
+      })).filter((entry) => entry.fields.length > 0),
+    [fields],
+  );
 
   /** Trigger `<optgroup>`s, grouped by category in the catalog's declared order. */
   const triggerGroups = useMemo(
@@ -496,21 +517,19 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
 
         <div {...stylex.props(styles.vars)}>
           <p {...stylex.props(styles.varHint)}>{t('form.mergeHint')}</p>
-          {MERGE_VARIABLE_GROUPS.map((group) => (
-            <div key={group.category} {...stylex.props(styles.varGroup)}>
-              <span {...stylex.props(styles.varGroupLabel)}>
-                {t(`mergeGroups.${group.category}`)}
-              </span>
+          {mergeGroups.map((group) => (
+            <div key={group.group} {...stylex.props(styles.varGroup)}>
+              <span {...stylex.props(styles.varGroupLabel)}>{t(`mergeGroups.${group.group}`)}</span>
               <div {...stylex.props(styles.varChips)}>
-                {group.variables.map((v) => (
+                {group.fields.map((field) => (
                   <button
-                    key={v.token}
+                    key={field.token}
                     type="button"
-                    title={v.token}
-                    onClick={() => insertToken(v.token)}
+                    title={field.token}
+                    onClick={() => insertToken(field.token)}
                     {...stylex.props(styles.varChip)}
                   >
-                    {t(`mergeVars.${v.key}`)}
+                    {t(`mergeVars.${field.key}`)}
                   </button>
                 ))}
               </div>

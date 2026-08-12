@@ -14,6 +14,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { GymLocaleService } from '../gyms/gym-locale.service';
 
 /**
  * The columns the roster/detail queries select off `PackagePlan`. Every field is
@@ -57,6 +58,7 @@ export class AdminPackagePlansService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly locale: GymLocaleService,
   ) {}
 
   /**
@@ -121,7 +123,9 @@ export class AdminPackagePlansService {
         name: input.name,
         description: input.description,
         priceAmount: input.priceAmount,
-        currency: input.currency,
+        // Priced in the gym's own configured currency (Settings → General), never
+        // a client-supplied one — a gym sells in exactly one currency.
+        currency: (await this.locale.get()).currency,
         billingInterval: input.billingInterval,
         sessionCount: input.sessionCount,
         features: input.features,
@@ -150,7 +154,8 @@ export class AdminPackagePlansService {
         name: input.name,
         description: input.description,
         priceAmount: input.priceAmount,
-        currency: input.currency,
+        // `currency` is untouched on edit: an existing plan keeps the currency its
+        // members were signed up in.
         billingInterval: input.billingInterval,
         sessionCount: input.sessionCount,
         features: input.features,

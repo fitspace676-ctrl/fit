@@ -3,7 +3,7 @@ import { BookingStatus, OrderStatus, Prisma, Role, SubscriptionStatus } from '@f
 import {
   AUDIENCE_PREVIEW_SAMPLE_SIZE,
   MARKETING_CHANNEL_CATALOG,
-  MARKETING_MERGE_FIELDS,
+  MARKETING_MERGE_FIELD_DEFS,
   audienceCriteriaSchema,
   type AudienceCriteria,
   type AudienceMemberSample,
@@ -40,6 +40,8 @@ import {
   type UpdateMessageTemplateInput,
   type UpdatePromoCodeInput,
   type ValidatePromoCodeInput,
+  gymSettingsStoredSchema,
+  type MarketingFieldToggle,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -90,9 +92,26 @@ export class MarketingService {
     private readonly tenant: TenantContext,
   ) {}
 
-  /** The channel + merge-field catalogs the composer (T12.8) renders from. */
-  catalog(): MarketingCatalogResponse {
-    return { channels: MARKETING_CHANNEL_CATALOG, mergeFields: MARKETING_MERGE_FIELDS };
+  /**
+   * The channel + merge-field catalogs the composer (T12.8) renders from.
+   *
+   * The merge-field half is per gym: the built-ins the gym has left switched on.
+   * The response shape is unchanged, which is what lets the template dialog and
+   * the campaign wizard stay untouched — they were already rendering whatever
+   * this returns.
+   */
+  async catalog(): Promise<MarketingCatalogResponse> {
+    const gym = await this.prisma.client.gym.findFirst({
+      where: { id: this.tenant.gymId },
+      select: { settings: true },
+    });
+    const { marketingFields } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+
+    const builtIns = MARKETING_MERGE_FIELD_DEFS.filter(
+      (field) => marketingFields[field.key as MarketingFieldToggle],
+    ).map((field) => ({ token: field.token, label: field.label }));
+
+    return { channels: MARKETING_CHANNEL_CATALOG, mergeFields: builtIns };
   }
 
   // -------------------------------------------------------------------------

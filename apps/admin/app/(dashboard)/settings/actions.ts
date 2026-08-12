@@ -6,6 +6,7 @@ import {
   Permission,
   roleHasPermission,
   updateGymSettingsSchema,
+  updateLocationSchema,
   type GymSettings,
   type UpdateGymSettingsInput,
 } from '@fit/types';
@@ -13,7 +14,9 @@ import { getServerSession } from '@/lib/session';
 import {
   ApiError,
   createUpload,
+  fetchLocation,
   updateGymSettings,
+  updateLocation,
   uploadGymLogo,
   type SignedUploadResponse,
 } from '@/lib/api';
@@ -33,12 +36,17 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 
 const requireGymManage = () => sessionHas(Permission.GymManage);
 
+const requireLocationWrite = () => sessionHas(Permission.LocationWrite);
+
 /** Map a thrown API error to a short, translated, staff-facing message. */
 async function toMessage(error: unknown): Promise<string> {
   const t = await getTranslations('admin.settings.errors');
   if (error instanceof ApiError) {
     if (error.message === 'GYM_NOT_FOUND') {
       return t('gymNotFound');
+    }
+    if (error.message === 'LOCATION_NOT_FOUND' || error.status === 404) {
+      return t('locationNotFound');
     }
     if (error.status === 403) {
       return t('forbidden');
@@ -109,6 +117,45 @@ export async function requestLogoUploadAction(input: {
  * persists its public URL as the brand logo and returns that URL. Enforces
  * `GymManage` and refreshes the settings page.
  */
+/**
+ * Rename one location from the Settings › Locations card. `PATCH /admin/locations/:id`
+ * is a whole-profile replace, not a merge, so this re-reads the location and sends
+ * its current address / phone / photo / amenities / hours back untouched with only
+ * the new `name` — renaming from here can never blank the rest of the branch.
+ * Enforces `LocationWrite`, then refreshes both the settings page and the locations
+ * roster so every surface shows the new name.
+ */
+export async function renameLocationAction(
+  id: string,
+  name: string,
+): Promise<ActionResult<{ id: string; name: string }>> {
+  if (!(await requireLocationWrite())) {
+    return notAuthorized();
+  }
+  try {
+    const current = await fetchLocation(id);
+    const parsed = updateLocationSchema.safeParse({
+      name,
+      address: current.address,
+      phone: current.phone,
+      photoUrl: current.photoUrl,
+      amenities: current.amenities,
+      hours: current.hours,
+    });
+    if (!parsed.success) {
+      const t = await getTranslations('admin.settings.errors');
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalid') };
+    }
+    const updated = await updateLocation(id, parsed.data);
+    revalidatePath('/settings');
+    revalidatePath('/locations');
+    revalidatePath(`/locations/${id}`);
+    return { ok: true, data: { id: updated.id, name: updated.name } };
+  } catch (error) {
+    return { ok: false, error: await toMessage(error) };
+  }
+}
+
 export async function finalizeGymLogoAction(
   photoKey: string,
 ): Promise<ActionResult<{ logoUrl: string }>> {

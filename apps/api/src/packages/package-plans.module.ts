@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { GymsModule } from '../gyms/gyms.module';
 import { AdminPackagePlansController } from './admin-package-plans.controller';
 import { AdminPackagePlansService } from './admin-package-plans.service';
 import { PackagesController } from './packages.controller';
@@ -19,6 +20,9 @@ import { PackagesService } from './packages.service';
  * and excluded from `TenantMiddleware` in `AppModule`.
  */
 @Module({
+  // `GymsModule` for `GymLocaleService`: a new plan is priced in the gym's own
+  // configured currency rather than a hardcoded default.
+  imports: [GymsModule],
   controllers: [AdminPackagePlansController, PackagesController],
   providers: [AdminPackagePlansService, PackagesService],
 })

@@ -2,9 +2,16 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
-import { Permission, roleHasPermission } from '@fit/types';
+import { Permission, gymStaffDirectorySettingsSchema, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchLocations, fetchStaff, fetchStaffRoles, fetchWorkingNow } from '@/lib/api';
+import {
+  ApiError,
+  fetchGymSettings,
+  fetchLocations,
+  fetchStaff,
+  fetchStaffRoles,
+  fetchWorkingNow,
+} from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { StaffConsole } from './staff-console';
 
@@ -98,12 +105,19 @@ export default async function StaffPage() {
   const canManage = session !== null && roleHasPermission(session.role, Permission.StaffManage);
 
   try {
-    const [{ staff }, roles, workingNow, locations] = await Promise.all([
+    const [{ staff }, roles, workingNow, locations, display] = await Promise.all([
       fetchStaff(),
       fetchStaffRoles(),
       fetchWorkingNow(),
       fetchLocations({ status: 'ACTIVE', limit: 100 }),
+      // What this gym shows on the page (Settings → Staff page). Falls back to
+      // schema defaults — which reproduce the stock page — so a settings outage
+      // costs a couple of optional columns rather than the whole roster.
+      fetchGymSettings()
+        .then((s) => s.staffDirectory)
+        .catch(() => gymStaffDirectorySettingsSchema.parse({})),
     ]);
+
     return (
       <StaffConsole
         staff={staff}
@@ -112,6 +126,7 @@ export default async function StaffPage() {
         roles={roles}
         workingNow={workingNow.shifts}
         locations={locations.data.map((loc) => ({ id: loc.id, name: loc.name }))}
+        display={display}
       />
     );
   } catch (error) {

@@ -9,6 +9,7 @@ import type {
 import { AdminSubscriptionPlansService } from './admin-subscription-plans.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { GymLocaleService } from '../gyms/gym-locale.service';
 
 /** A subscription-plan row as the service's projection selects it. */
 interface SubscriptionPlanRecord {
@@ -105,9 +106,13 @@ function setup(overrides?: {
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  // The gym prices in GEL; a created plan must be stamped with that, not USD.
+  const locale = {
+    get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
+  } as unknown as GymLocaleService;
 
   return {
-    service: new AdminSubscriptionPlansService(prisma, tenant),
+    service: new AdminSubscriptionPlansService(prisma, tenant, locale),
     findMany,
     count,
     findFirst,
@@ -128,7 +133,6 @@ const createInput = (over?: Partial<CreateSubscriptionPlanData>): CreateSubscrip
   name: 'Monthly Unlimited',
   description: 'Unlimited gym access, billed monthly.',
   priceAmount: 5000,
-  currency: 'USD',
   interval: 'MONTH',
   features: ['Unlimited access', 'Free guest passes'],
   popular: true,
@@ -143,7 +147,6 @@ const updateInput = (over?: Partial<UpdateSubscriptionPlanData>): UpdateSubscrip
   name: 'Annual Unlimited',
   description: 'Updated copy.',
   priceAmount: 50000,
-  currency: 'EUR',
   interval: 'YEAR',
   features: ['Unlimited access'],
   popular: false,
@@ -319,7 +322,8 @@ describe('AdminSubscriptionPlansService', () => {
         gymId: 'gym-1',
         name: 'Starter',
         priceAmount: 5000,
-        currency: 'USD',
+        // Stamped from the gym's own locale, not from the request body.
+        currency: 'GEL',
         interval: 'YEAR',
         features: ['Unlimited access', 'Free guest passes'],
         popular: true,
@@ -343,7 +347,6 @@ describe('AdminSubscriptionPlansService', () => {
         name: 'Annual Unlimited',
         description: 'Updated copy.',
         priceAmount: 50000,
-        currency: 'EUR',
         interval: 'YEAR',
         features: ['Unlimited access'],
         popular: false,
@@ -352,6 +355,8 @@ describe('AdminSubscriptionPlansService', () => {
         trialDays: 0,
       });
       expect(data).not.toHaveProperty('status');
+      // An existing plan keeps the currency its members were signed up in.
+      expect(data).not.toHaveProperty('currency');
     });
 
     it('throws 404 for an unknown / cross-tenant id', async () => {
