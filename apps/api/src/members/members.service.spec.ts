@@ -777,6 +777,28 @@ describe('MembersService', () => {
       });
     });
 
+    /**
+     * The roster keeps its search box and Filter panel on screen in the trash
+     * view, so they have to narrow it like they narrow any other view — a trash
+     * that ignores them is a search box that does nothing. Only the `status`
+     * segments are excluded, being the one axis the view itself replaces.
+     */
+    it('narrows the trash view by search and the plan filter', async () => {
+      const { service, findMany } = setup({ findMany: [], count: 0 });
+
+      await service.listMembers(query({ view: 'trash', search: 'nino', planId: 'plan-1' }));
+
+      const where = findMany.mock.calls[0]?.[0]?.where;
+      expect(where).toMatchObject({ deletedAt: { not: null } });
+      expect(where?.user).toEqual({
+        OR: [
+          { name: { contains: 'nino', mode: 'insensitive' } },
+          { email: { contains: 'nino', mode: 'insensitive' } },
+        ],
+      });
+      expect(where?.subscriptions).toMatchObject({ some: { planId: 'plan-1' } });
+    });
+
     it('excludes trashed members from the default (active) view', async () => {
       const { service, findMany } = setup({ findMany: [], count: 0 });
 

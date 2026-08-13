@@ -953,13 +953,13 @@ export class MembersService {
   private buildWhere(query: ListMembersQuery): Prisma.GymMemberWhereInput {
     const where: Prisma.GymMemberWhereInput = { role: Role.MEMBER };
 
-    // The trash view lists only soft-deleted members (status segments don't apply);
-    // every other view lists live members and excludes the trashed.
-    if (query.view === 'trash') {
-      where.deletedAt = { not: null };
-      return where;
-    }
-    where.deletedAt = null;
+    // The trash view lists only soft-deleted members; every other view lists live
+    // members and excludes the trashed. The view swaps *which* members are in
+    // scope — the search box and Filter panel stay on screen either way, so every
+    // other narrow below still applies. Only the `status` segments are dropped:
+    // the view stands in for them.
+    const isTrash = query.view === 'trash';
+    where.deletedAt = isTrash ? { not: null } : null;
 
     // The roster's primary segment. Derived, so it is expressed as the subscription
     // + override conditions `memberKindWhere` mirrors from `resolveMemberKind`.
@@ -967,7 +967,7 @@ export class MembersService {
       Object.assign(where, memberKindWhere(query.kind));
     }
 
-    if (query.status) {
+    if (query.status && !isTrash) {
       where.status = query.status;
     }
 

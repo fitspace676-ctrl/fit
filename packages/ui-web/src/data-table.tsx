@@ -427,9 +427,20 @@ export function TableSearch({
 }: TableSearchProps) {
   const [text, setText] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const input = useRef<HTMLInputElement>(null);
 
-  // Re-sync if the source value changes elsewhere (back button, reset).
-  useEffect(() => setText(value), [value]);
+  // Re-sync if the source value changes elsewhere (back button, reset) — but
+  // never into a box that is being typed in. A keystroke commits after the
+  // debounce, and on every list screen that commit is a URL change, so the
+  // committed query comes back as `value` a round trip later — by which point
+  // the user has typed on. Writing that echo in rewrites the field mid-word:
+  // it eats the space `onSearch` trimmed off, and drops whatever was typed
+  // while the navigation was in flight. The box owns its text while focused;
+  // the source owns it the rest of the time.
+  useEffect(() => {
+    if (input.current !== null && document.activeElement === input.current) return;
+    setText(value);
+  }, [value]);
 
   // Clear any pending debounce on unmount.
   useEffect(() => {
@@ -453,6 +464,7 @@ export function TableSearch({
         className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
       />
       <input
+        ref={input}
         type="search"
         value={text}
         onChange={onChange}
