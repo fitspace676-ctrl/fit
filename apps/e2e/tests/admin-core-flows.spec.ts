@@ -47,6 +47,7 @@ const posMember = {
   email: `e2e.till.${RUN}@e2e.test`,
   phone: '+995555030303',
   dateOfBirth: '1990-05-17',
+  gender: 'MALE',
   personalId: `PID${RUN}`,
   address: '12 Rustaveli Ave',
   kinName: 'E2E Next Of Kin',
@@ -142,7 +143,10 @@ test.describe.serial('Admin core flows', () => {
     await expect(drawer).toBeVisible();
     await drawer.locator('#product-name').fill(product.name);
     await drawer.locator('#product-price').fill(product.price);
-    await drawer.locator('#product-currency').fill(product.currency);
+    // The currency is the gym's own (Settings → General), shown read-only rather
+    // than typed per product — a per-product override is what let a GEL gym price
+    // a product in USD. Assert it instead of filling it.
+    await expect(drawer.getByText(product.currency).first()).toBeVisible();
     await drawer.locator('#product-status').selectOption('ACTIVE');
     await drawer.getByRole('button', { name: 'Create product' }).click();
 
@@ -211,6 +215,7 @@ test.describe.serial('Admin core flows', () => {
     await drawer.locator('input[name="email"]').fill(posMember.email);
     await drawer.locator('input[name="phone"]').fill(posMember.phone);
     await drawer.locator('#dateOfBirth').fill(posMember.dateOfBirth);
+    await drawer.locator('#gender').selectOption(posMember.gender);
     await drawer.locator('#personalId').fill(posMember.personalId);
     await drawer.locator('#address').fill(posMember.address);
     await drawer.locator('#emergencyName').fill(posMember.kinName);
@@ -231,6 +236,7 @@ test.describe.serial('Admin core flows', () => {
     await expect(page.locator('#personalId')).toHaveValue(posMember.personalId);
     await expect(page.locator('#address')).toHaveValue(posMember.address);
     await expect(page.locator('#dateOfBirth')).toHaveValue(posMember.dateOfBirth);
+    await expect(page.locator('#gender')).toHaveValue(posMember.gender);
     await expect(page.locator('#emergencyName')).toHaveValue(posMember.kinName);
     await expect(page.locator('#emergencyPhone')).toHaveValue(posMember.kinPhone);
   });
