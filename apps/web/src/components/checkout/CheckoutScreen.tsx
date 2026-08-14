@@ -152,29 +152,6 @@ const styles = stylex.create({
   },
 
   /* -------------------------------- sections ------------------------------- */
-  sectionHead: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: '0.75rem',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
-    paddingBottom: '0.875rem',
-  },
-  sectionNum: {
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.8125rem',
-    fontWeight: 700,
-    color: 'var(--color-text-secondary)',
-  },
-  sectionTitle: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.375rem',
-    fontWeight: 800,
-    letterSpacing: '-0.025em',
-    color: 'var(--color-text-primary)',
-  },
   sectionBody: { marginTop: '1.25rem' },
   hint: {
     margin: 0,
@@ -483,10 +460,10 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
   },
   pay: {
-    marginTop: '1.5rem',
     display: 'flex',
     height: '3.25rem',
-    width: '100%',
+    flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.5rem',
@@ -506,17 +483,26 @@ const styles = stylex.create({
     cursor: 'not-allowed',
   },
   payIcon: { height: '1rem', width: '1rem' },
-  back: {
-    marginTop: '0.75rem',
+  actionsRow: {
+    marginTop: '1.5rem',
     display: 'flex',
-    height: '2.5rem',
-    width: '100%',
+    alignItems: 'stretch',
+    gap: '0.5rem',
+  },
+  back: {
+    display: 'flex',
+    height: '3.25rem',
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.375rem',
     borderRadius: 'var(--radius-element)',
     borderWidth: 0,
-    backgroundColor: { default: 'transparent', ':hover': 'rgba(19, 19, 18, 0.10)' },
+    paddingInline: '1rem',
+    backgroundColor: {
+      default: 'rgba(19, 19, 18, 0.10)',
+      ':hover': 'rgba(19, 19, 18, 0.18)',
+    },
     color: '#2B2B29',
     fontSize: '0.875rem',
     fontWeight: 600,
@@ -561,6 +547,19 @@ const SECTIONS = ['location', 'package', 'details', 'payment'] as const;
 type Step = 0 | 1 | 2 | 3;
 
 /**
+ * The heading for each step. It replaces a static "Checkout" over a numbered
+ * section heading that repeated it — two headings saying the same thing, and
+ * neither of them telling the buyer what they were being asked for right now.
+ * The step number moved to the eyebrow, where the chips already echo it.
+ */
+const STEP_TITLES = [
+  'locations.title',
+  'packages.title',
+  'details.title',
+  'payment.title',
+] as const;
+
+/**
  * The public purchase screen: choose a branch and a product, say who you are,
  * and reserve the membership — all on one page, with the running order kept in
  * view. Reachable signed-out; a guest is registered as part of paying.
@@ -579,7 +578,11 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
   const [productType, setProductType] = useState<CheckoutProductType>('subscription');
   const [productId, setProductId] = useState<string | undefined>();
 
-  const [name, setName] = useState('');
+  // Collected as two fields but sent as one: `memberSignupSchema` takes a single
+  // `name`, and splitting a joined string server-side guesses wrong on Georgian
+  // compound surnames. Asking twice and joining once keeps the guess out of it.
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
@@ -652,7 +655,9 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
         ? t('packages.perYear')
         : null;
 
-  /** Everything section 02 needs before the purchase can be attempted. */
+  const name = `${firstName.trim()} ${lastName.trim()}`.trim();
+
+  /** Everything the details step needs before the purchase can be attempted. */
   const detailsReady =
     signedIn ||
     memberSignupSchema.safeParse({
@@ -758,8 +763,10 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
     <form onSubmit={onSubmit} {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.head)}>
         <div>
-          <p {...stylex.props(styles.eyebrow)}>{t('subtitle')}</p>
-          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.eyebrow)}>
+            {t('progress', { current: step + 1, total: SECTIONS.length })}
+          </p>
+          <h1 {...stylex.props(styles.title)}>{t(STEP_TITLES[step])}</h1>
         </div>
 
         {/* The chips are navigation, not decoration: a finished step can be
@@ -792,11 +799,6 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
         <div {...stylex.props(styles.column)}>
           {/* ---------------------------- 01 location ---------------------------- */}
           <section hidden={step !== 0}>
-            <div {...stylex.props(styles.sectionHead)}>
-              <span {...stylex.props(styles.sectionNum)}>01</span>
-              <h2 {...stylex.props(styles.sectionTitle)}>{t('locations.title')}</h2>
-            </div>
-
             <div {...stylex.props(styles.sectionBody)}>
               <p {...stylex.props(styles.hint)}>{t('locations.subtitle')}</p>
 
@@ -836,11 +838,6 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
 
           {/* ----------------------------- 02 package ---------------------------- */}
           <section hidden={step !== 1}>
-            <div {...stylex.props(styles.sectionHead)}>
-              <span {...stylex.props(styles.sectionNum)}>02</span>
-              <h2 {...stylex.props(styles.sectionTitle)}>{t('packages.title')}</h2>
-            </div>
-
             <div {...stylex.props(styles.sectionBody)}>
               <div {...stylex.props(styles.chipRow)}>
                 {PRODUCT_TABS.map((tab) => (
@@ -917,11 +914,6 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
 
           {/* ----------------------------- 02 details ---------------------------- */}
           <section hidden={step !== 2}>
-            <div {...stylex.props(styles.sectionHead)}>
-              <span {...stylex.props(styles.sectionNum)}>03</span>
-              <h2 {...stylex.props(styles.sectionTitle)}>{t('details.title')}</h2>
-            </div>
-
             <div {...stylex.props(styles.sectionBody)}>
               {sessionLoading ? (
                 <p {...stylex.props(styles.hint)}>{t('details.loading')}</p>
@@ -942,16 +934,22 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                   ) : null}
 
                   <div {...stylex.props(styles.fieldGrid)}>
-                    <div {...stylex.props(styles.fieldWide)}>
-                      <AuthField
-                        label={t('details.fields.name')}
-                        name="name"
-                        autoComplete="name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        disabled={submitting}
-                      />
-                    </div>
+                    <AuthField
+                      label={t('details.fields.firstName')}
+                      name="given-name"
+                      autoComplete="given-name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      disabled={submitting}
+                    />
+                    <AuthField
+                      label={t('details.fields.lastName')}
+                      name="family-name"
+                      autoComplete="family-name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      disabled={submitting}
+                    />
                     <AuthField
                       label={t('details.fields.email')}
                       type="email"
@@ -1028,11 +1026,6 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
 
           {/* ----------------------------- 03 payment ---------------------------- */}
           <section hidden={step !== 3}>
-            <div {...stylex.props(styles.sectionHead)}>
-              <span {...stylex.props(styles.sectionNum)}>04</span>
-              <h2 {...stylex.props(styles.sectionTitle)}>{t('payment.title')}</h2>
-            </div>
-
             <div {...stylex.props(styles.sectionBody)}>
               <button
                 type="button"
@@ -1081,39 +1074,46 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
             {/* ONE action locus. The rail's button is "continue" while there
                 are steps left and "reserve" on the last one, so the buyer never
                 has to look in two places for the way forward — and the total is
-                directly above it the whole time. */}
-            {step < 3 ? (
-              <button
-                type="button"
-                onClick={() => canAdvance && setStep((s) => (s + 1) as Step)}
-                disabled={!canAdvance}
-                {...stylex.props(styles.pay, !canAdvance && styles.payOff)}
-              >
-                {t('continue')}
-                <Icon name="chevronRight" sw={2.2} {...stylex.props(styles.payIcon)} />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!canPay}
-                {...stylex.props(styles.pay, !canPay && styles.payOff)}
-              >
-                <Icon name="lock" sw={2} {...stylex.props(styles.payIcon)} />
-                {submitting ? t('payment.processing') : t('payment.reserve')}
-              </button>
-            )}
+                directly above it the whole time.
 
-            {step > 0 ? (
-              <button
-                type="button"
-                onClick={() => setStep((s) => (s - 1) as Step)}
-                disabled={submitting}
-                {...stylex.props(styles.back)}
-              >
-                <Icon name="arrowLeft" sw={2.2} {...stylex.props(styles.payIcon)} />
-                {t('back')}
-              </button>
-            ) : null}
+                Back sits BESIDE it rather than under it: stacked, the two read
+                as a sequence and "back" collected the eye last, after the button
+                the buyer actually wanted. Side by side they read as a choice,
+                and back stays the smaller of the two. */}
+            <div {...stylex.props(styles.actionsRow)}>
+              {step > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep((s) => (s - 1) as Step)}
+                  disabled={submitting}
+                  {...stylex.props(styles.back)}
+                >
+                  <Icon name="arrowLeft" sw={2.2} {...stylex.props(styles.payIcon)} />
+                  {t('back')}
+                </button>
+              ) : null}
+
+              {step < 3 ? (
+                <button
+                  type="button"
+                  onClick={() => canAdvance && setStep((s) => (s + 1) as Step)}
+                  disabled={!canAdvance}
+                  {...stylex.props(styles.pay, !canAdvance && styles.payOff)}
+                >
+                  {t('continue')}
+                  <Icon name="chevronRight" sw={2.2} {...stylex.props(styles.payIcon)} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!canPay}
+                  {...stylex.props(styles.pay, !canPay && styles.payOff)}
+                >
+                  <Icon name="lock" sw={2} {...stylex.props(styles.payIcon)} />
+                  {submitting ? t('payment.processing') : t('payment.reserve')}
+                </button>
+              )}
+            </div>
 
             <p {...stylex.props(styles.orderNote)}>{t('summary.note')}</p>
           </div>
