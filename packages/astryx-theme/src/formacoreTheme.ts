@@ -27,7 +27,7 @@
 // Token values are `[light, dark]` tuples (compiled to CSS `light-dark()`) or a
 // single string when the value is mode-independent.
 
-import { defineTheme } from '@astryxdesign/core/theme';
+import { defineTheme, type TokenValue } from '@astryxdesign/core/theme';
 import { neutralTheme } from '@astryxdesign/theme-neutral';
 
 /**
@@ -84,6 +84,63 @@ const neutralised = Object.fromEntries(
     [`--color-text-${hue}`, [ink[700], ink[200]]],
   ]),
 ) as Record<string, [string, string]>;
+
+/**
+ * The FormaCore surfaces, as CSS custom properties Astryx has no slot for.
+ *
+ * They live in the theme rather than in a stylesheet so both modes stay in ONE
+ * place: `astryx theme build` compiles each `[light, dark]` pair to
+ * `light-dark()` exactly like a first-party token (verified in
+ * `dist/formacore.css`). What it does not do is widen `TokenName`, which is a
+ * closed union of Astryx's own tokens — so these have to arrive as a SPREAD
+ * rather than as literal keys, which is what gets them past the excess-property
+ * check without an assertion. `satisfies` still holds every value to a valid
+ * `TokenValue`, so a typo'd colour is caught here.
+ */
+const fcTokens = {
+  // =========================================================================
+  // FormaCore surfaces (`--fc-*`) — the recurring materials the artboards use
+  // that Astryx's contract has no slot for. They live here rather than as
+  // literals in each screen so the vocabulary stays one edit wide.
+  //
+  // The inversion in `tile` is deliberate and is the direction's main depth
+  // trick: inside a panel, an inset tile goes DARKER than its parent in dark
+  // mode (ink-950 inside ink-900 — the page colour punched back through) and
+  // LIGHTER in light mode (ink-50 inside white, with a hairline). Both read as
+  // "recessed" without a shadow, which the direction reserves for floating
+  // chrome.
+  // =========================================================================
+  '--fc-tile': [ink[50], ink[950]],
+  '--fc-tile-border': [ink[200], 'transparent'],
+  '--fc-tile-hover': [ink[100], ink[800]],
+
+  // "Quiet" — a filled but voiceless chip: spots-left counts, WAITLIST and
+  // FROZEN states, the product monogram. Reads as information, never as an
+  // action, and never competes with the lime.
+  '--fc-quiet': [ink[200], ink[800]],
+  '--fc-on-quiet': [ink[700], ink[200]],
+
+  // "Ghost" — a secondary control (cancel, close, dismiss). One step quieter
+  // than `quiet` so the two can sit in the same row without ambiguity.
+  '--fc-ghost': [ink[100], ink[800]],
+  '--fc-on-ghost': [ink[600], ink[300]],
+
+  // The BOOKED state: a lime the eye reads as "already done" rather than
+  // "press me" — tinted fill, deep lime text, lime hairline. Distinct from the
+  // solid `--color-accent` CTA that offers the action in the first place.
+  '--fc-booked': [brand[100], brand[950]],
+  '--fc-on-booked': [brand[800], brand[200]],
+  '--fc-booked-border': [brand[300], brand[800]],
+
+  // Sticky header: the canvas at 95% behind a small blur, so content scrolling
+  // under it stays sensed but never legible. This is the artboards' one
+  // translucent surface — not glassmorphism, just a scroll affordance.
+  '--fc-header': ['rgba(238, 238, 237, 0.95)', 'rgba(19, 19, 18, 0.95)'],
+  // Header icon buttons and fields sit ON that surface, so they take the
+  // opposite step: white in light, the panel colour in dark.
+  '--fc-control': ['#FFFFFF', ink[900]],
+  '--fc-avatar-ring': [ink[200], ink[700]],
+} satisfies Record<`--fc-${string}`, TokenValue>;
 
 export const formacoreTheme = defineTheme({
   name: 'formacore',
@@ -204,49 +261,6 @@ export const formacoreTheme = defineTheme({
     ...neutralised,
 
     // =========================================================================
-    // FormaCore surfaces (`--fc-*`) — the recurring materials the artboards use
-    // that Astryx's contract has no slot for. They live here rather than as
-    // literals in each screen so the vocabulary stays one edit wide.
-    //
-    // The inversion in `tile` is deliberate and is the direction's main depth
-    // trick: inside a panel, an inset tile goes DARKER than its parent in dark
-    // mode (ink-950 inside ink-900 — the page colour punched back through) and
-    // LIGHTER in light mode (ink-50 inside white, with a hairline). Both read as
-    // "recessed" without a shadow, which the direction reserves for floating
-    // chrome.
-    // =========================================================================
-    '--fc-tile': [ink[50], ink[950]],
-    '--fc-tile-border': [ink[200], 'transparent'],
-    '--fc-tile-hover': [ink[100], ink[800]],
-
-    // "Quiet" — a filled but voiceless chip: spots-left counts, WAITLIST and
-    // FROZEN states, the product monogram. Reads as information, never as an
-    // action, and never competes with the lime.
-    '--fc-quiet': [ink[200], ink[800]],
-    '--fc-on-quiet': [ink[700], ink[200]],
-
-    // "Ghost" — a secondary control (cancel, close, dismiss). One step quieter
-    // than `quiet` so the two can sit in the same row without ambiguity.
-    '--fc-ghost': [ink[100], ink[800]],
-    '--fc-on-ghost': [ink[600], ink[300]],
-
-    // The BOOKED state: a lime the eye reads as "already done" rather than
-    // "press me" — tinted fill, deep lime text, lime hairline. Distinct from the
-    // solid `--color-accent` CTA that offers the action in the first place.
-    '--fc-booked': [brand[100], brand[950]],
-    '--fc-on-booked': [brand[800], brand[200]],
-    '--fc-booked-border': [brand[300], brand[800]],
-
-    // Sticky header: the canvas at 95% behind a small blur, so content scrolling
-    // under it stays sensed but never legible. This is the artboards' one
-    // translucent surface — not glassmorphism, just a scroll affordance.
-    '--fc-header': ['rgba(238, 238, 237, 0.95)', 'rgba(19, 19, 18, 0.95)'],
-    // Header icon buttons and fields sit ON that surface, so they take the
-    // opposite step: white in light, the panel colour in dark.
-    '--fc-control': ['#FFFFFF', ink[900]],
-    '--fc-avatar-ring': [ink[200], ink[700]],
-
-    // =========================================================================
     // Radii — the cut-corner ladder, rounded. Each step is the radius that reads
     // at the same visual weight as the `clip-path` inset it replaces:
     //
@@ -268,6 +282,8 @@ export const formacoreTheme = defineTheme({
     // menus) — cards sit flat on the canvas. Warming the shadow colour keeps a
     // lifted white card from going blue-grey against the charcoal page.
     '--color-shadow': ['rgba(19, 19, 18, 0.16)', 'rgba(0, 0, 0, 0.6)'],
+
+    ...fcTokens,
   },
 
   components: {
