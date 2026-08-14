@@ -2838,6 +2838,7 @@
     "hidePassword": "Hide",
     "togglePassword": "Toggle password visibility",
     "terms": "By continuing you agree to our Terms and Privacy Policy.",
+    "termsRich": "By continuing you agree to <policy>our Terms and Privacy Policy</policy>.",
     "signingIn": "Signing you in…",
     "signedIn": "Signed in successfully.",
     "googleNotConfigured": "Google sign-in is not configured.",
@@ -2897,7 +2898,8 @@
         "instant": "Straight into your member portal once you have paid"
       },
       "cta": "Become a member",
-      "ctaNote": "Takes about two minutes."
+      "ctaNote": "Takes about two minutes.",
+      "titleNamed": "Not a member of {gym} yet?"
     }
   },
   "billing": {
@@ -2971,6 +2973,7 @@
       "subtitle": "Pick the membership that fits how you train.",
       "loading": "Loading packages…",
       "error": "We couldn't load the packages. Please try again.",
+      "noGym": "Open this page on your gym’s address (e.g. downtown.formacore.ge) — there is no gym in scope here, so nothing can be listed.",
       "retry": "Try again",
       "empty": {
         "title": "No packages available",
@@ -3335,6 +3338,8 @@
       "today": "Today",
       "tomorrow": "Tomorrow",
       "membership": "Membership",
+      "managePlan": "Manage plan",
+      "myBookings": "My bookings",
       "active": "Active",
       "noPlan": "No active plan",
       "memberId": "ID",

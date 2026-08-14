@@ -38,29 +38,32 @@ const CATEGORY_ICON: Record<InboxItem['category'], IconName> = {
 };
 
 const styles = stylex.create({
+  // FormaCore redesign: matched to the other header controls — a 40px bordered
+  // button on the `--fc-control` surface at the `inner` radius, so bell, cart,
+  // theme track and avatar read as one row of hardware rather than four
+  // differently-shaped things.
   bell: {
     position: 'relative',
     display: 'grid',
     placeItems: 'center',
     height: '2.5rem',
     width: '2.5rem',
-    borderWidth: 0,
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
-    },
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--fc-tile-border)',
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--fc-control)',
     color: {
-      default: 'var(--color-text-secondary)',
-      ':hover': 'var(--color-text-primary)',
+      default: 'var(--color-icon-secondary)',
+      ':hover': 'var(--color-icon-primary)',
     },
     cursor: 'pointer',
-    transitionProperty: 'background-color, color',
+    transitionProperty: 'color',
     transitionDuration: '150ms',
   },
   bellIcon: {
-    height: '1.25rem',
-    width: '1.25rem',
+    height: '1.125rem',
+    width: '1.125rem',
   },
   unread: {
     position: 'absolute',

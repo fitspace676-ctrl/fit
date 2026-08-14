@@ -94,15 +94,17 @@ const styles = stylex.create({
   avatar: {
     position: 'relative',
   },
+  // A flat lime disc with ink on it — the same "one lime, no gradients" rule as
+  // the membership block, at avatar scale. `--color-on-accent` is ink-950 in the
+  // FormaCore theme, so the glyph stays legible without a literal.
   avatarDisc: {
     display: 'grid',
     placeItems: 'center',
     height: '6rem',
     width: '6rem',
     borderRadius: 'var(--radius-full)',
-    backgroundImage:
-      'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 92%, #7c3aed), #ec4899)',
-    color: '#ffffff',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
   },
   avatarIcon: {
     height: '2.5rem',

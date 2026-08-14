@@ -27,7 +27,7 @@
  * instead, right after this file, so its layer is declared last.
  */
 @import '@astryxdesign/core/reset.css';
-@import '@fit/astryx-theme/theme.css';
+@import '@fit/astryx-theme/formacore.css';
 
 @layer tw-base {
   @tailwind base;

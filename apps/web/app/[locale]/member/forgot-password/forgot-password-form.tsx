@@ -1,119 +1,74 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
-import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { TextInput } from '@astryxdesign/core/TextInput';
 import { requestPasswordReset } from '@/lib/auth';
-import { Icon } from '@/src/components/ui';
+import { AuthBanner, AuthField, AuthForm, AuthSubmit } from '../../_components/auth/auth-form-kit';
 
 /**
  * Password-reset request form. The API's response is deliberately generic — it
  * never reveals whether the address is registered — so on success we surface the
  * returned `message` as-is rather than implying an account exists.
  *
- * Astryx migration (T11.9): rebuilt on the Astryx `TextInput` (email) and a
- * primary `Button`; the inline error banner and the post-request success notice
- * are compiled StyleX on the Fit theme tokens — no Tailwind and no dependency on
- * the old formacore form-controls. The submit behaviour and the generic-message
- * contract are unchanged from the formacore version.
+ * FormaCore redesign: rebuilt on the shared auth controls, so the email field
+ * and the submit are the same objects the sign-in form renders. Only the fields
+ * differ between the two screens; nothing about the frame or the controls does.
+ * Submit behaviour and the generic-message contract are unchanged.
  */
-const styles = stylex.create({
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  banner: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.5rem',
-    borderRadius: 'var(--radius-element)',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.5rem',
-    fontSize: '0.875rem',
-  },
-  error: {
-    color: 'var(--color-error)',
-    backgroundColor: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
-    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-error) 30%, transparent)',
-  },
-  success: {
-    color: 'var(--color-success)',
-    backgroundColor: 'color-mix(in srgb, var(--color-success) 12%, transparent)',
-    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-success) 30%, transparent)',
-  },
-  bannerIcon: {
-    marginTop: '0.125rem',
-    flexShrink: 0,
-    width: '1rem',
-    height: '1rem',
-  },
-  submit: {
-    width: '100%',
-    marginTop: '0.25rem',
-  },
-});
-
 export function ForgotPasswordForm() {
   const t = useTranslations('auth');
 
   const [email, setEmail] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     setPending(true);
     setError(null);
     requestPasswordReset(email)
-      .then((res) => setMessage(res.message))
+      .then(() => setSent(true))
       .catch((err: unknown) => {
         setPending(false);
         setError(err instanceof Error ? err.message : t('genericError'));
       });
   };
 
-  if (message) {
-    return (
-      <p role="status" {...stylex.props(styles.banner, styles.success)}>
-        <Icon name="check" {...stylex.props(styles.bannerIcon)} sw={2.4} />
-        {message}
-      </p>
-    );
+  // Once the link is on its way there is nothing left to fill in — the form is
+  // replaced rather than left standing beside its own confirmation.
+  //
+  // The confirmation is OUR string, not the API's. `POST /auth/forgot-password`
+  // answers with one hardcoded English sentence — deliberately constant, so it
+  // never reveals whether the address is registered — and rendering it verbatim
+  // put an English line in the middle of a Georgian page. `auth.forgot.sent` is
+  // that same sentence, translated, and it has been sitting unused in the
+  // catalogue. Saying it ourselves keeps the generic contract (the copy does not
+  // vary with the answer) and keeps the page in one language.
+  if (sent) {
+    return <AuthBanner tone="success">{t('forgot.sent')}</AuthBanner>;
   }
 
   return (
-    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
-      {error ? (
-        <p role="alert" {...stylex.props(styles.banner, styles.error)}>
-          <Icon name="info" {...stylex.props(styles.bannerIcon)} sw={2.2} />
-          {error}
-        </p>
-      ) : null}
+    <AuthForm onSubmit={onSubmit}>
+      {error ? <AuthBanner tone="error">{error}</AuthBanner> : null}
 
-      <TextInput
-        type="email"
+      <AuthField
         label={t('fields.email')}
-        htmlName="email"
-        size="lg"
+        type="email"
+        name="email"
+        autoComplete="email"
+        required
         placeholder={t('fields.emailPlaceholder')}
         value={email}
-        onChange={(value) => setEmail(value)}
-        isDisabled={pending}
+        onChange={(event) => setEmail(event.target.value)}
+        disabled={pending}
+        invalid={error !== null}
       />
 
-      <Button
-        type="submit"
-        variant="primary"
-        size="lg"
-        label={pending ? t('forgot.submitting') : t('forgot.submit')}
-        isLoading={pending}
-        isDisabled={pending}
-        xstyle={styles.submit}
-      />
-    </form>
+      <AuthSubmit pending={pending}>
+        {pending ? t('forgot.submitting') : t('forgot.submit')}
+      </AuthSubmit>
+    </AuthForm>
   );
 }

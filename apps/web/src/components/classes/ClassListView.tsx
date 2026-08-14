@@ -116,6 +116,10 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-text-primary)',
   },
+  // Neutral chip, coloured dot — see the note on the same chip in
+  // `account/BookingHistoryCard.tsx`. The gym's per-class-type hex stays
+  // meaningful as the dot; the chip itself never takes a fill, so the lime
+  // remains the only filled colour on the page.
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -123,14 +127,20 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-full)',
     borderWidth: '1px',
     borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
     paddingInline: '0.625rem',
     paddingBlock: '0.125rem',
-    fontSize: '0.75rem',
-    fontWeight: 600,
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
   },
   chipDot: {
     height: '0.375rem',
     width: '0.375rem',
+    flexShrink: 0,
     borderRadius: 'var(--radius-full)',
   },
   meta: {
@@ -274,14 +284,7 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                         <div {...stylex.props(styles.titleRow)}>
                           <span {...stylex.props(styles.title)}>{instance.title}</span>
                           {instance.category && (
-                            <span
-                              {...stylex.props(styles.chip)}
-                              style={{
-                                color: instance.color,
-                                backgroundColor: `${instance.color}1f`,
-                                borderColor: `${instance.color}40`,
-                              }}
-                            >
+                            <span {...stylex.props(styles.chip)}>
                               <span
                                 aria-hidden
                                 {...stylex.props(styles.chipDot)}

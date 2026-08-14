@@ -17,7 +17,7 @@ import { relativeDayLabel } from './booking-format';
 // Astryx migration (T11.14): the "My bookings" board is rebuilt on the Astryx
 // design system over the Fit brand theme. Upcoming/past is an Astryx
 // `SegmentedControl`; the category filter is a StyleX pill row; the soonest
-// upcoming class is a brand-gradient "Next up" hero; the empty/no-match states
+// upcoming class is a lime-block "Next up" hero; the empty/no-match states
 // use the Astryx `EmptyState` / `Card`. All layout is compiled StyleX
 // (`var(--color-*)`), no Tailwind utilities. Split-by-start logic is unchanged.
 
@@ -103,55 +103,52 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
-  // "Next up" hero
+  // "Next up" hero — the second lime block in the portal, and the one that
+  // carries the direction's signature move: the member's next class time set as
+  // a giant mono numeral. Flat lime, ink type, no gradient/glow/coloured shadow
+  // (see `membership-hero.tsx` for why the on-block colours are literals).
   hero: {
     position: 'relative',
     overflow: 'hidden',
-    borderRadius: 'var(--radius-container)',
-    backgroundImage:
-      'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 92%, #7c3aed), #ec4899)',
+    borderRadius: 'var(--radius-page)',
+    backgroundColor: 'var(--color-accent)',
     padding: '1.5rem',
-    color: '#ffffff',
-    boxShadow: '0 24px 60px -24px color-mix(in srgb, var(--color-accent) 70%, transparent)',
-  },
-  heroGlow: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    top: '-4rem',
-    right: '-2.5rem',
-    height: '14rem',
-    width: '14rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    filter: 'blur(48px)',
+    color: '#131312',
   },
   heroRow: {
     position: 'relative',
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: '1rem',
+    gap: '1.25rem',
   },
+  // No tile, no fill behind it: at this size the numeral IS the graphic, and a
+  // panel around it would only shrink it back to a label.
   heroTime: {
-    width: '4rem',
     flexShrink: 0,
-    borderRadius: 'var(--radius-container)',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingBlock: '0.5rem',
-    textAlign: 'center',
-    backdropFilter: 'blur(4px)',
+    textAlign: 'left',
   },
   heroDay: {
     margin: 0,
-    fontSize: '0.625rem',
+    fontSize: '0.6875rem',
     fontWeight: 700,
     textTransform: 'uppercase',
+    letterSpacing: '0.16em',
+    color: 'rgba(19, 19, 18, 0.62)',
   },
+  // NOTE — every `<p>` / heading on a lime block must state its colour.
+  // The theme's reset carries `:where(p) { color: var(--color-text-primary) }`,
+  // which in dark mode is white. It has zero specificity but it still beats
+  // plain inheritance, so a paragraph inside the block does NOT pick up the
+  // block's ink: it goes white on lime (~1.5:1) unless told otherwise.
   heroClock: {
     margin: 0,
-    fontSize: '1.125rem',
-    fontWeight: 800,
-    lineHeight: 1.1,
+    color: '#131312',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: 'clamp(2.5rem, 6vw, 3.5rem)',
+    fontWeight: 700,
+    lineHeight: 0.9,
+    letterSpacing: '-0.05em',
     fontVariantNumeric: 'tabular-nums',
   },
   heroBody: {
@@ -160,13 +157,16 @@ const styles = stylex.create({
   },
   heroLabel: {
     margin: 0,
-    fontSize: '0.75rem',
+    fontSize: '0.6875rem',
+    fontWeight: 700,
     textTransform: 'uppercase',
-    letterSpacing: '0.12em',
-    color: 'rgba(255, 255, 255, 0.75)',
+    letterSpacing: '0.16em',
+    color: 'rgba(19, 19, 18, 0.62)',
   },
   heroTitle: {
     margin: 0,
+    marginTop: '0.25rem',
+    color: '#131312',
     fontFamily: 'var(--font-family-heading)',
     fontSize: '1.5rem',
     fontWeight: 900,
@@ -174,16 +174,19 @@ const styles = stylex.create({
   },
   heroMeta: {
     margin: 0,
+    marginTop: '0.125rem',
     fontSize: '0.875rem',
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(19, 19, 18, 0.76)',
   },
+  // The action inverts to ink — the block is already the lime, so the button
+  // cannot be it too.
   heroAction: {
-    // Force a light action against the gradient regardless of theme.
     backgroundColor: {
-      default: '#ffffff',
-      ':hover': 'rgba(255, 255, 255, 0.9)',
+      default: '#131312',
+      ':hover': '#2B2B29',
     },
-    color: 'var(--color-text-accent)',
+    color: '#FFFFFF',
+    borderColor: 'transparent',
   },
 });
 
@@ -199,7 +202,7 @@ type View = 'upcoming' | 'past';
  * The members' "My bookings" board, on the Astryx design system. The member's
  * bookings split into Upcoming (start ≥ now, soonest first) and Past (most recent
  * first); a category filter narrows either tab and the soonest upcoming class is
- * surfaced as a gradient "Next up" hero. Booking actions (cancel / re-book) live
+ * surfaced as a lime-block "Next up" hero. Booking actions (cancel / re-book) live
  * on each card.
  */
 export function BookingHistory({ entries, now }: BookingHistoryProps) {
@@ -305,7 +308,6 @@ function NextUpHero({
 
   return (
     <div {...stylex.props(styles.hero)}>
-      <div aria-hidden {...stylex.props(styles.heroGlow)} />
       <div {...stylex.props(styles.heroRow)}>
         <div {...stylex.props(styles.heroTime)}>
           <p {...stylex.props(styles.heroDay)}>{day}</p>

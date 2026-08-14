@@ -9,12 +9,14 @@ import { getActiveGymId } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
 import { fetchMemberBookings } from '@/lib/member-bookings';
 import { fetchMyCreditPacks, totalRemainingCredits } from '@/lib/credit-packs';
+import { fetchMembership, type MemberSubscription } from '@/lib/membership';
 import { fetchProducts, formatMoney } from '@/lib/shop';
 import { fetchTrainers } from '@/lib/trainers';
 import { fetchClassInstances } from '@/lib/classes';
 import { ButtonLink, CountUp, Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { MembershipHero } from '@/src/components/member/home/membership-hero';
+import { CheckInQr } from '@/src/components/member/home/check-in-qr';
 import { createDateTimeFormat } from '@fit/i18n';
 
 export const metadata: Metadata = { title: 'Home — Fit' };
@@ -37,19 +39,33 @@ const styles = stylex.create({
   },
   eyebrow: {
     margin: 0,
-    fontFamily: 'var(--font-family-code)',
     fontSize: '0.6875rem',
+    fontWeight: 600,
     textTransform: 'uppercase',
-    letterSpacing: '0.2em',
+    letterSpacing: '0.18em',
     color: 'var(--color-text-secondary)',
   },
+  greetingRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '1.25rem',
+  },
+  greetingText: {
+    minWidth: 0,
+  },
   greeting: {
-    marginTop: '0.25rem',
+    marginTop: '0.75rem',
     marginBottom: 0,
     fontFamily: 'var(--font-family-heading)',
-    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontSize: {
+      default: '1.875rem',
+      '@media (min-width: 640px)': '2.375rem',
+    },
     fontWeight: 800,
-    letterSpacing: '-0.02em',
+    lineHeight: 1.05,
+    letterSpacing: '-0.025em',
     color: 'var(--color-text-primary)',
   },
   heroGrid: {
@@ -79,8 +95,10 @@ const styles = stylex.create({
   },
   cardLabel: {
     margin: 0,
-    fontSize: '0.875rem',
-    fontWeight: 700,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.375rem',
+    fontWeight: 800,
+    letterSpacing: '-0.025em',
     color: 'var(--color-text-primary)',
   },
   nextRow: {
@@ -96,14 +114,19 @@ const styles = stylex.create({
     },
     gap: '1rem',
   },
+  // The 64px duration tile from the artboards' class card — a bordered inset
+  // square holding a mono minute count over a "min" caption.
   timeBox: {
     display: 'grid',
     placeItems: 'center',
     flexShrink: 0,
     height: '4rem',
     width: '4rem',
-    borderRadius: 'var(--radius-container)',
-    backgroundColor: 'var(--color-background-muted)',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--fc-tile-border)',
+    backgroundColor: 'var(--fc-tile)',
     textAlign: 'center',
   },
   timeBoxSm: {
@@ -119,8 +142,10 @@ const styles = stylex.create({
   timeText: {
     margin: 0,
     fontFamily: 'var(--font-family-code)',
-    fontSize: '1rem',
+    fontSize: '1.0625rem',
     fontWeight: 700,
+    lineHeight: 1,
+    fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
   timeTextSm: {
@@ -132,8 +157,9 @@ const styles = stylex.create({
   },
   daySub: {
     margin: 0,
-    fontFamily: 'var(--font-family-code)',
+    marginTop: '0.125rem',
     fontSize: '0.625rem',
+    fontWeight: 600,
     color: 'var(--color-text-secondary)',
   },
   grow: {
@@ -146,8 +172,10 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.125rem',
-    fontWeight: 700,
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    lineHeight: 1.05,
+    letterSpacing: '-0.025em',
     color: 'var(--color-text-primary)',
   },
   itemTitleSm: {
@@ -205,22 +233,43 @@ const styles = stylex.create({
     gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
     gap: '0.75rem',
   },
+  // The counters are the direction's signature move at tile scale: a cropped
+  // mono numeral doing the work an icon would do elsewhere. 28px on phones,
+  // 32px from `sm` — big enough to read as a graphic, not as body copy.
   statValue: {
     margin: 0,
     marginTop: '0.75rem',
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: {
+      default: '1.75rem',
+      '@media (min-width: 640px)': '2rem',
+    },
+    fontWeight: 700,
+    lineHeight: 1,
+    letterSpacing: '-0.03em',
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
+  // The `/3` half of a `2/3` credit balance — same face, smaller and quieter,
+  // so the numeral that matters still reads as the graphic.
+  statSub: {
+    fontSize: '1rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
   statLabel: {
     margin: 0,
-    marginTop: '0.125rem',
-    fontSize: '0.6875rem',
+    marginTop: '0.75rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.625rem',
     fontWeight: 600,
     textTransform: 'uppercase',
-    letterSpacing: '0.04em',
+    letterSpacing: {
+      default: 'normal',
+      '@media (min-width: 640px)': '0.14em',
+    },
     color: 'var(--color-text-secondary)',
   },
   statIcon: {
@@ -230,8 +279,9 @@ const styles = stylex.create({
   sectionTitle: {
     margin: 0,
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.25rem',
-    fontWeight: 700,
+    fontSize: '1.625rem',
+    fontWeight: 800,
+    letterSpacing: '-0.025em',
     color: 'var(--color-text-primary)',
   },
   sectionHead: {
@@ -267,7 +317,10 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem',
-    padding: '1rem',
+    padding: {
+      default: '1.25rem',
+      '@media (min-width: 640px)': '1.5rem',
+    },
   },
   classTop: {
     display: 'flex',
@@ -342,8 +395,17 @@ const styles = stylex.create({
     width: '100%',
     objectFit: 'cover',
   },
-  productEmoji: {
-    fontSize: '1.5rem',
+  // The image-less fallback: the product's initial set in mono, the way the
+  // artboards draw a product with no photo (W / T / R / S). It replaced a 🛍️
+  // emoji — the direction bans emoji outright, and a colour-font glyph was the
+  // single most saturated thing on an otherwise monochrome page.
+  productInitial: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.75rem',
+    fontWeight: 700,
+    letterSpacing: '-0.04em',
+    color: 'var(--color-text-disabled)',
+    userSelect: 'none',
   },
   productName: {
     margin: 0,
@@ -475,6 +537,45 @@ function OccupancyBar({ value, cap }: { value: number; cap: number }) {
   );
 }
 
+/**
+ * Statuses that mean "this member currently has a plan". `PAST_DUE` counts: the
+ * plan is live and the member can still train — what is wrong is the payment,
+ * which the membership screen surfaces. `CANCELED` counts too while the period
+ * has not lapsed, because a cancelled-but-unexpired plan is still in force; the
+ * period check in {@link billingPeriodProgress} is what ends it.
+ */
+const ACTIVE_STATUSES = new Set(['ACTIVE', 'TRIAL', 'PAST_DUE', 'CANCELED']);
+
+/**
+ * How far through the current billing period the member is, for the membership
+ * block's progress bar. Returns zeroes when there is no dated period — the block
+ * hides the bar entirely rather than drawing an invented one.
+ *
+ * This replaced a hardcoded `22 / 30`, which rendered the same 73% bar for every
+ * member on every plan regardless of when they actually renewed.
+ */
+function billingPeriodProgress(
+  subscription: MemberSubscription | null,
+  now: Date,
+): { daysUsed: number; daysTotal: number } {
+  const start = subscription?.currentPeriodStart;
+  const end = subscription?.currentPeriodEnd;
+  if (!start || !end) {
+    return { daysUsed: 0, daysTotal: 0 };
+  }
+
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return { daysUsed: 0, daysTotal: 0 };
+  }
+
+  const day = 86_400_000;
+  const daysTotal = Math.max(1, Math.round((endMs - startMs) / day));
+  const elapsed = Math.round((now.getTime() - startMs) / day);
+  return { daysUsed: Math.min(daysTotal, Math.max(0, elapsed)), daysTotal };
+}
+
 export default async function MemberHomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
@@ -489,9 +590,12 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
   const now = new Date();
   const weekAhead = new Date(now.getTime() + 7 * 86_400_000);
 
-  const [bookings, creditPacks, products, trainers, classes] = await Promise.all([
+  const [bookings, creditPacks, membership, products, trainers, classes] = await Promise.all([
     safe(fetchMemberBookings({ scope: 'all' }), [] as MemberBookingHistoryEntry[]),
     safe(fetchMyCreditPacks(), []),
+    // The dashboard's flagship card states the member's PLAN, so it has to read
+    // the subscription — same `GET /me/subscription` the membership screen uses.
+    safe(fetchMembership(), { subscription: null, invoices: [] }),
     gymId ? safe(fetchProducts({ gymId }), [] as ProductSummary[]) : Promise.resolve([]),
     gymId ? safe(fetchTrainers({ gymId }), []) : Promise.resolve([]),
     gymId
@@ -516,7 +620,19 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
   const attended = bookings.filter((b) => b.status === 'ATTENDED').length;
 
   const credits = totalRemainingCredits(creditPacks);
-  const planName = creditPacks[0]?.planTitle ?? null;
+
+  // The membership block reads the live subscription. It used to take its plan
+  // name from `creditPacks[0].planTitle` — a PT credit pack, not a membership —
+  // so a member on Premium with no packs saw "no plan" on their dashboard while
+  // the membership screen showed Premium, and a member with packs but no
+  // subscription saw the pack's title billed as their plan. The credit-pack
+  // title stays as the fallback for exactly that second case (packs are a
+  // standalone product a non-subscriber can hold).
+  const subscription = membership.subscription;
+  const planName = subscription?.planName ?? creditPacks[0]?.planTitle ?? null;
+  const hasPlan = Boolean(subscription && ACTIVE_STATUSES.has(subscription.status));
+  const { daysUsed, daysTotal } = billingPeriodProgress(subscription, now);
+
   const trainer = trainers[0] ?? null;
   const topProducts = products.slice(0, 4);
   const bookable = classes
@@ -527,37 +643,56 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
   const memberName = t('greetingFallbackName');
   const memberId = `FC-${(session?.userId ?? 'member').slice(-4).toUpperCase()}`;
 
+  // The artboards' three counters. The third is PT credits rather than a
+  // booking count — upcoming bookings already have their own section below, and
+  // credits are the one balance the dashboard does not otherwise state. It
+  // carries the `remaining/total` sub-notation the artboards draw, summed across
+  // every active pack.
+  const creditsTotal = creditPacks.reduce((sum, pack) => sum + pack.totalCredits, 0);
   const stats = [
-    { label: t('dayStreak'), value: Math.min(attended, 30), icon: 'flame' as const },
-    { label: t('checkInsMonth'), value: attended, icon: 'qr' as const },
-    { label: t('classesBooked'), value: upcoming.length, icon: 'calendar' as const },
+    { label: t('dayStreak'), value: Math.min(attended, 30), sub: null, icon: 'flame' as const },
+    { label: t('checkInsMonth'), value: attended, sub: null, icon: 'qr' as const },
+    {
+      label: t('ptCredits'),
+      value: credits,
+      sub: creditsTotal > 0 ? `/${creditsTotal}` : null,
+      icon: 'dumbbell' as const,
+    },
   ];
 
   return (
     <div {...stylex.props(styles.page)}>
-      {/* Greeting */}
-      <div>
-        <p {...stylex.props(styles.eyebrow)}>
-          {createDateTimeFormat(activeLocale, {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-          }).format(now)}
-        </p>
-        <h1 {...stylex.props(styles.greeting)}>{t('greeting')}</h1>
+      {/* Greeting — paired with the check-in button, which the artboards put
+          here rather than inside the membership block: showing your code at the
+          door is the first thing a member does on arrival. */}
+      <div {...stylex.props(styles.greetingRow)}>
+        <div {...stylex.props(styles.greetingText)}>
+          <p {...stylex.props(styles.eyebrow)}>
+            {createDateTimeFormat(activeLocale, {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            }).format(now)}
+          </p>
+          <h1 {...stylex.props(styles.greeting)}>{t('greeting')}</h1>
+        </div>
+        <CheckInQr
+          memberName={memberName}
+          memberId={memberId}
+          qrSeed={session?.userId ?? 'guest'}
+          active={hasPlan}
+        />
       </div>
 
       {/* Hero: membership + next class + stats */}
       <section {...stylex.props(styles.heroGrid)}>
         <MembershipHero
           planName={planName}
-          active={credits > 0 || planName !== null}
-          daysUsed={22}
-          daysTotal={30}
-          creditsLeft={credits}
+          active={hasPlan || credits > 0}
+          daysUsed={daysUsed}
+          daysTotal={daysTotal}
           memberName={memberName}
           memberId={memberId}
-          qrSeed={session?.userId ?? 'guest'}
         />
 
         <div {...stylex.props(styles.col)}>
@@ -625,6 +760,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                 <Icon name={s.icon} {...stylex.props(styles.statIcon, styles.brandIcon)} />
                 <p {...stylex.props(styles.statValue)}>
                   <CountUp to={s.value} />
+                  {s.sub ? <span {...stylex.props(styles.statSub)}>{s.sub}</span> : null}
                 </p>
                 <p {...stylex.props(styles.statLabel)}>{s.label}</p>
               </Card>
@@ -737,7 +873,9 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                     {p.imageUrl ? (
                       <img src={p.imageUrl} alt="" {...stylex.props(styles.productImg)} />
                     ) : (
-                      <span {...stylex.props(styles.productEmoji)}>🛍️</span>
+                      <span aria-hidden {...stylex.props(styles.productInitial)}>
+                        {p.name.trim().charAt(0).toUpperCase()}
+                      </span>
                     )}
                   </div>
                   <p {...stylex.props(styles.productName)}>{p.name}</p>

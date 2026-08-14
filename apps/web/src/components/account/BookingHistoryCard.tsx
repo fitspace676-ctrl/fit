@@ -87,6 +87,15 @@ const styles = stylex.create({
   titleMuted: {
     color: 'var(--color-text-disabled)',
   },
+  // The category chip is NEUTRAL; only its 6px dot carries the category colour.
+  //
+  // It used to tint the whole chip — fill, border and label — from
+  // `instance.color`, which is a per-class-type hex the gym picks. On the
+  // Aurora-glass skin that was merely busy; under a direction that spends its
+  // entire colour budget on one lime, a row of filled green/pink/purple/orange
+  // pills is the loudest thing on the screen and reads as the primary signal.
+  // Demoting the hue to a dot keeps the category legible at a glance, keeps the
+  // gym's own colour choice meaningful, and leaves the lime as the only fill.
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -94,14 +103,20 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-full)',
     borderWidth: '1px',
     borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
     paddingInline: '0.625rem',
     paddingBlock: '0.25rem',
-    fontSize: '0.75rem',
-    fontWeight: 600,
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
   },
   chipDot: {
     height: '0.375rem',
     width: '0.375rem',
+    flexShrink: 0,
     borderRadius: 'var(--radius-full)',
   },
   meta: {
@@ -190,14 +205,7 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
                 {instance.title}
               </Link>
               {instance.category && (
-                <span
-                  {...stylex.props(styles.chip)}
-                  style={{
-                    color: instance.color,
-                    backgroundColor: `${instance.color}1f`,
-                    borderColor: `${instance.color}40`,
-                  }}
-                >
+                <span {...stylex.props(styles.chip)}>
                   <span
                     aria-hidden
                     {...stylex.props(styles.chipDot)}
