@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
@@ -10,25 +11,320 @@ import { ThemeToggle } from './theme-toggle';
 import { NotificationBell } from './notification-bell';
 import { NAV_ITEMS, isActive } from './nav-items';
 
-/** Brand mark — the gradient bolt badge + wordmark, linking home. */
+// FormaCore redesign (T11.10) — the member shell, off Tailwind and onto compiled
+// StyleX over the FormaCore theme, and matched to the `web-member-*` artboards
+// measurement for measurement rather than approximately:
+//
+//   bar        80px tall, content capped at 1180px, 24px gutter (40px from lg)
+//   logo       40px lime tile at the `inner` radius, 19px extrabold wordmark
+//   nav        CENTERED in the remaining space, 40px pills, 14px semibold,
+//              17px icons, active = solid lime with ink-950 type
+//   actions    40px controls on the `--fc-control` surface; the avatar is a
+//              SQUIRCLE (not a circle) ringed in lime, which is how the artboards
+//              mark "this is you"
+//   menu       240px, 14px bold name over the plan · gym line
+//
+// The nav collapses to the drawer at `lg`, matching the artboards' own
+// `hidden lg:flex` — six Georgian labels do not fit a tablet.
+
+const styles = stylex.create({
+  header: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 30,
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+    // The artboards' one translucent surface: the canvas at 95% behind a small
+    // blur, so content scrolling under the bar is sensed but never legible.
+    backgroundColor: 'var(--fc-header)',
+    backdropFilter: 'blur(8px)',
+  },
+  bar: {
+    marginInline: 'auto',
+    display: 'flex',
+    height: '5rem',
+    width: '100%',
+    maxWidth: '1180px',
+    alignItems: 'center',
+    gap: '1.5rem',
+    paddingInline: {
+      default: '1.5rem',
+      '@media (min-width: 1024px)': '2.5rem',
+    },
+  },
+
+  /* --------------------------------- brand -------------------------------- */
+  logo: {
+    display: 'flex',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.625rem',
+    textDecoration: 'none',
+  },
+  logoMark: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  logoIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+  logoWord: {
+    fontSize: '1.1875rem',
+    fontWeight: 800,
+    letterSpacing: '-0.025em',
+    color: 'var(--color-text-primary)',
+  },
+
+  /* ---------------------------------- nav --------------------------------- */
+  nav: {
+    display: {
+      default: 'none',
+      '@media (min-width: 1024px)': 'flex',
+    },
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.25rem',
+  },
+  navItem: {
+    display: 'flex',
+    height: '2.5rem',
+    alignItems: 'center',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-inner)',
+    paddingInline: '1rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    textDecoration: 'none',
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  navIdle: {
+    color: 'var(--color-text-secondary)',
+    backgroundColor: { default: 'transparent', ':hover': 'var(--color-tint-hover)' },
+  },
+  navActive: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  navIcon: {
+    height: '1.0625rem',
+    width: '1.0625rem',
+  },
+
+  /* -------------------------------- actions ------------------------------- */
+  actions: {
+    marginInlineStart: {
+      default: 'auto',
+      '@media (min-width: 1024px)': 0,
+    },
+    display: 'flex',
+    flexShrink: 0,
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  // Header controls sit on the header surface, so they take the opposite step:
+  // white in light, the panel colour in dark — the artboards' `t.iconBtn`.
+  iconBtn: {
+    position: 'relative',
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--fc-tile-border)',
+    backgroundColor: 'var(--fc-control)',
+    color: { default: 'var(--color-icon-secondary)', ':hover': 'var(--color-icon-primary)' },
+    cursor: 'pointer',
+    textDecoration: 'none',
+    transitionProperty: 'color',
+    transitionDuration: '150ms',
+  },
+  actionIcon: {
+    height: '1.125rem',
+    width: '1.125rem',
+  },
+  menuToggle: {
+    display: {
+      default: 'grid',
+      '@media (min-width: 1024px)': 'none',
+    },
+  },
+
+  /* -------------------------------- avatar -------------------------------- */
+  avatarWrap: {
+    position: 'relative',
+  },
+  // A squircle ringed in lime — the artboards never draw the member as a circle,
+  // which is what keeps them distinct from the round trainer avatars.
+  avatar: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: 0,
+    boxShadow: '0 0 0 2px var(--color-accent)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    cursor: 'pointer',
+    transitionProperty: 'transform',
+    transitionDuration: '150ms',
+    ':hover': { transform: 'scale(1.05)' },
+  },
+  avatarIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+
+  /* ------------------------------ account menu ---------------------------- */
+  scrim: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 40,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    cursor: 'default',
+  },
+  menu: {
+    position: 'absolute',
+    insetInlineEnd: 0,
+    zIndex: 50,
+    marginTop: '0.75rem',
+    width: '15rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-popover)',
+    paddingBlock: '0.5rem',
+    // Floating chrome is the one thing the direction lets carry elevation.
+    boxShadow: 'var(--shadow-high)',
+  },
+  menuIdentity: {
+    paddingInline: '1rem',
+    paddingTop: '0.5rem',
+    paddingBottom: '0.75rem',
+  },
+  menuName: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  menuItem: {
+    display: 'flex',
+    width: '100%',
+    alignItems: 'center',
+    gap: '0.625rem',
+    borderWidth: 0,
+    backgroundColor: { default: 'transparent', ':hover': 'var(--color-tint-hover)' },
+    paddingInline: '1rem',
+    paddingBlock: '0.625rem',
+    textAlign: 'start',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    cursor: 'pointer',
+    color: { default: 'var(--color-text-secondary)', ':hover': 'var(--color-text-primary)' },
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  menuDanger: {
+    color: 'var(--color-text-red)',
+  },
+  menuIcon: {
+    height: '1rem',
+    width: '1rem',
+  },
+  menuRule: {
+    marginBlock: '0.25rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+  },
+
+  /* ------------------------------ mobile drawer --------------------------- */
+  drawer: {
+    display: {
+      default: 'block',
+      '@media (min-width: 1024px)': 'none',
+    },
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-body)',
+    paddingInline: '1.5rem',
+    paddingTop: '0.5rem',
+    paddingBottom: '1rem',
+  },
+  drawerNav: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  drawerItem: {
+    display: 'flex',
+    height: '2.75rem',
+    width: '100%',
+    alignItems: 'center',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    paddingInline: '1rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textAlign: 'start',
+    textDecoration: 'none',
+    cursor: 'pointer',
+  },
+  drawerIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+});
+
+/**
+ * The member's public id, `FC-` + the last four of their user id, uppercased.
+ * The dashboard's membership block and the check-in QR derive it the same way,
+ * so the three agree — a member reading it out to reception matches the record
+ * staff have open.
+ */
+function memberIdOf(userId: string): string {
+  return `FC-${userId.slice(-4).toUpperCase()}`;
+}
+
+/** Brand mark — the lime bolt tile + wordmark, linking home. */
 function Logo({ label }: { label: string }) {
   return (
-    <Link href="/member/home" className="flex items-center gap-2.5">
-      <span className="grid h-10 w-10 place-items-center rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
-        <Icon name="bolt" className="h-5 w-5" sw={2.4} />
+    <Link href="/member/home" {...stylex.props(styles.logo)}>
+      <span {...stylex.props(styles.logoMark)}>
+        <Icon name="bolt" sw={2.4} {...stylex.props(styles.logoIcon)} />
       </span>
-      <span className="font-display text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">
-        {label}
-      </span>
+      <span {...stylex.props(styles.logoWord)}>{label}</span>
     </Link>
   );
 }
 
 /**
- * Avatar button + account dropdown: view profile, an "Admin console" shortcut for
- * staff (any role other than `MEMBER` — the tenant proxy serves `/admin` on this
- * same origin), and sign out. Sign-out clears the session cookie and returns to
- * the login page.
+ * Avatar button + account dropdown: the member's name over their plan, view
+ * profile, an "Admin console" shortcut for staff (any role other than `MEMBER` —
+ * the tenant proxy serves `/admin` on this same origin), and sign out. Sign-out
+ * clears the session cookie and returns to the login page.
  */
 function AccountMenu() {
   const t = useTranslations('member');
@@ -43,15 +339,15 @@ function AccountMenu() {
   };
 
   return (
-    <div className="relative">
+    <div {...stylex.props(styles.avatarWrap)}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={t('nav.profile')}
         aria-expanded={open}
-        className="grid h-10 w-10 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white ring-2 ring-white transition-transform hover:scale-105 dark:ring-ink-950"
+        {...stylex.props(styles.avatar)}
       >
-        <Icon name="user" className="h-5 w-5" sw={2.2} />
+        <Icon name="user" sw={2.2} {...stylex.props(styles.avatarIcon)} />
       </button>
 
       {open && (
@@ -61,33 +357,47 @@ function AccountMenu() {
             aria-hidden
             tabIndex={-1}
             onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 cursor-default"
+            {...stylex.props(styles.scrim)}
           />
-          <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-card border border-ink-200 bg-white py-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-ink-900">
+          <div {...stylex.props(styles.menu)}>
+            {/* The artboards head this menu with WHO YOU ARE rather than with a
+                link. They show a name over "Premium · Downtown Strength"; the
+                client session carries only `userId` / `gymId` / `role` (it is
+                decoded from the httpOnly access cookie by `/api/session`, which
+                deliberately returns no profile), so this states the member id —
+                the same `FC-XXXX` the dashboard and the check-in QR print, so a
+                member reading it out to reception matches what staff see. The
+                name would need a profile fetch on every page; it belongs here
+                only once the session route carries it. */}
+            {user ? (
+              <>
+                <div {...stylex.props(styles.menuIdentity)}>
+                  <p {...stylex.props(styles.menuName)}>{memberIdOf(user.userId)}</p>
+                </div>
+                <div {...stylex.props(styles.menuRule)} />
+              </>
+            ) : null}
             <Link
               href="/member/account/profile"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/5"
+              {...stylex.props(styles.menuItem)}
             >
-              <Icon name="user" className="h-4 w-4" sw={2.1} />
+              <Icon name="user" sw={2.1} {...stylex.props(styles.menuIcon)} />
               {t('shell.viewProfile')}
             </Link>
             {isStaff && (
-              <a
-                href="/admin"
-                className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/5"
-              >
-                <Icon name="grid" className="h-4 w-4" sw={2.1} />
+              <a href="/admin" {...stylex.props(styles.menuItem)}>
+                <Icon name="grid" sw={2.1} {...stylex.props(styles.menuIcon)} />
                 {t('shell.adminConsole')}
               </a>
             )}
-            <div className="my-1 border-t border-ink-100 dark:border-white/10" />
+            <div {...stylex.props(styles.menuRule)} />
             <button
               type="button"
               onClick={onLogout}
-              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-semibold text-danger-600 transition-colors hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10"
+              {...stylex.props(styles.menuItem, styles.menuDanger)}
             >
-              <Icon name="logout" className="h-4 w-4" sw={2.1} />
+              <Icon name="logout" sw={2.1} {...stylex.props(styles.menuIcon)} />
               {t('shell.signOut')}
             </button>
           </div>
@@ -112,59 +422,50 @@ export function MemberHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-ink-100 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-ink-950/70">
-      <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+    <header {...stylex.props(styles.header)}>
+      <div {...stylex.props(styles.bar)}>
         <Logo label={t('shell.brand')} />
 
-        {/* Desktop primary nav */}
-        <nav className="ml-4 hidden items-center gap-1 md:flex">
+        <nav {...stylex.props(styles.nav)}>
           {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item.href);
             return (
               <Link
                 key={item.key}
                 href={item.href}
-                className={`flex h-10 items-center gap-2 rounded-btn px-3.5 text-sm font-semibold transition-colors ${
-                  active
-                    ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_4px_16px_-6px_rgba(124,58,237,0.8)]'
-                    : 'text-ink-500 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white'
-                }`}
+                aria-current={active ? 'page' : undefined}
+                {...stylex.props(styles.navItem, active ? styles.navActive : styles.navIdle)}
               >
-                <Icon name={item.icon} className="h-4 w-4" sw={2.2} />
+                <Icon name={item.icon} sw={2.2} {...stylex.props(styles.navIcon)} />
                 {t(`nav.${item.key}`)}
               </Link>
             );
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <div {...stylex.props(styles.actions)}>
           <ThemeToggle />
-          <Link
-            href="/member/cart"
-            aria-label={t('nav.cart')}
-            className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-white/5 dark:hover:text-white"
-          >
-            <Icon name="bag" className="h-5 w-5" />
+          <Link href="/member/cart" aria-label={t('nav.cart')} {...stylex.props(styles.iconBtn)}>
+            <Icon name="bag" {...stylex.props(styles.actionIcon)} />
           </Link>
           <NotificationBell />
           <AccountMenu />
 
-          {/* Mobile menu toggle */}
           <button
             type="button"
             onClick={() => setNavOpen((v) => !v)}
             aria-label={navOpen ? t('shell.closeMenu') : t('shell.openMenu')}
-            className="grid h-10 w-10 place-items-center rounded-btn text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-white/5 md:hidden"
+            aria-expanded={navOpen}
+            {...stylex.props(styles.iconBtn, styles.menuToggle)}
           >
-            <Icon name={navOpen ? 'x' : 'filter'} className="h-5 w-5" />
+            <Icon name={navOpen ? 'x' : 'filter'} {...stylex.props(styles.actionIcon)} />
           </button>
         </div>
       </div>
 
-      {/* Mobile drawer */}
       {navOpen && (
-        <div className="border-t border-ink-100 bg-white px-4 pb-4 pt-2 dark:border-white/10 dark:bg-ink-950 md:hidden">
-          <nav className="flex flex-col gap-1">
+        <div {...stylex.props(styles.drawer)}>
+          <nav {...stylex.props(styles.drawerNav)}>
             {NAV_ITEMS.map((item) => {
               const active = isActive(pathname, item.href);
               return (
@@ -172,34 +473,28 @@ export function MemberHeader() {
                   key={item.key}
                   href={item.href}
                   onClick={() => setNavOpen(false)}
-                  className={`flex h-11 items-center gap-3 rounded-btn px-3.5 text-sm font-semibold transition-colors ${
-                    active
-                      ? 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white'
-                      : 'text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/5'
-                  }`}
+                  aria-current={active ? 'page' : undefined}
+                  {...stylex.props(styles.drawerItem, active ? styles.navActive : styles.navIdle)}
                 >
-                  <Icon name={item.icon} className="h-5 w-5" sw={2.1} />
+                  <Icon name={item.icon} sw={2.1} {...stylex.props(styles.drawerIcon)} />
                   {t(`nav.${item.key}`)}
                 </Link>
               );
             })}
 
-            <div className="my-1 border-t border-ink-100 dark:border-white/10" />
+            <div {...stylex.props(styles.menuRule)} />
             {isStaff && (
-              <a
-                href="/admin"
-                className="flex h-11 items-center gap-3 rounded-btn px-3.5 text-sm font-semibold text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/5"
-              >
-                <Icon name="grid" className="h-5 w-5" sw={2.1} />
+              <a href="/admin" {...stylex.props(styles.drawerItem, styles.navIdle)}>
+                <Icon name="grid" sw={2.1} {...stylex.props(styles.drawerIcon)} />
                 {t('shell.adminConsole')}
               </a>
             )}
             <button
               type="button"
               onClick={onLogout}
-              className="flex h-11 items-center gap-3 rounded-btn px-3.5 text-left text-sm font-semibold text-danger-600 hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10"
+              {...stylex.props(styles.drawerItem, styles.menuDanger)}
             >
-              <Icon name="logout" className="h-5 w-5" sw={2.1} />
+              <Icon name="logout" sw={2.1} {...stylex.props(styles.drawerIcon)} />
               {t('shell.signOut')}
             </button>
           </nav>

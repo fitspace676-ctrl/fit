@@ -1,12 +1,7 @@
-'use client';
-
-import { useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
+import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
-import { QRCode } from '@/src/components/ui';
 
 export interface MembershipHeroProps {
   planName: string | null;
@@ -14,249 +9,228 @@ export interface MembershipHeroProps {
   /** Days elapsed / total in the current billing period (for the progress bar). */
   daysUsed: number;
   daysTotal: number;
-  creditsLeft: number;
   memberName: string;
   memberId: string;
-  /** Stable seed for the deterministic check-in QR (member id / check-in token). */
-  qrSeed: string;
 }
 
-// Astryx migration (T11.11): the flagship membership card is rebuilt over the
-// Fit brand tokens. The gradient card surface, the check-in QR modal and the
-// billing-period bar are authored in compiled StyleX; the status pill and the
-// buttons are Astryx `Badge` / `Button`. The gradient reads the brand `--color-
-// accent` so it stays on-brand in light + dark; the check-in QR keeps its
-// deterministic seed and behaviour unchanged.
+// FormaCore redesign — THE lime block.
+//
+// The direction spends its entire colour budget here: this is the one surface in
+// the whole portal allowed to be chromatic, and it is chromatic in BOTH themes.
+// Everything around it inverts between light and dark; the membership card does
+// not move. That is what makes it read as the member's card rather than as a
+// panel that happens to be highlighted.
+//
+// Consequences that look like hardcoding but are not:
+//
+//   • The block's internal palette is mode-INDEPENDENT (literal hexes, no
+//     `light-dark()`), because the block itself never changes mode. Reaching for
+//     `--color-text-primary` inside it would flip the copy to white in dark mode
+//     — on a lime fill, that is ~1.5:1.
+//   • Type on the block is always ink-950. `--color-on-accent` says the same
+//     thing and is used where a token is available; the literals below are the
+//     same value for the surfaces Astryx does not tokenise.
+//
+// Gone with the Aurora-glass skin: the 135° indigo→pink gradient, the blurred
+// white "aura" blob, and the coloured drop shadow. The direction bans all three
+// — the block is flat, and its size is what gives it weight.
+
+/** The one lime, and the ink that is legible on it. Both mode-independent. */
+const LIME = 'var(--color-accent)';
+const ON_LIME = '#131312';
 
 const styles = stylex.create({
   card: {
     position: 'relative',
     overflow: 'hidden',
-    borderRadius: 'var(--radius-container)',
-    padding: '1.5rem',
-    color: '#ffffff',
-    backgroundImage:
-      'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 92%, #7c3aed), #ec4899)',
-    boxShadow: '0 24px 60px -24px color-mix(in srgb, var(--color-accent) 70%, transparent)',
-  },
-  aura: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    right: '-2.5rem',
-    top: '-4rem',
-    height: '12rem',
-    width: '12rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    filter: 'blur(48px)',
+    // The hero step of the radius ladder (32px) — the largest silhouette in the
+    // system, reserved for exactly this block and the login screen's class card.
+    borderRadius: 'var(--radius-page)',
+    padding: {
+      default: '1.5rem',
+      '@media (min-width: 640px)': '1.75rem',
+    },
+    color: ON_LIME,
+    backgroundColor: LIME,
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
   },
   header: {
-    position: 'relative',
     display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  eyebrow: {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.16em',
+    // Ink-800 rather than a lighter lime: a tint of the block colour muddies it,
+    // while ink simply recedes.
+    color: '#2B2B29',
+  },
+  // Solid ink carrying LIME type — not white. The artboards use the block's own
+  // colour as the pill's ink, which ties the badge to the surface it sits on
+  // instead of reading as a foreign white chip dropped onto it.
+  status: {
+    display: 'inline-flex',
+    flexShrink: 0,
     alignItems: 'center',
-    gap: '0.625rem',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: ON_LIME,
+    color: LIME,
+    paddingInline: '0.75rem',
+    paddingBlock: '0.25rem',
+    fontSize: '0.6875rem',
+    fontWeight: 700,
   },
-  logoTile: {
-    display: 'grid',
-    placeItems: 'center',
-    height: '2.25rem',
-    width: '2.25rem',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  brandWord: {
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.125rem',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-  },
-  pill: {
-    marginLeft: 'auto',
+  statusIcon: {
+    width: '0.8125rem',
+    height: '0.8125rem',
   },
   planBlock: {
-    position: 'relative',
-    marginTop: '1.25rem',
+    marginTop: '1.5rem',
   },
+  /** The plan name is the block's headline — top of the weight ramp, cropped tight. */
   planName: {
     margin: 0,
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.875rem',
+    fontSize: 'clamp(2.25rem, 5vw, 2.75rem)',
     fontWeight: 800,
-    letterSpacing: '-0.02em',
+    lineHeight: 1,
+    letterSpacing: '-0.025em',
+    textTransform: 'uppercase',
+    color: ON_LIME,
   },
   planMeta: {
     margin: 0,
-    marginTop: '0.25rem',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.75rem',
-    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: '0.75rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: '#2B2B29',
   },
+  // Ids are always mono in this product — the QR modal, the account menu and
+  // reception's console all print the same string in the same face.
+  planMetaId: {
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  // `mt-auto` pins the progress + actions to the bottom of the block, so the
+  // card keeps its shape whether the plan name wraps to one line or two.
   progressBlock: {
-    position: 'relative',
-    marginTop: '1.25rem',
+    marginTop: 'auto',
+    paddingTop: '2rem',
   },
   progressHead: {
-    marginBottom: '0.375rem',
+    marginBottom: '0.625rem',
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    fontSize: '0.75rem',
-    color: 'rgba(255, 255, 255, 0.8)',
+    gap: '1rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap',
+    color: '#2B2B29',
   },
   progressPct: {
-    fontFamily: 'var(--font-family-code)',
+    color: '#2B2B29',
   },
   track: {
     height: '0.5rem',
     overflow: 'hidden',
     borderRadius: 'var(--radius-full)',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    // A darker lime, not a white/ink wash: the track has to stay part of the
+    // block while the fill reads as ink against it.
+    backgroundColor: 'rgba(19, 19, 18, 0.15)',
   },
   fill: {
     height: '100%',
     borderRadius: 'var(--radius-full)',
-    backgroundColor: '#ffffff',
+    backgroundColor: ON_LIME,
   },
-  footer: {
-    position: 'relative',
+  actions: {
     marginTop: '1.5rem',
     display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  // Both actions invert against the block: the lime is the surface here, so a
+  // lime button would vanish into it. Primary is solid ink carrying LIME type
+  // (the same inversion as the status pill); secondary is a 10% ink wash, which
+  // reads as "also available" without introducing a third material.
+  actionPrimary: {
+    display: 'inline-flex',
+    height: '2.75rem',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0.75rem',
-  },
-  qrButton: {
-    backgroundColor: '#ffffff',
-    color: 'var(--color-text-accent)',
-    borderColor: 'transparent',
-  },
-  creditsBlock: {
-    textAlign: 'right',
-  },
-  creditsValue: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
-    lineHeight: 1,
-  },
-  creditsLabel: {
-    margin: 0,
-    fontSize: '0.75rem',
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    zIndex: 50,
-    display: 'grid',
-    placeItems: 'center',
-    padding: '1rem',
-    backgroundColor: 'var(--color-overlay)',
-    backdropFilter: 'blur(4px)',
-  },
-  modal: {
-    width: '100%',
-    maxWidth: '24rem',
-    borderRadius: 'var(--radius-container)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-card)',
-    padding: '1.5rem',
-    textAlign: 'center',
-  },
-  modalTitle: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.125rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
-  },
-  modalSub: {
-    margin: 0,
-    marginTop: '0.25rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: { default: ON_LIME, ':hover': '#2B2B29' },
+    color: LIME,
+    paddingInline: '1.5rem',
     fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
+    fontWeight: 700,
+    textDecoration: 'none',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
   },
-  qrWrap: {
-    marginTop: '1.25rem',
-    display: 'grid',
-    placeItems: 'center',
-  },
-  modalMeta: {
-    margin: 0,
-    marginTop: '1rem',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  modalAction: {
-    marginTop: '1.25rem',
-  },
-  fullBtn: {
-    width: '100%',
-  },
-  logoIcon: {
-    width: '1.25rem',
-    height: '1.25rem',
-  },
-  badgeIcon: {
-    width: '0.875rem',
-    height: '0.875rem',
-  },
-  btnIcon: {
-    width: '1rem',
-    height: '1rem',
+  actionSecondary: {
+    display: 'inline-flex',
+    height: '2.75rem',
+    alignItems: 'center',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: {
+      default: 'rgba(19, 19, 18, 0.10)',
+      ':hover': 'rgba(19, 19, 18, 0.16)',
+    },
+    color: ON_LIME,
+    paddingInline: '1.5rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
   },
 });
 
 /**
- * The dashboard's flagship card: a gradient digital membership card with the
- * plan, billing-period progress, PT-credit count, and a button that opens the
- * member's check-in QR in a modal.
+ * The dashboard's flagship card: the member's membership as a flat lime block —
+ * plan, billing-period progress, and the two actions the artboards give it.
  */
 export function MembershipHero({
   planName,
   active,
   daysUsed,
   daysTotal,
-  creditsLeft,
   memberName,
   memberId,
-  qrSeed,
 }: MembershipHeroProps) {
   const t = useTranslations('member.home');
-  const [qrOpen, setQrOpen] = useState(false);
   const pct = daysTotal > 0 ? Math.round((daysUsed / daysTotal) * 100) : 0;
 
   return (
-    <>
-      <div {...stylex.props(styles.card)}>
-        <span aria-hidden {...stylex.props(styles.aura)} />
-        <div {...stylex.props(styles.header)}>
-          <span {...stylex.props(styles.logoTile)}>
-            <Icon name="bolt" sw={2.4} {...stylex.props(styles.logoIcon)} />
-          </span>
-          <span {...stylex.props(styles.brandWord)}>{t('membership')}</span>
-          <span {...stylex.props(styles.pill)}>
-            <Badge
-              variant={active ? 'success' : 'warning'}
-              icon={<Icon name={active ? 'check' : 'clock'} {...stylex.props(styles.badgeIcon)} />}
-              label={active ? t('active') : t('noPlan')}
-            />
-          </span>
-        </div>
+    <div {...stylex.props(styles.card)}>
+      <div {...stylex.props(styles.header)}>
+        <span {...stylex.props(styles.eyebrow)}>{t('membership')}</span>
+        <span {...stylex.props(styles.status)}>
+          <Icon name={active ? 'check' : 'clock'} sw={2.4} {...stylex.props(styles.statusIcon)} />
+          {active ? t('active') : t('noPlan')}
+        </span>
+      </div>
 
-        <div {...stylex.props(styles.planBlock)}>
-          <p {...stylex.props(styles.planName)}>{planName ?? t('noPlan')}</p>
-          <p {...stylex.props(styles.planMeta)}>
-            {memberName} · {t('memberId')} {memberId}
-          </p>
-        </div>
+      <div {...stylex.props(styles.planBlock)}>
+        <p {...stylex.props(styles.planName)}>{planName ?? t('noPlan')}</p>
+        <p {...stylex.props(styles.planMeta)}>
+          {memberName} · <span {...stylex.props(styles.planMetaId)}>{memberId}</span>
+        </p>
+      </div>
 
-        {daysTotal > 0 && (
-          <div {...stylex.props(styles.progressBlock)}>
+      <div {...stylex.props(styles.progressBlock)}>
+        {daysTotal > 0 ? (
+          <>
             <div {...stylex.props(styles.progressHead)}>
               <span>{t('daysLeft', { used: daysUsed, total: daysTotal })}</span>
               <span {...stylex.props(styles.progressPct)}>{pct}%</span>
@@ -264,53 +238,18 @@ export function MembershipHero({
             <div {...stylex.props(styles.track)}>
               <div {...stylex.props(styles.fill)} style={{ width: `${Math.min(100, pct)}%` }} />
             </div>
-          </div>
-        )}
+          </>
+        ) : null}
 
-        <div {...stylex.props(styles.footer)}>
-          <Button
-            variant="secondary"
-            size="md"
-            icon={<Icon name="qr" {...stylex.props(styles.btnIcon)} />}
-            label={t('showQr')}
-            onClick={() => setQrOpen(true)}
-            xstyle={styles.qrButton}
-          />
-          <div {...stylex.props(styles.creditsBlock)}>
-            <p {...stylex.props(styles.creditsValue)}>{creditsLeft}</p>
-            <p {...stylex.props(styles.creditsLabel)}>{t('ptCredits')}</p>
-          </div>
+        <div {...stylex.props(styles.actions)}>
+          <Link href="/member/account/membership" {...stylex.props(styles.actionPrimary)}>
+            {t('managePlan')}
+          </Link>
+          <Link href="/member/account/bookings" {...stylex.props(styles.actionSecondary)}>
+            {t('myBookings')}
+          </Link>
         </div>
       </div>
-
-      {qrOpen && (
-        <div
-          {...stylex.props(styles.overlay)}
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setQrOpen(false)}
-        >
-          <div {...stylex.props(styles.modal)} onClick={(e) => e.stopPropagation()}>
-            <p {...stylex.props(styles.modalTitle)}>{t('qrTitle')}</p>
-            <p {...stylex.props(styles.modalSub)}>{t('qrSub')}</p>
-            <div {...stylex.props(styles.qrWrap)}>
-              <QRCode seed={qrSeed} size={224} />
-            </div>
-            <p {...stylex.props(styles.modalMeta)}>
-              {memberName} · {memberId}
-            </p>
-            <div {...stylex.props(styles.modalAction)}>
-              <Button
-                variant="primary"
-                size="md"
-                label={t('done')}
-                onClick={() => setQrOpen(false)}
-                xstyle={styles.fullBtn}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 }

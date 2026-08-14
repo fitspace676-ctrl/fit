@@ -1,15 +1,10 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
-import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@astryxdesign/core/Button';
-import { IconButton } from '@astryxdesign/core/IconButton';
-import { InputGroup } from '@astryxdesign/core/InputGroup';
-import { TextInput } from '@astryxdesign/core/TextInput';
 import { postLoginPath, resetPassword } from '@/lib/auth';
-import { Icon } from '@/src/components/ui';
+import { AuthBanner, AuthField, AuthForm, AuthSubmit } from '../../_components/auth/auth-form-kit';
 
 /**
  * Set-a-new-password form reached from the emailed reset link
@@ -21,41 +16,10 @@ import { Icon } from '@/src/components/ui';
  * login form. A missing/blank token means a malformed or stale link, so we show
  * the recoverable error and never render the form.
  *
- * Astryx migration (T11.9): built on Astryx `TextInput`, an `InputGroup` pairing
- * the password field with an `IconButton` show/hide toggle, and a primary
- * `Button`; the inline error banner and layout are compiled StyleX on the Fit
- * theme tokens — no Tailwind.
+ * FormaCore redesign: rebuilt on the shared auth controls — the password field,
+ * its reveal button and the submit are the same objects the sign-in form
+ * renders, so the two screens differ only in what they ask for.
  */
-const styles = stylex.create({
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  banner: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.5rem',
-    borderRadius: 'var(--radius-element)',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.5rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-error)',
-    backgroundColor: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
-    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-error) 30%, transparent)',
-  },
-  bannerIcon: {
-    marginTop: '0.125rem',
-    flexShrink: 0,
-    width: '1rem',
-    height: '1rem',
-  },
-  submit: {
-    width: '100%',
-    marginTop: '0.25rem',
-  },
-});
-
 export function ResetPasswordForm() {
   const t = useTranslations('auth');
   const locale = useLocale();
@@ -64,19 +28,13 @@ export function ResetPasswordForm() {
   const token = searchParams.get('token');
 
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // A malformed or expired link (no token) can never succeed — surface the
   // recoverable message instead of an unusable form.
   if (!token) {
-    return (
-      <p role="alert" {...stylex.props(styles.banner)}>
-        <Icon name="info" {...stylex.props(styles.bannerIcon)} sw={2.2} />
-        {t('reset.missingToken')}
-      </p>
-    );
+    return <AuthBanner tone="error">{t('reset.missingToken')}</AuthBanner>;
   }
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
@@ -95,43 +53,32 @@ export function ResetPasswordForm() {
   };
 
   return (
-    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
-      {error ? (
-        <p role="alert" {...stylex.props(styles.banner)}>
-          <Icon name="info" {...stylex.props(styles.bannerIcon)} sw={2.2} />
-          {error}
-        </p>
-      ) : null}
+    <AuthForm onSubmit={onSubmit}>
+      {error ? <AuthBanner tone="error">{error}</AuthBanner> : null}
 
-      <InputGroup label={t('fields.password')} description={t('fields.passwordHint')} size="lg">
-        <TextInput
-          type={showPassword ? 'text' : 'password'}
-          label={t('fields.password')}
-          isLabelHidden
-          htmlName="password"
-          placeholder={t('fields.passwordPlaceholder')}
-          value={password}
-          onChange={(value) => setPassword(value)}
-          isDisabled={pending}
-        />
-        <IconButton
-          variant="ghost"
-          label={showPassword ? t('hidePassword') : t('showPassword')}
-          icon={<Icon name={showPassword ? 'eyeOff' : 'eye'} />}
-          onClick={() => setShowPassword((prev) => !prev)}
-          isDisabled={pending}
-        />
-      </InputGroup>
-
-      <Button
-        type="submit"
-        variant="primary"
-        size="lg"
-        label={pending ? t('reset.submitting') : t('reset.submit')}
-        isLoading={pending}
-        isDisabled={pending}
-        xstyle={styles.submit}
+      <AuthField
+        label={t('fields.password')}
+        type="password"
+        name="password"
+        // A new password, not the stored one — telling the password manager
+        // which is which is what makes it offer to update the saved entry.
+        autoComplete="new-password"
+        required
+        minLength={8}
+        placeholder={t('fields.passwordPlaceholder')}
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        disabled={pending}
+        invalid={error !== null}
+        revealLabels={{ show: t('showPassword'), hide: t('hidePassword') }}
+        // The rule the API enforces, stated before it can be broken rather than
+        // after — this is the one field in the product with a length minimum.
+        hint={t('fields.passwordHint')}
       />
-    </form>
+
+      <AuthSubmit pending={pending}>
+        {pending ? t('reset.submitting') : t('reset.submit')}
+      </AuthSubmit>
+    </AuthForm>
   );
 }

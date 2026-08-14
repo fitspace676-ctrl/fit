@@ -45,6 +45,34 @@ const DETAIL_SELECT = {
   },
 } satisfies Prisma.ClassInstanceSelect;
 
+/** The columns the calendar CARD projection reads — a strict subset of
+ * {@link DETAIL_SELECT}. The listing is the hottest query on the public surface
+ * (a week view is ~40 rows per request, unauthenticated and cacheable), so it
+ * deliberately does not pull `description` or the room/duration columns only the
+ * detail page renders. */
+const CARD_SELECT = {
+  id: true,
+  startsAt: true,
+  endsAt: true,
+  capacityOverride: true,
+  bookedCount: true,
+  trainer: { select: { name: true } },
+  location: { select: { name: true } },
+  template: {
+    select: {
+      title: true,
+      category: true,
+      color: true,
+      capacity: true,
+      trainer: { select: { name: true } },
+      location: { select: { name: true } },
+    },
+  },
+  classType: { select: { name: true, color: true, capacity: true } },
+} satisfies Prisma.ClassInstanceSelect;
+
+type InstanceCardRow = Prisma.ClassInstanceGetPayload<{ select: typeof CARD_SELECT }>;
+
 type InstanceDetailRow = Prisma.ClassInstanceGetPayload<{ select: typeof DETAIL_SELECT }>;
 
 /**
@@ -74,10 +102,29 @@ export class ClassesService {
    * query is wired — an empty array is a valid result the page renders as its
    * "no classes this week" state.
    */
-  listInstances(_query: ListClassInstancesQuery): Promise<ListClassInstancesResponse> {
-    // Async signature kept for the forthcoming Prisma-backed implementation (the
-    // controller already awaits it); for now the result is synchronous.
-    return Promise.resolve({ instances: [] });
+  async listInstances(query: ListClassInstancesQuery): Promise<ListClassInstancesResponse> {
+    const from = new Date(query.from);
+    const to = new Date(query.to);
+
+    const rows = await this.prisma.client.classInstance.findMany({
+      where: {
+        gymId: query.gymId,
+        // Only SCHEDULED occurrences reach the discovery listing. A canceled or
+        // completed class still resolves by direct link (see `getInstance`), but
+        // it must not appear in a calendar someone is browsing to book from.
+        status: 'SCHEDULED',
+        // OVERLAP, not containment: a class that starts before the window and
+        // runs into it belongs on the calendar. Containment would drop the
+        // in-progress class from a "today" view, which is exactly the one a
+        // member checking the schedule on arrival is looking for.
+        startsAt: { lt: to },
+        endsAt: { gt: from },
+      },
+      select: CARD_SELECT,
+      orderBy: { startsAt: 'asc' },
+    });
+
+    return { instances: rows.map(toCard) };
   }
 
   /**
@@ -102,6 +149,27 @@ export class ClassesService {
     }
     return { instance: toDetail(row) };
   }
+}
+
+/** Project a joined occurrence row to the denormalised calendar card the wire
+ * contract defines. Mirrors {@link toDetail}'s fallback chain so a class reads
+ * the same in the listing and on its own page: the occurrence's own trainer /
+ * location win over the template's, the per-occurrence capacity override wins
+ * over the template's seat count, and absent relations flatten to empty strings
+ * rather than nulls. */
+function toCard(row: InstanceCardRow): ListClassInstancesResponse['instances'][number] {
+  return {
+    id: row.id,
+    title: row.template?.title ?? row.classType?.name ?? 'Class',
+    startsAt: row.startsAt.toISOString(),
+    endsAt: row.endsAt.toISOString(),
+    trainerName: row.trainer?.name ?? row.template?.trainer?.name ?? '',
+    locationName: row.location?.name ?? row.template?.location?.name ?? '',
+    capacity: row.capacityOverride ?? row.template?.capacity ?? row.classType?.capacity ?? 0,
+    bookedCount: row.bookedCount,
+    category: row.template?.category ?? row.classType?.name ?? '',
+    color: row.template?.color ?? row.classType?.color ?? '#2563eb',
+  };
 }
 
 /** Project a joined occurrence row to the denormalised detail card the wire

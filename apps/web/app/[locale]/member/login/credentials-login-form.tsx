@@ -4,12 +4,9 @@ import { type FormEvent, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@astryxdesign/core/Button';
-import { IconButton } from '@astryxdesign/core/IconButton';
-import { InputGroup } from '@astryxdesign/core/InputGroup';
-import { TextInput } from '@astryxdesign/core/TextInput';
 import { loginWithCredentials, postLoginPath } from '@/lib/auth';
-import { Icon } from '@/src/components/ui';
+import { Link } from '@/src/i18n/navigation';
+import { AuthBanner, AuthField, AuthForm, AuthSubmit } from '../../_components/auth/auth-form-kit';
 
 /**
  * Only honour a `from` redirect that is a same-origin absolute path
@@ -22,38 +19,21 @@ function safeFrom(from: string | null): string | null {
   return from;
 }
 
-// Astryx migration (T11.7): the form is rebuilt on Astryx `TextInput` (email +
-// password), an `InputGroup` pairing the password field with an `IconButton`
-// show/hide toggle, and an Astryx primary `Button`. The error banner and layout
-// are compiled StyleX on the Fit theme tokens — no Tailwind. All submit / OAuth
-// behaviour is unchanged from the formacore version.
+// The fields, the submit and the error banner come from
+// `_components/auth/auth-form-kit`, which the forgot-password, reset-password
+// and register forms mount too. That kit IS the artboard's field — a 52px
+// control over a 10px tracked micro-label whose row carries an inline action,
+// with the reveal button inset over the field's right edge — so every auth
+// screen shares one vocabulary and it changes in one place.
+
 const styles = stylex.create({
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  error: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.5rem',
-    borderRadius: 'var(--radius-element)',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.5rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-error)',
-    backgroundColor: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
-    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--color-error) 30%, transparent)',
-  },
-  errorIcon: {
-    marginTop: '0.125rem',
-    flexShrink: 0,
-    width: '1rem',
-    height: '1rem',
-  },
-  submit: {
-    width: '100%',
-    marginTop: '0.25rem',
+  forgot: {
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: { default: 'var(--color-text-accent)', ':hover': 'var(--color-text-primary)' },
+    textDecoration: 'none',
+    transitionProperty: 'color',
+    transitionDuration: '150ms',
   },
 });
 
@@ -77,7 +57,6 @@ export function CredentialsLoginForm() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(inviteError ? t('invite.invalid') : null);
 
@@ -97,54 +76,42 @@ export function CredentialsLoginForm() {
   };
 
   return (
-    <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
-      {error ? (
-        <p role="alert" {...stylex.props(styles.error)}>
-          <Icon name="info" {...stylex.props(styles.errorIcon)} sw={2.2} />
-          {error}
-        </p>
-      ) : null}
+    <AuthForm onSubmit={onSubmit}>
+      {error ? <AuthBanner tone="error">{error}</AuthBanner> : null}
 
-      <TextInput
-        type="email"
+      <AuthField
         label={t('fields.email')}
-        htmlName="email"
-        size="lg"
+        type="email"
+        name="email"
+        autoComplete="email"
         placeholder={t('fields.emailPlaceholder')}
         value={email}
-        onChange={(value) => setEmail(value)}
-        isDisabled={pending}
+        onChange={(event) => setEmail(event.target.value)}
+        disabled={pending}
+        invalid={error !== null}
       />
 
-      <InputGroup label={t('fields.password')} size="lg">
-        <TextInput
-          type={showPassword ? 'text' : 'password'}
-          label={t('fields.password')}
-          isLabelHidden
-          htmlName="password"
-          placeholder={t('fields.passwordPlaceholder')}
-          value={password}
-          onChange={(value) => setPassword(value)}
-          isDisabled={pending}
-        />
-        <IconButton
-          variant="ghost"
-          label={showPassword ? t('hidePassword') : t('showPassword')}
-          icon={<Icon name={showPassword ? 'eyeOff' : 'eye'} />}
-          onClick={() => setShowPassword((prev) => !prev)}
-          isDisabled={pending}
-        />
-      </InputGroup>
-
-      <Button
-        type="submit"
-        variant="primary"
-        size="lg"
-        label={pending ? t('login.submitting') : t('login.submit')}
-        isLoading={pending}
-        isDisabled={pending}
-        xstyle={styles.submit}
+      <AuthField
+        label={t('fields.password')}
+        type="password"
+        name="password"
+        autoComplete="current-password"
+        placeholder={t('fields.passwordPlaceholder')}
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        disabled={pending}
+        invalid={error !== null}
+        revealLabels={{ show: t('showPassword'), hide: t('hidePassword') }}
+        action={
+          <Link href="/member/forgot-password" {...stylex.props(styles.forgot)}>
+            {t('login.forgotPassword')}
+          </Link>
+        }
       />
-    </form>
+
+      <AuthSubmit pending={pending}>
+        {pending ? t('login.submitting') : t('login.submit')}
+      </AuthSubmit>
+    </AuthForm>
   );
 }

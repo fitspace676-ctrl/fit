@@ -92,3 +92,34 @@ export async function getActiveGymContact(): Promise<GymPublicContact | null> {
     return null;
   }
 }
+
+/**
+ * The active tenant's display name (`Downtown Strength`), or `null` when there
+ * is no tenant in scope. Server-only, and from the same cached
+ * `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}.
+ *
+ * The login screen names the gym in its headline — "Downtown Strength · წევრის
+ * პორტალი" — so a member arriving on a tenant subdomain sees whose door they
+ * are at before they type anything. Never throws: a failure resolves to `null`
+ * and the screen falls back to unbranded copy.
+ */
+export async function getActiveGymName(): Promise<string | null> {
+  const slug = await getActiveGymSlug();
+  if (!slug) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as { name?: unknown };
+    return typeof body.name === 'string' && body.name.trim().length > 0 ? body.name : null;
+  } catch {
+    return null;
+  }
+}

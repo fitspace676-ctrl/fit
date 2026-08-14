@@ -122,64 +122,74 @@ const styles = stylex.create({
     },
     alignItems: 'start',
   },
+  // The lime block again — the same surface as the dashboard's `MembershipHero`,
+  // at the scale this screen gives it. Flat fill, ink type, hero radius; the
+  // gradient, the blurred "aura" and the coloured drop shadow are gone with the
+  // Aurora-glass skin. Type on lime is ALWAYS ink — see the note in
+  // `membership-hero.tsx` for why these are literals rather than theme tokens.
   planCard: {
     position: 'relative',
     overflow: 'hidden',
-    borderRadius: 'var(--radius-container)',
-    backgroundImage:
-      'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 92%, #7c3aed), #ec4899)',
+    borderRadius: 'var(--radius-page)',
+    backgroundColor: 'var(--color-accent)',
     padding: '1.75rem',
-    color: '#ffffff',
-    boxShadow: '0 24px 60px -24px color-mix(in srgb, var(--color-accent) 70%, transparent)',
-  },
-  aura: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    right: '-2.5rem',
-    top: '-4rem',
-    height: '12rem',
-    width: '12rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    filter: 'blur(48px)',
+    color: '#131312',
   },
   planTop: {
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
+    gap: '0.625rem',
   },
   planTile: {
     display: 'grid',
     placeItems: 'center',
     height: '2.25rem',
     width: '2.25rem',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'rgba(19, 19, 18, 0.12)',
   },
   planTileIcon: {
     height: '1.25rem',
     width: '1.25rem',
   },
+  // The status badge is the block's one inverted element. Left at its theme
+  // variant it would render lime-on-lime (`ACTIVE` maps to `success`, which the
+  // direction defines AS the lime) and disappear; solid ink is how the artboards
+  // draw it.
+  planBadge: {
+    marginLeft: 'auto',
+    backgroundColor: '#131312',
+    color: '#FFFFFF',
+    borderColor: 'transparent',
+  },
+  // NOTE — every `<p>` / heading on a lime block must state its colour.
+  // The theme's reset carries `:where(p) { color: var(--color-text-primary) }`,
+  // which in dark mode is white. It has zero specificity but it still beats
+  // plain inheritance, so a paragraph inside the block does NOT pick up the
+  // block's ink: it goes white on lime (~1.5:1) unless told otherwise.
   planName: {
     position: 'relative',
     margin: 0,
-    marginTop: '1.25rem',
+    marginTop: '1.5rem',
+    color: '#131312',
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.875rem',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
+    fontSize: 'clamp(2.25rem, 5vw, 3rem)',
+    fontWeight: 900,
+    lineHeight: 0.95,
+    letterSpacing: '-0.03em',
+    textTransform: 'uppercase',
   },
   planPerks: {
     position: 'relative',
     margin: 0,
-    marginTop: '0.25rem',
+    marginTop: '0.625rem',
     fontSize: '0.875rem',
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(19, 19, 18, 0.76)',
   },
   planMetaRow: {
     position: 'relative',
-    marginTop: '1.5rem',
+    marginTop: '1.75rem',
     display: 'flex',
     flexWrap: 'wrap',
     gap: '0.75rem 2rem',
@@ -187,17 +197,25 @@ const styles = stylex.create({
   },
   metaLabel: {
     margin: 0,
-    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.14em',
+    color: 'rgba(19, 19, 18, 0.62)',
   },
   metaValue: {
     margin: 0,
+    marginTop: '0.25rem',
+    color: '#131312',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.9375rem',
     fontWeight: 600,
   },
   metaNote: {
     margin: 0,
     marginTop: '0.125rem',
     fontSize: '0.75rem',
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'rgba(19, 19, 18, 0.62)',
   },
   actions: {
     display: 'flex',
@@ -421,13 +439,16 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
       <section {...stylex.props(styles.twoCol)}>
         {/* Current plan */}
         <div {...stylex.props(styles.planCard)}>
-          <span aria-hidden {...stylex.props(styles.aura)} />
           <div {...stylex.props(styles.planTop)}>
             <span {...stylex.props(styles.planTile)}>
               <Icon name="ticket" {...stylex.props(styles.planTileIcon)} sw={2.3} />
             </span>
             {hasMembership ? (
-              <Badge variant={STATUS_VARIANT[status] ?? 'neutral'} label={t(`status.${status}`)} />
+              <Badge
+                variant={STATUS_VARIANT[status] ?? 'neutral'}
+                label={t(`status.${status}`)}
+                xstyle={styles.planBadge}
+              />
             ) : null}
           </div>
           <p {...stylex.props(styles.planName)}>{planName ?? t('noPlan')}</p>
