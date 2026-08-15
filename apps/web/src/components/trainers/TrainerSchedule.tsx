@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { Card } from '@astryxdesign/core/Card';
 import type { TrainerScheduleEntry } from '@fit/types';
-import { formatTime, groupByDay } from '@/src/components/classes/date-utils';
+import { formatZonedTime, groupByZonedDay } from '@/src/components/classes/date-utils';
 import { Icon } from '@/src/components/ui';
 import { createDateTimeFormat } from '@fit/i18n';
 
@@ -127,6 +127,11 @@ const styles = stylex.create({
 
 export interface TrainerScheduleProps {
   schedule: TrainerScheduleEntry[];
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /**
@@ -137,7 +142,7 @@ export interface TrainerScheduleProps {
  * nothing booked — a normal result, not an error. Stateless; the page supplies
  * the (already ordered) entries.
  */
-export function TrainerSchedule({ schedule }: TrainerScheduleProps) {
+export function TrainerSchedule({ schedule, timeZone }: TrainerScheduleProps) {
   const t = useTranslations('trainers');
   const locale = useLocale();
 
@@ -152,7 +157,7 @@ export function TrainerSchedule({ schedule }: TrainerScheduleProps) {
     );
   }
 
-  const groups = groupByDay(schedule);
+  const groups = groupByZonedDay(schedule, timeZone);
 
   return (
     <section aria-labelledby="trainer-schedule-heading" {...stylex.props(styles.section)}>
@@ -176,7 +181,8 @@ export function TrainerSchedule({ schedule }: TrainerScheduleProps) {
                   <span {...stylex.props(styles.time)}>
                     <Icon name="clock" {...stylex.props(styles.timeIcon)} sw={2} />
                     <span {...stylex.props(styles.timeText)}>
-                      {formatTime(entry.startsAt, locale)}–{formatTime(entry.endsAt, locale)}
+                      {formatZonedTime(entry.startsAt, timeZone)}–
+                      {formatZonedTime(entry.endsAt, timeZone)}
                     </span>
                   </span>
                   <span {...stylex.props(styles.body)}>

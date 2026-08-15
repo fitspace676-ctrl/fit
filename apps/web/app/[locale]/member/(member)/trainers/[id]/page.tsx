@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getActiveGymId } from '@/lib/active-gym';
+import { getActiveGymId, getActiveGymTimezone } from '@/lib/active-gym';
 import { fetchTrainer } from '@/lib/trainers';
 import { fetchTrainerReviews } from '@/lib/reviews';
 import { Link } from '@/src/i18n/navigation';
@@ -123,10 +123,11 @@ export default async function TrainerDetailPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  const [t, trainer, reviews] = await Promise.all([
+  const [t, trainer, reviews, timeZone] = await Promise.all([
     getTranslations('trainers'),
     loadTrainer(id),
     loadReviews(id),
+    getActiveGymTimezone(),
   ]);
 
   return (
@@ -143,7 +144,7 @@ export default async function TrainerDetailPage({
             avgRating={reviews.avgRating}
             reviewCount={reviews.total}
           />
-          <TrainerSchedule schedule={trainer.schedule} />
+          <TrainerSchedule timeZone={timeZone} schedule={trainer.schedule} />
           <TrainerReviews
             reviews={reviews.reviews}
             avgRating={reviews.avgRating}

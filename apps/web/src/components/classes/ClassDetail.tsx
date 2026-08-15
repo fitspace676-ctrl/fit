@@ -6,7 +6,7 @@ import type { ClassInstanceDetail } from '@fit/types';
 import { ClassBookingCta } from './ClassBookingCta';
 import { ClassOccupancy } from './ClassOccupancy';
 import { ClassOccupancyLive } from './ClassOccupancyLive';
-import { formatDate, formatTime } from './date-utils';
+import { formatZonedDate, formatZonedTime } from './date-utils';
 
 // Astryx migration (T11.12): the class-detail body is rebuilt on the Astryx
 // `Card` / `Badge` over the Fit brand theme, with the layout, status banner, and
@@ -133,6 +133,11 @@ export interface ClassDetailProps {
    * the apex / preview URL, where the page renders without a live subscription.
    */
   gymId: string | null;
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /**
@@ -147,7 +152,7 @@ export interface ClassDetailProps {
  * `SCHEDULED` (a shared link to a since-canceled / completed class) a banner
  * explains it and the booking CTA is withheld.
  */
-export function ClassDetail({ instance, gymId }: ClassDetailProps) {
+export function ClassDetail({ instance, gymId, timeZone }: ClassDetailProps) {
   const t = useTranslations('classes');
   const locale = useLocale();
 
@@ -167,7 +172,7 @@ export function ClassDetail({ instance, gymId }: ClassDetailProps) {
       <div {...stylex.props(styles.head)}>
         {instance.category && <Badge variant="purple" label={instance.category} />}
         <h1 {...stylex.props(styles.title)}>{instance.title}</h1>
-        <p {...stylex.props(styles.date)}>{formatDate(instance.startsAt, locale)}</p>
+        <p {...stylex.props(styles.date)}>{formatZonedDate(instance.startsAt, timeZone, locale)}</p>
       </div>
 
       {!isScheduled && (
@@ -183,7 +188,8 @@ export function ClassDetail({ instance, gymId }: ClassDetailProps) {
       <dl {...stylex.props(styles.dl)}>
         <DetailRow label={t('detail.time')}>
           <span {...stylex.props(styles.mono)}>
-            {formatTime(instance.startsAt, locale)} – {formatTime(instance.endsAt, locale)}
+            {formatZonedTime(instance.startsAt, timeZone)} –{' '}
+            {formatZonedTime(instance.endsAt, timeZone)}
           </span>
         </DetailRow>
         <DetailRow label={t('detail.duration')}>

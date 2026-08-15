@@ -851,6 +851,20 @@ export function gymPublicContact(rawSettings: unknown): GymPublicContact {
 }
 
 /**
+ * The IANA time zone a gym's wall-clock times are read in, out of its raw stored
+ * settings, falling back to {@link DEFAULT_TIMEZONE}.
+ *
+ * Public on purpose. Every class time the portal shows is an instant that has to
+ * be rendered in the GYM's zone, not the viewer's: a member checking tomorrow's
+ * schedule from another country must see the hour they will actually turn up at,
+ * and the gym's own staff must see the hour they teach. The instant alone cannot
+ * say which that is — only this can.
+ */
+export function gymPublicTimezone(rawSettings: unknown): string {
+  return gymSettingsStoredSchema.parse(rawSettings ?? {}).locale.timezone;
+}
+
+/**
  * Project a gym's `name` + raw stored settings to its public {@link GymPublicBrand}.
  * Tolerates a `null`/legacy/hand-edited settings value by falling back to the
  * schema defaults, so the public lookup always has a complete, renderable brand.

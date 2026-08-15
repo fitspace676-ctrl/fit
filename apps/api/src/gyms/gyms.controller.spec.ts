@@ -20,7 +20,13 @@ function setup() {
     }),
   );
   const resolveBySubdomain = vi.fn<(slug: string) => Promise<GymBySubdomainResponse>>(() =>
-    Promise.resolve({ gymId: 'gym-1', name: 'Downtown Strength', brand: null, contact: null }),
+    Promise.resolve({
+      gymId: 'gym-1',
+      name: 'Downtown Strength',
+      brand: null,
+      contact: null,
+      timezone: 'Asia/Tbilisi',
+    }),
   );
   const gyms = { list, resolveBySubdomain } as unknown as GymsService;
   return { controller: new GymsController(gyms), list, resolveBySubdomain };
@@ -56,6 +62,7 @@ describe('GymsController', () => {
         name: 'Downtown Strength',
         brand: null,
         contact: null,
+        timezone: 'Asia/Tbilisi',
       });
     });
 
