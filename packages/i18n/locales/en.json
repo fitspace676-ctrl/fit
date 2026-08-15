@@ -3918,7 +3918,9 @@
       "empty": {
         "title": "Nothing for sale yet",
         "subtitle": "This gym hasn’t added any products yet. Check back soon."
-      }
+      },
+      "variantCount": "{count} variants",
+      "oneVariant": "One variant"
     },
     "detail": {
       "back": "Shop",
@@ -3946,7 +3948,9 @@
         "title": "Your cart is empty",
         "subtitle": "Browse the shop and add a few things to get started.",
         "action": "Browse products"
-      }
+      },
+      "itemCount": "{count} items",
+      "checkout": "Complete order"
     },
     "checkout": {
       "pay": "Place order",
