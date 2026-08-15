@@ -10,7 +10,7 @@ import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/Segme
 import type { MemberBookingHistoryEntry } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
-import { formatTime } from '@/src/components/classes/date-utils';
+import { formatZonedTime } from '@/src/components/classes/date-utils';
 import { BookingHistoryCard } from './BookingHistoryCard';
 import { relativeDayLabel } from './booking-format';
 
@@ -194,6 +194,11 @@ export interface BookingHistoryProps {
   entries: MemberBookingHistoryEntry[];
   /** Request-time boundary (ms since epoch) splitting upcoming from past. */
   now: number;
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 type View = 'upcoming' | 'past';
@@ -205,7 +210,7 @@ type View = 'upcoming' | 'past';
  * surfaced as a lime-block "Next up" hero. Booking actions (cancel / re-book) live
  * on each card.
  */
-export function BookingHistory({ entries, now }: BookingHistoryProps) {
+export function BookingHistory({ entries, now, timeZone }: BookingHistoryProps) {
   const t = useTranslations('account.bookings');
   const locale = useLocale();
   const [view, setView] = useState<View>('upcoming');
@@ -244,7 +249,7 @@ export function BookingHistory({ entries, now }: BookingHistoryProps) {
 
   return (
     <div {...stylex.props(styles.root)}>
-      {nextUp ? <NextUpHero entry={nextUp} now={now} locale={locale} /> : null}
+      {nextUp ? <NextUpHero entry={nextUp} now={now} locale={locale} timeZone={timeZone} /> : null}
 
       <div {...stylex.props(styles.controls)}>
         <SegmentedControl value={view} onChange={(v) => setView(v as View)} label={t('title')}>
@@ -280,6 +285,7 @@ export function BookingHistory({ entries, now }: BookingHistoryProps) {
         <ul {...stylex.props(styles.list)}>
           {shown.map((entry) => (
             <BookingHistoryCard
+              timeZone={timeZone}
               key={entry.bookingId}
               entry={entry}
               now={now}
@@ -297,10 +303,12 @@ function NextUpHero({
   entry,
   now,
   locale,
+  timeZone,
 }: {
   entry: MemberBookingHistoryEntry;
   now: number;
   locale: string;
+  timeZone: string;
 }) {
   const t = useTranslations('account.bookings');
   const { classInstance: instance } = entry;
@@ -311,7 +319,7 @@ function NextUpHero({
       <div {...stylex.props(styles.heroRow)}>
         <div {...stylex.props(styles.heroTime)}>
           <p {...stylex.props(styles.heroDay)}>{day}</p>
-          <p {...stylex.props(styles.heroClock)}>{formatTime(instance.startsAt, locale)}</p>
+          <p {...stylex.props(styles.heroClock)}>{formatZonedTime(instance.startsAt, timeZone)}</p>
         </div>
         <div {...stylex.props(styles.heroBody)}>
           <p {...stylex.props(styles.heroLabel)}>{t('nextUp')}</p>

@@ -3,6 +3,7 @@ import { GymStatus } from '@fit/db';
 import {
   gymPublicBrand,
   gymPublicContact,
+  gymPublicTimezone,
   type GymBySubdomainResponse,
   type GymSummary,
   type ListGymsResponse,
@@ -74,6 +75,7 @@ export class GymsService {
       name: gym.name,
       brand: gymPublicBrand(gym.name, gym.settings),
       contact: gymPublicContact(gym.settings),
+      timezone: gymPublicTimezone(gym.settings),
     };
   }
 }

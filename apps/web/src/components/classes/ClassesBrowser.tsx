@@ -105,6 +105,11 @@ export interface ClassesBrowserProps {
   initialClassId?: string;
   /** Filters parsed from `?type/trainer/location/time` on the server. */
   initialFilters: ClassFilterState;
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /** Fetch lifecycle for the current week's classes. */
@@ -127,6 +132,7 @@ export function ClassesBrowser({
   initialWeek,
   initialClassId,
   initialFilters,
+  timeZone,
 }: ClassesBrowserProps) {
   const t = useTranslations('classes');
   const router = useRouter();
@@ -245,6 +251,7 @@ export function ClassesBrowser({
         </Card>
       ) : view === 'week' ? (
         <WeekCalendar
+          timeZone={timeZone}
           instances={filtered}
           week={week}
           onWeekChange={onWeekChange}
@@ -253,10 +260,14 @@ export function ClassesBrowser({
       ) : filtered.length === 0 ? (
         <EmptyClasses />
       ) : (
-        <ClassListView instances={filtered} onClassClick={setSelectedId} />
+        <ClassListView instances={filtered} onClassClick={setSelectedId} timeZone={timeZone} />
       )}
 
-      <ClassDetailDrawer instance={selectedInstance} onClose={() => setSelectedId(null)} />
+      <ClassDetailDrawer
+        instance={selectedInstance}
+        onClose={() => setSelectedId(null)}
+        timeZone={timeZone}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { classCalendarViewSchema, DEFAULT_CLASS_VIEW } from '@fit/types';
-import { getActiveGymId } from '@/lib/active-gym';
+import { getActiveGymId, getActiveGymTimezone } from '@/lib/active-gym';
 import { ClassesBrowser } from '@/src/components/classes/ClassesBrowser';
 import { parseFilters } from '@/src/components/classes/class-filters';
 
@@ -79,7 +79,11 @@ export default async function ClassesPage({
   const [{ locale }, sp] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
 
-  const [t, gymId] = await Promise.all([getTranslations('classes'), getActiveGymId()]);
+  const [t, gymId, timeZone] = await Promise.all([
+    getTranslations('classes'),
+    getActiveGymId(),
+    getActiveGymTimezone(),
+  ]);
 
   const view = classCalendarViewSchema.safeParse(sp.view).data ?? DEFAULT_CLASS_VIEW;
   const filters = parseFilters(sp);
@@ -92,6 +96,7 @@ export default async function ClassesPage({
       </header>
 
       <ClassesBrowser
+        timeZone={timeZone}
         gymId={gymId}
         initialView={view}
         initialWeek={sp.week ?? ''}

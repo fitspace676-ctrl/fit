@@ -9,7 +9,7 @@ import { Card } from '@astryxdesign/core/Card';
 import type { MemberBookingHistoryEntry, MemberBookingStatus } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
-import { formatTime } from '@/src/components/classes/date-utils';
+import { formatZonedTime } from '@/src/components/classes/date-utils';
 import { CancelBookingButton } from './CancelBookingButton';
 import { formatDuration, formatShortDate, relativeDayLabel } from './booking-format';
 
@@ -163,6 +163,11 @@ export interface BookingHistoryCardProps {
   now: number;
   /** Whether this card sits in the "Past" tab — switches the action to re-book. */
   past?: boolean;
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /**
@@ -173,7 +178,12 @@ export interface BookingHistoryCardProps {
  * AlertDialog confirmation that runs the cancel server action), Book again for a
  * past one, or View class otherwise.
  */
-export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryCardProps) {
+export function BookingHistoryCard({
+  entry,
+  now,
+  past = false,
+  timeZone,
+}: BookingHistoryCardProps) {
   const t = useTranslations('account.bookings');
   const locale = useLocale();
   const { classInstance: instance, status } = entry;
@@ -189,7 +199,7 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
           {/* Time block */}
           <div {...stylex.props(styles.timeBlock)}>
             <p {...stylex.props(styles.day, isToday && styles.dayToday)}>{dayLabel}</p>
-            <p {...stylex.props(styles.time)}>{formatTime(instance.startsAt, locale)}</p>
+            <p {...stylex.props(styles.time)}>{formatZonedTime(instance.startsAt, timeZone)}</p>
             <p {...stylex.props(styles.duration)}>
               {formatDuration(instance.startsAt, instance.endsAt)}
             </p>

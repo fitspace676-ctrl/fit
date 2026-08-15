@@ -7,7 +7,7 @@ import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard } from '@fit/types';
 import { Icon } from '@/src/components/ui';
 import { ClassOccupancy } from './ClassOccupancy';
-import { formatTime, groupByDay } from './date-utils';
+import { formatZonedTime, groupByZonedDay } from './date-utils';
 import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11.12): the list view is rebuilt on the Astryx `Card` over
@@ -206,6 +206,11 @@ export interface ClassListViewProps {
   instances: ClassInstanceCard[];
   /** Called with a class id when its row is clicked. */
   onClassClick: (id: string) => void;
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /** Whole minutes between two ISO instants. */
@@ -231,10 +236,10 @@ function initials(name: string): string {
  * is derived from the `instances` the parent supplies; clicking a row opens the
  * detail drawer the parent owns.
  */
-export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
+export function ClassListView({ instances, onClassClick, timeZone }: ClassListViewProps) {
   const t = useTranslations('classes');
   const locale = useLocale();
-  const groups = useMemo(() => groupByDay(instances), [instances]);
+  const groups = useMemo(() => groupByZonedDay(instances, timeZone), [instances, timeZone]);
 
   return (
     <section aria-label={t('listView.label')} {...stylex.props(styles.root)}>
@@ -273,7 +278,7 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                       {/* Left time block: mono time + duration. */}
                       <div {...stylex.props(styles.timeBlock)}>
                         <span {...stylex.props(styles.time)}>
-                          {formatTime(instance.startsAt, locale)}
+                          {formatZonedTime(instance.startsAt, timeZone)}
                         </span>
                         <span {...stylex.props(styles.duration)}>
                           {durationMinutes(instance.startsAt, instance.endsAt)}m
