@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
+import { ThemeToggle } from '@/src/components/member/theme-toggle';
 import { Icon, SkipLink, ToastProvider } from '@/src/components/ui';
 
 // FormaCore redesign (T11.10) — the join shell in StyleX. The artboards treat
@@ -40,6 +41,11 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.625rem',
     textDecoration: 'none',
+  },
+  switches: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
   },
   logoMark: {
     display: 'grid',
@@ -108,7 +114,10 @@ export default async function JoinLayout({
               </span>
               <span {...stylex.props(styles.logoWord)}>{t('brand')}</span>
             </Link>
-            <LocaleSwitcher />
+            <div {...stylex.props(styles.switches)}>
+              <ThemeToggle />
+              <LocaleSwitcher />
+            </div>
           </div>
         </header>
 

@@ -3004,6 +3004,8 @@
       "invalid": "Please enter your name, a valid email, and a password of at least 8 characters.",
       "fields": {
         "name": "Full name",
+        "firstName": "First name",
+        "lastName": "Last name",
         "email": "Email",
         "password": "Password",
         "passwordHint": "At least 8 characters.",
