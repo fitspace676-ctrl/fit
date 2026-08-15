@@ -183,7 +183,7 @@ const styles = stylex.create({
   },
   chipIdle: {
     borderColor: 'var(--color-border)',
-    backgroundColor: { default: 'transparent', ':hover': 'var(--color-tint-hover)' },
+    backgroundColor: { default: 'transparent', ':hover': 'var(--color-overlay-hover)' },
     color: 'var(--color-text-secondary)',
   },
   chipOn: {

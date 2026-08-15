@@ -4,19 +4,15 @@ import { Icon } from '@/src/components/ui';
 import { getActiveGymContact } from '@/lib/active-gym';
 
 // FormaCore redesign (T11.10) — the contact footer in StyleX. The bottom margin
-// clears the mobile tab bar, which now hides at `lg` rather than `md` (six
-// Georgian nav labels need the extra width), so the gutter breakpoint moved with
-// it.
+// clears the floating nav capsule, which is pinned to the foot of the screen at
+// every width.
 
 const styles = stylex.create({
   footer: {
     marginInline: 'auto',
     width: '100%',
     maxWidth: '1180px',
-    marginBottom: {
-      default: '7rem',
-      '@media (min-width: 1024px)': '4rem',
-    },
+    marginBottom: '7rem',
     paddingInline: {
       default: '1.5rem',
       '@media (min-width: 1024px)': '2.5rem',

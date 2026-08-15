@@ -110,8 +110,8 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/web/src/components/member/profile',
   'apps/web/src/components/member/notification-bell.tsx',
   // T11.10 — member portal shell, migrated by the FormaCore redesign: the member
-  // header (logo, primary nav, account menu, mobile drawer), the theme toggle,
-  // the mobile tab bar, the contact footer, and the two layouts that frame them
+  // header (brand + account menu), the theme toggle, the floating nav capsule,
+  // the contact footer, and the two layouts that frame them
   // (the portal shell and the join funnel's). Rebuilt on compiled StyleX over the
   // `formacore` Astryx theme — no Tailwind utilities, and the Aurora backdrop
   // component they used to mount is deleted. Guarded file-by-file rather than as
@@ -121,7 +121,7 @@ const MIGRATED_PATHS: readonly string[] = [
   'apps/web/app/[locale]/member/(join)/layout.tsx',
   'apps/web/src/components/member/member-header.tsx',
   'apps/web/src/components/member/member-footer.tsx',
-  'apps/web/src/components/member/mobile-tab-bar.tsx',
+  'apps/web/src/components/member/bottom-nav.tsx',
   'apps/web/src/components/member/theme-toggle.tsx',
   // Also migrated by the redesign: the language switcher, which both the login
   // screen and the join shell mount. It was the last file still painting in the

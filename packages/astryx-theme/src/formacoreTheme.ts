@@ -140,6 +140,15 @@ const fcTokens = {
   // opposite step: white in light, the panel colour in dark.
   '--fc-control': ['#FFFFFF', ink[900]],
   '--fc-avatar-ring': [ink[200], ink[700]],
+
+  // The floating nav capsule's surface: the panel colour at 72%, read through a
+  // backdrop blur. It is the one glass surface in the product — the direction
+  // otherwise bans it — and it earns the exception by being the only element
+  // that permanently covers content: opaque, it punched a hole through whatever
+  // it floated over. Translucent, the page stays legible underneath as context
+  // while the capsule keeps its own edge.
+  '--fc-glass': ['rgba(255, 255, 255, 0.72)', 'rgba(30, 30, 28, 0.72)'],
+  '--fc-glass-border': ['rgba(19, 19, 18, 0.10)', 'rgba(255, 255, 255, 0.12)'],
 } satisfies Record<`--fc-${string}`, TokenValue>;
 
 export const formacoreTheme = defineTheme({

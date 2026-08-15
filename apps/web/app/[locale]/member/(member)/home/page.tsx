@@ -13,7 +13,7 @@ import { fetchMembership, type MemberSubscription } from '@/lib/membership';
 import { fetchProducts, formatMoney } from '@/lib/shop';
 import { fetchTrainers } from '@/lib/trainers';
 import { fetchClassInstances } from '@/lib/classes';
-import { ButtonLink, CountUp, Icon } from '@/src/components/ui';
+import { ButtonLink, chipShape, controlSize, CountUp, Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { MembershipHero } from '@/src/components/member/home/membership-hero';
 import { CheckInQr } from '@/src/components/member/home/check-in-qr';
@@ -702,6 +702,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               <p {...stylex.props(styles.cardLabel)}>{t('nextClass')}</p>
               {nextBooking && (
                 <Badge
+                  xstyle={chipShape.chip}
                   variant="purple"
                   icon={<Icon name="clock" {...stylex.props(styles.badgeIcon)} />}
                   label={dayLabel(
@@ -737,6 +738,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                   variant="primary"
                   size="md"
                   label={t('checkIn')}
+                  xstyle={controlSize.card}
                 />
               </div>
             ) : (
@@ -748,6 +750,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                   variant="secondary"
                   size="sm"
                   label={t('browseClasses')}
+                  xstyle={controlSize.inline}
                 />
               </div>
             )}
@@ -798,7 +801,9 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                         {c.trainerName} · {c.locationName}
                       </p>
                     </div>
-                    {c.category && <Badge variant="blue" label={c.category} />}
+                    {c.category && (
+                      <Badge xstyle={chipShape.chip} variant="blue" label={c.category} />
+                    )}
                   </div>
                   <OccupancyBar value={c.bookedCount} cap={c.capacity} />
                   <ButtonLink
@@ -806,7 +811,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                     variant={full ? 'secondary' : 'primary'}
                     size="sm"
                     label={full ? t('joinWaitlist') : t('book')}
-                    xstyle={styles.fullBtn}
+                    xstyle={[controlSize.card, controlSize.full]}
                   />
                 </Card>
               );
@@ -837,7 +842,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                 <p {...stylex.props(styles.itemSub)}>{trainer.headline}</p>
                 <div {...stylex.props(styles.specialties)}>
                   {trainer.specialties.slice(0, 3).map((s) => (
-                    <Badge key={s} variant="purple" label={s} />
+                    <Badge key={s} xstyle={chipShape.chip} variant="purple" label={s} />
                   ))}
                 </div>
               </div>
@@ -848,13 +853,14 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                 variant="primary"
                 size="md"
                 label={t('bookSession')}
-                xstyle={styles.flexBtn}
+                xstyle={[controlSize.block, styles.flexBtn]}
               />
               <ButtonLink
                 href="/member/trainers"
                 variant="secondary"
                 size="md"
                 label={t('viewAll')}
+                xstyle={controlSize.block}
               />
             </div>
           </Card>
@@ -863,7 +869,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
         <Card variant="default" padding={0} xstyle={styles.cardLg}>
           <div {...stylex.props(styles.rowBetween)}>
             <p {...stylex.props(styles.cardLabel)}>{t('forTraining')}</p>
-            <Badge variant="success" label={t('membersGet')} />
+            <Badge xstyle={chipShape.chip} variant="success" label={t('membersGet')} />
           </div>
           {topProducts.length > 0 ? (
             <div {...stylex.props(styles.productGrid)}>
@@ -894,7 +900,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               variant="secondary"
               size="sm"
               label={t('visitShop')}
-              xstyle={styles.fullBtn}
+              xstyle={[controlSize.card, controlSize.full]}
             />
           </div>
         </Card>
@@ -928,6 +934,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                   </p>
                 </div>
                 <Badge
+                  xstyle={chipShape.chip}
                   variant={b.status === 'WAITLIST' ? 'warning' : 'success'}
                   label={
                     b.status === 'WAITLIST'
@@ -947,6 +954,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               variant="primary"
               size="sm"
               label={t('browseClasses')}
+              xstyle={controlSize.inline}
             />
           </Card>
         )}

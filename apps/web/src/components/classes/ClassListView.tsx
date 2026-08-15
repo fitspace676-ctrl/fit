@@ -63,8 +63,8 @@ const styles = stylex.create({
     borderWidth: 0,
     backgroundColor: {
       default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
-      ':focus-visible': 'var(--color-tint-hover)',
+      ':hover': 'var(--color-overlay-hover)',
+      ':focus-visible': 'var(--color-overlay-hover)',
     },
     cursor: 'pointer',
     outline: 'none',

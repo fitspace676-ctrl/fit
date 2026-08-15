@@ -84,7 +84,7 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/web/app/[locale]/member/(join)/layout.tsx`           | T11.10 | ✅     |
 | `apps/web/src/components/member/member-header.tsx`         | T11.10 | ✅     |
 | `apps/web/src/components/member/member-footer.tsx`         | T11.10 | ✅     |
-| `apps/web/src/components/member/mobile-tab-bar.tsx`        | T11.10 | ✅     |
+| `apps/web/src/components/member/bottom-nav.tsx`            | T11.10 | ✅     |
 | `apps/web/src/components/member/theme-toggle.tsx`          | T11.10 | ✅     |
 | `apps/web/src/components/LocaleSwitcher.tsx`               | T11.10 | ✅     |
 | `apps/admin/components/admin-shell.tsx`                    | T11.17 | ✅     |
