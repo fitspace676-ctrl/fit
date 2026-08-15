@@ -57,7 +57,7 @@ const styles = stylex.create({
   toggleBtnIdle: {
     backgroundColor: {
       default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
+      ':hover': 'var(--color-overlay-hover)',
     },
     color: 'var(--color-text-secondary)',
   },

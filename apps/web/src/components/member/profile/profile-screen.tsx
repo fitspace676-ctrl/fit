@@ -255,7 +255,7 @@ const styles = stylex.create({
     textDecoration: 'none',
     backgroundColor: {
       default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
+      ':hover': 'var(--color-overlay-hover)',
     },
     transitionProperty: 'background-color',
     transitionDuration: '150ms',

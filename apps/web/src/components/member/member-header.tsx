@@ -3,13 +3,12 @@
 import { useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
+import { Link, useRouter } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
 import { useSession } from '@/hooks/use-session';
 import { logout } from '@/lib/auth';
+import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
 import { ThemeToggle } from './theme-toggle';
-import { NotificationBell } from './notification-bell';
-import { NAV_ITEMS, isActive } from './nav-items';
 
 // FormaCore redesign (T11.10) — the member shell, off Tailwind and onto compiled
 // StyleX over the FormaCore theme, and matched to the `web-member-*` artboards
@@ -17,24 +16,36 @@ import { NAV_ITEMS, isActive } from './nav-items';
 //
 //   bar        80px tall, content capped at 1180px, 24px gutter (40px from lg)
 //   logo       40px lime tile at the `inner` radius, 19px extrabold wordmark
-//   nav        CENTERED in the remaining space, 40px pills, 14px semibold,
-//              17px icons, active = solid lime with ink-950 type
 //   actions    40px controls on the `--fc-control` surface; the avatar is a
 //              SQUIRCLE (not a circle) ringed in lime, which is how the artboards
 //              mark "this is you"
 //   menu       240px, 14px bold name over the plan · gym line
 //
-// The nav collapses to the drawer at `lg`, matching the artboards' own
-// `hidden lg:flex` — six Georgian labels do not fit a tablet.
+// The header carries NO navigation. The primary nav is the floating capsule in
+// `bottom-nav.tsx`, at every width — see the note there. What is left here is the
+// brand mark and the account controls, which is why the bar keeps its height but
+// loses its middle. The notification bell went with the nav — it is a floating
+// capsule beside it now, so what happened while you were away is answered in the
+// same place you steer from.
+//
+// The cart shortcut went too, and the language switch took its place. The cart is
+// reached from the shop, where a basket is something you are already carrying;
+// parked in the chrome it was a permanent affordance for a page most visits never
+// touch. Language is the opposite — it belongs beside the theme switch, the pair
+// the auth screens already show together, because both change how the whole
+// portal reads rather than where you are in it.
 
 const styles = stylex.create({
   header: {
     position: 'sticky',
     top: 0,
     zIndex: 30,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
+    // No rule under the bar. It had one when the header carried the navigation
+    // and needed to read as a separate deck; with the nav moved to the floating
+    // capsule, the header is just a brand mark and two switches sitting on the
+    // canvas, and a full-width line across the page only drew a seam where there
+    // is no longer a division. Scroll separation is the translucency's job.
+    //
     // The artboards' one translucent surface: the canvas at 95% behind a small
     // blur, so content scrolling under the bar is sensed but never legible.
     backgroundColor: 'var(--fc-header)',
@@ -82,50 +93,9 @@ const styles = stylex.create({
     color: 'var(--color-text-primary)',
   },
 
-  /* ---------------------------------- nav --------------------------------- */
-  nav: {
-    display: {
-      default: 'none',
-      '@media (min-width: 1024px)': 'flex',
-    },
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.25rem',
-  },
-  navItem: {
-    display: 'flex',
-    height: '2.5rem',
-    alignItems: 'center',
-    gap: '0.5rem',
-    borderRadius: 'var(--radius-inner)',
-    paddingInline: '1rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    whiteSpace: 'nowrap',
-    textDecoration: 'none',
-    transitionProperty: 'background-color, color',
-    transitionDuration: '150ms',
-  },
-  navIdle: {
-    color: 'var(--color-text-secondary)',
-    backgroundColor: { default: 'transparent', ':hover': 'var(--color-tint-hover)' },
-  },
-  navActive: {
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  navIcon: {
-    height: '1.0625rem',
-    width: '1.0625rem',
-  },
-
   /* -------------------------------- actions ------------------------------- */
   actions: {
-    marginInlineStart: {
-      default: 'auto',
-      '@media (min-width: 1024px)': 0,
-    },
+    marginInlineStart: 'auto',
     display: 'flex',
     flexShrink: 0,
     alignItems: 'center',
@@ -133,33 +103,6 @@ const styles = stylex.create({
   },
   // Header controls sit on the header surface, so they take the opposite step:
   // white in light, the panel colour in dark — the artboards' `t.iconBtn`.
-  iconBtn: {
-    position: 'relative',
-    display: 'grid',
-    placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
-    borderRadius: 'var(--radius-inner)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--fc-tile-border)',
-    backgroundColor: 'var(--fc-control)',
-    color: { default: 'var(--color-icon-secondary)', ':hover': 'var(--color-icon-primary)' },
-    cursor: 'pointer',
-    textDecoration: 'none',
-    transitionProperty: 'color',
-    transitionDuration: '150ms',
-  },
-  actionIcon: {
-    height: '1.125rem',
-    width: '1.125rem',
-  },
-  menuToggle: {
-    display: {
-      default: 'grid',
-      '@media (min-width: 1024px)': 'none',
-    },
-  },
 
   /* -------------------------------- avatar -------------------------------- */
   avatarWrap: {
@@ -231,7 +174,7 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.625rem',
     borderWidth: 0,
-    backgroundColor: { default: 'transparent', ':hover': 'var(--color-tint-hover)' },
+    backgroundColor: { default: 'transparent', ':hover': 'var(--color-overlay-hover)' },
     paddingInline: '1rem',
     paddingBlock: '0.625rem',
     textAlign: 'start',
@@ -255,46 +198,6 @@ const styles = stylex.create({
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
     borderTopColor: 'var(--color-border)',
-  },
-
-  /* ------------------------------ mobile drawer --------------------------- */
-  drawer: {
-    display: {
-      default: 'block',
-      '@media (min-width: 1024px)': 'none',
-    },
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-body)',
-    paddingInline: '1.5rem',
-    paddingTop: '0.5rem',
-    paddingBottom: '1rem',
-  },
-  drawerNav: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-  },
-  drawerItem: {
-    display: 'flex',
-    height: '2.75rem',
-    width: '100%',
-    alignItems: 'center',
-    gap: '0.75rem',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    paddingInline: '1rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    textAlign: 'start',
-    textDecoration: 'none',
-    cursor: 'pointer',
-  },
-  drawerIcon: {
-    height: '1.25rem',
-    width: '1.25rem',
   },
 });
 
@@ -410,96 +313,18 @@ function AccountMenu() {
 /** Persistent member-portal header: logo, primary nav, theme/notifications/avatar. */
 export function MemberHeader() {
   const t = useTranslations('member');
-  const router = useRouter();
-  const pathname = usePathname();
-  const { user } = useSession();
-  const [navOpen, setNavOpen] = useState(false);
-  const isStaff = Boolean(user && user.role !== 'MEMBER');
-
-  const onLogout = (): void => {
-    setNavOpen(false);
-    void logout().finally(() => router.replace('/member/login'));
-  };
 
   return (
     <header {...stylex.props(styles.header)}>
       <div {...stylex.props(styles.bar)}>
         <Logo label={t('shell.brand')} />
 
-        <nav {...stylex.props(styles.nav)}>
-          {NAV_ITEMS.map((item) => {
-            const active = isActive(pathname, item.href);
-            return (
-              <Link
-                key={item.key}
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                {...stylex.props(styles.navItem, active ? styles.navActive : styles.navIdle)}
-              >
-                <Icon name={item.icon} sw={2.2} {...stylex.props(styles.navIcon)} />
-                {t(`nav.${item.key}`)}
-              </Link>
-            );
-          })}
-        </nav>
-
         <div {...stylex.props(styles.actions)}>
           <ThemeToggle />
-          <Link href="/member/cart" aria-label={t('nav.cart')} {...stylex.props(styles.iconBtn)}>
-            <Icon name="bag" {...stylex.props(styles.actionIcon)} />
-          </Link>
-          <NotificationBell />
+          <LocaleSwitcher />
           <AccountMenu />
-
-          <button
-            type="button"
-            onClick={() => setNavOpen((v) => !v)}
-            aria-label={navOpen ? t('shell.closeMenu') : t('shell.openMenu')}
-            aria-expanded={navOpen}
-            {...stylex.props(styles.iconBtn, styles.menuToggle)}
-          >
-            <Icon name={navOpen ? 'x' : 'filter'} {...stylex.props(styles.actionIcon)} />
-          </button>
         </div>
       </div>
-
-      {navOpen && (
-        <div {...stylex.props(styles.drawer)}>
-          <nav {...stylex.props(styles.drawerNav)}>
-            {NAV_ITEMS.map((item) => {
-              const active = isActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  onClick={() => setNavOpen(false)}
-                  aria-current={active ? 'page' : undefined}
-                  {...stylex.props(styles.drawerItem, active ? styles.navActive : styles.navIdle)}
-                >
-                  <Icon name={item.icon} sw={2.1} {...stylex.props(styles.drawerIcon)} />
-                  {t(`nav.${item.key}`)}
-                </Link>
-              );
-            })}
-
-            <div {...stylex.props(styles.menuRule)} />
-            {isStaff && (
-              <a href="/admin" {...stylex.props(styles.drawerItem, styles.navIdle)}>
-                <Icon name="grid" sw={2.1} {...stylex.props(styles.drawerIcon)} />
-                {t('shell.adminConsole')}
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={onLogout}
-              {...stylex.props(styles.drawerItem, styles.menuDanger)}
-            >
-              <Icon name="logout" sw={2.1} {...stylex.props(styles.drawerIcon)} />
-              {t('shell.signOut')}
-            </button>
-          </nav>
-        </div>
-      )}
     </header>
   );
 }

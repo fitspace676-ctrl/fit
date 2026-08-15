@@ -22,18 +22,27 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 // same "show both, mark one" rule as the theme switch in the member header.
 
 const styles = stylex.create({
+  // Same track as the theme switch — same height, same border, same fill. The
+  // two now stand side by side in the member header, and they are the same class
+  // of object: a two-state segmented control that says which one you are on. On
+  // `--fc-tile` the language track vanished into the canvas in dark mode while
+  // the theme track beside it kept a visible edge, which read as two different
+  // kinds of control rather than a pair.
   track: {
     display: 'flex',
-    height: '2.25rem',
+    height: '2.5rem',
     alignItems: 'center',
     gap: '0.125rem',
     borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'var(--fc-tile)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--fc-tile-border)',
+    backgroundColor: 'var(--fc-control)',
     padding: '0.25rem',
   },
   option: {
     display: 'grid',
-    height: '1.75rem',
+    height: '2rem',
     placeItems: 'center',
     borderRadius: 'calc(var(--radius-inner) - 0.25rem)',
     paddingInline: '0.75rem',

@@ -42,17 +42,23 @@ const styles = stylex.create({
   // button on the `--fc-control` surface at the `inner` radius, so bell, cart,
   // theme track and avatar read as one row of hardware rather than four
   // differently-shaped things.
+  // The bell is its own floating capsule beside the nav, so it carries the same
+  // glass material — same surface, same hairline, same blur. Two capsules that
+  // look like one system, kept apart because they answer different questions:
+  // "where do I go" and "what happened while I was away".
   bell: {
     position: 'relative',
     display: 'grid',
     placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
+    height: '3.625rem',
+    width: '3.625rem',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: 'var(--fc-tile-border)',
-    borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'var(--fc-control)',
+    borderColor: 'var(--fc-glass-border)',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--fc-glass)',
+    backdropFilter: 'blur(20px) saturate(1.6)',
+    boxShadow: 'var(--shadow-high)',
     color: {
       default: 'var(--color-icon-secondary)',
       ':hover': 'var(--color-icon-primary)',
@@ -62,8 +68,8 @@ const styles = stylex.create({
     transitionDuration: '150ms',
   },
   bellIcon: {
-    height: '1.125rem',
-    width: '1.125rem',
+    height: '1.25rem',
+    width: '1.25rem',
   },
   unread: {
     position: 'absolute',
@@ -80,7 +86,7 @@ const styles = stylex.create({
     fontSize: '10px',
     fontWeight: 700,
     lineHeight: 1,
-    boxShadow: '0 0 0 2px var(--color-background-body)',
+    boxShadow: '0 0 0 2px var(--color-background-surface)',
   },
   panel: {
     width: '20rem',
@@ -166,7 +172,7 @@ const styles = stylex.create({
   itemRead: {
     backgroundColor: {
       default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
+      ':hover': 'var(--color-overlay-hover)',
     },
   },
   itemUnread: {
@@ -370,7 +376,7 @@ export function NotificationBell() {
         setOpen(next);
         if (next) void load();
       }}
-      placement="below"
+      placement="above"
       alignment="end"
       label={t('notifications')}
       content={panel}
