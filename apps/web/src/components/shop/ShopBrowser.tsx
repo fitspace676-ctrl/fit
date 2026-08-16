@@ -5,16 +5,21 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
-import type { ProductSummary } from '@fit/types';
+import type { CartView, ProductSummary } from '@fit/types';
 import { fetchProducts } from '@/lib/shop';
 import { Icon } from '@/src/components/ui';
 import { EmptyShop } from './EmptyShop';
-import { ProductsGrid } from './ProductsGrid';
+import { ProductList } from './ProductList';
 
 // Astryx migration (T11.15): the shop browser's loading / error / empty states
 // are rebuilt on the Astryx `EmptyState` + `Button` over the Fit brand theme
 // tokens, with layout in compiled StyleX — no Tailwind utilities. The catalogue
 // fetch lifecycle below is unchanged.
+//
+// FormaCore redesign: it renders the row list rather than the card grid, and it
+// passes the cart through so a row can show a stepper for what is already in it.
+// The cart itself is owned a level up (`ShopScreen`), where the panel can share
+// the same state — this component still only fetches and gates the catalogue.
 
 const styles = stylex.create({
   loading: {
@@ -33,6 +38,10 @@ const styles = stylex.create({
 export interface ShopBrowserProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
   gymId: string | null;
+  /** The live cart, so each row knows whether it is already in it. */
+  cart: CartView;
+  /** Hand the fresh cart up after a row's add / step. */
+  onCart: (cart: CartView) => void;
 }
 
 /** Fetch lifecycle for the gym's catalogue. */
@@ -49,7 +58,7 @@ interface LoadState {
  * {@link import('../trainers/TrainersBrowser').TrainersBrowser}, minus the
  * filters: the listing is pure discovery.
  */
-export function ShopBrowser({ gymId }: ShopBrowserProps) {
+export function ShopBrowser({ gymId, cart, onCart }: ShopBrowserProps) {
   const t = useTranslations('shop');
 
   const [load, setLoad] = useState<LoadState>({ products: [], status: 'loading' });
@@ -104,5 +113,5 @@ export function ShopBrowser({ gymId }: ShopBrowserProps) {
     return <EmptyShop />;
   }
 
-  return <ProductsGrid products={load.products} />;
+  return <ProductList products={load.products} cart={cart} onCart={onCart} />;
 }

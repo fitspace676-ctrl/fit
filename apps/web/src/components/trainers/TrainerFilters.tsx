@@ -125,7 +125,7 @@ const styles = stylex.create({
     borderColor: 'var(--color-border)',
     backgroundColor: {
       default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
+      ':hover': 'var(--color-overlay-hover)',
     },
     color: 'var(--color-text-secondary)',
   },

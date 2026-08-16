@@ -9,7 +9,7 @@ import { Card } from '@astryxdesign/core/Card';
 import type { MemberBookingHistoryEntry, MemberBookingStatus } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
-import { formatTime } from '@/src/components/classes/date-utils';
+import { formatZonedTime } from '@/src/components/classes/date-utils';
 import { CancelBookingButton } from './CancelBookingButton';
 import { formatDuration, formatShortDate, relativeDayLabel } from './booking-format';
 
@@ -87,6 +87,15 @@ const styles = stylex.create({
   titleMuted: {
     color: 'var(--color-text-disabled)',
   },
+  // The category chip is NEUTRAL; only its 6px dot carries the category colour.
+  //
+  // It used to tint the whole chip — fill, border and label — from
+  // `instance.color`, which is a per-class-type hex the gym picks. On the
+  // Aurora-glass skin that was merely busy; under a direction that spends its
+  // entire colour budget on one lime, a row of filled green/pink/purple/orange
+  // pills is the loudest thing on the screen and reads as the primary signal.
+  // Demoting the hue to a dot keeps the category legible at a glance, keeps the
+  // gym's own colour choice meaningful, and leaves the lime as the only fill.
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -94,14 +103,20 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-full)',
     borderWidth: '1px',
     borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
     paddingInline: '0.625rem',
     paddingBlock: '0.25rem',
-    fontSize: '0.75rem',
-    fontWeight: 600,
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
   },
   chipDot: {
     height: '0.375rem',
     width: '0.375rem',
+    flexShrink: 0,
     borderRadius: 'var(--radius-full)',
   },
   meta: {
@@ -148,6 +163,11 @@ export interface BookingHistoryCardProps {
   now: number;
   /** Whether this card sits in the "Past" tab — switches the action to re-book. */
   past?: boolean;
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /**
@@ -158,7 +178,12 @@ export interface BookingHistoryCardProps {
  * AlertDialog confirmation that runs the cancel server action), Book again for a
  * past one, or View class otherwise.
  */
-export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryCardProps) {
+export function BookingHistoryCard({
+  entry,
+  now,
+  past = false,
+  timeZone,
+}: BookingHistoryCardProps) {
   const t = useTranslations('account.bookings');
   const locale = useLocale();
   const { classInstance: instance, status } = entry;
@@ -174,7 +199,7 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
           {/* Time block */}
           <div {...stylex.props(styles.timeBlock)}>
             <p {...stylex.props(styles.day, isToday && styles.dayToday)}>{dayLabel}</p>
-            <p {...stylex.props(styles.time)}>{formatTime(instance.startsAt, locale)}</p>
+            <p {...stylex.props(styles.time)}>{formatZonedTime(instance.startsAt, timeZone)}</p>
             <p {...stylex.props(styles.duration)}>
               {formatDuration(instance.startsAt, instance.endsAt)}
             </p>
@@ -190,14 +215,7 @@ export function BookingHistoryCard({ entry, now, past = false }: BookingHistoryC
                 {instance.title}
               </Link>
               {instance.category && (
-                <span
-                  {...stylex.props(styles.chip)}
-                  style={{
-                    color: instance.color,
-                    backgroundColor: `${instance.color}1f`,
-                    borderColor: `${instance.color}40`,
-                  }}
-                >
+                <span {...stylex.props(styles.chip)}>
                   <span
                     aria-hidden
                     {...stylex.props(styles.chipDot)}

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { GymStatus } from '@fit/db';
-import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '@fit/types';
+import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR, DEFAULT_TIMEZONE } from '@fit/types';
 import { GymsService } from './gyms.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -118,6 +118,10 @@ describe('GymsService.resolveBySubdomain', () => {
       // A gym that has filled in no business info still answers with the four
       // fields, all null — the portal decides there is nothing to render.
       contact: { address: null, phone: null, email: null, website: null },
+      // The zone the portal reads every class time in. A gym that has set none
+      // answers with the platform default rather than omitting the field, so the
+      // client never has to invent one.
+      timezone: DEFAULT_TIMEZONE,
     });
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { slug: 'downtown' } }),

@@ -38,24 +38,33 @@ const CATEGORY_ICON: Record<InboxItem['category'], IconName> = {
 };
 
 const styles = stylex.create({
+  // FormaCore redesign: matched to the other header controls — a 40px bordered
+  // button on the `--fc-control` surface at the `inner` radius, so bell, cart,
+  // theme track and avatar read as one row of hardware rather than four
+  // differently-shaped things.
+  // The bell is its own floating capsule beside the nav, so it carries the same
+  // glass material — same surface, same hairline, same blur. Two capsules that
+  // look like one system, kept apart because they answer different questions:
+  // "where do I go" and "what happened while I was away".
   bell: {
     position: 'relative',
     display: 'grid',
     placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
-    borderWidth: 0,
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
-    },
+    height: '3.625rem',
+    width: '3.625rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--fc-glass-border)',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--fc-glass)',
+    backdropFilter: 'blur(20px) saturate(1.6)',
+    boxShadow: 'var(--shadow-high)',
     color: {
-      default: 'var(--color-text-secondary)',
-      ':hover': 'var(--color-text-primary)',
+      default: 'var(--color-icon-secondary)',
+      ':hover': 'var(--color-icon-primary)',
     },
     cursor: 'pointer',
-    transitionProperty: 'background-color, color',
+    transitionProperty: 'color',
     transitionDuration: '150ms',
   },
   bellIcon: {
@@ -77,7 +86,7 @@ const styles = stylex.create({
     fontSize: '10px',
     fontWeight: 700,
     lineHeight: 1,
-    boxShadow: '0 0 0 2px var(--color-background-body)',
+    boxShadow: '0 0 0 2px var(--color-background-surface)',
   },
   panel: {
     width: '20rem',
@@ -163,7 +172,7 @@ const styles = stylex.create({
   itemRead: {
     backgroundColor: {
       default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
+      ':hover': 'var(--color-overlay-hover)',
     },
   },
   itemUnread: {
@@ -367,7 +376,7 @@ export function NotificationBell() {
         setOpen(next);
         if (next) void load();
       }}
-      placement="below"
+      placement="above"
       alignment="end"
       label={t('notifications')}
       content={panel}

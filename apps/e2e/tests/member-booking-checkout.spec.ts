@@ -129,12 +129,26 @@ test.describe.serial('Member booking + checkout', () => {
   });
 
   test('Shop → cart → checkout', async () => {
-    // Add the seeded product from the shop grid.
+    // Add the seeded product from the shop's catalogue list.
     await page.goto('/en/member/shop');
-    const card = page.locator('li', { hasText: catalogue.productName });
-    await expect(card).toBeVisible({ timeout: 20_000 });
-    await card.getByRole('button', { name: 'Add' }).click();
-    await expect(page.getByText('Added to cart')).toBeVisible({ timeout: 20_000 });
+    // Scoped to the catalogue list: once the add lands, the product's name is on
+    // the page twice — here and in the cart panel — and an unscoped `li` lookup
+    // would start matching both.
+    const row = page
+      .getByRole('list', { name: 'Products' })
+      .locator('li', { hasText: catalogue.productName });
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await row.getByRole('button', { name: 'Add' }).click();
+
+    // The add is confirmed by state, not by a toast: the row's button becomes a
+    // quantity stepper and the line appears in the cart panel beside it. That is
+    // a stronger assertion than the notice it replaced — a toast only proved the
+    // action returned, these prove the cart actually holds the product.
+    await expect(row.getByRole('button', { name: 'Increase quantity' })).toBeVisible({
+      timeout: 20_000,
+    });
+    const panel = page.getByRole('complementary', { name: 'Cart' });
+    await expect(panel.getByText(catalogue.productName).first()).toBeVisible({ timeout: 20_000 });
 
     // Review the cart and confirm the line landed before paying.
     await page.goto('/en/member/cart');

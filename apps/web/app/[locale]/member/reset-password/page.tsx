@@ -3,7 +3,8 @@ import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
-import { AuthShell } from '../../_components/auth/auth-shell';
+import { Icon } from '@/src/components/ui';
+import { AuthPhotoShell } from '../../_components/auth/auth-photo-shell';
 import { ResetPasswordForm } from './reset-password-form';
 
 export const metadata: Metadata = {
@@ -11,21 +12,33 @@ export const metadata: Metadata = {
   description: 'Choose a new password for your Fit account.',
 };
 
-// Astryx migration (T11.9): the reset screen reuses the shared Astryx auth shell
-// and its footer cross-link back to sign-in is authored in compiled StyleX on
-// the Fit theme tokens, mirroring the login, register and forgot-password pages.
-// The form reads the single-use token from the query string, so it is wrapped in
-// Suspense (it calls `useSearchParams`).
+/** The shell names the gym from the Host, same as sign-in — never cache it. */
+export const dynamic = 'force-dynamic';
+
+/**
+ * The second half of the reset flow, reached from the emailed link. It shares
+ * the sign-in frame with the request screen for the same reason that one does:
+ * a visitor arriving from their inbox has left the site and come back, and the
+ * page they land on should be visibly the same door they started at.
+ *
+ * The form reads the single-use token from the query string, so it is wrapped in
+ * Suspense (it calls `useSearchParams`).
+ */
 const styles = stylex.create({
-  link: {
+  back: {
+    marginTop: '2rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.375rem',
     fontSize: '0.875rem',
-    fontWeight: 500,
-    color: 'var(--color-text-accent)',
-    textDecoration: {
-      default: 'none',
-      ':hover': 'underline',
-    },
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: { default: 'var(--color-text-secondary)', ':hover': 'var(--color-text-primary)' },
+    transitionProperty: 'color',
+    transitionDuration: '150ms',
   },
+  backIcon: { height: '0.875rem', width: '0.875rem' },
 });
 
 export default async function ResetPasswordPage({
@@ -39,11 +52,12 @@ export default async function ResetPasswordPage({
   const t = await getTranslations('auth');
 
   return (
-    <AuthShell
+    <AuthPhotoShell
       title={t('reset.title')}
       subtitle={t('reset.subtitle')}
       footer={
-        <Link href="/member/login" {...stylex.props(styles.link)}>
+        <Link href="/member/login" {...stylex.props(styles.back)}>
+          <Icon name="arrowLeft" sw={2.2} {...stylex.props(styles.backIcon)} />
           {t('reset.backToLogin')}
         </Link>
       }
@@ -51,6 +65,6 @@ export default async function ResetPasswordPage({
       <Suspense fallback={null}>
         <ResetPasswordForm />
       </Suspense>
-    </AuthShell>
+    </AuthPhotoShell>
   );
 }

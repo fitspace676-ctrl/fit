@@ -1,8 +1,76 @@
 import type { ReactNode } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
-import { AuroraBackground, Icon, SkipLink, ToastProvider } from '@/src/components/ui';
+import { ThemeToggle } from '@/src/components/member/theme-toggle';
+import { Icon, SkipLink, ToastProvider } from '@/src/components/ui';
+
+// FormaCore redesign (T11.10) — the join shell in StyleX. The artboards treat
+// this and the login screen as one pair: same charcoal canvas, no nav, a logo
+// and a locale switcher, and nothing else competing with the single lime block
+// the page is built around (there, the order summary).
+
+const styles = stylex.create({
+  frame: {
+    position: 'relative',
+    display: 'flex',
+    minHeight: '100vh',
+    flexDirection: 'column',
+  },
+  header: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  bar: {
+    marginInline: 'auto',
+    display: 'flex',
+    height: '5rem',
+    maxWidth: '1180px',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    paddingInline: {
+      default: '1.5rem',
+      '@media (min-width: 1024px)': '2.5rem',
+    },
+  },
+  logo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.625rem',
+    textDecoration: 'none',
+  },
+  switches: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  logoMark: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.5rem',
+    width: '2.5rem',
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  logoIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+  },
+  logoWord: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.25rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  main: {
+    flex: 1,
+  },
+});
 
 /**
  * The join funnel's shell — the chrome around the purchase wizard and its
@@ -12,8 +80,7 @@ import { AuroraBackground, Icon, SkipLink, ToastProvider } from '@/src/component
  * who are not members yet, and the portal header offers them a menu they cannot
  * use: bookings they have none of, a cart, notifications, an account avatar. So
  * this group carries only what a checkout needs — the brand mark (an exit back
- * to the site), a locale switcher, and the same Aurora backdrop so the funnel
- * still looks like the rest of the product.
+ * to the site) and a locale switcher.
  *
  * The route group changes no URLs: the wizard stays at `/member/checkout`. It exists
  * purely to break the layout inheritance that put the member nav on a page for
@@ -32,32 +99,29 @@ export default async function JoinLayout({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const [t, tCommon] = await Promise.all([
-    getTranslations('member.shell'),
-    getTranslations('common'),
-  ]);
+  const t = await getTranslations('member.shell');
 
   return (
     <ToastProvider>
       <SkipLink>{t('skipToContent')}</SkipLink>
-      <AuroraBackground />
-      <div className="relative flex min-h-screen flex-col">
-        <header className="border-b border-ink-100 dark:border-white/10">
-          <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+      <div {...stylex.props(styles.frame)}>
+        <header {...stylex.props(styles.header)}>
+          <div {...stylex.props(styles.bar)}>
             {/* Home, not `/member/home`: a signed-out visitor has no member home to land on. */}
-            <Link href="/" className="flex items-center gap-2.5">
-              <span className="grid h-10 w-10 place-items-center rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white shadow-[0_8px_24px_-8px_rgba(98,87,227,0.8)]">
-                <Icon name="bolt" className="h-5 w-5" sw={2.4} />
+            <Link href="/" {...stylex.props(styles.logo)}>
+              <span {...stylex.props(styles.logoMark)}>
+                <Icon name="bolt" sw={2.4} {...stylex.props(styles.logoIcon)} />
               </span>
-              <span className="font-display text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">
-                {tCommon('appName')}
-              </span>
+              <span {...stylex.props(styles.logoWord)}>{t('brand')}</span>
             </Link>
-            <LocaleSwitcher />
+            <div {...stylex.props(styles.switches)}>
+              <ThemeToggle />
+              <LocaleSwitcher />
+            </div>
           </div>
         </header>
 
-        <main id="main-content" className="flex-1">
+        <main id="main-content" {...stylex.props(styles.main)}>
           {children}
         </main>
       </div>

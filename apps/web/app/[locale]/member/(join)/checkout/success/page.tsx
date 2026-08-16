@@ -169,7 +169,7 @@ interface SuccessSearchParams {
 
 /**
  * Purchase-wizard confirmation (step 4 success). Reads the `?orderId` the
- * payment step (`StepPayment`) redirected with, fetches the order summary
+ * purchase screen (`CheckoutScreen`) redirected with, fetches the order summary
  * (`GET /orders/:orderId`) on the server, and confirms the purchase with an
  * itemised breakdown and a "Return home" CTA. A missing / unknown id renders a
  * graceful "we couldn't find that order" state rather than throwing — a buyer

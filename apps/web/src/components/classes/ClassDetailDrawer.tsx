@@ -13,7 +13,7 @@ import { Drawer } from '@/src/components/ui';
 import { Icon } from '@/src/components/ui';
 import { BookingActionButton } from '@/src/components/member/booking-action-button';
 import { ClassOccupancy } from './ClassOccupancy';
-import { formatTime } from './date-utils';
+import { formatZonedTime } from './date-utils';
 
 // Astryx migration (T11.12): the drawer body is rebuilt on the Astryx `Badge` /
 // `Button` / `Card` over the Fit brand theme, with the header, detail list, and
@@ -105,6 +105,11 @@ export interface ClassDetailDrawerProps {
   instance: ClassInstanceCard | null;
   /** Close the drawer (overlay click, close button, or Esc). */
   onClose: () => void;
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /**
@@ -117,7 +122,7 @@ export interface ClassDetailDrawerProps {
  * the real {@link BookingActionButton}, which runs the booking server action and
  * refreshes the seat counts.
  */
-export function ClassDetailDrawer({ instance, onClose }: ClassDetailDrawerProps) {
+export function ClassDetailDrawer({ instance, onClose, timeZone }: ClassDetailDrawerProps) {
   const t = useTranslations('classes');
   const locale = useLocale();
   const pathname = usePathname();
@@ -164,7 +169,8 @@ export function ClassDetailDrawer({ instance, onClose }: ClassDetailDrawerProps)
       <dl {...stylex.props(styles.dl)}>
         <DetailRow label={t('drawer.time')}>
           <span {...stylex.props(styles.mono)}>
-            {formatTime(instance.startsAt, locale)} – {formatTime(instance.endsAt, locale)}
+            {formatZonedTime(instance.startsAt, timeZone)} –{' '}
+            {formatZonedTime(instance.endsAt, timeZone)}
           </span>
         </DetailRow>
         {instance.trainerName ? (

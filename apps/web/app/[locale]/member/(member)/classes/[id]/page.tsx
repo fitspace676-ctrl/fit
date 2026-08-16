@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getActiveGymId } from '@/lib/active-gym';
+import { getActiveGymId, getActiveGymTimezone } from '@/lib/active-gym';
 import { fetchClassInstance } from '@/lib/classes';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
@@ -101,7 +101,11 @@ export default async function ClassDetailPage({ params }: { params: Promise<Clas
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  const [t, loaded] = await Promise.all([getTranslations('classes'), loadInstance(id)]);
+  const [t, loaded, timeZone] = await Promise.all([
+    getTranslations('classes'),
+    loadInstance(id),
+    getActiveGymTimezone(),
+  ]);
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -110,7 +114,11 @@ export default async function ClassDetailPage({ params }: { params: Promise<Clas
         {t('detail.back')}
       </Link>
 
-      {loaded ? <ClassDetail instance={loaded.instance} gymId={loaded.gymId} /> : <ClassNotFound />}
+      {loaded ? (
+        <ClassDetail timeZone={timeZone} instance={loaded.instance} gymId={loaded.gymId} />
+      ) : (
+        <ClassNotFound />
+      )}
     </div>
   );
 }

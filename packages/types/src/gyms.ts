@@ -139,6 +139,12 @@ export interface GymBySubdomainResponse {
    */
   brand: GymPublicBrand | null;
   /**
+   * The IANA zone the gym's wall-clock times are read in (`Asia/Tbilisi` by
+   * default). The portal renders every class and booking time in it rather than
+   * in the viewer's zone — see `gymPublicTimezone`.
+   */
+  timezone: string;
+  /**
    * The gym's public contact details (address, phone, email, website) as filled in
    * under Settings → Business info — what the member portal's footer offers a
    * visitor to reach the gym on. Every field is independently nullable; a gym that

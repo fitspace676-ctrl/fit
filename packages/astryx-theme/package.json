@@ -2,7 +2,7 @@
   "name": "@fit/astryx-theme",
   "version": "0.0.0",
   "private": true,
-  "description": "Fit's custom Astryx theme — the formacore \"Aurora-glass\" brand (electric-indigo accent, ink neutrals, Manrope/Archivo/JetBrains type) mapped onto the Astryx theme-token contract.",
+  "description": "Fit's custom Astryx themes — `fit` (Aurora-glass: electric-indigo accent, Manrope/Archivo) for the admin console, and `formacore` (Lime Block: charcoal ink canvas, one lime, Noto Sans Georgian) for the member portal.",
   "main": "./index.ts",
   "types": "./index.ts",
   "exports": {
@@ -11,7 +11,12 @@
       "types": "./dist/fit.d.ts",
       "default": "./dist/fit.js"
     },
-    "./theme.css": "./dist/theme.css"
+    "./theme.css": "./dist/theme.css",
+    "./formacore": {
+      "types": "./dist/formacore.d.ts",
+      "default": "./dist/formacore.js"
+    },
+    "./formacore.css": "./dist/formacore.css"
   },
   "files": [
     "index.ts",
@@ -19,8 +24,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "echo '[@fit/astryx-theme] build: prebuilt theme is committed under dist/ — run `pnpm --filter @fit/astryx-theme theme:build` (needs Node >=22.13) to regenerate'",
-    "theme:build": "astryx theme build src/fitTheme.ts -o dist/theme.css",
+    "build": "echo '[@fit/astryx-theme] build: prebuilt themes are committed under dist/ — run `pnpm --filter @fit/astryx-theme theme:build` (needs Node >=22.13) to regenerate'",
+    "theme:build": "pnpm run theme:build:fit && pnpm run theme:build:formacore",
+    "theme:build:fit": "astryx theme build src/fitTheme.ts -o dist/theme.css",
+    "theme:build:formacore": "astryx theme build src/formacoreTheme.ts -o dist/formacore.css",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "test": "echo '[@fit/astryx-theme] test: nothing to do yet'",

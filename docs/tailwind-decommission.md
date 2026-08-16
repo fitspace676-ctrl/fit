@@ -80,6 +80,13 @@ Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 | `apps/web/app/[locale]/member/(member)/account/membership` | T11.16 | ✅     |
 | `apps/web/src/components/member/profile`                   | T11.16 | ✅     |
 | `apps/web/src/components/member/notification-bell.tsx`     | T11.16 | ✅     |
+| `apps/web/app/[locale]/member/(member)/layout.tsx`         | T11.10 | ✅     |
+| `apps/web/app/[locale]/member/(join)/layout.tsx`           | T11.10 | ✅     |
+| `apps/web/src/components/member/member-header.tsx`         | T11.10 | ✅     |
+| `apps/web/src/components/member/member-footer.tsx`         | T11.10 | ✅     |
+| `apps/web/src/components/member/bottom-nav.tsx`            | T11.10 | ✅     |
+| `apps/web/src/components/member/theme-toggle.tsx`          | T11.10 | ✅     |
+| `apps/web/src/components/LocaleSwitcher.tsx`               | T11.10 | ✅     |
 | `apps/admin/components/admin-shell.tsx`                    | T11.17 | ✅     |
 | `apps/admin/components/sidebar.tsx`                        | T11.17 | ✅     |
 | `apps/admin/components/top-bar.tsx`                        | T11.17 | ✅     |
@@ -122,17 +129,24 @@ manifest no longer lists them:
 
 Pending screens (still on Tailwind — add to the manifest as each lands). Counts
 are files currently using `className=` under each app, as a rough burn-down:
-`apps/web` ≈ 22, `apps/admin` ≈ 25.
+`apps/web` = 4, `apps/admin` ≈ 25.
 
 | Area                                  | Tasks                  |
 | ------------------------------------- | ---------------------- |
-| Web — member shell + home             | T11.10, T11.11         |
-| Web — classes / trainers / bookings   | T11.12, T11.13, T11.14 |
-| Web — shop / cart / checkout          | T11.15                 |
-| Web — account / profile / membership  | T11.16                 |
-| Admin — shell + dashboard             | T11.17, T11.18         |
 | Admin — billing (plans/subs/invoices) | T11.23                 |
 | Parity + a11y + dead-code sweep       | T11.24, T11.25, T11.26 |
+
+The member portal's four remaining Tailwind files are leaf components the shell
+migration did not cover. They render correctly on the FormaCore palette (the web
+Tailwind config mirrors the theme's tokens), so they are a coexistence tail
+rather than a visual gap:
+
+| File                                              | Notes                                           |
+| ------------------------------------------------- | ----------------------------------------------- |
+| `src/components/member/booking-action-button.tsx` | server-action button used by the classes drawer |
+| `src/components/member/goals/goals-card.tsx`      | mounted only by the trainers page               |
+| `src/components/ui/data-viz.tsx`                  | `CountUp` + the small meters                    |
+| `src/components/ui/qr-code.tsx`                   | deterministic check-in QR                       |
 
 The demo/showcase route `apps/web/app/[locale]/astryx-primitives` is **not**
 migrated and never enters the manifest — it uses Tailwind on purpose to scaffold

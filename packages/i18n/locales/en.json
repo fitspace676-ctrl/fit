@@ -2844,6 +2844,7 @@
     "hidePassword": "Hide",
     "togglePassword": "Toggle password visibility",
     "terms": "By continuing you agree to our Terms and Privacy Policy.",
+    "termsRich": "By continuing you agree to <policy>our Terms and Privacy Policy</policy>.",
     "signingIn": "Signing you in…",
     "signedIn": "Signed in successfully.",
     "googleNotConfigured": "Google sign-in is not configured.",
@@ -2903,7 +2904,8 @@
         "instant": "Straight into your member portal once you have paid"
       },
       "cta": "Become a member",
-      "ctaNote": "Takes about two minutes."
+      "ctaNote": "Takes about two minutes.",
+      "titleNamed": "Not a member of {gym} yet?"
     }
   },
   "billing": {
@@ -2977,6 +2979,7 @@
       "subtitle": "Pick the membership that fits how you train.",
       "loading": "Loading packages…",
       "error": "We couldn't load the packages. Please try again.",
+      "noGym": "Open this page on your gym’s address (e.g. downtown.formacore.ge) — there is no gym in scope here, so nothing can be listed.",
       "retry": "Try again",
       "empty": {
         "title": "No packages available",
@@ -3007,6 +3010,8 @@
       "invalid": "Please enter your name, a valid email, and a password of at least 8 characters.",
       "fields": {
         "name": "Full name",
+        "firstName": "First name",
+        "lastName": "Last name",
         "email": "Email",
         "password": "Password",
         "passwordHint": "At least 8 characters.",
@@ -3341,6 +3346,8 @@
       "today": "Today",
       "tomorrow": "Tomorrow",
       "membership": "Membership",
+      "managePlan": "Manage plan",
+      "myBookings": "My bookings",
       "active": "Active",
       "noPlan": "No active plan",
       "memberId": "ID",
@@ -3917,7 +3924,9 @@
       "empty": {
         "title": "Nothing for sale yet",
         "subtitle": "This gym hasn’t added any products yet. Check back soon."
-      }
+      },
+      "variantCount": "{count} variants",
+      "oneVariant": "One variant"
     },
     "detail": {
       "back": "Shop",
@@ -3945,7 +3954,9 @@
         "title": "Your cart is empty",
         "subtitle": "Browse the shop and add a few things to get started.",
         "action": "Browse products"
-      }
+      },
+      "itemCount": "{count} items",
+      "checkout": "Complete order"
     },
     "checkout": {
       "pay": "Place order",

@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { extractGymSlug } from '@fit/utils';
-import type { GymPublicContact } from '@fit/types';
+import { DEFAULT_TIMEZONE, type GymPublicContact } from '@fit/types';
 import { env } from './env';
 
 /**
@@ -90,5 +90,69 @@ export async function getActiveGymContact(): Promise<GymPublicContact | null> {
     return hasAny ? contact : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * The active tenant's display name (`Downtown Strength`), or `null` when there
+ * is no tenant in scope. Server-only, and from the same cached
+ * `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}.
+ *
+ * The login screen names the gym in its headline — "Downtown Strength · წევრის
+ * პორტალი" — so a member arriving on a tenant subdomain sees whose door they
+ * are at before they type anything. Never throws: a failure resolves to `null`
+ * and the screen falls back to unbranded copy.
+ */
+export async function getActiveGymName(): Promise<string | null> {
+  const slug = await getActiveGymSlug();
+  if (!slug) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as { name?: unknown };
+    return typeof body.name === 'string' && body.name.trim().length > 0 ? body.name : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The IANA zone the active tenant's wall-clock times are read in, or
+ * `Asia/Tbilisi` when there is no tenant in scope. Server-only, from the same
+ * cached `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}.
+ *
+ * Every class and booking time the portal renders goes through this rather than
+ * the viewer's zone: "Monday 18:00 at Main Floor" is the same appointment
+ * whether it is read in Tbilisi or on a phone abroad, and only the gym's zone
+ * turns the stored instant back into that wall clock.
+ */
+export async function getActiveGymTimezone(): Promise<string> {
+  const slug = await getActiveGymSlug();
+  if (!slug) {
+    return DEFAULT_TIMEZONE;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) {
+      return DEFAULT_TIMEZONE;
+    }
+    const body = (await response.json()) as { timezone?: unknown };
+    return typeof body.timezone === 'string' && body.timezone.length > 0
+      ? body.timezone
+      : DEFAULT_TIMEZONE;
+  } catch {
+    return DEFAULT_TIMEZONE;
   }
 }

@@ -7,7 +7,7 @@ import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard } from '@fit/types';
 import { Icon } from '@/src/components/ui';
 import { ClassOccupancy } from './ClassOccupancy';
-import { formatTime, groupByDay } from './date-utils';
+import { formatZonedTime, groupByZonedDay } from './date-utils';
 import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11.12): the list view is rebuilt on the Astryx `Card` over
@@ -63,8 +63,8 @@ const styles = stylex.create({
     borderWidth: 0,
     backgroundColor: {
       default: 'transparent',
-      ':hover': 'var(--color-tint-hover)',
-      ':focus-visible': 'var(--color-tint-hover)',
+      ':hover': 'var(--color-overlay-hover)',
+      ':focus-visible': 'var(--color-overlay-hover)',
     },
     cursor: 'pointer',
     outline: 'none',
@@ -116,6 +116,10 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-text-primary)',
   },
+  // Neutral chip, coloured dot — see the note on the same chip in
+  // `account/BookingHistoryCard.tsx`. The gym's per-class-type hex stays
+  // meaningful as the dot; the chip itself never takes a fill, so the lime
+  // remains the only filled colour on the page.
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -123,14 +127,20 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-full)',
     borderWidth: '1px',
     borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
     paddingInline: '0.625rem',
     paddingBlock: '0.125rem',
-    fontSize: '0.75rem',
-    fontWeight: 600,
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
   },
   chipDot: {
     height: '0.375rem',
     width: '0.375rem',
+    flexShrink: 0,
     borderRadius: 'var(--radius-full)',
   },
   meta: {
@@ -196,6 +206,11 @@ export interface ClassListViewProps {
   instances: ClassInstanceCard[];
   /** Called with a class id when its row is clicked. */
   onClassClick: (id: string) => void;
+  /**
+   * The gym's IANA zone. Every time below is read in it rather than in the
+   * viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /** Whole minutes between two ISO instants. */
@@ -221,10 +236,10 @@ function initials(name: string): string {
  * is derived from the `instances` the parent supplies; clicking a row opens the
  * detail drawer the parent owns.
  */
-export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
+export function ClassListView({ instances, onClassClick, timeZone }: ClassListViewProps) {
   const t = useTranslations('classes');
   const locale = useLocale();
-  const groups = useMemo(() => groupByDay(instances), [instances]);
+  const groups = useMemo(() => groupByZonedDay(instances, timeZone), [instances, timeZone]);
 
   return (
     <section aria-label={t('listView.label')} {...stylex.props(styles.root)}>
@@ -263,7 +278,7 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                       {/* Left time block: mono time + duration. */}
                       <div {...stylex.props(styles.timeBlock)}>
                         <span {...stylex.props(styles.time)}>
-                          {formatTime(instance.startsAt, locale)}
+                          {formatZonedTime(instance.startsAt, timeZone)}
                         </span>
                         <span {...stylex.props(styles.duration)}>
                           {durationMinutes(instance.startsAt, instance.endsAt)}m
@@ -274,14 +289,7 @@ export function ClassListView({ instances, onClassClick }: ClassListViewProps) {
                         <div {...stylex.props(styles.titleRow)}>
                           <span {...stylex.props(styles.title)}>{instance.title}</span>
                           {instance.category && (
-                            <span
-                              {...stylex.props(styles.chip)}
-                              style={{
-                                color: instance.color,
-                                backgroundColor: `${instance.color}1f`,
-                                borderColor: `${instance.color}40`,
-                              }}
-                            >
+                            <span {...stylex.props(styles.chip)}>
                               <span
                                 aria-hidden
                                 {...stylex.props(styles.chipDot)}

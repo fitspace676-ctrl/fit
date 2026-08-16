@@ -1,6 +1,54 @@
+import * as stylex from '@stylexjs/stylex';
 import { getTranslations } from 'next-intl/server';
 import { Icon } from '@/src/components/ui';
 import { getActiveGymContact } from '@/lib/active-gym';
+
+// FormaCore redesign (T11.10) — the contact footer in StyleX. The bottom margin
+// clears the floating nav capsule, which is pinned to the foot of the screen at
+// every width.
+
+const styles = stylex.create({
+  footer: {
+    marginInline: 'auto',
+    width: '100%',
+    maxWidth: '1180px',
+    marginBottom: '7rem',
+    paddingInline: {
+      default: '1.5rem',
+      '@media (min-width: 1024px)': '2.5rem',
+    },
+  },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: '1.5rem',
+    rowGap: '0.5rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingTop: '1.25rem',
+    fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  entry: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    textDecoration: 'none',
+    color: 'inherit',
+  },
+  link: {
+    color: { default: 'var(--color-text-secondary)', ':hover': 'var(--color-text-primary)' },
+    transitionProperty: 'color',
+    transitionDuration: '150ms',
+  },
+  icon: {
+    height: '1rem',
+    width: '1rem',
+  },
+});
 
 /**
  * The member portal's contact footer — the gym's own address, phone, email and
@@ -22,32 +70,23 @@ export async function MemberFooter() {
   const website = contact.website?.trim();
 
   return (
-    <footer
-      aria-label={t('contactLabel')}
-      className="mx-auto mb-24 w-full max-w-[1200px] px-4 sm:px-6 md:mb-10 lg:px-8"
-    >
-      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-ink-100 pt-5 text-sm text-ink-500 dark:border-white/10 dark:text-ink-400">
+    <footer aria-label={t('contactLabel')} {...stylex.props(styles.footer)}>
+      <div {...stylex.props(styles.row)}>
         {address ? (
-          <span className="inline-flex items-center gap-1.5">
-            <Icon name="pin" className="h-4 w-4" sw={1.8} />
+          <span {...stylex.props(styles.entry)}>
+            <Icon name="pin" sw={1.8} {...stylex.props(styles.icon)} />
             {address}
           </span>
         ) : null}
         {phone ? (
-          <a
-            href={`tel:${phone.replace(/\s+/g, '')}`}
-            className="inline-flex items-center gap-1.5 hover:text-ink-800 dark:hover:text-white"
-          >
-            <Icon name="phone" className="h-4 w-4" sw={1.8} />
+          <a href={`tel:${phone.replace(/\s+/g, '')}`} {...stylex.props(styles.entry, styles.link)}>
+            <Icon name="phone" sw={1.8} {...stylex.props(styles.icon)} />
             {phone}
           </a>
         ) : null}
         {email ? (
-          <a
-            href={`mailto:${email}`}
-            className="inline-flex items-center gap-1.5 hover:text-ink-800 dark:hover:text-white"
-          >
-            <Icon name="mail" className="h-4 w-4" sw={1.8} />
+          <a href={`mailto:${email}`} {...stylex.props(styles.entry, styles.link)}>
+            <Icon name="mail" sw={1.8} {...stylex.props(styles.icon)} />
             {email}
           </a>
         ) : null}
@@ -56,9 +95,9 @@ export async function MemberFooter() {
             href={withScheme(website)}
             target="_blank"
             rel="noreferrer noopener"
-            className="inline-flex items-center gap-1.5 hover:text-ink-800 dark:hover:text-white"
+            {...stylex.props(styles.entry, styles.link)}
           >
-            <Icon name="arrow" className="h-4 w-4" sw={1.8} />
+            <Icon name="arrow" sw={1.8} {...stylex.props(styles.icon)} />
             {website.replace(/^https?:\/\//, '')}
           </a>
         ) : null}

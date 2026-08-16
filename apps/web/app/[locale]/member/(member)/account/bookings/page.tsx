@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getActiveGymTimezone } from '@/lib/active-gym';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { fetchMemberBookings } from '@/lib/member-bookings';
@@ -78,9 +79,10 @@ export default async function AccountBookingsPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, entries] = await Promise.all([
+  const [t, entries, timeZone] = await Promise.all([
     getTranslations('account.bookings'),
     fetchMemberBookings({ scope: 'all' }),
+    getActiveGymTimezone(),
   ]);
 
   return (
@@ -90,7 +92,7 @@ export default async function AccountBookingsPage({
         <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
       </header>
 
-      <BookingHistory entries={entries} now={Date.now()} />
+      <BookingHistory timeZone={timeZone} entries={entries} now={Date.now()} />
     </div>
   );
 }

@@ -30,7 +30,7 @@ const styles = stylex.create({
     padding: '1.25rem',
     backgroundColor: {
       default: 'var(--color-background-card)',
-      ':hover': 'var(--color-tint-hover)',
+      ':hover': 'var(--color-overlay-hover)',
     },
     transitionProperty: 'background-color, box-shadow',
     transitionDuration: '150ms',

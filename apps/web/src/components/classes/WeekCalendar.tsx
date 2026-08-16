@@ -9,13 +9,15 @@ import { Btn } from '@/src/components/ui';
 import { EmptyClasses } from './EmptyClasses';
 import {
   addWeeks,
-  dayIndexInWeek,
-  formatTime,
+  dayKey,
   formatWeekRange,
+  formatZonedTime,
   isSameDay,
-  minutesIntoDay,
   startOfWeek,
   weekDays,
+  zonedDayIndexInWeek,
+  zonedMinutesIntoDay,
+  zonedParts,
 } from './date-utils';
 import { createDateTimeFormat } from '@fit/i18n';
 
@@ -194,6 +196,11 @@ export interface WeekCalendarProps {
   onWeekChange: (week: Date) => void;
   /** Called with a class id when its card is clicked. */
   onClassClick: (id: string) => void;
+  /**
+   * The gym's IANA zone. Every time on this screen is read in it rather than in
+   * the viewer's zone — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /** A class positioned within its day column. */
@@ -217,15 +224,24 @@ interface PositionedInstance {
  * Stateless: the selected `week` and the data are owned by the parent; this
  * component only renders them and reports navigation / clicks back up.
  */
-export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: WeekCalendarProps) {
+export function WeekCalendar({
+  instances,
+  week,
+  onWeekChange,
+  onClassClick,
+  timeZone,
+}: WeekCalendarProps) {
   const t = useTranslations('classes');
   const locale = useLocale();
 
   const days = useMemo(() => weekDays(week), [week]);
-  const { startHour, endHour } = useMemo(() => hourBand(instances), [instances]);
+  const { startHour, endHour } = useMemo(
+    () => hourBand(instances, timeZone),
+    [instances, timeZone],
+  );
   const positioned = useMemo(
-    () => layoutWeek(instances, week, startHour),
-    [instances, week, startHour],
+    () => layoutWeek(instances, week, startHour, timeZone),
+    [instances, week, startHour, timeZone],
   );
 
   const today = new Date();
@@ -302,7 +318,7 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
                     <ClassCard
                       key={p.instance.id}
                       positioned={p}
-                      locale={locale}
+                      timeZone={timeZone}
                       spotsLeftLabel={t('card.spotsLeft', {
                         count: Math.max(p.instance.capacity - p.instance.bookedCount, 0),
                       })}
@@ -321,12 +337,12 @@ export function WeekCalendar({ instances, week, onWeekChange, onClassClick }: We
 /** A single positioned class card inside a day column. */
 function ClassCard({
   positioned,
-  locale,
+  timeZone,
   spotsLeftLabel,
   onClick,
 }: {
   positioned: PositionedInstance;
-  locale: string;
+  timeZone: string;
   spotsLeftLabel: string;
   onClick: () => void;
 }) {
@@ -347,7 +363,9 @@ function ClassCard({
       }}
     >
       <span {...stylex.props(styles.classTitle)}>{instance.title}</span>
-      <span {...stylex.props(styles.classTime)}>{formatTime(instance.startsAt, locale)}</span>
+      <span {...stylex.props(styles.classTime)}>
+        {formatZonedTime(instance.startsAt, timeZone)}
+      </span>
       {height >= MIN_CARD_HEIGHT * 1.6 ? (
         <span {...stylex.props(styles.classSpots)}>{spotsLeftLabel}</span>
       ) : null}
@@ -388,16 +406,19 @@ function WeekNav({
 }
 
 /** The visible hour band: the default 06:00–22:00 widened to fit the data. */
-function hourBand(instances: ClassInstanceCard[]): { startHour: number; endHour: number } {
+function hourBand(
+  instances: ClassInstanceCard[],
+  timeZone: string,
+): { startHour: number; endHour: number } {
   let startHour = DEFAULT_START_HOUR;
   let endHour = DEFAULT_END_HOUR;
 
   for (const instance of instances) {
-    const start = new Date(instance.startsAt);
-    const end = new Date(instance.endsAt);
-    startHour = Math.min(startHour, start.getHours());
+    const start = zonedParts(instance.startsAt, timeZone);
+    const end = zonedParts(instance.endsAt, timeZone);
+    startHour = Math.min(startHour, start.hour);
     // Round the end up to the next whole hour so a 09:30 finish still has room.
-    const endRounded = end.getMinutes() > 0 ? end.getHours() + 1 : end.getHours();
+    const endRounded = end.minute > 0 ? end.hour + 1 : end.hour;
     endHour = Math.max(endHour, endRounded);
   }
 
@@ -415,10 +436,11 @@ function layoutWeek(
   instances: ClassInstanceCard[],
   week: Date,
   startHour: number,
+  timeZone: string,
 ): PositionedInstance[] {
   const byDay = new Map<number, ClassInstanceCard[]>();
   for (const instance of instances) {
-    const dayIndex = dayIndexInWeek(instance.startsAt, week);
+    const dayIndex = zonedDayIndexInWeek(instance.startsAt, dayKey(week), timeZone);
     if (dayIndex === -1) {
       continue;
     }
@@ -454,7 +476,7 @@ function layoutWeek(
     const lanes = Math.max(laneEnds.length, 1);
 
     for (const instance of sorted) {
-      const startMinutes = minutesIntoDay(instance.startsAt) - startHour * 60;
+      const startMinutes = zonedMinutesIntoDay(instance.startsAt, timeZone) - startHour * 60;
       const durationMinutes =
         (new Date(instance.endsAt).getTime() - new Date(instance.startsAt).getTime()) / 60000;
       positioned.push({

@@ -51,28 +51,90 @@ const row = (over?: Partial<InstanceRow>): InstanceRow => ({
   ...over,
 });
 
-function setup(findFirstResult?: InstanceRow | null) {
+interface FindManyArgs {
+  where?: {
+    gymId?: unknown;
+    status?: unknown;
+    startsAt?: { lt?: Date };
+    endsAt?: { gt?: Date };
+  };
+  select?: unknown;
+  orderBy?: unknown;
+}
+
+function setup(findFirstResult?: InstanceRow | null, findManyResult: InstanceRow[] = []) {
   const findFirst = vi.fn<(args: FindFirstArgs) => Promise<InstanceRow | null>>(() =>
     Promise.resolve(findFirstResult ?? null),
   );
-  const client = { classInstance: { findFirst } } as unknown;
+  const findMany = vi.fn<(args: FindManyArgs) => Promise<InstanceRow[]>>(() =>
+    Promise.resolve(findManyResult),
+  );
+  const client = { classInstance: { findFirst, findMany } } as unknown;
   const prisma = { client } as unknown as PrismaService;
-  return { service: new ClassesService(prisma), findFirst };
+  return { service: new ClassesService(prisma), findFirst, findMany };
 }
 
 describe('ClassesService', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('listInstances', () => {
-    it('returns an empty window until the calendar query is wired', async () => {
-      const { service } = setup();
-      await expect(
-        service.listInstances({
-          gymId: 'gym-1',
-          from: '2026-06-01T00:00:00.000Z',
-          to: '2026-06-08T00:00:00.000Z',
-        }),
-      ).resolves.toEqual({ instances: [] });
+    const window = {
+      gymId: 'gym-1',
+      from: '2026-06-01T00:00:00.000Z',
+      to: '2026-06-08T00:00:00.000Z',
+    };
+
+    it('scopes to the gym, hides non-SCHEDULED occurrences, and orders by start', async () => {
+      const { service, findMany } = setup(null, []);
+
+      await service.listInstances(window);
+
+      expect(findMany).toHaveBeenCalledTimes(1);
+      const args = findMany.mock.calls[0]![0];
+      expect(args.where?.gymId).toBe('gym-1');
+      expect(args.where?.status).toBe('SCHEDULED');
+      expect(args.orderBy).toEqual({ startsAt: 'asc' });
+    });
+
+    it('selects on OVERLAP so a class already running is still in the window', async () => {
+      const { service, findMany } = setup(null, []);
+
+      await service.listInstances(window);
+
+      // `startsAt < to` AND `endsAt > from` — containment would drop the class
+      // that began before the window opened but has not finished yet, which is
+      // exactly the one a member checking "today" on arrival wants to see.
+      const where = findMany.mock.calls[0]![0].where;
+      expect(where?.startsAt).toEqual({ lt: new Date(window.to) });
+      expect(where?.endsAt).toEqual({ gt: new Date(window.from) });
+    });
+
+    it('projects each row to a card, resolving the capacity override', async () => {
+      const { service } = setup(null, [row({ capacityOverride: 8 })]);
+
+      const result = await service.listInstances(window);
+
+      expect(result).toEqual({
+        instances: [
+          {
+            id: 'ci-1',
+            title: 'Morning Flow',
+            startsAt: '2026-06-01T09:00:00.000Z',
+            endsAt: '2026-06-01T10:00:00.000Z',
+            trainerName: 'Nino Beridze',
+            locationName: 'Vake Branch',
+            capacity: 8,
+            bookedCount: 4,
+            category: 'Yoga',
+            color: '#2563eb',
+          },
+        ],
+      });
+    });
+
+    it('returns an empty list for a gym with nothing scheduled in the window', async () => {
+      const { service } = setup(null, []);
+      await expect(service.listInstances(window)).resolves.toEqual({ instances: [] });
     });
   });
 

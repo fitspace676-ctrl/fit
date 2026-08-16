@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import type { CartView } from '@fit/types';
 import { getActiveGymId } from '@/lib/active-gym';
-import { ShopBrowser } from '@/src/components/shop/ShopBrowser';
+import { fetchCart } from '@/lib/cart';
+import { ButtonLink, controlSize, Icon } from '@/src/components/ui';
+import { ShopScreen } from '@/src/components/shop/ShopScreen';
 
 export const metadata: Metadata = {
   title: 'Shop — Fit',
@@ -16,10 +19,17 @@ export const metadata: Metadata = {
  */
 export const dynamic = 'force-dynamic';
 
+/** An empty cart — what a signed-out visitor has, and the fallback on failure. */
+const NO_CART: CartView = { items: [], subtotal: 0, discount: 0, total: 0, currency: 'GEL' };
+
 // Astryx migration (T11.15): the shop listing header is rebuilt in compiled
 // StyleX over the Fit brand theme tokens (`var(--color-*)` / `var(--font-family-*)`)
-// — no Tailwind utilities. The catalogue fetch + card grid live in the client
-// `ShopBrowser`, unchanged; only the presentation moved off Tailwind.
+// — no Tailwind utilities.
+//
+// FormaCore redesign: the page is now catalogue + cart, so it reads the cart
+// server-side and hands it to the client screen as the panel's starting value.
+// The listing stays reachable signed-out, which is why the read is allowed to
+// fail into an empty cart rather than gate the page.
 const styles = stylex.create({
   page: {
     display: 'flex',
@@ -28,8 +38,30 @@ const styles = stylex.create({
   },
   header: {
     display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headText: {
+    display: 'flex',
+    minWidth: 0,
     flexDirection: 'column',
     gap: '0.25rem',
+  },
+  // Below `lg` the cart panel sits at the foot of the single column, out of
+  // sight until you scroll; this is the way to it from the top. At `lg` the
+  // panel is permanently on screen beside the catalogue and a second entrance
+  // would just be a duplicate of what is already visible.
+  cartLink: {
+    display: {
+      default: 'inline-flex',
+      '@media (min-width: 1024px)': 'none',
+    },
+  },
+  cartIcon: {
+    height: '1.0625rem',
+    width: '1.0625rem',
   },
   title: {
     margin: 0,
@@ -46,26 +78,51 @@ const styles = stylex.create({
   },
 });
 
+/** Read the cart, treating any failure (including signed-out) as an empty one. */
+async function safeCart(): Promise<CartView> {
+  try {
+    return await fetchCart();
+  } catch {
+    return NO_CART;
+  }
+}
+
 /**
- * Public shop listing. A Server Component that resolves the active gym, then
- * hands off to the client {@link ShopBrowser}, which owns the catalogue fetch and
- * the card grid. Reachable signed-out (see the web middleware's public paths) —
- * the listing is pure discovery, no auth gate.
+ * The gym's shop. A Server Component that resolves the active gym and the
+ * member's cart, then hands off to the client {@link ShopScreen}, which owns the
+ * catalogue fetch, the product rows and the cart panel beside them. Reachable
+ * signed-out (see the web middleware's public paths) — the listing is pure
+ * discovery, no auth gate.
  */
 export default async function ShopPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, gymId] = await Promise.all([getTranslations('shop'), getActiveGymId()]);
+  const [t, tNav, gymId, cart] = await Promise.all([
+    getTranslations('shop'),
+    getTranslations('member.nav'),
+    getActiveGymId(),
+    safeCart(),
+  ]);
 
   return (
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
-        <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
+        <div {...stylex.props(styles.headText)}>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
+        </div>
+        <ButtonLink
+          href="/member/cart"
+          variant="secondary"
+          size="md"
+          label={tNav('cart')}
+          icon={<Icon name="bag" {...stylex.props(styles.cartIcon)} />}
+          xstyle={[controlSize.block, styles.cartLink]}
+        />
       </header>
 
-      <ShopBrowser gymId={gymId} />
+      <ShopScreen gymId={gymId} initialCart={cart} />
     </div>
   );
 }

@@ -37,5 +37,6 @@ export {
 } from '@fit/ui-web';
 export { CountUp, Occupancy, Donut, Switch } from './data-viz';
 export { QRCode } from './qr-code';
-export { AuroraBackground } from './aurora';
 export { ToastProvider, useToast } from './toast';
+
+export { chipShape, controlSize } from './control-size';
