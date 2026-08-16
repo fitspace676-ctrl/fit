@@ -69,6 +69,17 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: Permission.MemberRead,
   },
   {
+    // The coaching roster. Distinct from Staff: a `Trainer` is the gym's public
+    // coach profile (bio, photo, specialties, availability) that classes and PT
+    // sessions are assigned to, whereas a staff member is a console *login* with
+    // a role. A gym cannot schedule a class against anything else, so without
+    // this screen the class form's trainer select has nothing to offer.
+    labelKey: 'nav.trainers',
+    href: '/trainers',
+    icon: 'trainers',
+    permission: Permission.TrainerRead,
+  },
+  {
     // Classes hub — Class Types · Schedule · PT Calendar · Bookings (sub-tabs).
     labelKey: 'nav.classes',
     href: '/classes',
@@ -137,7 +148,7 @@ export interface NavGroup {
  */
 export const NAV_GROUPS: readonly NavGroup[] = [
   { labelKey: 'navGroups.overview', hrefs: ['/'] },
-  { labelKey: 'navGroups.people', hrefs: ['/members', '/staff'] },
+  { labelKey: 'navGroups.people', hrefs: ['/members', '/trainers', '/staff'] },
   { labelKey: 'navGroups.operations', hrefs: ['/classes'] },
   { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/shop', '/pos'] },
   { labelKey: 'navGroups.growth', hrefs: ['/automation', '/marketing'] },

@@ -5,7 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import type { WorkingNowRow } from '@fit/types';
 import { Badge, Icon } from '@/components/ui';
-import { ROLE_TONES, initialsOf } from './role-meta';
+import { ROLE_AVATAR, ROLE_TONES, initialsOf } from './role-meta';
 
 const styles = stylex.create({
   card: {
@@ -92,6 +92,8 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-success)',
   },
+  /** Repaints the initials bubble in that person's role colour (see ROLE_AVATAR). */
+  avatarTint: (bg: string, fg: string) => ({ backgroundColor: bg, color: fg }),
   info: {
     display: 'flex',
     flexDirection: 'column',
@@ -165,7 +167,9 @@ export function WhosWorkingCard({ shifts }: { shifts: WorkingNowRow[] }) {
         <div {...stylex.props(styles.grid)}>
           {shifts.map((shift) => (
             <div key={shift.staffId} {...stylex.props(styles.person)}>
-              <span {...stylex.props(styles.avatar)}>{initialsOf(shift.name)}</span>
+              <span {...stylex.props(styles.avatar, styles.avatarTint(...ROLE_AVATAR[shift.role]))}>
+                {initialsOf(shift.name)}
+              </span>
               <div {...stylex.props(styles.info)}>
                 <span {...stylex.props(styles.name)}>{shift.name}</span>
                 <div {...stylex.props(styles.meta)}>

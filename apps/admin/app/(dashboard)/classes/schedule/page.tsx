@@ -12,7 +12,9 @@ import { ScheduleBoard, type ScheduleView } from './schedule-board';
 import { loadScheduleFilters } from './options';
 import { loadRelationOptions } from '../options';
 import {
+  dayWindow,
   monthWindow,
+  resolveDayAnchor,
   resolveMonthAnchor,
   resolveWeekStart,
   toIsoDate,
@@ -115,7 +117,8 @@ export default async function SchedulePage({
   const t = await getTranslations('admin.schedule');
 
   const rawView = readParam(raw, 'view');
-  const view: ScheduleView = rawView === 'month' || rawView === 'list' ? rawView : 'week';
+  const view: ScheduleView =
+    rawView === 'month' || rawView === 'list' || rawView === 'day' ? rawView : 'week';
 
   const weekParam = readParam(raw, 'week') || undefined;
   // The calendar is the gym's own week, so "today" and the day boundaries are
@@ -126,9 +129,15 @@ export default async function SchedulePage({
   const today = zonedToday(new Date(), timeZone);
   const weekStart = resolveWeekStart(weekParam, today);
   const monthAnchor = resolveMonthAnchor(weekParam, today);
-  // Month view fetches the whole month grid; week + list fetch a single week.
+  const dayAnchor = resolveDayAnchor(weekParam, today);
+  // Each view fetches exactly the window it draws: the whole month grid, one
+  // gym-local day for the agenda, a single week for the week grid + list.
   const { from, to } =
-    view === 'month' ? monthWindow(monthAnchor, timeZone) : weekWindow(weekStart, timeZone);
+    view === 'month'
+      ? monthWindow(monthAnchor, timeZone)
+      : view === 'day'
+        ? dayWindow(dayAnchor, timeZone)
+        : weekWindow(weekStart, timeZone);
   const trainerId = readParam(raw, 'trainerId');
   const locationId = readParam(raw, 'locationId');
 
@@ -154,6 +163,7 @@ export default async function SchedulePage({
         view={view}
         weekStart={toIsoDate(weekStart)}
         monthAnchor={toIsoDate(monthAnchor)}
+        dayAnchor={toIsoDate(dayAnchor)}
         instances={instances}
         trainers={filters.trainers}
         locations={filters.locations}

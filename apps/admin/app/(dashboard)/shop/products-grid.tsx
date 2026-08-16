@@ -1,12 +1,13 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import type { AdminProductRow, ProductStatus } from '@fit/types';
+import type { AdminProductCategory, AdminProductRow, ProductStatus } from '@fit/types';
 import { Card } from '@astryxdesign/core/Card';
 import { Badge, Btn, Icon, type Tone } from '@/components/ui';
+import { setProductCategoryAction } from './actions';
 import { formatPrice, marginPercent } from './format-price';
 import { StockBadge, stockLevel } from './stock-badge';
 
@@ -161,6 +162,57 @@ const styles = stylex.create({
     fontWeight: 600,
     color: 'var(--color-text-accent)',
   },
+  // The picker sits under the card's link, not inside it — a control nested in an
+  // anchor is neither valid markup nor operable by keyboard.
+  pickerRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+  },
+  pickerSelect: {
+    height: '2rem',
+    width: '100%',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-border-emphasized)',
+      ':focus': 'var(--color-accent)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.5rem',
+    fontFamily: 'inherit',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-primary)',
+    cursor: 'pointer',
+    outline: 'none',
+    opacity: {
+      default: 1,
+      ':disabled': 0.6,
+    },
+  },
+  pickerError: {
+    margin: 0,
+    fontSize: '0.6875rem',
+    color: 'var(--color-error)',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
   pagerRow: {
     display: 'flex',
     alignItems: 'center',
@@ -186,18 +238,28 @@ const styles = stylex.create({
  * single source of truth. Each card shows the primary gallery image (or a
  * placeholder), the status badge, the formatted base price, the variant count, and a
  * stock badge derived from the product's on-hand levels. Low / out-of-stock cards
- * carry an accent ring so a thinning line stands out. Nothing mutates here.
+ * carry an accent ring so a thinning line stands out.
+ *
+ * The one write is the shelf: each card carries a {@link CategoryPicker} for staff
+ * who may edit the catalogue, so filing products is done where they are all in
+ * front of you rather than one editor visit at a time.
  */
 export function ProductsGrid({
   products,
   total,
   page,
   limit,
+  categories,
+  canWrite,
 }: {
   products: AdminProductRow[];
   total: number;
   page: number;
   limit: number;
+  /** The gym's shelves, for the per-card picker. Empty renders the card's plain chip. */
+  categories: AdminProductCategory[];
+  /** Whether the viewer may file products — the picker is a `ProductWrite` action. */
+  canWrite: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -274,7 +336,9 @@ export function ProductsGrid({
                         {marginPercent(product.priceAmount, product.costAmount)}% margin
                       </span>
                     ) : null}
-                    {product.category ? (
+                    {/* Read-only viewers keep the plain chip; everyone else gets the
+                        picker below, outside the link that owns the rest of the card. */}
+                    {product.category && !(canWrite && categories.length > 0) ? (
                       <span {...stylex.props(styles.categoryChip)}>{product.category.name}</span>
                     ) : null}
                     <div>
@@ -282,6 +346,10 @@ export function ProductsGrid({
                     </div>
                   </div>
                 </Link>
+
+                {canWrite && categories.length > 0 ? (
+                  <CategoryPicker product={product} categories={categories} />
+                ) : null}
               </Card>
             </li>
           );
@@ -316,6 +384,75 @@ export function ProductsGrid({
           </Btn>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The shelf a product sits on, changed in place from the roster card.
+ *
+ * A picker here rather than a trip through the editor, because filing a catalogue
+ * is dozens of these in a row: open → edit → save → navigate back, per product, is
+ * the reason most catalogues stay unfiled. It writes through the API's
+ * single-column endpoint, so a move can never carry a stale copy of everything
+ * else about the product along with it.
+ *
+ * The value moves as soon as it is tapped and rolls back only if the write fails —
+ * a select that snaps back for a moment on every change reads as broken.
+ */
+function CategoryPicker({
+  product,
+  categories,
+}: {
+  product: AdminProductRow;
+  categories: AdminProductCategory[];
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState(product.category?.id ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function assign(next: string): Promise<void> {
+    const previous = value;
+    setValue(next);
+    setSaving(true);
+    setError(null);
+    const result = await setProductCategoryAction(product.id, { categoryId: next || null });
+    setSaving(false);
+    if (!result.ok) {
+      setValue(previous);
+      setError(result.error);
+      return;
+    }
+    // The roster's filter and its counts are server-rendered from the same rows,
+    // so they follow the move rather than describing the catalogue as it was.
+    router.refresh();
+  }
+
+  return (
+    <div {...stylex.props(styles.pickerRow)}>
+      <label htmlFor={`product-category-${product.id}`} {...stylex.props(styles.srOnly)}>
+        Category for {product.name}
+      </label>
+      <select
+        id={`product-category-${product.id}`}
+        value={value}
+        disabled={saving}
+        onChange={(event) => void assign(event.target.value)}
+        {...stylex.props(styles.pickerSelect)}
+      >
+        <option value="">No category</option>
+        {categories.map((category) => (
+          <option key={category.id} value={category.id}>
+            {category.name}
+          </option>
+        ))}
+      </select>
+      {error ? (
+        <p role="alert" {...stylex.props(styles.pickerError)}>
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

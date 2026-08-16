@@ -119,14 +119,17 @@ describe('MarketingService.catalog', () => {
     expect(catalog.mergeFields).toHaveLength(MARKETING_MERGE_FIELD_DEFS.length);
   });
 
-  it('omits a field the gym switched off', async () => {
+  // The gym settings once carried a per-field switch list; the screen behind it is
+  // gone, so a stale copy of those toggles left in a gym's stored settings must not
+  // quietly keep a field out of the picker.
+  it('ignores a legacy switch list left in the gym settings', async () => {
     gymRow!.settings = { marketingFields: { phone: false } };
     const { service } = setup();
 
     const catalog = await service.catalog();
 
-    expect(catalog.mergeFields.some((m) => m.token === '{{phone}}')).toBe(false);
-    expect(catalog.mergeFields.some((m) => m.token === '{{email}}')).toBe(true);
+    expect(catalog.mergeFields.some((m) => m.token === '{{phone}}')).toBe(true);
+    expect(catalog.mergeFields).toHaveLength(MARKETING_MERGE_FIELD_DEFS.length);
   });
 
   // A retired token must never come back through the picker.

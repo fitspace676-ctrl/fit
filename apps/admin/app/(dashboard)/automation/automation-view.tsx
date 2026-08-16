@@ -4,12 +4,7 @@ import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type {
-  AutomationRuleRow,
-  GymAutomationFieldsSettings,
-  ListAutomationRulesQuery,
-  SortDir,
-} from '@fit/types';
+import type { AutomationRuleRow, ListAutomationRulesQuery, SortDir } from '@fit/types';
 import {
   Badge,
   Btn,
@@ -226,7 +221,6 @@ export function AutomationView({
   search,
   active,
   canManage,
-  fields,
 }: {
   rules: AutomationRuleRow[];
   total: number;
@@ -237,8 +231,6 @@ export function AutomationView({
   search: string;
   active: string;
   canManage: boolean;
-  /** Which merge fields this gym offers — Settings → Automation fields. */
-  fields: GymAutomationFieldsSettings;
 }) {
   const t = useTranslations('admin.automation');
   const locale = useLocale();
@@ -521,15 +513,10 @@ export function AutomationView({
       </div>
 
       {dialog?.kind === 'create' ? (
-        <RuleFormDialog mode="create" fields={fields} onClose={() => setDialog(null)} />
+        <RuleFormDialog mode="create" onClose={() => setDialog(null)} />
       ) : null}
       {dialog?.kind === 'edit' ? (
-        <RuleFormDialog
-          mode="edit"
-          seed={dialog.rule}
-          fields={fields}
-          onClose={() => setDialog(null)}
-        />
+        <RuleFormDialog mode="edit" seed={dialog.rule} onClose={() => setDialog(null)} />
       ) : null}
       {dialog?.kind === 'template' ? (
         <SaveTemplateDialog

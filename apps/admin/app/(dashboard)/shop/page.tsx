@@ -150,6 +150,8 @@ export default async function ProductsPage({
         total={result.total}
         page={result.page}
         limit={result.limit}
+        categories={categories}
+        canWrite={canWrite}
       />
     );
   } catch (error) {

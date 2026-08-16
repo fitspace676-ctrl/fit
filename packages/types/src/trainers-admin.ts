@@ -91,6 +91,14 @@ export interface AdminTrainerRow {
   classesThisWeek: number;
   /** The soonest upcoming class the trainer leads, or `null` when none is scheduled. */
   nextClass: TrainerNextClass | null;
+  /**
+   * The gym-staff record this coach *is* — the id the Staff screen lists them
+   * under. Every coach has one: creating a trainer creates the (login-less) staff
+   * record alongside it, so the two screens can never disagree about who works
+   * here. `null` only for a profile whose staff record was removed, which the API
+   * also deactivates.
+   */
+  staffId: string | null;
 }
 
 /**

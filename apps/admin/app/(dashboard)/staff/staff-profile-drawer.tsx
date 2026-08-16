@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { StaffMember, UpdateStaffProfileInput } from '@fit/types';
 import { Badge, Dot, Drawer, Icon } from '@/components/ui';
-import { ROLE_TONES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
+import { ROLE_AVATAR, ROLE_TONES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
 import {
   StaffFormFields,
   hasBadHours,
@@ -43,6 +44,8 @@ const styles = stylex.create({
     fontSize: '1rem',
     fontWeight: 700,
   },
+  /** Repaints the initials bubble in the member's role colour (see ROLE_AVATAR). */
+  avatarTint: (bg: string, fg: string) => ({ backgroundColor: bg, color: fg }),
   identityText: {
     display: 'flex',
     flexDirection: 'column',
@@ -65,6 +68,23 @@ const styles = stylex.create({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.375rem',
+  },
+  coachLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    marginTop: '0.5rem',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  coachIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
   },
   details: {
     display: 'flex',
@@ -348,7 +368,9 @@ export function StaffProfileDrawer({
       ) : (
         <div {...stylex.props(styles.body)}>
           <div {...stylex.props(styles.identity)}>
-            <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
+            <span {...stylex.props(styles.avatar, styles.avatarTint(...ROLE_AVATAR[member.role]))}>
+              {initialsOf(member.name)}
+            </span>
             <div {...stylex.props(styles.identityText)}>
               <h3 {...stylex.props(styles.name)}>{member.name}</h3>
               <div {...stylex.props(styles.badges)}>
@@ -361,6 +383,15 @@ export function StaffProfileDrawer({
                   {t(`status.${member.status}`)}
                 </Badge>
               </div>
+              {/* The coach profile this person teaches under — the same human on
+                  the Trainers screen, where their bio, specialties, availability
+                  and the classes assigned to them live. */}
+              {member.trainerId ? (
+                <Link href={`/trainers/${member.trainerId}`} {...stylex.props(styles.coachLink)}>
+                  <Icon name="dumbbell" {...stylex.props(styles.coachIcon)} sw={2} />
+                  {t('profileDrawer.coachProfile')}
+                </Link>
+              ) : null}
             </div>
           </div>
 

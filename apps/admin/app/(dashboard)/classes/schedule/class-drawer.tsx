@@ -32,6 +32,7 @@ import {
   type MemberSearchResult,
 } from './actions';
 import { createDateTimeFormat } from '@fit/i18n';
+import { zonedClock, zonedIsoDate } from './week';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -1209,21 +1210,25 @@ function initials(label: string): string {
   return `${parts[0]![0]!}${parts[parts.length - 1]![0]!}`.toUpperCase();
 }
 
-/** Localised full day (e.g. "Monday, Jun 1"), read on the gym's clock. */
+/**
+ * Localised full day (e.g. "Monday, Jun 1") on the **gym's** calendar.
+ *
+ * `createDateTimeFormat` reads every field in UTC by design and ignores the zone
+ * it is handed, so passing the gym's zone straight to it dated a 00:30 Tbilisi
+ * class to the day before. The gym-local date is resolved first, then formatted
+ * as the UTC token it now is — which keeps the ka/en weekday and month names.
+ */
 function formatDay(iso: string, locale: string, timeZone: string): string {
+  const localDay = zonedIsoDate(new Date(iso), timeZone);
   return createDateTimeFormat(locale, {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
-    timeZone,
-  }).format(new Date(iso));
+    timeZone: 'UTC',
+  }).format(new Date(`${localDay}T00:00:00.000Z`));
 }
 
-/** Localised `HH:MM` for an ISO instant, read on the gym's clock like the grid. */
-function formatTime(iso: string, locale: string, timeZone: string): string {
-  return createDateTimeFormat(locale, {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone,
-  }).format(new Date(iso));
+/** `HH:MM` on the gym's clock — the same reading the grid positions blocks by. */
+function formatTime(iso: string, _locale: string, timeZone: string): string {
+  return zonedClock(new Date(iso), timeZone);
 }

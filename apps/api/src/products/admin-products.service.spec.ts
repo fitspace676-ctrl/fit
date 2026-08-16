@@ -91,13 +91,24 @@ function setup(overrides?: {
     Promise.resolve(overrides?.category === undefined ? { id: 'c-1' } : overrides.category),
   );
 
+  // The ledger writes that ride along with a count change. `createMany` covers
+  // opening counts, `create` the single correction an edit can make.
+  const movementCreate = vi.fn<(args: WhereArgs) => Promise<unknown>>(() => Promise.resolve({}));
+  const movementCreateMany = vi.fn<(args: { data: unknown[] }) => Promise<unknown>>(() =>
+    Promise.resolve({ count: 0 }),
+  );
+
   const client: Record<string, unknown> = {
     product: { findMany, count, findFirst, create, update },
     productCategory: { findUnique: categoryFindUnique },
+    stockMovement: { create: movementCreate, createMany: movementCreateMany },
   };
+  // Counts and the movements explaining them are written together, so the mock
+  // runs the callback against the same client rather than a second snapshot.
+  client.$transaction = (fn: (tx: unknown) => Promise<unknown>) => fn(client);
 
   const prisma = { client } as unknown as TenantPrismaService;
-  const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  const tenant = { gymId: 'gym-1', userId: 'u-1' } as unknown as TenantContext;
   // The gym prices in GEL; a created product must be stamped with that, not USD.
   const locale = {
     get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
@@ -111,6 +122,8 @@ function setup(overrides?: {
     create,
     update,
     categoryFindUnique,
+    movementCreate,
+    movementCreateMany,
   };
 }
 
@@ -446,6 +459,73 @@ describe('AdminProductsService', () => {
       expect(categoryFindUnique).not.toHaveBeenCalled();
       expect(create.mock.calls[0]?.[0]?.data).toMatchObject({ categoryId: null });
     });
+
+    it('persists the opening count and the reorder cushion for a variant-less product', async () => {
+      // These arrive on every create body and used to be dropped on the floor: a
+      // product created with 25 on the shelf was stored as untracked.
+      const { service, create } = setup();
+
+      await service.createProduct(createInput({ variants: [], stock: 25, lowStockThreshold: 7 }));
+
+      expect(create.mock.calls[0]?.[0]?.data).toMatchObject({ stock: 25, lowStockThreshold: 7 });
+    });
+
+    it('records the opening count as a RECEIVE movement', async () => {
+      const { service, movementCreateMany } = setup();
+
+      await service.createProduct(createInput({ variants: [], stock: 25 }));
+
+      expect(movementCreateMany.mock.calls[0]?.[0]?.data).toEqual([
+        expect.objectContaining({
+          gymId: 'gym-1',
+          variantIndex: null,
+          variantLabel: '',
+          delta: 25,
+          resultingStock: 25,
+          reason: 'RECEIVE',
+          actorId: 'u-1',
+        }),
+      ]);
+    });
+
+    it('opens a movement per variant that starts above zero, and none for an empty shelf', async () => {
+      const { service, movementCreateMany } = setup();
+
+      await service.createProduct(
+        createInput({
+          variants: productVariantsSchema.parse([
+            { name: 'Small', stock: 4 },
+            { name: 'Large', stock: 0 },
+          ]),
+        }),
+      );
+
+      expect(movementCreateMany.mock.calls[0]?.[0]?.data).toEqual([
+        expect.objectContaining({ variantIndex: 0, variantLabel: 'Small', delta: 4 }),
+      ]);
+    });
+
+    it('leaves the base column null for a product that counts per variant', async () => {
+      // The two tracking modes are alternatives; a base count alongside variant
+      // counts would be a second, contradictory answer to "how many?".
+      const { service, create, movementCreateMany } = setup();
+
+      await service.createProduct(createInput({ variants: VARIANTS, stock: 99 }));
+
+      expect(create.mock.calls[0]?.[0]?.data).toMatchObject({ stock: null });
+      // …and the opening rows are the variants', not a base one.
+      const rows = movementCreateMany.mock.calls[0]?.[0]?.data ?? [];
+      expect(rows).toHaveLength(2);
+    });
+
+    it('writes no movement for a product created untracked or empty', async () => {
+      const { service, movementCreateMany } = setup();
+
+      await service.createProduct(createInput({ variants: [], stock: null }));
+      await service.createProduct(createInput({ variants: [], stock: 0 }));
+
+      expect(movementCreateMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('updateProduct', () => {
@@ -497,6 +577,108 @@ describe('AdminProductsService', () => {
       );
       expect(update).not.toHaveBeenCalled();
     });
+
+    it('carries variant counts over from the row instead of taking the form’s copy', async () => {
+      // The form was rendered before this save. Submitting the counts it drew
+      // reverted any adjustment made in between — silently, and with no movement
+      // to explain why the ledger and the count then disagreed.
+      const { service, update, movementCreate } = setup({
+        findFirst: row({
+          variants: productVariantsSchema.parse([
+            { name: 'Small', sku: 'TS-S', priceAmount: 2500, stock: 3 },
+            { name: 'Large', stock: 4 },
+          ]),
+        }),
+      });
+
+      await service.updateProduct('p-1', updateInput({ variants: VARIANTS }));
+
+      // VARIANTS carries the stale 10; the row's 3 wins, and the renamed/repriced
+      // fields from the form still land.
+      expect(update.mock.calls[0]?.[0]?.data?.variants).toEqual([
+        expect.objectContaining({ name: 'Small', sku: 'TS-S', priceAmount: 2500, stock: 3 }),
+        expect.objectContaining({ name: 'Large', stock: 4 }),
+      ]);
+      expect(movementCreate).not.toHaveBeenCalled();
+    });
+
+    it('persists a corrected base count as a delta against the live figure', async () => {
+      const { service, update, movementCreate } = setup({
+        findFirst: row({ variants: [], stock: 4 }),
+      });
+
+      await service.updateProduct('p-1', updateInput({ variants: [], stock: 11 }));
+
+      expect(update.mock.calls[0]?.[0]?.data).toMatchObject({ stock: 11 });
+      expect(movementCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+        variantIndex: null,
+        // 11 counted against the 4 on the row — not against whatever the form drew.
+        delta: 7,
+        resultingStock: 11,
+        reason: 'ADJUSTMENT',
+        actorId: 'u-1',
+      });
+    });
+
+    it('starts counting a previously untracked product from zero', async () => {
+      const { service, movementCreate } = setup({ findFirst: row({ variants: [], stock: null }) });
+
+      await service.updateProduct('p-1', updateInput({ variants: [], stock: 6 }));
+
+      expect(movementCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+        delta: 6,
+        resultingStock: 6,
+      });
+    });
+
+    it('records nothing when the base count is unchanged', async () => {
+      const { service, movementCreate } = setup({ findFirst: row({ variants: [], stock: 4 }) });
+
+      await service.updateProduct('p-1', updateInput({ variants: [], stock: 4 }));
+
+      expect(movementCreate).not.toHaveBeenCalled();
+    });
+
+    it('turns tracking off on a cleared count without inventing a write-off', async () => {
+      // "We stopped counting this" is a change of mode, not stock leaving the
+      // shelf; a movement here would put a loss in the ledger that never happened.
+      const { service, update, movementCreate } = setup({
+        findFirst: row({ variants: [], stock: 4 }),
+      });
+
+      await service.updateProduct('p-1', updateInput({ variants: [], stock: null }));
+
+      expect(update.mock.calls[0]?.[0]?.data).toMatchObject({ stock: null });
+      expect(movementCreate).not.toHaveBeenCalled();
+    });
+
+    it('opens a count for a variant this edit added', async () => {
+      const { service, movementCreateMany } = setup({
+        findFirst: row({ variants: productVariantsSchema.parse([{ name: 'Small', stock: 3 }]) }),
+      });
+
+      await service.updateProduct(
+        'p-1',
+        updateInput({
+          variants: productVariantsSchema.parse([
+            { name: 'Small', stock: 999 },
+            { name: 'Medium', stock: 8 },
+          ]),
+        }),
+      );
+
+      expect(movementCreateMany.mock.calls[0]?.[0]?.data).toEqual([
+        expect.objectContaining({ variantIndex: 1, variantLabel: 'Medium', delta: 8 }),
+      ]);
+    });
+
+    it('persists the reorder cushion', async () => {
+      const { service, update } = setup({ findFirst: row() });
+
+      await service.updateProduct('p-1', updateInput({ lowStockThreshold: 5 }));
+
+      expect(update.mock.calls[0]?.[0]?.data).toMatchObject({ lowStockThreshold: 5 });
+    });
   });
 
   describe('deactivateProduct / reactivateProduct', () => {
@@ -523,6 +705,49 @@ describe('AdminProductsService', () => {
       const { service, update } = setup({ findFirst: null });
 
       await expect(service.deactivateProduct('missing')).rejects.toBeInstanceOf(NotFoundException);
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setProductCategory', () => {
+    it('writes the category and nothing else', async () => {
+      // The whole point of the endpoint: filing a product must not replay any
+      // other field, so a colleague's concurrent edit survives the move.
+      const { service, update } = setup({ findFirst: row() });
+
+      await service.setProductCategory('p-1', { categoryId: 'c-1' });
+
+      expect(update.mock.calls[0]?.[0]).toEqual({
+        where: { id: 'p-1' },
+        data: { categoryId: 'c-1' },
+      });
+    });
+
+    it('takes a product off its shelf when given null', async () => {
+      const { service, update, categoryFindUnique } = setup({ findFirst: row() });
+
+      await service.setProductCategory('p-1', { categoryId: null });
+
+      expect(update.mock.calls[0]?.[0]?.data).toEqual({ categoryId: null });
+      // Nothing to resolve — null is not a shelf that could be another gym's.
+      expect(categoryFindUnique).not.toHaveBeenCalled();
+    });
+
+    it('throws 404 for an unknown / cross-tenant product without updating', async () => {
+      const { service, update } = setup({ findFirst: null });
+
+      await expect(
+        service.setProductCategory('missing', { categoryId: 'c-1' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it("throws 404 for another gym's category rather than filing onto it", async () => {
+      const { service, update } = setup({ findFirst: row(), category: null });
+
+      await expect(service.setProductCategory('p-1', { categoryId: 'c-9' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
       expect(update).not.toHaveBeenCalled();
     });
   });

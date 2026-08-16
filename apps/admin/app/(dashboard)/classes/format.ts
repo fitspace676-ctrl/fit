@@ -79,6 +79,7 @@ export function formatPricing(
 
 /** The selectable recurrence frequencies and their human labels, in display order. */
 export const FREQ_OPTIONS: ReadonlyArray<{ value: RecurrenceFreq; label: string }> = [
+  { value: 'ONCE', label: 'One time' },
   { value: 'DAILY', label: 'Daily' },
   { value: 'WEEKLY', label: 'Weekly' },
 ];

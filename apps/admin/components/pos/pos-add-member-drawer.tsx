@@ -130,8 +130,18 @@ export function PosAddMemberDrawer({
                 submitLabel={t('createAndAttach')}
                 onSuccess={(member) => {
                   drawer.requestClose();
-                  // A member created at the till has no photo yet.
-                  onCreated({ ...member, photoUrl: null });
+                  // A person registered at the till has no photo, and no plan
+                  // until one is sold to them — which is often the next thing
+                  // that happens on this very sale. Until then they are a guest
+                  // on a live account, which is what the roster would derive for
+                  // them the moment it is asked.
+                  onCreated({
+                    ...member,
+                    photoUrl: null,
+                    planName: null,
+                    kind: 'GUEST',
+                    status: 'ACTIVE',
+                  });
                 }}
                 onCancel={drawer.requestClose}
               />

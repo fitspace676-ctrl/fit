@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ProductStatus, Prisma } from '@fit/db';
+import { ProductStatus, Prisma, StockMovementReason } from '@fit/db';
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   UNCATEGORISED_FILTER,
@@ -22,6 +22,8 @@ import {
   type LowStockVariant,
   type ProductRosterSummary,
   type ProductVariants,
+  type SetProductCategoryInput,
+  type SetProductCategoryResponse,
   type SetProductStatusResponse,
   type UpdateProductData,
   type UpdateProductResponse,
@@ -55,6 +57,22 @@ const PRODUCT_SELECT = {
 } satisfies Prisma.ProductSelect;
 
 type ProductRecord = Prisma.ProductGetPayload<{ select: typeof PRODUCT_SELECT }>;
+
+/**
+ * The slice of a Prisma client the ledger writes need. Narrow on purpose, so a
+ * transaction client satisfies it without importing Prisma's own client type.
+ */
+interface StockWritingClient {
+  stockMovement: {
+    createMany(args: { data: Prisma.StockMovementUncheckedCreateInput[] }): Promise<unknown>;
+  };
+}
+
+/** The ledger note behind a count a product was created (or a variant added) with. */
+const OPENING_COUNT_NOTE = 'Opening count';
+
+/** The ledger note behind a count corrected on the product form. */
+const FORM_CORRECTION_NOTE = 'Corrected on the product form';
 
 /**
  * Fold a product's stock — however it tracks it — into the two numbers every
@@ -389,27 +407,98 @@ export class AdminProductsService {
    * also passed explicitly here as belt-and-braces and to satisfy the create
    * input's static type. The image gallery is stored as a string array and the
    * variants as JSON. Returns the new product's detail (`201`).
+   *
+   * The opening count is part of the insert, and it lands in the ledger too: a
+   * product created with fifteen on the shelf has fifteen *because a delivery was
+   * received*, and the history should say so from the first day rather than
+   * starting with an unexplained number. Counts and the movements that explain
+   * them are written in one transaction, so the two can never disagree.
    */
   async createProduct(input: CreateProductData): Promise<CreateProductResponse> {
     await this.requireCategory(input.categoryId);
-    const row = await this.prisma.client.product.create({
-      data: {
-        gymId: this.tenant.gymId,
-        name: input.name,
-        description: input.description,
-        priceAmount: input.priceAmount,
-        costAmount: input.costAmount,
-        // The gym prices in exactly one currency (Settings → General); it is
-        // stamped here rather than accepted from the client.
-        currency: (await this.locale.get()).currency,
-        images: input.images,
-        variants: input.variants as unknown as Prisma.InputJsonValue,
-        status: input.status,
-        categoryId: input.categoryId,
-      },
-      select: PRODUCT_SELECT,
+    const currency = (await this.locale.get()).currency;
+    // A product tracks stock one way or the other, never both: once it has
+    // variants the counts live in their JSON and the base column stays null, so
+    // there is a single answer to "how many do I have?".
+    const baseStock = input.variants.length > 0 ? null : input.stock;
+
+    const row = await this.prisma.client.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          gymId: this.tenant.gymId,
+          name: input.name,
+          description: input.description,
+          priceAmount: input.priceAmount,
+          costAmount: input.costAmount,
+          // The gym prices in exactly one currency (Settings → General); it is
+          // stamped here rather than accepted from the client.
+          currency,
+          images: input.images,
+          variants: input.variants as unknown as Prisma.InputJsonValue,
+          stock: baseStock,
+          lowStockThreshold: input.lowStockThreshold,
+          status: input.status,
+          categoryId: input.categoryId,
+        },
+        select: PRODUCT_SELECT,
+      });
+
+      await this.recordOpeningCounts(
+        tx,
+        created.id,
+        input.variants.map((variant, index) => ({
+          variantIndex: index,
+          variantLabel: variant.name,
+          stock: variant.stock,
+        })),
+        baseStock,
+      );
+
+      return created;
     });
+
     return this.toDetail(row);
+  }
+
+  /**
+   * Write the `RECEIVE` movements behind a set of positions that start above
+   * zero — a product's opening count, or a variant newly added to one.
+   *
+   * A position starting at zero gets no row: nothing arrived, and an empty shelf
+   * needs no explanation. `positions` is the variant list when the product has
+   * variants; otherwise `baseStock` carries the single base position.
+   */
+  private async recordOpeningCounts(
+    tx: StockWritingClient,
+    productId: string,
+    positions: Array<{ variantIndex: number; variantLabel: string; stock: number }>,
+    baseStock: number | null,
+  ): Promise<void> {
+    const opening: Array<{ variantIndex: number | null; variantLabel: string; stock: number }> =
+      positions.length > 0
+        ? positions
+        : baseStock === null
+          ? []
+          : [{ variantIndex: null, variantLabel: '', stock: baseStock }];
+
+    const received = opening.filter((position) => position.stock > 0);
+    if (received.length === 0) {
+      return;
+    }
+
+    await tx.stockMovement.createMany({
+      data: received.map((position) => ({
+        gymId: this.tenant.gymId,
+        productId,
+        variantIndex: position.variantIndex,
+        variantLabel: position.variantLabel,
+        delta: position.stock,
+        resultingStock: position.stock,
+        reason: StockMovementReason.RECEIVE,
+        note: OPENING_COUNT_NOTE,
+        actorId: this.tenant.userId ?? null,
+      })),
+    });
   }
 
   /**
@@ -441,23 +530,122 @@ export class AdminProductsService {
    * caller's gym (the scoped `where` makes a cross-tenant id a `404`). `status` is
    * deliberately not editable here — it moves through {@link deactivateProduct} /
    * {@link reactivateProduct}. Returns the updated detail.
+   *
+   * Stock gets special handling, because a product edit is a whole-record replace
+   * and stock is the one field where that is unsafe. The form was rendered before
+   * this save; between the two, a colleague may have received a delivery. So:
+   *
+   *  • **Variant counts are never taken from the payload.** They are carried over
+   *    from the row, matched by slot. The form owns a variant's name, sku and
+   *    price; its count belongs to the ledger. Submitting the form's copy is what
+   *    silently reverted adjustments — and left the count disagreeing with the
+   *    history that explains it.
+   *  • **The base count is a correction, not a replace.** The delta is derived
+   *    here, against the live figure rather than the one the form drew, and
+   *    recorded as an `ADJUSTMENT`. Day-to-day restocking still belongs on
+   *    `POST /admin/products/:id/stock`, which makes staff say why.
+   *
+   * Clearing the field (`null`) turns tracking off. That writes no movement: "we
+   * stopped counting this" is a change of mode, not stock leaving the shelf, and
+   * inventing a write-off for it would put a loss in the ledger that never
+   * happened. The rows already there stay as the record of when it was counted.
    */
   async updateProduct(id: string, input: UpdateProductData): Promise<UpdateProductResponse> {
+    await this.requireCategory(input.categoryId);
+
+    await this.prisma.client.$transaction(async (tx) => {
+      const current = await tx.product.findFirst({
+        where: { id },
+        select: { id: true, variants: true, stock: true },
+      });
+      if (!current) {
+        throw new NotFoundException({ message: 'Product not found', code: 'PRODUCT_NOT_FOUND' });
+      }
+
+      // Positions are addressed by slot everywhere (a variant has no id of its
+      // own — see `StockMovement.variantIndex`), so counts carry over by index.
+      // A slot the row didn't have is a new position and keeps the count typed
+      // for it.
+      const stored = this.parseVariants(current.variants);
+      const variants = input.variants.map((variant, index) => {
+        const held = stored[index];
+        return held === undefined ? variant : { ...variant, stock: held.stock };
+      });
+
+      const baseStock = variants.length > 0 ? null : input.stock;
+
+      await tx.product.update({
+        where: { id },
+        data: {
+          name: input.name,
+          description: input.description,
+          priceAmount: input.priceAmount,
+          costAmount: input.costAmount,
+          // `currency` is intentionally untouched on edit: an existing product keeps
+          // the currency it was sold in even if the gym later switches.
+          images: input.images,
+          variants: variants as unknown as Prisma.InputJsonValue,
+          stock: baseStock,
+          lowStockThreshold: input.lowStockThreshold,
+          categoryId: input.categoryId,
+        },
+      });
+
+      // A variant added by this edit starts counting now.
+      await this.recordOpeningCounts(
+        tx,
+        id,
+        variants
+          .map((variant, index) => ({
+            variantIndex: index,
+            variantLabel: variant.name,
+            stock: variant.stock,
+          }))
+          .filter((position) => position.variantIndex >= stored.length),
+        null,
+      );
+
+      if (baseStock !== null && baseStock !== current.stock) {
+        const from = current.stock ?? 0;
+        await tx.stockMovement.create({
+          data: {
+            gymId: this.tenant.gymId,
+            productId: id,
+            variantIndex: null,
+            variantLabel: '',
+            delta: baseStock - from,
+            resultingStock: baseStock,
+            reason: StockMovementReason.ADJUSTMENT,
+            note: FORM_CORRECTION_NOTE,
+            actorId: this.tenant.userId ?? null,
+          },
+        });
+      }
+    });
+
+    return this.getProduct(id);
+  }
+
+  /**
+   * File a product onto a category shelf, or `null` to take it off the one it is
+   * on. Touches that one column and nothing else, which is what makes it safe to
+   * offer from the roster: organising a catalogue means moving many products in a
+   * row, and doing that through the whole-record edit would replay each product's
+   * other fields as some earlier form saw them.
+   *
+   * An unknown product is a `404`; so is a category from another gym (the scoped
+   * read simply does not match it), rather than a product quietly landing on a
+   * shelf its gym cannot see.
+   */
+  async setProductCategory(
+    id: string,
+    input: SetProductCategoryInput,
+  ): Promise<SetProductCategoryResponse> {
     await this.requireProduct(id);
     await this.requireCategory(input.categoryId);
     await this.prisma.client.product.update({
       where: { id },
-      data: {
-        name: input.name,
-        description: input.description,
-        priceAmount: input.priceAmount,
-        costAmount: input.costAmount,
-        // `currency` is intentionally untouched on edit: an existing product keeps
-        // the currency it was sold in even if the gym later switches.
-        images: input.images,
-        variants: input.variants as unknown as Prisma.InputJsonValue,
-        categoryId: input.categoryId,
-      },
+      data: { categoryId: input.categoryId },
     });
     return this.getProduct(id);
   }

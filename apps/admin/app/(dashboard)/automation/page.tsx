@@ -6,7 +6,6 @@ import {
   Permission,
   listAutomationRulesQuerySchema,
   roleHasPermission,
-  gymAutomationFieldsSettingsSchema,
   type ListAutomationRulesQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
@@ -15,7 +14,6 @@ import {
   fetchAutomationRules,
   fetchAutomationStats,
   fetchAutomationTemplates,
-  fetchGymSettings,
 } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
@@ -102,18 +100,11 @@ export default async function AutomationPage({
   // Header KPI cards — fail-soft so a stats hiccup never blanks the workspace.
   const stats = await fetchAutomationStats().catch(() => null);
 
-  // Which merge-field chips this gym offers (Settings → Automation fields). Falls
-  // back to schema defaults — the whole catalogue — so a settings outage costs a
-  // curated palette, not the ability to write a rule.
-  const fields = await fetchGymSettings()
-    .then((settings) => settings.automationFields)
-    .catch(() => gymAutomationFieldsSettingsSchema.parse({}));
-
   let content;
   if (tab === 'templates') {
     try {
       const result = await fetchAutomationTemplates();
-      content = <TemplatesView templates={result.data} canManage={canManage} fields={fields} />;
+      content = <TemplatesView templates={result.data} canManage={canManage} />;
     } catch (error) {
       const message =
         error instanceof ApiError
@@ -149,7 +140,6 @@ export default async function AutomationPage({
           search={query.search ?? ''}
           active={typeof raw.active === 'string' ? raw.active : ''}
           canManage={canManage}
-          fields={fields}
         />
       );
     } catch (error) {

@@ -152,12 +152,30 @@ export interface GetOrderResponse {
  * One priced line on a POS receipt: a product, the quantity sold, its unit price,
  * and the line's net `amount` (`unitPrice * quantity` less any line discount).
  * `unitPrice` and `amount` are in the currency's minor units.
+ *
+ * `productId` + `variantIndex` name the stock position the line sold. They are
+ * what lets a till sale draw its units down the same way the online checkout does
+ * — a display `name` is not something a stock position can be resolved from, so
+ * without them a sale could only ever be money, never inventory.
  */
 export const receiptLineSchema = z.object({
   name: z.string().trim().min(1).max(200),
   quantity: z.number().int().positive(),
   unitPrice: z.number().int().nonnegative(),
   amount: z.number().int().nonnegative(),
+  /**
+   * The catalogue product sold on this line. `null`/absent for a line that owns no
+   * stock — a membership rung up at the desk — and for receipts sent by a client
+   * that predates this field, which are still rendered, just not drawn down.
+   */
+  productId: z.string().min(1).nullable().optional(),
+  /**
+   * Which of {@link productId}'s stock positions was sold: a slot in the product's
+   * variant array, or `null` for the base (no-variant) position. Variants have no
+   * id of their own — they live as a JSON array on the product — so an index is
+   * how one is addressed here as everywhere else.
+   */
+  variantIndex: z.number().int().nonnegative().nullable().optional(),
 });
 
 /** A single POS receipt line — {@link receiptLineSchema}. */

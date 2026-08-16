@@ -13,6 +13,7 @@ import {
   type ClassPricingRule,
   type ClassTemplateStatus,
   type Recurrence,
+  type RecurrenceWeekday,
 } from '@fit/types';
 import { Btn, Icon } from '@/components/ui';
 import { createClassTemplateAction, updateClassTemplateAction } from './actions';
@@ -195,6 +196,21 @@ type Initial = {
   validUntil: string | null;
 };
 
+/**
+ * What a click on the schedule's empty grid carries into this form: the slot the
+ * operator pointed at. Everything else keeps its normal default, so the drawer
+ * opens on a class that already starts where they clicked and repeats on the day
+ * they clicked — one field (the title) from being savable.
+ */
+export interface ClassFormSeed {
+  /** `HH:MM` the class starts at — the snapped slot. */
+  startTime: string;
+  /** `YYYY-MM-DD` the recurrence starts on — the clicked column's date. */
+  validFrom: string;
+  /** The clicked column's weekday, the day the class repeats on. */
+  weekday: RecurrenceWeekday;
+}
+
 type Props = {
   trainers: RelationOption[];
   locations: RelationOption[];
@@ -210,7 +226,7 @@ type Props = {
   /** Drawer host hook — replaces the Cancel link with a close button when set. */
   onCancel?: () => void;
 } & (
-  | { mode: 'create' }
+  | { mode: 'create'; seed?: ClassFormSeed }
   | {
       mode: 'edit';
       templateId: string;
@@ -256,8 +272,10 @@ export function ClassTemplateForm(props: Props) {
         room: null,
         capacity: 12,
         durationMinutes: 60,
-        startTime: '09:00',
-        rrule: buildRRule(DEFAULT_RECURRENCE),
+        startTime: props.seed?.startTime ?? '09:00',
+        rrule: buildRRule(
+          props.seed ? { freq: 'WEEKLY', weekdays: [props.seed.weekday] } : DEFAULT_RECURRENCE,
+        ),
         color: '#2563eb',
         pricingRule: 'FREE',
         priceMinor: null,
@@ -266,7 +284,7 @@ export function ClassTemplateForm(props: Props) {
         pt30Minor: null,
         pt45Minor: null,
         pt60Minor: null,
-        validFrom: todayIso(),
+        validFrom: props.seed?.validFrom ?? todayIso(),
         validUntil: null,
       };
 
@@ -310,6 +328,9 @@ export function ClassTemplateForm(props: Props) {
   // Reflect the stored type name back to its id so the select shows the right row.
   const selectedClassTypeId = props.classTypes.find((type) => type.name === category)?.id ?? '';
 
+  /** A one-off runs on its start date and stops — no weekdays, no end date. */
+  const isOneOff = recurrence.freq === 'ONCE';
+
   function onSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setError(null);
@@ -347,7 +368,10 @@ export function ClassTemplateForm(props: Props) {
       pt45Minor: null,
       pt60Minor: null,
       validFrom,
-      validUntil: validUntil === '' ? null : validUntil,
+      // A one-off is bounded by its own rule (`COUNT=1`), so it never carries a
+      // window — including when the frequency was switched away from a repeating
+      // one that had an end date typed into the now-hidden field.
+      validUntil: isOneOff || validUntil === '' ? null : validUntil,
     };
 
     startTransition(async () => {
@@ -503,11 +527,16 @@ export function ClassTemplateForm(props: Props) {
       {/* The visual recurrence editor — produces the stored rrule on submit. */}
       <RecurrenceEditor value={recurrence} onChange={setRecurrence} />
 
-      {/* Validity window. */}
+      {/*
+        Validity window — or, for a one-off, just the date it happens. `ONCE`
+        stops after its first occurrence, so an end date has nothing left to
+        bound; the field is hidden rather than left there to be filled in with an
+        answer that would be ignored.
+      */}
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-valid-from" {...stylex.props(styles.label)}>
-            Starts
+            {isOneOff ? 'Date' : 'Starts'}
           </label>
           <input
             id="class-valid-from"
@@ -519,20 +548,26 @@ export function ClassTemplateForm(props: Props) {
             {...stylex.props(styles.field)}
           />
         </div>
-        <div {...stylex.props(styles.colFlex)}>
-          <label htmlFor="class-valid-until" {...stylex.props(styles.label)}>
-            Ends
-          </label>
-          <input
-            id="class-valid-until"
-            name="validUntil"
-            type="date"
-            min={validFrom}
-            value={validUntil}
-            onChange={(event) => setValidUntil(event.target.value)}
-            {...stylex.props(styles.field)}
-          />
-        </div>
+        {isOneOff ? (
+          // An empty half so the date keeps its column width instead of
+          // stretching across the row the moment the end date disappears.
+          <div aria-hidden {...stylex.props(styles.colFlex)} />
+        ) : (
+          <div {...stylex.props(styles.colFlex)}>
+            <label htmlFor="class-valid-until" {...stylex.props(styles.label)}>
+              Ends
+            </label>
+            <input
+              id="class-valid-until"
+              name="validUntil"
+              type="date"
+              min={validFrom}
+              value={validUntil}
+              onChange={(event) => setValidUntil(event.target.value)}
+              {...stylex.props(styles.field)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Default trainer / location. */}

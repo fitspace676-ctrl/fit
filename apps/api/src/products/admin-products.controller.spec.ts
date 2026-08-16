@@ -76,12 +76,16 @@ function setup() {
   const updateProduct = vi.fn<() => Promise<CreateProductResponse>>(() =>
     Promise.resolve(detail()),
   );
+  const setProductCategory = vi.fn<() => Promise<CreateProductResponse>>(() =>
+    Promise.resolve(detail()),
+  );
   const service = {
     listProducts,
     getProduct,
     listLowStock,
     createProduct,
     updateProduct,
+    setProductCategory,
   } as unknown as AdminProductsService;
   const adjust = vi.fn<() => Promise<AdjustStockResponse>>(() =>
     Promise.resolve({
@@ -101,6 +105,7 @@ function setup() {
     listLowStock,
     createProduct,
     updateProduct,
+    setProductCategory,
     adjust,
     listMovements,
   };
@@ -224,6 +229,31 @@ describe('AdminProductsController', () => {
         'p-1',
         expect.objectContaining({ name: 'Renamed' }),
       );
+    });
+  });
+
+  describe('PATCH /admin/products/:id/category', () => {
+    it('forwards the shelf the product is filed onto', async () => {
+      ctx = setup();
+      await ctx.controller.setCategory('p-1', { categoryId: 'c-1' });
+
+      expect(ctx.setProductCategory).toHaveBeenCalledWith('p-1', { categoryId: 'c-1' });
+    });
+
+    it('forwards a null to take the product off its shelf', async () => {
+      ctx = setup();
+      await ctx.controller.setCategory('p-1', { categoryId: null });
+
+      expect(ctx.setProductCategory).toHaveBeenCalledWith('p-1', { categoryId: null });
+    });
+
+    it('rejects a body with no categoryId — absent is not the same as unfiled', async () => {
+      ctx = setup();
+
+      await expect(ctx.controller.setCategory('p-1', {})).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(ctx.setProductCategory).not.toHaveBeenCalled();
     });
   });
 });

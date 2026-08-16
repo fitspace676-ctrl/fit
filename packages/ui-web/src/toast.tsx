@@ -42,6 +42,8 @@ const TONE_CLASSES: Record<Tone, string> = {
   accent: 'text-accent-700 dark:text-accent-200',
   iris: 'text-iris-700 dark:text-iris-200',
   flame: 'text-flame-700 dark:text-flame-200',
+  info: 'text-info-700 dark:text-info-200',
+  teal: 'text-teal-700 dark:text-teal-200',
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {

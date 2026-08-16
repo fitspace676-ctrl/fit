@@ -6,8 +6,9 @@ import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import type { AdminClassTypeOption } from '@fit/types';
 import { Icon } from '@/components/ui';
+import { useEffect, useRef } from 'react';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
-import { ClassTemplateForm, type RelationOption } from './class-template-form';
+import { ClassTemplateForm, type ClassFormSeed, type RelationOption } from './class-template-form';
 
 const styles = stylex.create({
   drawer: {
@@ -52,15 +53,39 @@ export function AddClassDrawer({
   plans,
   classTypes,
   triggerLabel = 'New class',
+  seed,
+  openToken = 0,
 }: {
   trainers: RelationOption[];
   locations: RelationOption[];
   plans: RelationOption[];
   classTypes: AdminClassTypeOption[];
+  /**
+   * Slot the form opens on, when the host opened this drawer by pointing at a
+   * time rather than pressing the button — see {@link openToken}.
+   */
+  seed?: ClassFormSeed;
+  /**
+   * Opens the drawer from outside its own button: the schedule bumps this when a
+   * staffer clicks an empty slot on the grid. A counter rather than a boolean so
+   * clicking the same slot twice reopens the drawer both times.
+   */
+  openToken?: number;
   /** Label for the button that opens the drawer (e.g. "Add Class" on the schedule). */
   triggerLabel?: string;
 }) {
   const drawer = useSlideDrawer();
+
+  // `openToken` starts at 0 and only ever climbs, so this fires on a real request
+  // from the host and never on mount.
+  const lastToken = useRef(openToken);
+  const openDrawer = drawer.open;
+  useEffect(() => {
+    if (openToken !== lastToken.current) {
+      lastToken.current = openToken;
+      openDrawer();
+    }
+  }, [openToken, openDrawer]);
 
   return (
     <>
@@ -100,6 +125,7 @@ export function AddClassDrawer({
               <ClassTemplateForm
                 key={drawer.contentKey}
                 mode="create"
+                seed={seed}
                 trainers={trainers}
                 locations={locations}
                 plans={plans}

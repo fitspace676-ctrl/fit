@@ -8,13 +8,9 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
 import { z } from 'zod';
 import {
-  AUTOMATION_MERGE_FIELDS,
-  AUTOMATION_MERGE_GROUPS,
   DEFAULT_CURRENCY,
   DEFAULT_TIMEZONE,
   GYM_LOGO_MAX_WIDTH,
-  MARKETING_MERGE_FIELD_DEFS,
-  MARKETING_MERGE_GROUPS,
   REPORT_CATALOG,
   STAFF_COLUMN_FIELDS,
   STAFF_SECTION_FIELDS,
@@ -22,22 +18,16 @@ import {
   enabledPaymentMethods,
   formatInvoiceNumber,
   groupReportsBySegment,
-  gymAutomationFieldsSettingsSchema,
-  gymMarketingFieldsSettingsSchema,
   gymReportsSettingsSchema,
   gymStaffDirectorySettingsSchema,
   invoiceNumberFormatSchema,
   isValidDayWindow,
   isValidTimeZone,
   type AdminLocationRow,
-  type AutomationFieldToggle,
-  type GymAutomationFieldsSettings,
-  type GymMarketingFieldsSettings,
   type GymReportsSettings,
   type GymSettings,
   type GymStaffDirectorySettings,
   type InvoiceNumberFormat,
-  type MarketingFieldToggle,
   type ReportToggle,
   type UpdateGymSettingsInput,
   type Weekday,
@@ -695,8 +685,6 @@ interface SettingsFormValues {
     medicalNotes: boolean;
   };
   staffDirectory: GymStaffDirectorySettings;
-  automationFields: GymAutomationFieldsSettings;
-  marketingFields: GymMarketingFieldsSettings;
   reports: GymReportsSettings;
   payments: { acceptCash: boolean; acceptCard: boolean; acceptPrepaidCredits: boolean };
   invoice: { prefix: string; startNumber: number; format: InvoiceNumberFormat };
@@ -731,8 +719,6 @@ type BoolFieldName =
   | 'staffDirectory.joined'
   | 'staffDirectory.whosWorking'
   | 'staffDirectory.roles'
-  | `automationFields.${AutomationFieldToggle}`
-  | `marketingFields.${MarketingFieldToggle}`
   | `reports.${ReportToggle}`;
 
 /** The rail sections, in order — each maps onto a slice of the real settings contract. */
@@ -743,8 +729,6 @@ type SectionKey =
   | 'hours'
   | 'membership'
   | 'staff'
-  | 'automation'
-  | 'marketing'
   | 'reports'
   | 'payments'
   | 'invoice'
@@ -757,8 +741,6 @@ const SECTIONS: { key: SectionKey; icon: IconName }[] = [
   { key: 'hours', icon: 'clock' },
   { key: 'membership', icon: 'shield' },
   { key: 'staff', icon: 'users' },
-  { key: 'automation', icon: 'bolt' },
-  { key: 'marketing', icon: 'mail' },
   { key: 'reports', icon: 'chart' },
   { key: 'payments', icon: 'card' },
   { key: 'invoice', icon: 'tag' },
@@ -772,8 +754,6 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
   if (errors.hours) return 'hours';
   if (errors.memberIntake) return 'membership';
   if (errors.staffDirectory) return 'staff';
-  if (errors.automationFields) return 'automation';
-  if (errors.marketingFields) return 'marketing';
   if (errors.reports) return 'reports';
   if (errors.payments) return 'payments';
   if (errors.invoice) return 'invoice';
@@ -882,11 +862,7 @@ export function SettingsForm({
       // The staff-page toggles are a plain boolean map, so the contract's own
       // schema is the form schema — no field-by-field restatement to drift.
       staffDirectory: gymStaffDirectorySettingsSchema,
-      automationFields: gymAutomationFieldsSettingsSchema,
-      // Same reasoning as `automationFields` — the contract's own schema is the
-      // form schema.
-      marketingFields: gymMarketingFieldsSettingsSchema,
-      // Same reasoning again — the contract's own schema is the form schema.
+      // Same reasoning — the contract's own schema is the form schema.
       reports: gymReportsSettingsSchema,
       // A till that accepts nothing cannot ring up a sale, so the last method
       // standing may not be switched off. The API refuses the same save; checking
@@ -938,8 +914,6 @@ export function SettingsForm({
       hours: values.hours,
       memberIntake: values.memberIntake,
       staffDirectory: values.staffDirectory,
-      automationFields: values.automationFields,
-      marketingFields: values.marketingFields,
       reports: values.reports,
       payments: values.payments,
       invoice: values.invoice,
@@ -1113,60 +1087,6 @@ export function SettingsForm({
             </>
           ) : null}
 
-          {section === 'automation' ? (
-            <>
-              {AUTOMATION_MERGE_GROUPS.map((group) => (
-                <SectionCard
-                  key={group}
-                  title={t(`automation.groups.${group}`)}
-                  description={t(`automation.groupHints.${group}`)}
-                >
-                  <div {...stylex.props(styles.switchList)}>
-                    {AUTOMATION_MERGE_FIELDS.filter((field) => field.group === group).map(
-                      (field) => (
-                        <SwitchRow
-                          key={field.key}
-                          name={`automationFields.${field.key as AutomationFieldToggle}`}
-                          label={t(`automation.fields.${field.key}`)}
-                          // The token is the point of the row — staff paste it, and
-                          // seeing it here is how they learn the spelling.
-                          description={field.token}
-                        />
-                      ),
-                    )}
-                  </div>
-                </SectionCard>
-              ))}
-            </>
-          ) : null}
-
-          {section === 'marketing' ? (
-            <>
-              {MARKETING_MERGE_GROUPS.map((group) => (
-                <SectionCard
-                  key={group}
-                  title={t(`marketing.groups.${group}`)}
-                  description={t(`marketing.groupHints.${group}`)}
-                >
-                  <div {...stylex.props(styles.switchList)}>
-                    {MARKETING_MERGE_FIELD_DEFS.filter((field) => field.group === group).map(
-                      (field) => (
-                        <SwitchRow
-                          key={field.key}
-                          name={`marketingFields.${field.key as MarketingFieldToggle}`}
-                          label={field.label}
-                          // The token is the point of the row — staff paste it, and
-                          // seeing it here is how they learn the spelling.
-                          description={field.token}
-                        />
-                      ),
-                    )}
-                  </div>
-                </SectionCard>
-              ))}
-            </>
-          ) : null}
-
           {section === 'reports' ? (
             <>
               {groupReportsBySegment(REPORT_CATALOG).map((group) => (
@@ -1319,8 +1239,6 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       medicalNotes: settings.memberIntake.medicalNotes,
     },
     staffDirectory: settings.staffDirectory,
-    automationFields: settings.automationFields,
-    marketingFields: settings.marketingFields,
     reports: settings.reports,
     payments: {
       acceptCash: settings.payments.acceptCash,

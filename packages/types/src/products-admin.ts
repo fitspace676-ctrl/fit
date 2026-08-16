@@ -422,6 +422,26 @@ export type UpdateProductResponse = AdminProductDetail;
  */
 export type SetProductStatusResponse = AdminProductDetail;
 
+/**
+ * Body for `PATCH /admin/products/:id/category` — file a product onto a shelf, or
+ * `null` to take it off the one it is on.
+ *
+ * Its own endpoint rather than a field on the whole-record edit, for the same
+ * reason stock has one: filing a catalogue is done from the roster, one product
+ * after another, and re-sending a whole form to change one relation would replay
+ * every other field as the form last saw them — silently reverting a colleague's
+ * edit, or a variant list, to move a product between two shelves.
+ */
+export const setProductCategorySchema = z.object({
+  categoryId: z.string().trim().min(1).nullable(),
+});
+
+/** Validated `PATCH /admin/products/:id/category` body — {@link setProductCategorySchema}. */
+export type SetProductCategoryInput = z.infer<typeof setProductCategorySchema>;
+
+/** Successful `PATCH /admin/products/:id/category` response — the updated detail. */
+export type SetProductCategoryResponse = AdminProductDetail;
+
 // ── Inventory tracking + low-stock alerts (T7.8) ──────────────────────────────
 //
 // A product tracks on-hand stock one of two ways, never both: per variant (inside

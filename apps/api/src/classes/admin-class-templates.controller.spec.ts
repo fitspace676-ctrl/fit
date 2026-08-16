@@ -148,6 +148,15 @@ describe('AdminClassTemplatesController', () => {
       expect(ctx.createClassTemplate).not.toHaveBeenCalled();
     });
 
+    it('accepts the one-off rrule the console stores for a "One time" class', async () => {
+      ctx = setup();
+      await ctx.controller.create(validBody({ rrule: 'FREQ=DAILY;COUNT=1', validUntil: null }));
+
+      expect(ctx.createClassTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ rrule: 'FREQ=DAILY;COUNT=1', validUntil: null }),
+      );
+    });
+
     it('rejects a zero capacity with 400', async () => {
       ctx = setup();
       const error = await ctx.controller

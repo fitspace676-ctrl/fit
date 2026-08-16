@@ -5,8 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { GymMemberStatus, Prisma, Role } from '@fit/db';
+import { GymMemberStatus, Prisma, Role, TrainerStatus } from '@fit/db';
 import type {
   CreateStaffInput,
   InviteStaffInput,
@@ -26,17 +25,10 @@ import { EmailService } from '../auth/email.service';
 import { TokenService } from '../auth/token.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { isPlaceholderEmail, placeholderEmail } from '../common/directory-identity';
 
 /** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
 const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.TRAINER];
-
-/**
- * Host for the synthetic address given to a directory staff member added without
- * an email. Never receives mail; blanked back to `''` on the wire so the console
- * never shows it. `User.email` is required + unique, so a directory record still
- * needs *some* address — a per-record UUID keeps it unique.
- */
-const PLACEHOLDER_EMAIL_HOST = 'no-login.fit.local';
 
 /**
  * Shape the staff roster query selects off `GymMember`, joined to the
@@ -55,6 +47,9 @@ const STAFF_SELECT = {
   lastName: true,
   assignedLocationIds: true,
   user: { select: { name: true, email: true, phone: true } },
+  // The linked coach profile (staff ⇄ trainer link) — just its id, so the roster
+  // can offer "open coach profile" without a second round-trip.
+  trainerProfile: { select: { id: true } },
 } satisfies Prisma.GymMemberSelect;
 
 type StaffRecord = Prisma.GymMemberGetPayload<{ select: typeof STAFF_SELECT }>;
@@ -170,7 +165,7 @@ export class StaffService {
     const memberId = await this.prisma.client.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          email: email ?? `staff-${randomUUID()}@${PLACEHOLDER_EMAIL_HOST}`,
+          email: email ?? placeholderEmail(),
           name: displayName || null,
           phone: input.phone?.trim() ? input.phone.trim() : null,
         },
@@ -200,6 +195,16 @@ export class StaffService {
             endTime: shift.endTime,
             location: shift.location ?? null,
           })),
+        });
+      }
+
+      // A coach on the roster must also be assignable to a class, and classes
+      // hang off `Trainer`, not off the membership — so the profile is created
+      // here, in the same transaction, rather than left for someone to notice.
+      if (input.role === Role.TRAINER) {
+        await tx.trainer.create({
+          data: { gymId, name: displayName || 'Trainer', staffId: member.id },
+          select: { id: true },
         });
       }
 
@@ -305,6 +310,7 @@ export class StaffService {
       where: { id: memberId },
       data: { role: input.role },
     });
+    await this.syncTrainerProfile(memberId, input.role);
 
     return this.projectStaff(memberId);
   }
@@ -368,6 +374,14 @@ export class StaffService {
             .map((p) => p.trim())
             .filter(Boolean)
             .join(' ') || null;
+        // Keep the coach profile's name in step, so renaming someone on the staff
+        // roster doesn't leave the schedule crediting their old name.
+        if (userData.name) {
+          await tx.trainer.updateMany({
+            where: { staffId: memberId },
+            data: { name: userData.name },
+          });
+        }
       }
       if (email) userData.email = email;
       if (input.phone !== undefined)
@@ -412,6 +426,16 @@ export class StaffService {
       await this.assertNotLastOwner();
     }
 
+    // Retire the coach profile before the membership goes. The FK is `SET NULL`,
+    // so the profile survives the delete (class templates, occurrences, PT
+    // sessions and reviews all point at it) — but the person no longer works
+    // here, so it must not stay on the public roster or in the class trainer
+    // picker either.
+    await this.prisma.client.trainer.updateMany({
+      where: { staffId: memberId },
+      data: { status: TrainerStatus.INACTIVE },
+    });
+
     await this.prisma.client.gymMember.delete({ where: { id: memberId } });
 
     // Cut their sessions. Refresh-token revocation + a tokenVersion bump together
@@ -421,6 +445,61 @@ export class StaffService {
     // consequence of removing their access.)
     await this.tokens.revokeAllForUser(member.userId);
     await this.bumpTokenVersion(member.userId);
+  }
+
+  /**
+   * Bring the member's coach profile in line with the role they now hold.
+   *
+   * Becoming a `TRAINER` creates the profile (or reactivates the one they had
+   * before), because a class can only be assigned to a `Trainer` row — without
+   * this a gym could put someone on the roster as a coach and then not find them
+   * in the class trainer picker, which is exactly the gap this link closes.
+   * Losing the role deactivates the profile rather than deleting it: the classes
+   * they already taught still reference it, and re-promoting them later should
+   * restore the same coach, ratings and reviews included.
+   */
+  private async syncTrainerProfile(memberId: string, role: Role): Promise<void> {
+    const existing = await this.prisma.client.trainer.findFirst({
+      where: { staffId: memberId },
+      select: { id: true },
+    });
+
+    if (role !== Role.TRAINER) {
+      if (existing) {
+        await this.prisma.client.trainer.update({
+          where: { id: existing.id },
+          data: { status: TrainerStatus.INACTIVE },
+        });
+      }
+      return;
+    }
+
+    if (existing) {
+      await this.prisma.client.trainer.update({
+        where: { id: existing.id },
+        data: { status: TrainerStatus.ACTIVE },
+      });
+      return;
+    }
+
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id: memberId },
+      select: { firstName: true, lastName: true, user: { select: { name: true, email: true } } },
+    });
+    if (!member) {
+      return;
+    }
+    const name =
+      [member.firstName, member.lastName]
+        .map((part) => part?.trim() ?? '')
+        .filter(Boolean)
+        .join(' ') ||
+      member.user.name?.trim() ||
+      'Trainer';
+    await this.prisma.client.trainer.create({
+      data: { gymId: this.tenant.gymId, name, staffId: memberId },
+      select: { id: true },
+    });
   }
 
   /**
@@ -496,7 +575,7 @@ export class StaffService {
       ? (row.lastName ?? '')
       : fullName.trim().split(/\s+/).filter(Boolean).slice(1).join(' ');
     // Blank a synthetic placeholder address so the console never shows it.
-    const email = row.user.email.endsWith(`@${PLACEHOLDER_EMAIL_HOST}`) ? '' : row.user.email;
+    const email = isPlaceholderEmail(row.user.email) ? '' : row.user.email;
     return {
       id: row.id,
       userId: row.userId,
@@ -512,6 +591,7 @@ export class StaffService {
         .map((id) => locationNames.get(id))
         .filter((name): name is string => Boolean(name)),
       joinedAt: row.joinedAt.toISOString(),
+      trainerId: row.trainerProfile?.id ?? null,
     };
   }
 

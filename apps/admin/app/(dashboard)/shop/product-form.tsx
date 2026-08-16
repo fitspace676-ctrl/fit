@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import {
+  MAX_PRODUCT_CATEGORY_NAME,
   MAX_PRODUCT_IMAGES,
   DEFAULT_LOW_STOCK_THRESHOLD,
   MAX_PRODUCT_VARIANTS,
@@ -17,6 +18,7 @@ import { useGymCurrency } from '@/components/gym-currency';
 import { inputToMinor, minorToInput } from './format-price';
 import {
   createProductAction,
+  createProductCategoryAction,
   requestProductImageUploadAction,
   updateProductAction,
 } from './actions';
@@ -204,6 +206,16 @@ const styles = stylex.create({
       color: 'var(--color-text-secondary)',
     },
   },
+  /**
+   * A value this form shows but does not own — an existing variant's count, which
+   * moves through the product page's ledger. Read-only rather than disabled so it
+   * still reads as data (and stays selectable), just not as an editable field.
+   */
+  inputReadOnly: {
+    backgroundColor: 'var(--color-background-muted)',
+    color: 'var(--color-text-secondary)',
+    cursor: 'not-allowed',
+  },
   textarea: {
     width: '100%',
     borderRadius: 'var(--radius-element)',
@@ -236,6 +248,23 @@ const styles = stylex.create({
     margin: 0,
     fontSize: '0.8125rem',
     color: 'var(--color-text-secondary)',
+  },
+  // The picker and its "New category" escape hatch share a row, so creating a
+  // shelf reads as part of choosing one rather than a separate errand.
+  categoryRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  categorySelect: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  categoryError: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-error)',
   },
   priceGroup: {
     display: 'flex',
@@ -523,6 +552,13 @@ export function ProductForm(props: Props) {
     initial.lowStockThreshold === null ? '' : String(initial.lowStockThreshold),
   );
   const [status, setStatus] = useState<ProductStatus>('ACTIVE');
+  /**
+   * How many variants this product already had when the form opened. Their counts
+   * are the ledger's to move, not this form's — the save carries them over from
+   * the record — so those cells are shown read-only. A row added here is a new
+   * position with no history yet, so its opening count *is* set here.
+   */
+  const [countedVariants] = useState(initial.variants.length);
   // '' is the "No category" option; the submit maps it back to null. A product whose
   // category was deleted while this form was open falls back to '' rather than
   // submitting a dangling id.
@@ -531,6 +567,41 @@ export function ProductForm(props: Props) {
       ? initial.categoryId
       : '',
   );
+  // The shelves start as the page fetched them and grow as one is created here, so
+  // a category invented mid-form is selectable without abandoning what is typed.
+  const [shelves, setShelves] = useState<AdminProductCategory[]>(props.categories);
+  const [namingShelf, setNamingShelf] = useState(false);
+  const [shelfName, setShelfName] = useState('');
+  const [shelfError, setShelfError] = useState<string | null>(null);
+  const [savingShelf, setSavingShelf] = useState(false);
+
+  /**
+   * Create a shelf from inside the form and select it.
+   *
+   * Without this the form is a dead end: the picker is empty, the only way out is
+   * the manager on the catalog page, and getting there means losing everything
+   * typed so far — which is how products end up uncategorised. A duplicate name
+   * comes back as the API's `409` message and is shown inline; nothing else about
+   * the form is touched either way.
+   */
+  async function createShelf(): Promise<void> {
+    const name = shelfName.trim();
+    if (!name) {
+      return;
+    }
+    setSavingShelf(true);
+    setShelfError(null);
+    const result = await createProductCategoryAction({ name });
+    setSavingShelf(false);
+    if (!result.ok) {
+      setShelfError(result.error);
+      return;
+    }
+    setShelves((current) => [...current, result.data].sort((a, b) => a.name.localeCompare(b.name)));
+    setCategoryId(result.data.id);
+    setShelfName('');
+    setNamingShelf(false);
+  }
 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -867,8 +938,10 @@ export function ProductForm(props: Props) {
         </div>
         <p {...stylex.props(styles.stockHint)}>
           {variants.length > 0
-            ? 'This product counts stock per variant — set each count in the rows above. Day-to-day restocking is done from the product page, where every change is logged.'
-            : 'Leave “On hand” empty to sell this product without counting it. Once counted, restock it from the product page so each change is logged with a reason.'}
+            ? countedVariants > 0
+              ? 'This product counts stock per variant. Counts already being kept are moved from the product page, so every change is logged with a reason; a variant added here starts from the count you type for it.'
+              : 'This product counts stock per variant — set each opening count in the rows above. After that, restock from the product page so every change is logged.'
+            : 'Leave “On hand” empty to sell this product without counting it. Correcting it here is recorded in the product’s history; day-to-day restocking belongs on the product page, where you say why.'}
         </p>
       </fieldset>
 
@@ -922,8 +995,14 @@ export function ProductForm(props: Props) {
                   inputMode="numeric"
                   aria-label={`Variant ${index + 1} stock`}
                   value={variant.stock}
+                  readOnly={index < countedVariants}
+                  title={
+                    index < countedVariants
+                      ? 'Counted on the product page, where every change is logged with a reason.'
+                      : undefined
+                  }
                   onChange={(event) => setVariant(index, { stock: event.target.value })}
-                  {...stylex.props(styles.input)}
+                  {...stylex.props(styles.input, index < countedVariants && styles.inputReadOnly)}
                 />
                 <button
                   type="button"
@@ -951,24 +1030,84 @@ export function ProductForm(props: Props) {
         <label htmlFor="product-category" {...stylex.props(styles.label)}>
           Category <span {...stylex.props(styles.optional)}>(optional)</span>
         </label>
-        <select
-          id="product-category"
-          name="categoryId"
-          value={categoryId}
-          onChange={(event) => setCategoryId(event.target.value)}
-          disabled={props.categories.length === 0}
-          {...stylex.props(styles.input)}
-        >
-          <option value="">No category</option>
-          {props.categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-        {props.categories.length === 0 ? (
+        <div {...stylex.props(styles.categoryRow)}>
+          <select
+            id="product-category"
+            name="categoryId"
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
+            disabled={shelves.length === 0}
+            {...stylex.props(styles.input, styles.categorySelect)}
+          >
+            <option value="">No category</option>
+            {shelves.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+          {!namingShelf ? (
+            <Btn v="outline" type="button" onClick={() => setNamingShelf(true)}>
+              New category
+            </Btn>
+          ) : null}
+        </div>
+
+        {namingShelf ? (
+          <div {...stylex.props(styles.categoryRow)}>
+            <label htmlFor="product-new-category" {...stylex.props(styles.srOnly)}>
+              New category name
+            </label>
+            <input
+              id="product-new-category"
+              type="text"
+              autoFocus
+              maxLength={MAX_PRODUCT_CATEGORY_NAME}
+              value={shelfName}
+              placeholder="Drinks"
+              onChange={(event) => setShelfName(event.target.value)}
+              // The form around this one is the product's — Enter here must add the
+              // shelf, not submit a half-filled product.
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void createShelf();
+                } else if (event.key === 'Escape') {
+                  setNamingShelf(false);
+                  setShelfError(null);
+                }
+              }}
+              {...stylex.props(styles.input, styles.categorySelect)}
+            />
+            <Btn
+              v="primary"
+              type="button"
+              disabled={savingShelf || shelfName.trim() === ''}
+              onClick={() => void createShelf()}
+            >
+              {savingShelf ? 'Adding…' : 'Add'}
+            </Btn>
+            <Btn
+              v="outline"
+              type="button"
+              onClick={() => {
+                setNamingShelf(false);
+                setShelfError(null);
+              }}
+            >
+              Cancel
+            </Btn>
+          </div>
+        ) : null}
+
+        {shelfError ? (
+          <p role="alert" {...stylex.props(styles.categoryError)}>
+            {shelfError}
+          </p>
+        ) : null}
+        {shelves.length === 0 && !namingShelf ? (
           <p {...stylex.props(styles.marginHint)}>
-            No categories yet — add one from the Categories panel on the catalog.
+            No categories yet — “New category” adds one without leaving this form.
           </p>
         ) : null}
       </div>

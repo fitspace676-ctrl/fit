@@ -13,7 +13,6 @@ import {
   type AutomationTriggerType,
   AUTOMATION_MERGE_FIELDS,
   AUTOMATION_MERGE_GROUPS,
-  type GymAutomationFieldsSettings,
 } from '@fit/types';
 import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
 import { createAutomationRuleAction, updateAutomationRuleAction } from './actions';
@@ -242,8 +241,6 @@ type Props = {
   /** In edit mode, the rule being edited; in create mode, an optional template to clone. */
   seed?: RuleFormSeed;
   onClose: () => void;
-  /** Which merge fields this gym offers — Settings → Automation fields. */
-  fields: GymAutomationFieldsSettings;
 };
 
 /**
@@ -254,7 +251,7 @@ type Props = {
  * `AutomationManage` Server Actions. Money-free, so state is plain strings the
  * submit coerces and the shared Zod schema re-validates.
  */
-export function RuleFormDialog({ mode, seed, onClose, fields }: Props) {
+export function RuleFormDialog({ mode, seed, onClose }: Props) {
   const t = useTranslations('admin.automation');
   const { toast } = useToast();
   const router = useRouter();
@@ -283,20 +280,17 @@ export function RuleFormDialog({ mode, seed, onClose, fields }: Props) {
     (!needsDays || Number.parseInt(form.days, 10) >= 1);
 
   /**
-   * The merge-field chips, grouped for the picker and filtered to what this gym
-   * left switched on. A group whose every field is hidden drops out entirely
-   * rather than leaving a bare heading over nothing.
+   * The merge-field chips, grouped for the picker. The whole catalogue: it is
+   * curated to fields the executor can actually fill, and the per-gym switch list
+   * that once trimmed it is gone along with its settings screen.
    */
   const mergeGroups = useMemo(
     () =>
       AUTOMATION_MERGE_GROUPS.map((group) => ({
         group,
-        fields: AUTOMATION_MERGE_FIELDS.filter(
-          (field) =>
-            field.group === group && fields[field.key as keyof GymAutomationFieldsSettings],
-        ),
+        fields: AUTOMATION_MERGE_FIELDS.filter((field) => field.group === group),
       })).filter((entry) => entry.fields.length > 0),
-    [fields],
+    [],
   );
 
   /** Trigger `<optgroup>`s, grouped by category in the catalog's declared order. */

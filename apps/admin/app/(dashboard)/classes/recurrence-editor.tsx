@@ -53,6 +53,11 @@ const styles = stylex.create({
     backgroundColor: 'var(--color-accent-muted)',
     color: 'var(--color-text-accent)',
   },
+  hint: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 /**
@@ -69,10 +74,12 @@ const styles = stylex.create({
  * slot (the schema rejects it), so the form can block submit before the API ever
  * sees an ambiguous rule.
  *
- * There is no end condition here. How long a series runs is the template's
+ * There is no end condition here. How long a *series* runs is the template's
  * `validFrom` / `validUntil` window, which the surrounding form already asks for
  * under a field labelled "Ends" — collecting it twice invited two answers to one
- * question.
+ * question. The one-off frequency is the exception that proves it: `ONCE` has no
+ * end to set, so the form hides the field entirely rather than asking for a date
+ * that could only ever be the start date.
  */
 export function RecurrenceEditor({
   value,
@@ -113,6 +120,17 @@ export function RecurrenceEditor({
           </Select>
         </Field>
       </div>
+
+      {/*
+        A one-off has nothing else to ask: no weekdays, and no end — it runs on
+        the start date and is done. Say so, because an empty fieldset otherwise
+        reads as a form that failed to render its controls.
+      */}
+      {value.freq === 'ONCE' ? (
+        <p {...stylex.props(styles.hint)}>
+          Runs once, on the start date below. There is no end date.
+        </p>
+      ) : null}
 
       {/* Weekday toggles, only for a weekly recurrence. */}
       {value.freq === 'WEEKLY' ? (

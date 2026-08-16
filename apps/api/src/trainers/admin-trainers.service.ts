@@ -1,5 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, InstanceStatus, Prisma, ReviewStatus, TrainerStatus } from '@fit/db';
+import {
+  BookingStatus,
+  GymMemberStatus,
+  InstanceStatus,
+  Prisma,
+  ReviewStatus,
+  Role,
+  TrainerStatus,
+} from '@fit/db';
 import {
   weeklyAvailabilitySchema,
   type AdminTrainerDetail,
@@ -21,6 +29,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { placeholderEmail, splitDisplayName } from '../common/directory-identity';
 
 /** Milliseconds in a day — the window arithmetic for the show-up rate. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -43,6 +52,7 @@ const TRAINER_SELECT = {
   reviewCount: true,
   createdAt: true,
   updatedAt: true,
+  staffId: true,
 } satisfies Prisma.TrainerSelect;
 
 type TrainerRecord = Prisma.TrainerGetPayload<{ select: typeof TRAINER_SELECT }>;
@@ -160,24 +170,54 @@ export class AdminTrainersService {
    * Create a trainer (T4.4). The whole insert runs on the tenant-scoped client, so
    * `gymId` is stamped from the request's tenant context by the extension; it is
    * also passed explicitly here as belt-and-braces and to satisfy the create
-   * input's static type. Returns the new trainer's detail (`201`).
+   * input's static type.
+   *
+   * A coach is also a person the gym employs, so the same transaction adds them to
+   * the **staff directory** with the `TRAINER` role (staff ⇄ trainer link) — a
+   * login-less record, exactly what `POST /staff` creates when no email is given.
+   * Without it the two screens would disagree about who works here: a coach added
+   * for the schedule would be invisible on the Staff roster. Returns the new
+   * trainer's detail (`201`).
    */
   async createTrainer(input: CreateTrainerData): Promise<CreateTrainerResponse> {
-    const row = await this.prisma.client.trainer.create({
-      data: {
-        gymId: this.tenant.gymId,
-        name: input.name,
-        headline: input.headline,
-        bio: input.bio,
-        photoUrl: input.photoUrl,
-        specialties: input.specialties,
-        status: input.status,
-      },
-      select: { id: true },
+    const gymId = this.tenant.gymId;
+    const { firstName, lastName } = splitDisplayName(input.name);
+
+    const id = await this.prisma.client.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { email: placeholderEmail(), name: input.name },
+        select: { id: true },
+      });
+      const staff = await tx.gymMember.create({
+        data: {
+          gymId,
+          userId: user.id,
+          role: Role.TRAINER,
+          status: GymMemberStatus.ACTIVE,
+          firstName,
+          lastName,
+        },
+        select: { id: true },
+      });
+      const row = await tx.trainer.create({
+        data: {
+          gymId,
+          name: input.name,
+          headline: input.headline,
+          bio: input.bio,
+          photoUrl: input.photoUrl,
+          specialties: input.specialties,
+          status: input.status,
+          staffId: staff.id,
+        },
+        select: { id: true },
+      });
+      return row.id;
     });
+
     // Return through the detail read so the response carries the same enriched
     // shape as `GET /admin/trainers/:id` (a fresh trainer's KPIs are all empty).
-    return this.getTrainer(row.id);
+    return this.getTrainer(id);
   }
 
   /**
@@ -187,17 +227,37 @@ export class AdminTrainersService {
    * {@link reactivateTrainer}. Returns the updated detail.
    */
   async updateTrainer(id: string, input: UpdateTrainerData): Promise<UpdateTrainerResponse> {
-    await this.requireTrainer(id);
-    await this.prisma.client.trainer.update({
-      where: { id },
-      data: {
-        name: input.name,
-        headline: input.headline,
-        bio: input.bio,
-        photoUrl: input.photoUrl,
-        specialties: input.specialties,
-      },
+    const existing = await this.requireTrainer(id);
+    const { firstName, lastName } = splitDisplayName(input.name);
+
+    await this.prisma.client.$transaction(async (tx) => {
+      await tx.trainer.update({
+        where: { id },
+        data: {
+          name: input.name,
+          headline: input.headline,
+          bio: input.bio,
+          photoUrl: input.photoUrl,
+          specialties: input.specialties,
+        },
+      });
+      // Renaming the coach renames the person, so the staff roster follows —
+      // otherwise the same human would be listed under two different names.
+      if (existing.staffId) {
+        await tx.gymMember.update({
+          where: { id: existing.staffId },
+          data: { firstName, lastName },
+        });
+        const staff = await tx.gymMember.findFirst({
+          where: { id: existing.staffId },
+          select: { userId: true },
+        });
+        if (staff) {
+          await tx.user.update({ where: { id: staff.userId }, data: { name: input.name } });
+        }
+      }
     });
+
     return this.getTrainer(id);
   }
 
@@ -265,10 +325,10 @@ export class AdminTrainersService {
    * scoped `where` constrains `gymId`, so a cross-tenant id never matches — the
    * guard for every write.
    */
-  private async requireTrainer(id: string): Promise<{ id: string }> {
+  private async requireTrainer(id: string): Promise<{ id: string; staffId: string | null }> {
     const trainer = await this.prisma.client.trainer.findFirst({
       where: { id },
-      select: { id: true },
+      select: { id: true, staffId: true },
     });
     if (!trainer) {
       throw new NotFoundException({ message: 'Trainer not found', code: 'TRAINER_NOT_FOUND' });
@@ -334,6 +394,7 @@ export class AdminTrainersService {
       reviewCount: row.reviewCount,
       classesThisWeek,
       nextClass,
+      staffId: row.staffId,
     };
   }
 

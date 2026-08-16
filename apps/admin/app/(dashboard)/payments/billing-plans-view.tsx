@@ -57,6 +57,8 @@ const TONE_DOT: Record<Tone, string> = {
   accent: 'bg-accent-500',
   iris: 'bg-iris-500',
   flame: 'bg-flame-500',
+  info: 'bg-info-500',
+  teal: 'bg-teal-500',
 };
 
 /** The KPI tiles, in display order — each a literal icon + accent text class. */

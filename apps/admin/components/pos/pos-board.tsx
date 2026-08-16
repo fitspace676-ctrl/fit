@@ -196,7 +196,13 @@ export function PosBoard({
   return (
     <div {...stylex.props(styles.grid)}>
       <Card variant="default" padding={0} xstyle={styles.productPane}>
-        <ProductGrid searchRef={productSearchRef} onAdd={onAdd} onAddMembership={onAddMembership} />
+        <ProductGrid
+          searchRef={productSearchRef}
+          onAdd={onAdd}
+          onAddMembership={onAddMembership}
+          onSelectMember={onSelectMember}
+          selectedMemberId={selectedMember?.id ?? null}
+        />
       </Card>
       <Card variant="default" padding={0} xstyle={styles.cartPane}>
         {locations.length > 0 ? (

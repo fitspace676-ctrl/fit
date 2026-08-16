@@ -134,6 +134,22 @@ export default {
           900: '#3E1C96',
           950: '#27115F',
         },
+        // Teal rounds the categorical hues out to four that carry no status
+        // meaning (iris / info / teal / flame) — kept in step with the admin
+        // config so the shared ui-web primitives paint the same in both apps.
+        teal: {
+          50: '#F0FDF9',
+          100: '#CCFBEF',
+          200: '#99F6E0',
+          300: '#5FE9D0',
+          400: '#2ED3B7',
+          500: '#15B79E',
+          600: '#0E9384',
+          700: '#107569',
+          800: '#125D56',
+          900: '#134E48',
+          950: '#0A2926',
+        },
         flame: {
           50: '#FEF6EE',
           100: '#FDEAD7',

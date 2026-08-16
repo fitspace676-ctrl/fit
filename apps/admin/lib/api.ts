@@ -47,6 +47,9 @@ import type {
   GetAdminLocationResponse,
   GetAdminTrainerResponse,
   GetMemberResponse,
+  GetTrainerAvailabilityResponse,
+  SetTrainerAvailabilityData,
+  SetTrainerAvailabilityResponse,
   ListAdminLocationsQuery,
   ListAdminLocationsResponse,
   ListAdminTrainersQuery,
@@ -142,6 +145,8 @@ import type {
   SetMemberStatusResponse,
   SendMemberEmailInput,
   SendMemberEmailResponse,
+  SetProductCategoryInput,
+  SetProductCategoryResponse,
   SetProductStatusResponse,
   SetTrainerStatusResponse,
   UpdateLocationData,
@@ -497,6 +502,39 @@ export async function reactivateTrainer(id: string): Promise<SetTrainerStatusRes
   return unwrap<SetTrainerStatusResponse>(res);
 }
 
+/**
+ * `GET /admin/trainers/:id/availability` — the trainer's weekly recurring hours
+ * (T5.11). Always a complete seven-day map, so the editor never has to guess at a
+ * missing weekday: a trainer who has never set hours reads back fully unavailable.
+ */
+export async function fetchTrainerAvailability(
+  id: string,
+): Promise<GetTrainerAvailabilityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}/availability`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetTrainerAvailabilityResponse>(res);
+}
+
+/**
+ * `PUT /admin/trainers/:id/availability` — replace the trainer's weekly hours
+ * (T5.11). The whole week is sent as one document (a PUT, not a per-day PATCH);
+ * the API re-validates it and returns the stored, canonicalised week.
+ */
+export async function setTrainerAvailability(
+  id: string,
+  input: SetTrainerAvailabilityData,
+): Promise<SetTrainerAvailabilityResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}/availability`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<SetTrainerAvailabilityResponse>(res);
+}
+
 // ── Locations (T4.5) ─────────────────────────────────────────────────────────
 
 /**
@@ -773,6 +811,24 @@ export async function deactivateProduct(id: string): Promise<SetProductStatusRes
     cache: 'no-store',
   });
   return unwrap<SetProductStatusResponse>(res);
+}
+
+/**
+ * `PATCH /admin/products/:id/category` — file a product onto a shelf, or `null` to
+ * take it off one. Touches that column alone, so the roster can offer the move
+ * without re-sending the product's whole profile.
+ */
+export async function setProductCategory(
+  id: string,
+  categoryId: string | null,
+): Promise<SetProductCategoryResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products/${encodeURIComponent(id)}/category`, {
+    method: 'PATCH',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoryId } satisfies SetProductCategoryInput),
+    cache: 'no-store',
+  });
+  return unwrap<SetProductCategoryResponse>(res);
 }
 
 /** `POST /admin/products/:id/reactivate` — set the product's status back to `ACTIVE`. */

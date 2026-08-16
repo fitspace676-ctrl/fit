@@ -746,7 +746,21 @@
       "products": {
         "searchLabel": "Search products (F1)",
         "searchPlaceholder": "Search products by name…  (F1)",
-        "empty": "No active products match this search."
+        "empty": "No active products match this search.",
+        "categoryLabel": "Filter products by category",
+        "allCategories": "All",
+        "uncategorised": "Uncategorised",
+        "emptyShelf": "No active products on this shelf.",
+        "searchMembersLabel": "Search members (F1)",
+        "searchMembersPlaceholder": "Member name, phone or email…  (F1)",
+        "membersEmpty": "No members match that.",
+        "membersTableCaption": "Members — tap one to attach them to this sale",
+        "membersColumnName": "Member",
+        "membersColumnPhone": "Phone",
+        "membersColumnPlan": "Plan",
+        "membersAttached": "Attached",
+        "membersColumnStatus": "Status",
+        "membersSuspended": "Suspended"
       },
       "member": {
         "searchLabel": "Look up a member by name or phone (F2)",
@@ -924,6 +938,20 @@
       "week": {
         "gridAria": "Week schedule"
       },
+      "day": {
+        "agendaAria": "Day schedule",
+        "today": "Today",
+        "classes": "Classes",
+        "booked": "Booked",
+        "canceled": "Canceled",
+        "morning": "Morning",
+        "afternoon": "Afternoon",
+        "evening": "Evening",
+        "minutes": "{count} min",
+        "add": "Add a class on this day",
+        "empty": "Nothing is scheduled for this day.",
+        "emptyFiltered": "No classes match these filters on this day."
+      },
       "status": {
         "SCHEDULED": "Scheduled",
         "CANCELED": "Canceled",
@@ -1019,6 +1047,11 @@
           "included": "Included in plan",
           "paid": "Paid"
         }
+      },
+      "grid": {
+        "addAt": "Add a class at {time}",
+        "now": "Now",
+        "stacked": "{count} classes at this time"
       }
     },
     "members": {
@@ -1454,9 +1487,27 @@
         "reviewsSummary": "{count, plural, one {# review} other {# reviews}} · {newReviews} new this week",
         "noReviews": "No reviews yet.",
         "reviewsModerate": "Read and moderate individual reviews from the trainer’s review queue.",
-        "weeklyAvailability": "Weekly availability",
-        "availabilityBody": "{name} teaches {count, plural, one {# class} other {# classes}} this week. Set the recurring hours they can coach from the availability editor.",
-        "manageAvailability": "Manage availability →"
+        "weeklyAvailability": "Weekly availability"
+      },
+      "availability": {
+        "intro": "The recurring hours this coach can be booked. A day can hold several blocks — a morning and an evening shift, for example — as long as they do not overlap.",
+        "readOnly": "The recurring hours this coach can be booked. You need the trainer-write capability to change them.",
+        "working": "Working",
+        "notWorking": "Not working",
+        "dayOff": "Not available on this day.",
+        "toggleAria": "Works on {day}",
+        "startAria": "{day} block {index} start time",
+        "endAria": "{day} block {index} end time",
+        "removeAria": "Remove {day} block {index}",
+        "addWindow": "Add hours",
+        "maxWindows": "Up to {max} blocks a day",
+        "errorNeedsWindow": "A working day needs at least one block of hours.",
+        "errorEndAfterStart": "The end time must be after the start time.",
+        "errorOverlap": "These blocks overlap. Give each one its own slot.",
+        "save": "Save availability",
+        "saving": "Saving…",
+        "reset": "Discard changes",
+        "savedToast": "Availability saved."
       },
       "errors": {
         "loadTrainers": "Could not load trainers ({status}): {message}",
@@ -1467,7 +1518,8 @@
         "trainerNotFound": "That trainer no longer exists.",
         "photoStorage": "Photo storage is not configured. Save the trainer without a photo, or try again later.",
         "requestFailed": "Request failed ({status}): {message}",
-        "unexpected": "Unexpected error"
+        "unexpected": "Unexpected error",
+        "invalidAvailability": "Invalid availability"
       }
     },
     "staff": {
@@ -1566,7 +1618,8 @@
         "changeRole": "Change role",
         "setRole": "Make {role}",
         "remove": "Remove",
-        "cannotRemoveSelf": "You can’t remove yourself"
+        "cannotRemoveSelf": "You can’t remove yourself",
+        "coachProfile": "Open coach profile"
       },
       "inviteModal": {
         "title": "Invite staff",
@@ -1621,7 +1674,8 @@
         "saving": "Saving…",
         "cancel": "Cancel",
         "close": "Close",
-        "joined": "Joined"
+        "joined": "Joined",
+        "coachProfile": "Coach profile →"
       },
       "roleCaps": {
         "OWNER": "full access to every part of the gym",
@@ -1813,8 +1867,6 @@
         "invoice": "Invoicing",
         "receipt": "Receipts",
         "locations": "Locations",
-        "automation": "Automation fields",
-        "marketing": "Marketing fields",
         "reports": "Reports"
       },
       "language": {
@@ -2073,52 +2125,6 @@
         "renameFailed": "Couldn’t rename this location. Try again."
       },
       "emailTemplatesLink": "Email templates",
-      "automation": {
-        "groups": {
-          "member": "Member fields",
-          "membership": "Membership fields",
-          "business": "Gym fields"
-        },
-        "groupHints": {
-          "member": "Details about the person the message is about.",
-          "membership": "Their plan, its price and when it runs out.",
-          "business": "Your gym's own name and contact details."
-        },
-        "fields": {
-          "memberFirstName": "First name",
-          "memberLastName": "Last name",
-          "memberFullName": "Full name",
-          "memberEmail": "Email",
-          "memberPhone": "Phone",
-          "memberStatus": "Status",
-          "memberJoinDate": "Join date",
-          "memberBirthday": "Birthday",
-          "memberCheckinCount": "Check-in count",
-          "memberPointsBalance": "Points balance",
-          "membershipPlanName": "Plan name",
-          "membershipExpiryDate": "Expiry date",
-          "membershipDaysLeft": "Days until expiry",
-          "membershipPrice": "Price",
-          "membershipRenewalDate": "Renewal date",
-          "businessName": "Gym name",
-          "businessPhone": "Gym phone",
-          "businessAddress": "Gym address",
-          "businessEmail": "Gym email",
-          "businessWebsite": "Gym website"
-        }
-      },
-      "marketing": {
-        "groups": {
-          "member": "Member fields",
-          "membership": "Membership fields",
-          "business": "Gym fields"
-        },
-        "groupHints": {
-          "member": "Details about the person the message is going to.",
-          "membership": "Their plan, its price and when it runs out.",
-          "business": "Your gym's own name and contact details."
-        }
-      },
       "reports": {
         "groupHints": {
           "sales": "Takings, plans, discounts and refunds.",
@@ -2453,7 +2459,7 @@
         "bodyLabel": "Message content",
         "bodyPlaceholder": "Write your message…",
         "mergeHint": "Click to insert a merge field:",
-        "mergeEmpty": "No merge fields are switched on. Settings → Marketing fields."
+        "mergeEmpty": "No merge fields available right now."
       },
       "schedule": {
         "nowTitle": "Send now",

@@ -10,7 +10,7 @@ import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import type { AdminPtSession, ClassInstanceStatus } from '@fit/types';
 import { Badge, Btn, Icon, type Tone } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
-import { addWeeks, toIsoDate, weekDays } from '../schedule/week';
+import { addWeeks, toIsoDate, weekDays, zonedClock } from '../schedule/week';
 import { AddPtSessionDrawer, type ClassTypeOption } from './add-pt-session-drawer';
 import type { TrainerOption } from './trainer-select';
 import { cancelPtSessionAction, completePtSessionAction } from './pt-session-actions';
@@ -398,12 +398,14 @@ function hourLabel(hour: number): string {
 function weekdayShort(day: Date, locale: string): string {
   return createDateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day);
 }
-function formatTime(iso: string, locale: string, timeZone: string): string {
-  return createDateTimeFormat(locale, {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone,
-  }).format(new Date(iso));
+/**
+ * `HH:MM` on the gym's clock. `createDateTimeFormat` reads in UTC by design and
+ * ignores the zone it is given, so this board used to label every session with a
+ * clock that disagreed with the row it was drawn on — the same bug the class
+ * schedule had.
+ */
+function formatTime(iso: string, _locale: string, timeZone: string): string {
+  return zonedClock(new Date(iso), timeZone);
 }
 
 interface PlacedSession {

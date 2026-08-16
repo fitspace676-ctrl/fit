@@ -14,20 +14,48 @@ export const STAFF_ROLES: readonly StaffRole[] = ['OWNER', 'MANAGER', 'RECEPTION
 /** Roles offered in the invite modal (default `MANAGER`), least-to-most sensitive last. */
 export const INVITE_ROLES: readonly StaffRole[] = ['MANAGER', 'RECEPTIONIST', 'TRAINER', 'OWNER'];
 
-/** Badge tone per role, matching the formacore staff artboard's role palette. */
+/**
+ * Badge tone per role — one clearly separate hue each, so a mixed roster tells
+ * you who is who without reading the label.
+ *
+ * The four hues are deliberately the non-status ones: `success` / `warning` /
+ * `danger` are spoken for by the status column sitting right next to the role
+ * chip in the same row (green Active, amber Invited, red Suspended), so a green
+ * role badge would read as a second status. `brand` / `accent` / `iris` all
+ * collapse onto the same purple chip in the Fit theme, so only one of them can
+ * be spent here — it goes to OWNER, the brand-tier role.
+ */
 export const ROLE_TONES: Record<StaffRole, Tone> = {
-  OWNER: 'iris',
-  MANAGER: 'brand',
-  RECEPTIONIST: 'success',
-  TRAINER: 'accent',
+  OWNER: 'iris', // violet
+  MANAGER: 'info', // blue
+  RECEPTIONIST: 'teal',
+  TRAINER: 'flame', // orange
 };
 
-/** Dot background class per role — the swatch shown in the invite role selector. */
+/**
+ * Dot background class per role — the swatch shown in the invite role selector.
+ * The 400 stop of the ramp behind each {@link ROLE_TONES} hue, so the dot in the
+ * selector and the badge it produces are recognisably the same colour.
+ */
 export const ROLE_DOT: Record<StaffRole, string> = {
   OWNER: 'bg-iris-400',
-  MANAGER: 'bg-brand-400',
-  RECEPTIONIST: 'bg-success-400',
-  TRAINER: 'bg-accent-400',
+  MANAGER: 'bg-info-400',
+  RECEPTIONIST: 'bg-teal-400',
+  TRAINER: 'bg-flame-400',
+};
+
+/**
+ * Avatar tint per role — the same categorical ramp the role badge is painted
+ * from, as the `[background, text]` token pair. The initials bubble is the first
+ * thing the eye lands on in a roster row, so colouring it by role makes the row
+ * identifiable before the role column is read at all. Light/dark is handled by
+ * the theme: these are `light-dark()` tokens, not fixed hexes.
+ */
+export const ROLE_AVATAR: Record<StaffRole, readonly [bg: string, fg: string]> = {
+  OWNER: ['var(--color-background-purple)', 'var(--color-text-purple)'],
+  MANAGER: ['var(--color-background-blue)', 'var(--color-text-blue)'],
+  RECEPTIONIST: ['var(--color-background-teal)', 'var(--color-text-teal)'],
+  TRAINER: ['var(--color-background-orange)', 'var(--color-text-orange)'],
 };
 
 /** Badge tone per lifecycle status — green active, amber invited, red suspended. */

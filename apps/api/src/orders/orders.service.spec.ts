@@ -62,6 +62,8 @@ function setup(over?: {
   userId?: string;
   /** The caller's staff row at this gym, or null when they hold no membership here. */
   staff?: { id: string } | null;
+  /** The product rows the sale's stock draw-down reads back. */
+  productFindMany?: unknown[];
 }) {
   const sendReceiptEmail = vi.fn<() => Promise<boolean>>(() =>
     Promise.resolve(over?.delivered ?? true),
@@ -82,7 +84,17 @@ function setup(over?: {
   const orderCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'order-1' }));
   const paymentCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'pay-1' }));
   const groupBy = vi.fn((_args: unknown) => Promise.resolve(over?.grouped ?? []));
-  const tx = { order: { create: orderCreate }, payment: { create: paymentCreate } };
+  // The sale draws its sold units down in the same transaction, so the mock
+  // transaction has to carry the product + ledger writes as well as the money.
+  const productFindMany = vi.fn((_args: unknown) => Promise.resolve(over?.productFindMany ?? []));
+  const productUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'p1' }));
+  const movementCreateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
+  const tx = {
+    order: { create: orderCreate },
+    payment: { create: paymentCreate },
+    product: { findMany: productFindMany, update: productUpdate },
+    stockMovement: { createMany: movementCreateMany },
+  };
   const $transaction = vi.fn((cb: (client: typeof tx) => unknown) => cb(tx));
   const email = { sendReceiptEmail } as unknown as EmailService;
   const tenant = { gymId: 'gym-1', userId: over?.userId } as unknown as TenantContext;
@@ -110,6 +122,9 @@ function setup(over?: {
     orderCreate,
     paymentCreate,
     groupBy,
+    productFindMany,
+    productUpdate,
+    movementCreateMany,
   };
 }
 
@@ -236,8 +251,8 @@ describe('OrdersService.recordSale', () => {
     // Quantity is folded into the line label only when more than one was sold, but
     // the raw `qty` is recorded on each line (for refund restock) regardless.
     expect(orderArgs.data.items.create).toEqual([
-      { label: 'Protein bar ×2', amount: 500, qty: 2 },
-      { label: 'Towel', amount: 300, qty: 1 },
+      { label: 'Protein bar ×2', amount: 500, qty: 2, productVariantId: null },
+      { label: 'Towel', amount: 300, qty: 1, productVariantId: null },
     ]);
     // The opening PAID transition is logged for the status timeline (T7.9). This
     // `setup()` has no authenticated caller, so the transition has no actor.
@@ -384,6 +399,147 @@ describe('OrdersService.recordSale', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(enrollMember).not.toHaveBeenCalled();
     expect(orderCreate).not.toHaveBeenCalled();
+  });
+});
+
+// ── The till's stock draw-down ────────────────────────────────────────────────
+//
+// A sale across the counter moves inventory exactly like one through the online
+// shop. Before this, the till recorded only money: the day's takings reconciled
+// while the shelves silently disagreed with the catalogue.
+
+/** A till sale of two units of one catalogue product, sold at its base position. */
+const stockSaleInput: RecordPosSaleInput = {
+  memberId: null,
+  receipt: {
+    currency: 'USD',
+    items: [
+      {
+        name: 'Protein bar',
+        quantity: 2,
+        unitPrice: 250,
+        amount: 500,
+        productId: 'p1',
+        variantIndex: null,
+      },
+    ],
+    subtotal: 500,
+    discountTotal: 0,
+    total: 500,
+    paymentMethod: 'cash',
+    cashTendered: 500,
+    changeDue: 0,
+  },
+};
+
+describe('OrdersService.recordSale — stock', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('draws the sold units down from the base position', async () => {
+    const { service, productUpdate } = setup({
+      productFindMany: [{ id: 'p1', variants: [], stock: 10 }],
+    });
+
+    await service.recordSale(stockSaleInput);
+
+    const updateArgs = productUpdate.mock.calls[0]![0] as { data: { stock: number } };
+    expect(updateArgs.data.stock).toBe(8);
+  });
+
+  it('draws down the named variant when the line sells one', async () => {
+    const { service, productUpdate } = setup({
+      productFindMany: [
+        {
+          id: 'p1',
+          variants: [{ name: 'M', sku: 'BAR-M', priceAmount: null, stock: 5 }],
+          stock: null,
+        },
+      ],
+    });
+
+    await service.recordSale({
+      ...stockSaleInput,
+      receipt: {
+        ...stockSaleInput.receipt,
+        items: [{ ...stockSaleInput.receipt.items[0]!, variantIndex: 0 }],
+      },
+    });
+
+    const updateArgs = productUpdate.mock.calls[0]![0] as {
+      data: { variants: Array<{ stock: number }> };
+    };
+    expect(updateArgs.data.variants[0]!.stock).toBe(3);
+  });
+
+  it('records a SALE movement tied to the order, so the count is explained', async () => {
+    const { service, movementCreateMany } = setup({
+      productFindMany: [{ id: 'p1', variants: [], stock: 10 }],
+    });
+
+    await service.recordSale(stockSaleInput);
+
+    const args = movementCreateMany.mock.calls[0]![0] as { data: unknown[] };
+    expect(args.data).toEqual([
+      {
+        gymId: 'gym-1',
+        productId: 'p1',
+        variantIndex: null,
+        variantLabel: '',
+        delta: -2,
+        resultingStock: 8,
+        reason: 'SALE',
+        orderId: 'order-1',
+      },
+    ]);
+  });
+
+  it('stamps the sold position on the order line, so a refund can restock it', async () => {
+    const { service, orderCreate } = setup({
+      productFindMany: [{ id: 'p1', variants: [], stock: 10 }],
+    });
+
+    await service.recordSale(stockSaleInput);
+
+    const orderArgs = orderCreate.mock.calls[0]![0] as {
+      data: { items: { create: Array<{ productVariantId: string | null }> } };
+    };
+    expect(orderArgs.data.items.create[0]!.productVariantId).toBe('p1:base');
+  });
+
+  it('leaves stock alone for a membership line — a plan owns no shelf', async () => {
+    const { service, productFindMany, productUpdate } = setup();
+
+    await service.recordSale(saleInput);
+
+    expect(productFindMany).not.toHaveBeenCalled();
+    expect(productUpdate).not.toHaveBeenCalled();
+  });
+
+  it('leaves an untracked product alone rather than starting it at zero', async () => {
+    const { service, productUpdate, movementCreateMany } = setup({
+      productFindMany: [{ id: 'p1', variants: [], stock: null }],
+    });
+
+    await service.recordSale(stockSaleInput);
+
+    expect(productUpdate).not.toHaveBeenCalled();
+    expect(movementCreateMany).not.toHaveBeenCalled();
+  });
+
+  it('completes an oversold sale, landing the position at zero', async () => {
+    // The goods are already in the customer's hands — the till must not refuse a
+    // sale because the count was wrong. The ledger records the units that existed.
+    const { service, productUpdate, movementCreateMany, paymentCreate } = setup({
+      productFindMany: [{ id: 'p1', variants: [], stock: 1 }],
+    });
+
+    await service.recordSale(stockSaleInput);
+
+    const updateArgs = productUpdate.mock.calls[0]![0] as { data: { stock: number } };
+    expect(updateArgs.data.stock).toBe(0);
+    const movements = movementCreateMany.mock.calls[0]![0] as { data: Array<{ delta: number }> };
+    expect(movements.data[0]!.delta).toBe(-1);
+    expect(paymentCreate).toHaveBeenCalled();
   });
 });
 
