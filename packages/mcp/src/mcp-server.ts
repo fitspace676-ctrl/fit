@@ -700,8 +700,8 @@ export function createFitMcpServer(token: string): McpServer {
       title: 'Update gym settings',
       description:
         'Partially update gym settings. Sections: brand (name, logoUrl), business, locale, hours, ' +
-        'booking, noShow, freeze, guestPass, trial, memberIntake, staffDirectory, automationFields, ' +
-        'marketingFields, reports, payments, invoice, receipt.',
+        'booking, noShow, freeze, guestPass, trial, memberIntake, staffDirectory, reports, ' +
+        'payments, invoice, receipt.',
       inputSchema: { data: z.record(z.string(), z.unknown()) },
     },
     async ({ data }) => guard(() => api.patch('/gyms/settings', data)),

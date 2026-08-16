@@ -33,6 +33,7 @@ const detail = (over?: Partial<GetAdminTrainerResponse>): GetAdminTrainerRespons
   hiredAt: '2026-02-01T00:00:00.000Z',
   showUpRate: 0.96,
   thisWeek: { classesLed: 12, newReviews: 3, membersTrained: 146 },
+  staffId: 'gm-1',
   ...over,
 });
 

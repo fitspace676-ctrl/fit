@@ -55,6 +55,41 @@ export function zonedToday(now: Date, timeZone: string): Date {
 }
 
 /**
+ * Minutes since gym-local midnight for `instant` — where a class sits on the
+ * day, which is what the calendar grid positions blocks by.
+ */
+export function zonedMinutesOfDay(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  const at = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+  return at('hour') * 60 + at('minute');
+}
+
+/**
+ * `HH:MM` on the **gym's** clock — the only correct way to print a class time on
+ * this calendar.
+ *
+ * `createDateTimeFormat` from `@fit/i18n` cannot do this: it reads every field in
+ * UTC by design (the reporting layer depends on that) and says so in its own
+ * docs. The schedule handed it the gym's zone anyway, so every block on the grid
+ * printed a UTC clock while being *positioned* by the gym clock — a Tbilisi gym's
+ * 12:00 class sat correctly on the 12:00 row with "08:00" written on it. Times
+ * here go through `Intl` directly, the same call `zonedMinutesOfDay` uses, so the
+ * label and the row can no longer disagree.
+ */
+export function zonedClock(instant: Date, timeZone: string): string {
+  const minutes = zonedMinutesOfDay(instant, timeZone);
+  const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const mm = String(minutes % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+/**
  * The UTC instant at which the gym-local calendar day `anchor` begins.
  *
  * The offset depends on the instant and the instant on the offset, so the guess
@@ -148,6 +183,43 @@ export function weekWindow(weekStart: Date, timeZone: string): { from: string; t
   return {
     from: zonedDayStart(weekStart, timeZone).toISOString(),
     to: zonedDayStart(addWeeks(weekStart, 1), timeZone).toISOString(),
+  };
+}
+
+// ── Day view ────────────────────────────────────────────────────────────────
+// The day agenda is the same maths one column wide: a single day anchor rather
+// than a week's Monday, and a `[from, to)` window one gym-local day long. It
+// shares the `?week=` param with the other views so the anchor carries across a
+// view switch — leaving the agenda on the 15th and pressing "Week" lands on the
+// week that contains the 15th, not back on today.
+
+/**
+ * Resolve a raw `?week=` param to a single day anchor — the day itself, not its
+ * Monday. Anything missing or unparseable falls back to `today`.
+ */
+export function resolveDayAnchor(weekParam: string | undefined, today: Date): Date {
+  if (weekParam && /^\d{4}-\d{2}-\d{2}$/.test(weekParam)) {
+    const parsed = new Date(`${weekParam}T00:00:00.000Z`);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return today;
+}
+
+/** Shift a day anchor by whole days (negative = earlier). */
+export function addDays(anchor: Date, days: number): Date {
+  return new Date(anchor.getTime() + days * DAY_MS);
+}
+
+/**
+ * The half-open instant window `[from, to)` for one gym-local day — its midnight
+ * through the next day's, as ISO-8601 UTC strings.
+ */
+export function dayWindow(anchor: Date, timeZone: string): { from: string; to: string } {
+  return {
+    from: zonedDayStart(anchor, timeZone).toISOString(),
+    to: zonedDayStart(addDays(anchor, 1), timeZone).toISOString(),
   };
 }
 

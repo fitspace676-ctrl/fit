@@ -110,6 +110,35 @@ describe('occurrencesInWindow', () => {
     expect(occ).toEqual([utc(2026, 6, 8), utc(2026, 6, 9), utc(2026, 6, 10)]);
   });
 
+  it('expands a one-off to exactly its start date, on the gym clock', () => {
+    // `FREQ=DAILY;COUNT=1` is what the console's "One time" frequency stores: no
+    // validUntil is needed, because the rule itself stops after one occurrence.
+    const occ = occurrencesInWindow(
+      'FREQ=DAILY;COUNT=1',
+      utc(2026, 6, 8),
+      utc(2026, 6, 1),
+      utc(2026, 7, 6),
+      null,
+      '18:30',
+      'Asia/Tbilisi',
+    );
+    // 18:30 in a UTC+4 gym is 14:30Z — once, and never again.
+    expect(occ).toEqual([utc(2026, 6, 8, 14, 30)]);
+  });
+
+  it('stops offering a one-off once its date has passed', () => {
+    const occ = occurrencesInWindow(
+      'FREQ=DAILY;COUNT=1',
+      utc(2026, 6, 8),
+      utc(2026, 6, 9), // the nightly job runs the day after
+      utc(2026, 7, 6),
+      null,
+      '00:00',
+      'UTC',
+    );
+    expect(occ).toEqual([]);
+  });
+
   it('clamps to an inclusive validUntil (keeping the whole final day)', () => {
     const occ = occurrencesInWindow(
       'FREQ=WEEKLY;BYDAY=MO,WE,FR',

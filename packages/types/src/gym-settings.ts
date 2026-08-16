@@ -409,92 +409,6 @@ export const STAFF_SECTION_FIELDS = [
 ] as const satisfies readonly StaffDirectoryField[];
 
 /**
- * Which merge fields the automation rule editor offers.
- *
- * Every key is one entry of `AUTOMATION_MERGE_FIELDS`; switching it off removes
- * that chip from the picker. Existing rule bodies are untouched — a token already
- * saved in a message still expands on send, because hiding a chip is a statement
- * about what staff are offered next time, not a retroactive edit of their rules.
- *
- * All default **on**: the catalogue is curated to fields the executor can actually
- * fill, so there is nothing here a gym needs protecting from. A gym that finds the
- * palette noisy trims it; that is the whole feature.
- */
-export const gymAutomationFieldsSettingsSchema = z.object({
-  // -- The person --
-  memberFirstName: z.boolean().default(true),
-  memberLastName: z.boolean().default(true),
-  memberFullName: z.boolean().default(true),
-  memberEmail: z.boolean().default(true),
-  memberPhone: z.boolean().default(true),
-  memberStatus: z.boolean().default(true),
-  memberJoinDate: z.boolean().default(true),
-  memberBirthday: z.boolean().default(true),
-  memberCheckinCount: z.boolean().default(true),
-  memberPointsBalance: z.boolean().default(true),
-  // -- Their membership --
-  membershipPlanName: z.boolean().default(true),
-  membershipExpiryDate: z.boolean().default(true),
-  membershipDaysLeft: z.boolean().default(true),
-  membershipPrice: z.boolean().default(true),
-  membershipRenewalDate: z.boolean().default(true),
-  // -- The gym --
-  businessName: z.boolean().default(true),
-  businessPhone: z.boolean().default(true),
-  businessAddress: z.boolean().default(true),
-  businessEmail: z.boolean().default(true),
-  businessWebsite: z.boolean().default(true),
-});
-
-/** The automation merge-field palette config — {@link gymAutomationFieldsSettingsSchema}. */
-export type GymAutomationFieldsSettings = z.infer<typeof gymAutomationFieldsSettingsSchema>;
-
-/** One merge-field toggle — a key of {@link gymAutomationFieldsSettingsSchema}. */
-export type AutomationFieldToggle = keyof GymAutomationFieldsSettings;
-
-/**
- * Which merge fields the marketing composer offers — one key per
- * `MARKETING_MERGE_FIELD_DEFS` entry.
- *
- * Switching a key off removes that chip from the picker. Saved templates and
- * campaigns are untouched — a token already in a body still expands, because
- * hiding a chip is a statement about what staff are offered next time, not a
- * retroactive edit.
- *
- * All default **on**: the catalogue is curated to fields the resolver can fill, so
- * there is nothing here a gym needs protecting from.
- */
-export const gymMarketingFieldsSettingsSchema = z.object({
-  // -- The person --
-  firstName: z.boolean().default(true),
-  lastName: z.boolean().default(true),
-  fullName: z.boolean().default(true),
-  email: z.boolean().default(true),
-  phone: z.boolean().default(true),
-  joinDate: z.boolean().default(true),
-  birthday: z.boolean().default(true),
-  memberStatus: z.boolean().default(true),
-  // -- Their membership --
-  planName: z.boolean().default(true),
-  expiryDate: z.boolean().default(true),
-  daysUntilExpiry: z.boolean().default(true),
-  paymentAmount: z.boolean().default(true),
-  renewalDate: z.boolean().default(true),
-  // -- The gym --
-  businessName: z.boolean().default(true),
-  businessPhone: z.boolean().default(true),
-  businessEmail: z.boolean().default(true),
-  businessAddress: z.boolean().default(true),
-  businessWebsite: z.boolean().default(true),
-});
-
-/** The marketing merge-field palette config — {@link gymMarketingFieldsSettingsSchema}. */
-export type GymMarketingFieldsSettings = z.infer<typeof gymMarketingFieldsSettingsSchema>;
-
-/** One marketing merge-field toggle — a key of {@link gymMarketingFieldsSettingsSchema}. */
-export type MarketingFieldToggle = keyof GymMarketingFieldsSettings;
-
-/**
  * Which reports the Reports hub offers.
  *
  * Every key is one entry of `REPORT_KEYS`; switching it off removes that report
@@ -702,8 +616,6 @@ export const gymSettingsStoredSchema = z.object({
   trial: gymTrialSettingsSchema.default({}),
   memberIntake: gymMemberIntakeSettingsSchema.default({}),
   staffDirectory: gymStaffDirectorySettingsSchema.default({}),
-  automationFields: gymAutomationFieldsSettingsSchema.default({}),
-  marketingFields: gymMarketingFieldsSettingsSchema.default({}),
   reports: gymReportsSettingsSchema.default({}),
   payments: gymPaymentMethodsSchema.default({}),
   invoice: gymInvoiceSettingsSchema.default({}),
@@ -735,8 +647,6 @@ export interface GymSettings {
   trial: GymTrialSettings;
   memberIntake: GymMemberIntakeSettings;
   staffDirectory: GymStaffDirectorySettings;
-  automationFields: GymAutomationFieldsSettings;
-  marketingFields: GymMarketingFieldsSettings;
   reports: GymReportsSettings;
   payments: GymPaymentMethods;
   invoice: GymInvoiceSettings;
@@ -785,8 +695,6 @@ export const updateGymSettingsSchema = z
     trial: gymTrialSettingsSchema.partial().strict().optional(),
     memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional(),
     staffDirectory: gymStaffDirectorySettingsSchema.partial().strict().optional(),
-    automationFields: gymAutomationFieldsSettingsSchema.partial().strict().optional(),
-    marketingFields: gymMarketingFieldsSettingsSchema.partial().strict().optional(),
     reports: gymReportsSettingsSchema.partial().strict().optional(),
     payments: gymPaymentMethodsSchema.partial().strict().optional(),
     invoice: gymInvoiceSettingsSchema.partial().strict().optional(),

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@astryxdesign/core/Card';
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui';
 import {
   PERMISSION_KEYS,
+  ROLE_AVATAR,
   ROLE_TONES,
   STAFF_ROLES,
   STATUS_DOT,
@@ -154,6 +156,8 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-text-accent)',
   },
+  /** Repaints the initials bubble in the member's role colour (see ROLE_AVATAR). */
+  avatarTint: (bg: string, fg: string) => ({ backgroundColor: bg, color: fg }),
   nameCol: {
     display: 'flex',
     alignItems: 'center',
@@ -521,7 +525,9 @@ export function StaffTable({
         const isSelf = currentUserId !== null && member.userId === currentUserId;
         return (
           <div {...stylex.props(styles.nameCell)}>
-            <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
+            <span {...stylex.props(styles.avatar, styles.avatarTint(...ROLE_AVATAR[member.role]))}>
+              {initialsOf(member.name)}
+            </span>
             <div {...stylex.props(styles.nameCol)}>
               <span {...stylex.props(styles.firstName)}>{splitName(member.name).first}</span>
               {isSelf ? <Badge tone="brand">{t('you')}</Badge> : null}
@@ -596,6 +602,28 @@ export function StaffTable({
                           </button>
                         );
                       })}
+                      {/* The coach profile this person teaches under (staff ⇄
+                          trainer link). Present for every TRAINER — the API
+                          creates it with the staff record — and for anyone who
+                          held the role before, whose profile is kept (deactivated)
+                          so their class history survives. */}
+                      {member.trainerId ? (
+                        <>
+                          <div {...stylex.props(styles.menuDivider)} aria-hidden />
+                          <Link
+                            href={`/trainers/${member.trainerId}`}
+                            role="menuitem"
+                            onClick={() => {
+                              setMenuFor(null);
+                              setMenuPos(null);
+                            }}
+                            {...stylex.props(styles.menuItem)}
+                          >
+                            <Icon name="dumbbell" {...stylex.props(styles.menuItemIcon)} />
+                            {t('rowMenu.coachProfile')}
+                          </Link>
+                        </>
+                      ) : null}
                       <div {...stylex.props(styles.menuDivider)} aria-hidden />
                       <button
                         type="button"

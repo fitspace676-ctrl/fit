@@ -128,6 +128,32 @@ describe('posReceiptSchema', () => {
   it('rejects an unknown payment method', () => {
     expect(() => posReceiptSchema.parse({ ...validReceipt, paymentMethod: 'crypto' })).toThrow();
   });
+
+  it('carries the sold stock position when the line names one', () => {
+    const parsed = posReceiptSchema.parse({
+      ...validReceipt,
+      items: [{ ...validReceipt.items[0]!, productId: 'prod-1', variantIndex: 2 }],
+    });
+    expect(parsed.items[0]!.productId).toBe('prod-1');
+    expect(parsed.items[0]!.variantIndex).toBe(2);
+  });
+
+  it('accepts a line with no stock position — a membership sold at the desk', () => {
+    const parsed = posReceiptSchema.parse({
+      ...validReceipt,
+      items: [{ ...validReceipt.items[0]!, productId: null, variantIndex: null }],
+    });
+    expect(parsed.items[0]!.productId).toBeNull();
+  });
+
+  it('rejects a negative variant index — it addresses an array slot', () => {
+    expect(() =>
+      posReceiptSchema.parse({
+        ...validReceipt,
+        items: [{ ...validReceipt.items[0]!, productId: 'prod-1', variantIndex: -1 }],
+      }),
+    ).toThrow();
+  });
 });
 
 describe('sendReceiptSchema', () => {

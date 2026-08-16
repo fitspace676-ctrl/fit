@@ -110,6 +110,15 @@ export interface StaffMember {
   /** Names of the gym locations this member is assigned to (may be empty). */
   locations: string[];
   joinedAt: string;
+  /**
+   * The coach profile this person teaches under, or `null` when they have none.
+   * A `TRAINER`-role member always has one — the API creates it with the staff
+   * record and keeps its name in step — so the roster can link straight to it and
+   * classes can be assigned to the same person the directory lists. Non-trainer
+   * roles read `null` unless they held the role before (the profile is
+   * deactivated, not deleted, so their class history survives).
+   */
+  trainerId: string | null;
 }
 
 /**

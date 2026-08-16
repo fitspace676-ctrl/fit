@@ -1,23 +1,44 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { AdminClassTypeOption, AdminScheduleInstance, ClassInstanceStatus } from '@fit/types';
+import {
+  RECURRENCE_WEEKDAYS,
+  type AdminClassTypeOption,
+  type AdminScheduleInstance,
+  type ClassInstanceStatus,
+  type RecurrenceWeekday,
+} from '@fit/types';
 import { Badge, Btn, Icon, type Tone } from '@/components/ui';
 import { Card } from '@astryxdesign/core/Card';
 import { useOccupancyStream } from '@/hooks/use-occupancy-stream';
 import { ClassDrawer } from './class-drawer';
 import { AddClassDrawer } from '../add-class-drawer';
 import type { RelationOption } from '../class-template-form';
-import { addMonths, addWeeks, monthGridDays, toIsoDate, weekDays, zonedIsoDate } from './week';
+import {
+  addDays,
+  addMonths,
+  addWeeks,
+  monthGridDays,
+  toIsoDate,
+  weekDays,
+  zonedClock,
+  zonedIsoDate,
+  zonedMinutesOfDay,
+} from './week';
+import { layoutDay } from './overlap';
+import type { ClassFormSeed } from '../class-template-form';
 import { createDateTimeFormat } from '@fit/i18n';
 
 type T = ReturnType<typeof useTranslations>;
 
-/** Which calendar surface is showing — the two calendar granularities plus the list. */
-export type ScheduleView = 'week' | 'month' | 'list';
+/**
+ * Which calendar surface is showing — the day agenda, the two calendar
+ * granularities, and the week list.
+ */
+export type ScheduleView = 'day' | 'week' | 'month' | 'list';
 
 // ── Time-grid geometry (week view) ───────────────────────────────────────────
 // The week grid draws a fixed 06:00–22:00 day, one row per hour split in half at
@@ -41,6 +62,27 @@ const GRID_PAD_REM = 0.5;
 /** Fewest hour rows the grid draws, so a sparse week still reads as a day. */
 const MIN_ROWS = 6;
 const MIN_EVENT_REM = 1.5;
+/**
+ * A strip down the right of every day column that class blocks never cover, so
+ * the click-to-create layer underneath is always reachable.
+ *
+ * Blocks used the full width of their column, which meant an hour holding one
+ * class had no clickable grid left in it: pointing anywhere on that hour hit the
+ * class and opened it, and there was no way to schedule a second class at a time
+ * that already had one — exactly when a gym wants a parallel session in another
+ * room. Reserving the strip costs a slice of every block's width and buys back a
+ * "+" target on every hour of every day, occupied or not.
+ */
+const SLOT_GUTTER_REM = 1.5;
+
+/** The day agenda's timeline gutter: the clock column, then the rail. */
+const AGENDA_COLUMNS = '3.75rem 1rem minmax(0, 1fr)';
+
+const pulse = stylex.keyframes({
+  '0%': { opacity: 1 },
+  '50%': { opacity: 0.4 },
+  '100%': { opacity: 1 },
+});
 
 const styles = stylex.create({
   root: {
@@ -302,6 +344,80 @@ const styles = stylex.create({
   },
   eventCanceled: {
     opacity: 0.6,
+  },
+  /**
+   * A card in a stacked cluster. The ring separates it from the card behind —
+   * without it three overlapping cards read as one shape — and hover/focus lifts
+   * the one being pointed at clear of the pile so it can be read in full.
+   */
+  eventStacked: {
+    boxShadow: {
+      default: '0 0 0 1px var(--color-border-emphasized), var(--shadow-low)',
+      ':hover': '0 0 0 1px var(--color-accent), var(--shadow-high)',
+    },
+    zIndex: {
+      default: null,
+      ':hover': 40,
+      ':focus-visible': 40,
+    },
+  },
+  /**
+   * The click target for creating a class where the operator points. It sits
+   * under the event blocks, so a click only reaches it on empty grid.
+   */
+  slotLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    cursor: 'copy',
+  },
+  /**
+   * The slot the next click would create, previewed under the cursor. It is
+   * drawn *over* the class blocks (and cannot be clicked through) so that a slot
+   * previewed from the {@link SLOT_GUTTER_REM} strip stays readable — label and
+   * all — instead of hiding behind the class already on that hour.
+   */
+  slotGhost: {
+    position: 'absolute',
+    left: '0.125rem',
+    right: '0.125rem',
+    zIndex: 30,
+    display: 'flex',
+    alignItems: 'flex-start',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-muted)',
+    paddingBlock: '0.1875rem',
+    paddingInline: '0.375rem',
+    pointerEvents: 'none',
+  },
+  slotGhostLabel: {
+    fontSize: '0.625rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-accent)',
+  },
+  /** The gym's current time, drawn across today's column only. */
+  nowLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: '1px',
+    backgroundColor: 'var(--color-error)',
+    zIndex: 30,
+    pointerEvents: 'none',
+  },
+  nowDot: {
+    position: 'absolute',
+    left: '-0.1875rem',
+    top: '-0.1875rem',
+    width: '0.4375rem',
+    height: '0.4375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-error)',
   },
   eventTime: {
     fontSize: '0.625rem',
@@ -664,6 +780,415 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
+
+  // ── Day agenda ─────────────────────────────────────────────────────────────
+  // One day, read top to bottom: a summary hero, then a timeline of rows —
+  // clock gutter, rail, card — grouped into morning / afternoon / evening.
+  agenda: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  hero: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    padding: '1.25rem',
+  },
+  /** Today reads as the live day, not just another date. */
+  heroToday: {
+    borderColor: 'var(--color-accent)',
+    backgroundImage: 'linear-gradient(120deg, var(--color-accent-muted), transparent 60%)',
+  },
+  heroDates: {
+    display: 'flex',
+    minWidth: 0,
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
+  heroWeekday: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-secondary)',
+  },
+  heroDate: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.375rem, 3vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    lineHeight: 1.1,
+    color: 'var(--color-text-primary)',
+  },
+  heroStats: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+  },
+  stat: {
+    display: 'flex',
+    minWidth: '5rem',
+    flexDirection: 'column',
+    gap: '0.125rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-body)',
+    paddingBlock: '0.5rem',
+    paddingInline: '0.75rem',
+  },
+  statValue: {
+    fontSize: '1.125rem',
+    fontWeight: 800,
+    lineHeight: 1.1,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  statLabel: {
+    fontSize: '0.625rem',
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-secondary)',
+  },
+  period: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.625rem',
+  },
+  periodHead: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  periodLabel: {
+    fontSize: '0.6875rem',
+    fontWeight: 800,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-secondary)',
+  },
+  periodRule: {
+    height: '1px',
+    flex: 1,
+    backgroundColor: 'var(--color-border)',
+  },
+  periodCount: {
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  rows: {
+    listStyleType: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  row: {
+    display: 'grid',
+    gridTemplateColumns: AGENDA_COLUMNS,
+    gap: '0.75rem',
+    paddingBottom: '0.625rem',
+  },
+  /** A class that has already finished steps back without disappearing. */
+  rowPast: {
+    opacity: 0.55,
+  },
+  rowTime: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '0.125rem',
+    paddingTop: '0.6875rem',
+  },
+  rowStart: {
+    fontSize: '0.9375rem',
+    fontWeight: 800,
+    lineHeight: 1,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  rowEnd: {
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  rail: {
+    position: 'relative',
+  },
+  /** The thread the dots hang from; the last row of a group doesn't need one. */
+  railLine: {
+    position: 'absolute',
+    top: '1.5rem',
+    bottom: '-0.625rem',
+    left: '50%',
+    width: '1px',
+    marginLeft: '-0.5px',
+    backgroundColor: 'var(--color-border)',
+  },
+  railLineLast: {
+    display: 'none',
+  },
+  railDot: {
+    position: 'absolute',
+    top: '0.8125rem',
+    left: '50%',
+    width: '0.625rem',
+    height: '0.625rem',
+    marginLeft: '-0.3125rem',
+    borderRadius: 'var(--radius-full)',
+    boxShadow: '0 0 0 3px var(--color-background-body)',
+  },
+  railDotLive: {
+    boxShadow: '0 0 0 3px var(--color-background-body), 0 0 0 6px var(--color-accent-muted)',
+  },
+  agendaCard: {
+    position: 'relative',
+    display: 'flex',
+    width: '100%',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-border-emphasized)',
+    },
+    backgroundColor: 'var(--color-background-surface)',
+    paddingBlock: '0.75rem',
+    paddingLeft: '1rem',
+    paddingRight: '0.875rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    boxShadow: {
+      default: 'var(--shadow-low)',
+      ':hover': 'var(--shadow-high)',
+    },
+    transform: {
+      default: 'translateX(0)',
+      ':hover': 'translateX(0.1875rem)',
+    },
+    transitionProperty: 'transform, box-shadow, border-color',
+    transitionDuration: '150ms',
+    outlineStyle: 'none',
+  },
+  /** The class running right now, ringed so the eye lands on it first. */
+  agendaCardLive: {
+    borderColor: 'var(--color-accent)',
+    boxShadow: {
+      default: '0 0 0 1px var(--color-accent), var(--shadow-low)',
+      ':hover': '0 0 0 1px var(--color-accent), var(--shadow-high)',
+    },
+  },
+  agendaCardCanceled: {
+    opacity: 0.65,
+  },
+  agendaAccent: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '0.25rem',
+  },
+  agendaMain: {
+    display: 'flex',
+    minWidth: 0,
+    flex: '1 1 12rem',
+    flexDirection: 'column',
+    gap: '0.3125rem',
+  },
+  agendaTitleRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  agendaTitle: {
+    margin: 0,
+    fontSize: '0.9375rem',
+    fontWeight: 700,
+    lineHeight: 1.2,
+    color: 'var(--color-text-primary)',
+  },
+  agendaMeta: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  agendaOcc: {
+    display: 'flex',
+    width: '7.5rem',
+    flex: '0 0 auto',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '0.3125rem',
+  },
+  agendaOccTop: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '0.375rem',
+  },
+  agendaOccCount: {
+    fontSize: '0.875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  agendaOccLabel: {
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
+  agendaBar: {
+    width: '100%',
+    height: '0.3125rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  agendaChevron: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-text-secondary)',
+  },
+  livePill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3125rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    paddingBlock: '0.1875rem',
+    paddingInline: '0.4375rem',
+    fontSize: '0.625rem',
+    fontWeight: 800,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+  },
+  liveDot: {
+    width: '0.375rem',
+    height: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'currentColor',
+    animationName: pulse,
+    animationDuration: '1.6s',
+    animationIterationCount: 'infinite',
+  },
+  todayPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    paddingBlock: '0.125rem',
+    paddingInline: '0.5rem',
+    fontSize: '0.625rem',
+    fontWeight: 800,
+    letterSpacing: '0.08em',
+  },
+  /** Where "now" falls between two classes, drawn like the week grid's line. */
+  nowRow: {
+    display: 'grid',
+    gridTemplateColumns: AGENDA_COLUMNS,
+    gap: '0.75rem',
+    alignItems: 'center',
+    paddingBottom: '0.625rem',
+  },
+  nowLabel: {
+    fontSize: '0.6875rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    textAlign: 'right',
+    color: 'var(--color-accent)',
+  },
+  nowMark: {
+    position: 'relative',
+    height: '0.5rem',
+  },
+  nowMarkDot: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: '0.5rem',
+    height: '0.5rem',
+    marginTop: '-0.25rem',
+    marginLeft: '-0.25rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+  },
+  nowBar: {
+    height: '2px',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    opacity: 0.65,
+  },
+  addRow: {
+    display: 'grid',
+    width: '100%',
+    gridTemplateColumns: AGENDA_COLUMNS,
+    gap: '0.75rem',
+    alignItems: 'center',
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    padding: 0,
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+  addGhost: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-accent)',
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-accent-muted)',
+    },
+    color: {
+      default: 'var(--color-text-secondary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+    paddingBlock: '0.625rem',
+    paddingInline: '0.875rem',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    transitionProperty: 'color, border-color, background-color',
+    transitionDuration: '150ms',
+  },
+  addIcon: {
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+  },
 });
 
 /** A `{ id, name }` filter option (a gym trainer or branch). */
@@ -697,6 +1222,7 @@ export function ScheduleBoard({
   view,
   weekStart,
   monthAnchor,
+  dayAnchor,
   instances,
   trainers,
   locations,
@@ -714,6 +1240,8 @@ export function ScheduleBoard({
   weekStart: string;
   /** The visible month's first day, `YYYY-MM-DD` (UTC) — drives month. */
   monthAnchor: string;
+  /** The visible day, `YYYY-MM-DD` (UTC) — drives the day agenda. */
+  dayAnchor: string;
   instances: AdminScheduleInstance[];
   trainers: ScheduleOption[];
   locations: ScheduleOption[];
@@ -752,8 +1280,19 @@ export function ScheduleBoard({
     setDrawerOpen(true);
   }, []);
 
+  // Click-to-create: the slot the operator pointed at, and a counter that asks the
+  // "New class" drawer to open on it. A counter rather than a flag so clicking the
+  // same slot twice reopens the drawer both times.
+  const [slotSeed, setSlotSeed] = useState<ClassFormSeed | undefined>(undefined);
+  const [slotRequests, setSlotRequests] = useState(0);
+  const pickSlot = useCallback((dayIso: string, startTime: string) => {
+    setSlotSeed({ startTime, validFrom: dayIso, weekday: weekdayCodeOf(dayIso) });
+    setSlotRequests((count) => count + 1);
+  }, []);
+
   const monday = useMemo(() => new Date(`${weekStart}T00:00:00.000Z`), [weekStart]);
   const monthFirst = useMemo(() => new Date(`${monthAnchor}T00:00:00.000Z`), [monthAnchor]);
+  const dayDate = useMemo(() => new Date(`${dayAnchor}T00:00:00.000Z`), [dayAnchor]);
   const days = useMemo(() => weekDays(monday), [monday]);
   const monthDays = useMemo(() => monthGridDays(monthFirst), [monthFirst]);
 
@@ -793,26 +1332,35 @@ export function ScheduleBoard({
     [setParams],
   );
 
-  // Prev/next steps by month in month view, else by week. "Today" re-anchors both.
+  // Prev/next steps by whatever the visible view is a window on: a month, a day,
+  // else a week. All three read the same `?week=` anchor, so the date the
+  // operator is looking at survives a switch between them.
   const goPrev = useCallback(() => {
     if (view === 'month') setParams({ week: toIsoDate(addMonths(monthFirst, -1)) });
+    else if (view === 'day') setParams({ week: toIsoDate(addDays(dayDate, -1)) });
     else setParams({ week: toIsoDate(addWeeks(monday, -1)) });
-  }, [view, monthFirst, monday, setParams]);
+  }, [view, monthFirst, dayDate, monday, setParams]);
   const goNext = useCallback(() => {
     if (view === 'month') setParams({ week: toIsoDate(addMonths(monthFirst, 1)) });
+    else if (view === 'day') setParams({ week: toIsoDate(addDays(dayDate, 1)) });
     else setParams({ week: toIsoDate(addWeeks(monday, 1)) });
-  }, [view, monthFirst, monday, setParams]);
+  }, [view, monthFirst, dayDate, monday, setParams]);
+  // "Today" is the day agenda, always re-anchored on the gym's own today — from
+  // any view, on any date, it is the one control that answers "what is on now".
   const goToday = useCallback(
-    () => setParams({ week: zonedIsoDate(new Date(), timeZone) }),
+    () => setParams({ view: 'day', week: zonedIsoDate(new Date(), timeZone) }),
     [setParams, timeZone],
   );
 
   const rangeLabel =
     view === 'month'
       ? formatMonth(monthFirst, locale)
-      : formatRange(days[0]!, days[days.length - 1]!, locale);
+      : view === 'day'
+        ? formatDay(dayDate, locale)
+        : formatRange(days[0]!, days[days.length - 1]!, locale);
   const hasFilters = trainerId !== '' || locationId !== '';
   const isCalendar = view === 'week' || view === 'month';
+  const dayKey = toIsoDate(dayDate);
 
   return (
     <div {...stylex.props(styles.root)}>
@@ -842,9 +1390,7 @@ export function ScheduleBoard({
         <div {...stylex.props(styles.rightGroup)}>
           {/* Today · Week · Month */}
           <div {...stylex.props(styles.seg)} role="group" aria-label={t('toolbar.range')}>
-            <button type="button" onClick={goToday} {...stylex.props(styles.segBtn)}>
-              {t('toolbar.today')}
-            </button>
+            <SegButton active={view === 'day'} label={t('toolbar.today')} onClick={goToday} />
             <SegButton
               active={view === 'week'}
               label={t('toolbar.week')}
@@ -857,20 +1403,26 @@ export function ScheduleBoard({
             />
           </div>
 
-          {/* Calendar · List */}
-          <div {...stylex.props(styles.seg)} role="group" aria-label={t('toolbar.mode')}>
-            <SegButton
-              active={isCalendar}
-              label={t('toolbar.calendar')}
-              icon="calendar"
-              onClick={() => setView('week')}
-            />
-            <SegButton
-              active={view === 'list'}
-              label={t('toolbar.list')}
-              onClick={() => setView('list')}
-            />
-          </div>
+          {/*
+            Calendar · List — how the *week* is drawn. The day agenda has only
+            the one presentation, so rather than leave both halves unpressed the
+            control steps aside while it is showing.
+          */}
+          {view === 'day' ? null : (
+            <div {...stylex.props(styles.seg)} role="group" aria-label={t('toolbar.mode')}>
+              <SegButton
+                active={isCalendar}
+                label={t('toolbar.calendar')}
+                icon="calendar"
+                onClick={() => setView('week')}
+              />
+              <SegButton
+                active={view === 'list'}
+                label={t('toolbar.list')}
+                onClick={() => setView('list')}
+              />
+            </div>
+          )}
 
           {addClass ? (
             <AddClassDrawer
@@ -879,6 +1431,8 @@ export function ScheduleBoard({
               plans={addClass.plans}
               classTypes={addClass.classTypes}
               triggerLabel={t('toolbar.addClass')}
+              seed={slotSeed}
+              openToken={slotRequests}
             />
           ) : null}
         </div>
@@ -912,7 +1466,20 @@ export function ScheduleBoard({
         ) : null}
       </div>
 
-      {view === 'week' ? (
+      {view === 'day' ? (
+        <DayAgenda
+          day={dayDate}
+          isToday={dayKey === todayKey}
+          instances={byDay.get(dayKey) ?? []}
+          filtered={hasFilters}
+          locale={locale}
+          timeZone={timeZone}
+          openHour={openHour}
+          t={t}
+          onOpen={openInstance}
+          onPickSlot={addClass ? pickSlot : null}
+        />
+      ) : view === 'week' ? (
         <WeekGrid
           days={days}
           byDay={byDay}
@@ -923,6 +1490,7 @@ export function ScheduleBoard({
           closeHour={closeHour}
           t={t}
           onOpen={openInstance}
+          onPickSlot={addClass ? pickSlot : null}
         />
       ) : view === 'month' ? (
         <MonthGrid
@@ -996,28 +1564,387 @@ function SegButton({
   );
 }
 
+// ── Day agenda ────────────────────────────────────────────────────────────────
+// "Today" used to only re-anchor the week, which from the current week did
+// nothing at all. It is now a surface of its own: one day read top to bottom as
+// a timeline — the shape a front desk actually works from — with the classes
+// that have finished stepped back, the one running right now ringed, and a line
+// where the clock has got to.
+
+/** Where a class sits relative to now: what dims it, rings it, or leaves it be. */
+type RowState = 'past' | 'live' | 'upcoming';
+
+/**
+ * The stretches a gym day reads in, as the exclusive end of each on the gym's
+ * clock. Grouping by them gives the timeline its headings without inventing a
+ * shift model the gym hasn't configured.
+ */
+const PERIODS = [
+  { key: 'morning', endMin: 12 * 60 },
+  { key: 'afternoon', endMin: 17 * 60 },
+  { key: 'evening', endMin: 24 * 60 },
+] as const;
+
+/**
+ * The current instant, resolved after mount and re-read each minute. Rendering
+ * it server-side would bake the build's clock into the markup and mismatch on
+ * hydration, so it is null on first paint — every row then reads as "upcoming"
+ * until the effect lands, which is the state the server rendered.
+ */
+function useNow(): Date | null {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+/** Whether `instance` has finished, is running, or is still to come at `now`. */
+function rowState(instance: AdminScheduleInstance, now: Date | null): RowState {
+  if (now === null) return 'upcoming';
+  const at = now.getTime();
+  if (at >= new Date(instance.endsAt).getTime()) return 'past';
+  return at >= new Date(instance.startsAt).getTime() ? 'live' : 'upcoming';
+}
+
+/** One day as a timeline: a summary hero over morning / afternoon / evening rows. */
+function DayAgenda({
+  day,
+  isToday,
+  instances,
+  filtered,
+  locale,
+  timeZone,
+  openHour,
+  t,
+  onOpen,
+  onPickSlot,
+}: {
+  day: Date;
+  isToday: boolean;
+  instances: AdminScheduleInstance[];
+  /** Whether a trainer/location filter is narrowing the day (changes the empty copy). */
+  filtered: boolean;
+  locale: string;
+  timeZone: string;
+  /** The gym's opening hour — where a first class on an empty day is seeded. */
+  openHour: number;
+  t: T;
+  onOpen: (instance: AdminScheduleInstance) => void;
+  /** Click-to-create: null when the staffer can't add classes. */
+  onPickSlot: ((dayIso: string, startTime: string) => void) | null;
+}) {
+  const now = useNow();
+  const dayIso = toIsoDate(day);
+
+  // A canceled class holds no seats, so it counts as a class on the day but not
+  // towards how full the day is.
+  const totals = useMemo(() => {
+    let booked = 0;
+    let capacity = 0;
+    let canceled = 0;
+    for (const instance of instances) {
+      if (instance.status === 'CANCELED') {
+        canceled += 1;
+        continue;
+      }
+      booked += instance.bookedCount;
+      capacity += instance.capacity;
+    }
+    return { booked, capacity, canceled };
+  }, [instances]);
+
+  // The API returns the day already ordered by `startsAt`, so each bucket keeps
+  // its chronology for free. Empty stretches are dropped rather than drawn.
+  const groups = useMemo(
+    () =>
+      PERIODS.map((period, index) => {
+        const fromMin = index === 0 ? 0 : PERIODS[index - 1]!.endMin;
+        return {
+          key: period.key,
+          items: instances.filter((instance) => {
+            const minute = zonedMinutesOfDay(new Date(instance.startsAt), timeZone);
+            return minute >= fromMin && minute < period.endMin;
+          }),
+        };
+      }).filter((group) => group.items.length > 0),
+    [instances, timeZone],
+  );
+
+  // Where the clock has got to: before the next class still to come, or after
+  // the last row once every class of the day has ended.
+  const nowClock = isToday && now !== null ? zonedClock(now, timeZone) : null;
+  const nextId =
+    now === null
+      ? null
+      : (instances.find((instance) => new Date(instance.startsAt).getTime() > now.getTime())?.id ??
+        null);
+  const nowAtEnd =
+    nowClock !== null &&
+    nextId === null &&
+    instances.length > 0 &&
+    instances.every((instance) => new Date(instance.endsAt).getTime() <= now!.getTime());
+
+  // A new class is seeded where the day left off — after the last class, or at
+  // opening time on a day with none.
+  const seedTime =
+    instances.length === 0
+      ? `${String(openHour).padStart(2, '0')}:00`
+      : zonedClock(new Date(instances[instances.length - 1]!.endsAt), timeZone);
+
+  return (
+    <section aria-label={t('day.agendaAria')} {...stylex.props(styles.agenda)}>
+      <header {...stylex.props(styles.hero, isToday && styles.heroToday)}>
+        <div {...stylex.props(styles.heroDates)}>
+          <span {...stylex.props(styles.heroWeekday)}>
+            {weekdayLong(day, locale)}
+            {isToday ? <span {...stylex.props(styles.todayPill)}>{t('day.today')}</span> : null}
+          </span>
+          <p {...stylex.props(styles.heroDate)}>{longDate(day, locale)}</p>
+        </div>
+        <div {...stylex.props(styles.heroStats)}>
+          <Stat value={String(instances.length)} label={t('day.classes')} />
+          {/* "0/0 booked" on a day with nothing on it is noise, not a figure. */}
+          {instances.length > 0 ? (
+            <Stat value={`${totals.booked}/${totals.capacity}`} label={t('day.booked')} />
+          ) : null}
+          {totals.canceled > 0 ? (
+            <Stat value={String(totals.canceled)} label={t('day.canceled')} />
+          ) : null}
+        </div>
+      </header>
+
+      {instances.length === 0 ? (
+        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+          <div {...stylex.props(styles.emptyInner)}>
+            <span {...stylex.props(styles.emptyIcon)}>
+              <Icon name="calendar" {...stylex.props(styles.emptyIconSvg)} />
+            </span>
+            <p {...stylex.props(styles.emptyText)}>
+              {filtered ? t('day.emptyFiltered') : t('day.empty')}
+            </p>
+          </div>
+        </Card>
+      ) : (
+        groups.map((group, groupIndex) => (
+          <div key={group.key} {...stylex.props(styles.period)}>
+            <div {...stylex.props(styles.periodHead)}>
+              <span {...stylex.props(styles.periodLabel)}>{t(`day.${group.key}`)}</span>
+              <span aria-hidden {...stylex.props(styles.periodRule)} />
+              <span {...stylex.props(styles.periodCount)}>{group.items.length}</span>
+            </div>
+            <ol {...stylex.props(styles.rows)}>
+              {group.items.map((instance, index) => (
+                <Fragment key={instance.id}>
+                  {nowClock !== null && instance.id === nextId ? (
+                    <NowRow clock={nowClock} t={t} />
+                  ) : null}
+                  <AgendaRow
+                    instance={instance}
+                    state={rowState(instance, now)}
+                    isLast={index === group.items.length - 1}
+                    locale={locale}
+                    timeZone={timeZone}
+                    t={t}
+                    onOpen={onOpen}
+                  />
+                </Fragment>
+              ))}
+              {nowAtEnd && groupIndex === groups.length - 1 ? (
+                <NowRow clock={nowClock} t={t} />
+              ) : null}
+            </ol>
+          </div>
+        ))
+      )}
+
+      {onPickSlot ? (
+        <button
+          type="button"
+          onClick={() => onPickSlot(dayIso, seedTime)}
+          {...stylex.props(styles.addRow)}
+        >
+          <span />
+          <span />
+          <span {...stylex.props(styles.addGhost)}>
+            <Icon name="plus" sw={2} {...stylex.props(styles.addIcon)} />
+            {t('day.add')}
+          </span>
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+/** One figure in the day hero (classes on the day, seats booked, cancellations). */
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <div {...stylex.props(styles.stat)}>
+      <span {...stylex.props(styles.statValue)}>{value}</span>
+      <span {...stylex.props(styles.statLabel)}>{label}</span>
+    </div>
+  );
+}
+
+/** The clock's position in the day, drawn between two rows. */
+function NowRow({ clock, t }: { clock: string; t: T }) {
+  return (
+    <li aria-label={t('grid.now')} {...stylex.props(styles.nowRow)}>
+      <span {...stylex.props(styles.nowLabel)}>{clock}</span>
+      <span aria-hidden {...stylex.props(styles.nowMark)}>
+        <span {...stylex.props(styles.nowMarkDot)} />
+      </span>
+      <span aria-hidden {...stylex.props(styles.nowBar)} />
+    </li>
+  );
+}
+
+/** One class on the day timeline: clock gutter, rail dot, and the class card. */
+function AgendaRow({
+  instance,
+  state,
+  isLast,
+  locale,
+  timeZone,
+  t,
+  onOpen,
+}: {
+  instance: AdminScheduleInstance;
+  state: RowState;
+  /** The last row of its group, whose rail thread has nothing to reach. */
+  isLast: boolean;
+  locale: string;
+  timeZone: string;
+  t: T;
+  onOpen: (instance: AdminScheduleInstance) => void;
+}) {
+  const canceled = instance.status === 'CANCELED';
+  // A canceled class is never "on now", however the clock reads.
+  const live = state === 'live' && !canceled;
+  const start = formatTime(instance.startsAt, locale, timeZone);
+  const end = formatTime(instance.endsAt, locale, timeZone);
+  const remaining = Math.max(0, instance.capacity - instance.bookedCount);
+  const pct = instance.capacity > 0 ? (instance.bookedCount / instance.capacity) * 100 : 0;
+  const barColor =
+    pct > 85 ? 'var(--color-error)' : pct > 60 ? 'var(--color-warning)' : 'var(--color-success)';
+  const statusTone = STATUS_TONES[instance.status];
+  const where = [instance.locationName, instance.room].filter(Boolean).join(' · ');
+
+  return (
+    <li {...stylex.props(styles.row, state === 'past' && styles.rowPast)}>
+      <div {...stylex.props(styles.rowTime)}>
+        <span {...stylex.props(styles.rowStart)}>{start}</span>
+        <span {...stylex.props(styles.rowEnd)}>{end}</span>
+      </div>
+
+      <div aria-hidden {...stylex.props(styles.rail)}>
+        <span {...stylex.props(styles.railLine, isLast && styles.railLineLast)} />
+        <span
+          {...stylex.props(styles.railDot, live && styles.railDotLive)}
+          style={{
+            backgroundColor: state === 'past' ? 'var(--color-border-emphasized)' : instance.color,
+          }}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onOpen(instance)}
+        aria-label={t('card.viewAria', { title: instance.title, time: start })}
+        {...stylex.props(
+          styles.agendaCard,
+          live && styles.agendaCardLive,
+          canceled && styles.agendaCardCanceled,
+        )}
+      >
+        <span
+          aria-hidden
+          {...stylex.props(styles.agendaAccent)}
+          style={{ backgroundColor: instance.color }}
+        />
+
+        <div {...stylex.props(styles.agendaMain)}>
+          <div {...stylex.props(styles.agendaTitleRow)}>
+            <p {...stylex.props(styles.agendaTitle, canceled && styles.cardTitleCanceled)}>
+              {instance.title}
+            </p>
+            {live ? (
+              <span {...stylex.props(styles.livePill)}>
+                <span aria-hidden {...stylex.props(styles.liveDot)} />
+                {t('grid.now')}
+              </span>
+            ) : null}
+            {statusTone ? <Badge tone={statusTone}>{t(`status.${instance.status}`)}</Badge> : null}
+          </div>
+          <div {...stylex.props(styles.agendaMeta)}>
+            <span {...stylex.props(styles.metaRow)}>
+              <Icon name="clock" sw={2} {...stylex.props(styles.smallIcon)} />
+              {t('day.minutes', { count: durationMinutes(instance) })}
+            </span>
+            {instance.trainerName ? (
+              <span {...stylex.props(styles.metaRow, styles.truncate)}>
+                <Icon name="user" sw={2} {...stylex.props(styles.smallIcon)} />
+                <span {...stylex.props(styles.truncate)}>{instance.trainerName}</span>
+              </span>
+            ) : null}
+            {where ? (
+              <span {...stylex.props(styles.metaRow, styles.truncate)}>
+                <Icon name="pin" sw={2} {...stylex.props(styles.smallIcon)} />
+                <span {...stylex.props(styles.truncate)}>{where}</span>
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div {...stylex.props(styles.agendaOcc)}>
+          <div {...stylex.props(styles.agendaOccTop)}>
+            <span {...stylex.props(styles.agendaOccCount)}>
+              {instance.bookedCount}/{instance.capacity}
+            </span>
+            <span {...stylex.props(styles.agendaOccLabel)}>
+              {remaining === 0 ? t('card.full') : t('card.remaining', { remaining })}
+            </span>
+          </div>
+          <div {...stylex.props(styles.agendaBar)}>
+            <div
+              {...stylex.props(styles.barFill)}
+              style={{ width: `${Math.min(100, pct)}%`, backgroundColor: barColor }}
+            />
+          </div>
+        </div>
+
+        <Icon name="chevronRight" {...stylex.props(styles.agendaChevron)} />
+      </button>
+    </li>
+  );
+}
+
+/** How long a class runs, in whole minutes (never negative across midnight). */
+function durationMinutes(instance: AdminScheduleInstance): number {
+  const span = new Date(instance.endsAt).getTime() - new Date(instance.startsAt).getTime();
+  return Math.max(0, Math.round(span / 60_000));
+}
+
 // ── Week time-grid ────────────────────────────────────────────────────────────
 
-/** A laid-out event: its instance plus rem-position and overlap lane geometry. */
+/** A laid-out event: its instance plus rem-position and overlap geometry. */
 interface PlacedEvent {
   instance: AdminScheduleInstance;
   topRem: number;
   heightRem: number;
   leftPct: number;
   widthPct: number;
+  /** Paint order — only above 1 when the cluster had to stack (see `layout.ts`). */
+  z: number;
+  /** Whether this card is part of a stacked cluster, which changes how it reads. */
+  cascaded: boolean;
 }
 
 /** Minutes past midnight for an ISO instant, on the gym's clock. */
 function zonedMinutes(iso: string, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date(iso));
-  const at = (type: Intl.DateTimeFormatPartTypes): number =>
-    Number(parts.find((part) => part.type === type)?.value ?? '0');
-  return at('hour') * 60 + at('minute');
+  return zonedMinutesOfDay(new Date(iso), timeZone);
 }
 
 /**
@@ -1076,9 +2003,14 @@ function hourRange(
 }
 
 /**
- * Position one day's occurrences in the `[startHour, endHour)` grid, splitting overlapping
- * events into side-by-side lanes. Times outside the window are clamped so nothing
- * ever disappears (a 05:30 class pins to the top edge, a 23:00 one to the bottom).
+ * Position one day's occurrences in the `[startHour, endHour)` grid.
+ *
+ * The arrangement of classes that share the clock is {@link layoutDay}'s job (it
+ * is the part with rules worth testing on their own — see `overlap.spec.ts`); this converts the day's
+ * occurrences into its minute spans and its answer back into the rem/percent
+ * geometry the blocks are drawn with. Times outside the window are clamped so
+ * nothing ever disappears — a 05:30 class pins to the top edge, a 23:00 one to
+ * the bottom.
  */
 function placeEvents(
   instances: AdminScheduleInstance[],
@@ -1087,63 +2019,116 @@ function placeEvents(
   endHour: number,
 ): PlacedEvent[] {
   const totalMin = (endHour - startHour) * 60;
-  const items = instances
-    .map((instance) => {
-      const start = zonedMinutes(instance.startsAt, timeZone) - startHour * 60;
-      const rawEnd = zonedMinutes(instance.endsAt, timeZone) - startHour * 60;
-      // A class ending at or past local midnight wraps to a smaller number than
-      // it started at — a 23:00–00:00 hour reads as 23:00→00:00, not a negative
-      // span. Run it to the end of the grid instead of collapsing it to the
-      // 30-minute stub the zero-length guard gives, which cut its title in half.
-      const wrapsMidnight = rawEnd <= start;
-      const end = wrapsMidnight ? (endHour - startHour) * 60 : rawEnd;
-      return { instance, start, end };
-    })
-    .sort((a, b) => a.start - b.start || a.end - b.end);
 
-  // Cluster transitively-overlapping events, then greedily assign lanes per cluster.
-  const placed: PlacedEvent[] = [];
-  let cluster: typeof items = [];
-  let clusterEnd = -Infinity;
+  const spans = instances.map((instance) => {
+    const startMin = zonedMinutes(instance.startsAt, timeZone) - startHour * 60;
+    const rawEnd = zonedMinutes(instance.endsAt, timeZone) - startHour * 60;
+    // A class ending at or past local midnight wraps to a smaller number than it
+    // started at — 23:00–00:00 reads as 23:00→00:00, not a negative span. Run it
+    // to the end of the grid rather than collapsing it to a stub that cuts the
+    // title in half.
+    return { item: instance, startMin, endMin: rawEnd <= startMin ? totalMin : rawEnd };
+  });
 
-  const flush = () => {
-    if (cluster.length === 0) return;
-    const laneEnds: number[] = [];
-    const laneOf = new Map<number, number>();
-    cluster.forEach((item, idx) => {
-      let lane = laneEnds.findIndex((e) => e <= item.start);
-      if (lane === -1) {
-        lane = laneEnds.length;
-        laneEnds.push(item.end);
-      } else {
-        laneEnds[lane] = item.end;
-      }
-      laneOf.set(idx, lane);
-    });
-    const lanes = laneEnds.length;
-    cluster.forEach((item, idx) => {
-      const clampedStart = Math.max(0, Math.min(item.start, totalMin));
-      const clampedEnd = Math.max(clampedStart, Math.min(item.end, totalMin));
-      const lane = laneOf.get(idx) ?? 0;
-      placed.push({
-        instance: item.instance,
-        topRem: (clampedStart / 60) * HOUR_REM,
-        heightRem: Math.max(MIN_EVENT_REM, ((clampedEnd - clampedStart) / 60) * HOUR_REM),
-        leftPct: (lane / lanes) * 100,
-        widthPct: 100 / lanes,
-      });
-    });
-    cluster = [];
-    clusterEnd = -Infinity;
+  return layoutDay(spans).map((box) => {
+    const top = Math.max(0, Math.min(box.startMin, totalMin));
+    const bottom = Math.max(top, Math.min(box.endMin, totalMin));
+    return {
+      instance: box.item,
+      topRem: (top / 60) * HOUR_REM,
+      heightRem: Math.max(MIN_EVENT_REM, ((bottom - top) / 60) * HOUR_REM),
+      leftPct: box.leftPct,
+      widthPct: box.widthPct,
+      z: box.z,
+      cascaded: box.cascaded,
+    };
+  });
+}
+
+/** Minutes a click snaps to — quarter-hours, the finest a gym actually schedules. */
+const SNAP_MIN = 15;
+
+/** How long the previewed slot is, matching the class form's own default. */
+const SLOT_MIN = 60;
+
+/**
+ * The empty grid, as a place to start a class.
+ *
+ * Pointing anywhere in a day column previews the slot the next click creates,
+ * snapped to the quarter-hour and labelled with its start time, so the operator
+ * sees what they are about to get before they commit. The layer sits *under* the
+ * class blocks, so clicking a class still opens that class.
+ *
+ * Pointer-only, and deliberately so: a real control per quarter-hour would put
+ * hundreds of stops in the tab order for a shortcut that saves two fields. It is
+ * hidden from assistive tech, and the toolbar's "Add class" button remains the
+ * keyboard path to the same form.
+ */
+function SlotLayer({
+  dayIso,
+  startHour,
+  totalMin,
+  t,
+  onPick,
+}: {
+  dayIso: string;
+  startHour: number;
+  totalMin: number;
+  t: T;
+  onPick: (dayIso: string, startTime: string) => void;
+}) {
+  const [hoverMin, setHoverMin] = useState<number | null>(null);
+
+  /** The snapped minute-of-grid under the pointer, or null when it is off the layer. */
+  const minuteAt = (event: React.MouseEvent<HTMLDivElement>): number => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientY - rect.top) / rect.height;
+    const raw = ratio * totalMin;
+    const snapped = Math.round(raw / SNAP_MIN) * SNAP_MIN;
+    // Never preview a slot that starts past the end of the drawn day.
+    return Math.max(0, Math.min(snapped, totalMin - SNAP_MIN));
   };
 
-  for (const item of items) {
-    if (item.start >= clusterEnd && cluster.length > 0) flush();
-    cluster.push(item);
-    clusterEnd = Math.max(clusterEnd, item.end);
-  }
-  flush();
-  return placed;
+  const clockOf = (minuteOfGrid: number): string => {
+    const total = startHour * 60 + minuteOfGrid;
+    return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  };
+
+  return (
+    <div
+      aria-hidden
+      onMouseMove={(event) => setHoverMin(minuteAt(event))}
+      onMouseLeave={() => setHoverMin(null)}
+      onClick={(event) => onPick(dayIso, clockOf(minuteAt(event)))}
+      title={hoverMin === null ? undefined : t('grid.addAt', { time: clockOf(hoverMin) })}
+      {...stylex.props(styles.slotLayer)}
+      style={{ height: `${(totalMin / 60) * HOUR_REM}rem` }}
+    >
+      {hoverMin === null ? null : (
+        <div
+          {...stylex.props(styles.slotGhost)}
+          style={{
+            top: `${(hoverMin / 60) * HOUR_REM}rem`,
+            height: `${(Math.min(SLOT_MIN, totalMin - hoverMin) / 60) * HOUR_REM}rem`,
+          }}
+        >
+          <span {...stylex.props(styles.slotGhostLabel)}>+ {clockOf(hoverMin)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The gym's current time, as a line across today's column. Absent (null) until
+ * {@link useNow} has resolved the instant client-side, and whenever now falls
+ * outside the hours the grid happens to be drawing.
+ */
+function useNowMinute(timeZone: string, startHour: number, totalMin: number): number | null {
+  const now = useNow();
+  if (now === null) return null;
+  const minute = zonedMinutesOfDay(now, timeZone) - startHour * 60;
+  return minute >= 0 && minute <= totalMin ? minute : null;
 }
 
 /** The week calendar: a sticky day-header row over a 06:00–22:00 time-grid. */
@@ -1157,6 +2142,7 @@ function WeekGrid({
   closeHour,
   t,
   onOpen,
+  onPickSlot,
 }: {
   days: Date[];
   byDay: Map<string, AdminScheduleInstance[]>;
@@ -1168,6 +2154,8 @@ function WeekGrid({
   closeHour: number;
   t: T;
   onOpen: (instance: AdminScheduleInstance) => void;
+  /** Click-to-create: null when the staffer can't add classes. */
+  onPickSlot: ((dayIso: string, startTime: string) => void) | null;
 }) {
   // The visible window follows the week's own classes, so the grid never spends
   // rows on hours the gym doesn't use.
@@ -1178,6 +2166,8 @@ function WeekGrid({
     closeHour,
   );
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
+  const totalMin = (endHour - startHour) * 60;
+  const nowMin = useNowMinute(timeZone, startHour, totalMin);
   return (
     <div {...stylex.props(styles.calScroll)}>
       <div {...stylex.props(styles.calGrid)}>
@@ -1216,6 +2206,15 @@ function WeekGrid({
               {...stylex.props(styles.dayCol, isToday && styles.dayColToday)}
               style={{ height: `${(endHour - startHour) * HOUR_REM + GRID_PAD_REM * 2}rem` }}
             >
+              {onPickSlot ? (
+                <SlotLayer
+                  dayIso={key}
+                  startHour={startHour}
+                  totalMin={totalMin}
+                  t={t}
+                  onPick={onPickSlot}
+                />
+              ) : null}
               {placed.map((ev) => (
                 <EventBlock
                   key={ev.instance.id}
@@ -1226,6 +2225,15 @@ function WeekGrid({
                   onOpen={onOpen}
                 />
               ))}
+              {isToday && nowMin !== null ? (
+                <div
+                  aria-label={t('grid.now')}
+                  {...stylex.props(styles.nowLine)}
+                  style={{ top: `${(nowMin / 60) * HOUR_REM}rem` }}
+                >
+                  <span aria-hidden {...stylex.props(styles.nowDot)} />
+                </div>
+              ) : null}
             </div>
           );
         })}
@@ -1250,30 +2258,57 @@ function EventBlock({
 }) {
   const { instance } = placed;
   const canceled = instance.status === 'CANCELED';
+  /** Below about two-thirds of the column a time range no longer fits on one line. */
+  const narrow = placed.widthPct < 65;
+  const start = formatTime(instance.startsAt, locale, timeZone);
+  const end = formatTime(instance.endsAt, locale, timeZone);
   return (
     <button
       type="button"
       onClick={() => onOpen(instance)}
-      aria-label={t('card.viewAria', {
-        title: instance.title,
-        time: formatTime(instance.startsAt, locale, timeZone),
-      })}
-      {...stylex.props(styles.event, canceled && styles.eventCanceled)}
+      aria-label={t('card.viewAria', { title: instance.title, time: start })}
+      title={`${start}–${end} · ${instance.title}`}
+      {...stylex.props(
+        styles.event,
+        canceled && styles.eventCanceled,
+        placed.cascaded && styles.eventStacked,
+      )}
       style={{
         top: `${placed.topRem}rem`,
         height: `${placed.heightRem}rem`,
-        left: `calc(${placed.leftPct}% + 0.125rem)`,
-        width: `calc(${placed.widthPct}% - 0.25rem)`,
+        // The overlap layout lays cards out over 0–100% of the column; that
+        // track is squeezed into everything left of the always-clickable gutter.
+        left: `calc((100% - ${SLOT_GUTTER_REM}rem) * ${placed.leftPct / 100} + 0.125rem)`,
+        width: `calc((100% - ${SLOT_GUTTER_REM}rem) * ${placed.widthPct / 100} - 0.25rem)`,
         borderLeftColor: instance.color,
+        zIndex: placed.z,
       }}
     >
-      <span {...stylex.props(styles.eventTime)}>
-        {formatTime(instance.startsAt, locale, timeZone)}–
-        {formatTime(instance.endsAt, locale, timeZone)}
-      </span>
-      <p {...stylex.props(styles.eventTitle, canceled && styles.eventTitleCanceled)}>
-        {instance.title}
-      </p>
+      {/*
+        A card that shares its column has room for one line of each, and the
+        title is the half that identifies the class — the row it sits on already
+        says when it is. So a narrow card leads with the title and shows only the
+        start time, while a full-width one keeps the reading order of a calendar:
+        time, then what happens then. The `title` attribute carries the whole
+        thing either way, for a card too small to hold it.
+      */}
+      {narrow ? (
+        <>
+          <p {...stylex.props(styles.eventTitle, canceled && styles.eventTitleCanceled)}>
+            {instance.title}
+          </p>
+          <span {...stylex.props(styles.eventTime)}>{start}</span>
+        </>
+      ) : (
+        <>
+          <span {...stylex.props(styles.eventTime)}>
+            {start}–{end}
+          </span>
+          <p {...stylex.props(styles.eventTitle, canceled && styles.eventTitleCanceled)}>
+            {instance.title}
+          </p>
+        </>
+      )}
     </button>
   );
 }
@@ -1441,15 +2476,15 @@ function ClassCard({
     pct > 85 ? 'var(--color-error)' : pct > 60 ? 'var(--color-warning)' : 'var(--color-success)';
   const statusTone = STATUS_TONES[instance.status];
   const canceled = instance.status === 'CANCELED';
+  const start = formatTime(instance.startsAt, locale, timeZone);
+  const end = formatTime(instance.endsAt, locale, timeZone);
 
   return (
     <button
       type="button"
       onClick={() => onOpen(instance)}
-      aria-label={t('card.viewAria', {
-        title: instance.title,
-        time: formatTime(instance.startsAt, locale, timeZone),
-      })}
+      aria-label={t('card.viewAria', { title: instance.title, time: start })}
+      title={`${start}–${end} · ${instance.title}`}
       {...stylex.props(styles.card, canceled && styles.cardCanceled)}
     >
       <span
@@ -1461,8 +2496,7 @@ function ClassCard({
       <div {...stylex.props(styles.timeRow)}>
         <Icon name="clock" sw={2} {...stylex.props(styles.smallIcon)} />
         <span {...stylex.props(styles.mono)}>
-          {formatTime(instance.startsAt, locale, timeZone)}–
-          {formatTime(instance.endsAt, locale, timeZone)}
+          {start}–{end}
         </span>
       </div>
 
@@ -1570,35 +2604,83 @@ function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`;
 }
 
+/**
+ * The recurrence weekday code for a `YYYY-MM-DD` column key, so a class created
+ * by clicking Friday's column repeats on Fridays. The key is a plain calendar
+ * date, read in UTC like every other day anchor in this module.
+ */
+function weekdayCodeOf(dayIso: string): RecurrenceWeekday {
+  const day = new Date(`${dayIso}T00:00:00.000Z`).getUTCDay();
+  // getUTCDay(): 0 = Sunday. RECURRENCE_WEEKDAYS is Monday-first.
+  return RECURRENCE_WEEKDAYS[(day + 6) % 7]!;
+}
+
 /** Localised weekday abbreviation for a UTC day anchor (e.g. "Mon"). */
 function weekdayShort(day: Date, locale: string): string {
   return createDateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(day);
 }
 
-/** Localised `HH:MM` for an ISO instant, read on the gym's clock. */
-function formatTime(iso: string, locale: string, timeZone: string): string {
-  return createDateTimeFormat(locale, {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone,
-  }).format(new Date(iso));
+/** Localised weekday in full, for the day agenda's hero (e.g. "Saturday"). */
+function weekdayLong(day: Date, locale: string): string {
+  return createDateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(day);
 }
 
-/** A compact "Jun 30 – Jul 6, 2026" span for the week, both anchors in UTC. */
+/** "15 August 2026" — the day agenda's hero date, in UTC. */
+function longDate(day: Date, locale: string): string {
+  return createDateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(day);
+}
+
+/** "Saturday, 15 August 2026" — the toolbar's label while the agenda is showing. */
+function formatDay(day: Date, locale: string): string {
+  return createDateTimeFormat(locale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(day);
+}
+
+/**
+ * `HH:MM` for an ISO instant, on the gym's clock — the same clock the grid rows
+ * are labelled with, so a block can never print a time that disagrees with the
+ * row it sits on. (It used to: `createDateTimeFormat` reads every field in UTC by
+ * design, so a Tbilisi gym's 12:00 class was drawn on the 12:00 row wearing an
+ * "08:00" label.) `locale` no longer takes part — `HH:MM` is the same 24-hour
+ * form in both catalogues and matches the gutter's hour labels exactly.
+ */
+function formatTime(iso: string, _locale: string, timeZone: string): string {
+  return zonedClock(new Date(iso), timeZone);
+}
+
+/**
+ * The visible week as a span, both anchors in UTC.
+ *
+ * Both ends are formatted whole — "Aug 10 – Aug 16, 2026" / "10 აგვ – 16 აგვ.
+ * 2026". Dropping the repeated month from the closing date looks tidier in
+ * English but asks the formatter for a bare `{ day, year }`, which is not a date
+ * pattern CLDR has: it answers "2026 (day: 16)", and this header rendered the
+ * two numbers glued together as "162026". A month named twice is a small price
+ * for a label that is right in both locales.
+ */
 function formatRange(start: Date, end: Date, locale: string): string {
-  const sameMonth = start.getUTCMonth() === end.getUTCMonth();
-  const startFmt = createDateTimeFormat(locale, {
+  const dayMonth = createDateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     timeZone: 'UTC',
-  }).format(start);
-  const endFmt = createDateTimeFormat(locale, {
-    month: sameMonth ? undefined : 'short',
+  });
+  const withYear = createDateTimeFormat(locale, {
+    month: 'short',
     day: 'numeric',
     year: 'numeric',
     timeZone: 'UTC',
-  }).format(end);
-  return `${startFmt} – ${endFmt}`;
+  });
+  return `${dayMonth.format(start)} – ${withYear.format(end)}`;
 }
 
 /** "July 2026" for the month header, in UTC. */

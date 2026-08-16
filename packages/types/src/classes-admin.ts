@@ -62,11 +62,24 @@ const nullableMinorField = z.preprocess(
 // ── Recurrence (the visual RRULE editor's model) ─────────────────────────────
 
 /**
- * The recurrence frequencies the visual editor supports — a deliberate subset of
- * RFC-5545's `FREQ` covering the cadences a gym actually schedules classes on.
- * Maps 1:1 to the `FREQ=` token in the generated rrule.
+ * The cadences the visual editor offers — a deliberate subset of RFC-5545's
+ * `FREQ`, plus `ONCE` for a class that happens on one date and never again (a
+ * workshop, a masterclass, a holiday session).
+ *
+ * `DAILY` and `WEEKLY` map 1:1 to the `FREQ=` token; `ONCE` does not, because
+ * RFC-5545 has no such frequency — a one-off is a rule that runs once, spelled
+ * `FREQ=DAILY;COUNT=1`. See {@link buildRRule} / {@link parseRRule}, which are
+ * the only two places that translation lives.
  */
-export const recurrenceFreqSchema = z.enum(['DAILY', 'WEEKLY']);
+export const recurrenceFreqSchema = z.enum(['ONCE', 'DAILY', 'WEEKLY']);
+
+/**
+ * The `FREQ=` values that may actually appear in a stored rrule — the RFC subset,
+ * without the editor-only `ONCE`. Kept separate so {@link parseRRule} can never
+ * accept a `FREQ=ONCE` string: rrule.js (the engine the generation job expands
+ * with) would reject it, and nothing in this codebase writes it.
+ */
+const rruleFreqSchema = z.enum(['DAILY', 'WEEKLY']);
 
 /** A supported recurrence frequency — {@link recurrenceFreqSchema}. */
 export type RecurrenceFreq = z.infer<typeof recurrenceFreqSchema>;
@@ -101,11 +114,12 @@ export const RECURRENCE_WEEKDAYS: readonly RecurrenceWeekday[] = [
  * editor can't emit an rrule that silently falls back to the start day.
  *
  * There is no every-N interval: a class is daily or weekly, and "every 3 weeks"
- * was a cadence no gym asked for. Nor is there an end clause — how long a series
- * runs is the template's own `validFrom` / `validUntil` window, which the form
- * already collects under a field literally labelled "Ends". Encoding it twice,
- * once as `COUNT`/`UNTIL` here, gave two answers to one question and generation
- * honoured the narrower.
+ * was a cadence no gym asked for. Nor is there a user-set end clause — how long a
+ * *series* runs is the template's own `validFrom` / `validUntil` window, which
+ * the form already collects under a field literally labelled "Ends". Encoding it
+ * twice, once as `COUNT`/`UNTIL` here, gave two answers to one question and
+ * generation honoured the narrower. `ONCE` is not that: it sets no window, it
+ * says the rule itself stops after one occurrence.
  */
 export const recurrenceSchema = z
   .object({
@@ -133,10 +147,21 @@ export type RecurrenceInput = z.input<typeof recurrenceSchema>;
  * `FREQ=WEEKLY;BYDAY=MO,WE`. Tokens are emitted in a stable order so the same
  * recurrence always yields the same string, and `BYDAY` only for a weekly
  * recurrence with weekdays. `INTERVAL` is never emitted — every-N spacing is not
- * a choice the editor offers, so the RFC default of 1 always applies. Neither is
- * an end clause: the template's validity window bounds the series.
+ * a choice the editor offers, so the RFC default of 1 always applies.
+ *
+ * `COUNT=1` is the one end clause that *is* emitted, and only for `ONCE`: a
+ * one-off is a rule that stops after its first occurrence, so the bound belongs
+ * in the rule rather than in the validity window (a one-off saved with an
+ * open-ended window still yields exactly one class). For the repeating
+ * frequencies there is no end clause at all — how long a series runs is the
+ * template's own `validFrom` / `validUntil`.
  */
 export function buildRRule(recurrence: Recurrence): string {
+  // A one-off has no RFC frequency of its own: it is "daily, but stop after one".
+  if (recurrence.freq === 'ONCE') {
+    return 'FREQ=DAILY;COUNT=1';
+  }
+
   const parts: string[] = [`FREQ=${recurrence.freq}`];
 
   if (recurrence.freq === 'WEEKLY' && recurrence.weekdays.length > 0) {
@@ -172,7 +197,7 @@ export function parseRRule(rrule: string): Recurrence | null {
   }
 
   const freqRaw = map.get('FREQ');
-  const freq = recurrenceFreqSchema.safeParse(freqRaw);
+  const freq = rruleFreqSchema.safeParse(freqRaw);
   if (!freq.success) {
     return null;
   }
@@ -193,11 +218,26 @@ export function parseRRule(rrule: string): Recurrence | null {
     weekdays = RECURRENCE_WEEKDAYS.filter((day) => parsed.data.includes(day));
   }
 
-  // Retired controls. A stored rule carrying one of these bounds the series more
-  // tightly than the editor can now show, so refuse it rather than render a form
-  // that means something wider and silently save that back.
-  if (map.has('COUNT') || map.has('UNTIL')) {
+  // `UNTIL`, and any `COUNT` other than 1, bound the series more tightly than the
+  // editor can show; refuse them rather than render a form that means something
+  // wider and silently save that back. `COUNT=1` is the exception the editor does
+  // model — it is exactly what {@link buildRRule} writes for a one-off, and it
+  // reads back as `ONCE` whatever `FREQ` it was spelled with, since a rule that
+  // stops after one occurrence has no cadence left to speak of.
+  if (map.has('UNTIL')) {
     return null;
+  }
+  if (map.has('COUNT')) {
+    // Only the exact string `buildRRule` writes for a one-off. A `COUNT=1` on any
+    // other cadence means "the first occurrence *of that pattern*" — e.g. the
+    // first Monday on or after the start date — which is not the same day as
+    // `ONCE`, so it stays unmodellable rather than being quietly relocated.
+    const isOneOff = map.get('COUNT') === '1' && freq.data === 'DAILY' && weekdays.length === 0;
+    if (!isOneOff) {
+      return null;
+    }
+    const once = recurrenceSchema.safeParse({ freq: 'ONCE', weekdays: [] });
+    return once.success ? once.data : null;
   }
 
   const result = recurrenceSchema.safeParse({ freq: freq.data, weekdays });
@@ -217,6 +257,7 @@ const WEEKDAY_NAMES: Record<RecurrenceWeekday, string> = {
 
 /** The cadence phrase per frequency. */
 const FREQ_CADENCE: Record<RecurrenceFreq, string> = {
+  ONCE: 'Once',
   DAILY: 'Every day',
   WEEKLY: 'Every week',
 };

@@ -6,7 +6,9 @@ import {
   roleHasPermission,
   sendReceiptSchema,
   type AdminProductRow,
+  type MemberKind,
   type MemberRow,
+  type MemberStatus,
   type RecordPosSaleInput,
   type RecordPosSaleResponse,
   type SendReceiptInput,
@@ -17,6 +19,7 @@ import {
   ApiError,
   fetchLocations,
   fetchMembers,
+  fetchProductCategories,
   fetchProducts,
   fetchSubscriptionPlans,
   recordPosSale,
@@ -39,6 +42,12 @@ export interface PosProductRow {
   imageUrl: string | null;
 }
 
+/** One shelf as the till's category filter renders it — the id it filters by, and its label. */
+export interface PosCategoryRow {
+  id: string;
+  name: string;
+}
+
 /**
  * One member as the POS lookup renders it. `photoUrl` is always `null` for now —
  * the member profile doesn't carry an avatar yet (lands with T4.3) — but the
@@ -50,6 +59,24 @@ export interface PosMemberRow {
   phone: string | null;
   email: string;
   photoUrl: string | null;
+  /**
+   * The live plan's name, or `null` for someone on none. The till's member table
+   * shows it: "which of these two Ninos is the one on Premium" is the question an
+   * operator actually has to answer, and a name and a phone alone cannot.
+   */
+  planName: string | null;
+  /**
+   * What this person currently is to the gym — the roster's own standing, derived
+   * from their subscriptions. The till's badge reads off this: whether someone is
+   * a paying member, a guest, or lapsed decides what happens next at the counter.
+   */
+  kind: MemberKind;
+  /**
+   * The account's own state. Carried alongside {@link kind} because the two can
+   * disagree: a suspended account may still hold a live subscription, and a green
+   * "Member" badge over a suspended one is exactly the mistake worth preventing.
+   */
+  status: MemberStatus;
 }
 
 /** Max products the grid shows for one search — a tablet screen of tiles. */
@@ -57,6 +84,9 @@ const PRODUCT_RESULT_LIMIT = 24;
 
 /** Max members the lookup shows (the contract caps partial matches at 10). */
 const MEMBER_RESULT_LIMIT = 10;
+
+/** Max rows the browsable member table shows — a screenful, scrolled, not paged. */
+const MEMBER_TABLE_LIMIT = 50;
 
 /** Re-assert a capability inside the action — defence in depth behind the route + API guards. */
 async function sessionHas(permission: Permission): Promise<boolean> {
@@ -91,6 +121,9 @@ function toPosMember(row: MemberRow): PosMemberRow {
     phone: row.phone,
     email: row.email,
     photoUrl: null,
+    planName: row.plan?.name ?? row.planName,
+    kind: row.kind,
+    status: row.status,
   };
 }
 
@@ -100,9 +133,16 @@ function toPosMember(row: MemberRow): PosMemberRow {
  * gym-scoped from the session token), narrowed to `ACTIVE` so a sale can never add
  * a discontinued product. A blank query returns the first page of the catalogue so
  * the grid is populated before the operator types. Enforces `ProductRead`.
+ *
+ * `categoryId` narrows to one shelf (or {@link UNCATEGORISED_FILTER} for the
+ * products filed under none); an empty string is every category. The till only
+ * shows one page of tiles, so on a catalogue larger than that page the shelf is
+ * how an operator reaches a product they cannot spell — the search box only helps
+ * someone who already knows the name.
  */
 export async function searchPosProductsAction(
   query: string,
+  categoryId = '',
 ): Promise<ActionResult<PosProductRow[]>> {
   if (!(await sessionHas(Permission.ProductRead))) {
     return { ok: false, error: 'Not authorized' };
@@ -110,12 +150,37 @@ export async function searchPosProductsAction(
   try {
     const result = await fetchProducts({
       search: query.trim() || undefined,
+      categoryId: categoryId.trim() || undefined,
       status: 'ACTIVE',
       limit: PRODUCT_RESULT_LIMIT,
       sort: 'name',
       dir: 'asc',
     });
     return { ok: true, data: result.data.map(toPosProduct) };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * The gym's product shelves, for the till's category filter — every one of them,
+ * ordered by name as the API returns them.
+ *
+ * Empty shelves are deliberately kept. Hiding them looks tidier and is wrong: a
+ * shelf usually exists before the products are filed onto it, so dropping the
+ * empty ones makes the filter vanish exactly when a gym has started organising
+ * its catalogue and is looking for the result. The count would be a poor
+ * predictor anyway — it counts inactive products too, which the till cannot sell.
+ *
+ * Enforces `ProductRead`, the same capability the grid behind it needs.
+ */
+export async function fetchPosCategoriesAction(): Promise<ActionResult<PosCategoryRow[]>> {
+  if (!(await sessionHas(Permission.ProductRead))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const { data } = await fetchProductCategories();
+    return { ok: true, data: data.map((category) => ({ id: category.id, name: category.name })) };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }
@@ -139,6 +204,35 @@ export async function lookupPosMembersAction(query: string): Promise<ActionResul
     const result = await fetchMembers({
       search: trimmed,
       limit: MEMBER_RESULT_LIMIT,
+      sort: 'name',
+      dir: 'asc',
+    });
+    return { ok: true, data: result.data.map(toPosMember) };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * The gym's members as the till's **Members** table browses them, by name.
+ *
+ * The counterpart to {@link lookupPosMembersAction}, and deliberately not the same
+ * call: that one answers "find the person I am being told about" and returns
+ * nothing until something is typed, which is right for a lookup box and useless
+ * for a table. This one opens on the roster, because half the people at a counter
+ * cannot spell their own name the way it was entered — the operator recognises it
+ * far faster than they can type it.
+ *
+ * Enforces `MemberRead`.
+ */
+export async function fetchPosMembersAction(query: string): Promise<ActionResult<PosMemberRow[]>> {
+  if (!(await sessionHas(Permission.MemberRead))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const result = await fetchMembers({
+      search: query.trim() || undefined,
+      limit: MEMBER_TABLE_LIMIT,
       sort: 'name',
       dir: 'asc',
     });

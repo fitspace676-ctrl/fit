@@ -85,12 +85,40 @@ function setup(overrides?: {
   };
   const review = { count: vi.fn(() => Promise.resolve(0)) };
 
+  // Staff ⇄ trainer link: a coach is created/renamed together with the
+  // (login-less) staff record, so the writes run in one transaction over the
+  // `user` / `gymMember` models too.
+  const userCreate = vi.fn<(args: WhereArgs) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'u-1' }),
+  );
+  const userUpdate = vi.fn<(args: WhereArgs) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'u-1' }),
+  );
+  const gymMemberCreate = vi.fn<(args: WhereArgs) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'gm-1' }),
+  );
+  const gymMemberUpdate = vi.fn<(args: WhereArgs) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'gm-1' }),
+  );
+  const gymMemberFindFirst = vi.fn<(args: WhereArgs) => Promise<{ userId: string }>>(() =>
+    Promise.resolve({ userId: 'u-1' }),
+  );
+
   const client: Record<string, unknown> = {
     trainer: { findMany, count, findFirst, create, update, aggregate },
+    user: { create: userCreate, update: userUpdate },
+    gymMember: {
+      create: gymMemberCreate,
+      update: gymMemberUpdate,
+      findFirst: gymMemberFindFirst,
+    },
     classInstance,
     booking,
     review,
   };
+  // Interactive transactions hand the callback the same scoped client here — the
+  // service only needs `tx` to expose the models it writes.
+  client.$transaction = <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(client);
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
@@ -102,6 +130,9 @@ function setup(overrides?: {
     findFirst,
     create,
     update,
+    userCreate,
+    gymMemberCreate,
+    gymMemberUpdate,
   };
 }
 
@@ -244,6 +275,31 @@ describe('AdminTrainersService', () => {
         status: 'INACTIVE',
         specialties: ['Strength'],
       });
+    });
+
+    it('adds the coach to the staff directory and links the two', async () => {
+      const { service, create, userCreate, gymMemberCreate } = setup({ findFirst: row() });
+
+      await service.createTrainer(createInput({ name: 'Nino Beridze' }));
+
+      // A login-less identity: the coach appears on the Staff roster with the
+      // TRAINER role, but has no way to sign in until someone invites them.
+      const userData = userCreate.mock.calls[0]?.[0]?.data as
+        | { email?: string; name?: string }
+        | undefined;
+      expect(userData?.name).toBe('Nino Beridze');
+      expect(userData?.email).toContain('@no-login.fit.local');
+      expect(gymMemberCreate.mock.calls[0]?.[0]).toMatchObject({
+        data: {
+          gymId: 'gym-1',
+          userId: 'u-1',
+          role: 'TRAINER',
+          status: 'ACTIVE',
+          firstName: 'Nino',
+          lastName: 'Beridze',
+        },
+      });
+      expect(create.mock.calls[0]?.[0]?.data).toMatchObject({ staffId: 'gm-1' });
     });
   });
 

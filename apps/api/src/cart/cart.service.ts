@@ -17,6 +17,7 @@ import {
   type CartView,
 } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
+import { applyOrderStockMovements } from '../products/order-stock';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
@@ -350,8 +351,14 @@ export class CartService {
         select: { id: true },
       });
       // Inventory tracking (T7.8): draw down the sold variants' on-hand stock in the
-      // same transaction, so stock never moves without the order landing.
-      await this.decrementStock(tx, gymId, order.id, cart.items);
+      // same transaction, so stock never moves without the order landing. Shared
+      // with the till's sale and the refund restock — one ledger, one algorithm.
+      await applyOrderStockMovements(tx, {
+        gymId,
+        orderId: order.id,
+        reason: StockMovementReason.SALE,
+        items: cart.items,
+      });
 
       // Consume the promo in the same transaction as the order it discounted, so
       // a code can never be counted as spent against a sale that did not land —
@@ -371,123 +378,6 @@ export class CartService {
     });
 
     return { kind: 'created', orderId };
-  }
-
-  /**
-   * Draw down on-hand stock for the sold variants, inside the checkout transaction.
-   * Stock lives per-variant in the product's `variants` JSON, so each affected
-   * product is read, the sold positions decremented, and the array written back.
-   * Base (no-variant) lines draw down the product's own count, but only once the
-   * gym has started tracking it — an untracked product is sold without a count and
-   * stays that way, since inventing a zero for it would immediately report it out
-   * of stock. Quantities were already stock-checked above, so the decrement is
-   * clamped at `0` purely as a guard against a concurrent edit.
-   *
-   * Each position that actually moves also writes a `SALE` row to its ledger, in
-   * this same transaction: stock never changes without the reason being recorded,
-   * so the product's history explains its current count rather than showing
-   * unexplained drops between manual adjustments.
-   */
-  private async decrementStock(
-    tx: Prisma.TransactionClient,
-    gymId: string,
-    orderId: string,
-    items: CartWithItems['items'],
-  ): Promise<void> {
-    // Sum sold units per (productId → position), where `null` is the base position.
-    const soldByProduct = new Map<string, Map<number | null, number>>();
-    for (const item of items) {
-      const parsed = decodeVariantRef(item.productVariantId);
-      if (!parsed) {
-        continue;
-      }
-      const byPosition = soldByProduct.get(parsed.productId) ?? new Map<number | null, number>();
-      const at = parsed.variantIndex;
-      byPosition.set(at, (byPosition.get(at) ?? 0) + item.qty);
-      soldByProduct.set(parsed.productId, byPosition);
-    }
-    if (soldByProduct.size === 0) {
-      return;
-    }
-
-    const products = await tx.product.findMany({
-      where: { gymId, id: { in: [...soldByProduct.keys()] } },
-      select: { id: true, variants: true, stock: true },
-    });
-
-    for (const product of products) {
-      const sold = soldByProduct.get(product.id);
-      if (!sold) {
-        continue;
-      }
-      const parsed = productVariantsSchema.safeParse(product.variants ?? []);
-      if (!parsed.success) {
-        continue;
-      }
-      const variants = parsed.data;
-      const movements: Prisma.StockMovementCreateManyInput[] = [];
-      let variantsChanged = false;
-      let baseStock = product.stock;
-
-      for (const [position, qty] of sold) {
-        if (position === null) {
-          // Untracked base position — nothing to draw down, nothing to record.
-          if (baseStock === null) {
-            continue;
-          }
-          const next = Math.max(0, baseStock - qty);
-          if (next === baseStock) {
-            continue;
-          }
-          movements.push({
-            gymId,
-            productId: product.id,
-            variantIndex: null,
-            variantLabel: '',
-            delta: next - baseStock,
-            resultingStock: next,
-            reason: StockMovementReason.SALE,
-            orderId,
-          });
-          baseStock = next;
-          continue;
-        }
-
-        const variant = variants[position];
-        if (!variant) {
-          continue;
-        }
-        const next = Math.max(0, variant.stock - qty);
-        if (next === variant.stock) {
-          continue;
-        }
-        movements.push({
-          gymId,
-          productId: product.id,
-          variantIndex: position,
-          variantLabel: variant.name,
-          delta: next - variant.stock,
-          resultingStock: next,
-          reason: StockMovementReason.SALE,
-          orderId,
-        });
-        variants[position] = { ...variant, stock: next };
-        variantsChanged = true;
-      }
-
-      if (variantsChanged || baseStock !== product.stock) {
-        await tx.product.update({
-          where: { id: product.id },
-          data: {
-            ...(variantsChanged ? { variants } : {}),
-            ...(baseStock !== product.stock ? { stock: baseStock } : {}),
-          },
-        });
-      }
-      if (movements.length > 0) {
-        await tx.stockMovement.createMany({ data: movements });
-      }
-    }
   }
 
   /**

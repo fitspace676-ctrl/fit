@@ -686,6 +686,9 @@ model GymMember {
   staffTasks         StaffTask[]
   timeOffRequests    TimeOffRequest[]
   shiftSlots         ShiftSlot[]
+  /// The coach profile this staff member teaches under, when they hold (or once
+  /// held) the `TRAINER` role. One-to-one — see {@link Trainer.staffId}.
+  trainerProfile     Trainer?
 
   @@unique([userId, gymId])
   // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
@@ -796,12 +799,16 @@ model CheckIn {
 
 /// A trainer profile a gym curates from the staff console (T4.4). A gym-scoped
 /// content record — name, headline, bio, photo, specialties — the gym manages
-/// for its public trainers index (T3.6), deliberately distinct from a
-/// `TRAINER`-role {@link GymMember} (which is an auth identity / login). One gym
-/// can have many trainers; `gymId` is the isolating tenant key the scoped Prisma
-/// client constrains every query to. `photoUrl` is the public URL of the headshot
-/// uploaded to R2 (see the storage signed-upload service), or `null` when the
-/// trainer has no photo (the card renders an initials placeholder).
+/// for its public trainers index (T3.6). It is a different *kind* of record from
+/// a `TRAINER`-role {@link GymMember} (an auth identity / roster entry), but the
+/// two describe one person and are now linked one-to-one through {@link staffId}:
+/// adding staff with the `TRAINER` role creates the coach profile, and adding a
+/// coach creates the (login-less) staff record, so the Staff and Trainers screens
+/// are two views of the same roster. One gym can have many trainers; `gymId` is
+/// the isolating tenant key the scoped Prisma client constrains every query to.
+/// `photoUrl` is the public URL of the headshot uploaded to R2 (see the storage
+/// signed-upload service), or `null` when the trainer has no photo (the card
+/// renders an initials placeholder).
 model Trainer {
   id           String        @id @default(cuid())
   gymId        String
@@ -827,10 +834,19 @@ model Trainer {
   /// a COUNT/AVG join — the same denormalisation `ClassInstance.bookedCount` uses.
   rating       Float         @default(0)
   reviewCount  Int           @default(0)
+  /// The gym-staff membership this coach *is*. Unique, so the link is strictly
+  /// one-to-one: one person is one roster entry and one coach profile. `null` only
+  /// for a profile whose staff record has been removed — `SetNull` rather than
+  /// `Cascade` on purpose, because class templates, occurrences, PT sessions and
+  /// reviews all point at this row, and deleting someone from the staff directory
+  /// must never take the gym's teaching history with it. The staff service
+  /// deactivates the orphaned profile instead.
+  staffId      String?       @unique
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
   gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff          GymMember?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
   classTemplates ClassTemplate[]
   classInstances ClassInstance[]
   ptSessions     PtSession[]

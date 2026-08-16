@@ -5,19 +5,9 @@ import {
   AUTOMATION_MERGE_KEYS,
   RETIRED_MERGE_TOKENS,
 } from './automation-merge-fields';
-import { gymAutomationFieldsSettingsSchema } from './gym-settings';
 import { interpolateMergeFields } from './marketing';
 
 describe('AUTOMATION_MERGE_FIELDS', () => {
-  // The settings schema is what lets a gym hide a chip. A field in the catalogue
-  // with no toggle is unhideable; a toggle with no field is a switch for nothing.
-  it('matches the settings schema key for key', () => {
-    const catalogue = AUTOMATION_MERGE_FIELDS.map((field) => field.key).sort();
-    const toggles = Object.keys(gymAutomationFieldsSettingsSchema.parse({})).sort();
-
-    expect(catalogue).toEqual(toggles);
-  });
-
   it('has unique keys and unique tokens', () => {
     const keys = AUTOMATION_MERGE_FIELDS.map((field) => field.key);
     const tokens = AUTOMATION_MERGE_FIELDS.map((field) => field.token);

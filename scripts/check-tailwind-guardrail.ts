@@ -159,8 +159,11 @@ const MIGRATED_PATHS: readonly string[] = [
   // kit — all layout in brand-tokened StyleX, no Tailwind. The whole route group
   // (list, `[id]` detail + tabs, `new`, `[id]/edit`) is Astryx-only, so it is
   // guarded as a directory. The trainers roster this task also migrated was removed
-  // by the IA consolidation (622a269) — no reference equivalent.
+  // by the IA consolidation (622a269) and restored since — a gym has to be able to
+  // add the coaches its classes are assigned to — so it is guarded again alongside
+  // members, including the weekly-availability editor added with it.
   'apps/admin/app/(dashboard)/members',
+  'apps/admin/app/(dashboard)/trainers',
   // T11.20 — the schedule week-calendar (day-column occurrence cards + occupancy
   // bars + the class-instance Drawer with roster / capacity / quick-actions) and the
   // class-templates surfaces (list on the Astryx DataTable kit, detail, create/edit

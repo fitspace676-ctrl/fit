@@ -213,17 +213,26 @@ input[type='password'] {
 
 /*
  * Drawer ✕ close button — Astryx's icon-ghost button renders nearly invisible on
- * the dark drawer surface, so force a visible pill (subtle surface + white glyph).
- * `!important` clears Astryx's high-specificity StyleX rules (as above).
+ * a drawer surface, so force a visible pill (subtle tint + a glyph that contrasts
+ * with the panel). Both halves must follow the theme: this used to hard-code a
+ * white glyph on a white-at-8% pill, which reads on the dark panel (#1b1b1b) and
+ * vanished completely on the light one, which is plain white — the drawer simply
+ * had no visible close button in light mode. `light-dark()` and the text token
+ * flip with the theme, so there is one rule rather than a `.dark` twin.
+ *
+ * `!important` clears Astryx's high-specificity StyleX rules (as above), and the
+ * `:not(#\#)` pair raises specificity — which the `:hover` rule needs too, or the
+ * base rule outranks it and the hover tint never lands.
  */
 .drawer-close,
 .drawer-close:not(#\#):not(#\#) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  color: #ffffff !important;
+  background-color: light-dark(rgba(23, 23, 23, 0.06), rgba(255, 255, 255, 0.08)) !important;
+  color: var(--color-text-primary) !important;
   border-radius: 9999px !important;
 }
-.drawer-close:hover {
-  background-color: rgba(255, 255, 255, 0.16) !important;
+.drawer-close:hover,
+.drawer-close:hover:not(#\#):not(#\#) {
+  background-color: light-dark(rgba(23, 23, 23, 0.12), rgba(255, 255, 255, 0.16)) !important;
 }
 
 /*

@@ -13,6 +13,7 @@ import { ApiError, fetchLowStockProducts } from '@/lib/api';
 import { Card } from '@astryxdesign/core/Card';
 import { Badge, Icon, type IconName } from '@/components/ui';
 import { StockAdjuster } from './stock-adjuster';
+import { ThresholdPicker } from './threshold-picker';
 import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
@@ -24,9 +25,6 @@ export const metadata: Metadata = {
 // The alerts reflect live on-hand stock and the staff session token, so the page
 // must never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
-
-/** The reorder cushions the page offers as one-tap threshold presets. */
-const THRESHOLD_PRESETS = [3, 5, 10, 20] as const;
 
 const styles = stylex.create({
   page: {
@@ -78,49 +76,6 @@ const styles = stylex.create({
     fontWeight: 600,
     textDecoration: 'none',
     color: 'var(--color-text-primary)',
-  },
-  thresholdRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  thresholdLabel: {
-    marginRight: '0.25rem',
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.12em',
-    color: 'var(--color-text-secondary)',
-  },
-  presetPill: {
-    borderRadius: 'var(--radius-full)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-background-muted)',
-    },
-    paddingInline: '0.75rem',
-    paddingBlock: '0.25rem',
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    textDecoration: 'none',
-    color: 'var(--color-text-secondary)',
-  },
-  presetPillActive: {
-    borderRadius: 'var(--radius-full)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-accent)',
-    backgroundColor: 'var(--color-accent-muted)',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.25rem',
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    textDecoration: 'none',
-    color: 'var(--color-text-accent)',
   },
   tileGrid: {
     display: 'grid',
@@ -360,24 +315,7 @@ export default async function LowStockPage({
         </Link>
       </header>
 
-      <div {...stylex.props(styles.thresholdRow)}>
-        <span {...stylex.props(styles.thresholdLabel)}>Threshold</span>
-        {THRESHOLD_PRESETS.map((preset) => {
-          const active = preset === threshold;
-          return (
-            <Link
-              key={preset}
-              href={
-                preset === DEFAULT_LOW_STOCK_THRESHOLD ? '/shop/low-stock' : `?threshold=${preset}`
-              }
-              aria-current={active ? 'page' : undefined}
-              {...stylex.props(active ? styles.presetPillActive : styles.presetPill)}
-            >
-              ≤ {preset}
-            </Link>
-          );
-        })}
-      </div>
+      <ThresholdPicker threshold={threshold} />
 
       {tiles !== null ? (
         <div {...stylex.props(styles.tileGrid)}>

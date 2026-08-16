@@ -7,6 +7,7 @@ import {
   createProductCategorySchema,
   createProductSchema,
   roleHasPermission,
+  setProductCategorySchema,
   updateProductCategorySchema,
   updateProductSchema,
   type AdjustStockInput,
@@ -14,6 +15,7 @@ import {
   type CreateProductCategoryInput,
   type CreateProductInput,
   type DeleteProductCategoryResponse,
+  type SetProductCategoryInput,
   type SetProductStatusResponse,
   type UpdateProductCategoryInput,
   type UpdateProductInput,
@@ -29,6 +31,7 @@ import {
   deleteProductCategory,
   reactivateProduct,
   renameProductCategory,
+  setProductCategory,
   updateProduct,
   type SignedUploadResponse,
 } from '@/lib/api';
@@ -208,6 +211,36 @@ export async function setProductActiveAction(
     revalidatePath('/shop');
     revalidatePath(`/shop/${id}`);
     return { ok: true, data: { status: product.status } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * File a product onto a category shelf, or take it off one with `null`.
+ *
+ * The roster's own write: organising a catalogue is many of these in a row, and
+ * each goes to the API's single-column endpoint rather than the whole-record edit,
+ * so moving a product between shelves can never re-send — and revert — anything
+ * else about it. Enforces `ProductWrite` and refreshes both the roster (its cards
+ * and its category filter) and the product's own page.
+ */
+export async function setProductCategoryAction(
+  id: string,
+  input: SetProductCategoryInput,
+): Promise<ActionResult<{ categoryId: string | null }>> {
+  if (!(await requireProductWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const parsed = setProductCategorySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid category' };
+  }
+  try {
+    const product = await setProductCategory(id, parsed.data.categoryId);
+    revalidatePath('/shop');
+    revalidatePath(`/shop/${id}`);
+    return { ok: true, data: { categoryId: product.category?.id ?? null } };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }

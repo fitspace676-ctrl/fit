@@ -15,6 +15,8 @@ import { RRule } from 'rrule';
 /** Representative rules covering the cadences the class scheduler emits. */
 const SAMPLE_RRULES = [
   'FREQ=WEEKLY;BYDAY=MO,WE,FR',
+  // A one-off class, as the console's "One time" frequency stores it.
+  'FREQ=DAILY;COUNT=1',
   'FREQ=DAILY;INTERVAL=2;COUNT=10',
   'FREQ=WEEKLY;INTERVAL=1;BYDAY=TU;UNTIL=20260101T000000Z',
   'FREQ=MONTHLY;BYMONTHDAY=15',

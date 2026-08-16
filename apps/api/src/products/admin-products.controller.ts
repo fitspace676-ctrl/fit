@@ -20,6 +20,7 @@ import {
   listAdminProductsQuerySchema,
   listStockMovementsQuerySchema,
   lowStockQuerySchema,
+  setProductCategorySchema,
   updateProductSchema,
   type AdjustStockResponse,
   type CreateProductResponse,
@@ -28,6 +29,7 @@ import {
   type ListInventoryResponse,
   type ListLowStockResponse,
   type ListStockMovementsResponse,
+  type SetProductCategoryResponse,
   type SetProductStatusResponse,
   type UpdateProductResponse,
 } from '@fit/types';
@@ -127,6 +129,25 @@ export class AdminProductsController {
   @RequirePermissions(Permission.ProductWrite)
   async update(@Param('id') id: string, @Body() body: unknown): Promise<UpdateProductResponse> {
     return this.products.updateProduct(id, parse(updateProductSchema, body));
+  }
+
+  /**
+   * `PATCH /admin/products/:id/category` — file the product onto a shelf, or take
+   * it off one with `{ "categoryId": null }`.
+   *
+   * Separate from `PATCH :id` (which replaces the whole product) so the roster can
+   * offer the move directly: filing a catalogue is many small writes in a row, and
+   * each one here touches the single column it names. A category belonging to
+   * another gym is a `404`, as is an unknown product. Requires `ProductWrite`.
+   */
+  @Patch(':id/category')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductWrite)
+  async setCategory(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<SetProductCategoryResponse> {
+    return this.products.setProductCategory(id, parse(setProductCategorySchema, body));
   }
 
   /**

@@ -18,6 +18,8 @@ interface StaffRecord {
   lastName: string | null;
   assignedLocationIds: string[];
   user: { name: string | null; email: string; phone: string | null };
+  /** The linked coach profile (staff ⇄ trainer link), or `null` when they have none. */
+  trainerProfile: { id: string } | null;
 }
 
 const row = (over?: Partial<StaffRecord>): StaffRecord => ({
@@ -30,6 +32,7 @@ const row = (over?: Partial<StaffRecord>): StaffRecord => ({
   lastName: null,
   assignedLocationIds: [],
   user: { name: 'Nino Beridze', email: 'nino@example.com', phone: null },
+  trainerProfile: null,
   ...over,
 });
 
@@ -45,6 +48,8 @@ function setup(overrides?: {
   staffFindFirst?: StaffRecord | null;
   ownerCount?: number;
   deleteManyCount?: number;
+  /** The coach profile already linked to the member under test, if any. */
+  trainerFindFirst?: { id: string } | null;
 }) {
   const gymMemberFindMany = vi.fn(() => Promise.resolve(overrides?.staffFindMany ?? []));
   const gymMemberFindFirst = vi.fn(() =>
@@ -61,6 +66,12 @@ function setup(overrides?: {
   const gymFindUnique = vi.fn(() => Promise.resolve({ name: 'Downtown Fitness' }));
   const userUpdate = vi.fn(() => Promise.resolve({ id: 'u-1' }));
 
+  // Staff ⇄ trainer link: role changes and removals keep the coach profile in step.
+  const trainerFindFirst = vi.fn(() => Promise.resolve(overrides?.trainerFindFirst ?? null));
+  const trainerCreate = vi.fn(() => Promise.resolve({ id: 'tr-1' }));
+  const trainerUpdate = vi.fn(() => Promise.resolve({ id: 'tr-1' }));
+  const trainerUpdateMany = vi.fn(() => Promise.resolve({ count: 1 }));
+
   const client = {
     gymMember: {
       findMany: gymMemberFindMany,
@@ -76,6 +87,12 @@ function setup(overrides?: {
     },
     gym: { findUnique: gymFindUnique },
     user: { update: userUpdate },
+    trainer: {
+      findFirst: trainerFindFirst,
+      create: trainerCreate,
+      update: trainerUpdate,
+      updateMany: trainerUpdateMany,
+    },
     location: { findMany: vi.fn(() => Promise.resolve([] as { id: string; name: string }[])) },
   };
 
@@ -97,6 +114,10 @@ function setup(overrides?: {
     sendStaffInviteEmail,
     revokeAllForUser,
     userUpdate,
+    trainerFindFirst,
+    trainerCreate,
+    trainerUpdate,
+    trainerUpdateMany,
   };
 }
 
@@ -143,6 +164,7 @@ describe('StaffService', () => {
           assignedLocationIds: [],
           locations: [],
           joinedAt: '2026-01-15T00:00:00.000Z',
+          trainerId: null,
         },
       ]);
       expect(result.invites[0]?.expired).toBe(false);
@@ -244,9 +266,71 @@ describe('StaffService', () => {
       expect(gymMemberCount).not.toHaveBeenCalled();
       expect(gymMemberUpdate).toHaveBeenCalledOnce();
     });
+
+    it('creates the coach profile when someone becomes a TRAINER', async () => {
+      const { service, trainerCreate } = setup({
+        staffFindFirst: row({ role: Role.RECEPTIONIST, firstName: 'Nino', lastName: 'Beridze' }),
+        trainerFindFirst: null,
+      });
+
+      await service.updateRole('gm-1', { role: 'TRAINER' });
+
+      // Without this the person sits on the staff roster as a coach but cannot be
+      // picked as a class trainer, because classes hang off `Trainer`.
+      expect(trainerCreate).toHaveBeenCalledWith({
+        data: { gymId: 'gym-1', name: 'Nino Beridze', staffId: 'gm-1' },
+        select: { id: true },
+      });
+    });
+
+    it('reactivates the profile they had before rather than creating a second one', async () => {
+      const { service, trainerCreate, trainerUpdate } = setup({
+        staffFindFirst: row({ role: Role.MANAGER }),
+        trainerFindFirst: { id: 'tr-1' },
+      });
+
+      await service.updateRole('gm-1', { role: 'TRAINER' });
+
+      expect(trainerCreate).not.toHaveBeenCalled();
+      expect(trainerUpdate).toHaveBeenCalledWith({
+        where: { id: 'tr-1' },
+        data: { status: 'ACTIVE' },
+      });
+    });
+
+    it('deactivates the coach profile when the TRAINER role is taken away', async () => {
+      const { service, trainerUpdate } = setup({
+        staffFindFirst: row({ role: Role.TRAINER }),
+        trainerFindFirst: { id: 'tr-1' },
+      });
+
+      await service.updateRole('gm-1', { role: 'RECEPTIONIST' });
+
+      // Deactivated, never deleted — the classes they taught still point at it.
+      expect(trainerUpdate).toHaveBeenCalledWith({
+        where: { id: 'tr-1' },
+        data: { status: 'INACTIVE' },
+      });
+    });
   });
 
   describe('removeStaff', () => {
+    it('retires the coach profile before deleting the membership', async () => {
+      const { service, trainerUpdateMany, gymMemberDelete } = setup({
+        staffFindFirst: row({ role: Role.TRAINER }),
+      });
+
+      await service.removeStaff('gm-1');
+
+      // The FK is SET NULL, so the profile survives the delete — but the person no
+      // longer works here, so it must drop off the roster and the class picker.
+      expect(trainerUpdateMany).toHaveBeenCalledWith({
+        where: { staffId: 'gm-1' },
+        data: { status: 'INACTIVE' },
+      });
+      expect(gymMemberDelete).toHaveBeenCalledOnce();
+    });
+
     it('404s an unknown staff id', async () => {
       const { service } = setup({ staffFindFirst: null });
       await expect(service.removeStaff('gm-x')).rejects.toBeInstanceOf(NotFoundException);

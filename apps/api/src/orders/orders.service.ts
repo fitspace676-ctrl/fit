@@ -14,14 +14,13 @@ import {
 } from '@fit/db';
 import {
   buildReconciliationReport,
-  decodeVariantRef,
   deriveOrderChannel,
+  encodeVariantRef,
   gymSettingsStoredSchema,
   gymPublicContact,
   isPaymentMethodEnabled,
   ORDER_EXPORT_COLUMNS,
   orderExportCells,
-  productVariantsSchema,
   REFUND_EXCEEDS_PAID_CODE,
   type AdminOrderDetail,
   type AdminOrderRow,
@@ -33,6 +32,7 @@ import {
   type PaymentMethod,
   type RecordPosSaleInput,
   type RecordPosSaleResponse,
+  type ReceiptLine,
   type ReconciliationTally,
   type RefundOrderInput,
   type RefundOrderResponse,
@@ -43,8 +43,18 @@ import { EmailService } from '../auth/email.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
+import { applyOrderStockMovements } from '../products/order-stock';
 import { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
+
+/**
+ * The stock position a till line sold, in the composite form order lines and the
+ * ledger both address positions by. `null` for a line that owns no stock — a
+ * membership, or a client that does not name the product it rang up.
+ */
+function soldPosition(line: ReceiptLine): string | null {
+  return line.productId ? encodeVariantRef(line.productId, line.variantIndex ?? null) : null;
+}
 
 /** Map the wire settlement method to the persisted Prisma enum. */
 const TO_DB_METHOD: Record<PaymentMethod, DbPaymentMethod> = {
@@ -131,6 +141,12 @@ export class OrdersService {
    * opens is far better than taking payment for a membership that cannot be created.
    * Enrolment mints its own membership invoice; revenue is counted from the captured
    * payment, so the two do not double-count.
+   *
+   * The sold units also leave on-hand stock here, in the same transaction as the
+   * money — a sale at the counter is no less a sale than one through the online
+   * shop, and inventory that only moved for one of them would be wrong by the end
+   * of any trading day. See {@link applyOrderStockMovements} for what a line has to
+   * carry to be drawn down, and why an oversell lands at zero rather than refusing.
    */
   async recordSale(input: RecordPosSaleInput): Promise<RecordPosSaleResponse> {
     const gymId = this.tenant.gymId;
@@ -216,10 +232,13 @@ export class OrdersService {
               receipt.items.map((line) => ({
                 label: line.quantity > 1 ? `${line.name} ×${line.quantity}` : line.name,
                 amount: line.amount,
-                // The POS receipt snapshot carries no variant reference, so a POS
-                // line can't be mapped back to a stock position — `productVariantId`
-                // stays null and a POS refund's restock is a no-op for it. `qty` is
-                // recorded so the line's quantity survives onto the order detail.
+                // The stock position the line sold, in the same composite form the
+                // online cart records — so the draw-down below and a later refund's
+                // restock both address the exact position that left the shelf. Null
+                // for a line that owns no stock (a membership) or a till that does
+                // not send one yet. `qty` is recorded so the line's quantity
+                // survives onto the order detail and onto both stock moves.
+                productVariantId: soldPosition(line),
                 qty: line.quantity,
               })),
             ),
@@ -241,6 +260,20 @@ export class OrdersService {
           orderId: order.id,
         });
       }
+
+      // A sale across the counter is a sale: the units leave the shelf here exactly
+      // as they do at the online checkout, in this same transaction, each position
+      // writing its own `SALE` ledger row. Anything the till rang up that owns no
+      // stock position — a membership, the promo adjustment — is skipped inside.
+      await applyOrderStockMovements(tx, {
+        gymId,
+        orderId: order.id,
+        reason: StockMovementReason.SALE,
+        items: receipt.items.map((line) => ({
+          productVariantId: soldPosition(line),
+          qty: line.quantity,
+        })),
+      });
 
       const payment = await tx.payment.create({
         data: {
@@ -529,7 +562,15 @@ export class OrdersService {
       }
 
       if (input.restockItems) {
-        await this.restockItems(tx, gymId, order.id, order.items);
+        // The mirror of the sale's draw-down, through the same helper: the units
+        // return to the exact positions they left, each writing a `REFUND_RESTOCK`
+        // row tied to this order, so the ledger shows the round trip.
+        await applyOrderStockMovements(tx, {
+          gymId,
+          orderId: order.id,
+          reason: StockMovementReason.REFUND_RESTOCK,
+          items: order.items,
+        });
       }
 
       return { refundId: refund.id };
@@ -598,131 +639,7 @@ export class OrdersService {
       }
     }
   }
-
-  /**
-   * Return sold units to on-hand stock for a refund's restock (T7.9) — the mirror
-   * of the checkout's stock draw-down. Sums refunded units per (productId →
-   * position) from the order's lines, skipping adjustment lines that carry no
-   * resolvable position, then puts them back inside the refund transaction so
-   * stock and the refund commit together.
-   *
-   * A base position is only restocked when its product is actually tracked. A
-   * refund must not be what starts a product counting: the sale it reverses never
-   * drew anything down, so crediting units back would invent stock the gym never
-   * said it had.
-   *
-   * Each position that moves writes a `REFUND_RESTOCK` row to its ledger, carrying
-   * the order behind it — the counterpart to the `SALE` rows checkout wrote, so
-   * the history shows the round trip rather than an unexplained rise.
-   */
-  private async restockItems(
-    tx: TenantTransactionClient,
-    gymId: string,
-    orderId: string,
-    items: { productVariantId: string | null; qty: number }[],
-  ): Promise<void> {
-    const byProduct = new Map<string, Map<number | null, number>>();
-    for (const item of items) {
-      if (!item.productVariantId) {
-        continue;
-      }
-      const parsed = decodeVariantRef(item.productVariantId);
-      if (!parsed) {
-        continue;
-      }
-      const byPosition = byProduct.get(parsed.productId) ?? new Map<number | null, number>();
-      const at = parsed.variantIndex;
-      byPosition.set(at, (byPosition.get(at) ?? 0) + item.qty);
-      byProduct.set(parsed.productId, byPosition);
-    }
-    if (byProduct.size === 0) {
-      return;
-    }
-
-    const products = await tx.product.findMany({
-      where: { gymId, id: { in: [...byProduct.keys()] } },
-      select: { id: true, variants: true, stock: true },
-    });
-
-    for (const product of products) {
-      const restocked = byProduct.get(product.id);
-      if (!restocked) {
-        continue;
-      }
-      const parsed = productVariantsSchema.safeParse(product.variants ?? []);
-      if (!parsed.success) {
-        continue;
-      }
-      const variants = parsed.data;
-      const movements: Prisma.StockMovementCreateManyInput[] = [];
-      let variantsChanged = false;
-      let baseStock = product.stock;
-
-      for (const [position, qty] of restocked) {
-        if (position === null) {
-          if (baseStock === null) {
-            continue;
-          }
-          baseStock += qty;
-          movements.push({
-            gymId,
-            productId: product.id,
-            variantIndex: null,
-            variantLabel: '',
-            delta: qty,
-            resultingStock: baseStock,
-            reason: StockMovementReason.REFUND_RESTOCK,
-            orderId,
-          });
-          continue;
-        }
-
-        const variant = variants[position];
-        if (!variant) {
-          continue;
-        }
-        const next = variant.stock + qty;
-        variants[position] = { ...variant, stock: next };
-        variantsChanged = true;
-        movements.push({
-          gymId,
-          productId: product.id,
-          variantIndex: position,
-          variantLabel: variant.name,
-          delta: qty,
-          resultingStock: next,
-          reason: StockMovementReason.REFUND_RESTOCK,
-          orderId,
-        });
-      }
-
-      if (variantsChanged || baseStock !== product.stock) {
-        await tx.product.update({
-          where: { id: product.id },
-          data: {
-            ...(variantsChanged ? { variants } : {}),
-            ...(baseStock !== product.stock ? { stock: baseStock } : {}),
-          },
-        });
-      }
-      if (movements.length > 0) {
-        await tx.stockMovement.createMany({ data: movements });
-      }
-    }
-  }
 }
-
-/**
- * The transaction-client view of the tenant-scoped (extended) Prisma client — the
- * delegate set minus the client-level lifecycle methods, mirroring how Prisma
- * derives its own `TransactionClient`. Used to type a helper that runs inside a
- * `$transaction` callback: the base `Prisma.TransactionClient` (default args) is
- * not assignable from the extended client, so a helper must take this instead.
- */
-type TenantTransactionClient = Omit<
-  TenantPrismaService['client'],
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
->;
 
 /**
  * The currency the roster summary falls back to when the filtered set is empty

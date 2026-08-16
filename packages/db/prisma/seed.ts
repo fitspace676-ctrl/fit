@@ -7,6 +7,7 @@
 //
 // Run with:  pnpm db:seed   (or `fit db seed`, or `prisma db seed`)
 
+import { randomUUID } from 'node:crypto';
 import {
   prisma,
   generateClassInstances,
@@ -712,6 +713,11 @@ async function enrichDowntown(gymId: string): Promise<void> {
   }
 
   // ── Trainers (upsert by name) ───────────────────────────────────────────
+  // Each coach is also a staff member (staff ⇄ trainer link), exactly as
+  // `POST /admin/trainers` creates them: a login-less `User` on the no-login host
+  // plus a `TRAINER` membership. Seeding the profile alone would reproduce the
+  // very split the link exists to remove — coaches the schedule can use but the
+  // Staff roster has never heard of.
   const trainerIdByName = new Map<string, string>();
   for (const name of DEMO_TRAINERS) {
     const existing = await prisma.trainer.findFirst({
@@ -722,8 +728,30 @@ async function enrichDowntown(gymId: string): Promise<void> {
       trainerIdByName.set(name, existing.id);
       continue;
     }
+    const [firstName, ...rest] = name.split(' ');
+    const user = await prisma.user.create({
+      data: { name, email: `staff-${randomUUID()}@no-login.fit.local` },
+      select: { id: true },
+    });
+    const staff = await prisma.gymMember.create({
+      data: {
+        gymId,
+        userId: user.id,
+        role: Role.TRAINER,
+        status: GymMemberStatus.ACTIVE,
+        firstName: firstName ?? name,
+        lastName: rest.length > 0 ? rest.join(' ') : null,
+      },
+      select: { id: true },
+    });
     const created = await prisma.trainer.create({
-      data: { gymId, name, headline: `${name} · Coach`, status: TrainerStatus.ACTIVE },
+      data: {
+        gymId,
+        name,
+        headline: `${name} · Coach`,
+        status: TrainerStatus.ACTIVE,
+        staffId: staff.id,
+      },
       select: { id: true },
     });
     trainerIdByName.set(name, created.id);
@@ -947,6 +975,28 @@ async function enrichDowntown(gymId: string): Promise<void> {
       select: { id: true },
     });
     staffIdByEmail.set(staff.email, membership.id);
+
+    // A staff member with the TRAINER role gets the coach profile the API would
+    // have created with them, so the demo gym's schedule can actually be assigned
+    // to the coach the roster lists.
+    if (staff.role === Role.TRAINER) {
+      const profile = await prisma.trainer.findFirst({
+        where: { staffId: membership.id },
+        select: { id: true },
+      });
+      if (!profile) {
+        await prisma.trainer.create({
+          data: {
+            gymId,
+            name: staff.name,
+            headline: `${staff.name} · Coach`,
+            status: TrainerStatus.ACTIVE,
+            staffId: membership.id,
+          },
+          select: { id: true },
+        });
+      }
+    }
   }
 
   // ── Retail shop catalogue (upsert by name) ──────────────────────────────
