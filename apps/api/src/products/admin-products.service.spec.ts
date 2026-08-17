@@ -13,6 +13,7 @@ import { AdminProductsService } from './admin-products.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { GymLocaleService } from '../gyms/gym-locale.service';
+import type { MediaCleanupService } from '../storage/media-cleanup.service';
 
 const VARIANTS: ProductVariants = productVariantsSchema.parse([
   { name: 'Small', sku: 'TS-S', priceAmount: 2500, stock: 10 },
@@ -114,8 +115,14 @@ function setup(overrides?: {
     get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
   } as unknown as GymLocaleService;
 
+  // Media cleanup is a best-effort side effect; stub it so these tests stay about
+  // the service's own writes.
+  const media = {
+    discardUnreferenced: vi.fn(() => Promise.resolve()),
+  } as unknown as MediaCleanupService;
+
   return {
-    service: new AdminProductsService(prisma, tenant, locale),
+    service: new AdminProductsService(prisma, tenant, locale, media),
     findMany,
     count,
     findFirst,

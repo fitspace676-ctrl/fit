@@ -10,6 +10,7 @@ import {
 import { AdminTrainersService } from './admin-trainers.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { MediaCleanupService } from '../storage/media-cleanup.service';
 
 /** A trainer row as the service's projection selects it. */
 interface TrainerRecord {
@@ -123,8 +124,14 @@ function setup(overrides?: {
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
 
+  // Media cleanup is a best-effort side effect; stub it so these tests stay about
+  // the service's own writes.
+  const media = {
+    discardUnreferenced: vi.fn(() => Promise.resolve()),
+  } as unknown as MediaCleanupService;
+
   return {
-    service: new AdminTrainersService(prisma, tenant),
+    service: new AdminTrainersService(prisma, tenant, media),
     findMany,
     count,
     findFirst,

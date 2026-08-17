@@ -9,6 +9,7 @@ import { GymSettingsService } from './gym-settings.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { StorageService } from '../storage/storage.service';
+import type { MediaCleanupService } from '../storage/media-cleanup.service';
 
 interface GymRow {
   name: string;
@@ -38,7 +39,17 @@ function setup(overrides?: { gym?: GymRow | null; publicUrl?: string | null }) {
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
   const storage = { publicUrl } as unknown as StorageService;
 
-  return { service: new GymSettingsService(prisma, tenant, storage), findFirst, update, publicUrl };
+  // Media cleanup is a best-effort side effect; stub it so these tests stay about
+  // the service's own writes.
+  const media = {
+    discardUnreferenced: vi.fn(() => Promise.resolve()),
+  } as unknown as MediaCleanupService;
+  return {
+    service: new GymSettingsService(prisma, tenant, storage, media),
+    findFirst,
+    update,
+    publicUrl,
+  };
 }
 
 describe('GymSettingsService', () => {

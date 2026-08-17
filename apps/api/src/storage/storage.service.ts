@@ -7,9 +7,18 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env';
+
+/** Largest number of keys one `DeleteObjects` request accepts (an S3 API limit). */
+const DELETE_BATCH_SIZE = 1000;
 
 /** Tenant id segment: lowercase alphanumerics + dashes (matches a gym slug/id). */
 const GYM_ID_PATTERN = /^[a-z0-9-]+$/;
@@ -34,6 +43,16 @@ export interface SignedUploadRequest {
   fileName?: string;
   /** Override the signed-URL lifetime (seconds); defaults to `R2_SIGNED_URL_TTL`. */
   expiresIn?: number;
+}
+
+/** One object as returned by {@link StorageService.listObjects}. */
+export interface StoredObject {
+  /** Full object key within the bucket. */
+  key: string;
+  /** When R2 last wrote the object, or `null` when the listing omitted it. */
+  lastModified: Date | null;
+  /** Object size in bytes (0 when the listing omitted it). */
+  size: number;
 }
 
 /** A presigned upload: PUT the file bytes to `url` with the given headers. */
@@ -162,6 +181,73 @@ export class StorageService implements OnModuleDestroy {
       if (this.isNotFound(error)) return null;
       throw error;
     }
+  }
+
+  /**
+   * List every object under `prefix`, following the listing's continuation tokens
+   * so the result is complete rather than the first 1000 keys. Pass `''` to list the
+   * whole bucket — how the nightly media sweep diffs storage against the rows that
+   * reference it.
+   */
+  async listObjects(prefix: string): Promise<StoredObject[]> {
+    const bucket = this.requireBucket();
+    const objects: StoredObject[] = [];
+    let continuationToken: string | undefined;
+
+    do {
+      const page = await this.client().send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        }),
+      );
+      for (const item of page.Contents ?? []) {
+        if (!item.Key) continue;
+        objects.push({
+          key: item.Key,
+          lastModified: item.LastModified ?? null,
+          size: item.Size ?? 0,
+        });
+      }
+      // `NextContinuationToken` is only meaningful while the listing is truncated;
+      // treating it as optional here ends the loop on the last page.
+      continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (continuationToken);
+
+    return objects;
+  }
+
+  /**
+   * Delete objects by key, in the 1000-per-request batches the S3 API allows, and
+   * return how many R2 actually removed. Per-key failures are logged and counted
+   * out rather than thrown: one unreadable key must not abandon the rest of a sweep,
+   * and the next run simply retries it. Deleting a key that does not exist is a
+   * success in S3 semantics, so a retried sweep is idempotent.
+   */
+  async deleteObjects(keys: readonly string[]): Promise<number> {
+    if (keys.length === 0) return 0;
+    const bucket = this.requireBucket();
+    let deleted = 0;
+
+    for (let offset = 0; offset < keys.length; offset += DELETE_BATCH_SIZE) {
+      const batch = keys.slice(offset, offset + DELETE_BATCH_SIZE);
+      const result = await this.client().send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+        }),
+      );
+      const errors = result.Errors ?? [];
+      for (const error of errors) {
+        this.logger.warn(
+          `Failed to delete ${error.Key ?? '(unknown key)'}: ${error.Message ?? ''}`,
+        );
+      }
+      deleted += batch.length - errors.length;
+    }
+
+    return deleted;
   }
 
   /** True when an S3 error means the object simply is not there (vs. a real fault). */

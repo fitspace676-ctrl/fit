@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { gymPublicContact } from '@fit/types';
+import { gymPublicBrand, gymPublicContact } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { toObjectKey } from '../storage/media-key';
 import { StorageService } from '../storage/storage.service';
 import { InvoicePdfService } from './invoice-pdf.service';
 
@@ -91,6 +92,7 @@ export class InvoiceDocumentService {
       // and then frozen into the cached PDF, which is right: an invoice is a
       // snapshot of who billed you on the day, not a live view of the gym.
       gymContact: gymPublicContact(invoice.gym.settings),
+      logo: await this.loadLogo(invoice.gym.settings),
       memberName: invoice.member?.user.name ?? null,
       memberEmail: invoice.member?.user.email ?? null,
     });
@@ -112,6 +114,30 @@ export class InvoiceDocumentService {
     }
 
     return { buffer, number: invoice.number };
+  }
+
+  /**
+   * The gym's logo bytes for the document header, or `null` when it has none.
+   *
+   * The logo is an object in our own bucket (Settings → General uploads it there),
+   * so it is read straight back by key — no outbound HTTP, and a private bucket
+   * would work just as well. Stored as a public URL, hence the path-to-key step.
+   *
+   * Best-effort like every other storage touch on this path: a missing object, an
+   * unreadable one, or R2 being switched off all yield `null`, and the invoice is
+   * rendered without a logo rather than failing to download.
+   */
+  private async loadLogo(settings: unknown): Promise<Buffer | null> {
+    if (!this.storage.isConfigured) return null;
+    const key = toObjectKey(gymPublicBrand('', settings).logoUrl);
+    if (!key) return null;
+
+    try {
+      return await this.storage.getObject(key);
+    } catch (error) {
+      this.logger.warn(`Could not read gym logo ${key}, rendering without it: ${String(error)}`);
+      return null;
+    }
   }
 }
 

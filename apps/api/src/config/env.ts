@@ -301,6 +301,28 @@ export const envSchema = z.object({
   // `Content-Length` binds the URL so the client can't upload more. Default 25 MiB.
   R2_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(26_214_400),
 
+  // ── Media sweep (nightly orphan cleanup of R2 objects) ──
+  // Gated like MEMBER_PURGE_ENABLED: off in dev / CI / preview so a stray run can
+  // never delete a real gym's media; a production deploy sets it true. `"true"`
+  // enables; anything else (incl. unset) leaves it disabled.
+  MEDIA_SWEEP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // Report-only mode. Defaults to `true` — the sweep logs what it *would* delete
+  // and deletes nothing — so a new deployment (or a new uploader whose references
+  // the sweep does not yet know about) shows up as a report rather than as data
+  // loss. Set to `"false"` once a real run's report has been reviewed.
+  MEDIA_SWEEP_DRY_RUN: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  // Grace period (hours) before a referenced-by-nobody object may be deleted.
+  // The browser uploads to R2 *before* the form that will reference it is saved,
+  // so a just-uploaded object is legitimately unreferenced. Must comfortably
+  // exceed how long a form can sit open. Default 24h.
+  MEDIA_SWEEP_GRACE_HOURS: z.coerce.number().int().positive().default(24),
+
   // ── Logging ──
   LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
 
