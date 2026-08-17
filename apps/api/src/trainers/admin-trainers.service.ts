@@ -30,6 +30,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { placeholderEmail, splitDisplayName } from '../common/directory-identity';
+import { MediaCleanupService } from '../storage/media-cleanup.service';
 
 /** Milliseconds in a day — the window arithmetic for the show-up rate. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -89,6 +90,7 @@ export class AdminTrainersService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly media: MediaCleanupService,
   ) {}
 
   /**
@@ -258,6 +260,10 @@ export class AdminTrainersService {
       }
     });
 
+    // A replaced portrait leaves its predecessor behind; free it once the edit is
+    // committed. Best-effort by design — the nightly sweep is the backstop.
+    await this.media.discardUnreferenced([existing.photoUrl], [input.photoUrl]);
+
     return this.getTrainer(id);
   }
 
@@ -325,10 +331,12 @@ export class AdminTrainersService {
    * scoped `where` constrains `gymId`, so a cross-tenant id never matches — the
    * guard for every write.
    */
-  private async requireTrainer(id: string): Promise<{ id: string; staffId: string | null }> {
+  private async requireTrainer(
+    id: string,
+  ): Promise<{ id: string; staffId: string | null; photoUrl: string | null }> {
     const trainer = await this.prisma.client.trainer.findFirst({
       where: { id },
-      select: { id: true, staffId: true },
+      select: { id: true, staffId: true, photoUrl: true },
     });
     if (!trainer) {
       throw new NotFoundException({ message: 'Trainer not found', code: 'TRAINER_NOT_FOUND' });

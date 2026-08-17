@@ -31,6 +31,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
+import { MediaCleanupService } from '../storage/media-cleanup.service';
 
 /**
  * The columns the roster/detail queries select off `Product`. Every field is the
@@ -123,6 +124,7 @@ export class AdminProductsService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly locale: GymLocaleService,
+    private readonly media: MediaCleanupService,
   ) {}
 
   /**
@@ -553,14 +555,17 @@ export class AdminProductsService {
   async updateProduct(id: string, input: UpdateProductData): Promise<UpdateProductResponse> {
     await this.requireCategory(input.categoryId);
 
+    let previousImages: string[] = [];
+
     await this.prisma.client.$transaction(async (tx) => {
       const current = await tx.product.findFirst({
         where: { id },
-        select: { id: true, variants: true, stock: true },
+        select: { id: true, variants: true, stock: true, images: true },
       });
       if (!current) {
         throw new NotFoundException({ message: 'Product not found', code: 'PRODUCT_NOT_FOUND' });
       }
+      previousImages = current.images;
 
       // Positions are addressed by slot everywhere (a variant has no id of its
       // own — see `StockMovement.variantIndex`), so counts carry over by index.
@@ -622,6 +627,10 @@ export class AdminProductsService {
         });
       }
     });
+
+    // Free the storage behind images this edit dropped from the gallery. After the
+    // commit and best-effort by design — the nightly sweep is the backstop.
+    await this.media.discardUnreferenced(previousImages, input.images);
 
     return this.getProduct(id);
   }

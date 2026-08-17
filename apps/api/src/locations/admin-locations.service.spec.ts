@@ -11,6 +11,7 @@ import {
 import { AdminLocationsService } from './admin-locations.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { MediaCleanupService } from '../storage/media-cleanup.service';
 
 const HOURS: LocationHours = locationHoursSchema.parse({
   mon: { closed: false, open: '06:00', close: '23:00' },
@@ -80,8 +81,14 @@ function setup(overrides?: {
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
 
+  // Media cleanup is a best-effort side effect; stub it so these tests stay about
+  // the service's own writes.
+  const media = {
+    discardUnreferenced: vi.fn(() => Promise.resolve()),
+  } as unknown as MediaCleanupService;
+
   return {
-    service: new AdminLocationsService(prisma, tenant),
+    service: new AdminLocationsService(prisma, tenant, media),
     findMany,
     count,
     findFirst,

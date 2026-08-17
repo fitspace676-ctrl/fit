@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node -r @swc-node/register src/main.ts",
     "dev": "node --watch --env-file=.env.local -r @swc-node/register src/main.ts",
+    "jobs:sweep-media": "node --env-file=.env.local -r @swc-node/register src/storage/media-sweep.run.ts",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",

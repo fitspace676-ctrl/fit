@@ -18,6 +18,7 @@ import {
 } from '@fit/types';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { MediaCleanupService } from '../storage/media-cleanup.service';
 import { StorageService } from '../storage/storage.service';
 
 /** The columns the settings read/write needs off the gym row. */
@@ -43,6 +44,7 @@ export class GymSettingsService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly storage: StorageService,
+    private readonly media: MediaCleanupService,
   ) {}
 
   /** `GET /gyms/settings` — the gym's complete, defaulted settings. */
@@ -139,6 +141,10 @@ export class GymSettingsService {
       where: { id: gymId },
       data: { settings: next as unknown as Prisma.InputJsonValue },
     });
+
+    // The logo this one replaces is now referenced by nobody; free it. Best-effort
+    // by design — the nightly sweep is the backstop.
+    await this.media.discardUnreferenced([current.brand?.logoUrl], [logoUrl]);
 
     return { logoUrl };
   }

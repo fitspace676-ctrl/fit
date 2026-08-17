@@ -39,6 +39,8 @@ vi.mock('@aws-sdk/client-s3', () => {
     S3Client: vi.fn(() => ({ send, destroy: vi.fn() })),
     PutObjectCommand: Command,
     GetObjectCommand: Command,
+    ListObjectsV2Command: Command,
+    DeleteObjectsCommand: Command,
   };
 });
 
@@ -249,6 +251,71 @@ describe('StorageService', () => {
       send.mockRejectedValue(Object.assign(new Error('boom'), { name: 'AccessDenied' }));
 
       await expect(service.getObject('k')).rejects.toThrow('boom');
+    });
+  });
+
+  describe('listObjects', () => {
+    it('follows continuation tokens so a truncated listing is returned whole', async () => {
+      const modified = new Date('2026-08-01T00:00:00.000Z');
+      send
+        .mockResolvedValueOnce({
+          Contents: [{ Key: 'gym-1/products/a.png', LastModified: modified, Size: 10 }],
+          IsTruncated: true,
+          NextContinuationToken: 'page-2',
+        })
+        .mockResolvedValueOnce({
+          Contents: [{ Key: 'gym-1/products/b.png', LastModified: modified, Size: 20 }],
+          IsTruncated: false,
+        });
+
+      const objects = await service.listObjects('gym-1/');
+
+      expect(objects).toEqual([
+        { key: 'gym-1/products/a.png', lastModified: modified, size: 10 },
+        { key: 'gym-1/products/b.png', lastModified: modified, size: 20 },
+      ]);
+      expect(send.mock.calls[0]![0].input).toMatchObject({ Prefix: 'gym-1/' });
+      expect(send.mock.calls[1]![0].input).toMatchObject({ ContinuationToken: 'page-2' });
+    });
+
+    it('skips entries without a key and defaults a missing size and date', async () => {
+      send.mockResolvedValue({ Contents: [{ Size: 5 }, { Key: 'k.png' }], IsTruncated: false });
+
+      await expect(service.listObjects('')).resolves.toEqual([
+        { key: 'k.png', lastModified: null, size: 0 },
+      ]);
+    });
+
+    it('throws ServiceUnavailableException when R2 is not configured', async () => {
+      configure({ R2_BUCKET: undefined });
+      await expect(service.listObjects('')).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteObjects', () => {
+    it('deletes in batches of 1000 and returns the number removed', async () => {
+      send.mockResolvedValue({});
+      const keys = Array.from({ length: 1001 }, (_, index) => `gym-1/products/${index}.png`);
+
+      await expect(service.deleteObjects(keys)).resolves.toBe(1001);
+
+      expect(send).toHaveBeenCalledTimes(2);
+      const first = send.mock.calls[0]![0].input as { Delete: { Objects: unknown[] } };
+      const second = send.mock.calls[1]![0].input as { Delete: { Objects: unknown[] } };
+      expect(first.Delete.Objects).toHaveLength(1000);
+      expect(second.Delete.Objects).toEqual([{ Key: 'gym-1/products/1000.png' }]);
+    });
+
+    it('counts out per-key failures instead of throwing', async () => {
+      send.mockResolvedValue({ Errors: [{ Key: 'b.png', Message: 'denied' }] });
+
+      await expect(service.deleteObjects(['a.png', 'b.png'])).resolves.toBe(1);
+    });
+
+    it('does not call S3 for an empty key list', async () => {
+      await expect(service.deleteObjects([])).resolves.toBe(0);
+      expect(send).not.toHaveBeenCalled();
     });
   });
 });

@@ -16,6 +16,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { MediaCleanupService } from '../storage/media-cleanup.service';
 
 /**
  * The columns the roster/detail queries select off `Location`. Every field is the
@@ -58,6 +59,7 @@ export class AdminLocationsService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly media: MediaCleanupService,
   ) {}
 
   /**
@@ -135,7 +137,7 @@ export class AdminLocationsService {
    * {@link reactivateLocation}. Returns the updated detail.
    */
   async updateLocation(id: string, input: UpdateLocationData): Promise<UpdateLocationResponse> {
-    await this.requireLocation(id);
+    const existing = await this.requireLocation(id);
     await this.prisma.client.location.update({
       where: { id },
       data: {
@@ -147,6 +149,11 @@ export class AdminLocationsService {
         hours: input.hours as unknown as Prisma.InputJsonValue,
       },
     });
+
+    // A replaced photo leaves its predecessor behind; free it once the edit is
+    // committed. Best-effort by design — the nightly sweep is the backstop.
+    await this.media.discardUnreferenced([existing.photoUrl], [input.photoUrl]);
+
     return this.getLocation(id);
   }
 
@@ -179,10 +186,10 @@ export class AdminLocationsService {
    * scoped `where` constrains `gymId`, so a cross-tenant id never matches — the
    * guard for every write.
    */
-  private async requireLocation(id: string): Promise<{ id: string }> {
+  private async requireLocation(id: string): Promise<{ id: string; photoUrl: string | null }> {
     const location = await this.prisma.client.location.findFirst({
       where: { id },
-      select: { id: true },
+      select: { id: true, photoUrl: true },
     });
     if (!location) {
       throw new NotFoundException({ message: 'Location not found', code: 'LOCATION_NOT_FOUND' });
