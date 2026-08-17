@@ -58,8 +58,13 @@ import {
   updateGymSettingsAction,
 } from './actions';
 
-/** Accepted logo MIME types, matching the storage service's extension map. */
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+/**
+ * Accepted logo MIME types. Narrowed to the two raster formats `pdfkit` can embed,
+ * because the logo is drawn on the invoice PDF as well as in the app — accepting a
+ * WebP or SVG here would produce a logo that shows on screen but silently vanishes
+ * from every invoice.
+ */
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png'];
 /** Client-side size ceiling (bytes) — a friendly guard before the signed PUT. */
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 /** `HH:MM` 24-hour time, mirroring the schema pattern in `@fit/types`. */
@@ -1379,9 +1384,8 @@ function LogoField() {
       return;
     }
 
-    // Reject an over-wide logo *before* fetching a signed URL. SVGs have no
-    // intrinsic raster width, so the dimension check only applies to bitmaps.
-    if (file.type !== 'image/svg+xml' && typeof createImageBitmap === 'function') {
+    // Reject an over-wide logo *before* fetching a signed URL.
+    if (typeof createImageBitmap === 'function') {
       try {
         const bitmap = await createImageBitmap(file);
         const { width } = bitmap;

@@ -148,6 +148,59 @@ describe('InvoiceDocumentService', () => {
     expect(result?.buffer.toString('latin1')).toBe('%PDF-rendered');
     expect(update).not.toHaveBeenCalled();
   });
+
+  describe('gym logo', () => {
+    const LOGO_KEY = 'gym-1/logos/brand.png';
+    const LOGO_URL = `https://pub-test.r2.dev/${LOGO_KEY}`;
+    const LOGO_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+    /** An invoice row whose gym has `logoUrl` set in its settings JSON. */
+    const rowWithLogo = (logoUrl: string | null) =>
+      invoiceRow({ pdfUrl: null, gym: { name: 'Iron Yard', settings: { brand: { logoUrl } } } });
+
+    it('reads the logo by key and hands the bytes to the renderer', async () => {
+      const { service, findFirst, render, getObject } = setup({ configured: true });
+      findFirst.mockResolvedValue(rowWithLogo(LOGO_URL));
+      getObject.mockResolvedValue(LOGO_BYTES);
+
+      await service.getPdf('inv-1');
+
+      // The stored value is a public URL; the object is fetched by its key.
+      expect(getObject).toHaveBeenCalledWith(LOGO_KEY);
+      expect((render.mock.calls[0]?.[0] as { logo: Buffer | null }).logo).toBe(LOGO_BYTES);
+    });
+
+    it('passes no logo when the gym has not uploaded one', async () => {
+      const { service, findFirst, render, getObject } = setup({ configured: true });
+      findFirst.mockResolvedValue(rowWithLogo(null));
+
+      await service.getPdf('inv-1');
+
+      expect(getObject).not.toHaveBeenCalled();
+      expect((render.mock.calls[0]?.[0] as { logo: Buffer | null }).logo).toBeNull();
+    });
+
+    it('renders without the logo when the object cannot be read', async () => {
+      const { service, findFirst, render, getObject } = setup({ configured: true });
+      findFirst.mockResolvedValue(rowWithLogo(LOGO_URL));
+      getObject.mockRejectedValue(new Error('R2 down'));
+
+      const result = await service.getPdf('inv-1');
+
+      expect((render.mock.calls[0]?.[0] as { logo: Buffer | null }).logo).toBeNull();
+      expect(result?.buffer.toString('latin1')).toBe('%PDF-rendered');
+    });
+
+    it('does not reach for a logo when R2 is switched off', async () => {
+      const { service, findFirst, render, getObject } = setup({ configured: false });
+      findFirst.mockResolvedValue(rowWithLogo(LOGO_URL));
+
+      await service.getPdf('inv-1');
+
+      expect(getObject).not.toHaveBeenCalled();
+      expect((render.mock.calls[0]?.[0] as { logo: Buffer | null }).logo).toBeNull();
+    });
+  });
 });
 
 describe('invoiceObjectKey', () => {
