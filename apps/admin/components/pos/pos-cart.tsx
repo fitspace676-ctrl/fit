@@ -1,9 +1,9 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Button } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import { formatPrice } from '@/app/(dashboard)/shop/format-price';
-import { Btn } from '@/components/ui';
 import { useGymCurrency } from '@/components/gym-currency';
 import {
   lineTotal,
@@ -454,15 +454,14 @@ function CartSummary({ currency, onCharge }: { currency: string; onCharge: () =>
         <span {...stylex.props(styles.amount)}>{formatPrice(total, currency)}</span>
       </div>
 
-      <Btn
-        v="primary"
-        size="lg"
+      <Button
+        variant="primary"
+        size="page"
         onClick={onCharge}
         disabled={total <= 0}
-        {...stylex.props(styles.chargeBtn)}
-      >
-        {t('charge', { total: formatPrice(total, currency) })}
-      </Btn>
+        xstyle={styles.chargeBtn}
+        label={t('charge', { total: formatPrice(total, currency) })}
+      />
     </div>
   );
 }

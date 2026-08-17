@@ -9,16 +9,24 @@
       "eyebrow": "Your schedule",
       "nextUp": "Next up",
       "viewClass": "View class",
-      "bookAgain": "Book again",
       "upcoming": "Upcoming",
       "past": "Past",
       "noUpcoming": "No upcoming classes",
       "noUpcomingHint": "Browse classes to book your next session.",
       "noPast": "No past classes here yet.",
+      "noPastHint": "Classes you have attended will be listed here.",
       "when": "When",
       "details": "Trainer and location",
+      "viewLabel": "Upcoming or past bookings",
+      "stats": {
+        "upcoming": "Upcoming",
+        "attended": "Attended",
+        "waitlist": "On waitlist",
+        "total": "Bookings total"
+      },
       "filters": {
-        "all": "All"
+        "all": "All",
+        "label": "Filter by category"
       },
       "relative": {
         "today": "Today",
@@ -1083,7 +1091,8 @@
         "noPlan": "No plan",
         "showing": "Showing {from}–{to} of {total} members",
         "previous": "Previous",
-        "next": "Next"
+        "next": "Next",
+        "selectRow": "Select {name}"
       },
       "breadcrumb": {
         "label": "Breadcrumb",
@@ -1316,7 +1325,8 @@
         "taskMarkDone": "Mark done",
         "taskMarkPending": "Mark pending",
         "noTasks": "No tasks yet.",
-        "personalId": "National ID"
+        "personalId": "National ID",
+        "periodProgress": "Billing period progress"
       },
       "memberTabs": {
         "overview": "Overview",
@@ -3079,8 +3089,10 @@
     }
   },
   "classes": {
+    "eyebrow": "The schedule",
     "title": "Classes",
     "subtitle": "Browse the schedule and book your next session.",
+    "myBookings": "My bookings",
     "toggle": {
       "label": "Calendar view",
       "week": "Week",
@@ -3338,7 +3350,8 @@
       "checkIn": "Check-in",
       "viewProfile": "View profile",
       "greetingFallback": "Member",
-      "adminConsole": "Admin console"
+      "adminConsole": "Admin console",
+      "primaryNav": "Primary navigation"
     },
     "home": {
       "greeting": "Welcome back",
@@ -3378,7 +3391,8 @@
       "noProducts": "No products yet",
       "upcomingBookings": "Your upcoming bookings",
       "confirmed": "Confirmed",
-      "waitlist": "Waitlist · #{position}"
+      "waitlist": "Waitlist · #{position}",
+      "spotsTaken": "Spots taken"
     },
     "classes": {
       "title": "Classes",
@@ -3490,7 +3504,9 @@
         "resumedToast": "Membership resumed",
         "errInvalidDuration": "Enter a whole number of days.",
         "errAllowance": "That's more than the {days} freeze days you have left.",
-        "errGeneric": "Something went wrong. Please try again."
+        "errGeneric": "Something went wrong. Please try again.",
+        "durationLess": "Fewer days",
+        "durationMore": "More days"
       },
       "credits": {
         "title": "PT credits",

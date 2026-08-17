@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { Avatar } from '@astryxdesign/core/Avatar';
 import { getServerSession } from '@/lib/session';
 import { getActiveGymSlug } from '@/lib/active-gym';
@@ -115,7 +115,7 @@ export default async function ProfilePage() {
         </div>
       </header>
 
-      <Card variant="default" padding={4} xstyle={styles.card}>
+      <Card padding="sm" xstyle={styles.card}>
         <p {...stylex.props(styles.sectionLabel)}>{t('accountSection')}</p>
         <div {...stylex.props(styles.row)}>
           <span {...stylex.props(styles.rowKey)}>{t('role')}</span>

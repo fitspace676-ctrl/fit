@@ -338,7 +338,11 @@ export function EmptyState({
 /*  FilterChips — segmented tabs with counts                                    */
 /* -------------------------------------------------------------------------- */
 
-const CHIP_GRADIENT = 'bg-[linear-gradient(135deg,#7C3AED,#EC4899)]';
+// Driven by custom properties with the brand colours as fallbacks, so the palette
+// playground can re-colour the console's most visible element while an untouched
+// build renders exactly as before.
+const CHIP_GRADIENT =
+  'bg-[linear-gradient(135deg,var(--brand-gradient-from,#7C3AED),var(--brand-gradient-to,#EC4899))]';
 
 export interface FilterChip {
   label: string;

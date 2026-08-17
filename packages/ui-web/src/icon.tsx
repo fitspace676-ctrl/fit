@@ -32,6 +32,10 @@ export const I = {
   chevronLeft: 'M15 6l-6 6 6 6',
   chevronRight: 'M9 6l6 6-6 6',
   chevronDown: 'M6 9l6 6 6-6',
+  // The mirror of `chevronDown`, added for the sort indicator: a table header
+  // has to say ascending as clearly as descending, and rotating one glyph in CSS
+  // would animate the wrong way round on a direction change.
+  chevronUp: 'M6 15l6-6 6 6',
   pin: 'M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11ZM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
   flame: 'M12 22a7 7 0 0 0 7-7c0-3-2-5-3-7-1.5 1-2 2-2 3 0-2-1-4-3-6-1 4-4 5-4 10a5 5 0 0 0 5 7Z',
   star: 'M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9.4l6-.8L12 3Z',

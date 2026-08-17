@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { PromoCodeRow } from '@fit/types';
-import { Badge, Btn, ConfirmDialog, DataTable, Icon, useToast, type Column } from '@/components/ui';
+import { Badge, Button, ConfirmDialog, DataTable, type Column } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { PromoFormDialog } from './promo-form-dialog';
 import { deletePromoAction, togglePromoAction } from './actions';
 import { PROMO_STATUS_TONES, formatDate, formatDiscount, formatMoney } from './marketing-meta';
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   stack: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
   header: {
     display: 'flex',
@@ -206,9 +209,9 @@ export function PromoCodesView({
       header: t('promo.columns.status'),
       cell: (p) =>
         isExpired(p, now) ? (
-          <Badge tone="flame">{t('promo.expired')}</Badge>
+          <Badge tone="pending" label={t('promo.expired')} />
         ) : (
-          <Badge tone={PROMO_STATUS_TONES[p.status]}>{t(`promo.status.${p.status}`)}</Badge>
+          <Badge tone={PROMO_STATUS_TONES[p.status]} label={t(`promo.status.${p.status}`)} />
         ),
     },
     {
@@ -218,34 +221,42 @@ export function PromoCodesView({
       cell: (p) =>
         canManage ? (
           <div {...stylex.props(styles.actionsCell)}>
-            <Btn
-              v="ghost"
-              size="icon"
-              icon={p.status === 'active' ? 'eyeOff' : 'eye'}
-              aria-label={
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
+              title={p.status === 'active' ? t('promo.deactivate') : t('promo.activate')}
+              onClick={() => toggle(p)}
+              disabled={busy}
+              icon={
+                <Icon
+                  name={p.status === 'active' ? 'eyeOff' : 'eye'}
+                  {...stylex.props(styles.kitGlyph)}
+                />
+              }
+              label={
                 p.status === 'active'
                   ? t('promo.deactivateFor', { code: p.code })
                   : t('promo.activateFor', { code: p.code })
               }
-              title={p.status === 'active' ? t('promo.deactivate') : t('promo.activate')}
-              disabled={busy}
-              onClick={() => toggle(p)}
             />
-            <Btn
-              v="ghost"
-              size="icon"
-              icon="settings"
-              aria-label={t('promo.editFor', { code: p.code })}
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
               title={t('promo.edit')}
               onClick={() => setDialog({ kind: 'edit', promo: p })}
+              icon={<Icon name="settings" {...stylex.props(styles.kitGlyph)} />}
+              label={t('promo.editFor', { code: p.code })}
             />
-            <Btn
-              v="ghost"
-              size="icon"
-              icon="trash"
-              aria-label={t('promo.deleteFor', { code: p.code })}
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
               title={t('promo.delete')}
               onClick={() => setDialog({ kind: 'delete', promo: p })}
+              icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
+              label={t('promo.deleteFor', { code: p.code })}
             />
           </div>
         ) : null,
@@ -272,9 +283,13 @@ export function PromoCodesView({
           <p {...stylex.props(styles.headingHint)}>{t('promo.subheading')}</p>
         </div>
         {canManage ? (
-          <Btn v="primary" size="md" icon="plus" onClick={() => setDialog({ kind: 'create' })}>
-            {t('promo.newPromo')}
-          </Btn>
+          <Button
+            variant="primary"
+            size="card"
+            onClick={() => setDialog({ kind: 'create' })}
+            icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+            label={t('promo.newPromo')}
+          />
         ) : null}
       </div>
 
@@ -302,13 +317,13 @@ export function PromoCodesView({
           }
         }}
         title={t('promo.deleteTitle')}
-        message={
+        description={
           dialog?.kind === 'delete' ? t('promo.deleteMessage', { code: dialog.promo.code }) : ''
         }
         confirmLabel={t('promo.delete')}
         cancelLabel={t('wizard.cancel')}
-        danger
-        busy={busy}
+        confirmVariant="destructive"
+        loading={busy}
       />
     </div>
   );

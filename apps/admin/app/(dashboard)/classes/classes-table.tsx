@@ -4,14 +4,13 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type {
   AdminClassTemplateRow,
   ClassTemplateSort,
   ClassTemplateStatus,
   SortDir,
 } from '@fit/types';
-import { Badge, Btn, DataTable, nextSortDir, type Column } from '@/components/ui';
+import { Badge, Button, Card, DataTable, nextSortDir, type Column } from '@fit/ui-kit';
 import { STATUS_STYLES, formatDate, formatDuration, formatPricing } from './format';
 
 const styles = stylex.create({
@@ -85,7 +84,7 @@ const styles = stylex.create({
 /** A status pill mirroring the packages roster styling. */
 function StatusPill({ status }: { status: ClassTemplateStatus }) {
   const { label, tone } = STATUS_STYLES[status];
-  return <Badge tone={tone}>{label}</Badge>;
+  return <Badge tone={tone} label={label} />;
 }
 
 /**
@@ -142,7 +141,7 @@ export function ClassTemplatesTable({
 
   if (templates.length === 0) {
     return (
-      <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+      <Card padding="none" xstyle={styles.emptyCard}>
         No class templates match your filters yet.
       </Card>
     );
@@ -232,26 +231,24 @@ export function ClassTemplatesTable({
           {from}–{to} of {total}
         </span>
         <div {...stylex.props(styles.pagerBtns)}>
-          <Btn
-            v="outline"
-            size="sm"
-            disabled={!hasPrev}
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-          >
-            Previous
-          </Btn>
-          <Btn
-            v="outline"
-            size="sm"
-            disabled={!hasNext}
+            disabled={!hasPrev}
+            label="Previous"
+          />
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-          >
-            Next
-          </Btn>
+            disabled={!hasNext}
+            label="Next"
+          />
         </div>
       </div>
     </div>

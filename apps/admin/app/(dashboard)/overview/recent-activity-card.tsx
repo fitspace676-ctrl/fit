@@ -10,9 +10,9 @@
 // arrow/Home/End behave identically in both places.
 
 import { useState } from 'react';
+import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { useRovingTablist } from '../segments/use-roving-tablist';
 import { LiveNowPill, RecentCheckInsBody, RecentMembersBody } from './recent-cards';
@@ -81,7 +81,7 @@ export function RecentActivityCard({ data }: { data: DashboardOverviewResponse }
   };
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.tabs)}>
         <div role="tablist" aria-label={t('recentActivity.aria')} {...stylex.props(styles.tabList)}>
           {FEEDS.map((value, index) => {

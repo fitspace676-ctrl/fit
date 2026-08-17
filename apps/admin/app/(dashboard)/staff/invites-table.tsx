@@ -3,18 +3,18 @@
 import { useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type { PendingInvite } from '@fit/types';
 import {
   Badge,
-  Btn,
+  Button,
+  Card,
   ConfirmDialog,
   DataTable,
   Dot,
   EmptyState,
-  Icon,
   type Column,
-} from '@/components/ui';
+} from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { ROLE_TONES } from './role-meta';
 import { inviteStaffAction, revokeInviteAction } from './actions';
 import { createDateTimeFormat } from '@fit/i18n';
@@ -174,7 +174,7 @@ export function InvitesTable({
     {
       key: 'role',
       header: t('invites.columns.role'),
-      cell: (invite) => <Badge tone={ROLE_TONES[invite.role]}>{t(`roles.${invite.role}`)}</Badge>,
+      cell: (invite) => <Badge tone={ROLE_TONES[invite.role]} label={t(`roles.${invite.role}`)} />,
     },
     {
       key: 'sent',
@@ -189,10 +189,14 @@ export function InvitesTable({
       cell: (invite) =>
         invite.expired ? (
           <div {...stylex.props(styles.expiresRow)}>
-            <Badge tone="warning" className={stylex.props(styles.badgeGap).className}>
-              <Dot c="bg-warning-400" />
-              {t('invites.expired')}
-            </Badge>
+            <Badge
+              tone="pending"
+              label={
+                <>
+                  <Dot tone="neutral" /> {t('invites.expired')}
+                </>
+              }
+            />
             <span {...stylex.props(styles.expiresMuted)}>
               {formatDate(invite.expiresAt, locale)}
             </span>
@@ -210,18 +214,20 @@ export function InvitesTable({
         const rowBusy = busyId === invite.id && pending;
         return (
           <div {...stylex.props(styles.actions)}>
-            <Btn v="outline" size="sm" disabled={rowBusy} onClick={() => resend(invite)}>
-              {t('invites.resend')}
-            </Btn>
-            <Btn
-              v="ghost"
-              size="sm"
+            <Button
+              variant="secondary"
+              size="inline"
+              onClick={() => resend(invite)}
               disabled={rowBusy}
+              label={t('invites.resend')}
+            />
+            <Button
+              variant="ghost"
+              size="inline"
               onClick={() => setConfirmRevoke(invite)}
-              className={stylex.props(styles.dangerBtn).className}
-            >
-              {t('invites.revoke')}
-            </Btn>
+              disabled={rowBusy}
+              label={t('invites.revoke')}
+            />
           </div>
         );
       },
@@ -231,14 +237,14 @@ export function InvitesTable({
   return (
     <div {...stylex.props(styles.stack)}>
       {note ? (
-        <Card variant="default" padding={0} xstyle={styles.noteCard}>
+        <Card padding="none" xstyle={styles.noteCard}>
           <p role="status" {...stylex.props(styles.noteText)}>
             {note}
           </p>
         </Card>
       ) : null}
       {error ? (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
@@ -253,9 +259,9 @@ export function InvitesTable({
         caption={t('invites.caption')}
         empty={
           <EmptyState
-            icon="message"
+            icon={<Icon name="message" />}
             title={t('invites.emptyTitle')}
-            message={t('invites.emptyHint')}
+            body={t('invites.emptyHint')}
           />
         }
       />
@@ -264,12 +270,12 @@ export function InvitesTable({
         open={confirmRevoke !== null}
         onClose={() => setConfirmRevoke(null)}
         onConfirm={() => confirmRevoke && revoke(confirmRevoke)}
-        busy={pending}
-        danger
+        loading={pending}
+        confirmVariant="destructive"
         confirmLabel={t('confirm.revokeConfirm')}
         cancelLabel={t('confirm.cancel')}
         title={t('confirm.revokeTitle')}
-        message={confirmRevoke ? t('confirm.revokeBody', { email: confirmRevoke.email }) : ''}
+        description={confirmRevoke ? t('confirm.revokeBody', { email: confirmRevoke.email }) : ''}
       />
     </div>
   );

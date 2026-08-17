@@ -8,7 +8,7 @@ import { Icon } from '@/src/components/ui';
 import { ClassDetail } from '@/src/components/classes/ClassDetail';
 import { ClassNotFound } from '@/src/components/classes/ClassNotFound';
 
-// Astryx migration (T11.12): the detail route shell (back link + column) is
+// Astryx migration (T11), now on the portal kit: the detail route shell (back link + column) is
 // authored in compiled StyleX over the Fit brand tokens — no Tailwind utilities.
 
 const styles = stylex.create({

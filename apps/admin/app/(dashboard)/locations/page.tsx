@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchLocations } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { LocationsBoard } from './locations-board';
 
@@ -117,7 +117,7 @@ export default async function LocationsPage() {
           <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
           <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </header>
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {message}

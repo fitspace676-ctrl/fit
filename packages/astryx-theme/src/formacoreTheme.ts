@@ -149,6 +149,31 @@ const fcTokens = {
   // while the capsule keeps its own edge.
   '--fc-glass': ['rgba(255, 255, 255, 0.72)', 'rgba(30, 30, 28, 0.72)'],
   '--fc-glass-border': ['rgba(19, 19, 18, 0.10)', 'rgba(255, 255, 255, 0.12)'],
+
+  // =========================================================================
+  // Interaction. Both are mode-INDEPENDENT for the same reason `--color-accent`
+  // is: the lime does not move between themes, so neither may the states drawn
+  // on top of it.
+  // =========================================================================
+
+  // Hover for anything filled with `--color-accent`. One step UP the ramp
+  // (brand-200), not down: the lime is already the brightest thing on a charcoal
+  // canvas, and darkening it on hover reads as "disabled" rather than "live".
+  //
+  // This exists because the shop authored `var(--color-accent-hover)` — a token
+  // no theme defines. An undefined custom property with no fallback is invalid
+  // at computed-value time, so `background-color` fell back to its INITIAL value
+  // (`transparent`) and the lime buttons went see-through on hover. The sign-in
+  // submit had already hardcoded `#EFF9A2` for the same state; this is that
+  // value, named, so the two cannot drift.
+  '--fc-accent-hover': brand[200],
+
+  // The focus ring, as one value every control shares. Authored here rather than
+  // per component so a keyboard user meets exactly one ring in the product, and
+  // so it can never be half-applied: `:focus-visible` sets this box-shadow and
+  // nothing else. 40% keeps it visible on both the lime fills and the charcoal
+  // panels without becoming a second border.
+  '--fc-focus-ring': '0 0 0 3px color-mix(in srgb, var(--color-accent) 40%, transparent)',
 } satisfies Record<`--fc-${string}`, TokenValue>;
 
 export const formacoreTheme = defineTheme({
@@ -206,14 +231,21 @@ export const formacoreTheme = defineTheme({
     // token that must never be flipped back to white.
     //
     // `text-accent` / `icon-accent` are NOT the block colour — they are lime
-    // used as ink (links, active labels), so light mode drops to the 700 stop
-    // for contrast on white and dark mode lifts to 300 on charcoal.
+    // used as ink (links, active labels), so light mode drops DOWN the ramp for
+    // contrast on white and dark mode lifts to 300 on charcoal.
+    //
+    // The light stop is 800, not 700. 700 was chosen as "the stop that is legible
+    // on white" but measures 3.72:1 — under the 4.5:1 AA floor, and these are
+    // ordinary 13–14px links (the "view all" row, product prices, the checkout's
+    // marked clauses), none of which qualify as large text. 800 is 5.43:1 and is
+    // the first stop on the ramp that actually clears it. Dark mode was never at
+    // risk: 300 on ink-900 is 13.7:1.
     // =========================================================================
     '--color-accent': brand[300],
     '--color-accent-muted': [brand[100], brand[950]],
     '--color-on-accent': ink[950],
-    '--color-text-accent': [brand[700], brand[300]],
-    '--color-icon-accent': [brand[700], brand[300]],
+    '--color-text-accent': [brand[800], brand[300]],
+    '--color-icon-accent': [brand[800], brand[300]],
 
     // =========================================================================
     // Text & icon ladders — three stops each, no more. The direction leans on

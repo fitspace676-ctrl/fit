@@ -3,16 +3,17 @@
 import { useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/src/i18n/navigation';
-import { Btn, useToast, type BtnVariant, type BtnSize } from '@/src/components/ui';
+import { useToast } from '@/src/components/ui';
+import { Button, type ButtonSize, type ButtonVariant } from '@/src/components/ui/kit';
 import { bookClassAction, cancelBookingAction } from '@/app/actions/bookings';
 
 export interface BookingActionButtonProps {
   classId: string;
   action: 'book' | 'cancel';
   label: string;
-  v?: BtnVariant;
-  size?: BtnSize;
-  className?: string;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  fullWidth?: boolean;
   /** Disable (e.g. an already-full class with no waitlist desired). */
   disabled?: boolean;
 }
@@ -26,9 +27,9 @@ export function BookingActionButton({
   classId,
   action,
   label,
-  v = 'primary',
-  size = 'sm',
-  className = '',
+  variant = 'primary',
+  size = 'card',
+  fullWidth = false,
   disabled = false,
 }: BookingActionButtonProps) {
   const t = useTranslations('member.actions');
@@ -59,9 +60,15 @@ export function BookingActionButton({
   }
 
   return (
-    <Btn v={v} size={size} className={className} onClick={run} disabled={disabled || pending}>
-      {pending ? t('working') : label}
-    </Btn>
+    <Button
+      variant={variant}
+      size={size}
+      fullWidth={fullWidth}
+      onClick={run}
+      disabled={disabled}
+      loading={pending}
+      label={pending ? t('working') : label}
+    />
   );
 }
 

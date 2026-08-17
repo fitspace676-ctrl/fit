@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type { AdminTrainerDetail, WeeklyAvailability } from '@fit/types';
 import { Icon } from '@/components/ui';
 import { TrainerAvailabilityEditor } from './availability-editor';
@@ -410,7 +410,7 @@ export function TrainerTabs({
 function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
     <div {...stylex.props(styles.overviewGrid)}>
-      <Card variant="default" padding={0} xstyle={styles.aboutCard}>
+      <Card padding="none" xstyle={styles.aboutCard}>
         <div {...stylex.props(styles.block)}>
           <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.about')}</h3>
           {trainer.bio ? (
@@ -457,7 +457,7 @@ function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
         </div>
       </Card>
 
-      <Card variant="default" padding={0} xstyle={styles.weekCard}>
+      <Card padding="none" xstyle={styles.weekCard}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.thisWeek')}</h3>
         <div {...stylex.props(styles.weekRows)}>
           <WeekRow label={t('tabs.classesLed')} value={trainer.thisWeek.classesLed} />
@@ -480,7 +480,7 @@ function SchedulePanel({
   locale: string;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.panelCard}>
+    <Card padding="none" xstyle={styles.panelCard}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.nextClass')}</h3>
       {trainer.nextClass ? (
         <div {...stylex.props(styles.nextRow)}>
@@ -517,7 +517,7 @@ function SchedulePanel({
  */
 function ClientsPanel({ t }: { t: T }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+    <Card padding="none" xstyle={styles.emptyCard}>
       <span {...stylex.props(styles.emptyIcon)}>
         <Icon name="users" {...stylex.props(styles.emptyIconSvg)} />
       </span>
@@ -530,7 +530,7 @@ function ClientsPanel({ t }: { t: T }) {
 /** Reviews — the live aggregate + a link into the moderation queue. */
 function ReviewsPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.panelCard}>
+    <Card padding="none" xstyle={styles.panelCard}>
       <div {...stylex.props(styles.reviewHead)}>
         <div {...stylex.props(styles.ratingGroup)}>
           <Icon name="star" {...stylex.props(styles.bigStar)} />

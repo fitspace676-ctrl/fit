@@ -51,62 +51,35 @@ then locks that screen Tailwind-free for good.
 
 Guarded (in `MIGRATED_PATHS`, enforced Tailwind-free):
 
-| Path                                                       | Task   | Status |
-| ---------------------------------------------------------- | ------ | ------ |
-| `apps/web/app/[locale]/astryx-smoke`                       | T11.1  | ✅     |
-| `apps/admin/app/astryx-smoke`                              | T11.1  | ✅     |
-| `apps/web/src/components/theme/astryx-provider.tsx`        | T11.1  | ✅     |
-| `apps/admin/components/theme/astryx-provider.tsx`          | T11.1  | ✅     |
-| `apps/web/app/[locale]/member/login`                       | T11.7  | ✅     |
-| `apps/web/app/[locale]/_components/auth`                   | T11.7  | ✅     |
-| `apps/web/app/[locale]/member/register`                    | T11.8  | ✅     |
-| `apps/web/app/[locale]/member/forgot-password`             | T11.9  | ✅     |
-| `apps/web/app/[locale]/member/reset-password`              | T11.9  | ✅     |
-| `apps/web/app/[locale]/member/(member)/home/page.tsx`      | T11.11 | ✅     |
-| `apps/web/src/components/member/home/membership-hero.tsx`  | T11.11 | ✅     |
-| `apps/web/app/[locale]/member/(member)/classes`            | T11.12 | ✅     |
-| `apps/web/src/components/classes`                          | T11.12 | ✅     |
-| `apps/web/app/[locale]/member/(member)/trainers`           | T11.13 | ✅     |
-| `apps/web/src/components/trainers`                         | T11.13 | ✅     |
-| `apps/web/app/[locale]/member/(member)/account/bookings`   | T11.14 | ✅     |
-| `apps/web/src/components/account`                          | T11.14 | ✅     |
-| `apps/web/app/[locale]/member/(member)/shop`               | T11.15 | ✅     |
-| `apps/web/src/components/shop`                             | T11.15 | ✅     |
-| `apps/web/app/[locale]/member/(member)/cart`               | T11.15 | ✅     |
-| `apps/web/src/components/member/cart`                      | T11.15 | ✅     |
-| `apps/web/app/[locale]/member/(join)/checkout`             | T11.15 | ✅     |
-| `apps/web/src/components/checkout`                         | T11.15 | ✅     |
-| `apps/web/app/[locale]/member/(member)/account/profile`    | T11.16 | ✅     |
-| `apps/web/app/[locale]/member/(member)/account/membership` | T11.16 | ✅     |
-| `apps/web/src/components/member/profile`                   | T11.16 | ✅     |
-| `apps/web/src/components/member/notification-bell.tsx`     | T11.16 | ✅     |
-| `apps/web/app/[locale]/member/(member)/layout.tsx`         | T11.10 | ✅     |
-| `apps/web/app/[locale]/member/(join)/layout.tsx`           | T11.10 | ✅     |
-| `apps/web/src/components/member/member-header.tsx`         | T11.10 | ✅     |
-| `apps/web/src/components/member/member-footer.tsx`         | T11.10 | ✅     |
-| `apps/web/src/components/member/bottom-nav.tsx`            | T11.10 | ✅     |
-| `apps/web/src/components/member/theme-toggle.tsx`          | T11.10 | ✅     |
-| `apps/web/src/components/LocaleSwitcher.tsx`               | T11.10 | ✅     |
-| `apps/admin/components/admin-shell.tsx`                    | T11.17 | ✅     |
-| `apps/admin/components/sidebar.tsx`                        | T11.17 | ✅     |
-| `apps/admin/components/top-bar.tsx`                        | T11.17 | ✅     |
-| `apps/admin/components/nav-icon.tsx`                       | T11.17 | ✅     |
-| `apps/admin/components/locale-switcher.tsx`                | T11.17 | ✅     |
-| `apps/admin/app/(dashboard)/page.tsx`                      | T11.18 | ✅     |
-| `apps/admin/app/(dashboard)/dashboard-view.tsx`            | T11.18 | ✅     |
-| `apps/admin/app/(dashboard)/charts.tsx`                    | T11.18 | ✅     |
-| `apps/admin/app/(dashboard)/overview`                      | T11.18 | ✅     |
-| `apps/admin/app/(dashboard)/members`                       | T11.19 | ✅     |
-| `apps/admin/app/(dashboard)/classes`                       | T11.20 | ✅     |
-| `apps/admin/app/(dashboard)/staff`                         | T11.21 | ✅     |
-| `apps/admin/app/(dashboard)/locations`                     | T11.21 | ✅     |
-| `apps/admin/app/(dashboard)/settings`                      | T11.21 | ✅     |
-| `apps/admin/app/(dashboard)/payments/transactions`         | T11.22 | ✅     |
-| `apps/admin/app/(dashboard)/pos`                           | T11.22 | ✅     |
-| `apps/admin/app/(dashboard)/shop`                          | T11.22 | ✅     |
-| `apps/admin/app/(dashboard)/reports`                       | T11.22 | ✅     |
-| `apps/admin/components/pos`                                | T11.22 | ✅     |
-| `apps/admin/app/(dashboard)/segments`                      | DS-9   | ✅     |
+| Path                                                | Task     | Status |
+| --------------------------------------------------- | -------- | ------ |
+| `apps/web/app/[locale]/astryx-smoke`                | T11.1    | ✅     |
+| `apps/admin/app/astryx-smoke`                       | T11.1    | ✅     |
+| `apps/web/src/components/theme/astryx-provider.tsx` | T11.1    | ✅     |
+| `apps/admin/components/theme/astryx-provider.tsx`   | T11.1    | ✅     |
+| `apps/web/app/[locale]/member`                      | T11.7–16 | ✅     |
+| `apps/web/app/[locale]/_components/auth`            | T11.7    | ✅     |
+| `apps/web/src/components`                           | T11.7–16 | ✅     |
+| `apps/admin/components/admin-shell.tsx`             | T11.17   | ✅     |
+| `apps/admin/components/sidebar.tsx`                 | T11.17   | ✅     |
+| `apps/admin/components/top-bar.tsx`                 | T11.17   | ✅     |
+| `apps/admin/components/nav-icon.tsx`                | T11.17   | ✅     |
+| `apps/admin/components/locale-switcher.tsx`         | T11.17   | ✅     |
+| `apps/admin/app/(dashboard)/page.tsx`               | T11.18   | ✅     |
+| `apps/admin/app/(dashboard)/dashboard-view.tsx`     | T11.18   | ✅     |
+| `apps/admin/app/(dashboard)/charts.tsx`             | T11.18   | ✅     |
+| `apps/admin/app/(dashboard)/overview`               | T11.18   | ✅     |
+| `apps/admin/app/(dashboard)/members`                | T11.19   | ✅     |
+| `apps/admin/app/(dashboard)/classes`                | T11.20   | ✅     |
+| `apps/admin/app/(dashboard)/staff`                  | T11.21   | ✅     |
+| `apps/admin/app/(dashboard)/locations`              | T11.21   | ✅     |
+| `apps/admin/app/(dashboard)/settings`               | T11.21   | ✅     |
+| `apps/admin/app/(dashboard)/payments/transactions`  | T11.22   | ✅     |
+| `apps/admin/app/(dashboard)/pos`                    | T11.22   | ✅     |
+| `apps/admin/app/(dashboard)/shop`                   | T11.22   | ✅     |
+| `apps/admin/app/(dashboard)/reports`                | T11.22   | ✅     |
+| `apps/admin/components/pos`                         | T11.22   | ✅     |
+| `apps/admin/app/(dashboard)/segments`               | DS-9     | ✅     |
 
 ### Rows retired by the IA consolidation
 
@@ -127,26 +100,53 @@ manifest no longer lists them:
 | `apps/admin/app/(dashboard)/products`  | T11.22 | `shop` (via `payments/products`)         |
 | `apps/admin/app/(dashboard)/crm`       | T12.3  | removed with the CRM workspace           |
 
-Pending screens (still on Tailwind — add to the manifest as each lands). Counts
-are files currently using `className=` under each app, as a rough burn-down:
-`apps/web` = 4, `apps/admin` ≈ 25.
+The three web rows above are **directory** guards, not screens: the member portal
+is migrated end to end, so a new file under any of them is covered the day it
+lands rather than when someone remembers to add it. The per-screen rows
+(T11.7…T11.16) that used to fill this table collapsed into them.
+
+### The member portal is complete
+
+Every member screen now renders `apps/web/src/components/ui/kit` — the FormaCore
+control vocabulary the sign-in and checkout screens always used, promoted to the
+whole portal. Before this, those five screens rendered a private `auth-form-kit`
+and the other twenty-eight rendered **Astryx components** dressed in the same
+tokens: one palette, two sets of objects, and the seam was visible one click past
+sign-in. The kit replaced both, so `@astryxdesign/core` components no longer
+appear anywhere in `apps/web` (the theme + `astryx.css` remain — that is what
+supplies the tokens).
+
+The four leaf files this document previously tracked as "a coexistence tail" are
+gone as such:
+
+| File                                              | Outcome                                                                                                                 |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `src/components/member/booking-action-button.tsx` | on the kit's `Button`                                                                                                   |
+| `src/components/member/goals/goals-card.tsx`      | on the kit (`Card` / `Button` / `Meter` / `EmptyState`)                                                                 |
+| `src/components/ui/data-viz.tsx`                  | **deleted** — `CountUp` moved into the kit; `Donut` was unused, `Occupancy` / `Switch` superseded by `Meter` / `Switch` |
+| `src/components/ui/qr-code.tsx`                   | StyleX                                                                                                                  |
+
+`@fit/ui-web`'s `Drawer` went too: the class detail sheet was still mounting it,
+and because that package is deliberately outside the guardrail, a Tailwind
+overlay kept painting inside a screen the manifest counted as migrated. The kit's
+`Drawer` replaces it, with its own focus trap, scroll lock and Escape handling.
+
+**Tailwind is still active in `apps/web`** — the marketing surface
+(`app/[locale]/_components/*`, the `(marketing)` layout, the error/403 pages) has
+not been migrated and is out of this epic's scope. Three files under
+`src/components/ui` (`badge.tsx`, `button.tsx`, `primitives.tsx`) exist only to
+serve it and are listed in the guardrail's `EXEMPT_PATHS` — file-level
+exemptions, never directories, and the guard fails if one stops matching a real
+guarded file.
+
+Pending (still on Tailwind — add to the manifest as each lands). `apps/admin` ≈ 25
+files currently using `className=`, as a rough burn-down:
 
 | Area                                  | Tasks                  |
 | ------------------------------------- | ---------------------- |
 | Admin — billing (plans/subs/invoices) | T11.23                 |
+| Web — marketing pages + error routes  | not scheduled          |
 | Parity + a11y + dead-code sweep       | T11.24, T11.25, T11.26 |
-
-The member portal's four remaining Tailwind files are leaf components the shell
-migration did not cover. They render correctly on the FormaCore palette (the web
-Tailwind config mirrors the theme's tokens), so they are a coexistence tail
-rather than a visual gap:
-
-| File                                              | Notes                                           |
-| ------------------------------------------------- | ----------------------------------------------- |
-| `src/components/member/booking-action-button.tsx` | server-action button used by the classes drawer |
-| `src/components/member/goals/goals-card.tsx`      | mounted only by the trainers page               |
-| `src/components/ui/data-viz.tsx`                  | `CountUp` + the small meters                    |
-| `src/components/ui/qr-code.tsx`                   | deterministic check-in QR                       |
 
 The demo/showcase route `apps/web/app/[locale]/astryx-primitives` is **not**
 migrated and never enters the manifest — it uses Tailwind on purpose to scaffold

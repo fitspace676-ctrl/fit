@@ -12,8 +12,8 @@
 // different fact from nothing filled.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { ClassesRatePoint } from '@fit/types';
 import { AreaChart, type AreaPoint } from '../charts';
 import { EmptyState } from '../overview/format';
@@ -58,7 +58,7 @@ export function UtilizationCard({ points }: { points: ClassesRatePoint[] }) {
   const last = points[points.length - 1]?.label;
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('utilization.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('utilization.caption')}</p>

@@ -1,9 +1,9 @@
 import * as stylex from '@stylexjs/stylex';
+import { ButtonLink, Card } from '@/src/components/ui/kit';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
-import { ButtonLink, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 
-// Astryx migration (T11.12): rebuilt on the Astryx `Card` / `Button` over the
+// Astryx migration (T11), now on the portal kit: rebuilt on the kit's `Card` / `Button` over the
 // Fit brand theme, layout authored in compiled StyleX (`var(--color-*)`) — no
 // Tailwind utilities, no formacore Aurora-glass primitives.
 
@@ -59,7 +59,7 @@ export function ClassNotFound() {
   const t = useTranslations('classes');
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <span aria-hidden {...stylex.props(styles.badge)}>
         <Icon name="search" {...stylex.props(styles.badgeIcon)} sw={2} />
       </span>
@@ -68,7 +68,7 @@ export function ClassNotFound() {
       <ButtonLink
         href="/member/classes"
         variant="secondary"
-        size="sm"
+        size="inline"
         label={t('detail.notFound.action')}
         xstyle={styles.action}
       />

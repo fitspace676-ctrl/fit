@@ -208,14 +208,80 @@ export function formatZonedTime(iso: string, timeZone: string): string {
   return `${`${hour}`.padStart(2, '0')}:${`${minute}`.padStart(2, '0')}`;
 }
 
+/**
+ * Format `iso` on the gym's calendar with any field set.
+ *
+ * The one place `createDateTimeFormat` may be paired with a zone: it reads UTC
+ * fields by contract, and {@link asUtcWallClock} is what makes those fields the
+ * gym's wall clock. Everything dated in the portal should come through here or
+ * one of the wrappers below, so no screen has to remember the pairing — getting
+ * it wrong is silent, and prints a plausible date from the wrong day.
+ */
+export function formatZoned(
+  iso: string,
+  timeZone: string,
+  locale: string,
+  options: Parameters<typeof createDateTimeFormat>[1],
+): string {
+  return createDateTimeFormat(locale, options).format(asUtcWallClock(iso, timeZone));
+}
+
 /** A full, human date on the gym's calendar — e.g. `Monday, 1 June 2026`. */
 export function formatZonedDate(iso: string, timeZone: string, locale: string): string {
-  return createDateTimeFormat(locale, {
+  return formatZoned(iso, timeZone, locale, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  }).format(asUtcWallClock(iso, timeZone));
+  });
+}
+
+/** The relative-day words a caller supplies, from its own i18n catalogue. */
+export interface RelativeDayLabels {
+  today: string;
+  tomorrow: string;
+  yesterday?: string;
+}
+
+/**
+ * "Today" / "Tomorrow" / "Yesterday", else the short weekday — decided on the
+ * GYM's calendar, not the viewer's and not UTC.
+ *
+ * Both halves have to agree on a zone or the label contradicts the clock beside
+ * it. The dashboard used to compute today/tomorrow from `Date#toDateString`
+ * (the viewer's zone) and then print the weekday through `createDateTimeFormat`
+ * (UTC, by that formatter's own contract) — two zones inside one string, on a
+ * card whose time was a third. Here both come from `zonedDayKey`, and the
+ * weekday name is read off a wall-clock carrier so `@fit/i18n`'s localised
+ * weekday table still applies.
+ *
+ * `now` is passed in rather than read from the clock so the result is stable for
+ * a given render and testable without freezing time.
+ */
+export function zonedRelativeDay(
+  iso: string,
+  now: Date,
+  timeZone: string,
+  locale: string,
+  labels: RelativeDayLabels,
+): string {
+  const dayKey = zonedDayKey(iso, timeZone);
+  const todayKey = zonedDayKey(now.toISOString(), timeZone);
+  // Both keys are `YYYY-MM-DD`, so parsing them as UTC midnights makes the
+  // difference a whole number of days with no DST arithmetic involved.
+  const diff = Math.round(
+    (Date.parse(`${dayKey}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / DAY_MS,
+  );
+
+  if (diff === 0) return labels.today;
+  if (diff === 1) return labels.tomorrow;
+  if (diff === -1 && labels.yesterday) return labels.yesterday;
+  return formatZoned(iso, timeZone, locale, { weekday: 'short' });
+}
+
+/** A compact `D Mon` date on the gym's calendar. */
+export function formatZonedShortDate(iso: string, timeZone: string, locale: string): string {
+  return formatZoned(iso, timeZone, locale, { day: 'numeric', month: 'short' });
 }
 
 /**

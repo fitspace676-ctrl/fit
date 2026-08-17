@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { MarketingCatalogResponse, MarketingChannel, MessageTemplateRow } from '@fit/types';
-import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
+import { Button, Drawer, Field, SelectField, TextareaField } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { createTemplateAction, updateTemplateAction } from './actions';
 import { CHANNEL_BODY_LIMITS, CHANNEL_ORDER, CHANNEL_SUBJECT_LIMITS } from './marketing-meta';
 
@@ -171,28 +172,29 @@ export function TemplateFormDialog({
     <Drawer
       open
       onClose={handleClose}
-      closing={closing}
-      side="right"
-      title={mode === 'create' ? t('templates.addTitle') : t('templates.editTitle')}
-      className="max-w-xl"
+      label={mode === 'create' ? t('templates.addTitle') : t('templates.editTitle')}
       footer={
         <div {...stylex.props(styles.footerRow)}>
-          <Btn v="outline" size="md" onClick={handleClose} disabled={pending}>
-            {t('wizard.cancel')}
-          </Btn>
-          <Btn
-            v="primary"
-            size="md"
+          <Button
+            variant="secondary"
+            size="card"
+            onClick={handleClose}
+            disabled={pending}
+            label={t('wizard.cancel')}
+          />
+          <Button
+            variant="primary"
+            size="card"
             onClick={submit}
             disabled={pending || !canSubmit}
-            className="btn-brand"
-          >
-            {pending
-              ? t('wizard.saving')
-              : mode === 'create'
-                ? t('templates.addSubmit')
-                : t('templates.editSubmit')}
-          </Btn>
+            label={
+              pending
+                ? t('wizard.saving')
+                : mode === 'create'
+                  ? t('templates.addSubmit')
+                  : t('templates.editSubmit')
+            }
+          />
         </div>
       }
     >
@@ -210,44 +212,41 @@ export function TemplateFormDialog({
           </div>
         ) : null}
 
-        <Field label={t('templates.nameLabel')}>
-          <Input
-            value={form.name}
-            onChange={(e) => patch('name', e.target.value)}
-            placeholder={t('templates.namePlaceholder')}
-            autoFocus
-          />
-        </Field>
+        <Field
+          label={t('templates.nameLabel')}
+          value={form.name}
+          onChange={(e) => patch('name', e.target.value)}
+          placeholder={t('templates.namePlaceholder')}
+          autoFocus
+        />
 
-        <Field label={t('templates.channelLabel')}>
-          <Select
-            value={form.channel}
-            onChange={(e) => patch('channel', e.target.value as MarketingChannel)}
-          >
-            {CHANNEL_ORDER.map((channel) => (
-              <option key={channel} value={channel}>
-                {t(`channels.${channel}`)}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <SelectField
+          label={t('templates.channelLabel')}
+          value={form.channel}
+          onChange={(e) => patch('channel', e.target.value as MarketingChannel)}
+          options={[
+            ...CHANNEL_ORDER.map((channel) => ({
+              value: channel,
+              label: t(`channels.${channel}`),
+            })),
+          ]}
+        />
 
-        <Field label={t('templates.categoryLabel')} hint={t('templates.categoryHint')}>
-          <Input
-            value={form.category}
-            onChange={(e) => patch('category', e.target.value)}
-            placeholder={t('templates.categoryPlaceholder')}
-          />
-        </Field>
+        <Field
+          label={t('templates.categoryLabel')}
+          hint={t('templates.categoryHint')}
+          value={form.category}
+          onChange={(e) => patch('category', e.target.value)}
+          placeholder={t('templates.categoryPlaceholder')}
+        />
 
-        <Field label={t('content.subjectLabel')}>
-          <Input
-            value={form.subject}
-            maxLength={subjectLimit}
-            onChange={(e) => patch('subject', e.target.value)}
-            placeholder={t('content.subjectPlaceholder')}
-          />
-        </Field>
+        <Field
+          label={t('content.subjectLabel')}
+          value={form.subject}
+          maxLength={subjectLimit}
+          onChange={(e) => patch('subject', e.target.value)}
+          placeholder={t('content.subjectPlaceholder')}
+        />
 
         <div>
           <div {...stylex.props(styles.counterRow)}>
@@ -258,7 +257,9 @@ export function TemplateFormDialog({
               </span>
             ) : null}
           </div>
-          <Textarea
+          <TextareaField
+            label={t('content.bodyPlaceholder')}
+            labelHidden
             rows={6}
             value={form.body}
             maxLength={bodyLimit ?? undefined}

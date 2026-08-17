@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type {
   MemberBillingState,
   MemberPlan,
@@ -18,17 +17,18 @@ import type {
 } from '@fit/types';
 import {
   Badge,
-  Btn,
+  Button,
+  Card,
   ConfirmDialog,
   DataTable,
   FilterChips,
-  Icon,
+  TablePager,
   nextSortDir,
-  useToast,
+  type BadgeTone,
   type Column,
   type FilterChip,
-  type Tone,
-} from '@/components/ui';
+} from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { MEMBER_TRASH_RETENTION_DAYS } from '@fit/types';
 import { MembersFilters } from './members-filters';
 import { bulkExportMembersAction, setMemberTrashedAction } from './actions';
@@ -43,14 +43,25 @@ type T = ReturnType<typeof useTranslations>;
  * roster to answer "who is this person to us?", and the account's own state
  * (invited / suspended) and the billing state are the finer detail behind it.
  */
-const KIND_TONES: Record<MemberKind, Tone> = {
-  MEMBER: 'success',
-  GUEST: 'ink',
-  INACTIVE: 'warning',
+const KIND_TONES: Record<MemberKind, BadgeTone> = {
+  // Three standings onto the direction's three signals: an active member is the
+  // lime, a guest and a lapsed member are both ink. `warning` used to give
+  // INACTIVE an amber of its own; the direction has no amber, and "lapsed" is a
+  // state to notice rather than an error to fix.
+  MEMBER: 'positive',
+  GUEST: 'neutral',
+  INACTIVE: 'pending',
 };
 
-/** Fallback plan colour (brand accent) when a plan carries no colour of its own. */
-const PLAN_FALLBACK = '#6257E3';
+/**
+ * Fallback plan swatch when a plan carries no colour of its own.
+ *
+ * Reads the theme rather than naming a hex: it used to be `#6257E3`, the retired
+ * Aurora indigo, which survived the repaint as the one violet dot on an
+ * otherwise monochrome roster. Plans that DO define a colour keep it — that is
+ * the gym's own data, not our palette.
+ */
+const PLAN_FALLBACK = 'var(--color-accent)';
 
 /**
  * The roster's segmented tabs, on the standing axis: member / guest / lapsed.
@@ -354,16 +365,16 @@ const styles = stylex.create({
     fontFamily: 'var(--font-family-code)',
     fontVariantNumeric: 'tabular-nums',
   },
-  pagerBtns: {
-    display: 'flex',
-    gap: '0.5rem',
+  btnGlyph: {
+    height: '0.9375rem',
+    width: '0.9375rem',
   },
 });
 
 /** The standing pill mirroring the roster styling. */
 function StatusPill({ kind }: { kind: MemberKind }) {
   const t = useTranslations('admin.members');
-  return <Badge tone={KIND_TONES[kind]}>{t(`kind.${kind}`)}</Badge>;
+  return <Badge tone={KIND_TONES[kind]} label={t(`kind.${kind}`)} />;
 }
 
 /** Render a member's initials for the avatar placeholder. */
@@ -462,7 +473,7 @@ function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
   const t = useTranslations('admin.members');
   const { total, plans } = planMix;
   return (
-    <Card variant="default" padding={0} xstyle={styles.planCard}>
+    <Card padding="none" xstyle={styles.planCard}>
       <div {...stylex.props(styles.planHead)}>
         <h2 {...stylex.props(styles.planLabel)}>{t('list.planMix')}</h2>
         <span {...stylex.props(styles.planMeta)}>
@@ -726,15 +737,14 @@ export function MembersTable({
       cell: (member) => (
         <div {...stylex.props(styles.rowActions)}>
           {canWrite && isTrashView ? (
-            <Btn
-              v="outline"
-              size="sm"
-              icon="arrowLeft"
+            <Button
+              variant="secondary"
+              size="inline"
+              icon={<Icon name="arrowLeft" {...stylex.props(styles.btnGlyph)} />}
               onClick={() => setRowTrashed(member.id, false)}
               disabled={rowPending}
-            >
-              {t('trash.restore')}
-            </Btn>
+              label={t('trash.restore')}
+            />
           ) : null}
           {canWrite && !isTrashView ? (
             <button
@@ -761,11 +771,6 @@ export function MembersTable({
     },
   ];
 
-  const from = total === 0 ? 0 : (page - 1) * limit + 1;
-  const to = Math.min(page * limit, total);
-  const hasPrev = page > 1;
-  const hasNext = page * limit < total;
-
   const emptyState = (
     <div {...stylex.props(styles.emptyWrap)}>
       <span {...stylex.props(styles.emptyIcon)}>
@@ -787,7 +792,7 @@ export function MembersTable({
         chips={chips}
         active={isTrashView ? 'trash' : frozen ? 'frozen' : kind}
         onSelect={selectTab}
-        ariaLabel={t('list.tablistLabel')}
+        label={t('list.tablistLabel')}
       />
 
       {/* Search + Filter row. Hidden in the trash view — the status/plan filters
@@ -798,13 +803,20 @@ export function MembersTable({
 
       {/* Selection + export toolbar. */}
       <div {...stylex.props(styles.toolbar)}>
-        <Btn v="outline" size="sm" icon="download" onClick={exportSelected} disabled={exporting}>
-          {exporting
-            ? t('list.exportStarting')
-            : selected.size > 0
-              ? t('list.exportSelected', { count: selected.size })
-              : t('list.exportAll')}
-        </Btn>
+        <Button
+          variant="secondary"
+          size="inline"
+          icon={<Icon name="download" {...stylex.props(styles.btnGlyph)} />}
+          onClick={exportSelected}
+          loading={exporting}
+          label={
+            exporting
+              ? t('list.exportStarting')
+              : selected.size > 0
+                ? t('list.exportSelected', { count: selected.size })
+                : t('list.exportAll')
+          }
+        />
         {selected.size > 0 ? (
           <button
             type="button"
@@ -817,14 +829,14 @@ export function MembersTable({
       </div>
 
       {exportNote ? (
-        <Card variant="default" padding={0} xstyle={styles.noticeCard}>
+        <Card padding="none" xstyle={styles.noticeCard}>
           <p role="status" {...stylex.props(styles.noticeText)}>
             {exportNote}
           </p>
         </Card>
       ) : null}
       {exportError ? (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <p role="alert" {...stylex.props(styles.errorText)}>
             {exportError}
           </p>
@@ -844,39 +856,31 @@ export function MembersTable({
           onToggle: toggleRow,
           onToggleAll: toggleAll,
           selectAllLabel: t('list.selectAll'),
+          // Named by the MEMBER, not the row id: the id is a cuid, and
+          // "Select cmr97s0le0000…" tells a screen-reader user nothing about
+          // which row their checkbox is on.
+          rowLabel: (id) =>
+            t('list.selectRow', {
+              name: members.find((member) => member.id === id)?.name ?? id,
+            }),
         }}
         empty={emptyState}
         caption={t('list.tablistLabel')}
       />
 
-      {/* Footer + pager. */}
-      <div {...stylex.props(styles.pagerRow)}>
-        <span {...stylex.props(styles.pagerCount)}>{t('list.showing', { from, to, total })}</span>
-        <div {...stylex.props(styles.pagerBtns)}>
-          <Btn
-            v="outline"
-            size="sm"
-            icon="chevronLeft"
-            disabled={!hasPrev}
-            onClick={() =>
-              startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
-            }
-          >
-            {t('list.previous')}
-          </Btn>
-          <Btn
-            v="outline"
-            size="sm"
-            iconRight="chevronRight"
-            disabled={!hasNext}
-            onClick={() =>
-              startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
-            }
-          >
-            {t('list.next')}
-          </Btn>
-        </div>
-      </div>
+      {/* Footer + pager. The kit derives from/to/hasPrev/hasNext itself; the
+          sentence stays ours, because word order differs per language. */}
+      <TablePager
+        page={page}
+        limit={limit}
+        total={total}
+        onPageChange={(next) =>
+          startTransition(() => router.replace(hrefWith({ page: String(next) })))
+        }
+        summary={(bounds) => t('list.showing', bounds)}
+        previousLabel={t('list.previous')}
+        nextLabel={t('list.next')}
+      />
 
       {/* Confirm dialog for the destructive roster-row "Move to trash" action. */}
       <ConfirmDialog
@@ -888,11 +892,11 @@ export function MembersTable({
           }
         }}
         title={t('trash.confirmTitle')}
-        message={t('trash.confirmMessage', { days: MEMBER_TRASH_RETENTION_DAYS })}
+        description={t('trash.confirmMessage', { days: MEMBER_TRASH_RETENTION_DAYS })}
         confirmLabel={t('trash.moveToTrash')}
         cancelLabel={t('form.cancel')}
-        danger
-        busy={rowPending}
+        confirmVariant="destructive"
+        loading={rowPending}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
@@ -8,7 +9,6 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchClassTypes } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
 import { ClassTypesFilters } from './classes-filters';
@@ -131,7 +131,7 @@ export default async function ClassTypesPage({
         ? `Could not load class types (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <Card variant="default" padding={0} xstyle={styles.errorCard}>
+      <Card padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />
         <p role="alert" {...stylex.props(styles.errorText)}>
           {message}

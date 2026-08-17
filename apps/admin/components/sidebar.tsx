@@ -28,7 +28,7 @@ import {
   useSideNavCollapse,
   useSideNavRenderMode,
 } from '@astryxdesign/core/SideNav';
-import { Badge } from '@astryxdesign/core/Badge';
+import { Badge } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useSession } from '@/hooks/use-session';
 import { isNavItemActive, NAV_GROUPS, visibleNavItems } from '@/lib/nav';
@@ -475,7 +475,7 @@ export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {
                         size="lg"
                         isSelected={active}
                         endContent={
-                          badge !== null ? <Badge variant="purple" label={badge} /> : undefined
+                          badge !== null ? <Badge tone="neutral" label={badge} /> : undefined
                         }
                       />
                     </div>

@@ -1,13 +1,13 @@
 'use client';
 
 import { useId } from 'react';
+import { Card } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import { hasActiveFilters, type TrainerFacets, type TrainerFilterState } from './trainer-filters';
 
-// Astryx migration (T11.13): the filter card is rebuilt on the Astryx `Card`
-// over the Fit brand theme, with the search box, location select, specialty
+// Astryx migration (T11), now on the portal kit: the filter card is rebuilt on the kit's `Card`
+// over the FormaCore theme, with the search box, location select, specialty
 // pills, and clear action authored in compiled StyleX (`var(--color-*)`) — no
 // Tailwind utilities and no formacore Aurora-glass primitives. Behaviour is
 // unchanged: every change is lifted to `onChange`; the parent owns the state and
@@ -176,7 +176,7 @@ export function TrainerFilters({ facets, filters, onChange }: TrainerFiltersProp
   };
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div role="group" aria-label={t('groupLabel')} {...stylex.props(styles.group)}>
         <div {...stylex.props(styles.controls)}>
           <div {...stylex.props(styles.searchField)}>

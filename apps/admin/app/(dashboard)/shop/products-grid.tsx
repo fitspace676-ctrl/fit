@@ -5,16 +5,16 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import type { AdminProductCategory, AdminProductRow, ProductStatus } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Btn, Icon, type Tone } from '@/components/ui';
+import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { setProductCategoryAction } from './actions';
 import { formatPrice, marginPercent } from './format-price';
 import { StockBadge, stockLevel } from './stock-badge';
 
 /** Visual treatment per product status — success active, ink inactive. */
-const STATUS_STYLES: Record<ProductStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'Inactive', tone: 'ink' },
+const STATUS_STYLES: Record<ProductStatus, { label: string; tone: BadgeTone }> = {
+  ACTIVE: { label: 'Active', tone: 'positive' },
+  INACTIVE: { label: 'Inactive', tone: 'neutral' },
 };
 
 const styles = stylex.create({
@@ -286,7 +286,7 @@ export function ProductsGrid({
 
   if (products.length === 0) {
     return (
-      <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+      <Card padding="none" xstyle={styles.emptyCard}>
         No products match your filters yet.
       </Card>
     );
@@ -304,7 +304,7 @@ export function ProductsGrid({
           const status = STATUS_STYLES[product.status];
           return (
             <li key={product.id}>
-              <Card variant="default" padding={0} xstyle={cardStyle}>
+              <Card padding="none" xstyle={cardStyle}>
                 <Link href={`/shop/${product.id}`} {...stylex.props(styles.cardLink)}>
                   <div {...stylex.props(styles.media)}>
                     {product.imageUrl ? (
@@ -315,7 +315,7 @@ export function ProductsGrid({
                       </span>
                     )}
                     <span {...stylex.props(styles.statusBadge)}>
-                      <Badge tone={status.tone}>{status.label}</Badge>
+                      <Badge tone={status.tone} label={status.label} />
                     </span>
                   </div>
 
@@ -362,26 +362,24 @@ export function ProductsGrid({
           {from}–{to} of {total}
         </span>
         <div {...stylex.props(styles.pagerBtns)}>
-          <Btn
-            v="outline"
-            size="sm"
-            disabled={!hasPrev}
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-          >
-            Previous
-          </Btn>
-          <Btn
-            v="outline"
-            size="sm"
-            disabled={!hasNext}
+            disabled={!hasPrev}
+            label="Previous"
+          />
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-          >
-            Next
-          </Btn>
+            disabled={!hasNext}
+            label="Next"
+          />
         </div>
       </div>
     </div>

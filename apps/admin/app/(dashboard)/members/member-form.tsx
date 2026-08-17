@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { ToggleButton } from '@astryxdesign/core/ToggleButton';
 import { Stack } from '@astryxdesign/core/Stack';
 import { Text } from '@astryxdesign/core/Text';
 import { requiredIntakeFields } from '@fit/types';
 import type { Gender, GymMemberIntakeSettings, MemberIntakeField, MemberStatus } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { composeName } from '@/lib/member-intake';
 import {
   createMemberAction,
@@ -23,6 +23,8 @@ import {
 } from './actions';
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -430,7 +432,7 @@ export function MemberForm(props: Props) {
   return (
     <form onSubmit={onSubmit} {...stylex.props(styles.form, props.onCancel && styles.formInDrawer)}>
       {/* Contact + personal information. */}
-      <Card variant="default" padding={4} xstyle={styles.formSection}>
+      <Card padding="sm" xstyle={styles.formSection}>
         <Stack gap={4}>
           <Text type="label" weight="semibold" color="secondary" display="block">
             {t('form.contactSection')}
@@ -586,7 +588,7 @@ export function MemberForm(props: Props) {
 
       {/* Emergency contact. */}
       {show('emergencyContact') && (
-        <Card variant="default" padding={4} xstyle={styles.formSection}>
+        <Card padding="sm" xstyle={styles.formSection}>
           <Stack gap={3}>
             <Text type="label" weight="semibold" color="secondary" display="block">
               {t('form.emergencySection')}
@@ -631,7 +633,7 @@ export function MemberForm(props: Props) {
 
       {/* Membership plan enrolment (create only, and never at the till). */}
       {enrolment ? (
-        <Card variant="default" padding={4} xstyle={styles.formSection}>
+        <Card padding="sm" xstyle={styles.formSection}>
           <Stack gap={3}>
             <Text type="label" weight="semibold" color="secondary" display="block">
               {t('form.membershipSection')}
@@ -693,7 +695,7 @@ export function MemberForm(props: Props) {
 
       {/* Medical notes. */}
       {show('medicalNotes') ? (
-        <Card variant="default" padding={4} xstyle={styles.formSection}>
+        <Card padding="sm" xstyle={styles.formSection}>
           <Stack gap={3}>
             <Text type="label" weight="semibold" color="secondary" display="block">
               {t('form.medicalSection')}
@@ -722,7 +724,7 @@ export function MemberForm(props: Props) {
 
       <div {...stylex.props(styles.footer, props.onCancel && styles.drawerFooter)}>
         {error ? (
-          <Card variant="default" padding={0} xstyle={styles.errorCard}>
+          <Card padding="none" xstyle={styles.errorCard}>
             <Icon name="info" {...stylex.props(styles.errorIcon)} />
             <p role="alert" {...stylex.props(styles.errorText)}>
               {error}
@@ -731,30 +733,33 @@ export function MemberForm(props: Props) {
         ) : null}
 
         <div {...stylex.props(styles.actions, props.onCancel && styles.actionsInDrawer)}>
-          <Btn
+          <Button
             type="submit"
-            v="primary"
-            size={props.onCancel ? 'lg' : 'md'}
-            icon="plus"
-            disabled={pending}
-            {...stylex.props(props.onCancel && styles.actionButton)}
-          >
-            {pending
-              ? t('form.saving')
-              : (submitLabel ?? (isEdit ? t('form.saveChanges') : t('form.createMember')))}
-          </Btn>
+            variant="primary"
+            // `page` in a drawer, where this is the one action the sheet exists
+            // to collect; `block` on the standalone page, where the form already
+            // fills the screen and a 48px control would shout.
+            size={props.onCancel ? 'page' : 'block'}
+            icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+            loading={pending}
+            xstyle={props.onCancel ? styles.actionButton : undefined}
+            label={
+              pending
+                ? t('form.saving')
+                : (submitLabel ?? (isEdit ? t('form.saveChanges') : t('form.createMember')))
+            }
+          />
           {props.onCancel ? (
-            <Btn
+            <Button
               type="button"
-              v="outline"
-              size="lg"
-              icon="x"
+              variant="secondary"
+              size="page"
+              icon={<Icon name="x" {...stylex.props(styles.kitGlyph)} />}
               onClick={props.onCancel}
               disabled={pending}
-              {...stylex.props(styles.actionButton)}
-            >
-              {t('form.cancel')}
-            </Btn>
+              xstyle={styles.actionButton}
+              label={t('form.cancel')}
+            />
           ) : (
             <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
               {t('form.cancel')}

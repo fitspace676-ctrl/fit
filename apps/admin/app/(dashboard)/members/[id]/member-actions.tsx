@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { MEMBER_TRASH_RETENTION_DAYS, type MemberStatus } from '@fit/types';
-import { Btn, ConfirmDialog, Icon, useToast } from '@/components/ui';
+import { Button, Card, ConfirmDialog } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { setMemberActiveAction, setMemberTrashedAction } from '../actions';
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   wrap: {
     display: 'flex',
     flexDirection: 'column',
@@ -130,47 +132,46 @@ export function MemberActions({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.row)}>
         {isTrashed ? (
-          <Btn
-            v="primary"
-            size="sm"
-            icon="arrowLeft"
+          <Button
+            variant="primary"
+            size="inline"
+            icon={<Icon name="arrowLeft" {...stylex.props(styles.kitGlyph)} />}
             onClick={() => setTrashed(false)}
-            disabled={pending}
-          >
-            {pending ? t('form.saving') : t('trash.restore')}
-          </Btn>
+            loading={pending}
+            label={pending ? t('form.saving') : t('trash.restore')}
+          />
         ) : (
           <>
             <Link href={`/members/${memberId}/edit`} {...stylex.props(styles.editLink)}>
               <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
               {t('actions.edit')}
             </Link>
-            <Btn
-              v={isSuspended ? 'primary' : 'outline'}
-              size="sm"
+            <Button
+              variant={isSuspended ? 'primary' : 'secondary'}
+              size="inline"
               onClick={toggleActive}
-              disabled={pending}
-            >
-              {pending
-                ? t('form.saving')
-                : isSuspended
-                  ? t('actions.reactivate')
-                  : t('actions.deactivate')}
-            </Btn>
-            <Btn
-              v="ghost"
-              size="sm"
-              icon="trash"
+              loading={pending}
+              label={
+                pending
+                  ? t('form.saving')
+                  : isSuspended
+                    ? t('actions.reactivate')
+                    : t('actions.deactivate')
+              }
+            />
+            <Button
+              variant="ghost"
+              size="inline"
+              icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
               onClick={() => setConfirmTrash(true)}
               disabled={pending}
-            >
-              {t('trash.moveToTrash')}
-            </Btn>
+              label={t('trash.moveToTrash')}
+            />
           </>
         )}
       </div>
       {error ? (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
@@ -183,11 +184,11 @@ export function MemberActions({
         onClose={() => setConfirmTrash(false)}
         onConfirm={() => setTrashed(true)}
         title={t('trash.confirmTitle')}
-        message={t('trash.confirmMessage', { days: MEMBER_TRASH_RETENTION_DAYS })}
+        description={t('trash.confirmMessage', { days: MEMBER_TRASH_RETENTION_DAYS })}
         confirmLabel={t('trash.moveToTrash')}
         cancelLabel={t('form.cancel')}
-        danger
-        busy={pending}
+        confirmVariant="destructive"
+        loading={pending}
       />
     </div>
   );

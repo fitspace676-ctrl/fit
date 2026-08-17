@@ -3,7 +3,8 @@
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { ShiftSlotRow, StaffRole } from '@fit/types';
-import { Icon, Select, Switch } from '@/components/ui';
+import { SelectField, Switch } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { STAFF_ROLES } from './role-meta';
 
 /** Weekday indices the schedule uses — 0 (Mon) … 6 (Sun), reusing the schedule i18n. */
@@ -256,36 +257,32 @@ export function StaffFormFields({
         </label>
       </div>
 
+      {/* The kit's `SelectField` draws its own micro-label and binds it to the
+          control, so the loose `<span>` that used to sit above each select is
+          gone — it looked like a label and named nothing. */}
       <div {...stylex.props(styles.row)}>
-        <div {...stylex.props(styles.field)}>
-          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.role')}</span>
-          <Select
-            value={value.role}
-            onChange={(e) => onChange({ role: e.target.value as StaffRole | '' })}
-            disabled={pending}
-          >
-            <option value="">{t('addStaffDrawer.rolePlaceholder')}</option>
-            {STAFF_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {t(`roles.${r}`)}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div {...stylex.props(styles.field)}>
-          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.status')}</span>
-          <Select
-            value={value.status}
-            onChange={(e) => onChange({ status: e.target.value as DirectoryStatus })}
-            disabled={pending}
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(`addStaffDrawer.statuses.${s}`)}
-              </option>
-            ))}
-          </Select>
-        </div>
+        <SelectField
+          label={t('addStaffDrawer.role')}
+          value={value.role}
+          onChange={(event) => onChange({ role: event.target.value as StaffRole | '' })}
+          disabled={pending}
+          xstyle={styles.field}
+          options={[
+            { value: '', label: t('addStaffDrawer.rolePlaceholder') },
+            ...STAFF_ROLES.map((r) => ({ value: r, label: t(`roles.${r}`) })),
+          ]}
+        />
+        <SelectField
+          label={t('addStaffDrawer.status')}
+          value={value.status}
+          onChange={(event) => onChange({ status: event.target.value as DirectoryStatus })}
+          disabled={pending}
+          xstyle={styles.field}
+          options={STATUSES.map((s) => ({
+            value: s,
+            label: t(`addStaffDrawer.statuses.${s}`),
+          }))}
+        />
       </div>
 
       <div {...stylex.props(styles.row)}>
@@ -365,30 +362,24 @@ export function StaffFormFields({
                 />
                 {h.on ? (
                   <>
-                    <Select
+                    <SelectField
+                      label={t('addStaffDrawer.startTime')}
+                      labelHidden
+                      size="chrome"
                       value={h.start}
-                      onChange={(e) => setDay(d, { start: e.target.value })}
+                      onChange={(event) => setDay(d, { start: event.target.value })}
                       disabled={pending}
-                      aria-label={t('addStaffDrawer.startTime')}
-                    >
-                      {TIME_OPTIONS.map((time) => (
-                        <option key={time} value={time}>
-                          {time}
-                        </option>
-                      ))}
-                    </Select>
-                    <Select
+                      options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
+                    />
+                    <SelectField
+                      label={t('addStaffDrawer.endTime')}
+                      labelHidden
+                      size="chrome"
                       value={h.end}
-                      onChange={(e) => setDay(d, { end: e.target.value })}
+                      onChange={(event) => setDay(d, { end: event.target.value })}
                       disabled={pending}
-                      aria-label={t('addStaffDrawer.endTime')}
-                    >
-                      {TIME_OPTIONS.map((time) => (
-                        <option key={time} value={time}>
-                          {time}
-                        </option>
-                      ))}
-                    </Select>
+                      options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
+                    />
                   </>
                 ) : (
                   <span {...stylex.props(styles.dayOff)}>{t('addStaffDrawer.dayOff')}</span>

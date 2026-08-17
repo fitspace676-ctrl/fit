@@ -4,12 +4,14 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type { ClassTemplateStatus } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { deleteClassTemplateAction, setClassTemplateActiveAction } from '../actions';
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   wrap: {
     display: 'flex',
     flexDirection: 'column',
@@ -134,22 +136,39 @@ export function TemplateActions({
           <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
           Edit
         </Link>
-        <Btn v="outline" size="sm" onClick={toggle} disabled={pending}>
-          {pending ? 'Saving…' : isPaused ? 'Resume' : 'Pause'}
-        </Btn>
+        <Button
+          variant="secondary"
+          size="inline"
+          onClick={toggle}
+          disabled={pending}
+          label={pending ? 'Saving…' : isPaused ? 'Resume' : 'Pause'}
+        />
         {confirming ? (
           <>
-            <Btn v="danger" size="sm" icon="trash" onClick={remove} disabled={pending}>
-              {pending ? 'Deleting…' : 'Delete for good'}
-            </Btn>
-            <Btn v="outline" size="sm" onClick={() => setConfirming(false)} disabled={pending}>
-              Keep
-            </Btn>
+            <Button
+              variant="destructive"
+              size="inline"
+              onClick={remove}
+              disabled={pending}
+              icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
+              label={pending ? 'Deleting…' : 'Delete for good'}
+            />
+            <Button
+              variant="secondary"
+              size="inline"
+              onClick={() => setConfirming(false)}
+              disabled={pending}
+              label="Keep"
+            />
           </>
         ) : (
-          <Btn v="outline" size="sm" icon="trash" onClick={() => setConfirming(true)}>
-            Delete
-          </Btn>
+          <Button
+            variant="secondary"
+            size="inline"
+            onClick={() => setConfirming(true)}
+            icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
+            label="Delete"
+          />
         )}
       </div>
       {confirming ? (
@@ -159,7 +178,7 @@ export function TemplateActions({
         </p>
       ) : null}
       {error ? (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {error}

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
-import { Icon, buttonClasses, useToast } from '@/components/ui';
+import { Icon, useToast } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { InvoiceForm } from './invoice-form';
 
@@ -44,10 +45,13 @@ export function CreateInvoiceDrawer() {
 
   return (
     <>
-      <button type="button" onClick={drawer.open} className={buttonClasses('primary', 'sm')}>
-        <Icon name="plus" className="h-4 w-4" />
-        Create invoice
-      </button>
+      <Button
+        variant="primary"
+        size="inline"
+        onClick={drawer.open}
+        icon={<Icon name="plus" />}
+        label="Create invoice"
+      />
 
       <Dialog
         isOpen={drawer.isOpen}

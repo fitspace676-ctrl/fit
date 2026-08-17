@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
@@ -17,7 +18,6 @@ import {
   fetchMessageTemplates,
   fetchPromoCodes,
 } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
 import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
@@ -102,7 +102,7 @@ export default async function MarketingPage({
   const canManage = role !== null && roleHasPermission(role, Permission.MarketingManage);
 
   const errorCard = (message: string) => (
-    <Card variant="default" padding={0} xstyle={styles.errorCard}>
+    <Card padding="none" xstyle={styles.errorCard}>
       <Icon name="info" {...stylex.props(styles.errorIcon)} />
       <p role="alert" {...stylex.props(styles.errorText)}>
         {message}

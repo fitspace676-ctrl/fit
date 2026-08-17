@@ -10,10 +10,10 @@ import {
   type ListOrdersResponse,
   type OrderChannel,
 } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchOrders } from '@/lib/api';
-import { Badge, Icon, type Tone } from '@/components/ui';
+import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { formatPrice } from '../../shop/format-price';
 import { OrdersFilters } from './orders-filters';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
@@ -31,11 +31,11 @@ export const dynamic = 'force-dynamic';
 const PAGE_SIZE = 25;
 
 /** The badge each order status wears. */
-const STATUS_TONES: Record<string, Tone> = {
-  PAID: 'success',
-  PENDING: 'warning',
+const STATUS_TONES: Record<string, BadgeTone> = {
+  PAID: 'positive',
+  PENDING: 'pending',
   REFUNDED: 'danger',
-  CANCELLED: 'ink',
+  CANCELLED: 'neutral',
 };
 
 /** How each settlement method reads in the table. */
@@ -235,7 +235,7 @@ export default async function OrdersLogPage({
   if (!canRead) {
     return (
       <div {...stylex.props(styles.page)}>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>You do not have permission to view the sales log.</span>
         </Card>
@@ -260,7 +260,7 @@ export default async function OrdersLogPage({
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.page)}>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{message}</span>
         </Card>
@@ -325,7 +325,7 @@ export default async function OrdersLogPage({
         to={str('to') ?? ''}
       />
 
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         {data.length === 0 ? (
           <p {...stylex.props(styles.empty)}>
             No sales match these filters. Widen the dates, or switch the channel.
@@ -400,7 +400,7 @@ function OrderRow({ order }: { order: AdminOrderRow }) {
         }).format(when)}
       </td>
       <td {...stylex.props(styles.td)}>
-        <Badge tone={order.channel === 'POS' ? 'brand' : 'ink'}>{order.channel}</Badge>
+        <Badge tone={order.channel === 'POS' ? 'accent' : 'neutral'} label={order.channel} />
       </td>
       <td {...stylex.props(styles.td)}>
         <Link href={`/pos/orders/${order.id}`} {...stylex.props(styles.orderLink)}>
@@ -416,7 +416,7 @@ function OrderRow({ order }: { order: AdminOrderRow }) {
         {order.refundedAmount > 0 ? `−${formatPrice(order.refundedAmount, order.currency)}` : '—'}
       </td>
       <td {...stylex.props(styles.td)}>
-        <Badge tone={STATUS_TONES[order.status] ?? 'ink'}>{order.status}</Badge>
+        <Badge tone={STATUS_TONES[order.status] ?? 'neutral'} label={order.status} />
       </td>
     </tr>
   );

@@ -1,20 +1,37 @@
 'use client';
 
 import { useMemo } from 'react';
+import { Avatar, Badge, Card } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard } from '@fit/types';
 import { Icon } from '@/src/components/ui';
 import { ClassOccupancy } from './ClassOccupancy';
 import { formatZonedTime, groupByZonedDay } from './date-utils';
 import { createDateTimeFormat } from '@fit/i18n';
 
-// Astryx migration (T11.12): the list view is rebuilt on the Astryx `Card` over
-// the Fit brand theme, with every row authored in compiled StyleX
+// Astryx migration (T11), now on the portal kit: the list view is rebuilt on the kit's `Card` over
+// the FormaCore theme, with every row authored in compiled StyleX
 // (`var(--color-*)`) and the shared brand `ClassOccupancy` meter — no Tailwind
 // utilities and no formacore Aurora-glass primitives. Behaviour is unchanged:
 // grouping is derived from `instances`; clicking a row opens the parent's drawer.
+//
+// DESIGN PASS.
+//
+//   • THE FAKE BUTTON IS GONE. Each row ended in a filled lime pill reading
+//     "Book" — a `<span>` inside the row's own `<button>`, so it could not be
+//     clicked separately and did not book anything; it opened the drawer, like
+//     every other pixel of the row. It also put a column of lime down the whole
+//     page, in a direction that spends its entire colour budget on one lime. The
+//     row now ends in what it actually offers: how many spots are left, and a
+//     chevron saying the row opens.
+//   • The title was 14px/700 — the same weight as the day heading above it and
+//     barely above the meta line below it, so a row had no focal point. It is
+//     17px/800 now, matching the booking card's title.
+//   • The trainer's initials were a private disc; the kit has `Avatar`, which
+//     the booking card already uses for the same face in the same place.
+//   • Rows run two-up from `lg`, like the bookings board. A class row stretched
+//     to 1180px is a time, a title and a meter separated by a void.
 
 const styles = stylex.create({
   root: {
@@ -31,22 +48,29 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'baseline',
     gap: '0.5rem',
-    paddingInline: '0.25rem',
     margin: 0,
-    fontSize: '0.875rem',
-    fontWeight: 700,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 800,
+    letterSpacing: '-0.01em',
     color: 'var(--color-text-primary)',
   },
   groupCount: {
-    fontWeight: 400,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    fontWeight: 500,
     color: 'var(--color-text-secondary)',
   },
   list: {
     listStyle: 'none',
     margin: 0,
     padding: 0,
-    display: 'flex',
-    flexDirection: 'column',
+    display: 'grid',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 1024px)': 'repeat(2, minmax(0, 1fr))',
+    },
+    alignItems: 'start',
     gap: '0.75rem',
   },
   rowCard: {
@@ -108,12 +132,15 @@ const styles = stylex.create({
     gap: '0.5rem',
   },
   title: {
+    minWidth: 0,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.875rem',
-    fontWeight: 700,
+    fontSize: '1.0625rem',
+    fontWeight: 800,
+    lineHeight: 1.25,
+    letterSpacing: '-0.01em',
     color: 'var(--color-text-primary)',
   },
   // Neutral chip, coloured dot — see the note on the same chip in
@@ -145,60 +172,42 @@ const styles = stylex.create({
   },
   meta: {
     display: 'flex',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.75rem',
+    columnGap: '0.875rem',
+    rowGap: '0.25rem',
+    fontSize: '0.8125rem',
     color: 'var(--color-text-secondary)',
   },
   metaItem: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.375rem',
-  },
-  metaAvatar: {
-    display: 'flex',
-    height: '1.25rem',
-    width: '1.25rem',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-background-muted)',
-    fontSize: '0.625rem',
-    fontWeight: 700,
-    color: 'var(--color-text-accent)',
-  },
-  metaDot: {
-    color: 'var(--color-text-disabled)',
+    minWidth: 0,
   },
   metaIcon: {
     height: '0.875rem',
     width: '0.875rem',
+    flexShrink: 0,
     color: 'var(--color-text-secondary)',
   },
   occupancy: {
     maxWidth: '20rem',
   },
+  // What the row actually offers: the remaining count, and a chevron saying the
+  // row opens. No fake CTA — the whole row is the control.
   actionCol: {
     display: 'flex',
     flexShrink: 0,
     alignItems: 'center',
+    alignSelf: 'center',
+    gap: '0.5rem',
   },
-  pill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    borderRadius: 'var(--radius-full)',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.375rem',
-    fontSize: '0.75rem',
-    fontWeight: 600,
-  },
-  pillBook: {
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  pillFull: {
-    backgroundColor: 'var(--color-background-muted)',
-    color: 'var(--color-text-secondary)',
+  chevron: {
+    height: '1rem',
+    width: '1rem',
+    flexShrink: 0,
+    color: 'var(--color-text-disabled)',
   },
 });
 
@@ -218,23 +227,12 @@ function durationMinutes(startsAt: string, endsAt: string): number {
   return Math.round((new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 60000);
 }
 
-/** First letters of the first and last words of a name, upper-cased (max 2). */
-function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) {
-    return '?';
-  }
-  const first = words[0]?.[0] ?? '';
-  const last = words.length > 1 ? (words[words.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase() || '?';
-}
-
 /**
  * List view: the week's classes grouped into day sections, each row a Card with
  * a left time block, an accent colour bar, the title + category badge, the
- * trainer + room, an occupancy bar, and a primary action. Stateless — grouping
- * is derived from the `instances` the parent supplies; clicking a row opens the
- * detail drawer the parent owns.
+ * trainer + room, an occupancy bar, and how many spots are left. Stateless —
+ * grouping is derived from the `instances` the parent supplies; clicking a row
+ * opens the detail drawer the parent owns.
  */
 export function ClassListView({ instances, onClassClick, timeZone }: ClassListViewProps) {
   const t = useTranslations('classes');
@@ -262,7 +260,7 @@ export function ClassListView({ instances, onClassClick, timeZone }: ClassListVi
               const isFull = spotsLeft === 0;
               return (
                 <li key={instance.id}>
-                  <Card variant="default" padding={0} xstyle={styles.rowCard}>
+                  <Card padding="none" xstyle={styles.rowCard}>
                     <button
                       type="button"
                       onClick={() => onClassClick(instance.id)}
@@ -304,15 +302,8 @@ export function ClassListView({ instances, onClassClick, timeZone }: ClassListVi
                           <div {...stylex.props(styles.meta)}>
                             {instance.trainerName && (
                               <span {...stylex.props(styles.metaItem)}>
-                                <span aria-hidden {...stylex.props(styles.metaAvatar)}>
-                                  {initials(instance.trainerName)}
-                                </span>
+                                <Avatar name={instance.trainerName} size={20} />
                                 {instance.trainerName}
-                              </span>
-                            )}
-                            {instance.trainerName && instance.locationName && (
-                              <span aria-hidden {...stylex.props(styles.metaDot)}>
-                                ·
                               </span>
                             )}
                             {instance.locationName && (
@@ -332,11 +323,20 @@ export function ClassListView({ instances, onClassClick, timeZone }: ClassListVi
                       </div>
 
                       <div {...stylex.props(styles.actionCol)}>
-                        <span
-                          {...stylex.props(styles.pill, isFull ? styles.pillFull : styles.pillBook)}
-                        >
-                          {isFull ? t('card.joinWaitlist') : t('drawer.book')}
-                        </span>
+                        {/* Two signals, not a heat scale — the occupancy meter
+                            beside it already carries "how full". */}
+                        <Badge
+                          tone={isFull ? 'pending' : 'positive'}
+                          label={
+                            isFull ? t('card.full') : t('card.spotsLeft', { count: spotsLeft })
+                          }
+                        />
+                        <Icon
+                          name="chevronRight"
+                          aria-hidden
+                          {...stylex.props(styles.chevron)}
+                          sw={2.2}
+                        />
                       </div>
                     </button>
                   </Card>

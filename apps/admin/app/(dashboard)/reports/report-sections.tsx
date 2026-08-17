@@ -11,10 +11,9 @@
 
 import { type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { createNumberFormat } from '@fit/i18n';
 import type { ReportSection, ReportValueUnit, ReportColumnType, ReportCellValue } from '@fit/types';
-import { DataTable, type Column } from '@/components/ui';
+import { Card, DataTable, type Column } from '@fit/ui-kit';
 import { AreaChart, BarChart, Donut, Heatmap } from '../charts';
 import { chrome } from './report-chrome';
 
@@ -124,7 +123,7 @@ export function ReportSectionCard({
   action?: ReactNode;
 }) {
   return (
-    <Card variant="default" padding={5} xstyle={styles.card}>
+    <Card padding="card" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h3 {...stylex.props(chrome.cardHeading)}>{section.title}</h3>
         {action}

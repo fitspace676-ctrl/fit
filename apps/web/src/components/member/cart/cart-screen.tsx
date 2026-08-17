@@ -1,21 +1,15 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Badge, Button, ButtonLink, Card, Field, SelectField } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
-import { IconButton } from '@astryxdesign/core/IconButton';
-import { Selector } from '@astryxdesign/core/Selector';
-import { TextInput } from '@astryxdesign/core/TextInput';
 import type { CartView, LocationSummary } from '@fit/types';
 import { Icon, useToast } from '@/src/components/ui';
-import { Link } from '@/src/i18n/navigation';
 import { formatMoney } from '@/lib/shop';
 import { checkoutCartAction, removeCartItemAction, updateCartItemAction } from '@/app/actions/cart';
 
-// Astryx migration (T11.15): the shop cart + checkout is rebuilt on Astryx
+// Astryx migration (T11), now on the portal kit: the shop cart + checkout is rebuilt on the portal kit
 // `Card` / `Button` / `IconButton` / `Badge` / `Selector` / `TextInput` over the
 // Fit brand theme tokens, with the quantity stepper, payment-method picker and
 // totals authored in compiled StyleX (`var(--color-*)` / `var(--font-family-*)`)
@@ -383,7 +377,7 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
 
   if (orderId) {
     return (
-      <Card variant="default" padding={0} xstyle={styles.successCard}>
+      <Card padding="none" xstyle={styles.successCard}>
         <span {...stylex.props(styles.successIcon)}>
           <Icon name="check" {...stylex.props(styles.successGlyph)} sw={2.4} />
         </span>
@@ -392,11 +386,10 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
           {t('orderNo')} <span {...stylex.props(styles.orderNo)}>{orderId}</span>
         </p>
         <p {...stylex.props(styles.successLine)}>{t('collectHint')}</p>
-        <Button
-          as={Link}
+        <ButtonLink
           href="/member/shop"
           variant="primary"
-          size="md"
+          size="card"
           label={t('continueShopping')}
           xstyle={styles.successCta}
         />
@@ -408,15 +401,14 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
     return (
       <div {...stylex.props(styles.emptyWrap)}>
         <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
-        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+        <Card padding="none" xstyle={styles.emptyCard}>
           <Icon name="bag" {...stylex.props(styles.emptyIcon)} />
           <p {...stylex.props(styles.emptyTitle)}>{t('empty')}</p>
           <p {...stylex.props(styles.emptyHint)}>{t('emptyHint')}</p>
-          <Button
-            as={Link}
+          <ButtonLink
             href="/member/shop"
             variant="primary"
-            size="md"
+            size="card"
             icon={<Icon name="bag" />}
             label={t('browseShop')}
           />
@@ -432,7 +424,7 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
         {/* Items */}
         <div {...stylex.props(styles.items)}>
           {cart.items.map((item) => (
-            <Card key={item.variantId} variant="default" padding={0} xstyle={styles.itemCard}>
+            <Card key={item.variantId} padding="none" xstyle={styles.itemCard}>
               <div {...stylex.props(styles.itemThumb)}>
                 {item.imageUrl ? (
                   <img src={item.imageUrl} alt="" {...stylex.props(styles.itemImg)} />
@@ -449,36 +441,36 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
                     )}
                     {!item.available && (
                       <span {...stylex.props(styles.outOfStock)}>
-                        <Badge variant="error" label={t('outOfStock')} />
+                        <Badge tone="danger" label={t('outOfStock')} />
                       </span>
                     )}
                   </div>
-                  <IconButton
+                  <Button
                     variant="ghost"
-                    size="sm"
+                    size="inline"
                     label={t('remove')}
                     icon={<Icon name="trash" />}
-                    isDisabled={pending}
+                    disabled={pending}
                     onClick={() => setQty(item.variantId, 0)}
                   />
                 </div>
                 <div {...stylex.props(styles.itemBottomRow)}>
                   <div {...stylex.props(styles.stepper)}>
-                    <IconButton
+                    <Button
                       variant="ghost"
-                      size="sm"
+                      size="inline"
                       label={t('decrease')}
                       icon={<Icon name="minus" />}
-                      isDisabled={pending}
+                      disabled={pending}
                       onClick={() => setQty(item.variantId, item.qty - 1)}
                     />
                     <span {...stylex.props(styles.qty)}>{item.qty}</span>
-                    <IconButton
+                    <Button
                       variant="ghost"
-                      size="sm"
+                      size="inline"
                       label={t('increase')}
                       icon={<Icon name="plus" />}
-                      isDisabled={pending}
+                      disabled={pending}
                       onClick={() => setQty(item.variantId, item.qty + 1)}
                     />
                   </div>
@@ -490,15 +482,15 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
         </div>
 
         {/* Summary */}
-        <Card variant="default" padding={0} xstyle={styles.summaryCard}>
+        <Card padding="none" xstyle={styles.summaryCard}>
           <h2 {...stylex.props(styles.summaryTitle)}>{t('summary')}</h2>
 
           {/* Pickup location */}
           {locations.length > 0 && (
-            <Selector
+            <SelectField
               label={t('pickup')}
               value={locationId}
-              onChange={(value) => setLocationId(value)}
+              onChange={(event) => setLocationId(event.target.value)}
               options={locations.map((l) => ({ value: l.id, label: l.name }))}
             />
           )}
@@ -527,13 +519,12 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
           </div>
 
           {/* Promo */}
-          <TextInput
+          <Field
             type="text"
             label={t('promo')}
-            isLabelHidden
             value={promo}
             placeholder={t('promo')}
-            onChange={(value) => setPromo(value)}
+            onChange={(event) => setPromo(event.target.value)}
           />
 
           {/* Totals */}
@@ -558,11 +549,11 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
 
           <Button
             variant="primary"
-            size="lg"
+            size="block"
             icon={<Icon name="bag" />}
             label={pending ? t('placing') : `${t('placeOrder')} · ${money(cart.total)}`}
-            isLoading={pending}
-            isDisabled={pending || cart.items.length === 0}
+            loading={pending}
+            disabled={pending || cart.items.length === 0}
             onClick={checkout}
             xstyle={styles.checkout}
           />

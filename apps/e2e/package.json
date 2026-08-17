@@ -17,6 +17,7 @@
     "@fit/db": "workspace:*",
     "@playwright/test": "1.56.1",
     "@types/node": "^22.10.0",
+    "globals": "^15.14.0",
     "typescript": "^5.7.2"
   }
 }

@@ -26,7 +26,7 @@
  * instead, right after this file, so its layer is declared last.
  */
 @import '@astryxdesign/core/reset.css';
-@import '@fit/astryx-theme/theme.css';
+@import '@fit/astryx-theme/formacore.css';
 
 /*
  * Chart series colours.
@@ -195,20 +195,29 @@ input[type='password'] {
 }
 
 /*
- * Brand-indigo primary button (the Fit brand color, --color-accent #6257E3).
- * Astryx's `primary` variant renders its own blue; this opt-in class recolors a
- * specific button to the brand without touching the whole design system. Astryx
- * StyleX rules carry very high specificity, so `!important` is required (mirrors
- * the password-field fix above).
+ * Opt-in brand button.
+ *
+ * It used to hard-code the Aurora indigo (#6257E3) with a white glyph, on the
+ * reasoning that Astryx's own `primary` renders a foreign blue. The console is
+ * on FormaCore now, so it reads the accent from the theme instead — which also
+ * means the palette playground re-colours it live, where the literal could not.
+ *
+ * `--color-on-accent` is load-bearing, not decoration: the FormaCore accent is a
+ * light lime, and the white this rule used to force is ~1.5:1 on it. The token
+ * is ink-950 and must never be flipped back.
+ *
+ * Astryx StyleX rules carry very high specificity, so `!important` and the
+ * `:not(#\#)` pair are both required (mirrors the password-field fix above).
  */
 .btn-brand,
 .btn-brand:not(#\#):not(#\#) {
-  background-color: #6257e3 !important;
+  background-color: var(--color-accent) !important;
   background-image: none !important;
-  color: #ffffff !important;
+  color: var(--color-on-accent) !important;
 }
-.btn-brand:hover {
-  background-color: #5044d2 !important;
+.btn-brand:hover,
+.btn-brand:hover:not(#\#):not(#\#) {
+  background-color: var(--fc-accent-hover) !important;
 }
 
 /*

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { TrainerStatus } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Button } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import {
   createTrainerAction,
   requestTrainerPhotoUploadAction,
@@ -502,9 +503,15 @@ export function TrainerForm(props: Props) {
       ) : null}
 
       <div {...stylex.props(styles.actions)}>
-        <Btn type="submit" v="primary" size="md" disabled={pending || uploading}>
-          {pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createTrainer')}
-        </Btn>
+        <Button
+          variant="primary"
+          size="card"
+          type="submit"
+          disabled={pending || uploading}
+          label={
+            pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createTrainer')
+          }
+        />
         <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
           {t('form.cancel')}
         </Link>

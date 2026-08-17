@@ -11,8 +11,8 @@ import {
   type ClassInstanceStatus,
   type RecurrenceWeekday,
 } from '@fit/types';
-import { Badge, Btn, Icon, type Tone } from '@/components/ui';
-import { Card } from '@astryxdesign/core/Card';
+import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { useOccupancyStream } from '@/hooks/use-occupancy-stream';
 import { ClassDrawer } from './class-drawer';
 import { AddClassDrawer } from '../add-class-drawer';
@@ -85,6 +85,8 @@ const pulse = stylex.keyframes({
 });
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   root: {
     display: 'flex',
     flexDirection: 'column',
@@ -1198,9 +1200,9 @@ export interface ScheduleOption {
 }
 
 /** Occurrences that are not simply "on the calendar" wear a status badge. */
-const STATUS_TONES: Partial<Record<ClassInstanceStatus, Tone>> = {
+const STATUS_TONES: Partial<Record<ClassInstanceStatus, BadgeTone>> = {
   CANCELED: 'danger',
-  COMPLETED: 'ink',
+  COMPLETED: 'neutral',
 };
 
 /**
@@ -1455,14 +1457,13 @@ export function ScheduleBoard({
           onChange={(value) => setParams({ locationId: value })}
         />
         {hasFilters ? (
-          <Btn
-            v="ghost"
-            size="sm"
-            icon="x"
+          <Button
+            variant="ghost"
+            size="inline"
             onClick={() => setParams({ trainerId: null, locationId: null })}
-          >
-            {t('filters.clear')}
-          </Btn>
+            icon={<Icon name="x" {...stylex.props(styles.kitGlyph)} />}
+            label={t('filters.clear')}
+          />
         ) : null}
       </div>
 
@@ -1717,7 +1718,7 @@ function DayAgenda({
       </header>
 
       {instances.length === 0 ? (
-        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+        <Card padding="none" xstyle={styles.emptyCard}>
           <div {...stylex.props(styles.emptyInner)}>
             <span {...stylex.props(styles.emptyIcon)}>
               <Icon name="calendar" {...stylex.props(styles.emptyIconSvg)} />
@@ -1876,7 +1877,7 @@ function AgendaRow({
                 {t('grid.now')}
               </span>
             ) : null}
-            {statusTone ? <Badge tone={statusTone}>{t(`status.${instance.status}`)}</Badge> : null}
+            {statusTone ? <Badge tone={statusTone} label={t(`status.${instance.status}`)} /> : null}
           </div>
           <div {...stylex.props(styles.agendaMeta)}>
             <span {...stylex.props(styles.metaRow)}>
@@ -2540,7 +2541,7 @@ function ClassCard({
 
       {statusTone ? (
         <span {...stylex.props(styles.badgeWrap)}>
-          <Badge tone={statusTone}>{t(`status.${instance.status}`)}</Badge>
+          <Badge tone={statusTone} label={t(`status.${instance.status}`)} />
         </span>
       ) : null}
     </button>
@@ -2586,7 +2587,7 @@ function FilterSelect({
 /** The empty state — no occurrences in the visible week (optionally filtered). */
 function EmptyWeek({ t, filtered }: { t: T; filtered: boolean }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+    <Card padding="none" xstyle={styles.emptyCard}>
       <div {...stylex.props(styles.emptyInner)}>
         <span {...stylex.props(styles.emptyIcon)}>
           <Icon name="calendar" {...stylex.props(styles.emptyIconSvg)} />

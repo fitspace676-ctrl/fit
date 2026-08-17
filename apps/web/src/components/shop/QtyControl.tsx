@@ -38,7 +38,7 @@ const styles = stylex.create({
     borderWidth: 0,
     backgroundColor: {
       default: 'var(--color-accent)',
-      ':hover': 'var(--color-accent-hover)',
+      ':hover': 'var(--fc-accent-hover)',
     },
     color: 'var(--color-on-accent)',
     cursor: 'pointer',
@@ -71,7 +71,7 @@ const styles = stylex.create({
   stepUp: {
     backgroundColor: {
       default: 'var(--color-accent)',
-      ':hover': 'var(--color-accent-hover)',
+      ':hover': 'var(--fc-accent-hover)',
     },
     color: { default: 'var(--color-on-accent)', ':hover': 'var(--color-on-accent)' },
   },

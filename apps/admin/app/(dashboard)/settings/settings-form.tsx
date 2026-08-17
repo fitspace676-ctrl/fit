@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import Link from 'next/link';
+import { ButtonLink } from '@/components/ui/button-link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { z } from 'zod';
 import {
   DEFAULT_CURRENCY,
@@ -33,16 +32,11 @@ import {
   type Weekday,
   type WeeklyHours,
 } from '@fit/types';
+import { Button, Card, Switch } from '@fit/ui-kit';
 import {
-  Btn,
   Controller,
   Form,
   Icon,
-  NumberField,
-  SelectField,
-  Switch,
-  TextField,
-  buttonClasses,
   fieldErrorText,
   useFormContext,
   useToast,
@@ -51,6 +45,7 @@ import {
   type FieldErrors,
   type IconName,
 } from '@/components/ui';
+import { NumberField, SelectField, TextField } from '@/components/ui/form-fields';
 import {
   finalizeGymLogoAction,
   renameLocationAction,
@@ -114,6 +109,8 @@ const ping = stylex.keyframes({
 });
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -969,13 +966,11 @@ export function SettingsForm({
                 <div {...stylex.props(styles.subSection)}>
                   <p {...stylex.props(styles.legend)}>{t('general.localeLegend')}</p>
                   <div {...stylex.props(styles.localeGrid)}>
-                    <SelectField name="locale.currency" label={t('general.currency')}>
-                      {currencyOptions.map((code) => (
-                        <option key={code} value={code}>
-                          {code}
-                        </option>
-                      ))}
-                    </SelectField>
+                    <SelectField
+                      name="locale.currency"
+                      label={t('general.currency')}
+                      options={currencyOptions.map((code) => ({ value: code, label: code }))}
+                    />
                     <TimeZoneField options={timezoneOptions} stored={initial.locale.timezone} />
                   </div>
                 </div>
@@ -1160,15 +1155,15 @@ export function SettingsForm({
                 <SelectField
                   name="invoice.format"
                   label={t('invoice.formatLabel')}
-                  hint={<InvoiceHint />}
-                  fieldClassName={stylex.props(styles.maxXs).className}
-                >
-                  {invoiceNumberFormatSchema.options.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {t(`invoiceFormat.${opt}`)}
-                    </option>
-                  ))}
-                </SelectField>
+                  options={invoiceNumberFormatSchema.options.map((opt) => ({
+                    value: opt,
+                    label: t(`invoiceFormat.${opt}`),
+                  }))}
+                />
+                {/* The worked example moved out of the field's `hint`: that slot
+                    is a string, and this is a rendered sample of the numbering
+                    scheme, not a sentence about it. */}
+                <InvoiceHint />
               </div>
             </SectionCard>
           ) : null}
@@ -1196,9 +1191,12 @@ export function SettingsForm({
                 <LocationNames locations={locations} />
                 <p {...stylex.props(styles.cardDesc)}>{t('locations.description')}</p>
                 <div>
-                  <Link href="/locations" className={buttonClasses('primary', 'sm')}>
-                    {t('locations.cta')}
-                  </Link>
+                  <ButtonLink
+                    href="/locations"
+                    variant="primary"
+                    size="inline"
+                    label={t('locations.cta')}
+                  />
                 </div>
               </div>
             </SectionCard>
@@ -1273,7 +1271,7 @@ function SectionRail({
   const t = useTranslations('admin.settings');
   return (
     <div {...stylex.props(styles.railWrap)}>
-      <Card variant="default" padding={0} xstyle={styles.railCard}>
+      <Card padding="none" xstyle={styles.railCard}>
         <div {...stylex.props(styles.railList)}>
           {SECTIONS.map((item) => {
             const active = section === item.key;
@@ -1310,7 +1308,7 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.cardTitle)}>{title}</h3>
       <p {...stylex.props(styles.cardDesc)}>{description}</p>
       {children}
@@ -1549,22 +1547,17 @@ function TimeZoneField({ options, stored }: { options: string[]; stored: string 
         name="locale.timezone"
         label={t('general.timezone')}
         hint={t('general.timezoneHint')}
-      >
-        <optgroup label={t('general.timezoneSuggested')}>
-          {suggested.map((tz) => (
-            <option key={`suggested-${tz}`} value={tz}>
-              {tz}
-            </option>
-          ))}
-        </optgroup>
-        <optgroup label={t('general.timezoneAll')}>
-          {list.map((tz) => (
-            <option key={tz} value={tz}>
-              {tz}
-            </option>
-          ))}
-        </optgroup>
-      </SelectField>
+        options={[
+          {
+            label: t('general.timezoneSuggested'),
+            options: suggested.map((tz) => ({ value: tz, label: tz })),
+          },
+          {
+            label: t('general.timezoneAll'),
+            options: list.map((tz) => ({ value: tz, label: tz })),
+          },
+        ]}
+      />
       {device && device !== current ? (
         <div>
           <button
@@ -1661,16 +1654,15 @@ function LocationNames({ locations }: { locations: AdminLocationRow[] }) {
             {location.status === 'INACTIVE' ? (
               <span {...stylex.props(styles.locationInactive)}>{t('locations.inactive')}</span>
             ) : null}
-            <Btn
+            <Button
+              variant="secondary"
+              size="inline"
               type="button"
-              v="outline"
-              size="sm"
-              icon="check"
-              disabled={!dirty || pending}
               onClick={() => void rename(location.id)}
-            >
-              {pending ? t('locations.renaming') : t('locations.rename')}
-            </Btn>
+              disabled={!dirty || pending}
+              icon={<Icon name="check" {...stylex.props(styles.kitGlyph)} />}
+              label={pending ? t('locations.renaming') : t('locations.rename')}
+            />
             {location.address ? (
               <p {...stylex.props(styles.locationMeta)}>{location.address}</p>
             ) : null}
@@ -1814,9 +1806,14 @@ function SaveBar() {
         >
           {t('saveBar.discard')}
         </button>
-        <Btn type="submit" v="primary" size="sm" icon="check" disabled={isSubmitting}>
-          {isSubmitting ? t('saveBar.saving') : t('saveBar.save')}
-        </Btn>
+        <Button
+          variant="primary"
+          size="inline"
+          type="submit"
+          disabled={isSubmitting}
+          icon={<Icon name="check" {...stylex.props(styles.kitGlyph)} />}
+          label={isSubmitting ? t('saveBar.saving') : t('saveBar.save')}
+        />
       </div>
     </div>
   );

@@ -1,16 +1,14 @@
 import * as stylex from '@stylexjs/stylex';
+import { Avatar, Badge, Card } from '@/src/components/ui/kit';
 import { useTranslations } from 'next-intl';
-import { Avatar } from '@astryxdesign/core/Avatar';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Card } from '@astryxdesign/core/Card';
 import type { TrainerCard as TrainerCardModel } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
 
-// Astryx migration (T11.13): the roster card is rebuilt on the Astryx `Card` /
-// `Avatar` / `Badge` over the Fit brand theme, with layout authored in compiled
+// Astryx migration (T11), now on the portal kit: the roster card is rebuilt on the kit's `Card` /
+// `Avatar` / `Badge` over the FormaCore theme, with layout authored in compiled
 // StyleX (`var(--color-*)`) — no Tailwind utilities and no formacore
-// Aurora-glass primitives. The Astryx `Avatar` renders the initials fallback
+// Aurora-glass primitives. The the kit's `Avatar` renders the initials fallback
 // from `name`, so the Dicebear helper is gone. Behaviour is unchanged: the whole
 // card links to the trainer's detail page.
 
@@ -138,7 +136,7 @@ export function TrainerCard({ trainer }: TrainerCardProps) {
 
   return (
     <Link href={`/member/trainers/${trainer.id}`} {...stylex.props(styles.link)}>
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         <div {...stylex.props(styles.head)}>
           <Avatar src={trainer.avatarUrl ?? undefined} name={trainer.name} size={60} />
           <div {...stylex.props(styles.headText)}>
@@ -153,7 +151,7 @@ export function TrainerCard({ trainer }: TrainerCardProps) {
           <ul aria-label={t('card.specialties')} {...stylex.props(styles.specialties)}>
             {trainer.specialties.map((specialty) => (
               <li key={specialty}>
-                <Badge variant="purple" label={specialty} />
+                <Badge tone="neutral" label={specialty} />
               </li>
             ))}
           </ul>

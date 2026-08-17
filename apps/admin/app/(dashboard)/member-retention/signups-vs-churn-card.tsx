@@ -11,8 +11,8 @@
 // out.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { SignupsChurnPoint } from '@fit/types';
 import { DualAreaChart, SeriesSwatch, type DualPoint } from '../charts';
 import { EmptyState } from '../overview/format';
@@ -70,7 +70,7 @@ export function SignupsVsChurnCard({ points }: { points: SignupsChurnPoint[] }) 
   const last = points[points.length - 1]?.label;
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('signupsVsChurn.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('signupsVsChurn.caption')}</p>

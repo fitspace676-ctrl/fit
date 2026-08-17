@@ -1,17 +1,21 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Popover, focus } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Popover } from '@astryxdesign/core/Popover';
 import { useRouter } from '@/src/i18n/navigation';
 import { Icon, type IconName } from '@/src/components/ui';
 
-// Astryx migration (T11.16): the member notification bell + inbox dropdown is
-// rebuilt on the Astryx `Popover` (button + dialog ARIA pattern, light-dismiss,
-// focus trap) over the Fit brand theme. The trigger, unread pill, inbox rows and
-// empty state are authored in compiled StyleX (`var(--color-*)`), no Tailwind
-// utilities. The `/api/notifications` fetch + mark-read behaviour is unchanged.
+// The bell + inbox, on the portal's own `Popover`.
+//
+// The panel's surface — radius, hairline, popover background, elevation, and the
+// clipping that keeps the first and last rows inside the corners — belongs to
+// the Popover now; this file had been restating all of it on an inner wrapper,
+// which meant two nested rounded boxes with two borders once the kit's own panel
+// arrived. The width is the Popover's `width` prop.
+//
+// The `/api/notifications` fetch and the mark-read behaviour are unchanged.
 
 /** One inbox row as the `/api/notifications` proxy returns it (mirrors the API's
  * `NotificationDto`). */
@@ -87,16 +91,6 @@ const styles = stylex.create({
     fontWeight: 700,
     lineHeight: 1,
     boxShadow: '0 0 0 2px var(--color-background-surface)',
-  },
-  panel: {
-    width: '20rem',
-    overflow: 'hidden',
-    borderRadius: 'var(--radius-container)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-popover)',
-    boxShadow: 'var(--shadow-high)',
   },
   header: {
     display: 'flex',
@@ -246,11 +240,11 @@ const styles = stylex.create({
 });
 
 /**
- * Member notification bell + inbox dropdown (T6.10), on the Astryx design system.
+ * Member notification bell + inbox dropdown (T6.10), on the portal kit.
  *
  * Loads the caller's recent notifications + unread count from the same-origin
  * `/api/notifications` proxy (which forwards the httpOnly session token to the
- * inbox API, T8.4). The bell shows an unread badge; opening the Astryx `Popover`
+ * inbox API, T8.4). The bell shows an unread badge; opening the kit's `Popover`
  * lists the items, tapping one marks it read and follows its deep-link, and a
  * header action marks everything read. All reads/writes are best-effort — a
  * failure leaves the bell quietly empty rather than breaking the header.
@@ -310,7 +304,7 @@ export function NotificationBell() {
   };
 
   const panel = (
-    <div {...stylex.props(styles.panel)}>
+    <>
       <div {...stylex.props(styles.header)}>
         <p {...stylex.props(styles.headerTitle)}>{t('notifications')}</p>
         {unread > 0 && (
@@ -366,29 +360,32 @@ export function NotificationBell() {
           })}
         </ul>
       )}
-    </div>
+    </>
   );
 
   return (
     <Popover
-      isOpen={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) void load();
-      }}
+      open={open}
+      onClose={() => setOpen(false)}
       placement="above"
-      alignment="end"
+      align="end"
       label={t('notifications')}
-      content={panel}
-    >
-      {({ ref, onClick, ...aria }) => (
+      width={420}
+      trigger={
         <button
-          ref={ref}
           type="button"
-          onClick={onClick}
-          {...aria}
+          onClick={() => {
+            // Load on the way OPEN only. The inbox is a snapshot the panel shows;
+            // refetching as it closes would spend a request on a panel nobody is
+            // looking at, and could repaint the list under the closing animation.
+            const next = !open;
+            setOpen(next);
+            if (next) void load();
+          }}
+          aria-expanded={open}
+          aria-haspopup="dialog"
           aria-label={t('notifications')}
-          {...stylex.props(styles.bell)}
+          {...stylex.props(styles.bell, focus.ring)}
         >
           <Icon name="bell" {...stylex.props(styles.bellIcon)} />
           {unread > 0 && (
@@ -397,7 +394,9 @@ export function NotificationBell() {
             </span>
           )}
         </button>
-      )}
+      }
+    >
+      {panel}
     </Popover>
   );
 }

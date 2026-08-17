@@ -11,9 +11,9 @@
 // rather than letting these bars silently fail to add up to the KPI tile.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
-import { Card } from '@astryxdesign/core/Card';
 import type { RevenueLocationSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
 
@@ -48,7 +48,7 @@ export function RevenueByLocationCard({
   const data: BarDatum[] = slices.map((slice) => ({ label: slice.location, value: slice.value }));
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('byLocation.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('byLocation.caption')}</p>

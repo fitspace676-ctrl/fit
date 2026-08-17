@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
-import { Badge, Icon, type Tone } from '@/components/ui';
+import { Badge, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { creditsLabel, formatPrice, intervalLabel, intervalSuffix } from '../format';
 import { PlanActions } from './plan-actions';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
@@ -18,9 +19,9 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster table's pills. */
-const STATUS_LABELS: Record<string, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'Inactive', tone: 'ink' },
+const STATUS_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
+  ACTIVE: { label: 'Active', tone: 'positive' },
+  INACTIVE: { label: 'Inactive', tone: 'neutral' },
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -82,7 +83,7 @@ export default async function SubscriptionPlanDetailPage({
 
   const status = STATUS_LABELS[plan.status] ?? {
     label: plan.status,
-    tone: 'ink' as Tone,
+    tone: 'ink' as BadgeTone,
   };
 
   // Write controls (edit + deactivate) are a `BillingManage` capability.
@@ -104,8 +105,8 @@ export default async function SubscriptionPlanDetailPage({
             <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-3xl">
               {plan.name}
             </h1>
-            <Badge tone={status.tone}>{status.label}</Badge>
-            {plan.popular ? <Badge tone="brand">Most popular</Badge> : null}
+            <Badge tone={status.tone} label={status.label} />
+            {plan.popular ? <Badge tone="accent" label="Most popular" /> : null}
           </div>
           <p className="font-mono text-lg font-semibold tabular-nums text-ink-800 dark:text-ink-100">
             {formatPrice(plan.priceAmount, plan.currency)}{' '}

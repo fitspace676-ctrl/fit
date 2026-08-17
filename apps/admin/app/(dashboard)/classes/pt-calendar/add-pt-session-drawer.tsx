@@ -3,12 +3,11 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
-import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import type { AdminClassTypeOption } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import type { TrainerOption } from './trainer-select';
 import { createPtSessionAction } from './pt-session-actions';
@@ -131,7 +130,7 @@ export function AddPtSessionDrawer({
     <>
       <Button
         variant="primary"
-        size="lg"
+        size="block"
         label="Add PT session"
         icon={<Icon name="plus" sw={2} {...stylex.props(styles.triggerIcon)} />}
         onClick={drawer.open}
@@ -352,7 +351,7 @@ function PtSessionForm({
       </div>
 
       {error ? (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
@@ -361,9 +360,13 @@ function PtSessionForm({
       ) : null}
 
       <div {...stylex.props(styles.actions)}>
-        <Btn type="submit" v="primary" size="md" disabled={pending}>
-          {pending ? 'Saving…' : 'Add session'}
-        </Btn>
+        <Button
+          variant="primary"
+          size="card"
+          type="submit"
+          disabled={pending}
+          label={pending ? 'Saving…' : 'Add session'}
+        />
         <button type="button" onClick={onCancel} {...stylex.props(styles.cancelButton)}>
           Cancel
         </button>

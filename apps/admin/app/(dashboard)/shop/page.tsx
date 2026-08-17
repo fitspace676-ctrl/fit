@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -9,7 +10,6 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProductCategories, fetchProducts } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ProductsFilters } from './products-filters';
 import { ProductsStatusTabs } from './products-status-tabs';
@@ -160,7 +160,7 @@ export default async function ProductsPage({
         ? `Could not load products (${error.status}): ${error.message}`
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
-      <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+      <Card role="alert" padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />
         <span>{message}</span>
       </Card>

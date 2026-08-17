@@ -1,10 +1,10 @@
 import * as stylex from '@stylexjs/stylex';
+import { EmptyState } from '@/src/components/ui/kit';
 import { useTranslations } from 'next-intl';
-import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Icon } from '@/src/components/ui';
 
-// Astryx migration (T11.15): the shop's empty state is rebuilt on the Astryx
-// `EmptyState` over the Fit brand theme tokens — no Tailwind utilities.
+// Astryx migration (T11), now on the portal kit: the shop's empty state is rebuilt on the portal kit
+// `EmptyState` over the FormaCore theme tokens — no Tailwind utilities.
 
 const styles = stylex.create({
   icon: {
@@ -25,7 +25,7 @@ export function EmptyShop() {
     <EmptyState
       icon={<Icon name="bag" {...stylex.props(styles.icon)} sw={1.9} />}
       title={t('browse.empty.title')}
-      description={t('browse.empty.subtitle')}
+      body={t('browse.empty.subtitle')}
     />
   );
 }

@@ -1,27 +1,30 @@
 'use client';
 
 import * as stylex from '@stylexjs/stylex';
+import { Badge, Button, ButtonLink, Card, Drawer } from '@/src/components/ui/kit';
 import { useLocale, useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard } from '@fit/types';
-import { Link, usePathname } from '@/src/i18n/navigation';
+import { usePathname } from '@/src/i18n/navigation';
 import { useSession } from '@/hooks/use-session';
-import { Drawer } from '@/src/components/ui';
 import { Icon } from '@/src/components/ui';
 import { BookingActionButton } from '@/src/components/member/booking-action-button';
 import { ClassOccupancy } from './ClassOccupancy';
 import { formatZonedTime } from './date-utils';
 
-// Astryx migration (T11.12): the drawer body is rebuilt on the Astryx `Badge` /
-// `Button` / `Card` over the Fit brand theme, with the header, detail list, and
-// capacity panel authored in compiled StyleX (`var(--color-*)`). The side-sheet
-// shell (`Drawer`) still comes from @fit/ui-web — it is the shared overlay
-// primitive, out of this screen's migration scope. No Tailwind utilities are
-// authored here; the booking server action ({@link BookingActionButton}) is
-// unchanged.
+// The drawer, on the portal's own kit — shell included.
+//
+// The sheet used to be `@fit/ui-web`'s `Drawer`, left in place as "the shared
+// overlay primitive, out of this screen's migration scope". That exemption is
+// what let a Tailwind-authored overlay keep painting inside a screen the
+// guardrail counted as migrated: the package is deliberately outside the
+// guardrail, so nothing flagged it. The kit's `Drawer` is FormaCore-authored and
+// carries its own focus trap, scroll lock and Escape handling.
+//
+// The old sheet's `accent` stripe (a colour per class category down its edge)
+// went with it. The direction allows one chromatic voice and spends it on the
+// membership block; a per-category hue is exactly the decorative colour it
+// removes. The category is still stated — as a chip, in ink.
 
 const styles = stylex.create({
   headerRow: {
@@ -116,7 +119,7 @@ export interface ClassDetailDrawerProps {
  * Right-side sheet showing one class's details and the booking CTA.
  *
  * Built on the shared @fit/ui-web `Drawer` overlay; the body is rebuilt on
- * Astryx primitives under the Fit brand theme. The CTA is auth-gated: a
+ * the portal kit under the FormaCore theme. The CTA is auth-gated: a
  * signed-out visitor gets a link to `/member/login?from=<this page, with the class
  * preselected>` so they return here after signing in; a signed-in member gets
  * the real {@link BookingActionButton}, which runs the booking server action and
@@ -145,19 +148,13 @@ export function ClassDetailDrawer({ instance, onClose, timeZone }: ClassDetailDr
   const loginHref = `/member/login?from=${encodeURIComponent(from)}`;
 
   return (
-    <Drawer
-      open={instance !== null}
-      onClose={onClose}
-      label={instance.title}
-      accent={instance.color}
-      hideHeader
-    >
+    <Drawer open={instance !== null} onClose={onClose} label={instance.title} hideHeader>
       <div {...stylex.props(styles.headerRow)}>
-        {instance.category && <Badge variant="purple" label={instance.category} />}
+        {instance.category && <Badge tone="neutral" label={instance.category} />}
         <Button
           variant="ghost"
-          size="sm"
-          isIconOnly
+          size="inline"
+          iconOnly
           label={t('drawer.close')}
           icon={<Icon name="x" {...stylex.props(styles.closeIcon)} sw={2} />}
           onClick={onClose}
@@ -181,7 +178,7 @@ export function ClassDetailDrawer({ instance, onClose, timeZone }: ClassDetailDr
         ) : null}
       </dl>
 
-      <Card variant="muted" padding={0} xstyle={styles.capCard}>
+      <Card variant="muted" padding="none" xstyle={styles.capCard}>
         <span {...stylex.props(styles.capLabel)}>{t('drawer.capacity')}</span>
         <ClassOccupancy value={instance.bookedCount} cap={instance.capacity} />
         <p {...stylex.props(styles.spots, isFull && styles.spotsFull)}>
@@ -196,18 +193,18 @@ export function ClassDetailDrawer({ instance, onClose, timeZone }: ClassDetailDr
               classId={instance.id}
               action="book"
               label={isFull ? t('drawer.full') : t('drawer.book')}
-              v="primary"
-              size="lg"
+              variant="primary"
+              size="page"
+              fullWidth
             />
           </div>
         ) : (
-          <Button
-            as={Link}
+          <ButtonLink
             href={loginHref}
             variant="primary"
-            size="lg"
+            size="page"
+            fullWidth
             label={t('drawer.signInToBook')}
-            xstyle={styles.fullBtn}
           />
         )}
       </div>

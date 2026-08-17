@@ -4,11 +4,11 @@ import { useMemo, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import type { AdminPtSession, ClassInstanceStatus } from '@fit/types';
-import { Badge, Btn, Icon, type Tone } from '@/components/ui';
+import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { addWeeks, toIsoDate, weekDays, zonedClock } from '../schedule/week';
 import { AddPtSessionDrawer, type ClassTypeOption } from './add-pt-session-drawer';
@@ -25,9 +25,9 @@ const GRID_PAD_REM = 0.5;
 const MIN_ROWS = 6;
 const MIN_EVENT_REM = 1.5;
 
-const STATUS_TONES: Record<ClassInstanceStatus, { label: string; tone: Tone }> = {
-  SCHEDULED: { label: 'Scheduled', tone: 'success' },
-  COMPLETED: { label: 'Completed', tone: 'ink' },
+const STATUS_TONES: Record<ClassInstanceStatus, { label: string; tone: BadgeTone }> = {
+  SCHEDULED: { label: 'Scheduled', tone: 'positive' },
+  COMPLETED: { label: 'Completed', tone: 'neutral' },
   CANCELED: { label: 'Canceled', tone: 'danger' },
 };
 
@@ -796,7 +796,7 @@ function PtSessionDetail({
             <div {...stylex.props(styles.detailRow)}>
               <span {...stylex.props(styles.detailLabel)}>Status</span>
               <span>
-                <Badge tone={status.tone}>{status.label}</Badge>
+                <Badge tone={status.tone} label={status.label} />
               </span>
             </div>
             {session.notes ? (
@@ -807,7 +807,7 @@ function PtSessionDetail({
             ) : null}
 
             {error ? (
-              <Card variant="default" padding={0} xstyle={styles.errorCard}>
+              <Card padding="none" xstyle={styles.errorCard}>
                 <Icon name="info" {...stylex.props(styles.errorIcon)} />
                 <p role="alert" {...stylex.props(styles.errorText)}>
                   {error}
@@ -817,22 +817,20 @@ function PtSessionDetail({
 
             {canWrite && isScheduled ? (
               <div {...stylex.props(styles.detailActions)}>
-                <Btn
-                  v="primary"
-                  size="md"
-                  disabled={pending}
+                <Button
+                  variant="primary"
+                  size="card"
                   onClick={() => run(completePtSessionAction)}
-                >
-                  Mark complete
-                </Btn>
-                <Btn
-                  v="outline"
-                  size="md"
                   disabled={pending}
+                  label="Mark complete"
+                />
+                <Button
+                  variant="secondary"
+                  size="card"
                   onClick={() => run(cancelPtSessionAction)}
-                >
-                  Cancel session
-                </Btn>
+                  disabled={pending}
+                  label="Cancel session"
+                />
               </div>
             ) : null}
           </LayoutContent>

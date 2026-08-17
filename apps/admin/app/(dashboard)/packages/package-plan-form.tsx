@@ -8,7 +8,7 @@ import {
   type PackageBillingInterval,
   type PackagePlanStatus,
 } from '@fit/types';
-import { Btn } from '@/components/ui';
+import { Button } from '@fit/ui-kit';
 import { useGymCurrency } from '@/components/gym-currency';
 import { BILLING_INTERVALS, inputToMinor, minorToInput } from './format';
 import { createPackagePlanAction, updatePackagePlanAction } from './actions';
@@ -259,9 +259,13 @@ export function PackagePlanForm(props: Props) {
                   placeholder="e.g. Personalised training plan"
                   className={FIELD_CLASS}
                 />
-                <Btn type="button" v="outline" size="md" onClick={() => removeFeature(index)}>
-                  Remove
-                </Btn>
+                <Button
+                  variant="secondary"
+                  size="card"
+                  type="button"
+                  onClick={() => removeFeature(index)}
+                  label="Remove"
+                />
               </div>
             ))}
           </div>
@@ -271,9 +275,14 @@ export function PackagePlanForm(props: Props) {
           </p>
         )}
         <div>
-          <Btn type="button" v="outline" size="sm" onClick={addFeature} disabled={atFeatureLimit}>
-            {atFeatureLimit ? `Maximum of ${MAX_PACKAGE_FEATURES} features` : 'Add feature'}
-          </Btn>
+          <Button
+            variant="secondary"
+            size="inline"
+            type="button"
+            onClick={addFeature}
+            disabled={atFeatureLimit}
+            label={atFeatureLimit ? `Maximum of ${MAX_PACKAGE_FEATURES} features` : 'Add feature'}
+          />
         </div>
       </fieldset>
 
@@ -319,9 +328,13 @@ export function PackagePlanForm(props: Props) {
       ) : null}
 
       <div className="flex items-center gap-3">
-        <Btn type="submit" v="primary" size="md" disabled={pending}>
-          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create plan'}
-        </Btn>
+        <Button
+          variant="primary"
+          size="card"
+          type="submit"
+          disabled={pending}
+          label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create plan'}
+        />
         <Link
           href={cancelHref}
           className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"

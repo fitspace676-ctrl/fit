@@ -1,11 +1,11 @@
 'use client';
 
 import { useMemo } from 'react';
+import { Button, Card } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard } from '@fit/types';
-import { Btn } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { EmptyClasses } from './EmptyClasses';
 import {
   addWeeks,
@@ -21,8 +21,8 @@ import {
 } from './date-utils';
 import { createDateTimeFormat } from '@fit/i18n';
 
-// Astryx migration (T11.12): the week grid is rebuilt on the Astryx `Card` over
-// the Fit brand theme, with the 7-column time grid, hour gridlines, and
+// Astryx migration (T11), now on the portal kit: the week grid is rebuilt on the kit's `Card` over
+// the FormaCore theme, with the 7-column time grid, hour gridlines, and
 // positioned class cards authored in compiled StyleX (`var(--color-*)`) — no
 // Tailwind utilities and no formacore Aurora-glass primitives. The per-card
 // absolute positioning (top/height/lane) stays as inline styles since it is
@@ -53,12 +53,19 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.375rem',
   },
+  navIcon: {
+    height: '1rem',
+    width: '1rem',
+  },
+  // The week range is the calendar's title, so it is set like one. At 14px it
+  // sat below the day numbers inside the grid it was supposed to name.
   navLabel: {
-    marginLeft: '0.5rem',
     margin: 0,
+    marginInlineStart: '0.5rem',
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.875rem',
-    fontWeight: 700,
+    fontSize: '1.0625rem',
+    fontWeight: 800,
+    letterSpacing: '-0.01em',
     color: 'var(--color-text-primary)',
   },
   card: {
@@ -85,8 +92,13 @@ const styles = stylex.create({
     paddingBlock: '0.5rem',
     textAlign: 'center',
   },
+  // Today is the lime. It was `--color-background-purple` — a token the
+  // FormaCore theme keeps only as an alias and flattens onto plain ink, so the
+  // one column a member looks for first was tinted the same grey as the rest of
+  // the header and read as nothing at all. The direction has exactly one colour
+  // for "this is the one"; this is it.
   headCellToday: {
-    backgroundColor: 'var(--color-background-purple)',
+    backgroundColor: 'var(--color-accent-muted)',
   },
   headDow: {
     margin: 0,
@@ -145,11 +157,13 @@ const styles = stylex.create({
     paddingInline: '0.375rem',
     paddingBlock: '0.25rem',
     textAlign: 'left',
-    boxShadow: '0 1px 2px 0 var(--color-shadow)',
     cursor: 'pointer',
     outline: 'none',
     transitionProperty: 'box-shadow',
     transitionDuration: '150ms',
+    // No resting elevation — the direction reserves shadow for things that
+    // FLOAT, and a card sitting in a grid does not. On hover it lifts, because
+    // then it genuinely is above its neighbours (`zIndex: 10`).
     ':hover': {
       zIndex: 10,
       boxShadow: '0 4px 12px -2px var(--color-shadow)',
@@ -263,7 +277,7 @@ export function WeekCalendar({
       {instances.length === 0 ? (
         <EmptyClasses />
       ) : (
-        <Card variant="default" padding={0} xstyle={styles.card}>
+        <Card padding="none" xstyle={styles.card}>
           <div {...stylex.props(styles.grid)}>
             {/* Header row: empty gutter + weekday headings. */}
             <div {...stylex.props(styles.headGutter)} />
@@ -394,13 +408,25 @@ function WeekNav({
   return (
     <div {...stylex.props(styles.nav)}>
       <div {...stylex.props(styles.navLeft)}>
-        <Btn v="outline" size="icon" icon="chevronLeft" aria-label={prevLabel} onClick={onPrev} />
-        <Btn v="outline" size="icon" icon="chevronRight" aria-label={nextLabel} onClick={onNext} />
+        <Button
+          variant="secondary"
+          size="inline"
+          iconOnly
+          label={prevLabel}
+          icon={<Icon name="chevronLeft" {...stylex.props(styles.navIcon)} />}
+          onClick={onPrev}
+        />
+        <Button
+          variant="secondary"
+          size="inline"
+          iconOnly
+          label={nextLabel}
+          icon={<Icon name="chevronRight" {...stylex.props(styles.navIcon)} />}
+          onClick={onNext}
+        />
         <p {...stylex.props(styles.navLabel)}>{label}</p>
       </div>
-      <Btn v="outline" size="sm" onClick={onToday}>
-        {todayLabel}
-      </Btn>
+      <Button variant="secondary" size="inline" label={todayLabel} onClick={onToday} />
     </div>
   );
 }

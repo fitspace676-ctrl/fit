@@ -9,11 +9,11 @@
 // no Tailwind, no recharts.
 
 import { useTransition } from 'react';
+import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { Button } from '@astryxdesign/core/Button';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type { ReportDrilldown, ReportRange } from '@fit/types';
@@ -218,7 +218,7 @@ export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
       {drilldown.kpis.length > 0 && (
         <div {...stylex.props(styles.kpiRow)}>
           {drilldown.kpis.map((kpi) => (
-            <Card key={kpi.id} variant="default" padding={0} xstyle={styles.kpiCard}>
+            <Card key={kpi.id} padding="none" xstyle={styles.kpiCard}>
               <span {...stylex.props(styles.kpiLabel)}>{kpi.label}</span>
               <span {...stylex.props(styles.kpiValue)}>
                 {formatUnitValue(kpi.unit, kpi.value, drilldown.currency, locale)}

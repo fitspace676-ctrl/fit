@@ -5,8 +5,8 @@ import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission, type StockMovementRow } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProduct, fetchStockMovements } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Icon, type Tone } from '@/components/ui';
+import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { formatPrice } from '../format-price';
 import { ProductActions } from './product-actions';
 import { StockPanel } from './stock-panel';
@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster table's pills. */
-const STATUS_LABELS: Record<string, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'Inactive', tone: 'ink' },
+const STATUS_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
+  ACTIVE: { label: 'Active', tone: 'positive' },
+  INACTIVE: { label: 'Inactive', tone: 'neutral' },
 };
 
 const styles = stylex.create({
@@ -237,7 +237,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to products
         </Link>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{message}</span>
         </Card>
@@ -247,7 +247,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   const status = STATUS_LABELS[product.status] ?? {
     label: product.status,
-    tone: 'ink' as Tone,
+    tone: 'ink' as BadgeTone,
   };
 
   // The ledger is supporting detail, not the point of the page: if it fails to
@@ -274,7 +274,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <div {...stylex.props(styles.headText)}>
           <div {...stylex.props(styles.titleRow)}>
             <h1 {...stylex.props(styles.title)}>{product.name}</h1>
-            <Badge tone={status.tone}>{status.label}</Badge>
+            <Badge tone={status.tone} label={status.label} />
           </div>
           <p {...stylex.props(styles.price)}>
             {formatPrice(product.priceAmount, product.currency)}
@@ -308,7 +308,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       <section {...stylex.props(styles.section)}>
         <h2 {...stylex.props(styles.sectionHeading)}>Variants</h2>
         {product.variants.length > 0 ? (
-          <Card variant="default" padding={0} xstyle={styles.tableCard}>
+          <Card padding="none" xstyle={styles.tableCard}>
             <table {...stylex.props(styles.table)}>
               <thead>
                 <tr {...stylex.props(styles.headRow)}>

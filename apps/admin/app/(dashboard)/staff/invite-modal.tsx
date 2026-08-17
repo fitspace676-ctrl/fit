@@ -4,13 +4,16 @@ import { type FormEvent, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { StaffRole } from '@fit/types';
-import { Btn, Dot, Icon, Modal } from '@/components/ui';
-import { INVITE_ROLES, ROLE_DOT } from './role-meta';
+import { Button, Dialog } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
+import { INVITE_ROLES } from './role-meta';
 import { inviteStaffAction } from './actions';
 
 const FORM_ID = 'staff-invite-form';
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -187,22 +190,30 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
   }
 
   return (
-    <Modal
+    <Dialog
       open={open}
       onClose={close}
-      size="md"
-      disableBackdropClose={pending}
-      hideClose={pending}
+      dismissible={!pending}
       title={t('inviteModal.title')}
       description={t('inviteModal.subtitle')}
-      footer={
+      actions={
         <>
-          <Btn v="outline" onClick={close} disabled={pending}>
-            {t('inviteModal.cancel')}
-          </Btn>
-          <Btn v="primary" type="submit" form={FORM_ID} icon="plus" disabled={pending}>
-            {pending ? t('inviteModal.sending') : t('inviteModal.send')}
-          </Btn>
+          <Button
+            variant="secondary"
+            size="card"
+            onClick={close}
+            disabled={pending}
+            label={t('inviteModal.cancel')}
+          />
+          <Button
+            variant="primary"
+            size="card"
+            type="submit"
+            form={FORM_ID}
+            disabled={pending}
+            icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+            label={pending ? t('inviteModal.sending') : t('inviteModal.send')}
+          />
         </>
       }
     >
@@ -239,7 +250,6 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                     active ? styles.roleBtnActive : styles.roleBtnIdle,
                   )}
                 >
-                  <Dot c={ROLE_DOT[option]} />
                   {t(`roles.${option}`)}
                 </button>
               );
@@ -266,6 +276,6 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
           </p>
         ) : null}
       </form>
-    </Modal>
+    </Dialog>
   );
 }

@@ -18,21 +18,14 @@
 // so the cards, segment counts and KPIs all re-derive from one source of truth.
 
 import { useMemo, useState, useTransition } from 'react';
+import { ButtonLink } from '@/components/ui/button-link';
+import * as stylex from '@stylexjs/stylex';
 import { DEFAULT_CURRENCY } from '@fit/types';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { AdminSubscriptionPlanRow } from '@fit/types';
-import {
-  Badge,
-  Card,
-  Icon,
-  Switch,
-  buttonClasses,
-  useToast,
-  type IconName,
-  type Tone,
-} from '@/components/ui';
+import { Badge, Card, Switch, type BadgeTone } from '@fit/ui-kit';
+import { Icon, useToast, type IconName } from '@/components/ui';
 import { setSubscriptionPlanActiveAction } from './actions';
 import { formatPrice, intervalSuffix } from './format';
 import { NewPlanDrawer } from './new-plan-drawer';
@@ -44,30 +37,29 @@ type Segment = 'active' | 'archived';
 /** Months in a year — normalises a yearly price to a monthly-recurring figure. */
 const MONTHS_PER_YEAR = 12;
 
-/** The accent palette cycled across plan cards (dot swatch + soft glow), by index. */
-const PLAN_TONES: readonly Tone[] = ['iris', 'accent', 'brand', 'success', 'warning'];
+/** An archived plan reads as receded — the one rule this file needs in StyleX. */
+const cardStyles = stylex.create({
+  archived: { opacity: 0.75 },
+});
 
-/** Literal dot classes per tone (Tailwind can't see `bg-${tone}-500` built inline). */
-const TONE_DOT: Record<Tone, string> = {
-  ink: 'bg-ink-400',
-  brand: 'bg-brand-500',
-  success: 'bg-success-500',
-  warning: 'bg-warning-500',
+const TONE_DOT: Record<BadgeTone, string> = {
+  neutral: 'bg-ink-400',
+  positive: 'bg-brand-500',
+  pending: 'bg-ink-500',
   danger: 'bg-danger-500',
-  accent: 'bg-accent-500',
-  iris: 'bg-iris-500',
-  flame: 'bg-flame-500',
-  info: 'bg-info-500',
-  teal: 'bg-teal-500',
+  accent: 'bg-brand-500',
 };
 
-/** The KPI tiles, in display order — each a literal icon + accent text class. */
-const KPI_ICON_CLASS: Record<'activePlans' | 'subscribers' | 'mrr' | 'avgPerMember', string> = {
-  activePlans: 'text-brand-500 dark:text-brand-400',
-  subscribers: 'text-accent-500 dark:text-accent-400',
-  mrr: 'text-success-600 dark:text-success-400',
-  avgPerMember: 'text-iris-500 dark:text-iris-400',
-};
+/**
+ * The KPI tiles' icon colour.
+ *
+ * One class, not four. This was a colour per tile — brand, accent, success and
+ * `iris`, the last surviving trace of the retired Aurora indigo — which encoded
+ * nothing: the four numbers are not four kinds of thing, and the icons already
+ * differ by glyph. The direction gives every icon the same ink and spends the
+ * accent on state.
+ */
+const KPI_ICON_CLASS = 'text-ink-400 dark:text-ink-500';
 
 /** The monthly-normalised price of a plan in the currency's minor units. */
 function monthlyMinor(plan: AdminSubscriptionPlanRow): number {
@@ -79,9 +71,20 @@ function planMonthlyRevenue(plan: AdminSubscriptionPlanRow): number {
   return monthlyMinor(plan) * plan.subscriberCount;
 }
 
-/** Pick a stable accent tone for a plan card by its position in the list. */
-function toneAt(index: number): Tone {
-  return PLAN_TONES[index % PLAN_TONES.length] ?? 'ink';
+/**
+ * The tone for a plan card.
+ *
+ * Plan cards no longer cycle a rainbow. This was five hues dealt out by card
+ * INDEX (`['iris', 'accent', 'brand', 'success', 'warning']`) with a matching dot
+ * and a soft glow — decoration that looked like information: the colour encoded a
+ * plan's position in the list, so it changed when a plan was added and told a
+ * reader nothing either way.
+ *
+ * The direction spends its one chromatic voice on state, so the accent marks the
+ * ACTIVE plan and every other card is ink.
+ */
+function toneFor(isActive: boolean): BadgeTone {
+  return isActive ? 'accent' : 'neutral';
 }
 
 /**
@@ -117,7 +120,7 @@ export function BillingPlansView({
   const avgPerMemberMinor = totalSubscribers > 0 ? Math.round(totalMrrMinor / totalSubscribers) : 0;
 
   const kpis: ReadonlyArray<{
-    key: keyof typeof KPI_ICON_CLASS;
+    key: 'activePlans' | 'subscribers' | 'mrr' | 'avgPerMember';
     icon: IconName;
     value: string;
   }> = [
@@ -160,8 +163,8 @@ export function BillingPlansView({
       {/* KPI strip. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {kpis.map((kpi) => (
-          <Card key={kpi.key} className="p-4 sm:p-5">
-            <Icon name={kpi.icon} className={`h-5 w-5 ${KPI_ICON_CLASS[kpi.key]}`} />
+          <Card key={kpi.key}>
+            <Icon name={kpi.icon} className={`h-5 w-5 ${KPI_ICON_CLASS}`} />
             <div className="mt-3 font-display text-2xl font-extrabold tabular-nums tracking-tight text-ink-900 dark:text-white">
               {kpi.value}
             </div>
@@ -204,7 +207,7 @@ export function BillingPlansView({
 
       {/* Plan cards, or the segment's empty state. */}
       {shown.length === 0 ? (
-        <Card className="px-4 py-16 text-center">
+        <Card>
           <Icon name="ticket" className="mx-auto h-9 w-9 text-ink-300 dark:text-ink-600" sw={1.8} />
           <p className="mt-3 font-display text-lg font-bold text-ink-900 dark:text-white">
             {view === 'active' ? t('emptyActiveTitle') : t('emptyArchivedTitle')}
@@ -219,11 +222,10 @@ export function BillingPlansView({
             isPending ? 'opacity-70 transition-opacity' : ''
           }`}
         >
-          {shown.map((plan, index) => (
+          {shown.map((plan) => (
             <PlanCard
               key={plan.id}
               plan={plan}
-              tone={toneAt(index)}
               canWrite={canWrite}
               busy={busyId === plan.id}
               onToggle={() => toggleActive(plan)}
@@ -239,24 +241,23 @@ export function BillingPlansView({
 /** One membership plan rendered as a formacore billing card. */
 function PlanCard({
   plan,
-  tone,
   canWrite,
   busy,
   onToggle,
   t,
 }: {
   plan: AdminSubscriptionPlanRow;
-  tone: Tone;
   canWrite: boolean;
   busy: boolean;
   onToggle: () => void;
   t: ReturnType<typeof useTranslations>;
 }) {
   const isActive = plan.status === 'ACTIVE';
+  const tone = toneFor(isActive);
   const features = plan.features;
 
   return (
-    <Card className={`flex flex-col p-5 ${isActive ? '' : 'opacity-75'}`}>
+    <Card padding="lg" xstyle={isActive ? undefined : cardStyles.archived}>
       {/* header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -264,20 +265,15 @@ function PlanCard({
           <h3 className="font-display text-lg font-bold tracking-tight text-ink-900 dark:text-white">
             {plan.name}
           </h3>
-          {plan.popular ? (
-            <Badge tone="iris" icon="star">
-              {t('popular')}
-            </Badge>
-          ) : null}
+          {plan.popular ? <Badge tone="neutral" icon="star" label={t('popular')} /> : null}
         </div>
         {canWrite ? (
-          <Link
+          <ButtonLink
             href={`/payments/${plan.id}`}
-            className={buttonClasses('ghost', 'sm')}
-            aria-label={t('edit')}
-          >
-            {t('edit')}
-          </Link>
+            variant="ghost"
+            size="inline"
+            label={t('edit')}
+          />
         ) : null}
       </div>
 

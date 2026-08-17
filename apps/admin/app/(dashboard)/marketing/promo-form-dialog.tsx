@@ -11,7 +11,8 @@ import type {
   PromoScope,
   UpdatePromoCodeInput,
 } from '@fit/types';
-import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
+import { Button, Drawer, Field, SelectField, TextareaField } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { createPromoAction, updatePromoAction } from './actions';
 import { majorToMinor, minorToMajor } from './marketing-meta';
 
@@ -201,28 +202,29 @@ export function PromoFormDialog({
     <Drawer
       open
       onClose={handleClose}
-      closing={closing}
-      side="right"
-      title={mode === 'create' ? t('promo.addTitle') : t('promo.editTitle')}
-      className="max-w-xl"
+      label={mode === 'create' ? t('promo.addTitle') : t('promo.editTitle')}
       footer={
         <div {...stylex.props(styles.footerRow)}>
-          <Btn v="outline" size="md" onClick={handleClose} disabled={pending}>
-            {t('wizard.cancel')}
-          </Btn>
-          <Btn
-            v="primary"
-            size="md"
+          <Button
+            variant="secondary"
+            size="card"
+            onClick={handleClose}
+            disabled={pending}
+            label={t('wizard.cancel')}
+          />
+          <Button
+            variant="primary"
+            size="card"
             onClick={submit}
             disabled={pending || !canSubmit}
-            className="btn-brand"
-          >
-            {pending
-              ? t('wizard.saving')
-              : mode === 'create'
-                ? t('promo.addSubmit')
-                : t('promo.editSubmit')}
-          </Btn>
+            label={
+              pending
+                ? t('wizard.saving')
+                : mode === 'create'
+                  ? t('promo.addSubmit')
+                  : t('promo.editSubmit')
+            }
+          />
         </div>
       }
     >
@@ -240,123 +242,121 @@ export function PromoFormDialog({
           </div>
         ) : null}
 
-        <Field label={t('promo.codeLabel')} hint={t('promo.codeHint')}>
-          <Input
-            value={form.code}
-            onChange={(e) => patch('code', e.target.value.toUpperCase())}
-            placeholder={t('promo.codePlaceholder')}
-            autoFocus
-            maxLength={64}
-          />
-        </Field>
+        <Field
+          label={t('promo.codeLabel')}
+          hint={t('promo.codeHint')}
+          value={form.code}
+          onChange={(e) => patch('code', e.target.value.toUpperCase())}
+          placeholder={t('promo.codePlaceholder')}
+          autoFocus
+          maxLength={64}
+        />
 
-        <Field label={t('promo.descriptionLabel')}>
-          <Textarea
-            rows={2}
-            value={form.description}
-            maxLength={300}
-            onChange={(e) => patch('description', e.target.value)}
-            placeholder={t('promo.descriptionPlaceholder')}
-          />
-        </Field>
+        <TextareaField
+          label={t('promo.descriptionLabel')}
+          rows={2}
+          value={form.description}
+          maxLength={300}
+          onChange={(e) => patch('description', e.target.value)}
+          placeholder={t('promo.descriptionPlaceholder')}
+        />
 
         <div {...stylex.props(styles.grid)}>
-          <Field label={t('promo.discountTypeLabel')}>
-            <Select
-              value={form.discountType}
-              onChange={(e) => patch('discountType', e.target.value as PromoDiscountType)}
-            >
-              <option value="percentage">{t('promo.discountPercentage')}</option>
-              <option value="fixed">{t('promo.discountFixed')}</option>
-            </Select>
-          </Field>
+          <SelectField
+            label={t('promo.discountTypeLabel')}
+            value={form.discountType}
+            onChange={(e) => patch('discountType', e.target.value as PromoDiscountType)}
+            options={[
+              { value: 'percentage', label: t('promo.discountPercentage') },
+              { value: 'fixed', label: t('promo.discountFixed') },
+            ]}
+          />
           <Field
             label={isPercentage ? t('promo.discountValuePercent') : t('promo.discountValueFixed')}
-          >
-            <Input
-              type="number"
-              min={1}
-              max={isPercentage ? 100 : undefined}
-              value={form.discountValue}
-              onChange={(e) => patch('discountValue', e.target.value)}
-              placeholder={
-                isPercentage ? t('promo.percentPlaceholder') : t('promo.amountPlaceholder')
-              }
-            />
-          </Field>
+            type="number"
+            min={1}
+            max={isPercentage ? 100 : undefined}
+            value={form.discountValue}
+            onChange={(e) => patch('discountValue', e.target.value)}
+            placeholder={
+              isPercentage ? t('promo.percentPlaceholder') : t('promo.amountPlaceholder')
+            }
+          />
         </div>
 
         <div {...stylex.props(styles.grid)}>
-          <Field label={t('promo.minPurchaseLabel')} hint={t('promo.minPurchaseHint')}>
-            <Input
-              type="number"
-              min={0}
-              value={form.minPurchase}
-              onChange={(e) => patch('minPurchase', e.target.value)}
-              placeholder={t('promo.amountPlaceholder')}
-            />
-          </Field>
-          <Field label={t('promo.usageLimitLabel')} hint={t('promo.usageLimitHint')}>
-            <Input
-              type="number"
-              min={1}
-              value={form.usageLimit}
-              onChange={(e) => patch('usageLimit', e.target.value)}
-              placeholder={t('promo.unlimitedPlaceholder')}
-            />
-          </Field>
+          <Field
+            label={t('promo.minPurchaseLabel')}
+            hint={t('promo.minPurchaseHint')}
+            type="number"
+            min={0}
+            value={form.minPurchase}
+            onChange={(e) => patch('minPurchase', e.target.value)}
+            placeholder={t('promo.amountPlaceholder')}
+          />
+          <Field
+            label={t('promo.usageLimitLabel')}
+            hint={t('promo.usageLimitHint')}
+            type="number"
+            min={1}
+            value={form.usageLimit}
+            onChange={(e) => patch('usageLimit', e.target.value)}
+            placeholder={t('promo.unlimitedPlaceholder')}
+          />
         </div>
 
         <div {...stylex.props(styles.grid)}>
-          <Field label={t('promo.appliesToLabel')} hint={t('promo.appliesToHint')}>
-            <Select
-              value={form.appliesTo}
-              onChange={(e) => patch('appliesTo', e.target.value as PromoScope)}
-            >
-              <option value="all">{t('promo.scopeAll')}</option>
-              <option value="products">{t('promo.scopeProducts')}</option>
-              <option value="packages">{t('promo.scopePackages')}</option>
-              <option value="subscriptions">{t('promo.scopeSubscriptions')}</option>
-            </Select>
-          </Field>
-          <Field label={t('promo.audienceLabel')} hint={t('promo.audienceHint')}>
-            <Select
-              value={form.oncePerMember ? 'once' : 'everyone'}
-              onChange={(e) => patch('oncePerMember', e.target.value === 'once')}
-            >
-              <option value="everyone">{t('promo.audienceEveryone')}</option>
-              <option value="once">{t('promo.audienceOnce')}</option>
-            </Select>
-          </Field>
+          <SelectField
+            label={t('promo.appliesToLabel')}
+            hint={t('promo.appliesToHint')}
+            value={form.appliesTo}
+            onChange={(e) => patch('appliesTo', e.target.value as PromoScope)}
+            options={[
+              { value: 'all', label: t('promo.scopeAll') },
+              { value: 'products', label: t('promo.scopeProducts') },
+              { value: 'packages', label: t('promo.scopePackages') },
+              { value: 'subscriptions', label: t('promo.scopeSubscriptions') },
+            ]}
+          />
+          <SelectField
+            label={t('promo.audienceLabel')}
+            hint={t('promo.audienceHint')}
+            value={form.oncePerMember ? 'once' : 'everyone'}
+            onChange={(e) => patch('oncePerMember', e.target.value === 'once')}
+            options={[
+              { value: 'everyone', label: t('promo.audienceEveryone') },
+              { value: 'once', label: t('promo.audienceOnce') },
+            ]}
+          />
         </div>
 
         <div {...stylex.props(styles.grid)}>
-          <Field label={t('promo.startsAtLabel')} hint={t('promo.startsAtHint')}>
-            <Input
-              type="date"
-              value={form.startsAt}
-              onChange={(e) => patch('startsAt', e.target.value)}
-            />
-          </Field>
-          <Field label={t('promo.expiryLabel')} hint={t('promo.expiryHint')}>
-            <Input
-              type="date"
-              value={form.expiryDate}
-              onChange={(e) => patch('expiryDate', e.target.value)}
-            />
-          </Field>
+          <Field
+            label={t('promo.startsAtLabel')}
+            hint={t('promo.startsAtHint')}
+            type="date"
+            value={form.startsAt}
+            onChange={(e) => patch('startsAt', e.target.value)}
+          />
+          <Field
+            label={t('promo.expiryLabel')}
+            hint={t('promo.expiryHint')}
+            type="date"
+            value={form.expiryDate}
+            onChange={(e) => patch('expiryDate', e.target.value)}
+          />
         </div>
 
         <div {...stylex.props(styles.grid)}>
-          <Field label={t('promo.statusLabel')}>
-            <Select
-              value={form.status}
-              onChange={(e) => patch('status', e.target.value as 'active' | 'inactive')}
-            >
-              <option value="active">{t('promo.statusActive')}</option>
-              <option value="inactive">{t('promo.statusInactive')}</option>
-            </Select>
-          </Field>
+          <SelectField
+            label={t('promo.statusLabel')}
+            value={form.status}
+            onChange={(e) => patch('status', e.target.value as 'active' | 'inactive')}
+            options={[
+              { value: 'active', label: t('promo.statusActive') },
+              { value: 'inactive', label: t('promo.statusInactive') },
+            ]}
+          />
         </div>
       </div>
     </Drawer>

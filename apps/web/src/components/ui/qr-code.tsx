@@ -5,13 +5,34 @@
 // stable, seed-derived 25×25 grid so the same member always sees the same glyph
 // and the surrounding layout is real. Pass the API payload as `seed` to swap in
 // the live code without touching the visual.
+//
+// The plate stays WHITE in both themes and the modules stay ink, because this is
+// a thing a scanner reads: inverting it in dark mode would leave a light-on-dark
+// code that most readers reject. That is why the two colours below are literals
+// rather than surface tokens — the same reasoning as the lime membership block,
+// for a different reason.
+
+import * as stylex from '@stylexjs/stylex';
+import type { StyleXStyles } from '@stylexjs/stylex';
+
+const styles = stylex.create({
+  plate: {
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: '#FFFFFF',
+    padding: '0.25rem',
+  },
+  module: { fill: '#1E1E1C' },
+  // The three finder squares take the lime — the one place the brand appears
+  // inside the code without hurting its contrast against the white plate.
+  finder: { fill: '#63701D' },
+});
 
 export interface QRCodeProps {
   /** Stable string the grid is derived from (e.g. the member id or check-in token). */
   seed: string;
   /** Pixel size of the rendered square. */
   size?: number;
-  className?: string;
+  xstyle?: StyleXStyles;
 }
 
 const GRID = 25;
@@ -31,7 +52,7 @@ function isFinder(row: number, col: number): boolean {
   return inBox(0, 0) || inBox(0, GRID - 7) || inBox(GRID - 7, 0);
 }
 
-export function QRCode({ seed, size = 200, className = '' }: QRCodeProps) {
+export function QRCode({ seed, size = 200, xstyle }: QRCodeProps) {
   const cells: { x: number; y: number; finder: boolean }[] = [];
   for (let row = 0; row < GRID; row += 1) {
     for (let col = 0; col < GRID; col += 1) {
@@ -60,9 +81,9 @@ export function QRCode({ seed, size = 200, className = '' }: QRCodeProps) {
       viewBox={`0 0 ${GRID} ${GRID}`}
       width={size}
       height={size}
-      className={`rounded-xl bg-white p-1 ${className}`}
       role="img"
       aria-label="Check-in QR code"
+      {...stylex.props(styles.plate, xstyle)}
     >
       {cells.map((c) => (
         <rect
@@ -72,7 +93,7 @@ export function QRCode({ seed, size = 200, className = '' }: QRCodeProps) {
           width={0.8}
           height={0.8}
           rx={0.28}
-          className={c.finder ? 'fill-brand-600' : 'fill-ink-900'}
+          {...stylex.props(c.finder ? styles.finder : styles.module)}
         />
       ))}
     </svg>

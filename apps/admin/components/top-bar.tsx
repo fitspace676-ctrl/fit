@@ -1,23 +1,31 @@
 'use client';
 
-// @fit/admin — console top bar (Astryx, T11.17).
+// @fit/admin — console top bar.
 //
-// Rebuilt on the Astryx `TopNav` over the Fit brand tokens. Sits above the page
-// content: the mobile drawer toggle, a location switcher (the gym's active
-// locations), the language switcher, a theme toggle, and a session menu (avatar →
-// profile / settings / sign out). Sign-out clears the shared session cookie via
-// `DELETE /api/session`.
+// Sits above the page content: the mobile drawer toggle, a location switcher
+// (the gym's active locations), the language switcher, a theme toggle, and a
+// session menu (avatar → profile / settings / sign out). Sign-out clears the
+// shared session cookie via `DELETE /api/session`.
+//
+// The FRAME is still Astryx's `TopNav` + `MobileNavToggle`: those are part of
+// the `AppShell` system and the toggle talks to the shell's own drawer state, so
+// swapping them means rebuilding the responsive shell rather than re-skinning
+// it. The CONTROLS inside are the portal's — `@fit/ui-kit`'s button, select,
+// avatar and popover — so the console's chrome is the same hardware a member
+// meets, at the same sizes, with the same one focus ring.
+//
+// The session menu was Astryx's `DropdownMenu`. The kit has no drop-in for it on
+// purpose: a menu is a popover plus rows, and the portal's account menu is
+// already exactly that. This is that pattern, so both apps dismiss, trap and
+// restore focus through one implementation (`useDismissable`).
 
 import { useEffect, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { TopNav } from '@astryxdesign/core/TopNav';
-import { IconButton } from '@astryxdesign/core/IconButton';
-import { Avatar } from '@astryxdesign/core/Avatar';
-import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
-import { Selector } from '@astryxdesign/core/Selector';
 import { MobileNavToggle } from '@astryxdesign/core/MobileNav';
+import { Avatar, Button, Popover, SelectField, focus } from '@fit/ui-kit';
 import { useSession } from '@/hooks/use-session';
 import { Icon } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
@@ -34,7 +42,7 @@ const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '';
 
 const styles = stylex.create({
   topNav: {
-    minHeight: '3.5rem',
+    minHeight: '4rem',
     paddingInline: '1.5rem',
     paddingBlock: '0.375rem',
     borderBlockEndWidth: '1px',
@@ -47,6 +55,8 @@ const styles = stylex.create({
     gap: '0.75rem',
     minWidth: 0,
   },
+  // The switcher is chrome, so it takes the `card` height (40px) rather than the
+  // field's own 52px — a form control in a 64px bar would fill it.
   locationSelect: {
     minWidth: 0,
     width: '15rem',
@@ -61,9 +71,67 @@ const styles = stylex.create({
     width: '1.25rem',
     height: '1.25rem',
   },
-  btnIcon: {
+  glyph: {
     width: '1rem',
     height: '1rem',
+  },
+
+  /* ------------------------------ session menu ----------------------------- */
+  // A squircle ringed in lime is how the artboards mark "this is you" — the same
+  // mark the member header carries, so a staff member who is also a member meets
+  // one identity glyph across both apps.
+  avatarButton: {
+    display: 'grid',
+    placeItems: 'center',
+    borderWidth: 0,
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'transparent',
+    padding: 0,
+    cursor: 'pointer',
+  },
+  menu: {
+    paddingBlock: '0.5rem',
+    minWidth: '13rem',
+  },
+  identity: {
+    paddingInline: '1rem',
+    paddingTop: '0.25rem',
+    paddingBottom: '0.75rem',
+  },
+  identityRole: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.8125rem',
+    fontWeight: 700,
+    letterSpacing: '0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  menuItem: {
+    display: 'flex',
+    width: '100%',
+    alignItems: 'center',
+    gap: '0.625rem',
+    borderWidth: 0,
+    backgroundColor: { default: 'transparent', ':hover': 'var(--color-overlay-hover)' },
+    paddingInline: '1rem',
+    paddingBlock: '0.625rem',
+    textAlign: 'start',
+    fontFamily: 'inherit',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    color: { default: 'var(--color-text-secondary)', ':hover': 'var(--color-text-primary)' },
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  menuDanger: {
+    color: 'var(--color-text-red)',
+  },
+  menuRule: {
+    marginBlock: '0.25rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
   },
 });
 
@@ -74,6 +142,7 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
   const t = useTranslations('admin.common');
   const isDark = theme === 'dark';
   const [locationId, setLocationId] = useState(ALL_LOCATIONS);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Restore the persisted selection after mount (kept out of the initial render
   // so server and client markup match), ignoring a stale id no longer present.
@@ -107,6 +176,14 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
     window.location.href = `${BASE_PATH}/login`;
   };
 
+  /** Close the menu, then run the action — so focus returns before navigating. */
+  function fromMenu(action: () => void): () => void {
+    return () => {
+      setMenuOpen(false);
+      action();
+    };
+  }
+
   return (
     <TopNav
       label={t('consoleName')}
@@ -115,14 +192,14 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
         <div {...stylex.props(styles.startContent)}>
           <MobileNavToggle label={t('openNav')} />
           {locations.length > 0 && (
-            <Selector
+            <SelectField
               label={t('locationLabel')}
-              isLabelHidden
-              startIcon={<Icon name="pin" {...stylex.props(styles.btnIcon)} />}
+              labelHidden
+              size="chrome"
+              startIcon={<Icon name="pin" {...stylex.props(styles.glyph)} />}
               options={locationOptions}
               value={locationId}
-              onChange={onLocationChange}
-              size="md"
+              onChange={(event) => onLocationChange(event.target.value)}
               xstyle={styles.locationSelect}
             />
           )}
@@ -132,42 +209,72 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
         <div {...stylex.props(styles.actions)}>
           <LocaleSwitcher />
 
-          <IconButton
+          <Button
             variant="ghost"
-            size="md"
+            size="card"
+            iconOnly
             label={isDark ? t('switchToLight') : t('switchToDark')}
             onClick={toggle}
             icon={<Icon name={isDark ? 'sun' : 'moon'} {...stylex.props(styles.icon)} />}
           />
 
           {!isLoading && user && (
-            <DropdownMenu
-              button={{
-                label: user.role,
-                variant: 'ghost',
-                size: 'md',
-                isIconOnly: true,
-                icon: <Avatar name={user.role} size={32} />,
-              }}
-              items={[
-                {
-                  label: t('profile'),
-                  icon: <Icon name="user" {...stylex.props(styles.btnIcon)} />,
-                  onClick: () => router.push('/profile'),
-                },
-                {
-                  label: t('settings'),
-                  icon: <Icon name="settings" {...stylex.props(styles.btnIcon)} />,
-                  onClick: () => router.push('/settings'),
-                },
-                { type: 'divider' },
-                {
-                  label: t('signOut'),
-                  icon: <Icon name="logout" {...stylex.props(styles.btnIcon)} />,
-                  onClick: () => void signOut(),
-                },
-              ]}
-            />
+            <Popover
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              label={t('profile')}
+              align="end"
+              xstyle={styles.menu}
+              trigger={
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((v) => !v)}
+                  aria-expanded={menuOpen}
+                  aria-haspopup="dialog"
+                  aria-label={t('profile')}
+                  {...stylex.props(styles.avatarButton, focus.ring)}
+                >
+                  <Avatar name={user.role} size={36} shape="member" ring />
+                </button>
+              }
+            >
+              {/* The menu heads with WHO YOU ARE, like the portal's. The session
+                  carries a role but no profile — `/api/session` decodes the
+                  httpOnly cookie and deliberately returns none — so the role is
+                  what there is to state, set in mono like every other
+                  machine-derived string in the product. */}
+              <div {...stylex.props(styles.identity)}>
+                <p {...stylex.props(styles.identityRole)}>{user.role}</p>
+              </div>
+              <div {...stylex.props(styles.menuRule)} />
+
+              <button
+                type="button"
+                onClick={fromMenu(() => router.push('/profile'))}
+                {...stylex.props(styles.menuItem, focus.ring)}
+              >
+                <Icon name="user" {...stylex.props(styles.glyph)} />
+                {t('profile')}
+              </button>
+              <button
+                type="button"
+                onClick={fromMenu(() => router.push('/settings'))}
+                {...stylex.props(styles.menuItem, focus.ring)}
+              >
+                <Icon name="settings" {...stylex.props(styles.glyph)} />
+                {t('settings')}
+              </button>
+
+              <div {...stylex.props(styles.menuRule)} />
+              <button
+                type="button"
+                onClick={fromMenu(() => void signOut())}
+                {...stylex.props(styles.menuItem, styles.menuDanger, focus.ring)}
+              >
+                <Icon name="logout" {...stylex.props(styles.glyph)} />
+                {t('signOut')}
+              </button>
+            </Popover>
           )}
         </div>
       }

@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import {
+  Badge,
+  Button,
+  Card,
+  Field,
+  SegmentedControl,
+  Switch,
+  Tabs,
+} from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { Switch } from '@astryxdesign/core/Switch';
-import { TabList, Tab } from '@astryxdesign/core/TabList';
-import { TextInput } from '@astryxdesign/core/TextInput';
 import { locales } from '@fit/i18n';
 import type { Locale } from '@fit/i18n';
 import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
@@ -17,10 +19,10 @@ import { Icon, useToast } from '@/src/components/ui';
 import { useTheme } from '@/src/components/theme/theme-provider';
 import { updateProfileAction } from '@/app/actions/profile';
 
-// Astryx migration (T11.16): the member profile is rebuilt on the Astryx design
-// system over the Fit brand theme. The identity card, the tabbed sections
+// Astryx migration (T11), now on the portal kit: the member profile is rebuilt on the portal kit design
+// system over the FormaCore theme. The identity card, the tabbed sections
 // (personal info / preferences / notifications / security) and the danger zone
-// use Astryx Card / TabList / TextInput / SegmentedControl / Switch / Badge /
+// use the kit's Card / TabList / TextInput / SegmentedControl / Switch / Badge /
 // Button; all layout is compiled StyleX (`var(--color-*)`), no Tailwind
 // utilities. The save action, locale-cookie and theme wiring are unchanged.
 
@@ -309,7 +311,7 @@ const styles = stylex.create({
 });
 
 /**
- * The member profile screen, on the Astryx design system: an identity card plus
+ * The member profile screen, on the portal kit: an identity card plus
  * tabbed sections — personal info, preferences (language wired to the locale
  * cookie; units; theme wired to the ThemeProvider), notification toggles, and
  * security. Field edits and toggles are held in local state and persisted with a
@@ -384,18 +386,18 @@ export function ProfileScreen({
         </div>
         <Button
           variant="primary"
-          size="md"
+          size="card"
           icon={<Icon name="check" {...stylex.props(styles.glyph)} />}
           label={saving ? t('saving') : t('save')}
           onClick={save}
-          isDisabled={saving}
+          disabled={saving}
         />
       </div>
 
       <div {...stylex.props(styles.grid)}>
         {/* Identity */}
         <div {...stylex.props(styles.identity)}>
-          <Card variant="default" padding={0}>
+          <Card padding="none">
             <div {...stylex.props(styles.identityInner)}>
               <span {...stylex.props(styles.avatar)}>
                 <span {...stylex.props(styles.avatarDisc)}>
@@ -406,7 +408,7 @@ export function ProfileScreen({
               <p {...stylex.props(styles.email)}>{email}</p>
               <span {...stylex.props(styles.badgeWrap)}>
                 <Badge
-                  variant="purple"
+                  tone="neutral"
                   icon={<Icon name="bolt" {...stylex.props(styles.glyph)} />}
                   label={t('premiumMember')}
                 />
@@ -429,181 +431,175 @@ export function ProfileScreen({
 
         {/* Tabbed sections */}
         <div {...stylex.props(styles.main)}>
-          <TabList
+          <Tabs
+            label={t('title')}
+            idPrefix="profile"
             value={section}
-            onChange={(v) => setSection(v as Section)}
-            aria-label={t('title')}
-            hasDivider
+            onChange={setSection}
+            items={[
+              {
+                value: 'personal',
+                label: t('personalInfo'),
+                icon: <Icon name="user" {...stylex.props(styles.glyph)} />,
+              },
+              {
+                value: 'preferences',
+                label: t('preferences'),
+                icon: <Icon name="spark" {...stylex.props(styles.glyph)} />,
+              },
+              {
+                value: 'notifications',
+                label: t('notifications'),
+                icon: <Icon name="bell" {...stylex.props(styles.glyph)} />,
+              },
+              {
+                value: 'security',
+                label: t('security'),
+                icon: <Icon name="shield" {...stylex.props(styles.glyph)} />,
+              },
+            ]}
           >
-            <Tab
-              value="personal"
-              label={t('personalInfo')}
-              icon={<Icon name="user" {...stylex.props(styles.glyph)} />}
-            />
-            <Tab
-              value="preferences"
-              label={t('preferences')}
-              icon={<Icon name="spark" {...stylex.props(styles.glyph)} />}
-            />
-            <Tab
-              value="notifications"
-              label={t('notifications')}
-              icon={<Icon name="bell" {...stylex.props(styles.glyph)} />}
-            />
-            <Tab
-              value="security"
-              label={t('security')}
-              icon={<Icon name="shield" {...stylex.props(styles.glyph)} />}
-            />
-          </TabList>
+            {section === 'personal' && (
+              <Card padding="none">
+                <div {...stylex.props(styles.panel)}>
+                  <h2 {...stylex.props(styles.sectionTitle)}>{t('personalInfo')}</h2>
+                  <div {...stylex.props(styles.fieldGrid)}>
+                    {FIELDS.map((f) => (
+                      <div key={f} {...stylex.props(f === 'address' && styles.fieldWide)}>
+                        <Field
+                          label={t(`fields.${f}`)}
+                          type={f === 'email' ? 'email' : 'text'}
+                          value={fields[f] ?? ''}
+                          onChange={(event) =>
+                            setFields((p) => ({ ...p, [f]: event.target.value }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            )}
 
-          {section === 'personal' && (
-            <Card variant="default" padding={0}>
-              <div {...stylex.props(styles.panel)}>
-                <h2 {...stylex.props(styles.sectionTitle)}>{t('personalInfo')}</h2>
-                <div {...stylex.props(styles.fieldGrid)}>
-                  {FIELDS.map((f) => (
-                    <div key={f} {...stylex.props(f === 'address' && styles.fieldWide)}>
-                      <TextInput
-                        label={t(`fields.${f}`)}
-                        type={f === 'email' ? 'email' : 'text'}
-                        value={fields[f] ?? ''}
-                        onChange={(value) => setFields((p) => ({ ...p, [f]: value }))}
+            {section === 'preferences' && (
+              <Card padding="none">
+                <div {...stylex.props(styles.panel)}>
+                  <h2 {...stylex.props(styles.sectionTitle)}>{t('preferences')}</h2>
+                  <div {...stylex.props(styles.prefRow)}>
+                    <div>
+                      <p {...stylex.props(styles.prefLabel)}>{t('language')}</p>
+                      <SegmentedControl
+                        label={t('language')}
+                        value={activeLocale as Locale}
+                        onChange={switchLocale}
+                        options={locales.map((loc) => ({
+                          value: loc,
+                          label: loc === 'ka' ? 'ქართული' : 'English',
+                        }))}
                       />
                     </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {section === 'preferences' && (
-            <Card variant="default" padding={0}>
-              <div {...stylex.props(styles.panel)}>
-                <h2 {...stylex.props(styles.sectionTitle)}>{t('preferences')}</h2>
-                <div {...stylex.props(styles.prefRow)}>
-                  <div>
-                    <p {...stylex.props(styles.prefLabel)}>{t('language')}</p>
-                    <SegmentedControl
-                      value={activeLocale}
-                      onChange={(v) => switchLocale(v as Locale)}
-                      label={t('language')}
-                    >
-                      {locales.map((loc) => (
-                        <SegmentedControlItem
-                          key={loc}
-                          value={loc}
-                          label={loc === 'ka' ? 'ქართული' : 'English'}
-                        />
-                      ))}
-                    </SegmentedControl>
-                  </div>
-                  <div>
-                    <p {...stylex.props(styles.prefLabel)}>{t('units')}</p>
-                    <SegmentedControl
-                      value={units}
-                      onChange={(v) => setUnits(v as 'metric' | 'imperial')}
-                      label={t('units')}
-                    >
-                      {(['metric', 'imperial'] as const).map((u) => (
-                        <SegmentedControlItem key={u} value={u} label={t(`unit.${u}`)} />
-                      ))}
-                    </SegmentedControl>
-                  </div>
-                  <div>
-                    <p {...stylex.props(styles.prefLabel)}>{t('theme')}</p>
-                    <SegmentedControl
-                      value={theme}
-                      onChange={(v) => setTheme(v as 'light' | 'dark')}
-                      label={t('theme')}
-                    >
-                      {(['light', 'dark'] as const).map((th) => (
-                        <SegmentedControlItem
-                          key={th}
-                          value={th}
-                          label={t(`themeName.${th}`)}
-                          icon={
+                    <div>
+                      <p {...stylex.props(styles.prefLabel)}>{t('units')}</p>
+                      <SegmentedControl
+                        label={t('units')}
+                        value={units}
+                        onChange={setUnits}
+                        options={(['metric', 'imperial'] as const).map((u) => ({
+                          value: u,
+                          label: t(`unit.${u}`),
+                        }))}
+                      />
+                    </div>
+                    <div>
+                      <p {...stylex.props(styles.prefLabel)}>{t('theme')}</p>
+                      <SegmentedControl
+                        label={t('theme')}
+                        value={theme}
+                        onChange={setTheme}
+                        options={(['light', 'dark'] as const).map((th) => ({
+                          value: th,
+                          label: t(`themeName.${th}`),
+                          icon: (
                             <Icon
                               name={th === 'light' ? 'sun' : 'moon'}
                               {...stylex.props(styles.glyph)}
                             />
-                          }
-                        />
-                      ))}
-                    </SegmentedControl>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {section === 'notifications' && (
-            <Card variant="default" padding={0}>
-              <div {...stylex.props(styles.panel)}>
-                <h2 {...stylex.props(styles.sectionTitle)}>{t('notifications')}</h2>
-                <div {...stylex.props(styles.toggles)}>
-                  {NOTIFS.map((k, i) => (
-                    <div
-                      key={k}
-                      {...stylex.props(styles.toggleRow, i === 0 && styles.toggleRowFirst)}
-                    >
-                      <div {...stylex.props(styles.toggleText)}>
-                        <p {...stylex.props(styles.toggleTitle)}>{t(`notif.${k}.title`)}</p>
-                        <p {...stylex.props(styles.toggleDesc)}>{t(`notif.${k}.desc`)}</p>
-                      </div>
-                      <Switch
-                        label={t(`notif.${k}.title`)}
-                        isLabelHidden
-                        value={notifs[k] ?? false}
-                        onChange={(v) => setNotifs((p) => ({ ...p, [k]: v }))}
+                          ),
+                        }))}
                       />
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            </Card>
-          )}
+              </Card>
+            )}
 
-          {section === 'security' && (
-            <>
-              <Card variant="default" padding={0}>
+            {section === 'notifications' && (
+              <Card padding="none">
                 <div {...stylex.props(styles.panel)}>
-                  <h2 {...stylex.props(styles.sectionTitle)}>{t('security')}</h2>
-                  <Link href="/member/forgot-password" {...stylex.props(styles.secLink)}>
-                    <Icon name="lock" {...stylex.props(styles.glyph)} /> {t('changePassword')}
-                  </Link>
-                  <div {...stylex.props(styles.secRow)}>
-                    <div {...stylex.props(styles.secRowLeft)}>
-                      <Icon name="shield" {...stylex.props(styles.secIcon)} />
-                      <div>
-                        <p {...stylex.props(styles.toggleTitle)}>{t('twoFa')}</p>
-                        <p {...stylex.props(styles.toggleDesc)}>
-                          {twoFa ? t('twoFaOn') : t('twoFaOff')}
-                        </p>
+                  <h2 {...stylex.props(styles.sectionTitle)}>{t('notifications')}</h2>
+                  <div {...stylex.props(styles.toggles)}>
+                    {NOTIFS.map((k, i) => (
+                      <div
+                        key={k}
+                        {...stylex.props(styles.toggleRow, i === 0 && styles.toggleRowFirst)}
+                      >
+                        <div {...stylex.props(styles.toggleText)}>
+                          <p {...stylex.props(styles.toggleTitle)}>{t(`notif.${k}.title`)}</p>
+                          <p {...stylex.props(styles.toggleDesc)}>{t(`notif.${k}.desc`)}</p>
+                        </div>
+                        <Switch
+                          label={t(`notif.${k}.title`)}
+                          checked={notifs[k] ?? false}
+                          onChange={(v) => setNotifs((p) => ({ ...p, [k]: v }))}
+                        />
                       </div>
-                    </div>
-                    <Switch label={t('twoFa')} isLabelHidden value={twoFa} onChange={setTwoFa} />
+                    ))}
                   </div>
                 </div>
               </Card>
+            )}
 
-              <Card variant="default" padding={0}>
-                <div {...stylex.props(styles.danger)}>
-                  <div>
-                    <p {...stylex.props(styles.dangerTitle)}>{t('deleteTitle')}</p>
-                    <p {...stylex.props(styles.dangerDesc)}>{t('deleteDesc')}</p>
+            {section === 'security' && (
+              <>
+                <Card padding="none">
+                  <div {...stylex.props(styles.panel)}>
+                    <h2 {...stylex.props(styles.sectionTitle)}>{t('security')}</h2>
+                    <Link href="/member/forgot-password" {...stylex.props(styles.secLink)}>
+                      <Icon name="lock" {...stylex.props(styles.glyph)} /> {t('changePassword')}
+                    </Link>
+                    <div {...stylex.props(styles.secRow)}>
+                      <div {...stylex.props(styles.secRowLeft)}>
+                        <Icon name="shield" {...stylex.props(styles.secIcon)} />
+                        <div>
+                          <p {...stylex.props(styles.toggleTitle)}>{t('twoFa')}</p>
+                          <p {...stylex.props(styles.toggleDesc)}>
+                            {twoFa ? t('twoFaOn') : t('twoFaOff')}
+                          </p>
+                        </div>
+                      </div>
+                      <Switch label={t('twoFa')} checked={twoFa} onChange={setTwoFa} />
+                    </div>
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    icon={<Icon name="trash" {...stylex.props(styles.glyph)} />}
-                    label={t('delete')}
-                    onClick={() => toast(t('deleteToast'), { tone: 'danger', icon: 'info' })}
-                  />
-                </div>
-              </Card>
-            </>
-          )}
+                </Card>
+
+                <Card padding="none">
+                  <div {...stylex.props(styles.danger)}>
+                    <div>
+                      <p {...stylex.props(styles.dangerTitle)}>{t('deleteTitle')}</p>
+                      <p {...stylex.props(styles.dangerDesc)}>{t('deleteDesc')}</p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="inline"
+                      icon={<Icon name="trash" {...stylex.props(styles.glyph)} />}
+                      label={t('delete')}
+                      onClick={() => toast(t('deleteToast'), { tone: 'danger', icon: 'info' })}
+                    />
+                  </div>
+                </Card>
+              </>
+            )}
+          </Tabs>
         </div>
       </div>
     </div>

@@ -14,6 +14,7 @@ import { useTranslations } from 'next-intl';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { SkipLink, ToastProvider } from '@/components/ui';
 import { AgentChat } from './agent/agent-chat';
+import { ColorSwitcher } from './theme/color-switcher';
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
 
@@ -83,6 +84,9 @@ export function AdminShell({
         </div>
         {/* Right-edge AI copilot — floats above every console page. */}
         <AgentChat />
+        {/* Palette playground — docked bottom-centre on every console screen so a
+            colour can be judged against real pages rather than a swatch sheet. */}
+        <ColorSwitcher />
       </AppShell>
     </ToastProvider>
   );

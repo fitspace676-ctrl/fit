@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { createDateTimeFormat } from '@fit/i18n';
 import {
   ROLE_PERMISSIONS,
@@ -18,18 +17,18 @@ import {
 import { ROLE_RANK } from '@/lib/auth-session';
 import {
   Badge,
-  Btn,
+  Button,
+  Card,
   ConfirmDialog,
   DataTable,
+  Dialog,
   Dot,
   EmptyState,
-  Icon,
-  Modal,
   type Column,
-} from '@/components/ui';
+} from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import {
   PERMISSION_KEYS,
-  ROLE_AVATAR,
   ROLE_TONES,
   STAFF_ROLES,
   STATUS_DOT,
@@ -156,8 +155,6 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-text-accent)',
   },
-  /** Repaints the initials bubble in the member's role colour (see ROLE_AVATAR). */
-  avatarTint: (bg: string, fg: string) => ({ backgroundColor: bg, color: fg }),
   nameCol: {
     display: 'flex',
     alignItems: 'center',
@@ -471,7 +468,7 @@ export function StaffTable({
     role: {
       key: 'role',
       header: t('columns.role'),
-      cell: (member) => <Badge tone={ROLE_TONES[member.role]}>{roleLabel(member.role)}</Badge>,
+      cell: (member) => <Badge tone={ROLE_TONES[member.role]} label={roleLabel(member.role)} />,
     },
     location: {
       key: 'location',
@@ -501,11 +498,12 @@ export function StaffTable({
       cell: (member) => (
         <Badge
           tone={STATUS_TONES[member.status]}
-          className={stylex.props(styles.badgeGap).className}
-        >
-          <Dot c={STATUS_DOT[member.status]} />
-          {t(`status.${member.status}`)}
-        </Badge>
+          label={
+            <>
+              <Dot tone={STATUS_DOT[member.status]} /> {t(`status.${member.status}`)}
+            </>
+          }
+        />
       ),
     },
     joined: {
@@ -525,12 +523,10 @@ export function StaffTable({
         const isSelf = currentUserId !== null && member.userId === currentUserId;
         return (
           <div {...stylex.props(styles.nameCell)}>
-            <span {...stylex.props(styles.avatar, styles.avatarTint(...ROLE_AVATAR[member.role]))}>
-              {initialsOf(member.name)}
-            </span>
+            <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
             <div {...stylex.props(styles.nameCol)}>
               <span {...stylex.props(styles.firstName)}>{splitName(member.name).first}</span>
-              {isSelf ? <Badge tone="brand">{t('you')}</Badge> : null}
+              {isSelf ? <Badge tone="accent" label={t('you')} /> : null}
             </div>
           </div>
         );
@@ -653,7 +649,7 @@ export function StaffTable({
   return (
     <div {...stylex.props(styles.stack)}>
       {error ? (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
@@ -670,12 +666,16 @@ export function StaffTable({
         empty={
           noMatch ? (
             <EmptyState
-              icon="search"
+              icon={<Icon name="search" />}
               title={t('table.noMatchTitle')}
-              message={t('table.noMatchHint')}
+              body={t('table.noMatchHint')}
             />
           ) : (
-            <EmptyState icon="users" title={t('table.emptyTitle')} message={t('table.emptyHint')} />
+            <EmptyState
+              icon={<Icon name="users" />}
+              title={t('table.emptyTitle')}
+              body={t('table.emptyHint')}
+            />
           )
         }
       />
@@ -683,12 +683,10 @@ export function StaffTable({
       {/* Role-downgrade confirmation, explaining the capabilities being given up.
           Uses the shared Modal (not ConfirmDialog) so the lost-capability list can
           render as a real <ul> rather than being wrapped in a paragraph. */}
-      <Modal
+      <Dialog
         open={confirmChange !== null}
         onClose={() => setConfirmChange(null)}
-        size="sm"
-        disableBackdropClose={pending}
-        hideClose={pending}
+        dismissible={!pending}
         title={
           confirmChange
             ? t('confirm.downgradeTitle', {
@@ -697,20 +695,24 @@ export function StaffTable({
               })
             : ''
         }
-        footer={
+        actions={
           <>
-            <Btn v="outline" onClick={() => setConfirmChange(null)} disabled={pending}>
-              {t('confirm.cancel')}
-            </Btn>
-            <Btn
-              v="primary"
+            <Button
+              variant="secondary"
+              size="card"
+              onClick={() => setConfirmChange(null)}
+              disabled={pending}
+              label={t('confirm.cancel')}
+            />
+            <Button
+              variant="primary"
+              size="card"
               onClick={() =>
                 confirmChange && applyRole(confirmChange.member, confirmChange.nextRole)
               }
               disabled={pending}
-            >
-              {pending ? t('confirm.working') : t('confirm.downgradeConfirm')}
-            </Btn>
+              label={pending ? t('confirm.working') : t('confirm.downgradeConfirm')}
+            />
           </>
         }
       >
@@ -732,19 +734,19 @@ export function StaffTable({
             )}
           </>
         ) : null}
-      </Modal>
+      </Dialog>
 
       {/* Remove confirmation — removal revokes their sessions immediately. */}
       <ConfirmDialog
         open={confirmRemove !== null}
         onClose={() => setConfirmRemove(null)}
         onConfirm={() => confirmRemove && applyRemove(confirmRemove)}
-        busy={pending}
-        danger
+        loading={pending}
+        confirmVariant="destructive"
         confirmLabel={t('confirm.removeConfirm')}
         cancelLabel={t('confirm.cancel')}
         title={confirmRemove ? t('confirm.removeTitle', { name: confirmRemove.name }) : ''}
-        message={t('confirm.removeBody')}
+        description={t('confirm.removeBody')}
       />
     </div>
   );

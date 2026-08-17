@@ -12,8 +12,8 @@
 // a satisfied line is not one.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { StaffGaps } from '@fit/types';
 import { EmptyState } from '../overview/format';
 
@@ -57,7 +57,7 @@ export function StaffGapsCard({ gaps }: { gaps: StaffGaps }) {
   );
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('gaps.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('gaps.caption')}</p>

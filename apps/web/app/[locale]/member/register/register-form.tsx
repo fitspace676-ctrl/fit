@@ -4,7 +4,7 @@ import { type FormEvent, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { registerWithCredentials } from '@/lib/auth';
-import { AuthBanner, AuthField, AuthForm, AuthSubmit } from '../../_components/auth/auth-form-kit';
+import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
 
 /**
  * Account-creation form (name + email + password). Registration does not issue
@@ -12,7 +12,7 @@ import { AuthBanner, AuthField, AuthForm, AuthSubmit } from '../../_components/a
  * the form for a "check your inbox" verification notice rather than redirecting.
  * Errors (e.g. an already-registered email) surface the API's message inline.
  *
- * The fields, submit and banners come from `_components/auth/auth-form-kit`,
+ * The fields, submit and banners come from the portal's kit (`ui/kit`),
  * shared with sign-in, forgot-password and reset-password. It replaced Astryx
  * `TextInput` / `InputGroup` / `Button` here: those render a different field
  * than the other three auth screens (a larger sentence-case label, its own
@@ -47,14 +47,14 @@ export function RegisterForm() {
   };
 
   if (done) {
-    return <AuthBanner tone="success">{t('register.success')}</AuthBanner>;
+    return <Banner tone="success">{t('register.success')}</Banner>;
   }
 
   return (
-    <AuthForm onSubmit={onSubmit}>
-      {error ? <AuthBanner tone="error">{error}</AuthBanner> : null}
+    <Form onSubmit={onSubmit}>
+      {error ? <Banner tone="error">{error}</Banner> : null}
 
-      <AuthField
+      <Field
         label={t('fields.name')}
         type="text"
         name="name"
@@ -65,7 +65,7 @@ export function RegisterForm() {
         disabled={pending}
       />
 
-      <AuthField
+      <Field
         label={t('fields.email')}
         type="email"
         name="email"
@@ -77,7 +77,7 @@ export function RegisterForm() {
         invalid={error !== null}
       />
 
-      <AuthField
+      <Field
         label={t('fields.password')}
         type="password"
         name="password"
@@ -90,9 +90,15 @@ export function RegisterForm() {
         revealLabels={{ show: t('showPassword'), hide: t('hidePassword') }}
       />
 
-      <AuthSubmit pending={pending}>
-        {pending ? t('register.submitting') : t('register.submit')}
-      </AuthSubmit>
-    </AuthForm>
+      <Button
+        type="submit"
+        variant="primary"
+        size="door"
+        fullWidth
+        loading={pending}
+        label={pending ? t('register.submitting') : t('register.submit')}
+        xstyle={spacing.formAction}
+      />
+    </Form>
   );
 }

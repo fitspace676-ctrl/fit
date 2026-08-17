@@ -3,10 +3,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission, type AdminOrderDetail } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchOrder } from '@/lib/api';
-import { Badge, Icon, type Tone } from '@/components/ui';
+import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { formatPrice } from '../../../shop/format-price';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
@@ -17,11 +17,11 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_TONES: Record<string, Tone> = {
-  PAID: 'success',
-  PENDING: 'warning',
+const STATUS_TONES: Record<string, BadgeTone> = {
+  PAID: 'positive',
+  PENDING: 'pending',
   REFUNDED: 'danger',
-  CANCELLED: 'ink',
+  CANCELLED: 'neutral',
 };
 
 const METHOD_LABELS: Record<string, string> = {
@@ -142,7 +142,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (session === null || !roleHasPermission(session.role, Permission.BillingRead)) {
     return (
       <div {...stylex.props(styles.page)}>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>You do not have permission to view this sale.</span>
         </Card>
@@ -167,7 +167,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to the sales log
         </Link>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{message}</span>
         </Card>
@@ -190,8 +190,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             {order.customerName ?? (order.memberId ? 'Member sale' : 'Walk-in sale')}
           </h1>
           <div {...stylex.props(styles.meta)}>
-            <Badge tone={STATUS_TONES[order.status] ?? 'ink'}>{order.status}</Badge>
-            <Badge tone={order.channel === 'POS' ? 'brand' : 'ink'}>{order.channel}</Badge>
+            <Badge tone={STATUS_TONES[order.status] ?? 'neutral'} label={order.status} />
+            <Badge tone={order.channel === 'POS' ? 'accent' : 'neutral'} label={order.channel} />
             <span {...stylex.props(styles.metaItem)}>
               {createDateTimeFormat(defaultLocale, {
                 day: '2-digit',
@@ -208,7 +208,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <section {...stylex.props(styles.section)}>
         <h2 {...stylex.props(styles.heading)}>What was sold</h2>
-        <Card variant="default" padding={0} xstyle={styles.card}>
+        <Card padding="none" xstyle={styles.card}>
           <table {...stylex.props(styles.table)}>
             <thead>
               <tr>
@@ -252,7 +252,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <section {...stylex.props(styles.section)}>
         <h2 {...stylex.props(styles.heading)}>How it settled</h2>
-        <Card variant="default" padding={0} xstyle={styles.card}>
+        <Card padding="none" xstyle={styles.card}>
           {order.payments.length === 0 ? (
             <p {...stylex.props(styles.empty)}>
               No payment recorded — this sale is still awaiting settlement.
@@ -296,7 +296,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <section {...stylex.props(styles.section)}>
         <h2 {...stylex.props(styles.heading)}>Refunds</h2>
-        <Card variant="default" padding={0} xstyle={styles.card}>
+        <Card padding="none" xstyle={styles.card}>
           {order.refunds.length === 0 ? (
             <p {...stylex.props(styles.empty)}>Nothing refunded on this sale.</p>
           ) : (
@@ -338,7 +338,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <section {...stylex.props(styles.section)}>
         <h2 {...stylex.props(styles.heading)}>History</h2>
-        <Card variant="default" padding={0}>
+        <Card padding="none">
           <div {...stylex.props(styles.timeline)}>
             {order.statusTimeline.map((entry, index) => (
               <div key={`${entry.status}-${index}`} {...stylex.props(styles.timelineRow)}>
@@ -351,7 +351,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     minute: '2-digit',
                   }).format(new Date(entry.at))}
                 </span>
-                <Badge tone={STATUS_TONES[entry.status] ?? 'ink'}>{entry.status}</Badge>
+                <Badge tone={STATUS_TONES[entry.status] ?? 'neutral'} label={entry.status} />
               </div>
             ))}
           </div>

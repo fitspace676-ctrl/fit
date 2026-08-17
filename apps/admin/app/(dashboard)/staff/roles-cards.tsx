@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type { ListStaffRolesResponse, StaffRole } from '@fit/types';
-import { Badge, Drawer, Icon } from '@/components/ui';
+import { Badge, Card, Drawer } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { PERMISSION_KEYS, ROLE_TONES } from './role-meta';
 
 const styles = stylex.create({
@@ -162,7 +162,7 @@ export function RolesCards({
 
       <div {...stylex.props(styles.grid)}>
         {roles.roles.map((entry) => (
-          <Card key={entry.role} variant="default" padding={0}>
+          <Card key={entry.role} padding="none">
             <button
               type="button"
               onClick={() => setSelected(entry.role)}
@@ -170,7 +170,7 @@ export function RolesCards({
               {...stylex.props(styles.card)}
             >
               <div {...stylex.props(styles.cardHead)}>
-                <Badge tone={ROLE_TONES[entry.role]}>{t(`roles.${entry.role}`)}</Badge>
+                <Badge tone={ROLE_TONES[entry.role]} label={t(`roles.${entry.role}`)} />
                 <Icon name="shield" {...stylex.props(styles.shield)} />
               </div>
               <p {...stylex.props(styles.desc)}>{t(`roleDesc.${entry.role}`)}</p>
@@ -190,12 +190,12 @@ export function RolesCards({
       <Drawer
         open={active !== null}
         onClose={() => setSelected(null)}
-        title={active ? t('rolesPermissions.drawerTitle', { role: t(`roles.${active.role}`) }) : ''}
+        label={active ? t('rolesPermissions.drawerTitle', { role: t(`roles.${active.role}`) }) : ''}
       >
         {active ? (
           <>
             <div {...stylex.props(styles.drawerHead)}>
-              <Badge tone={ROLE_TONES[active.role]}>{t(`roles.${active.role}`)}</Badge>
+              <Badge tone={ROLE_TONES[active.role]} label={t(`roles.${active.role}`)} />
               <p {...stylex.props(styles.drawerDesc)}>{t(`roleDesc.${active.role}`)}</p>
             </div>
             <p {...stylex.props(styles.permHeading)}>

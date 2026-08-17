@@ -1,8 +1,8 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { EmptyState } from './format';
 
@@ -93,7 +93,7 @@ export function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
   const { total, plans } = data.planMix;
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHeadBaseline)}>
         <h2 {...stylex.props(styles.sectionLabel)}>{t('planMix.title')}</h2>
         <span {...stylex.props(styles.metaText)}>{t('planMix.count', { total })}</span>

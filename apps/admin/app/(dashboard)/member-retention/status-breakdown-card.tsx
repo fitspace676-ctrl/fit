@@ -12,8 +12,8 @@
 // is in, so this card neither sorts nor pads.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { MembershipStatusSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
 import { createNumberFormat } from '@fit/i18n';
@@ -43,7 +43,7 @@ export function StatusBreakdownCard({ slices }: { slices: MembershipStatusSlice[
   }));
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h2 {...stylex.props(styles.title)}>{t('status.title')}</h2>
       <BarChart
         data={data}

@@ -11,17 +11,8 @@ import type {
   AdminScheduleInstance,
   AttendanceStatus,
 } from '@fit/types';
-import {
-  Badge,
-  Btn,
-  ConfirmDialog,
-  Drawer,
-  Icon,
-  Input,
-  useToast,
-  type IconName,
-  type Tone,
-} from '@/components/ui';
+import { Badge, Button, ConfirmDialog, Drawer, Field, type BadgeTone } from '@fit/ui-kit';
+import { Icon, useToast, type IconName } from '@/components/ui';
 import {
   bookMemberAction,
   cancelInstanceAction,
@@ -47,6 +38,8 @@ const pulse = stylex.keyframes({
 });
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   footer: {
     display: 'flex',
     alignItems: 'center',
@@ -398,18 +391,18 @@ const styles = stylex.create({
 });
 
 /** The roster status tones — held seats read calm, no-shows warn, waitlist is muted. */
-const ROSTER_TONES: Record<AdminClassInstanceRosterEntry['status'], Tone> = {
-  BOOKED: 'brand',
-  ATTENDED: 'success',
-  NO_SHOW: 'warning',
-  WAITLIST: 'ink',
+const ROSTER_TONES: Record<AdminClassInstanceRosterEntry['status'], BadgeTone> = {
+  BOOKED: 'accent',
+  ATTENDED: 'positive',
+  NO_SHOW: 'pending',
+  WAITLIST: 'neutral',
 };
 
 /** The occurrence-status tones for the drawer header badge. */
-const STATUS_TONES: Record<AdminScheduleInstance['status'], Tone> = {
-  SCHEDULED: 'success',
+const STATUS_TONES: Record<AdminScheduleInstance['status'], BadgeTone> = {
+  SCHEDULED: 'positive',
   CANCELED: 'danger',
-  COMPLETED: 'ink',
+  COMPLETED: 'neutral',
 };
 
 /**
@@ -607,8 +600,7 @@ export function ClassDrawer({
       <Drawer
         open={open}
         onClose={onClose}
-        accent={head?.color}
-        title={head?.title ?? t('loading')}
+        label={head?.title ?? t('loading')}
         footer={
           head ? (
             <div {...stylex.props(styles.footer)}>
@@ -617,9 +609,13 @@ export function ClassDrawer({
                 {t('actions.edit')}
               </Link>
               {canCancel ? (
-                <Btn v="danger" icon="x" onClick={() => setConfirmOpen(true)}>
-                  {t('actions.cancel')}
-                </Btn>
+                <Button
+                  variant="destructive"
+                  size="card"
+                  onClick={() => setConfirmOpen(true)}
+                  icon={<Icon name="x" {...stylex.props(styles.kitGlyph)} />}
+                  label={t('actions.cancel')}
+                />
               ) : null}
             </div>
           ) : null
@@ -630,7 +626,7 @@ export function ClassDrawer({
             {/* Status + when / where. */}
             <div {...stylex.props(styles.statusSection)}>
               <span {...stylex.props(styles.badgeWrap)}>
-                <Badge tone={STATUS_TONES[status]}>{t(`status.${status}`)}</Badge>
+                <Badge tone={STATUS_TONES[status]} label={t(`status.${status}`)} />
               </span>
               <dl {...stylex.props(styles.detailList)}>
                 <DetailRow icon="calendar" text={formatDay(head.startsAt, locale, timeZone)} />
@@ -702,11 +698,11 @@ export function ClassDrawer({
         onClose={() => (cancelling ? undefined : setConfirmOpen(false))}
         onConfirm={runCancel}
         title={t('confirm.title')}
-        message={t('confirm.message', { title: head?.title ?? '' })}
+        description={t('confirm.message', { title: head?.title ?? '' })}
         confirmLabel={t('confirm.confirm')}
         cancelLabel={t('confirm.cancel')}
-        danger
-        busy={cancelling}
+        confirmVariant="destructive"
+        loading={cancelling}
       />
     </>
   );
@@ -918,11 +914,14 @@ function RosterRow({
         // A queued entry the desk can lift into a seat: its position stays visible
         // beside a promote control (which the API turns into a held seat).
         <div {...stylex.props(styles.promoteGroup)}>
-          <Badge tone={ROSTER_TONES.WAITLIST}>
-            {entry.waitlistPosition
-              ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
-              : t('roster.status.WAITLIST')}
-          </Badge>
+          <Badge
+            tone={ROSTER_TONES.WAITLIST}
+            label={
+              entry.waitlistPosition
+                ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
+                : t('roster.status.WAITLIST')
+            }
+          />
           <PromoteButton
             text={t('roster.promote')}
             label={t('roster.promoteMember', { member: label })}
@@ -933,11 +932,14 @@ function RosterRow({
         </div>
       ) : (
         <span {...stylex.props(styles.badgeShrink)}>
-          <Badge tone={ROSTER_TONES[entry.status]}>
-            {entry.status === 'WAITLIST' && entry.waitlistPosition
-              ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
-              : t(`roster.status.${entry.status}`)}
-          </Badge>
+          <Badge
+            tone={ROSTER_TONES[entry.status]}
+            label={
+              entry.status === 'WAITLIST' && entry.waitlistPosition
+                ? t('roster.waitlistPosition', { position: entry.waitlistPosition })
+                : t(`roster.status.${entry.status}`)
+            }
+          />
         </span>
       )}
     </li>
@@ -1101,12 +1103,14 @@ function BookMember({
   return (
     <div {...stylex.props(styles.bookSection)}>
       <h3 {...stylex.props(styles.sectionTitle)}>{t('book.title')}</h3>
-      <Input
+      <Field
+        label={t('book.searchLabel')}
+        labelHidden
+        size="chrome"
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder={t('book.searchPlaceholder')}
-        aria-label={t('book.searchLabel')}
         disabled={busy}
         autoComplete="off"
       />

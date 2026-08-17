@@ -8,7 +8,7 @@ import { TrainersBrowser } from '@/src/components/trainers/TrainersBrowser';
 import { parseFilters } from '@/src/components/trainers/trainer-filters';
 import { GoalsCard } from '@/src/components/member/goals/goals-card';
 
-// Astryx migration (T11.13): the page shell (heading + subtitle) is authored in
+// Astryx migration (T11), now on the portal kit: the page shell (heading + subtitle) is authored in
 // compiled StyleX over the Fit brand tokens — no Tailwind utilities. The
 // interactive roster lives in the client `TrainersBrowser` below; the member-only
 // `GoalsCard` keeps its own (not-yet-migrated) styling during coexistence.

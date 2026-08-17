@@ -4,7 +4,8 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { CartView } from '@fit/types';
 import { getActiveGymId } from '@/lib/active-gym';
 import { fetchCart } from '@/lib/cart';
-import { ButtonLink, controlSize, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
+import { ButtonLink } from '@/src/components/ui/kit';
 import { ShopScreen } from '@/src/components/shop/ShopScreen';
 
 export const metadata: Metadata = {
@@ -22,8 +23,8 @@ export const dynamic = 'force-dynamic';
 /** An empty cart — what a signed-out visitor has, and the fallback on failure. */
 const NO_CART: CartView = { items: [], subtotal: 0, discount: 0, total: 0, currency: 'GEL' };
 
-// Astryx migration (T11.15): the shop listing header is rebuilt in compiled
-// StyleX over the Fit brand theme tokens (`var(--color-*)` / `var(--font-family-*)`)
+// Astryx migration (T11), now on the portal kit: the shop listing header is rebuilt in compiled
+// StyleX over the FormaCore theme tokens (`var(--color-*)` / `var(--font-family-*)`)
 // — no Tailwind utilities.
 //
 // FormaCore redesign: the page is now catalogue + cart, so it reads the cart
@@ -115,10 +116,10 @@ export default async function ShopPage({ params }: { params: Promise<{ locale: s
         <ButtonLink
           href="/member/cart"
           variant="secondary"
-          size="md"
+          size="block"
           label={tNav('cart')}
           icon={<Icon name="bag" {...stylex.props(styles.cartIcon)} />}
-          xstyle={[controlSize.block, styles.cartLink]}
+          xstyle={styles.cartLink}
         />
       </header>
 

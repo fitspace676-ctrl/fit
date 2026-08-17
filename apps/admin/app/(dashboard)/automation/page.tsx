@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
@@ -15,7 +16,6 @@ import {
   fetchAutomationStats,
   fetchAutomationTemplates,
 } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
 import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
@@ -111,7 +111,7 @@ export default async function AutomationPage({
           ? t('errors.loadTemplates', { status: error.status, message: error.message })
           : t('errors.apiUnreachable');
       content = (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
@@ -148,7 +148,7 @@ export default async function AutomationPage({
           ? t('errors.loadRules', { status: error.status, message: error.message })
           : t('errors.apiUnreachable');
       content = (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {message}

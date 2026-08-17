@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Card, CountUp, Icon, type IconName } from '@/components/ui';
+import { Card, CountUp } from '@fit/ui-kit';
+import { Icon, type IconName } from '@/components/ui';
 import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 /**
@@ -18,7 +19,7 @@ export interface KpiCardProps {
 export function KpiCard({ label, value, total, href, icon = 'chart' }: KpiCardProps) {
   const inactive = total - value;
   const inner = (
-    <Card className="flex h-full flex-col p-5 transition-colors hover:border-brand-300 dark:hover:border-brand-500/50">
+    <Card>
       <div className="flex items-center justify-between">
         <span className="grid h-10 w-10 place-items-center rounded-btn bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
           <Icon name={icon} className="h-5 w-5" />

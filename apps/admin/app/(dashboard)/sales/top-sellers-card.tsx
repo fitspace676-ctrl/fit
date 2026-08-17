@@ -7,9 +7,9 @@
 // promo lines (negative amounts) never appear: they are adjustments, not products.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
-import { Card } from '@astryxdesign/core/Card';
 import type { SalesTopSeller } from '@fit/types';
 import { EmptyState } from '../overview/format';
 
@@ -66,7 +66,7 @@ export function TopSellersCard({
   const t = useTranslations('admin.dashboard.sales');
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h2 {...stylex.props(styles.title)}>{t('topSellers.title')}</h2>
       {rows.length === 0 ? (
         <EmptyState>{t('topSellers.empty')}</EmptyState>

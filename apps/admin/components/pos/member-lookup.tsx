@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { GymMemberIntakeSettings } from '@fit/types';
 import { lookupPosMembersAction, type PosMemberRow } from '@/app/(dashboard)/pos/actions';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { PosAddMemberDrawer } from './pos-add-member-drawer';
 
@@ -322,7 +322,7 @@ export function MemberLookup({
       </div>
 
       {error ? (
-        <Card variant="default" padding={0} role="alert" xstyle={styles.alertCard}>
+        <Card padding="none" role="alert" xstyle={styles.alertCard}>
           <Icon name="info" {...stylex.props(styles.alertIcon)} />
           <span {...stylex.props(styles.alertText)}>{error}</span>
         </Card>

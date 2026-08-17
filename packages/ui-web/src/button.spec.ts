@@ -8,7 +8,14 @@ describe('buttonClasses', () => {
     const cls = buttonClasses();
     expect(cls).toContain('rounded-btn');
     expect(cls).toContain('h-11'); // md height
-    expect(cls).toContain('linear-gradient(135deg,#7C3AED,#EC4899)'); // primary fill
+    // The primary fill is the brand gradient, driven by custom properties so the
+    // palette playground can re-colour it, with the brand hexes as FALLBACKS so
+    // an untouched build renders exactly as it always did. Both halves matter:
+    // without the properties the override is dead, and without the fallbacks a
+    // page that sets neither loses the fill entirely.
+    expect(cls).toContain(
+      'linear-gradient(135deg,var(--brand-gradient-from,#7C3AED),var(--brand-gradient-to,#EC4899))',
+    );
   });
 
   it('composes the requested variant and size', () => {

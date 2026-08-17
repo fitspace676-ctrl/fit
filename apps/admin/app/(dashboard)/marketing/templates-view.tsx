@@ -5,14 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { AudienceSegmentRow, MarketingCatalogResponse, MessageTemplateRow } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Btn, ConfirmDialog, Icon, useToast } from '@/components/ui';
+import { Badge, Button, Card, ConfirmDialog } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { CampaignWizard } from './campaign-wizard';
 import { TemplateFormDialog } from './template-form-dialog';
 import { deleteTemplateAction } from './actions';
 import { CHANNEL_ICONS, CHANNEL_TONES } from './marketing-meta';
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   stack: { display: 'flex', flexDirection: 'column', gap: '1.25rem' },
   header: {
     display: 'flex',
@@ -166,9 +168,13 @@ export function TemplatesView({
           <p {...stylex.props(styles.headingHint)}>{t('templates.subheading')}</p>
         </div>
         {canManage ? (
-          <Btn v="primary" size="md" icon="plus" onClick={() => setDialog({ kind: 'create' })}>
-            {t('templates.newTemplate')}
-          </Btn>
+          <Button
+            variant="primary"
+            size="card"
+            onClick={() => setDialog({ kind: 'create' })}
+            icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+            label={t('templates.newTemplate')}
+          />
         ) : null}
       </div>
 
@@ -185,35 +191,40 @@ export function TemplatesView({
       ) : (
         <div {...stylex.props(styles.grid)}>
           {templates.map((template) => (
-            <Card key={template.id} variant="default">
+            <Card key={template.id}>
               <div {...stylex.props(styles.cardInner)}>
                 <div {...stylex.props(styles.cardHead)}>
-                  <Badge tone={CHANNEL_TONES[template.channel]}>
-                    <span {...stylex.props(styles.channelCell)}>
-                      <Icon
-                        name={CHANNEL_ICONS[template.channel]}
-                        {...stylex.props(styles.channelIcon)}
-                      />
-                      {t(`channels.${template.channel}`)}
-                    </span>
-                  </Badge>
+                  <Badge
+                    tone={CHANNEL_TONES[template.channel]}
+                    label={
+                      <span {...stylex.props(styles.channelCell)}>
+                        <Icon
+                          name={CHANNEL_ICONS[template.channel]}
+                          {...stylex.props(styles.channelIcon)}
+                        />
+                        {t(`channels.${template.channel}`)}
+                      </span>
+                    }
+                  />
                   {canManage ? (
                     <span {...stylex.props(styles.rowActions)}>
-                      <Btn
-                        v="ghost"
-                        size="icon"
-                        icon="settings"
-                        aria-label={t('templates.editFor', { name: template.name })}
+                      <Button
+                        variant="ghost"
+                        size="card"
+                        iconOnly
                         title={t('templates.edit')}
                         onClick={() => setDialog({ kind: 'edit', template })}
+                        icon={<Icon name="settings" {...stylex.props(styles.kitGlyph)} />}
+                        label={t('templates.editFor', { name: template.name })}
                       />
-                      <Btn
-                        v="ghost"
-                        size="icon"
-                        icon="trash"
-                        aria-label={t('templates.deleteFor', { name: template.name })}
+                      <Button
+                        variant="ghost"
+                        size="card"
+                        iconOnly
                         title={t('templates.delete')}
                         onClick={() => setDialog({ kind: 'delete', template })}
+                        icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
+                        label={t('templates.deleteFor', { name: template.name })}
                       />
                     </span>
                   ) : null}
@@ -237,14 +248,13 @@ export function TemplatesView({
                 <span {...stylex.props(styles.spacer)} />
                 {canManage ? (
                   <div {...stylex.props(styles.useRow)}>
-                    <Btn
-                      v="outline"
-                      size="sm"
-                      iconRight="chevronRight"
+                    <Button
+                      variant="secondary"
+                      size="inline"
                       onClick={() => setDialog({ kind: 'use', template })}
-                    >
-                      {t('templates.use')}
-                    </Btn>
+                      endContent={<Icon name="chevronRight" {...stylex.props(styles.kitGlyph)} />}
+                      label={t('templates.use')}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -288,15 +298,15 @@ export function TemplatesView({
           }
         }}
         title={t('templates.deleteTitle')}
-        message={
+        description={
           dialog?.kind === 'delete'
             ? t('templates.deleteMessage', { name: dialog.template.name })
             : ''
         }
         confirmLabel={t('templates.delete')}
         cancelLabel={t('wizard.cancel')}
-        danger
-        busy={busy}
+        confirmVariant="destructive"
+        loading={busy}
       />
     </div>
   );

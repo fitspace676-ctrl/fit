@@ -1,5 +1,5 @@
 import { Permission, type StaffRole, type StaffStatus } from '@fit/types';
-import type { Tone } from '@/components/ui';
+import type { BadgeTone, DotTone } from '@fit/ui-kit';
 
 /**
  * Shared presentation metadata for the staff console (T2.10) — the role/status
@@ -15,61 +15,51 @@ export const STAFF_ROLES: readonly StaffRole[] = ['OWNER', 'MANAGER', 'RECEPTION
 export const INVITE_ROLES: readonly StaffRole[] = ['MANAGER', 'RECEPTIONIST', 'TRAINER', 'OWNER'];
 
 /**
- * Badge tone per role — one clearly separate hue each, so a mixed roster tells
- * you who is who without reading the label.
+ * Badge tone per role — all neutral, on purpose.
  *
- * The four hues are deliberately the non-status ones: `success` / `warning` /
- * `danger` are spoken for by the status column sitting right next to the role
- * chip in the same row (green Active, amber Invited, red Suspended), so a green
- * role badge would read as a second status. `brand` / `accent` / `iris` all
- * collapse onto the same purple chip in the Fit theme, so only one of them can
- * be spent here — it goes to OWNER, the brand-tier role.
+ * This used to be four separate hues (violet OWNER, blue MANAGER, teal
+ * RECEPTIONIST, orange TRAINER) so "a mixed roster tells you who is who without
+ * reading the label". Two things ended that.
+ *
+ * The first is that it had already stopped working: FormaCore flattens every
+ * categorical hue onto the ink ramp, so all four chips rendered as the same
+ * grey while this file still claimed four colours. The comment described a
+ * screen nobody could see any more.
+ *
+ * The second is that the promise was never sound. A role is not a state — there
+ * are four of them, they are not ordered, and the only thing that reliably
+ * distinguishes them is the WORD. Colour-coded roles are unreadable to a
+ * colour-blind viewer and silent to a screen reader, so the label had to carry
+ * it regardless; the hue was decoration that looked like information.
+ *
+ * The direction spends its one chromatic voice on the lime, and the status
+ * column beside this one is what genuinely needs a signal.
  */
-export const ROLE_TONES: Record<StaffRole, Tone> = {
-  OWNER: 'iris', // violet
-  MANAGER: 'info', // blue
-  RECEPTIONIST: 'teal',
-  TRAINER: 'flame', // orange
+export const ROLE_TONES: Record<StaffRole, BadgeTone> = {
+  OWNER: 'neutral',
+  MANAGER: 'neutral',
+  RECEPTIONIST: 'neutral',
+  TRAINER: 'neutral',
 };
 
 /**
- * Dot background class per role — the swatch shown in the invite role selector.
- * The 400 stop of the ramp behind each {@link ROLE_TONES} hue, so the dot in the
- * selector and the badge it produces are recognisably the same colour.
+ * Badge tone per lifecycle status — the direction's three signals.
+ *
+ * This is where a signal belongs: three states, ordered, and each one changes
+ * what a staff member can do. Active is the lime, invited is ink (waiting, not
+ * wrong), suspended is the one red.
  */
-export const ROLE_DOT: Record<StaffRole, string> = {
-  OWNER: 'bg-iris-400',
-  MANAGER: 'bg-info-400',
-  RECEPTIONIST: 'bg-teal-400',
-  TRAINER: 'bg-flame-400',
-};
-
-/**
- * Avatar tint per role — the same categorical ramp the role badge is painted
- * from, as the `[background, text]` token pair. The initials bubble is the first
- * thing the eye lands on in a roster row, so colouring it by role makes the row
- * identifiable before the role column is read at all. Light/dark is handled by
- * the theme: these are `light-dark()` tokens, not fixed hexes.
- */
-export const ROLE_AVATAR: Record<StaffRole, readonly [bg: string, fg: string]> = {
-  OWNER: ['var(--color-background-purple)', 'var(--color-text-purple)'],
-  MANAGER: ['var(--color-background-blue)', 'var(--color-text-blue)'],
-  RECEPTIONIST: ['var(--color-background-teal)', 'var(--color-text-teal)'],
-  TRAINER: ['var(--color-background-orange)', 'var(--color-text-orange)'],
-};
-
-/** Badge tone per lifecycle status — green active, amber invited, red suspended. */
-export const STATUS_TONES: Record<StaffStatus, Tone> = {
-  ACTIVE: 'success',
-  INVITED: 'warning',
+export const STATUS_TONES: Record<StaffStatus, BadgeTone> = {
+  ACTIVE: 'positive',
+  INVITED: 'pending',
   SUSPENDED: 'danger',
 };
 
-/** Dot background class per status, shown inside the status badge. */
-export const STATUS_DOT: Record<StaffStatus, string> = {
-  ACTIVE: 'bg-success-400',
-  INVITED: 'bg-warning-400',
-  SUSPENDED: 'bg-danger-400',
+/** Dot tone per status, shown inside the status badge. */
+export const STATUS_DOT: Record<StaffStatus, DotTone> = {
+  ACTIVE: 'positive',
+  INVITED: 'pending',
+  SUSPENDED: 'danger',
 };
 
 /**

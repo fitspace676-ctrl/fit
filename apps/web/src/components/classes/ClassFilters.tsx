@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useState } from 'react';
+import { Button, Popover, SelectField } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/src/components/ui';
 import {
   hasActiveFilters,
@@ -14,12 +13,32 @@ import {
   type TimeBand,
 } from './class-filters';
 
-// Astryx migration (T11.12): the filter strip is rebuilt on the Astryx `Card` /
-// `Button` over the Fit brand theme, with the category chips, the filter
-// popover, the select facets, and the time-band toggle authored in compiled
-// StyleX (`var(--color-*)`) — no Tailwind utilities and no formacore
-// Aurora-glass primitives. Behaviour is unchanged: every change is lifted to
-// `onChange`; the parent owns the state and mirrors it to the URL.
+// Astryx migration (T11), now on the portal kit: the filter strip is rebuilt on the kit over the
+// FormaCore theme, authored in compiled StyleX (`var(--color-*)`) — no Tailwind
+// utilities and no formacore Aurora-glass primitives. Behaviour is unchanged:
+// every change is lifted to `onChange`; the parent owns the state and mirrors it
+// to the URL.
+//
+// KIT PASS. The strip was drawn in three different pill vocabularies that all
+// meant "a small toggle": the category chip, the Filters trigger and the
+// time-band button each had their own height, radius, border and padding, so a
+// row that is conceptually one control read as a scatter of unrelated buttons.
+// They are one vocabulary now — the kit's chip: 2rem tall, `--radius-inner`,
+// borderless, lime when selected.
+//
+// The categories also sit in a recessed track (`--color-background-muted`), the
+// same seat the kit gives `FilterChips` and `SegmentedControl`. That is what
+// makes them read as one multi-select group rather than as N loose buttons —
+// which matters here precisely because they are the one control on the page that
+// takes several selections at once, and outlined pills gave no hint of that.
+// `FilterChips` itself is not usable: it is a single-select `tablist`.
+//
+// Two hand-rolled mechanisms went with them. The popover was a private absolute
+// panel with its own outside-click and Escape listeners — that is `Popover`,
+// which also gets focus handling the private one never had. The trainer and
+// location dropdowns were bare `<select>`s on a private field skin, beside the
+// kit's `SelectField`, which is the same control with the portal's label, focus
+// ring and disclosure chevron.
 
 const styles = stylex.create({
   root: {
@@ -28,162 +47,83 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.5rem',
   },
+  // The recessed seat the kit gives every chip group.
+  track: {
+    display: 'inline-flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.125rem',
+    maxWidth: '100%',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+    padding: '0.25rem',
+  },
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.375rem',
-    borderRadius: 'var(--radius-full)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
+    height: '2rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: 0,
     paddingInline: '0.875rem',
-    paddingBlock: '0.375rem',
-    fontSize: '0.875rem',
+    fontFamily: 'inherit',
+    fontSize: '0.8125rem',
     fontWeight: 600,
+    whiteSpace: 'nowrap',
     cursor: 'pointer',
-    transitionProperty: 'background-color, border-color, color',
+    transitionProperty: 'background-color, color',
     transitionDuration: '150ms',
   },
   chipIdle: {
-    borderColor: 'var(--color-border)',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-overlay-hover)',
-    },
-    color: 'var(--color-text-secondary)',
+    backgroundColor: { default: 'transparent', ':hover': 'var(--color-overlay-hover)' },
+    color: { default: 'var(--color-text-secondary)', ':hover': 'var(--color-text-primary)' },
   },
   chipActive: {
-    borderColor: 'var(--color-accent)',
     backgroundColor: 'var(--color-accent)',
     color: 'var(--color-on-accent)',
   },
   chipDot: {
-    height: '0.5rem',
-    width: '0.5rem',
+    height: '0.375rem',
+    width: '0.375rem',
+    flexShrink: 0,
     borderRadius: 'var(--radius-full)',
-  },
-  popoverAnchor: {
-    position: 'relative',
-  },
-  filterBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.375rem',
-    borderRadius: 'var(--radius-full)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    paddingInline: '0.875rem',
-    paddingBlock: '0.375rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transitionProperty: 'background-color, border-color, color',
-    transitionDuration: '150ms',
-  },
-  filterBtnIdle: {
-    borderColor: 'var(--color-border)',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-overlay-hover)',
-    },
-    color: 'var(--color-text-secondary)',
-  },
-  filterBtnActive: {
-    borderColor: 'var(--color-accent)',
-    backgroundColor: 'var(--color-accent-muted)',
-    color: 'var(--color-text-accent)',
   },
   filterIcon: {
     height: '1rem',
     width: '1rem',
   },
-  countBadge: {
-    marginLeft: '0.125rem',
-    display: 'inline-flex',
-    height: '1.25rem',
-    minWidth: '1.25rem',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent)',
-    paddingInline: '0.25rem',
-    fontSize: '0.75rem',
-    fontWeight: 700,
-    color: 'var(--color-on-accent)',
-  },
-  popover: {
-    position: 'absolute',
-    right: 0,
-    top: '100%',
-    zIndex: 30,
-    marginTop: '0.5rem',
+  panel: {
     display: 'flex',
-    width: '18rem',
     flexDirection: 'column',
     gap: '1rem',
     padding: '1rem',
-    '@media (min-width: 640px)': {
-      left: 0,
-      right: 'auto',
-    },
   },
   facet: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.375rem',
+    gap: '0.5rem',
   },
   facetLabel: {
-    fontSize: '0.75rem',
-    fontWeight: 500,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
     textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    letterSpacing: '0.14em',
     color: 'var(--color-text-secondary)',
   },
-  select: {
-    height: '2.75rem',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: 'var(--color-border)',
-      ':focus': 'var(--color-accent)',
-    },
-    backgroundColor: 'var(--color-background-card)',
-    paddingInline: '0.875rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-primary)',
-    outline: 'none',
-  },
+  // Four bands is one too many for a capsule row inside an 18rem panel, so the
+  // group stays a 2×2 grid — but in the chip vocabulary, seated in the same
+  // recessed track as the categories.
   timeGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '0.375rem',
-  },
-  timeBtn: {
+    gap: '0.125rem',
     borderRadius: 'var(--radius-element)',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.375rem',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    cursor: 'pointer',
-    transitionProperty: 'background-color, border-color, color',
-    transitionDuration: '150ms',
+    backgroundColor: 'var(--color-background-muted)',
+    padding: '0.25rem',
   },
-  timeBtnIdle: {
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-overlay-hover)',
-    },
-    color: 'var(--color-text-secondary)',
-  },
-  timeBtnActive: {
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-accent)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
+  timeChip: {
+    justifyContent: 'center',
+    paddingInline: '0.5rem',
   },
 });
 
@@ -197,9 +137,9 @@ export interface ClassFiltersProps {
 }
 
 /**
- * The classes-page filter bar (T3.5): a horizontal strip of category chips
- * ("All" + each type) plus a "Filters" popover holding the single-select trainer
- * / location dropdowns and the time-of-day band toggle. Options come from the
+ * The classes-page filter bar (T3.5): a track of multi-select category chips
+ * plus a "Filters" popover holding the single-select trainer / location
+ * dropdowns and the time-of-day band toggle. Options come from the
  * {@link ClassFacets} the parent derives from the loaded week, with one twist — a
  * value the visitor selected on another week is kept in its control even when
  * absent here, so the selection stays visible and removable across week
@@ -208,33 +148,7 @@ export interface ClassFiltersProps {
  */
 export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
   const t = useTranslations('classes.filters');
-  const trainerId = useId();
-  const locationId = useId();
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  // Close the popover on an outside click or Escape.
-  useEffect(() => {
-    if (!popoverOpen) {
-      return;
-    }
-    const onPointerDown = (event: PointerEvent): void => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-        setPopoverOpen(false);
-      }
-    };
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        setPopoverOpen(false);
-      }
-    };
-    window.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [popoverOpen]);
 
   // Keep selected-but-absent types removable (rendered without a colour swatch).
   const selectedAbsentTypes = filters.types
@@ -256,165 +170,117 @@ export function ClassFilters({ facets, filters, onChange }: ClassFiltersProps) {
 
   const setTime = (band: TimeBand) => onChange({ ...filters, time: band });
 
-  // How many of the popover's facets are constraining the result (badge count).
+  // How many of the popover's facets are constraining the result.
   const popoverActive =
     (filters.trainer ? 1 : 0) + (filters.location ? 1 : 0) + (filters.time !== 'any' ? 1 : 0);
 
   return (
     <div role="group" aria-label={t('groupLabel')} {...stylex.props(styles.root)}>
-      {typeOptions.length > 0 &&
-        typeOptions.map((option) => (
-          <Chip
-            key={option.name}
-            active={filters.types.includes(option.name)}
-            onClick={() => toggleType(option.name)}
-          >
-            {option.color && (
-              <span
-                aria-hidden="true"
-                {...stylex.props(styles.chipDot)}
-                style={{ backgroundColor: option.color }}
-              />
-            )}
-            {option.name}
-          </Chip>
-        ))}
+      {typeOptions.length > 0 && (
+        <div {...stylex.props(styles.track)}>
+          {typeOptions.map((option) => {
+            const active = filters.types.includes(option.name);
+            return (
+              <button
+                key={option.name}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggleType(option.name)}
+                {...stylex.props(styles.chip, active ? styles.chipActive : styles.chipIdle)}
+              >
+                {option.color && (
+                  <span
+                    aria-hidden="true"
+                    {...stylex.props(styles.chipDot)}
+                    style={{ backgroundColor: option.color }}
+                  />
+                )}
+                {option.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {(trainerOptions.length > 0 || locationOptions.length > 0) && (
-        <div {...stylex.props(styles.popoverAnchor)} ref={popoverRef}>
-          <button
-            type="button"
-            aria-expanded={popoverOpen}
-            onClick={() => setPopoverOpen((open) => !open)}
-            {...stylex.props(
-              styles.filterBtn,
-              popoverActive > 0 ? styles.filterBtnActive : styles.filterBtnIdle,
-            )}
-          >
-            <Icon name="filter" {...stylex.props(styles.filterIcon)} sw={2} />
-            {t('groupLabel')}
-            {popoverActive > 0 && <span {...stylex.props(styles.countBadge)}>{popoverActive}</span>}
-          </button>
-
-          {popoverOpen && (
-            <Card variant="default" padding={0} xstyle={styles.popover}>
-              {trainerOptions.length > 0 && (
-                <SelectFacet
-                  id={trainerId}
-                  label={t('trainer')}
-                  allLabel={t('allTrainers')}
-                  value={filters.trainer}
-                  options={trainerOptions}
-                  onChange={(trainer) => onChange({ ...filters, trainer })}
-                />
-              )}
-
-              {locationOptions.length > 0 && (
-                <SelectFacet
-                  id={locationId}
-                  label={t('location')}
-                  allLabel={t('allLocations')}
-                  value={filters.location}
-                  options={locationOptions}
-                  onChange={(location) => onChange({ ...filters, location })}
-                />
-              )}
-
-              <div {...stylex.props(styles.facet)}>
-                <span {...stylex.props(styles.facetLabel)}>{t('time')}</span>
-                <div {...stylex.props(styles.timeGrid)}>
-                  {(['any', ...TIME_BANDS] as const).map((band) => {
-                    const active = filters.time === band;
-                    return (
-                      <button
-                        key={band}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setTime(band)}
-                        {...stylex.props(
-                          styles.timeBtn,
-                          active ? styles.timeBtnActive : styles.timeBtnIdle,
-                        )}
-                      >
-                        {band === 'any' ? t('anyTime') : t(band)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </Card>
+        <Popover
+          open={popoverOpen}
+          onClose={() => setPopoverOpen(false)}
+          label={t('groupLabel')}
+          align="start"
+          width={288}
+          trigger={
+            <Button
+              // Lime only when the popover is actually constraining the result —
+              // an untouched filter button is a neutral control, not a signal.
+              variant={popoverActive > 0 ? 'primary' : 'secondary'}
+              size="card"
+              aria-expanded={popoverOpen}
+              icon={<Icon name="filter" {...stylex.props(styles.filterIcon)} sw={2} />}
+              label={popoverActive > 0 ? `${t('groupLabel')} · ${popoverActive}` : t('groupLabel')}
+              onClick={() => setPopoverOpen((open) => !open)}
+            />
+          }
+          xstyle={styles.panel}
+        >
+          {trainerOptions.length > 0 && (
+            <SelectField
+              label={t('trainer')}
+              value={filters.trainer ?? ''}
+              onChange={(event) => onChange({ ...filters, trainer: event.target.value || null })}
+              options={[
+                { value: '', label: t('allTrainers') },
+                ...trainerOptions.map((name) => ({ value: name, label: name })),
+              ]}
+            />
           )}
-        </div>
+
+          {locationOptions.length > 0 && (
+            <SelectField
+              label={t('location')}
+              value={filters.location ?? ''}
+              onChange={(event) => onChange({ ...filters, location: event.target.value || null })}
+              options={[
+                { value: '', label: t('allLocations') },
+                ...locationOptions.map((name) => ({ value: name, label: name })),
+              ]}
+            />
+          )}
+
+          <div {...stylex.props(styles.facet)}>
+            <span {...stylex.props(styles.facetLabel)}>{t('time')}</span>
+            <div {...stylex.props(styles.timeGrid)}>
+              {(['any', ...TIME_BANDS] as const).map((band) => {
+                const active = filters.time === band;
+                return (
+                  <button
+                    key={band}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setTime(band)}
+                    {...stylex.props(
+                      styles.chip,
+                      styles.timeChip,
+                      active ? styles.chipActive : styles.chipIdle,
+                    )}
+                  >
+                    {band === 'any' ? t('anyTime') : t(band)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </Popover>
       )}
 
       {hasActiveFilters(filters) && (
         <Button
           variant="ghost"
-          size="sm"
+          size="card"
           label={t('clear')}
           onClick={() => onChange({ types: [], trainer: null, location: null, time: 'any' })}
         />
       )}
-    </div>
-  );
-}
-
-/** A pill-shaped category / "All" chip. */
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      {...stylex.props(styles.chip, active ? styles.chipActive : styles.chipIdle)}
-    >
-      {children}
-    </button>
-  );
-}
-
-/** A single-select dropdown facet with an "all" sentinel mapped to `null`. */
-function SelectFacet({
-  id,
-  label,
-  allLabel,
-  value,
-  options,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  allLabel: string;
-  value: string | null;
-  options: string[];
-  onChange: (value: string | null) => void;
-}) {
-  return (
-    <div {...stylex.props(styles.facet)}>
-      <label htmlFor={id} {...stylex.props(styles.facetLabel)}>
-        {label}
-      </label>
-      <select
-        id={id}
-        value={value ?? ''}
-        onChange={(event) => onChange(event.target.value || null)}
-        {...stylex.props(styles.select)}
-      >
-        <option value="">{allLabel}</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }

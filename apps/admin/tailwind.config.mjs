@@ -1,15 +1,40 @@
 import preset from '@fit/config/tailwind';
 
 /**
- * Admin Tailwind config.
+ * Admin Tailwind config — FormaCore "Lime Block".
  *
- * Extends the shared @fit/config theme, then layers the "formacore" design tokens
- * on top (matching the member portal): the full palettes, the Manrope/Archivo/
- * JetBrains type families, and the field/btn/card/pill radii. `darkMode: 'class'`
- * drives the console's light/dark theme toggle.
+ * Extends the shared @fit/config theme, then layers the console's design tokens
+ * on top. `darkMode: 'class'` drives the light/dark toggle.
+ *
+ * WHY THIS FILE STILL EXISTS. The console is mid-migration onto `@fit/ui-kit` +
+ * Astryx; ~40 files still author `className=`. This config is what keeps those
+ * on-brand meanwhile, so its values are a DELIBERATE MIRROR of
+ * `packages/astryx-theme/src/formacoreTheme.ts` — the same ink ramp, the same
+ * lime, the same radius ladder. When a token changes it changes in both, and
+ * when the last file migrates this file is deleted. (`apps/web` carries the same
+ * mirror for the same reason.)
+ *
+ * It used to mirror `fitTheme` instead — the Aurora-glass electric indigo. That
+ * moved with the theme swap, or the two halves of every half-migrated screen
+ * would have disagreed: Astryx chrome in lime, the Tailwind body still indigo.
  *
  * @type {import('tailwindcss').Config}
  */
+
+/** The warm charcoal neutral — the whole palette apart from the lime and the red. */
+const ink = {
+  50: '#F7F7F6',
+  100: '#EEEEED',
+  200: '#DCDCDA',
+  300: '#BABAB7',
+  400: '#8F8F8B',
+  500: '#6C6C68',
+  600: '#53534F',
+  700: '#3E3E3B',
+  800: '#2B2B29',
+  900: '#1E1E1C',
+  950: '#131312',
+};
 export default {
   presets: [preset],
   darkMode: 'class',
@@ -23,71 +48,46 @@ export default {
   theme: {
     extend: {
       colors: {
+        // The lime. `300` is the block colour — the primary action and nothing
+        // else. The deeper stops exist so lime-as-ink stays legible on white
+        // (`300` on white is ~1.3:1), which is why text and links take `800`.
+        // Anything on a lime fill is `ink-950`.
         brand: {
-          50: '#F2F1FE',
-          100: '#E8E6FD',
-          200: '#D3CFFB',
-          300: '#B5AEF7',
-          400: '#9184F1',
-          500: '#6257E3',
-          600: '#5044D2',
-          700: '#4536B5',
-          800: '#392E92',
-          900: '#312A74',
-          950: '#1E1A45',
+          50: '#FBFEE9',
+          100: '#F6FCC9',
+          200: '#EFF9A2',
+          300: '#E4F26A',
+          400: '#D6E844',
+          500: '#C2D625',
+          600: '#A3B71C',
+          700: '#7D8C1B',
+          800: '#63701D',
+          900: '#525C1E',
+          950: '#2C330A',
         },
-        accent: {
-          50: '#ECF1FF',
-          100: '#DCE6FF',
-          200: '#C0D2FF',
-          300: '#96B2FF',
-          400: '#6589FF',
-          500: '#3B5EF5',
-          600: '#2342EB',
-          700: '#1B33D8',
-          800: '#1C2DAE',
-          900: '#1D2C89',
-          950: '#151B52',
-        },
-        ink: {
-          50: '#F6F7F9',
-          100: '#ECEEF2',
-          200: '#D8DCE4',
-          300: '#B5BBC8',
-          400: '#8A92A4',
-          500: '#646D82',
-          600: '#4B5468',
-          700: '#394155',
-          800: '#232838',
-          900: '#151926',
-          950: '#0B0D15',
-        },
+        // Retired by the direction — aliased to ink so surviving call sites go
+        // neutral rather than reintroducing a second hue. Delete with them.
+        accent: ink,
+        ink,
+        // Sentiment collapses onto the signals the direction allows: positive is
+        // the lime, pending/neutral is ink, and red is the one exception. Keeping
+        // the token NAMES (rather than deleting them) means a `success-500` left
+        // in an unmigrated screen renders as lime instead of a green that would
+        // compete with the accent for the eye.
         success: {
-          50: '#ECFDF3',
-          100: '#D1FADF',
-          200: '#A6F4C5',
-          300: '#6CE9A6',
-          400: '#32D583',
-          500: '#12B76A',
-          600: '#039855',
-          700: '#027A48',
-          800: '#05603A',
-          900: '#054F31',
-          950: '#022C1C',
+          50: '#FBFEE9',
+          100: '#F6FCC9',
+          200: '#EFF9A2',
+          300: '#E4F26A',
+          400: '#D6E844',
+          500: '#C2D625',
+          600: '#A3B71C',
+          700: '#7D8C1B',
+          800: '#63701D',
+          900: '#525C1E',
+          950: '#2C330A',
         },
-        warning: {
-          50: '#FFFAEB',
-          100: '#FEF0C7',
-          200: '#FEDF89',
-          300: '#FEC84B',
-          400: '#FDB022',
-          500: '#F79009',
-          600: '#DC6803',
-          700: '#B54708',
-          800: '#93370D',
-          900: '#7A2E0E',
-          950: '#4E1D09',
-        },
+        warning: ink,
         danger: {
           50: '#FEF3F2',
           100: '#FEE4E2',
@@ -158,14 +158,34 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['var(--font-manrope)', 'Manrope', 'system-ui', 'sans-serif'],
-        display: ['var(--font-archivo)', 'Archivo', 'var(--font-manrope)', 'sans-serif'],
+        // One family for body AND display — Georgian and Latin on the same
+        // skeleton at every weight. Manrope/Archivo had no Georgian coverage and
+        // fell back mid-page. JetBrains Mono carries the numerals, which the
+        // direction treats as its primary visual accent.
+        sans: [
+          'var(--font-noto-georgian)',
+          'Noto Sans Georgian',
+          'Inter',
+          'system-ui',
+          'sans-serif',
+        ],
+        display: [
+          'var(--font-noto-georgian)',
+          'Noto Sans Georgian',
+          'Inter',
+          'system-ui',
+          'sans-serif',
+        ],
         mono: ['var(--font-jetbrains)', 'JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       borderRadius: {
-        field: '0.5rem',
-        btn: '0.75rem',
-        card: '1rem',
+        // The cut-corner ladder, rounded — mirrors the theme's
+        // `--radius-inner / element / container / page`.
+        field: '0.875rem',
+        btn: '0.875rem',
+        chip: '0.625rem',
+        card: '1.625rem',
+        block: '2rem',
         pill: '9999px',
       },
     },

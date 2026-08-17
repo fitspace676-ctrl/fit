@@ -16,8 +16,8 @@
 // this deliberately does not copy that.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import { HEATMAP_COLS } from '@fit/types';
 import { Heatmap } from '../charts';
 import { EmptyState } from '../overview/format';
@@ -50,7 +50,7 @@ export function DemandHeatmapCard({ cells }: { cells: number[][] }) {
   const hasData = cells.some((row) => row.some((value) => value > 0));
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('heatmap.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('heatmap.caption')}</p>

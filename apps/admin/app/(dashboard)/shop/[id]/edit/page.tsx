@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission, type ListAdminProductCategoriesResponse } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProduct, fetchProductCategories } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ProductForm } from '../../product-form';
 
@@ -116,7 +116,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to products
         </Link>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{message}</span>
         </Card>

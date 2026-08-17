@@ -14,8 +14,8 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Icon, type IconName, type Tone } from '@/components/ui';
+import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon, type IconName } from '@/components/ui';
 import { MemberActions } from './member-actions';
 import { MemberTabs } from './member-tabs';
 import { EmailMemberDrawer } from './email-member-drawer';
@@ -32,11 +32,19 @@ export const metadata: Metadata = {
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
 
-/** Visual treatment per status, matching the roster table's pills; labels come from `status.<value>`. */
-const STATUS_TONES: Record<string, Tone> = {
-  ACTIVE: 'success',
-  INVITED: 'ink',
-  SUSPENDED: 'warning',
+/**
+ * Visual treatment per status, matching the roster table's pills; labels come
+ * from `status.<value>`.
+ *
+ * Three states onto the direction's three signals: active is the lime, invited
+ * and suspended are both ink. SUSPENDED used to be `warning` — an amber the
+ * palette no longer has, and a suspension is a state to see rather than a fault
+ * to fix. A genuinely destructive state would take the one red.
+ */
+const STATUS_TONES: Record<string, BadgeTone> = {
+  ACTIVE: 'positive',
+  INVITED: 'neutral',
+  SUSPENDED: 'pending',
 };
 
 const styles = stylex.create({
@@ -349,7 +357,7 @@ function DetailKpi({
   icon: IconName;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+    <Card padding="none" xstyle={styles.kpiCard}>
       <span {...stylex.props(styles.kpiIcon)}>
         <Icon name={icon} {...stylex.props(styles.kpiIconSvg)} />
       </span>
@@ -391,7 +399,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           {t('nav.backToMembers')}
         </Link>
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
@@ -401,7 +409,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
     );
   }
 
-  const statusTone: Tone = STATUS_TONES[member.status] ?? 'ink';
+  const statusTone: BadgeTone = STATUS_TONES[member.status] ?? 'neutral';
   const statusLabel = member.status in STATUS_TONES ? t(`status.${member.status}`) : member.status;
 
   // Trashed (soft-deleted) member: days remaining until the purge cron permanently
@@ -476,7 +484,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
       {/* Trash banner — a trashed member is hidden from every live view; this is the
           only place staff see it, with the purge countdown and (in the header) restore. */}
       {daysUntilPurge !== null ? (
-        <Card variant="default" padding={0} xstyle={styles.trashBanner}>
+        <Card padding="none" xstyle={styles.trashBanner}>
           <Icon name="trash" sw={2} {...stylex.props(styles.trashBannerIcon)} />
           <p role="status" {...stylex.props(styles.trashBannerText)}>
             {t('trash.bannerCountdown', { days: daysUntilPurge })}
@@ -485,14 +493,14 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
       ) : null}
 
       {/* Identity header card. */}
-      <Card variant="default" padding={0} xstyle={styles.identityCard}>
+      <Card padding="none" xstyle={styles.identityCard}>
         <div {...stylex.props(styles.identityLeft)}>
           <span {...stylex.props(styles.identityAvatar)}>{initialsOf(member.name)}</span>
           <div {...stylex.props(styles.identityCol)}>
             <div {...stylex.props(styles.titleRow)}>
               <h1 {...stylex.props(styles.name)}>{member.name}</h1>
-              <Badge tone={statusTone}>{statusLabel}</Badge>
-              {member.plan ? <Badge tone="brand">{member.plan.name}</Badge> : null}
+              <Badge tone={statusTone} label={statusLabel} />
+              {member.plan ? <Badge tone="accent" label={member.plan.name} /> : null}
             </div>
             <div {...stylex.props(styles.metaRow)}>
               <span {...stylex.props(styles.metaMono)}>ID {member.id.slice(0, 8)}</span>

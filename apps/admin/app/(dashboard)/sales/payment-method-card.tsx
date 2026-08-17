@@ -9,9 +9,9 @@
 // collapsed into one.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
-import { Card } from '@astryxdesign/core/Card';
 import type { SalesMethodSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
 
@@ -60,7 +60,7 @@ export function PaymentMethodCard({
   const posShare = total === 0 ? null : Math.round((pos / total) * 100);
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h2 {...stylex.props(styles.title)}>{t('method.title')}</h2>
       {posShare !== null ? (
         <p {...stylex.props(styles.share)}>

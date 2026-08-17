@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { StaffMember, UpdateStaffProfileInput } from '@fit/types';
-import { Badge, Dot, Drawer, Icon } from '@/components/ui';
-import { ROLE_AVATAR, ROLE_TONES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
+import { Badge, Dot, Drawer } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
+import { ROLE_TONES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
 import {
   StaffFormFields,
   hasBadHours,
@@ -44,8 +45,6 @@ const styles = stylex.create({
     fontSize: '1rem',
     fontWeight: 700,
   },
-  /** Repaints the initials bubble in the member's role colour (see ROLE_AVATAR). */
-  avatarTint: (bg: string, fg: string) => ({ backgroundColor: bg, color: fg }),
   identityText: {
     display: 'flex',
     flexDirection: 'column',
@@ -304,9 +303,8 @@ export function StaffProfileDrawer({
     <Drawer
       open={member !== null}
       onClose={close}
-      title={editing ? t('profileDrawer.editTitle') : t('profileDrawer.title')}
-      size="lg"
-      disableBackdropClose={pending}
+      label={editing ? t('profileDrawer.editTitle') : t('profileDrawer.title')}
+      dismissible={!pending}
       footer={
         editing ? (
           <>
@@ -368,20 +366,19 @@ export function StaffProfileDrawer({
       ) : (
         <div {...stylex.props(styles.body)}>
           <div {...stylex.props(styles.identity)}>
-            <span {...stylex.props(styles.avatar, styles.avatarTint(...ROLE_AVATAR[member.role]))}>
-              {initialsOf(member.name)}
-            </span>
+            <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
             <div {...stylex.props(styles.identityText)}>
               <h3 {...stylex.props(styles.name)}>{member.name}</h3>
               <div {...stylex.props(styles.badges)}>
-                <Badge tone={ROLE_TONES[member.role]}>{t(`roles.${member.role}`)}</Badge>
+                <Badge tone={ROLE_TONES[member.role]} label={t(`roles.${member.role}`)} />
                 <Badge
                   tone={STATUS_TONES[member.status]}
-                  className={stylex.props(styles.badgeGap).className}
-                >
-                  <Dot c={STATUS_DOT[member.status]} />
-                  {t(`status.${member.status}`)}
-                </Badge>
+                  label={
+                    <>
+                      <Dot tone={STATUS_DOT[member.status]} /> {t(`status.${member.status}`)}
+                    </>
+                  }
+                />
               </div>
               {/* The coach profile this person teaches under — the same human on
                   the Trainers screen, where their bio, specialties, availability

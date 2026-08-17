@@ -1,8 +1,9 @@
 'use client';
 
 import * as stylex from '@stylexjs/stylex';
+import { FieldGroup, SelectField } from '@fit/ui-kit';
 import type { Recurrence, RecurrenceFreq, RecurrenceWeekday } from '@fit/types';
-import { Field, Select } from '@/components/ui';
+
 import { FREQ_OPTIONS, WEEKDAY_OPTIONS } from './format';
 
 const styles = stylex.create({
@@ -106,19 +107,14 @@ export function RecurrenceEditor({
       <legend {...stylex.props(styles.legend)}>Repeats</legend>
 
       <div {...stylex.props(styles.freqField)}>
-        <Field label="Frequency" htmlFor="rec-freq">
-          <Select
-            id="rec-freq"
-            value={value.freq}
-            onChange={(event) => setFreq(event.target.value as RecurrenceFreq)}
-          >
-            {FREQ_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <SelectField
+          label="Frequency"
+          value={value.freq}
+          onChange={(event) => setFreq(event.target.value as RecurrenceFreq)}
+          options={[
+            ...FREQ_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+          ]}
+        />
       </div>
 
       {/*
@@ -134,7 +130,7 @@ export function RecurrenceEditor({
 
       {/* Weekday toggles, only for a weekly recurrence. */}
       {value.freq === 'WEEKLY' ? (
-        <Field
+        <FieldGroup
           label="On these days"
           error={weeklyNeedsDay ? 'Pick at least one weekday.' : undefined}
         >
@@ -157,7 +153,7 @@ export function RecurrenceEditor({
               );
             })}
           </div>
-        </Field>
+        </FieldGroup>
       ) : null}
     </fieldset>
   );

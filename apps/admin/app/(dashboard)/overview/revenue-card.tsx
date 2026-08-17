@@ -1,9 +1,9 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Card } from '@fit/ui-kit';
 import type { NumberFormatter } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type { DashboardOverviewResponse, DashboardRange } from '@fit/types';
 import { AreaChart, type AreaPoint } from '../charts';
@@ -81,7 +81,7 @@ export function RevenueCard({
   const hasData = points.some((p) => p.value !== null && p.value > 0);
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.cardWide}>
+    <Card padding="none" xstyle={styles.cardWide}>
       <div {...stylex.props(styles.revenueHead)}>
         <div>
           <h2 {...stylex.props(styles.sectionLabel)}>{t('revenueCard.title')}</h2>

@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import {
   buildRRule,
   parseRRule,
@@ -15,7 +14,8 @@ import {
   type Recurrence,
   type RecurrenceWeekday,
 } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { createClassTemplateAction, updateClassTemplateAction } from './actions';
 import { RecurrenceEditor } from './recurrence-editor';
 
@@ -641,7 +641,7 @@ export function ClassTemplateForm(props: Props) {
       ) : null}
 
       {error ? (
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {error}
@@ -650,9 +650,13 @@ export function ClassTemplateForm(props: Props) {
       ) : null}
 
       <div {...stylex.props(styles.actions)}>
-        <Btn type="submit" v="primary" size="md" disabled={pending}>
-          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create class'}
-        </Btn>
+        <Button
+          variant="primary"
+          size="card"
+          type="submit"
+          disabled={pending}
+          label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create class'}
+        />
         {props.onCancel ? (
           <button
             type="button"

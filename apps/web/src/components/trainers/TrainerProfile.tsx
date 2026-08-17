@@ -1,14 +1,11 @@
 import * as stylex from '@stylexjs/stylex';
+import { Avatar, Badge, ButtonLink, Card } from '@/src/components/ui/kit';
 import { useTranslations } from 'next-intl';
-import { Avatar } from '@astryxdesign/core/Avatar';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
 import type { TrainerDetail } from '@fit/types';
 import { Icon } from '@/src/components/ui';
 
-// Astryx migration (T11.13): the profile header is rebuilt on the Astryx `Card` /
-// `Avatar` / `Badge` / `Button` over the Fit brand theme, with the layout and the
+// Astryx migration (T11), now on the portal kit: the profile header is rebuilt on the kit's `Card` /
+// `Avatar` / `Badge` / `Button` over the FormaCore theme, with the layout and the
 // decorative accent band authored in compiled StyleX (`var(--color-*)`) — no
 // Tailwind utilities and no formacore Aurora-glass primitives. The Astryx
 // `Avatar` renders the initials fallback from `name`, so the Dicebear helper is
@@ -142,7 +139,7 @@ export function TrainerProfile({ trainer, avgRating = 0, reviewCount = 0 }: Trai
   const t = useTranslations('trainers');
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <span aria-hidden {...stylex.props(styles.band)} />
 
       <section {...stylex.props(styles.section)}>
@@ -153,7 +150,7 @@ export function TrainerProfile({ trainer, avgRating = 0, reviewCount = 0 }: Trai
               <h1 {...stylex.props(styles.name)}>{trainer.name}</h1>
               {reviewCount > 0 && (
                 <Badge
-                  variant="warning"
+                  tone="pending"
                   icon={<Icon name="star" {...stylex.props(styles.badgeIcon)} />}
                   label={avgRating.toFixed(1)}
                 />
@@ -161,10 +158,10 @@ export function TrainerProfile({ trainer, avgRating = 0, reviewCount = 0 }: Trai
             </div>
             {trainer.headline && <p {...stylex.props(styles.headline)}>{trainer.headline}</p>}
           </div>
-          <Button
+          <ButtonLink
             href="#trainer-schedule-heading"
             variant="primary"
-            size="md"
+            size="card"
             icon={<Icon name="calendarPlus" {...stylex.props(styles.badgeIcon)} sw={2} />}
             label={t('detail.schedule.title')}
           />
@@ -178,7 +175,7 @@ export function TrainerProfile({ trainer, avgRating = 0, reviewCount = 0 }: Trai
             <ul aria-label={t('detail.specialties')} {...stylex.props(styles.chips)}>
               {trainer.specialties.map((specialty) => (
                 <li key={specialty}>
-                  <Badge variant="purple" label={specialty} />
+                  <Badge tone="neutral" label={specialty} />
                 </li>
               ))}
             </ul>
