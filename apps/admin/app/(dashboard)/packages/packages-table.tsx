@@ -4,14 +4,14 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AdminPackagePlanRow, PackagePlanSort, PackagePlanStatus, SortDir } from '@fit/types';
-import { Badge, Btn, Card, type Tone } from '@/components/ui';
+import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
 import { formatPrice, intervalSuffix, sessionLabel } from './format';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 /** Visual treatment per plan status — green active, slate inactive. */
-const STATUS_STYLES: Record<PackagePlanStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'Inactive', tone: 'ink' },
+const STATUS_STYLES: Record<PackagePlanStatus, { label: string; tone: BadgeTone }> = {
+  ACTIVE: { label: 'Active', tone: 'positive' },
+  INACTIVE: { label: 'Inactive', tone: 'neutral' },
 };
 
 /** Sortable columns and their header labels, in render order. */
@@ -25,7 +25,7 @@ const SORTABLE: ReadonlyArray<{ key: PackagePlanSort; label: string }> = [
 /** A status pill mirroring the products roster styling. */
 function StatusPill({ status }: { status: PackagePlanStatus }) {
   const { label, tone } = STATUS_STYLES[status];
-  return <Badge tone={tone}>{label}</Badge>;
+  return <Badge tone={tone} label={label} />;
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -97,16 +97,12 @@ export function PackagePlansTable({
   const hasNext = page * limit < total;
 
   if (plans.length === 0) {
-    return (
-      <Card className="px-4 py-10 text-center text-sm text-ink-500 dark:text-ink-400">
-        No package plans match your filters yet.
-      </Card>
-    );
+    return <Card>No package plans match your filters yet.</Card>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="overflow-x-auto p-0">
+      <Card>
         <table className="w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-ink-100 dark:border-white/10">
@@ -147,11 +143,7 @@ export function PackagePlansTable({
                     >
                       {plan.name}
                     </Link>
-                    {plan.popular ? (
-                      <Badge tone="brand" className="text-[10px] uppercase tracking-wide">
-                        Popular
-                      </Badge>
-                    ) : null}
+                    {plan.popular ? <Badge tone="accent" label="Popular" /> : null}
                   </div>
                 </td>
                 <td className="px-4 py-3 font-mono tabular-nums text-ink-700 dark:text-ink-200">
@@ -171,9 +163,14 @@ export function PackagePlansTable({
                 </td>
                 <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
                   {plan.featureCount > 0 ? (
-                    <Badge tone="ink">
-                      {plan.featureCount} {plan.featureCount === 1 ? 'feature' : 'features'}
-                    </Badge>
+                    <Badge
+                      tone="neutral"
+                      label={
+                        <>
+                          {plan.featureCount} {plan.featureCount === 1 ? 'feature' : 'features'}
+                        </>
+                      }
+                    />
                   ) : (
                     '—'
                   )}
@@ -190,26 +187,24 @@ export function PackagePlansTable({
           {from}–{to} of {total}
         </span>
         <div className="flex gap-2">
-          <Btn
-            v="outline"
-            size="sm"
-            disabled={!hasPrev}
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-          >
-            Previous
-          </Btn>
-          <Btn
-            v="outline"
-            size="sm"
-            disabled={!hasNext}
+            disabled={!hasPrev}
+            label="Previous"
+          />
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-          >
-            Next
-          </Btn>
+            disabled={!hasNext}
+            label="Next"
+          />
         </div>
       </div>
     </div>

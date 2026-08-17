@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { Icon } from '@/components/ui';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -10,7 +11,8 @@ import type {
   AudienceSegmentRow,
   MemberStatus,
 } from '@fit/types';
-import { Badge, Btn, ConfirmDialog, Field, Input, Modal, useToast } from '@/components/ui';
+import { Badge, Button, ConfirmDialog, Dialog } from '@fit/ui-kit';
+import { Field, Input, useToast } from '@/components/ui';
 import {
   createSegmentAction,
   deleteSegmentAction,
@@ -46,6 +48,8 @@ const EMPTY_CRITERIA: CriteriaState = {
 };
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   layout: {
     display: 'grid',
     gap: '1.25rem',
@@ -461,28 +465,26 @@ export function AudienceView({
         </div>
 
         <div {...stylex.props(styles.builderActions)}>
-          <Btn
-            v="ghost"
-            size="sm"
-            icon="x"
+          <Button
+            variant="ghost"
+            size="inline"
             onClick={clearAll}
             disabled={filterCount === 0 && loadedSegmentId === null}
-          >
-            {t('audienceTab.clear')}
-          </Btn>
+            icon={<Icon name="x" {...stylex.props(styles.kitGlyph)} />}
+            label={t('audienceTab.clear')}
+          />
           <span {...stylex.props(styles.spacer)} />
           {canManage ? (
-            <Btn
-              v="primary"
-              size="sm"
-              icon="pin"
+            <Button
+              variant="primary"
+              size="inline"
               onClick={() => {
                 setSegmentName('');
                 setDialog({ kind: 'save' });
               }}
-            >
-              {t('audienceTab.saveSegment')}
-            </Btn>
+              icon={<Icon name="pin" {...stylex.props(styles.kitGlyph)} />}
+              label={t('audienceTab.saveSegment')}
+            />
           ) : null}
         </div>
       </div>
@@ -496,7 +498,7 @@ export function AudienceView({
               {filterCount === 0 ? t('audienceTab.matchingAll') : t('audienceTab.matchingFiltered')}
             </p>
           </div>
-          {previewing ? <Badge tone="accent">{t('audience.counting')}</Badge> : null}
+          {previewing ? <Badge tone="accent" label={t('audience.counting')} /> : null}
         </div>
 
         <div {...stylex.props(styles.countWrap)}>
@@ -554,34 +556,37 @@ export function AudienceView({
                     </span>
                   </button>
                   <span {...stylex.props(styles.segmentActions)}>
-                    <Btn
-                      v="ghost"
-                      size="icon"
-                      icon="target"
-                      aria-label={t('audienceTab.loadFor', { name: segment.name })}
+                    <Button
+                      variant="ghost"
+                      size="card"
+                      iconOnly
                       title={t('audienceTab.load')}
                       onClick={() => loadSegment(segment)}
+                      icon={<Icon name="target" {...stylex.props(styles.kitGlyph)} />}
+                      label={t('audienceTab.loadFor', { name: segment.name })}
                     />
                     {canManage ? (
                       <>
-                        <Btn
-                          v="ghost"
-                          size="icon"
-                          icon="settings"
-                          aria-label={t('audienceTab.renameFor', { name: segment.name })}
+                        <Button
+                          variant="ghost"
+                          size="card"
+                          iconOnly
                           title={t('audienceTab.rename')}
                           onClick={() => {
                             setSegmentName(segment.name);
                             setDialog({ kind: 'rename', segment });
                           }}
+                          icon={<Icon name="settings" {...stylex.props(styles.kitGlyph)} />}
+                          label={t('audienceTab.renameFor', { name: segment.name })}
                         />
-                        <Btn
-                          v="ghost"
-                          size="icon"
-                          icon="trash"
-                          aria-label={t('audienceTab.deleteFor', { name: segment.name })}
+                        <Button
+                          variant="ghost"
+                          size="card"
+                          iconOnly
                           title={t('audienceTab.delete')}
                           onClick={() => setDialog({ kind: 'delete', segment })}
+                          icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
+                          label={t('audienceTab.deleteFor', { name: segment.name })}
                         />
                       </>
                     ) : null}
@@ -595,7 +600,7 @@ export function AudienceView({
 
       {/* Save / rename dialog. */}
       {dialog?.kind === 'save' || dialog?.kind === 'rename' ? (
-        <Modal
+        <Dialog
           open
           onClose={() => setDialog(null)}
           title={dialog.kind === 'save' ? t('audienceTab.saveTitle') : t('audienceTab.renameTitle')}
@@ -604,26 +609,30 @@ export function AudienceView({
               ? t('audienceTab.saveDescription')
               : t('audienceTab.renameDescription')
           }
-          size="sm"
-          footer={
+          actions={
             <>
-              <Btn v="outline" size="md" onClick={() => setDialog(null)} disabled={busy}>
-                {t('wizard.cancel')}
-              </Btn>
-              <Btn
-                v="primary"
-                size="md"
+              <Button
+                variant="secondary"
+                size="card"
+                onClick={() => setDialog(null)}
+                disabled={busy}
+                label={t('wizard.cancel')}
+              />
+              <Button
+                variant="primary"
+                size="card"
                 onClick={() =>
                   dialog.kind === 'save' ? confirmSave() : confirmRename(dialog.segment)
                 }
                 disabled={busy || segmentName.trim().length === 0}
-              >
-                {busy
-                  ? t('wizard.saving')
-                  : dialog.kind === 'save'
-                    ? t('audienceTab.saveSegment')
-                    : t('audienceTab.rename')}
-              </Btn>
+                label={
+                  busy
+                    ? t('wizard.saving')
+                    : dialog.kind === 'save'
+                      ? t('audienceTab.saveSegment')
+                      : t('audienceTab.rename')
+                }
+              />
             </>
           }
         >
@@ -638,7 +647,7 @@ export function AudienceView({
               />
             </Field>
           </div>
-        </Modal>
+        </Dialog>
       ) : null}
 
       <ConfirmDialog
@@ -650,15 +659,15 @@ export function AudienceView({
           }
         }}
         title={t('audienceTab.deleteTitle')}
-        message={
+        description={
           dialog?.kind === 'delete'
             ? t('audienceTab.deleteMessage', { name: dialog.segment.name })
             : ''
         }
         confirmLabel={t('audienceTab.delete')}
         cancelLabel={t('wizard.cancel')}
-        danger
-        busy={busy}
+        confirmVariant="destructive"
+        loading={busy}
       />
     </div>
   );

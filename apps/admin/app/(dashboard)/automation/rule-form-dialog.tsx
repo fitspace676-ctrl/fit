@@ -14,7 +14,8 @@ import {
   AUTOMATION_MERGE_FIELDS,
   AUTOMATION_MERGE_GROUPS,
 } from '@fit/types';
-import { Btn, Drawer, Field, Icon, Input, Select, Textarea, useToast } from '@/components/ui';
+import { Button, Drawer, Field, FieldGroup, SelectField, TextareaField } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { createAutomationRuleAction, updateAutomationRuleAction } from './actions';
 import {
   ACTION_ICONS,
@@ -362,28 +363,29 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
     <Drawer
       open
       onClose={handleClose}
-      closing={closing}
-      side="right"
-      size="lg"
-      title={mode === 'create' ? t('form.addTitle') : t('form.editTitle')}
+      label={mode === 'create' ? t('form.addTitle') : t('form.editTitle')}
       footer={
         <div {...stylex.props(styles.footerRow)}>
-          <Btn v="outline" size="md" onClick={handleClose} disabled={pending}>
-            {t('form.cancel')}
-          </Btn>
-          <Btn
-            v="primary"
-            size="md"
+          <Button
+            variant="secondary"
+            size="card"
+            onClick={handleClose}
+            disabled={pending}
+            label={t('form.cancel')}
+          />
+          <Button
+            variant="primary"
+            size="card"
             onClick={submit}
             disabled={pending || !canSubmit}
-            className="btn-brand"
-          >
-            {pending
-              ? t('form.saving')
-              : mode === 'create'
-                ? t('form.addSubmit')
-                : t('form.editSubmit')}
-          </Btn>
+            label={
+              pending
+                ? t('form.saving')
+                : mode === 'create'
+                  ? t('form.addSubmit')
+                  : t('form.editSubmit')
+            }
+          />
         </div>
       }
     >
@@ -401,35 +403,31 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
           </div>
         ) : null}
 
-        <Field label={t('form.name')}>
-          <Input
-            value={form.name}
-            onChange={(e) => patch('name', e.target.value)}
-            placeholder={t('form.namePlaceholder')}
-            autoFocus
-          />
-        </Field>
+        <Field
+          label={t('form.name')}
+          value={form.name}
+          onChange={(e) => patch('name', e.target.value)}
+          placeholder={t('form.namePlaceholder')}
+          autoFocus
+        />
 
         {/* Trigger picker — grouped by category. */}
-        <Field label={t('form.trigger')} hint={t('form.triggerHint')}>
-          <Select value={form.triggerType} onChange={(e) => selectTrigger(e.target.value)}>
-            <option value="" disabled>
-              {t('form.triggerPlaceholder')}
-            </option>
-            {triggerGroups.map((group) => (
-              <optgroup
-                key={group.category}
-                label={t(`categories.${CATEGORY_KEY[group.category]}`)}
-              >
-                {group.triggers.map((tg) => (
-                  <option key={tg.value} value={tg.value}>
-                    {t(`triggers.${tg.value}`)}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
-        </Field>
+        <SelectField
+          label={t('form.trigger')}
+          hint={t('form.triggerHint')}
+          value={form.triggerType}
+          onChange={(event) => selectTrigger(event.target.value)}
+          options={[
+            { value: '', label: t('form.triggerPlaceholder'), disabled: true },
+            ...triggerGroups.map((group) => ({
+              label: t(`categories.${CATEGORY_KEY[group.category]}`),
+              options: group.triggers.map((tg) => ({
+                value: tg.value,
+                label: t(`triggers.${tg.value}`),
+              })),
+            })),
+          ]}
+        />
 
         <div {...stylex.props(styles.grid2)}>
           {/* Day/count input — only for the needsDays triggers. */}
@@ -438,34 +436,31 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
               label={
                 daysMeta?.daysLabel === 'check-ins' ? t('form.milestoneLabel') : t('form.daysLabel')
               }
-            >
-              <Input
-                type="number"
-                min={1}
-                value={form.days}
-                onChange={(e) => patch('days', e.target.value)}
-                placeholder={t('form.daysPlaceholder')}
-              />
-            </Field>
+              type="number"
+              min={1}
+              value={form.days}
+              onChange={(e) => patch('days', e.target.value)}
+              placeholder={t('form.daysPlaceholder')}
+            />
           ) : null}
 
           {/* Timing offset — when the action fires relative to the trigger. */}
-          <Field label={t('form.timing')} hint={t('form.timingHint')}>
-            <Select
-              value={form.timingOffset}
-              onChange={(e) => patch('timingOffset', e.target.value as AutomationTimingOffset)}
-            >
-              {AUTOMATION_TIMING_CATALOG.map((timing) => (
-                <option key={timing.value} value={timing.value}>
-                  {t(`timings.${timing.value}`)}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <SelectField
+            label={t('form.timing')}
+            hint={t('form.timingHint')}
+            value={form.timingOffset}
+            onChange={(e) => patch('timingOffset', e.target.value as AutomationTimingOffset)}
+            options={[
+              ...AUTOMATION_TIMING_CATALOG.map((timing) => ({
+                value: timing.value,
+                label: t(`timings.${timing.value}`),
+              })),
+            ]}
+          />
         </div>
 
         {/* Action picker — exactly one action per rule. */}
-        <Field label={t('form.action')}>
+        <FieldGroup label={t('form.action')}>
           <div {...stylex.props(styles.actionRow)}>
             {ACTION_ORDER.map((action) => {
               const active = form.actionType === action;
@@ -483,31 +478,27 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
               );
             })}
           </div>
-        </Field>
+        </FieldGroup>
 
         {/* Email subject — only for the email action. */}
         {isEmail ? (
-          <Field label={t('form.subject')}>
-            <Input
-              value={form.subject}
-              onChange={(e) => patch('subject', e.target.value)}
-              placeholder={t('form.subjectPlaceholder')}
-            />
-          </Field>
+          <Field
+            label={t('form.subject')}
+            value={form.subject}
+            onChange={(e) => patch('subject', e.target.value)}
+            placeholder={t('form.subjectPlaceholder')}
+          />
         ) : null}
 
         {/* Message body + merge-variable palette. */}
-        <Field
+        <TextareaField
           label={form.actionType === 'create_task' ? t('form.taskTitle') : t('form.message')}
           hint={t('form.messageHint')}
-        >
-          <Textarea
-            rows={4}
-            value={form.body}
-            onChange={(e) => patch('body', e.target.value)}
-            placeholder={t('form.messagePlaceholder')}
-          />
-        </Field>
+          rows={4}
+          value={form.body}
+          onChange={(e) => patch('body', e.target.value)}
+          placeholder={t('form.messagePlaceholder')}
+        />
 
         <div {...stylex.props(styles.vars)}>
           <p {...stylex.props(styles.varHint)}>{t('form.mergeHint')}</p>

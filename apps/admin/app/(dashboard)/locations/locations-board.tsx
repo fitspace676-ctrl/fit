@@ -5,18 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type { AdminLocationRow, LocationStatus } from '@fit/types';
-import {
-  Badge,
-  CountUp,
-  FilterChips,
-  Icon,
-  useToast,
-  type FilterChip,
-  type IconName,
-  type Tone,
-} from '@/components/ui';
+import { Badge, Card, CountUp, FilterChips, type BadgeTone, type FilterChip } from '@fit/ui-kit';
+import { Icon, useToast, type IconName } from '@/components/ui';
 import { formatDayHours, hoursForDate, isOpenAt } from './format-hours';
 import { setLocationActiveAction } from './actions';
 
@@ -467,7 +458,7 @@ function KpiCard({
   icon: IconName;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+    <Card padding="none" xstyle={styles.kpiCard}>
       <span {...stylex.props(styles.kpiIcon)}>
         <Icon name={icon} {...stylex.props(styles.kpiIconSvg)} />
       </span>
@@ -482,7 +473,7 @@ function KpiCard({
 
 /** The live open/closed (or inactive) treatment for one location's card badge. */
 interface OpenState {
-  tone: Tone;
+  tone: BadgeTone;
   dot: string;
   label: string;
 }
@@ -573,16 +564,16 @@ export function LocationsBoard({
   /** The badge treatment for a card: inactive lifecycle wins, else live open/closed. */
   function openStateOf(location: AdminLocationRow): OpenState {
     if (location.status === 'INACTIVE') {
-      return { tone: 'ink', dot: 'var(--color-text-secondary)', label: t('card.inactive') };
+      return { tone: 'neutral', dot: 'var(--color-text-secondary)', label: t('card.inactive') };
     }
     if (now === null) {
       // Pre-mount: fall back to the lifecycle label (it is active) until the
       // client clock resolves the live open/closed state.
-      return { tone: 'success', dot: 'var(--color-success)', label: t('status.ACTIVE') };
+      return { tone: 'positive', dot: 'var(--color-success)', label: t('status.ACTIVE') };
     }
     return isOpenAt(location.hours, now)
-      ? { tone: 'success', dot: 'var(--color-success)', label: t('card.open') }
-      : { tone: 'ink', dot: 'var(--color-text-secondary)', label: t('card.closed') };
+      ? { tone: 'positive', dot: 'var(--color-success)', label: t('card.open') }
+      : { tone: 'neutral', dot: 'var(--color-text-secondary)', label: t('card.closed') };
   }
 
   /** Today's hours as a short line, or `null` before the client clock resolves. */
@@ -668,7 +659,7 @@ export function LocationsBoard({
           chips={statusChips}
           active={statusFilter}
           onSelect={(value) => setStatusFilter(value as LocationStatus | '')}
-          ariaLabel={t('filters.statusAria')}
+          label={t('filters.statusAria')}
         />
         <div {...stylex.props(styles.searchWrap)}>
           <label htmlFor="location-search" {...stylex.props(styles.srOnly)}>
@@ -689,7 +680,7 @@ export function LocationsBoard({
       </div>
 
       {visible.length === 0 ? (
-        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+        <Card padding="none" xstyle={styles.emptyCard}>
           <span {...stylex.props(styles.emptyIcon)}>
             <Icon name={noMatch ? 'search' : 'pin'} {...stylex.props(styles.emptyIconSvg)} />
           </span>
@@ -707,7 +698,7 @@ export function LocationsBoard({
             const today = todayLine(location);
             const rowBusy = busyId === location.id && pending;
             return (
-              <Card key={location.id} variant="default" padding={0} xstyle={styles.card}>
+              <Card key={location.id} padding="none" xstyle={styles.card}>
                 {/* Photo header with the identity overlay, status badge and row menu. */}
                 <div {...stylex.props(styles.photoHead)}>
                   {location.photoUrl ? (
@@ -724,16 +715,19 @@ export function LocationsBoard({
                   <div aria-hidden {...stylex.props(styles.photoScrim)} />
 
                   <div {...stylex.props(styles.badgePos)}>
-                    <Badge tone={open.tone}>
-                      <span {...stylex.props(styles.badgeInner)}>
-                        <span
-                          aria-hidden
-                          {...stylex.props(styles.badgeDot)}
-                          style={{ backgroundColor: open.dot }}
-                        />
-                        {open.label}
-                      </span>
-                    </Badge>
+                    <Badge
+                      tone={open.tone}
+                      label={
+                        <span {...stylex.props(styles.badgeInner)}>
+                          <span
+                            aria-hidden
+                            {...stylex.props(styles.badgeDot)}
+                            style={{ backgroundColor: open.dot }}
+                          />
+                          {open.label}
+                        </span>
+                      }
+                    />
                   </div>
 
                   {canWrite ? (

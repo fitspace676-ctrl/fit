@@ -1,8 +1,9 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { ButtonLink, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
+import { ButtonLink } from '@/src/components/ui/kit';
 
-// Astryx migration (T11.13): rebuilt on the Astryx `Button` over the Fit brand
+// Astryx migration (T11), now on the portal kit: rebuilt on the kit's `Button` over the Fit brand
 // theme, layout authored in compiled StyleX (`var(--color-*)`) — no Tailwind
 // utilities and no formacore Aurora-glass primitives.
 
@@ -72,7 +73,7 @@ export function TrainerNotFound() {
       <ButtonLink
         href="/member/trainers"
         variant="secondary"
-        size="sm"
+        size="card"
         label={t('detail.notFound.action')}
         xstyle={styles.action}
       />

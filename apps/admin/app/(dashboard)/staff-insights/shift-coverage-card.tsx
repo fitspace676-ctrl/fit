@@ -13,8 +13,8 @@
 // the gaps card reports it beside this instead.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { ShiftCoverageDay } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
 
@@ -55,7 +55,7 @@ export function ShiftCoverageCard({ days }: { days: ShiftCoverageDay[] }) {
   }));
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('coverage.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('coverage.caption')}</p>

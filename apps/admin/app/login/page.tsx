@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
+import { Card } from '@fit/ui-kit';
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { StaffLoginForm } from './staff-login-form';
 
 export const metadata: Metadata = {
@@ -71,7 +71,7 @@ const styles = stylex.create({
 export default function AdminLoginPage() {
   return (
     <main {...stylex.props(styles.main)}>
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         <div {...stylex.props(styles.header)}>
           <h1 {...stylex.props(styles.title)}>Staff sign in</h1>
           <p {...stylex.props(styles.subtitle)}>

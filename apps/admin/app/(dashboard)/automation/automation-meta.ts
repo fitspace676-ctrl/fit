@@ -5,7 +5,7 @@ import type {
 } from '@fit/types';
 import { AUTOMATION_TRIGGER_CATALOG } from '@fit/types';
 import type { IconName } from '@/components/ui';
-import type { Tone } from '@/components/ui';
+import type { BadgeTone } from '@fit/ui-kit';
 import { createDateTimeFormat } from '@fit/i18n';
 
 /** The category order the trigger picker groups triggers into. */
@@ -27,12 +27,12 @@ export const CATEGORY_KEY: Record<AutomationTriggerCategory, string> = {
 };
 
 /** Badge tone per category, so the list reads at a glance. */
-export const CATEGORY_TONES: Record<AutomationTriggerCategory, Tone> = {
+export const CATEGORY_TONES: Record<AutomationTriggerCategory, BadgeTone> = {
   Members: 'accent',
-  Classes: 'success',
-  Payments: 'warning',
-  POS: 'ink',
-  Staff: 'flame',
+  Classes: 'positive',
+  Payments: 'pending',
+  POS: 'neutral',
+  Staff: 'pending',
 };
 
 /** The four action types, in the order the builder lists them. */

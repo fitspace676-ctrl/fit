@@ -5,8 +5,8 @@ import * as stylex from '@stylexjs/stylex';
 import { Permission, WEEKDAYS, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchLocation } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Icon, type Tone } from '@/components/ui';
+import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { formatDayHours, weekdayLabel } from '../format-hours';
 import { LocationActions } from './location-actions';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
@@ -172,9 +172,9 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster table's pills. */
-const STATUS_LABELS: Record<string, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  INACTIVE: { label: 'Inactive', tone: 'ink' },
+const STATUS_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
+  ACTIVE: { label: 'Active', tone: 'positive' },
+  INACTIVE: { label: 'Inactive', tone: 'neutral' },
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
@@ -216,7 +216,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         <Link href="/locations" {...stylex.props(styles.backLink)}>
           ← Back to locations
         </Link>
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
@@ -228,7 +228,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
 
   const status = STATUS_LABELS[location.status] ?? {
     label: location.status,
-    tone: 'ink' as Tone,
+    tone: 'ink' as BadgeTone,
   };
 
   // Write controls (edit + deactivate) are a `LocationWrite` capability.
@@ -245,7 +245,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         <div {...stylex.props(styles.headText)}>
           <div {...stylex.props(styles.titleRow)}>
             <h1 {...stylex.props(styles.title)}>{location.name}</h1>
-            <Badge tone={status.tone}>{status.label}</Badge>
+            <Badge tone={status.tone} label={status.label} />
           </div>
           {location.address ? <p {...stylex.props(styles.metaLine)}>{location.address}</p> : null}
           {location.phone ? <p {...stylex.props(styles.metaLine)}>{location.phone}</p> : null}

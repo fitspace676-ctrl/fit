@@ -1,0 +1,25 @@
+{
+  "name": "@fit/ui-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "test": "echo '[@fit/ui-kit] test: nothing to do yet'",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fit/ui-web": "workspace:*",
+    "@stylexjs/stylex": "0.18.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  }
+}

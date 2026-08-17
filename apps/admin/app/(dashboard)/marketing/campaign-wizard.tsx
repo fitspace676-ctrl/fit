@@ -13,17 +13,8 @@ import {
   type MemberStatus,
   type MessageTemplateRow,
 } from '@fit/types';
-import {
-  Badge,
-  Btn,
-  Drawer,
-  Field,
-  Icon,
-  Input,
-  Select,
-  Textarea,
-  useToast,
-} from '@/components/ui';
+import { Badge, Button, Drawer, Field, FieldGroup, SelectField, TextareaField } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import {
   previewCriteriaAction,
   previewSegmentAction,
@@ -83,6 +74,8 @@ interface WizardState {
 }
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   wrap: {
     display: 'flex',
     flexDirection: 'column',
@@ -653,53 +646,57 @@ export function CampaignWizard({
     <Drawer
       open
       onClose={handleClose}
-      closing={closing}
-      side="right"
-      title={t('wizard.title', { step, total: STEP_COUNT })}
-      className="max-w-xl"
+      label={t('wizard.title', { step, total: STEP_COUNT })}
       footer={
         <div {...stylex.props(styles.footerRow)}>
-          <Btn
-            v="outline"
-            size="md"
-            icon="chevronLeft"
+          <Button
+            variant="secondary"
+            size="card"
             onClick={() => (step > 1 ? setStep(step - 1) : handleClose())}
             disabled={pending}
-          >
-            {step === 1 ? t('wizard.cancel') : t('wizard.back')}
-          </Btn>
+            icon={<Icon name="chevronLeft" {...stylex.props(styles.kitGlyph)} />}
+            label={step === 1 ? t('wizard.cancel') : t('wizard.back')}
+          />
           <div {...stylex.props(styles.footerNav)}>
             {canSaveTemplate ? (
-              <Btn v="outline" size="md" icon="star" onClick={saveAsTemplate} disabled={pending}>
-                {t('wizard.saveAsTemplate')}
-              </Btn>
+              <Button
+                variant="secondary"
+                size="card"
+                onClick={saveAsTemplate}
+                disabled={pending}
+                icon={<Icon name="star" {...stylex.props(styles.kitGlyph)} />}
+                label={t('wizard.saveAsTemplate')}
+              />
             ) : null}
             {step < STEP_COUNT ? (
-              <Btn
-                v="primary"
-                size="md"
-                iconRight="chevronRight"
+              <Button
+                variant="primary"
+                size="card"
                 onClick={() => setStep(step + 1)}
                 disabled={!stepValid}
-                className="btn-brand"
-              >
-                {t('wizard.next')}
-              </Btn>
+                endContent={<Icon name="chevronRight" {...stylex.props(styles.kitGlyph)} />}
+                label={t('wizard.next')}
+              />
             ) : (
-              <Btn
-                v="primary"
-                size="md"
-                icon={form.scheduleType === 'now' ? 'spark' : 'clock'}
+              <Button
+                variant="primary"
+                size="card"
                 onClick={finish}
                 disabled={pending || !stepValid}
-                className="btn-brand"
-              >
-                {pending
-                  ? t('wizard.saving')
-                  : form.scheduleType === 'now'
-                    ? t('wizard.sendNow')
-                    : t('wizard.schedule')}
-              </Btn>
+                icon={
+                  <Icon
+                    name={form.scheduleType === 'now' ? 'spark' : 'clock'}
+                    {...stylex.props(styles.kitGlyph)}
+                  />
+                }
+                label={
+                  pending
+                    ? t('wizard.saving')
+                    : form.scheduleType === 'now'
+                      ? t('wizard.sendNow')
+                      : t('wizard.schedule')
+                }
+              />
             )}
           </div>
         </div>
@@ -732,15 +729,14 @@ export function CampaignWizard({
         {/* Step 1 — Type. */}
         {step === 1 ? (
           <div {...stylex.props(styles.section)}>
-            <Field label={t('wizard.nameLabel')}>
-              <Input
-                value={form.name}
-                onChange={(e) => patch('name', e.target.value)}
-                placeholder={t('wizard.namePlaceholder')}
-                autoFocus
-              />
-            </Field>
-            <Field label={t('wizard.channelLabel')}>
+            <Field
+              label={t('wizard.nameLabel')}
+              value={form.name}
+              onChange={(e) => patch('name', e.target.value)}
+              placeholder={t('wizard.namePlaceholder')}
+              autoFocus
+            />
+            <FieldGroup label={t('wizard.channelLabel')}>
               <div {...stylex.props(styles.cardGrid)}>
                 {CHANNEL_ORDER.map((channel) => {
                   const active = form.channel === channel;
@@ -761,7 +757,7 @@ export function CampaignWizard({
                   );
                 })}
               </div>
-            </Field>
+            </FieldGroup>
           </div>
         ) : null}
 
@@ -848,7 +844,7 @@ export function CampaignWizard({
             {form.audienceType === 'custom' ? (
               <div {...stylex.props(styles.criteriaBox)}>
                 <div {...stylex.props(styles.fullSpan)}>
-                  <Field label={t('audience.statusLabel')}>
+                  <FieldGroup label={t('audience.statusLabel')}>
                     <div {...stylex.props(styles.statusChips)}>
                       {STATUS_OPTIONS.map((status) => {
                         const active = form.criteria.status.includes(status);
@@ -865,80 +861,76 @@ export function CampaignWizard({
                         );
                       })}
                     </div>
-                  </Field>
+                  </FieldGroup>
                 </div>
-                <Field label={t('audience.notVisitedLabel')}>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={form.criteria.notVisitedForDays}
-                    onChange={(e) => patchCriteria('notVisitedForDays', e.target.value)}
-                    placeholder={t('audience.daysPlaceholder')}
-                  />
-                </Field>
-                <Field label={t('audience.visitedWithinLabel')}>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={form.criteria.visitedWithinDays}
-                    onChange={(e) => patchCriteria('visitedWithinDays', e.target.value)}
-                    placeholder={t('audience.daysPlaceholder')}
-                  />
-                </Field>
-                <Field label={t('audience.minClassLabel')}>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.criteria.minClassAttendance}
-                    onChange={(e) => patchCriteria('minClassAttendance', e.target.value)}
-                    placeholder={t('audience.countPlaceholder')}
-                  />
-                </Field>
-                <Field label={t('audience.minSpentLabel')}>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.criteria.minSpent}
-                    onChange={(e) => patchCriteria('minSpent', e.target.value)}
-                    placeholder={t('audience.amountPlaceholder')}
-                  />
-                </Field>
-                <Field label={t('audience.joinedAfterLabel')}>
-                  <Input
-                    type="date"
-                    value={form.criteria.joinedAfter}
-                    onChange={(e) => patchCriteria('joinedAfter', e.target.value)}
-                  />
-                </Field>
-                <Field label={t('audience.joinedBeforeLabel')}>
-                  <Input
-                    type="date"
-                    value={form.criteria.joinedBefore}
-                    onChange={(e) => patchCriteria('joinedBefore', e.target.value)}
-                  />
-                </Field>
+                <Field
+                  label={t('audience.notVisitedLabel')}
+                  type="number"
+                  min={1}
+                  value={form.criteria.notVisitedForDays}
+                  onChange={(e) => patchCriteria('notVisitedForDays', e.target.value)}
+                  placeholder={t('audience.daysPlaceholder')}
+                />
+                <Field
+                  label={t('audience.visitedWithinLabel')}
+                  type="number"
+                  min={1}
+                  value={form.criteria.visitedWithinDays}
+                  onChange={(e) => patchCriteria('visitedWithinDays', e.target.value)}
+                  placeholder={t('audience.daysPlaceholder')}
+                />
+                <Field
+                  label={t('audience.minClassLabel')}
+                  type="number"
+                  min={0}
+                  value={form.criteria.minClassAttendance}
+                  onChange={(e) => patchCriteria('minClassAttendance', e.target.value)}
+                  placeholder={t('audience.countPlaceholder')}
+                />
+                <Field
+                  label={t('audience.minSpentLabel')}
+                  type="number"
+                  min={0}
+                  value={form.criteria.minSpent}
+                  onChange={(e) => patchCriteria('minSpent', e.target.value)}
+                  placeholder={t('audience.amountPlaceholder')}
+                />
+                <Field
+                  label={t('audience.joinedAfterLabel')}
+                  type="date"
+                  value={form.criteria.joinedAfter}
+                  onChange={(e) => patchCriteria('joinedAfter', e.target.value)}
+                />
+                <Field
+                  label={t('audience.joinedBeforeLabel')}
+                  type="date"
+                  value={form.criteria.joinedBefore}
+                  onChange={(e) => patchCriteria('joinedBefore', e.target.value)}
+                />
               </div>
             ) : null}
 
             <div {...stylex.props(styles.previewRow)}>
               <span {...stylex.props(styles.previewLabel)}>{t('audience.estimated')}</span>
               <span {...stylex.props(styles.audienceMain)}>
-                <Badge tone="accent">
-                  {previewing
-                    ? t('audience.counting')
-                    : previewCount !== null
-                      ? t('audience.memberCount', { count: previewCount })
-                      : '—'}
-                </Badge>
-                <Btn
-                  v="ghost"
-                  size="sm"
-                  icon="filter"
+                <Badge
+                  tone="accent"
+                  label={
+                    previewing
+                      ? t('audience.counting')
+                      : previewCount !== null
+                        ? t('audience.memberCount', { count: previewCount })
+                        : '—'
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="inline"
                   onClick={() => void runPreview()}
                   disabled={previewing}
-                >
-                  {t('audience.refresh')}
-                </Btn>
+                  icon={<Icon name="filter" {...stylex.props(styles.kitGlyph)} />}
+                  label={t('audience.refresh')}
+                />
               </span>
             </div>
           </div>
@@ -948,26 +940,24 @@ export function CampaignWizard({
         {step === 3 ? (
           <div {...stylex.props(styles.section)}>
             {templates.length > 0 ? (
-              <Field label={t('content.fromTemplate')}>
-                <Select value="" onChange={(e) => e.target.value && useTemplate(e.target.value)}>
-                  <option value="">{t('content.fromTemplatePlaceholder')}</option>
-                  {templates.map((tpl) => (
-                    <option key={tpl.id} value={tpl.id}>
-                      {tpl.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              <SelectField
+                label={t('content.fromTemplate')}
+                value=""
+                onChange={(e) => e.target.value && useTemplate(e.target.value)}
+                options={[
+                  { value: '', label: t('content.fromTemplatePlaceholder') },
+                  ...templates.map((tpl) => ({ value: tpl.id, label: tpl.name })),
+                ]}
+              />
             ) : null}
 
-            <Field label={t('content.subjectLabel')}>
-              <Input
-                value={form.subject}
-                maxLength={subjectLimit}
-                onChange={(e) => patch('subject', e.target.value)}
-                placeholder={t('content.subjectPlaceholder')}
-              />
-            </Field>
+            <Field
+              label={t('content.subjectLabel')}
+              value={form.subject}
+              maxLength={subjectLimit}
+              onChange={(e) => patch('subject', e.target.value)}
+              placeholder={t('content.subjectPlaceholder')}
+            />
 
             <div>
               <div {...stylex.props(styles.counterRow)}>
@@ -978,7 +968,9 @@ export function CampaignWizard({
                   </span>
                 ) : null}
               </div>
-              <Textarea
+              <TextareaField
+                label={t('content.bodyPlaceholder')}
+                labelHidden
                 rows={6}
                 value={form.body}
                 maxLength={bodyLimit ?? undefined}
@@ -1053,20 +1045,18 @@ export function CampaignWizard({
 
             {form.scheduleType === 'scheduled' ? (
               <div {...stylex.props(styles.scheduleGrid)}>
-                <Field label={t('schedule.dateLabel')}>
-                  <Input
-                    type="date"
-                    value={form.scheduleDate}
-                    onChange={(e) => patch('scheduleDate', e.target.value)}
-                  />
-                </Field>
-                <Field label={t('schedule.timeLabel')}>
-                  <Input
-                    type="time"
-                    value={form.scheduleTime}
-                    onChange={(e) => patch('scheduleTime', e.target.value)}
-                  />
-                </Field>
+                <Field
+                  label={t('schedule.dateLabel')}
+                  type="date"
+                  value={form.scheduleDate}
+                  onChange={(e) => patch('scheduleDate', e.target.value)}
+                />
+                <Field
+                  label={t('schedule.timeLabel')}
+                  type="time"
+                  value={form.scheduleTime}
+                  onChange={(e) => patch('scheduleTime', e.target.value)}
+                />
               </div>
             ) : null}
 

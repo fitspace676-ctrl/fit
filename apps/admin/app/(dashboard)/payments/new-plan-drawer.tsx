@@ -1,10 +1,11 @@
 'use client';
 
 import * as stylex from '@stylexjs/stylex';
+import { Button } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
-import { Icon, buttonClasses } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { SubscriptionPlanForm, type PlanClassTypeOption } from './subscription-plan-form';
 
@@ -50,10 +51,13 @@ export function NewPlanDrawer({ classTypes }: { classTypes: PlanClassTypeOption[
 
   return (
     <>
-      <button type="button" onClick={drawer.open} className={buttonClasses('primary', 'sm')}>
-        <Icon name="plus" className="h-4 w-4" />
-        {t('newPlan')}
-      </button>
+      <Button
+        variant="primary"
+        size="inline"
+        onClick={drawer.open}
+        icon={<Icon name="plus" />}
+        label={t('newPlan')}
+      />
 
       <Dialog
         isOpen={drawer.isOpen}

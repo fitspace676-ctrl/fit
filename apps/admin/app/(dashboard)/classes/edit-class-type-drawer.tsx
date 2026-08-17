@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import type { AdminClassTypeRow } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { ClassTypeForm, type ClassTypeInitial } from './class-type-form';
 import { getClassTypeAction } from './class-type-actions';
@@ -98,9 +98,13 @@ export function EditClassTypeDrawer({
 
   return (
     <>
-      <Btn v="outline" size="sm" onClick={open} aria-label={`Edit ${type.name}`}>
-        Edit
-      </Btn>
+      <Button
+        variant="secondary"
+        size="inline"
+        onClick={open}
+        aria-label={`Edit ${type.name}`}
+        label="Edit"
+      />
 
       <Dialog
         isOpen={drawer.isOpen}
@@ -126,7 +130,7 @@ export function EditClassTypeDrawer({
           content={
             <LayoutContent padding={0} isScrollable xstyle={styles.content}>
               {error ? (
-                <Card variant="default" padding={0} xstyle={styles.errorCard}>
+                <Card padding="none" xstyle={styles.errorCard}>
                   <Icon name="info" {...stylex.props(styles.errorIcon)} />
                   <p role="alert" {...stylex.props(styles.errorText)}>
                     {error}

@@ -8,7 +8,8 @@ import {
   type SubscriptionInterval,
   type SubscriptionPlanStatus,
 } from '@fit/types';
-import { Badge, Btn, Card, Icon } from '@/components/ui';
+import { Badge, Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { useGymCurrency } from '@/components/gym-currency';
 import {
   SUBSCRIPTION_INTERVALS,
@@ -268,13 +269,22 @@ export function SubscriptionPlanForm(props: Props) {
       }
       style={inDrawer ? { backgroundColor: 'var(--color-background-body)' } : undefined}
     >
-      <Btn type="submit" v="primary" size="md" disabled={pending}>
-        {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create plan'}
-      </Btn>
+      <Button
+        variant="primary"
+        size="card"
+        type="submit"
+        disabled={pending}
+        label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create plan'}
+      />
       {props.onCancel ? (
-        <Btn type="button" v="ghost" size="md" onClick={props.onCancel} disabled={pending}>
-          Cancel
-        </Btn>
+        <Button
+          variant="ghost"
+          size="card"
+          type="button"
+          onClick={props.onCancel}
+          disabled={pending}
+          label="Cancel"
+        />
       ) : (
         <Link
           href={cancelHref}
@@ -298,7 +308,7 @@ export function SubscriptionPlanForm(props: Props) {
       {/* ── form column ─────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-col gap-5">
         {/* Basics & pricing */}
-        <Card className="p-5 sm:p-6">
+        <Card>
           <h3 className={CARD_HEADING_CLASS}>Basics &amp; pricing</h3>
           <div className="mt-4 flex flex-col gap-4">
             <div className="flex flex-col gap-1">
@@ -381,7 +391,7 @@ export function SubscriptionPlanForm(props: Props) {
         </Card>
 
         {/* Included classes */}
-        <Card className="p-5 sm:p-6">
+        <Card>
           <h3 className={CARD_HEADING_CLASS}>Included classes</h3>
           <p className="mt-0.5 text-sm text-ink-500 dark:text-ink-400">
             Pick the classes this plan covers. Members on it book them without paying per session.
@@ -430,7 +440,7 @@ export function SubscriptionPlanForm(props: Props) {
         </Card>
 
         {/* Freeze policy */}
-        <Card className="p-5 sm:p-6">
+        <Card>
           <h3 className={CARD_HEADING_CLASS}>Freeze policy</h3>
           <div className="mt-4 flex flex-col gap-1 sm:max-w-xs">
             <label htmlFor="plan-freeze" className={LABEL_CLASS}>
@@ -454,7 +464,7 @@ export function SubscriptionPlanForm(props: Props) {
         </Card>
 
         {/* Visibility */}
-        <Card className="p-5 sm:p-6">
+        <Card>
           <h3 className={CARD_HEADING_CLASS}>Visibility</h3>
           <label className="mt-4 flex items-center gap-3 text-sm font-medium text-ink-700 dark:text-ink-200">
             <input
@@ -517,16 +527,12 @@ export function SubscriptionPlanForm(props: Props) {
             Member preview
           </span>
         </div>
-        <Card className="p-5">
+        <Card>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-display text-lg font-bold tracking-tight text-ink-900 dark:text-white">
               {name.trim() || 'Untitled plan'}
             </h3>
-            {popular ? (
-              <Badge tone="iris" icon="star">
-                Popular
-              </Badge>
-            ) : null}
+            {popular ? <Badge tone="neutral" icon="star" label="Popular" /> : null}
           </div>
           {description.trim() ? (
             <p className="mt-1.5 text-xs text-ink-500 dark:text-ink-400">{description.trim()}</p>

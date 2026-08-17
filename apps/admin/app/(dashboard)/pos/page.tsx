@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
@@ -11,7 +12,6 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { fetchGymSettings } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { PosBoard } from '@/components/pos/pos-board';
 
@@ -134,7 +134,7 @@ export default async function PosPage() {
     return (
       <div {...stylex.props(styles.forbiddenPage)}>
         <h1 {...stylex.props(styles.forbiddenTitle)}>{t('title')}</h1>
-        <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+        <Card padding="none" role="alert" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span {...stylex.props(styles.errorText)}>{t('forbidden')}</span>
         </Card>

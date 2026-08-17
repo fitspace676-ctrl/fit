@@ -1,15 +1,14 @@
 import * as stylex from '@stylexjs/stylex';
+import { Badge, Card } from '@/src/components/ui/kit';
 import { useLocale, useTranslations } from 'next-intl';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceDetail } from '@fit/types';
 import { ClassBookingCta } from './ClassBookingCta';
 import { ClassOccupancy } from './ClassOccupancy';
 import { ClassOccupancyLive } from './ClassOccupancyLive';
 import { formatZonedDate, formatZonedTime } from './date-utils';
 
-// Astryx migration (T11.12): the class-detail body is rebuilt on the Astryx
-// `Card` / `Badge` over the Fit brand theme, with the layout, status banner, and
+// Astryx migration (T11), now on the portal kit: the class-detail body is rebuilt on the portal kit
+// `Card` / `Badge` over the FormaCore theme, with the layout, status banner, and
 // definition list authored in compiled StyleX (`var(--color-*)`). The occupancy
 // meter reuses the shared brand `ClassOccupancy`. No Tailwind utilities and no
 // formacore Aurora-glass primitives; the booking/live islands are unchanged.
@@ -161,7 +160,7 @@ export function ClassDetail({ instance, gymId, timeZone }: ClassDetailProps) {
   const isScheduled = instance.status === 'SCHEDULED';
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       {/* Accent colour bar from the class instance. */}
       <span
         aria-hidden
@@ -170,7 +169,7 @@ export function ClassDetail({ instance, gymId, timeZone }: ClassDetailProps) {
       />
 
       <div {...stylex.props(styles.head)}>
-        {instance.category && <Badge variant="purple" label={instance.category} />}
+        {instance.category && <Badge tone="neutral" label={instance.category} />}
         <h1 {...stylex.props(styles.title)}>{instance.title}</h1>
         <p {...stylex.props(styles.date)}>{formatZonedDate(instance.startsAt, timeZone, locale)}</p>
       </div>

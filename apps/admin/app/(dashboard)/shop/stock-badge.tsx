@@ -1,14 +1,14 @@
 import { resolveStockLevel, type AdminProductRow, type StockLevel } from '@fit/types';
-import { Badge, type Tone } from '@/components/ui';
+import { Badge, type BadgeTone } from '@fit/ui-kit';
 
 export type { StockLevel };
 
 /** The badge label + tone each stock level wears on a catalog card. */
-const STOCK_STYLES: Record<StockLevel, { label: string; tone: Tone }> = {
-  untracked: { label: 'Untracked', tone: 'ink' },
+const STOCK_STYLES: Record<StockLevel, { label: string; tone: BadgeTone }> = {
+  untracked: { label: 'Untracked', tone: 'neutral' },
   out: { label: 'Out of stock', tone: 'danger' },
-  low: { label: 'Low stock', tone: 'warning' },
-  in: { label: 'In stock', tone: 'success' },
+  low: { label: 'Low stock', tone: 'pending' },
+  in: { label: 'In stock', tone: 'positive' },
 };
 
 /**
@@ -39,9 +39,13 @@ export function StockBadge({
   const { label, tone } = STOCK_STYLES[level];
   const suffix = level === 'low' || level === 'in' ? ` · ${row.totalStock}` : '';
   return (
-    <Badge tone={tone}>
-      {label}
-      {suffix}
-    </Badge>
+    <Badge
+      tone={tone}
+      label={
+        <>
+          {label} {suffix}
+        </>
+      }
+    />
   );
 }

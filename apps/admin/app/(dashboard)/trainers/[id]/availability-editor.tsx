@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import {
   MAX_WINDOWS_PER_DAY,
   WEEKDAYS,
@@ -11,7 +10,8 @@ import {
   type WeeklyAvailability,
   type Weekday,
 } from '@fit/types';
-import { Btn, Icon, Switch, useToast } from '@/components/ui';
+import { Button, Card, Switch } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { setTrainerAvailabilityAction } from '../actions';
 
 const styles = stylex.create({
@@ -293,7 +293,7 @@ export function TrainerAvailabilityEditor({
   }
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div {...stylex.props(styles.headText)}>
           <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.weeklyAvailability')}</h3>
@@ -402,9 +402,14 @@ export function TrainerAvailabilityEditor({
 
       {canWrite ? (
         <div {...stylex.props(styles.actions)}>
-          <Btn type="button" v="primary" onClick={onSave} disabled={pending || hasErrors || !dirty}>
-            {pending ? t('availability.saving') : t('availability.save')}
-          </Btn>
+          <Button
+            variant="primary"
+            size="card"
+            type="button"
+            onClick={onSave}
+            disabled={pending || hasErrors || !dirty}
+            label={pending ? t('availability.saving') : t('availability.save')}
+          />
           {dirty && !pending ? (
             <button type="button" onClick={() => setWeek(saved)} {...stylex.props(styles.resetBtn)}>
               {t('availability.reset')}

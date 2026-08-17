@@ -12,8 +12,8 @@
 // vanish silently.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import { TOP_CLASS_TYPES } from '@fit/types';
 import type { ClassTypeSlice } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
@@ -50,7 +50,7 @@ export function TopClassTypesCard({ slices }: { slices: ClassTypeSlice[] }) {
   }));
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('topTypes.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('topTypes.caption', { count: TOP_CLASS_TYPES })}</p>

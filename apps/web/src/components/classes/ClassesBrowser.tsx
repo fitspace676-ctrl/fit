@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Card, EmptyState, SegmentedControl, Spinner } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
 import { DEFAULT_CLASS_VIEW, type ClassCalendarView, type ClassInstanceCard } from '@fit/types';
+import { Icon } from '@/src/components/ui';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchClassInstances } from '@/lib/classes';
 import { ClassDetailDrawer } from './ClassDetailDrawer';
@@ -22,11 +22,27 @@ import {
 } from './class-filters';
 import { dayKey, parseWeekParam, weekWindow } from './date-utils';
 
-// Astryx migration (T11.12): the browser shell — the week/list segmented
-// toggle, the loading / error / no-match states — is rebuilt on the Astryx
-// `Card` / `Button` over the Fit brand theme, authored in compiled StyleX
+// Astryx migration (T11), now on the portal kit: the browser shell — the week/list segmented
+// toggle, the loading / error / no-match states — is rebuilt on the portal kit
+// `Card` / `Button` over the FormaCore theme, authored in compiled StyleX
 // (`var(--color-*)`) with no Tailwind utilities. The fetch/URL/filter logic is
 // unchanged; only the presentation moved off Tailwind.
+//
+// KIT PASS. Three of this shell's four visible parts were private re-inventions
+// of things the kit already owns, and each was drawn slightly differently:
+//
+//   • The Week/List toggle was a hand-rolled bordered capsule — a different
+//     height, radius and border from the kit's `SegmentedControl`, which the
+//     rest of the portal uses for exactly this job. It was also a row of
+//     `aria-pressed` buttons rather than a radiogroup, so a keyboard user tabbed
+//     through each option instead of arrowing within one stop.
+//   • The error and no-match panels were bespoke centred stacks with their own
+//     title/body type ramp, beside `EmptyState`, which is that stack.
+//   • Loading was a bare `<p>` on the canvas: the entire schedule vanished and
+//     was replaced by one grey line, so a slow week read as a broken page.
+//
+// All three now come from the kit. The private style block below shrank from
+// nine rules to one.
 
 const styles = stylex.create({
   root: {
@@ -34,63 +50,34 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1.5rem',
   },
-  toggle: {
-    display: 'inline-flex',
-    alignSelf: 'flex-start',
-    borderRadius: 'var(--radius-full)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    padding: '0.125rem',
-  },
-  toggleBtn: {
-    borderRadius: 'var(--radius-full)',
-    borderWidth: 0,
-    paddingInline: '1rem',
-    paddingBlock: '0.375rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transitionProperty: 'background-color, color',
-    transitionDuration: '150ms',
-  },
-  toggleBtnIdle: {
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-overlay-hover)',
-    },
-    color: 'var(--color-text-secondary)',
-  },
-  toggleBtnActive: {
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  loading: {
-    paddingBlock: '4rem',
-    margin: 0,
-    textAlign: 'center',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
-  stateCard: {
+  // Loading keeps the schedule's footprint instead of collapsing to a line of
+  // text, so the page does not jump when the week lands.
+  loadingCard: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: '0.75rem',
-    paddingBlock: '4rem',
-    textAlign: 'center',
+    minHeight: '18rem',
+    color: 'var(--color-text-secondary)',
   },
-  stateText: {
+  spinner: {
+    height: '1.5rem',
+    width: '1.5rem',
+  },
+  loadingText: {
     margin: 0,
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
-  stateTitle: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
+  /** The capsule sits at the start of its row rather than stretching. */
+  viewToggle: {
+    alignSelf: 'flex-start',
+  },
+  stateIcon: {
+    height: '2.25rem',
+    width: '2.25rem',
+    color: 'var(--color-text-secondary)',
   },
 });
 
@@ -212,12 +199,15 @@ export function ClassesBrowser({
 
   return (
     <div {...stylex.props(styles.root)}>
-      <ViewToggle
-        view={view}
+      <SegmentedControl
+        label={t('toggle.label')}
+        value={view}
         onChange={setView}
-        weekLabel={t('toggle.week')}
-        listLabel={t('toggle.list')}
-        groupLabel={t('toggle.label')}
+        options={[
+          { value: 'week', label: t('toggle.week') },
+          { value: 'list', label: t('toggle.list') },
+        ]}
+        xstyle={styles.viewToggle}
       />
 
       {load.status === 'ready' && load.instances.length > 0 && (
@@ -225,28 +215,41 @@ export function ClassesBrowser({
       )}
 
       {load.status === 'loading' ? (
-        <p {...stylex.props(styles.loading)}>{t('loading')}</p>
+        <Card padding="none" xstyle={styles.loadingCard}>
+          <Spinner xstyle={styles.spinner} />
+          <p {...stylex.props(styles.loadingText)}>{t('loading')}</p>
+        </Card>
       ) : load.status === 'error' ? (
-        <Card variant="default" padding={0} xstyle={styles.stateCard}>
-          <p {...stylex.props(styles.stateText)}>{t('error')}</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            label={t('retry')}
-            onClick={() => setWeek(new Date(week))}
+        <Card>
+          <EmptyState
+            icon={<Icon name="info" {...stylex.props(styles.stateIcon)} />}
+            title={t('error')}
+            action={
+              <Button
+                variant="secondary"
+                size="card"
+                label={t('retry')}
+                onClick={() => setWeek(new Date(week))}
+              />
+            }
           />
         </Card>
       ) : load.instances.length > 0 && filtered.length === 0 ? (
         // Classes exist this week but the active filters exclude them all — a
         // distinct state from "no classes this week", with a one-tap reset.
-        <Card variant="default" padding={0} xstyle={styles.stateCard}>
-          <p {...stylex.props(styles.stateTitle)}>{t('filters.noMatch.title')}</p>
-          <p {...stylex.props(styles.stateText)}>{t('filters.noMatch.subtitle')}</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            label={t('filters.noMatch.action')}
-            onClick={() => setFilters(EMPTY_FILTERS)}
+        <Card>
+          <EmptyState
+            icon={<Icon name="filter" {...stylex.props(styles.stateIcon)} />}
+            title={t('filters.noMatch.title')}
+            body={t('filters.noMatch.subtitle')}
+            action={
+              <Button
+                variant="secondary"
+                size="card"
+                label={t('filters.noMatch.action')}
+                onClick={() => setFilters(EMPTY_FILTERS)}
+              />
+            }
           />
         </Card>
       ) : view === 'week' ? (
@@ -268,43 +271,6 @@ export function ClassesBrowser({
         onClose={() => setSelectedId(null)}
         timeZone={timeZone}
       />
-    </div>
-  );
-}
-
-/** Segmented Week / List toggle. */
-function ViewToggle({
-  view,
-  onChange,
-  weekLabel,
-  listLabel,
-  groupLabel,
-}: {
-  view: ClassCalendarView;
-  onChange: (view: ClassCalendarView) => void;
-  weekLabel: string;
-  listLabel: string;
-  groupLabel: string;
-}) {
-  return (
-    <div role="group" aria-label={groupLabel} {...stylex.props(styles.toggle)}>
-      {(['week', 'list'] as const).map((value) => {
-        const active = view === value;
-        return (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onChange(value)}
-            {...stylex.props(
-              styles.toggleBtn,
-              active ? styles.toggleBtnActive : styles.toggleBtnIdle,
-            )}
-          >
-            {value === 'week' ? weekLabel : listLabel}
-          </button>
-        );
-      })}
     </div>
   );
 }

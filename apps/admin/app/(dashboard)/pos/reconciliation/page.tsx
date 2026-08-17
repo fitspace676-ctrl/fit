@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import {
   businessDateSchema,
@@ -10,7 +11,6 @@ import {
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchCashReconciliation } from '@/lib/api';
 import { formatPrice } from '@/app/(dashboard)/shop/format-price';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/components/ui';
 import { ReconciliationDateForm } from './reconciliation-date-form';
 import { CashCountForm } from './cash-count-form';
@@ -208,7 +208,7 @@ export default async function ReconciliationPage({
     return (
       <div {...stylex.props(styles.forbiddenPage)}>
         <h1 {...stylex.props(styles.title)}>Cash reconciliation</h1>
-        <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+        <Card padding="none" role="alert" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span {...stylex.props(styles.errorText)}>
             You don’t have permission to view the cash reconciliation report.
@@ -248,13 +248,13 @@ export default async function ReconciliationPage({
       <ReconciliationDateForm date={date} />
 
       {error !== null ? (
-        <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+        <Card padding="none" role="alert" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span {...stylex.props(styles.errorText)}>{error}</span>
         </Card>
       ) : report !== null ? (
         <div {...stylex.props(styles.report)}>
-          <Card variant="default" padding={0} xstyle={styles.tableCard}>
+          <Card padding="none" xstyle={styles.tableCard}>
             <table {...stylex.props(styles.table)}>
               <thead>
                 <tr {...stylex.props(styles.headRow)}>

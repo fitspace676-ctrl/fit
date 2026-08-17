@@ -5,8 +5,8 @@ import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchClassTemplate } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Icon } from '@/components/ui';
+import { Badge, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { STATUS_STYLES, formatDate, formatDateTime, formatDuration } from '../format';
 import { TemplateActions } from './template-actions';
 
@@ -199,7 +199,7 @@ export default async function ClassTemplateDetailPage({
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
           Back to classes
         </Link>
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {message}
@@ -234,15 +234,15 @@ export default async function ClassTemplateDetailPage({
               style={{ backgroundColor: template.color }}
             />
             <h1 {...stylex.props(styles.title)}>{template.title}</h1>
-            <Badge tone={status.tone}>{status.label}</Badge>
-            {template.category ? <Badge tone="ink">{template.category}</Badge> : null}
+            <Badge tone={status.tone} label={status.label} />
+            {template.category ? <Badge tone="neutral" label={template.category} /> : null}
           </div>
           <p {...stylex.props(styles.recurrence)}>{template.recurrence}</p>
         </div>
         {canWrite ? <TemplateActions templateId={template.id} status={template.status} /> : null}
       </header>
 
-      <Card variant="default" padding={0} xstyle={styles.infoCard}>
+      <Card padding="none" xstyle={styles.infoCard}>
         <div {...stylex.props(styles.stat)}>
           <span {...stylex.props(styles.statLabel)}>Capacity</span>
           <span {...stylex.props(styles.statValue)}>{template.capacity} spots</span>

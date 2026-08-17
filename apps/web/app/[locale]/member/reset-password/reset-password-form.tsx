@@ -4,7 +4,7 @@ import { type FormEvent, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { postLoginPath, resetPassword } from '@/lib/auth';
-import { AuthBanner, AuthField, AuthForm, AuthSubmit } from '../../_components/auth/auth-form-kit';
+import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
 
 /**
  * Set-a-new-password form reached from the emailed reset link
@@ -34,7 +34,7 @@ export function ResetPasswordForm() {
   // A malformed or expired link (no token) can never succeed — surface the
   // recoverable message instead of an unusable form.
   if (!token) {
-    return <AuthBanner tone="error">{t('reset.missingToken')}</AuthBanner>;
+    return <Banner tone="error">{t('reset.missingToken')}</Banner>;
   }
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
@@ -53,10 +53,10 @@ export function ResetPasswordForm() {
   };
 
   return (
-    <AuthForm onSubmit={onSubmit}>
-      {error ? <AuthBanner tone="error">{error}</AuthBanner> : null}
+    <Form onSubmit={onSubmit}>
+      {error ? <Banner tone="error">{error}</Banner> : null}
 
-      <AuthField
+      <Field
         label={t('fields.password')}
         type="password"
         name="password"
@@ -76,9 +76,15 @@ export function ResetPasswordForm() {
         hint={t('fields.passwordHint')}
       />
 
-      <AuthSubmit pending={pending}>
-        {pending ? t('reset.submitting') : t('reset.submit')}
-      </AuthSubmit>
-    </AuthForm>
+      <Button
+        type="submit"
+        variant="primary"
+        size="door"
+        fullWidth
+        loading={pending}
+        label={pending ? t('reset.submitting') : t('reset.submit')}
+        xstyle={spacing.formAction}
+      />
+    </Form>
   );
 }

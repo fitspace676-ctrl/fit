@@ -4,7 +4,8 @@ import { type FormEvent, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { CreateStaffInput } from '@fit/types';
-import { Drawer, Icon } from '@/components/ui';
+import { Drawer } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import {
   StaffFormFields,
   emptyStaffForm,
@@ -164,9 +165,8 @@ export function AddStaffDrawer({
     <Drawer
       open={open}
       onClose={close}
-      title={t('addStaffDrawer.title')}
-      size="lg"
-      disableBackdropClose={pending}
+      label={t('addStaffDrawer.title')}
+      dismissible={!pending}
       footer={
         <>
           <button

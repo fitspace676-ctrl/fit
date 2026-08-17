@@ -13,7 +13,7 @@ const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 type Status = 'idle' | 'authenticating' | 'success' | 'error';
 
-// Astryx migration (T11.7): the GIS library renders its own button into the
+// Astryx migration (T11), now on the portal kit: the GIS library renders its own button into the
 // container, so this component only owns the wrapper + status copy — now
 // authored in compiled StyleX on the Fit theme tokens and wired to next-intl.
 const styles = stylex.create({

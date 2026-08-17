@@ -1,12 +1,12 @@
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@/src/components/ui/kit';
 import { useLocale, useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { PublicReview } from '@fit/types';
 import { Icon } from '@/src/components/ui';
 import { createDateTimeFormat } from '@fit/i18n';
 
-// Astryx migration (T11.13): the reviews section is rebuilt on the Astryx `Card`
-// over the Fit brand theme, with the aggregate header, the star glyphs, and each
+// Astryx migration (T11), now on the portal kit: the reviews section is rebuilt on the kit's `Card`
+// over the FormaCore theme, with the aggregate header, the star glyphs, and each
 // review row authored in compiled StyleX (`var(--color-*)`) — no Tailwind
 // utilities and no formacore Aurora-glass primitives.
 
@@ -173,7 +173,7 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
       <ul {...stylex.props(styles.list)}>
         {reviews.map((review) => (
           <li key={review.id}>
-            <Card variant="default" padding={0} xstyle={styles.reviewCard}>
+            <Card padding="none" xstyle={styles.reviewCard}>
               <div {...stylex.props(styles.reviewHead)}>
                 <Stars
                   rating={review.rating}

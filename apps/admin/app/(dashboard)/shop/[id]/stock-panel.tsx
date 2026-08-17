@@ -6,8 +6,7 @@ import {
   type StockMovementReason,
   type StockMovementRow,
 } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, type Tone } from '@/components/ui';
+import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
 import { StockAdjuster } from '../low-stock/stock-adjuster';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
@@ -104,11 +103,11 @@ const styles = stylex.create({
 });
 
 /** The badge each derived level wears beside a position's count. */
-const LEVEL_TONES: Record<string, { label: string; tone: Tone }> = {
-  untracked: { label: 'Not tracked', tone: 'ink' },
+const LEVEL_TONES: Record<string, { label: string; tone: BadgeTone }> = {
+  untracked: { label: 'Not tracked', tone: 'neutral' },
   out: { label: 'Out', tone: 'danger' },
-  low: { label: 'Low', tone: 'warning' },
-  in: { label: 'In stock', tone: 'success' },
+  low: { label: 'Low', tone: 'pending' },
+  in: { label: 'In stock', tone: 'positive' },
 };
 
 /** One addressable stock position, flattened for the table. */
@@ -163,7 +162,7 @@ export function StockPanel({
         </span>
       </div>
 
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         <table {...stylex.props(styles.table)}>
           <thead>
             <tr>
@@ -189,7 +188,7 @@ export function StockPanel({
                     {position.stock === null ? '—' : position.stock}
                   </td>
                   <td {...stylex.props(styles.td)}>
-                    <Badge tone={badge.tone}>{badge.label}</Badge>
+                    <Badge tone={badge.tone} label={badge.label} />
                   </td>
                   {canWrite ? (
                     <td {...stylex.props(styles.td, styles.actionCell)}>
@@ -215,7 +214,7 @@ export function StockPanel({
         <span {...stylex.props(styles.subtle)}>Most recent first</span>
       </div>
 
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         {movements.length === 0 ? (
           <p {...stylex.props(styles.empty)}>
             No movements recorded yet. Adjustments, sales and refunds will appear here.

@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Btn, Field, Input, Modal, useToast } from '@/components/ui';
+import { Button, Dialog, Field } from '@fit/ui-kit';
+import { useToast } from '@/components/ui';
 import { saveAsTemplateAction } from './actions';
 
 const styles = stylex.create({
@@ -56,25 +57,27 @@ export function SaveTemplateDialog({
   }
 
   return (
-    <Modal
+    <Dialog
       open
       onClose={onClose}
       title={t('templates.saveTitle')}
       description={t('templates.saveDescription')}
-      size="sm"
-      footer={
+      actions={
         <>
-          <Btn v="outline" size="md" onClick={onClose} disabled={pending}>
-            {t('form.cancel')}
-          </Btn>
-          <Btn
-            v="primary"
-            size="md"
+          <Button
+            variant="secondary"
+            size="card"
+            onClick={onClose}
+            disabled={pending}
+            label={t('form.cancel')}
+          />
+          <Button
+            variant="primary"
+            size="card"
             onClick={submit}
             disabled={pending || name.trim().length === 0}
-          >
-            {pending ? t('form.saving') : t('templates.saveSubmit')}
-          </Btn>
+            label={pending ? t('form.saving') : t('templates.saveSubmit')}
+          />
         </>
       }
     >
@@ -84,10 +87,13 @@ export function SaveTemplateDialog({
             {error}
           </p>
         ) : null}
-        <Field label={t('templates.nameLabel')}>
-          <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        </Field>
+        <Field
+          label={t('templates.nameLabel')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
       </div>
-    </Modal>
+    </Dialog>
   );
 }

@@ -1,48 +1,28 @@
 import * as stylex from '@stylexjs/stylex';
+import { Card, EmptyState } from '@/src/components/ui/kit';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon } from '@/src/components/ui';
 
-// Astryx migration (T11.12): rebuilt on the Astryx `Card` over the Fit brand
+// Astryx migration (T11), now on the portal kit: rebuilt on the kit's `Card` over the Fit brand
 // theme, with the layout authored in compiled StyleX (`var(--color-*)`) — no
 // Tailwind utilities, no formacore Aurora-glass primitives.
+//
+// It was a private centred stack — an icon in a 48px muted disc over a heading
+// over a body line — which is precisely `EmptyState`, drawn at a slightly
+// different type ramp and icon size than the four other empty states in the
+// portal. It is the kit's now, so "nothing here" looks the same everywhere.
 
 const styles = stylex.create({
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.75rem',
-    paddingBlock: '4rem',
-    paddingInline: '1.5rem',
-    textAlign: 'center',
-  },
-  badge: {
-    display: 'grid',
-    placeItems: 'center',
-    height: '3rem',
-    width: '3rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-background-muted)',
-    color: 'var(--color-text-accent)',
-  },
-  badgeIcon: {
-    height: '1.5rem',
-    width: '1.5rem',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
-  },
-  subtitle: {
-    margin: 0,
-    maxWidth: '24rem',
-    fontSize: '0.875rem',
+  icon: {
+    height: '2.25rem',
+    width: '2.25rem',
     color: 'var(--color-text-secondary)',
+  },
+  // The week grid is tall; an empty state that keeps some of its footprint
+  // stops the page from collapsing as you step between a full week and a bare
+  // one.
+  state: {
+    paddingBlock: '4rem',
   },
 });
 
@@ -55,12 +35,13 @@ export function EmptyClasses() {
   const t = useTranslations('classes');
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
-      <span aria-hidden {...stylex.props(styles.badge)}>
-        <Icon name="calendar" {...stylex.props(styles.badgeIcon)} sw={2} />
-      </span>
-      <p {...stylex.props(styles.title)}>{t('empty.title')}</p>
-      <p {...stylex.props(styles.subtitle)}>{t('empty.subtitle')}</p>
+    <Card>
+      <EmptyState
+        icon={<Icon name="calendar" {...stylex.props(styles.icon)} sw={2} />}
+        title={t('empty.title')}
+        body={t('empty.subtitle')}
+        xstyle={styles.state}
+      />
     </Card>
   );
 }

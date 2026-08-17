@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import type { AdminInvoiceRow } from '@fit/types';
-import { Card, Icon, useToast } from '@/components/ui';
+import { Card } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
 import { formatPrice } from '../format';
 import { formatInvoiceDate, invoiceTypeLabel, isOverdue } from './format';
@@ -60,7 +61,7 @@ export function InvoicesTable({
 
   if (invoices.length === 0) {
     return (
-      <Card className="px-4 py-16 text-center">
+      <Card>
         <Icon name="download" className="mx-auto h-9 w-9 text-ink-300 dark:text-ink-600" sw={1.8} />
         <p className="mt-3 font-display text-lg font-bold text-ink-900 dark:text-white">
           No invoices yet
@@ -74,7 +75,7 @@ export function InvoicesTable({
   }
 
   return (
-    <Card className="overflow-hidden p-0">
+    <Card>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[56rem] border-collapse">
           <thead>

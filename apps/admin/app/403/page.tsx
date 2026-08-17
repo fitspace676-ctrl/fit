@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { ButtonLink } from '@/components/ui/button-link';
 import { getLocale } from 'next-intl/server';
-import { Badge, buttonClasses, Icon } from '@/components/ui';
+import { Badge, buttonSurfaceProps } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { isStaff } from '@/lib/auth-session';
 import { getServerSession } from '@/lib/session';
 
@@ -53,7 +54,7 @@ export default async function ForbiddenPage() {
       <span className="grid h-14 w-14 place-items-center rounded-full bg-danger-50 text-danger-600 dark:bg-danger-500/10 dark:text-danger-300">
         <Icon name="lock" className="h-6 w-6" sw={2} />
       </span>
-      <Badge tone="danger">403</Badge>
+      <Badge tone="danger" label="403" />
       <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">
         Access denied
       </h1>
@@ -62,13 +63,14 @@ export default async function ForbiddenPage() {
         this is a mistake, contact your gym owner.
       </p>
       {exit.external ? (
-        <a href={exit.href} className={buttonClasses('outline', 'md')}>
+        // A plain `<a>`, not `ButtonLink`: this href leaves the console
+        // entirely, and `next/link` would try to client-navigate it. It still
+        // wears the kit's surface, so the two exits are the same object.
+        <a href={exit.href} {...buttonSurfaceProps({ variant: 'secondary', size: 'card' })}>
           {exit.label}
         </a>
       ) : (
-        <Link href={exit.href} className={buttonClasses('outline', 'md')}>
-          {exit.label}
-        </Link>
+        <ButtonLink href={exit.href} variant="secondary" size="card" label={exit.label} />
       )}
     </main>
   );

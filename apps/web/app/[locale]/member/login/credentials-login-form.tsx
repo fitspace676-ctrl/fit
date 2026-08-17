@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginWithCredentials, postLoginPath } from '@/lib/auth';
 import { Link } from '@/src/i18n/navigation';
-import { AuthBanner, AuthField, AuthForm, AuthSubmit } from '../../_components/auth/auth-form-kit';
+import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
 
 /**
  * Only honour a `from` redirect that is a same-origin absolute path
@@ -19,12 +19,17 @@ function safeFrom(from: string | null): string | null {
   return from;
 }
 
-// The fields, the submit and the error banner come from
-// `_components/auth/auth-form-kit`, which the forgot-password, reset-password
-// and register forms mount too. That kit IS the artboard's field — a 52px
-// control over a 10px tracked micro-label whose row carries an inline action,
-// with the reveal button inset over the field's right edge — so every auth
-// screen shares one vocabulary and it changes in one place.
+// The fields, the submit and the error banner come from the portal's kit
+// (`src/components/ui/kit`) — the same `Field`, `Button` and `Banner` the
+// dashboard, the shop and the checkout render.
+//
+// They used to come from a private `auth-form-kit` that only the four screens at
+// the door could see, on the reasoning that the door is a set piece. It is, but
+// the set piece turned out to be the RIGHT vocabulary rather than a local one:
+// the 52px field on the recessed surface, the 10px tracked micro-label and the
+// 56px lime submit are what the artboards use everywhere, and keeping them
+// private is what left the rest of the portal on Astryx's defaults and reading
+// as a different product one click past sign-in.
 
 const styles = stylex.create({
   forgot: {
@@ -76,10 +81,10 @@ export function CredentialsLoginForm() {
   };
 
   return (
-    <AuthForm onSubmit={onSubmit}>
-      {error ? <AuthBanner tone="error">{error}</AuthBanner> : null}
+    <Form onSubmit={onSubmit}>
+      {error ? <Banner tone="error">{error}</Banner> : null}
 
-      <AuthField
+      <Field
         label={t('fields.email')}
         type="email"
         name="email"
@@ -91,7 +96,7 @@ export function CredentialsLoginForm() {
         invalid={error !== null}
       />
 
-      <AuthField
+      <Field
         label={t('fields.password')}
         type="password"
         name="password"
@@ -109,9 +114,15 @@ export function CredentialsLoginForm() {
         }
       />
 
-      <AuthSubmit pending={pending}>
-        {pending ? t('login.submitting') : t('login.submit')}
-      </AuthSubmit>
-    </AuthForm>
+      <Button
+        type="submit"
+        variant="primary"
+        size="door"
+        fullWidth
+        loading={pending}
+        label={pending ? t('login.submitting') : t('login.submit')}
+        xstyle={spacing.formAction}
+      />
+    </Form>
   );
 }

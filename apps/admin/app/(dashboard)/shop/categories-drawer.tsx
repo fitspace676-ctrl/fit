@@ -4,11 +4,11 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { MAX_PRODUCT_CATEGORY_NAME, type AdminProductCategory } from '@fit/types';
-import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout } from '@astryxdesign/core/Layout';
 import { LayoutContent } from '@astryxdesign/core/Layout';
-import { Btn, Icon } from '@/components/ui';
+import { Button } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import {
   createProductCategoryAction,
@@ -215,7 +215,7 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
     <>
       <Button
         variant="secondary"
-        size="lg"
+        size="block"
         label="Categories"
         icon={<Icon name="tag" sw={2} {...stylex.props(styles.icon)} />}
         onClick={drawer.open}
@@ -261,9 +261,13 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                     autoComplete="off"
                     {...stylex.props(styles.input)}
                   />
-                  <Btn type="submit" v="primary" size="md" disabled={pending || !name.trim()}>
-                    Add
-                  </Btn>
+                  <Button
+                    variant="primary"
+                    size="card"
+                    type="submit"
+                    disabled={pending || !name.trim()}
+                    label="Add"
+                  />
                 </form>
 
                 {error ? (
@@ -294,22 +298,20 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                                   } will become uncategorised.`}
                             </p>
                             <div {...stylex.props(styles.confirmActions)}>
-                              <Btn
-                                v="danger"
-                                size="sm"
+                              <Button
+                                variant="destructive"
+                                size="inline"
                                 onClick={() => remove(category.id)}
                                 disabled={pending}
-                              >
-                                Delete
-                              </Btn>
-                              <Btn
-                                v="outline"
-                                size="sm"
+                                label="Delete"
+                              />
+                              <Button
+                                variant="secondary"
+                                size="inline"
                                 onClick={() => setMode(null)}
                                 disabled={pending}
-                              >
-                                Cancel
-                              </Btn>
+                                label="Cancel"
+                              />
                             </div>
                           </div>
                         );
@@ -333,22 +335,20 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                                 autoFocus
                                 {...stylex.props(styles.input)}
                               />
-                              <Btn
-                                v="primary"
-                                size="sm"
+                              <Button
+                                variant="primary"
+                                size="inline"
                                 onClick={() => saveRename(category.id, mode.draft)}
                                 disabled={pending || !mode.draft.trim()}
-                              >
-                                Save
-                              </Btn>
-                              <Btn
-                                v="ghost"
-                                size="sm"
+                                label="Save"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="inline"
                                 onClick={() => setMode(null)}
                                 disabled={pending}
-                              >
-                                Cancel
-                              </Btn>
+                                label="Cancel"
+                              />
                             </>
                           ) : (
                             <>
@@ -357,24 +357,22 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                                 {category.productCount}{' '}
                                 {category.productCount === 1 ? 'product' : 'products'}
                               </span>
-                              <Btn
-                                v="ghost"
-                                size="sm"
+                              <Button
+                                variant="ghost"
+                                size="inline"
                                 onClick={() =>
                                   setMode({ kind: 'rename', id: category.id, draft: category.name })
                                 }
                                 disabled={pending}
-                              >
-                                Rename
-                              </Btn>
-                              <Btn
-                                v="ghost"
-                                size="sm"
+                                label="Rename"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="inline"
                                 onClick={() => setMode({ kind: 'confirm', id: category.id })}
                                 disabled={pending}
-                              >
-                                Delete
-                              </Btn>
+                                label="Delete"
+                              />
                             </>
                           )}
                         </div>

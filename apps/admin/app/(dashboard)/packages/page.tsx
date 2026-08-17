@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { ButtonLink } from '@/components/ui/button-link';
 import {
   Permission,
   listAdminPackagePlansQuerySchema,
@@ -8,7 +8,6 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchPackagePlans } from '@/lib/api';
-import { buttonClasses } from '@/components/ui';
 import { PackagePlansFilters } from './packages-filters';
 import { PackagePlansTable } from './packages-table';
 
@@ -89,9 +88,7 @@ export default async function PackagePlansPage({
           </p>
         </div>
         {canWrite ? (
-          <Link href="/packages/new" className={buttonClasses('primary', 'md')}>
-            New plan
-          </Link>
+          <ButtonLink href="/packages/new" variant="primary" size="card" label="New plan" />
         ) : null}
       </header>
 

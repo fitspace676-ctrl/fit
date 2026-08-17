@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -7,7 +8,6 @@ import {
   type EmailTemplateGroup,
   type ListEmailTemplatesResponse,
 } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchEmailTemplates } from '@/lib/api';
 import { Icon } from '@/components/ui';
@@ -102,7 +102,7 @@ export default async function EmailTemplatesPage() {
   if (session === null || !roleHasPermission(session.role, Permission.GymManage)) {
     return (
       <div {...stylex.props(styles.page)}>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>You do not have permission to manage email templates.</span>
         </Card>
@@ -120,7 +120,7 @@ export default async function EmailTemplatesPage() {
         : 'Could not reach the Fit API.';
     return (
       <div {...stylex.props(styles.page)}>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{message}</span>
         </Card>
@@ -153,7 +153,7 @@ export default async function EmailTemplatesPage() {
               <h2 {...stylex.props(styles.groupTitle)}>{group.title}</h2>
               <span {...stylex.props(styles.groupBlurb)}>{group.blurb}</span>
             </div>
-            <Card variant="default" padding={0} xstyle={styles.card}>
+            <Card padding="none" xstyle={styles.card}>
               {templates.map((template) => (
                 <TemplateEditor key={template.key} template={template} />
               ))}

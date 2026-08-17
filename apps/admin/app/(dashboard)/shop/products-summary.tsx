@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import type { ProductRosterSummary } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
 import { Icon, type IconName } from '@/components/ui';
 import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
@@ -112,7 +112,7 @@ export function ProductsSummary({ summary }: { summary: ProductRosterSummary }) 
   return (
     <div {...stylex.props(styles.grid)}>
       {tiles.map((tile) => (
-        <Card key={tile.key} variant="default" padding={0} xstyle={styles.tile}>
+        <Card key={tile.key} padding="none" xstyle={styles.tile}>
           <Icon name={tile.icon} {...stylex.props(styles.tileIcon, tile.tone)} />
           <div {...stylex.props(styles.value)}>{tile.value}</div>
           <div {...stylex.props(styles.label)}>{tile.label}</div>

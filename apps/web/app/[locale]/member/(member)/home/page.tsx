@@ -1,11 +1,9 @@
 import type { Metadata } from 'next';
+import { Avatar, Badge, ButtonLink, Card, CountUp, Meter } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
-import { Avatar } from '@astryxdesign/core/Avatar';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Card } from '@astryxdesign/core/Card';
 import type { ClassInstanceCard, MemberBookingHistoryEntry, ProductSummary } from '@fit/types';
-import { getActiveGymId } from '@/lib/active-gym';
+import { getActiveGymId, getActiveGymTimezone } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
 import { fetchMemberBookings } from '@/lib/member-bookings';
 import { fetchMyCreditPacks, totalRemainingCredits } from '@/lib/credit-packs';
@@ -13,19 +11,23 @@ import { fetchMembership, type MemberSubscription } from '@/lib/membership';
 import { fetchProducts, formatMoney } from '@/lib/shop';
 import { fetchTrainers } from '@/lib/trainers';
 import { fetchClassInstances } from '@/lib/classes';
-import { ButtonLink, chipShape, controlSize, CountUp, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { MembershipHero } from '@/src/components/member/home/membership-hero';
 import { CheckInQr } from '@/src/components/member/home/check-in-qr';
-import { createDateTimeFormat } from '@fit/i18n';
+import {
+  formatZoned,
+  formatZonedTime,
+  zonedRelativeDay,
+} from '@/src/components/classes/date-utils';
 
 export const metadata: Metadata = { title: 'Home — Fit' };
 
 /** This is the signed-in member's own dashboard — always render per request. */
 export const dynamic = 'force-dynamic';
 
-// Astryx migration (T11.11): the member dashboard is rebuilt on Astryx
-// `Card` / `Button` / `Badge` / `Avatar` over the Fit brand theme tokens, with
+// Astryx migration (T11), now on the portal kit: the member dashboard is rebuilt on the portal kit
+// `Card` / `Button` / `Badge` / `Avatar` over the FormaCore theme tokens, with
 // all layout and the small data-viz bits (time chips, occupancy meter) authored
 // in compiled StyleX (`var(--color-*)` / `var(--font-family-*)`) — no Tailwind
 // utilities and no formacore Aurora-glass primitives. The data fetching below is
@@ -445,46 +447,6 @@ const styles = stylex.create({
   listRowFirst: {
     borderTopWidth: 0,
   },
-  occ: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  occHead: {
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  occValue: {
-    margin: 0,
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '1.125rem',
-    fontWeight: 700,
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-primary)',
-  },
-  occCap: {
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
-  occPct: {
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  occTrack: {
-    height: '0.5rem',
-    overflow: 'hidden',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-background-muted)',
-  },
-  occFill: {
-    height: '100%',
-    borderRadius: 'var(--radius-full)',
-  },
-  occFillOk: { backgroundColor: 'var(--color-success)' },
-  occFillWarn: { backgroundColor: 'var(--color-warning)' },
-  occFillFull: { backgroundColor: 'var(--color-error)' },
   brandIcon: { color: 'var(--color-text-accent)' },
   badgeIcon: { width: '0.875rem', height: '0.875rem' },
 });
@@ -499,43 +461,20 @@ async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-/** Format an ISO instant's time (HH:mm) in the active locale. */
-function timeOf(iso: string, locale: string): string {
-  return createDateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
-}
-
-/** A short, friendly day label (Today / Tomorrow / weekday) for an instant. */
-function dayLabel(iso: string, locale: string, today: string, tomorrow: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const dayDiff = Math.round(
-    (new Date(d.toDateString()).getTime() - new Date(now.toDateString()).getTime()) / 86_400_000,
-  );
-  if (dayDiff === 0) return today;
-  if (dayDiff === 1) return tomorrow;
-  return createDateTimeFormat(locale, { weekday: 'short' }).format(d);
-}
-
-/** A "value / cap" header over a fill bar, colour-coded by how full it is —
- * rebuilt on the Astryx brand tokens (success → warning → error). */
-function OccupancyBar({ value, cap }: { value: number; cap: number }) {
-  const pct = cap > 0 ? Math.round((value / cap) * 100) : 0;
-  const fill = pct > 85 ? styles.occFillFull : pct > 60 ? styles.occFillWarn : styles.occFillOk;
-  return (
-    <div {...stylex.props(styles.occ)}>
-      <div {...stylex.props(styles.occHead)}>
-        <p {...stylex.props(styles.occValue)}>
-          {value}
-          <span {...stylex.props(styles.occCap)}>/{cap}</span>
-        </p>
-        <span {...stylex.props(styles.occPct)}>{pct}%</span>
-      </div>
-      <div {...stylex.props(styles.occTrack)}>
-        <div {...stylex.props(styles.occFill, fill)} style={{ width: `${Math.min(100, pct)}%` }} />
-      </div>
-    </div>
-  );
-}
+// Class times on this page are read in the GYM's zone, like every other screen
+// that prints one.
+//
+// They were the exception. `#304` moved the classes browser, the class detail,
+// the trainer schedule and the bookings board onto `formatZonedTime`, but the
+// dashboard kept formatting through `createDateTimeFormat` — a reporting-layer
+// formatter whose own docstring says it reads UTC and that any other zone is a
+// bug at the call site. So a class the gym runs at 12:00 was labelled 08:00 here
+// and 12:00 one click away on `/member/classes`: the same booking, two times,
+// with nothing on screen to say which was real.
+//
+// A class is a wall-clock commitment AT the gym — "Monday 18:00 at Main Floor"
+// is the same appointment whether it is read in Tbilisi or from a phone in
+// Berlin — so the stored instant only becomes that wall clock in the gym's zone.
 
 /**
  * Statuses that mean "this member currently has a plan". `PAST_DUE` counts: the
@@ -580,10 +519,11 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, activeLocale, gymId, session] = await Promise.all([
+  const [t, activeLocale, gymId, timeZone, session] = await Promise.all([
     getTranslations('member.home'),
     getLocale(),
     getActiveGymId(),
+    getActiveGymTimezone(),
     getServerSession(),
   ]);
 
@@ -606,8 +546,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
       : Promise.resolve([] as ClassInstanceCard[]),
   ]);
 
-  const todayLabel = t('today');
-  const tomorrowLabel = t('tomorrow');
+  const dayLabels = { today: t('today'), tomorrow: t('tomorrow') };
 
   const upcoming = bookings
     .filter((b) => b.status === 'BOOKED' || b.status === 'WAITLIST')
@@ -668,11 +607,11 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
       <div {...stylex.props(styles.greetingRow)}>
         <div {...stylex.props(styles.greetingText)}>
           <p {...stylex.props(styles.eyebrow)}>
-            {createDateTimeFormat(activeLocale, {
+            {formatZoned(now.toISOString(), timeZone, activeLocale, {
               weekday: 'long',
               day: 'numeric',
               month: 'long',
-            }).format(now)}
+            })}
           </p>
           <h1 {...stylex.props(styles.greeting)}>{t('greeting')}</h1>
         </div>
@@ -697,19 +636,19 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
 
         <div {...stylex.props(styles.col)}>
           {/* Next class */}
-          <Card variant="default" padding={0} xstyle={styles.card}>
+          <Card padding="none" xstyle={styles.card}>
             <div {...stylex.props(styles.rowBetween)}>
               <p {...stylex.props(styles.cardLabel)}>{t('nextClass')}</p>
               {nextBooking && (
                 <Badge
-                  xstyle={chipShape.chip}
-                  variant="purple"
+                  tone="neutral"
                   icon={<Icon name="clock" {...stylex.props(styles.badgeIcon)} />}
-                  label={dayLabel(
+                  label={zonedRelativeDay(
                     nextBooking.classInstance.startsAt,
+                    now,
+                    timeZone,
                     activeLocale,
-                    todayLabel,
-                    tomorrowLabel,
+                    dayLabels,
                   )}
                 />
               )}
@@ -718,7 +657,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               <div {...stylex.props(styles.nextRow)}>
                 <div {...stylex.props(styles.timeBox)}>
                   <span {...stylex.props(styles.timeText)}>
-                    {timeOf(nextBooking.classInstance.startsAt, activeLocale)}
+                    {formatZonedTime(nextBooking.classInstance.startsAt, timeZone)}
                   </span>
                 </div>
                 <div {...stylex.props(styles.grow)}>
@@ -727,18 +666,18 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                     {nextBooking.classInstance.trainerName} · {nextBooking.classInstance.room}
                   </p>
                   <div style={{ marginTop: '0.5rem' }}>
-                    <OccupancyBar
+                    <Meter
                       value={nextBooking.classInstance.bookedCount}
-                      cap={nextBooking.classInstance.capacity}
+                      max={nextBooking.classInstance.capacity}
+                      label={t('spotsTaken')}
                     />
                   </div>
                 </div>
                 <ButtonLink
                   href={`/member/classes/${nextBooking.classInstance.id}`}
                   variant="primary"
-                  size="md"
+                  size="card"
                   label={t('checkIn')}
-                  xstyle={controlSize.card}
                 />
               </div>
             ) : (
@@ -748,9 +687,8 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                 <ButtonLink
                   href="/member/classes"
                   variant="secondary"
-                  size="sm"
+                  size="inline"
                   label={t('browseClasses')}
-                  xstyle={controlSize.inline}
                 />
               </div>
             )}
@@ -759,7 +697,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
           {/* Stat strip */}
           <div {...stylex.props(styles.statStrip)}>
             {stats.map((s) => (
-              <Card key={s.label} variant="default" padding={0} xstyle={styles.card}>
+              <Card key={s.label} padding="none" xstyle={styles.card}>
                 <Icon name={s.icon} {...stylex.props(styles.statIcon, styles.brandIcon)} />
                 <p {...stylex.props(styles.statValue)}>
                   <CountUp to={s.value} />
@@ -785,14 +723,14 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
             {bookable.map((c) => {
               const full = c.bookedCount >= c.capacity;
               return (
-                <Card key={c.id} variant="default" padding={0} xstyle={styles.classCard}>
+                <Card key={c.id} padding="none" xstyle={styles.classCard}>
                   <div {...stylex.props(styles.classTop)}>
                     <div {...stylex.props(styles.timeBoxSm)}>
                       <span {...stylex.props(styles.timeTextSm)}>
-                        {timeOf(c.startsAt, activeLocale)}
+                        {formatZonedTime(c.startsAt, timeZone)}
                       </span>
                       <span {...stylex.props(styles.daySub)}>
-                        {dayLabel(c.startsAt, activeLocale, todayLabel, tomorrowLabel)}
+                        {zonedRelativeDay(c.startsAt, now, timeZone, activeLocale, dayLabels)}
                       </span>
                     </div>
                     <div {...stylex.props(styles.grow)}>
@@ -801,24 +739,22 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                         {c.trainerName} · {c.locationName}
                       </p>
                     </div>
-                    {c.category && (
-                      <Badge xstyle={chipShape.chip} variant="blue" label={c.category} />
-                    )}
+                    {c.category && <Badge tone="neutral" label={c.category} />}
                   </div>
-                  <OccupancyBar value={c.bookedCount} cap={c.capacity} />
+                  <Meter value={c.bookedCount} max={c.capacity} label={t('spotsTaken')} />
                   <ButtonLink
                     href={`/member/classes/${c.id}`}
                     variant={full ? 'secondary' : 'primary'}
-                    size="sm"
+                    size="card"
                     label={full ? t('joinWaitlist') : t('book')}
-                    xstyle={[controlSize.card, controlSize.full]}
+                    fullWidth
                   />
                 </Card>
               );
             })}
           </div>
         ) : (
-          <Card variant="default" padding={0} xstyle={styles.emptyLg}>
+          <Card padding="none" xstyle={styles.emptyLg}>
             <Icon name="calendar" {...stylex.props(styles.mutedIcon)} />
             <p {...stylex.props(styles.emptyText)}>{t('noBookable')}</p>
           </Card>
@@ -828,7 +764,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
       {/* Trainer + shop */}
       <section {...stylex.props(styles.twoCol)}>
         {trainer && (
-          <Card variant="default" padding={0} xstyle={styles.cardLg}>
+          <Card padding="none" xstyle={styles.cardLg}>
             <p {...stylex.props(styles.cardLabel)}>{t('yourTrainer')}</p>
             <div {...stylex.props(styles.trainerRow)}>
               <Avatar
@@ -842,7 +778,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                 <p {...stylex.props(styles.itemSub)}>{trainer.headline}</p>
                 <div {...stylex.props(styles.specialties)}>
                   {trainer.specialties.slice(0, 3).map((s) => (
-                    <Badge key={s} xstyle={chipShape.chip} variant="purple" label={s} />
+                    <Badge key={s} tone="neutral" label={s} />
                   ))}
                 </div>
               </div>
@@ -851,25 +787,24 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               <ButtonLink
                 href={`/member/trainers/${trainer.id}`}
                 variant="primary"
-                size="md"
+                size="block"
                 label={t('bookSession')}
-                xstyle={[controlSize.block, styles.flexBtn]}
+                xstyle={styles.flexBtn}
               />
               <ButtonLink
                 href="/member/trainers"
                 variant="secondary"
-                size="md"
+                size="block"
                 label={t('viewAll')}
-                xstyle={controlSize.block}
               />
             </div>
           </Card>
         )}
 
-        <Card variant="default" padding={0} xstyle={styles.cardLg}>
+        <Card padding="none" xstyle={styles.cardLg}>
           <div {...stylex.props(styles.rowBetween)}>
             <p {...stylex.props(styles.cardLabel)}>{t('forTraining')}</p>
-            <Badge xstyle={chipShape.chip} variant="success" label={t('membersGet')} />
+            <Badge tone="positive" label={t('membersGet')} />
           </div>
           {topProducts.length > 0 ? (
             <div {...stylex.props(styles.productGrid)}>
@@ -898,9 +833,9 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
             <ButtonLink
               href="/member/shop"
               variant="secondary"
-              size="sm"
+              size="card"
               label={t('visitShop')}
-              xstyle={[controlSize.card, controlSize.full]}
+              fullWidth
             />
           </div>
         </Card>
@@ -913,7 +848,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
           <span {...stylex.props(styles.count)}>{upcoming.length}</span>
         </div>
         {upcoming.length > 0 ? (
-          <Card variant="default" padding={0} xstyle={styles.listCard}>
+          <Card padding="none" xstyle={styles.listCard}>
             {upcoming.slice(0, 5).map((b, i) => (
               <div
                 key={b.bookingId}
@@ -921,10 +856,16 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
               >
                 <div {...stylex.props(styles.timeBoxSm)}>
                   <span {...stylex.props(styles.timeTextSm)}>
-                    {timeOf(b.classInstance.startsAt, activeLocale)}
+                    {formatZonedTime(b.classInstance.startsAt, timeZone)}
                   </span>
                   <span {...stylex.props(styles.daySub)}>
-                    {dayLabel(b.classInstance.startsAt, activeLocale, todayLabel, tomorrowLabel)}
+                    {zonedRelativeDay(
+                      b.classInstance.startsAt,
+                      now,
+                      timeZone,
+                      activeLocale,
+                      dayLabels,
+                    )}
                   </span>
                 </div>
                 <div {...stylex.props(styles.grow)}>
@@ -934,8 +875,7 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                   </p>
                 </div>
                 <Badge
-                  xstyle={chipShape.chip}
-                  variant={b.status === 'WAITLIST' ? 'warning' : 'success'}
+                  tone={b.status === 'WAITLIST' ? 'pending' : 'positive'}
                   label={
                     b.status === 'WAITLIST'
                       ? t('waitlist', { position: b.waitlistPosition ?? 0 })
@@ -946,15 +886,14 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
             ))}
           </Card>
         ) : (
-          <Card variant="default" padding={0} xstyle={styles.emptyLg}>
+          <Card padding="none" xstyle={styles.emptyLg}>
             <Icon name="clock" {...stylex.props(styles.mutedIcon)} />
             <p {...stylex.props(styles.emptyText)}>{t('noClasses')}</p>
             <ButtonLink
               href="/member/classes"
               variant="primary"
-              size="sm"
+              size="inline"
               label={t('browseClasses')}
-              xstyle={controlSize.inline}
             />
           </Card>
         )}

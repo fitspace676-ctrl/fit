@@ -11,7 +11,7 @@ import { TrainerProfile } from '@/src/components/trainers/TrainerProfile';
 import { TrainerReviews } from '@/src/components/trainers/TrainerReviews';
 import { TrainerSchedule } from '@/src/components/trainers/TrainerSchedule';
 
-// Astryx migration (T11.13): the detail route shell (back link + column) is
+// Astryx migration (T11), now on the portal kit: the detail route shell (back link + column) is
 // authored in compiled StyleX over the Fit brand tokens — no Tailwind utilities.
 
 const styles = stylex.create({

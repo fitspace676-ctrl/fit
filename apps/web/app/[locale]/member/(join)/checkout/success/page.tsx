@@ -20,10 +20,10 @@ export const metadata: Metadata = {
  */
 export const dynamic = 'force-dynamic';
 
-// Astryx migration (T11.15): the purchase-wizard confirmation is rebuilt on the
+// Astryx migration (T11), now on the portal kit: the purchase-wizard confirmation is rebuilt on the
 // Fit brand theme — the success mark, itemised breakdown and missing-order state
 // authored in compiled StyleX (`var(--color-*)` / `var(--font-family-*)`) with
-// the "Return home" CTA on the Astryx `Button` — no Tailwind utilities. The
+// the "Return home" CTA on the kit's `Button` — no Tailwind utilities. The
 // order fetch is unchanged.
 const styles = stylex.create({
   page: {

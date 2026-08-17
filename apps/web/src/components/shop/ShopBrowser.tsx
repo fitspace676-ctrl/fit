@@ -1,18 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Button, EmptyState } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { EmptyState } from '@astryxdesign/core/EmptyState';
 import type { CartView, ProductSummary } from '@fit/types';
 import { fetchProducts } from '@/lib/shop';
 import { Icon } from '@/src/components/ui';
 import { EmptyShop } from './EmptyShop';
 import { ProductList } from './ProductList';
 
-// Astryx migration (T11.15): the shop browser's loading / error / empty states
-// are rebuilt on the Astryx `EmptyState` + `Button` over the Fit brand theme
+// Astryx migration (T11), now on the portal kit: the shop browser's loading / error / empty states
+// are rebuilt on the kit's `EmptyState` + `Button` over the FormaCore theme
 // tokens, with layout in compiled StyleX — no Tailwind utilities. The catalogue
 // fetch lifecycle below is unchanged.
 //
@@ -97,10 +96,10 @@ export function ShopBrowser({ gymId, cart, onCart }: ShopBrowserProps) {
       <EmptyState
         icon={<Icon name="bag" {...stylex.props(styles.errorIcon)} sw={1.8} />}
         title={t('browse.error')}
-        actions={
+        action={
           <Button
             variant="secondary"
-            size="md"
+            size="card"
             label={t('retry')}
             onClick={() => setReloadKey((key) => key + 1)}
           />

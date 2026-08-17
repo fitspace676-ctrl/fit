@@ -10,8 +10,8 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchLowStockProducts } from '@/lib/api';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Icon, type IconName } from '@/components/ui';
+import { Badge, Card } from '@fit/ui-kit';
+import { Icon, type IconName } from '@/components/ui';
 import { StockAdjuster } from './stock-adjuster';
 import { ThresholdPicker } from './threshold-picker';
 import { createNumberFormat, defaultLocale } from '@fit/i18n';
@@ -320,7 +320,7 @@ export default async function LowStockPage({
       {tiles !== null ? (
         <div {...stylex.props(styles.tileGrid)}>
           {tiles.map((tile) => (
-            <Card key={tile.key} variant="default" padding={0} xstyle={styles.tile}>
+            <Card key={tile.key} padding="none" xstyle={styles.tile}>
               <Icon name={tile.icon} {...stylex.props(styles.tileIcon, tile.tone)} />
               <div {...stylex.props(styles.tileValue)}>
                 {createNumberFormat(defaultLocale).format(tile.value)}
@@ -332,16 +332,16 @@ export default async function LowStockPage({
       ) : null}
 
       {error !== null ? (
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{error}</span>
         </Card>
       ) : report !== null && report.data.length === 0 ? (
-        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+        <Card padding="none" xstyle={styles.emptyCard}>
           Nothing is low on stock at or below {threshold} units. You’re all stocked up.
         </Card>
       ) : report !== null ? (
-        <Card variant="default" padding={0} xstyle={styles.tableCard}>
+        <Card padding="none" xstyle={styles.tableCard}>
           <table {...stylex.props(styles.table)}>
             <thead>
               <tr {...stylex.props(styles.headRow)}>
@@ -375,9 +375,10 @@ export default async function LowStockPage({
                     <td {...stylex.props(styles.variantCell)}>{variant.name}</td>
                     <td {...stylex.props(styles.skuCell)}>{variant.sku || '—'}</td>
                     <td {...stylex.props(styles.rightCell)}>
-                      <Badge tone={variant.stock === 0 ? 'danger' : 'warning'}>
-                        {variant.stock === 0 ? 'Out of stock' : variant.stock}
-                      </Badge>
+                      <Badge
+                        tone={variant.stock === 0 ? 'danger' : 'pending'}
+                        label={variant.stock === 0 ? 'Out of stock' : variant.stock}
+                      />
                     </td>
                     {canWrite ? (
                       <td {...stylex.props(styles.rightCell)}>

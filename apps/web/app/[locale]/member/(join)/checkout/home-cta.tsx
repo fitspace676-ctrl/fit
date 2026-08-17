@@ -1,8 +1,7 @@
 'use client';
 
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@astryxdesign/core/Button';
-import { Link } from '@/src/i18n/navigation';
+import { ButtonLink } from '@/src/components/ui/kit';
 
 /**
  * The confirmation screen's "Return home" call to action.
@@ -24,7 +23,5 @@ const styles = stylex.create({
 });
 
 export function HomeCta({ label }: { label: string }) {
-  return (
-    <Button as={Link} href="/" variant="primary" size="md" label={label} xstyle={styles.cta} />
-  );
+  return <ButtonLink href="/" variant="primary" size="card" label={label} xstyle={styles.cta} />;
 }

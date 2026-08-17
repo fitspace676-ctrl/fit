@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ProductStatus } from '@fit/types';
-import { FilterChips, type FilterChip } from '@/components/ui';
+import { FilterChips, type FilterChip } from '@fit/ui-kit';
 
 /** The tabs, in roster-priority order. `''` is the "All" tab that clears the filter. */
 const TABS: ReadonlyArray<{ value: ProductStatus | ''; label: string }> = [
@@ -45,7 +45,7 @@ export function ProductsStatusTabs({ status }: { status: string }) {
       chips={chips}
       active={status}
       onSelect={select}
-      ariaLabel="Filter products by status"
+      label="Filter products by status"
     />
   );
 }

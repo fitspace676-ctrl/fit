@@ -13,7 +13,7 @@ import {
   type ProductStatus,
   type ProductVariant,
 } from '@fit/types';
-import { Btn } from '@/components/ui';
+import { Button } from '@fit/ui-kit';
 import { useGymCurrency } from '@/components/gym-currency';
 import { inputToMinor, minorToInput } from './format-price';
 import {
@@ -1020,9 +1020,13 @@ export function ProductForm(props: Props) {
           </p>
         )}
         <div>
-          <Btn v="outline" size="sm" onClick={addVariant} disabled={atVariantLimit}>
-            {atVariantLimit ? `Maximum of ${MAX_PRODUCT_VARIANTS} variants` : 'Add variant'}
-          </Btn>
+          <Button
+            variant="secondary"
+            size="inline"
+            onClick={addVariant}
+            disabled={atVariantLimit}
+            label={atVariantLimit ? `Maximum of ${MAX_PRODUCT_VARIANTS} variants` : 'Add variant'}
+          />
         </div>
       </fieldset>
 
@@ -1047,9 +1051,13 @@ export function ProductForm(props: Props) {
             ))}
           </select>
           {!namingShelf ? (
-            <Btn v="outline" type="button" onClick={() => setNamingShelf(true)}>
-              New category
-            </Btn>
+            <Button
+              variant="secondary"
+              size="card"
+              type="button"
+              onClick={() => setNamingShelf(true)}
+              label="New category"
+            />
           ) : null}
         </div>
 
@@ -1079,24 +1087,24 @@ export function ProductForm(props: Props) {
               }}
               {...stylex.props(styles.input, styles.categorySelect)}
             />
-            <Btn
-              v="primary"
+            <Button
+              variant="primary"
+              size="card"
               type="button"
-              disabled={savingShelf || shelfName.trim() === ''}
               onClick={() => void createShelf()}
-            >
-              {savingShelf ? 'Adding…' : 'Add'}
-            </Btn>
-            <Btn
-              v="outline"
+              disabled={savingShelf || shelfName.trim() === ''}
+              label={savingShelf ? 'Adding…' : 'Add'}
+            />
+            <Button
+              variant="secondary"
+              size="card"
               type="button"
               onClick={() => {
                 setNamingShelf(false);
                 setShelfError(null);
               }}
-            >
-              Cancel
-            </Btn>
+              label="Cancel"
+            />
           </div>
         ) : null}
 
@@ -1141,26 +1149,25 @@ export function ProductForm(props: Props) {
         ) : null}
 
         <div {...stylex.props(styles.actions, props.onCancel && styles.actionsInDrawer)}>
-          <Btn
+          <Button
             type="submit"
-            v="primary"
-            size={props.onCancel ? 'lg' : 'md'}
-            disabled={pending || uploading}
-            {...stylex.props(props.onCancel && styles.actionButton)}
-          >
-            {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
-          </Btn>
+            variant="primary"
+            size={props.onCancel ? 'page' : 'block'}
+            disabled={uploading}
+            loading={pending}
+            xstyle={props.onCancel ? styles.actionButton : undefined}
+            label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
+          />
           {props.onCancel ? (
-            <Btn
+            <Button
               type="button"
-              v="outline"
-              size="lg"
+              variant="secondary"
+              size="page"
               onClick={props.onCancel}
               disabled={pending}
-              {...stylex.props(styles.actionButton)}
-            >
-              Cancel
-            </Btn>
+              xstyle={styles.actionButton}
+              label="Cancel"
+            />
           ) : (
             <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
               Cancel

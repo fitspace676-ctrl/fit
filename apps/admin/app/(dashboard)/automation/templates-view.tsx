@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { AutomationRuleRow } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Btn, Icon } from '@/components/ui';
+import { Badge, Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { RuleFormDialog } from './rule-form-dialog';
 import { ACTION_ICONS, CATEGORY_KEY, CATEGORY_TONES, triggerCategory } from './automation-meta';
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   grid: {
     display: 'grid',
     gap: '1rem',
@@ -135,7 +137,7 @@ export function TemplatesView({
         {templates.map((template) => {
           const category = triggerCategory(template.triggerType);
           return (
-            <Card key={template.id} variant="default" xstyle={styles.card}>
+            <Card key={template.id} xstyle={styles.card}>
               <div {...stylex.props(styles.cardInner)}>
                 <div {...stylex.props(styles.head)}>
                   <span {...stylex.props(styles.icon)}>
@@ -143,9 +145,10 @@ export function TemplatesView({
                   </span>
                   <span {...stylex.props(styles.name)}>{template.name}</span>
                 </div>
-                <Badge tone={CATEGORY_TONES[category]}>
-                  {t(`categories.${CATEGORY_KEY[category]}`)}
-                </Badge>
+                <Badge
+                  tone={CATEGORY_TONES[category]}
+                  label={t(`categories.${CATEGORY_KEY[category]}`)}
+                />
                 <span {...stylex.props(styles.action)}>
                   <Icon
                     name={ACTION_ICONS[template.actionType]}
@@ -155,9 +158,13 @@ export function TemplatesView({
                 </span>
                 <span {...stylex.props(styles.spacer)} />
                 {canManage ? (
-                  <Btn v="outline" size="sm" icon="plus" onClick={() => setSeed(template)}>
-                    {t('templates.use')}
-                  </Btn>
+                  <Button
+                    variant="secondary"
+                    size="inline"
+                    onClick={() => setSeed(template)}
+                    icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+                    label={t('templates.use')}
+                  />
                 ) : null}
               </div>
             </Card>

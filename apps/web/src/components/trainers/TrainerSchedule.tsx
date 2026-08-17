@@ -1,13 +1,13 @@
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@/src/components/ui/kit';
 import { useLocale, useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { TrainerScheduleEntry } from '@fit/types';
 import { formatZonedTime, groupByZonedDay } from '@/src/components/classes/date-utils';
 import { Icon } from '@/src/components/ui';
 import { createDateTimeFormat } from '@fit/i18n';
 
-// Astryx migration (T11.13): the schedule is rebuilt on the Astryx `Card` over
-// the Fit brand theme, with the day sections and rows authored in compiled
+// Astryx migration (T11), now on the portal kit: the schedule is rebuilt on the kit's `Card` over
+// the FormaCore theme, with the day sections and rows authored in compiled
 // StyleX (`var(--color-*)`) — no Tailwind utilities and no formacore
 // Aurora-glass primitives. Behaviour is unchanged: grouping reuses the classes
 // calendar's pure date helpers so the index and the detail page format times
@@ -167,7 +167,7 @@ export function TrainerSchedule({ schedule, timeZone }: TrainerScheduleProps) {
 
       <div {...stylex.props(styles.groups)}>
         {groups.map((group) => (
-          <Card key={group.key} variant="default" padding={0} xstyle={styles.groupCard}>
+          <Card key={group.key} padding="none" xstyle={styles.groupCard}>
             <p {...stylex.props(styles.dayHead)}>
               {createDateTimeFormat(locale, {
                 weekday: 'long',

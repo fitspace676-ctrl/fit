@@ -18,6 +18,7 @@
     "@fit/env": "workspace:*",
     "@fit/i18n": "workspace:*",
     "@fit/types": "workspace:*",
+    "@fit/ui-kit": "workspace:*",
     "@fit/ui-web": "workspace:*",
     "@fit/utils": "workspace:*",
     "@sentry/nextjs": "^9",
@@ -27,6 +28,7 @@
     "nextjs-toploader": "^3.9.17",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hook-form": "^7.54.2",
     "zod": "^3.24.1",
     "zustand": "^5.0.2"
   },

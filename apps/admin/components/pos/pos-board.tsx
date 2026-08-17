@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import type { GymMemberIntakeSettings, GymPaymentMethods, GymReceiptSettings } from '@fit/types';
 import { usePosCart } from '@/stores/pos-cart-store';
@@ -11,7 +12,6 @@ import {
   type PosMembershipRow,
   type PosProductRow,
 } from '@/app/(dashboard)/pos/actions';
-import { Card } from '@astryxdesign/core/Card';
 import { MemberLookup } from './member-lookup';
 import { PosCart } from './pos-cart';
 import { PosPayment } from './pos-payment';
@@ -195,7 +195,7 @@ export function PosBoard({
 
   return (
     <div {...stylex.props(styles.grid)}>
-      <Card variant="default" padding={0} xstyle={styles.productPane}>
+      <Card padding="none" xstyle={styles.productPane}>
         <ProductGrid
           searchRef={productSearchRef}
           onAdd={onAdd}
@@ -204,7 +204,7 @@ export function PosBoard({
           selectedMemberId={selectedMember?.id ?? null}
         />
       </Card>
-      <Card variant="default" padding={0} xstyle={styles.cartPane}>
+      <Card padding="none" xstyle={styles.cartPane}>
         {locations.length > 0 ? (
           <label {...stylex.props(styles.branchLabel)}>
             <span>Selling at</span>

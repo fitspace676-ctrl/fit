@@ -15,8 +15,8 @@ import {
   type PosMembershipRow,
   type PosProductRow,
 } from '@/app/(dashboard)/pos/actions';
-import { Card } from '@astryxdesign/core/Card';
-import { Badge, Icon, type Tone } from '@/components/ui';
+import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 
 /** Debounce (ms) before a keystroke fires a new product search. */
 const SEARCH_DEBOUNCE_MS = 200;
@@ -337,10 +337,10 @@ type Catalogue = 'memberships' | 'products' | 'members';
  * two screens never disagree about what green means: green for a paying member,
  * slate for a guest, amber for someone lapsed.
  */
-const KIND_TONES: Record<MemberKind, Tone> = {
-  MEMBER: 'success',
-  GUEST: 'ink',
-  INACTIVE: 'warning',
+const KIND_TONES: Record<MemberKind, BadgeTone> = {
+  MEMBER: 'positive',
+  GUEST: 'neutral',
+  INACTIVE: 'pending',
 };
 
 /** The tab strip, in the order the counter uses them. */
@@ -550,7 +550,7 @@ export function ProductGrid({
       ) : null}
 
       {error ? (
-        <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+        <Card padding="none" role="alert" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span {...stylex.props(styles.errorText)}>{error}</span>
         </Card>
@@ -710,7 +710,7 @@ function MemberStanding({ member }: { member: PosMemberRow }) {
   const kinds = useTranslations('admin.members.kind');
 
   if (member.status === 'SUSPENDED') {
-    return <Badge tone="danger">{t('membersSuspended')}</Badge>;
+    return <Badge tone="danger" label={t('membersSuspended')} />;
   }
-  return <Badge tone={KIND_TONES[member.kind]}>{kinds(member.kind)}</Badge>;
+  return <Badge tone={KIND_TONES[member.kind]} label={kinds(member.kind)} />;
 }

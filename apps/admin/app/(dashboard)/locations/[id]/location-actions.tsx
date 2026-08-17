@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import type { LocationStatus } from '@fit/types';
-import { Btn } from '@/components/ui';
+import { Button } from '@fit/ui-kit';
 import { setLocationActiveAction } from '../actions';
 
 const styles = stylex.create({
@@ -89,9 +89,13 @@ export function LocationActions({
         <Link href={`/locations/${locationId}/edit`} {...stylex.props(styles.editLink)}>
           Edit
         </Link>
-        <Btn v={isInactive ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>
-          {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
-        </Btn>
+        <Button
+          variant={isInactive ? 'primary' : 'secondary'}
+          size="inline"
+          onClick={toggle}
+          disabled={pending}
+          label={pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
+        />
       </div>
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>

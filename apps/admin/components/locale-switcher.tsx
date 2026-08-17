@@ -1,10 +1,10 @@
 'use client';
 
-// @fit/admin — console language switcher (Astryx, T11.17).
+// @fit/admin — console language switcher.
 //
 // The console has no `[locale]` route segment, so language is a cookie choice,
 // not a URL. This renders a compact `ქა | EN` control in the top bar on the
-// Astryx `SegmentedControl`: choosing a locale writes the shared `NEXT_LOCALE`
+// kit's `SegmentedControl`: choosing a locale writes the shared `NEXT_LOCALE`
 // cookie and calls `router.refresh()` so the server layout re-renders with the
 // new catalogue — the same cookie @fit/web reads, so a member's choice carries
 // into the console.
@@ -12,7 +12,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import { SegmentedControl } from '@fit/ui-kit';
 import { locales } from '@fit/i18n';
 import type { Locale } from '@fit/i18n';
 import { LOCALE_COOKIE } from '@/i18n/locale-cookie';
@@ -42,7 +42,7 @@ export function LocaleSwitcher() {
   const t = useTranslations('admin.common.language');
   const router = useRouter();
 
-  function select(locale: string): void {
+  function select(locale: Locale): void {
     if (locale === activeLocale) {
       return;
     }
@@ -52,15 +52,11 @@ export function LocaleSwitcher() {
 
   return (
     <SegmentedControl
-      value={activeLocale}
-      onChange={select}
       label={t('label')}
-      size="md"
+      value={activeLocale as Locale}
+      onChange={select}
+      options={locales.map((locale) => ({ value: locale, label: SHORT_LABEL[locale] }))}
       xstyle={styles.root}
-    >
-      {locales.map((locale) => (
-        <SegmentedControlItem key={locale} value={locale} label={SHORT_LABEL[locale]} />
-      ))}
-    </SegmentedControl>
+    />
   );
 }

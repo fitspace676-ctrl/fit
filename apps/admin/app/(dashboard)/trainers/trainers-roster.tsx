@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import type { AdminTrainerRow, AdminTrainerSummary, TrainerStatus } from '@fit/types';
-import { Btn, CountUp, Icon, type IconName } from '@/components/ui';
+import { Button, Card, CountUp } from '@fit/ui-kit';
+import { Icon, type IconName } from '@/components/ui';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -476,7 +476,7 @@ function KpiCard({
   decimals?: boolean;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+    <Card padding="none" xstyle={styles.kpiCard}>
       <span {...stylex.props(styles.iconTile)}>
         <Icon name={icon} {...stylex.props(styles.icon)} />
       </span>
@@ -502,7 +502,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
 /** A single trainer card in the 2-up grid. */
 function TrainerCard({ trainer, t, locale }: { trainer: AdminTrainerRow; t: T; locale: string }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.trainerCard}>
+    <Card padding="none" xstyle={styles.trainerCard}>
       <div {...stylex.props(styles.cardTop)}>
         {trainer.photoUrl ? (
           <img src={trainer.photoUrl} alt="" {...stylex.props(styles.avatarImg)} />
@@ -718,7 +718,7 @@ export function TrainersRoster({
 
       {/* The 2-up card grid. */}
       {trainers.length === 0 ? (
-        <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+        <Card padding="none" xstyle={styles.emptyCard}>
           <span {...stylex.props(styles.emptyIcon)}>
             <Icon name="users" {...stylex.props(styles.emptyIconSvg)} />
           </span>
@@ -728,7 +728,7 @@ export function TrainersRoster({
           </p>
         </Card>
       ) : visible.length === 0 ? (
-        <Card variant="default" padding={0} xstyle={styles.noMatchCard}>
+        <Card padding="none" xstyle={styles.noMatchCard}>
           {t('list.noMatch')}
         </Card>
       ) : (
@@ -746,22 +746,20 @@ export function TrainersRoster({
             {t('list.pageRange', { from, to, total })}
           </span>
           <div {...stylex.props(styles.pagerBtns)}>
-            <Btn
-              v="outline"
-              size="sm"
-              disabled={!hasPrev}
+            <Button
+              variant="secondary"
+              size="inline"
               onClick={() => startTransition(() => router.replace(pageHref(page - 1)))}
-            >
-              {t('list.previous')}
-            </Btn>
-            <Btn
-              v="outline"
-              size="sm"
-              disabled={!hasNext}
+              disabled={!hasPrev}
+              label={t('list.previous')}
+            />
+            <Button
+              variant="secondary"
+              size="inline"
               onClick={() => startTransition(() => router.replace(pageHref(page + 1)))}
-            >
-              {t('list.next')}
-            </Btn>
+              disabled={!hasNext}
+              label={t('list.next')}
+            />
           </div>
         </div>
       ) : null}

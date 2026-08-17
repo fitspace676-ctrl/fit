@@ -8,8 +8,9 @@
     "start": "next start -p 3001",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
-    "test": "echo '[@fit/web] test: nothing to do yet'",
-    "type-check": "tsc --noEmit"
+    "test": "vitest run",
+    "type-check": "tsc --noEmit",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@astryxdesign/core": "0.1.3",
@@ -17,6 +18,7 @@
     "@fit/env": "workspace:*",
     "@fit/i18n": "workspace:*",
     "@fit/types": "workspace:*",
+    "@fit/ui-kit": "workspace:*",
     "@fit/ui-web": "workspace:*",
     "@fit/utils": "workspace:*",
     "@sentry/nextjs": "^9",
@@ -37,6 +39,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
   }
 }

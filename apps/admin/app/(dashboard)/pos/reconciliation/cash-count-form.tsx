@@ -1,10 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import { computeCashVariance } from '@fit/types';
 import { formatPrice, inputToMinor } from '@/app/(dashboard)/shop/format-price';
-import { Card } from '@astryxdesign/core/Card';
 
 const styles = stylex.create({
   card: {
@@ -135,7 +135,7 @@ export function CashCountForm({
           : styles.toneShort;
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h2 {...stylex.props(styles.heading)}>Balance the drawer</h2>
 
       <dl {...stylex.props(styles.row)}>

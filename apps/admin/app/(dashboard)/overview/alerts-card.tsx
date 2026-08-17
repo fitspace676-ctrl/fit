@@ -1,8 +1,8 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import type { DashboardAlert, DashboardOverviewResponse } from '@fit/types';
 import { Icon, type IconName } from '@/components/ui';
 import { EmptyState, timeAgo } from './format';
@@ -113,7 +113,7 @@ export function AlertsCard({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
   const alerts = data.alerts;
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHeadBaseline)}>
         <h2 {...stylex.props(styles.sectionLabel)}>{t('alerts.title')}</h2>
         <span {...stylex.props(styles.metaText)}>{alerts.length}</span>

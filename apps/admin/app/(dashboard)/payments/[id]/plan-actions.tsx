@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import Link from 'next/link';
+import { ButtonLink } from '@/components/ui/button-link';
 import { useRouter } from 'next/navigation';
 import type { SubscriptionPlanStatus } from '@fit/types';
-import { Btn, buttonClasses } from '@/components/ui';
+import { Button } from '@fit/ui-kit';
 import { setSubscriptionPlanActiveAction } from '../actions';
 
 /**
@@ -43,12 +43,19 @@ export function PlanActions({
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
-        <Link href={`/payments/${planId}/edit`} className={buttonClasses('outline', 'sm')}>
-          Edit
-        </Link>
-        <Btn v={isInactive ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>
-          {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
-        </Btn>
+        <ButtonLink
+          href={`/payments/${planId}/edit`}
+          variant="secondary"
+          size="inline"
+          label="Edit"
+        />
+        <Button
+          variant={isInactive ? 'primary' : 'secondary'}
+          size="inline"
+          onClick={toggle}
+          disabled={pending}
+          label={pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
+        />
       </div>
       {error ? (
         <p

@@ -47,86 +47,36 @@ const MIGRATED_PATHS: readonly string[] = [
   // T11.1 — brand Theme providers wiring Astryx into each app shell.
   'apps/web/src/components/theme/astryx-provider.tsx',
   'apps/admin/components/theme/astryx-provider.tsx',
-  // T11.7 — auth shell + login screen (credentials + Google + Apple). With the
-  // forgot/reset screens migrated (T11.9) the whole `_components/auth` dir is now
-  // Astryx-only — the legacy `form-controls.tsx` is gone — so it is guarded as a
-  // directory rather than file-by-file.
-  'apps/web/app/[locale]/member/login',
+  // ======================= apps/web — the member portal ======================
+  //
+  // The whole portal, guarded as four directories rather than the thirty-odd
+  // file-and-folder entries this list used to carry (T11.7–T11.16, one per
+  // screen-migration task).
+  //
+  // Those entries were fine-grained for a reason: each named exactly what had
+  // moved, and the gaps between them were the screens still on Tailwind. There
+  // are no gaps left. The portal is rendered entirely by `src/components/ui/kit`
+  // — the FormaCore vocabulary the sign-in and checkout screens always used,
+  // promoted to every screen — and the last four Tailwind leaves went with it:
+  // `booking-action-button` and `goals-card` are on the kit, `data-viz` is
+  // deleted (its `CountUp` moved into the kit; `Donut`/`Occupancy`/`Switch` were
+  // dead or superseded), and `qr-code` is StyleX.
+  //
+  // Directory guards from here on, so a NEW file under any of them is covered
+  // the moment it lands rather than when someone remembers to add it.
+  'apps/web/app/[locale]/member',
   'apps/web/app/[locale]/_components/auth',
-  // T11.8 — register + post-signup email-verification screen. Rebuilt inline on
-  // Astryx form primitives (no longer routed through `form-controls.tsx`).
-  'apps/web/app/[locale]/member/register',
-  // T11.9 — forgot-password (request link) + reset-password (set new password).
-  // Rebuilt on the shared Astryx auth shell + Astryx form primitives (StyleX).
-  'apps/web/app/[locale]/member/forgot-password',
-  'apps/web/app/[locale]/member/reset-password',
-  // T11.11 — member dashboard: rebuilt on Astryx Card/Button/Badge/Avatar +
-  // StyleX. Guarded file-by-file (not the whole `(member)` group) so the
-  // not-yet-migrated member screens the shell hosts keep their Tailwind during
-  // coexistence.
-  'apps/web/app/[locale]/member/(member)/home/page.tsx',
-  'apps/web/src/components/member/home/membership-hero.tsx',
-  // T11.12 — member classes list (week/list calendar + filter strip) + class
-  // detail + booking CTA. Both route files and the whole classes component dir
-  // are rebuilt on Astryx Card/Button/Badge + StyleX (the shared side-sheet
-  // shell stays in @fit/ui-web, out of scope). Guarded as directories since the
-  // classes route group and component dir are now Astryx-only.
-  'apps/web/app/[locale]/member/(member)/classes',
-  'apps/web/src/components/classes',
-  // T11.13 — member trainers browse (roster + filter card) + trainer detail
-  // (profile + schedule + reviews). Both route files and the whole trainers
-  // component dir are rebuilt on Astryx Card/Avatar/Badge/Button + StyleX.
-  // Guarded as directories since the trainers route group and component dir are
-  // now Astryx-only.
-  'apps/web/app/[locale]/member/(member)/trainers',
-  'apps/web/src/components/trainers',
-  // T11.14 — member "My bookings" board (upcoming/past segmented control + cancel
-  // confirm dialog). The bookings route file is guarded file-by-file (the sibling
-  // account screens — profile, membership — keep their Tailwind until T11.16),
-  // while the whole `src/components/account` dir is Astryx-only and guarded as a
-  // directory.
-  'apps/web/app/[locale]/member/(member)/account/bookings',
-  'apps/web/src/components/account',
-  // T11.15 — member commerce: shop listing + product card, cart + checkout, and
-  // the four-step purchase wizard (+ success). Rebuilt on Astryx
-  // Card/Button/IconButton/Badge/Selector/TextInput/CheckboxInput + StyleX.
-  // Guarded as directories since the shop / cart / checkout route groups and
-  // component dirs are now Astryx-only.
-  'apps/web/app/[locale]/member/(member)/shop',
-  'apps/web/src/components/shop',
-  'apps/web/app/[locale]/member/(member)/cart',
-  'apps/web/src/components/member/cart',
-  'apps/web/app/[locale]/member/(join)/checkout',
-  'apps/web/src/components/checkout',
-  // T11.16 — member account: profile (identity + tabbed personal/preferences/
-  // notifications/security), membership (plan/status/freeze/credits/invoices)
-  // and the notification bell + inbox dropdown. Rebuilt on Astryx
-  // Card/Badge/Button/ProgressBar/TabList/TextInput/SegmentedControl/Switch/
-  // NumberInput/Popover + StyleX. The account route group is now fully migrated
-  // (bookings T11.14 + profile + membership), and the notification bell is
-  // guarded file-by-file (the member shell/header stays Tailwind for now).
-  'apps/web/app/[locale]/member/(member)/account/profile',
-  'apps/web/app/[locale]/member/(member)/account/membership',
-  'apps/web/src/components/member/profile',
-  'apps/web/src/components/member/notification-bell.tsx',
-  // T11.10 — member portal shell, migrated by the FormaCore redesign: the member
-  // header (brand + account menu), the theme toggle, the floating nav capsule,
-  // the contact footer, and the two layouts that frame them
-  // (the portal shell and the join funnel's). Rebuilt on compiled StyleX over the
-  // `formacore` Astryx theme — no Tailwind utilities, and the Aurora backdrop
-  // component they used to mount is deleted. Guarded file-by-file rather than as
-  // `src/components/member`, because `booking-action-button.tsx` and
-  // `goals/goals-card.tsx` under it are still Tailwind during coexistence.
-  'apps/web/app/[locale]/member/(member)/layout.tsx',
-  'apps/web/app/[locale]/member/(join)/layout.tsx',
-  'apps/web/src/components/member/member-header.tsx',
-  'apps/web/src/components/member/member-footer.tsx',
-  'apps/web/src/components/member/bottom-nav.tsx',
-  'apps/web/src/components/member/theme-toggle.tsx',
-  // Also migrated by the redesign: the language switcher, which both the login
-  // screen and the join shell mount. It was the last file still painting in the
-  // retired Aurora indigo (`text-brand-600` / `text-slate-*`).
-  'apps/web/src/components/LocaleSwitcher.tsx',
+  // Three files under this one are carved back out — see EXEMPT_PATHS.
+  'apps/web/src/components',
+
+  // The shared FormaCore control vocabulary both web surfaces render. It is the
+  // one `@fit/*` package that must be guarded: the others predate the migration
+  // and are Tailwind by design (which is why `@fit/ui-web` is deliberately
+  // outside this list), whereas a Tailwind class appearing here would put one
+  // back into every screen of both apps at once.
+  'packages/ui-kit/src',
+
+  // ========================= apps/admin — the console ========================
   // T11.17 — admin console shell: the AppShell frame, collapsible SideNav, the
   // TopNav (search + quick-sale + theme toggle + notifications + session menu),
   // the language SegmentedControl and the inline nav icons. Rebuilt on Astryx
@@ -212,6 +162,26 @@ const MIGRATED_PATHS: readonly string[] = [
   // Tailwind — and guarded so it stays that way. First (and so far only) file in
   // `segments/`, so guarded as a directory to cover its siblings as they land.
   'apps/admin/app/(dashboard)/segments',
+];
+
+/**
+ * Files that sit UNDER a guarded path but are deliberately still Tailwind.
+ *
+ * The member portal is guarded as whole directories, which is what makes a new
+ * file covered the day it lands. These three are the cost of that: they live in
+ *  — inside the guarded tree — but nothing in the portal
+ * mounts them any more. Their only consumers are the MARKETING pages under
+ * , a separate surface on its own Tailwind skin that
+ * this migration did not touch.
+ *
+ * Exemptions are files, never directories, so this list cannot quietly widen.
+ * It empties when the marketing surface migrates, and the guard fails if an
+ * entry stops matching a real guarded file.
+ */
+const EXEMPT_PATHS: readonly string[] = [
+  'apps/web/src/components/ui/badge.tsx',
+  'apps/web/src/components/ui/button.tsx',
+  'apps/web/src/components/ui/primitives.tsx',
 ];
 
 /** Class composers whose string arguments end up as `className`. */
@@ -384,15 +354,30 @@ function scan(file: string, sourceLines: string[]): Offender[] {
 const files: string[] = [];
 for (const p of MIGRATED_PATHS) collectFiles(resolve(ROOT, p), files);
 
-const missing = MIGRATED_PATHS.filter((p) => !existsSync(resolve(ROOT, p)));
+const exempt = new Set(EXEMPT_PATHS.map((p) => resolve(ROOT, p)));
+const guarded = files.filter((f) => !exempt.has(f));
+
+const missing = [...MIGRATED_PATHS, ...EXEMPT_PATHS].filter((p) => !existsSync(resolve(ROOT, p)));
 if (missing.length > 0) {
   console.error('Tailwind guardrail: manifest lists paths that no longer exist:\n');
   for (const p of missing) console.error(`  ${p}`);
-  console.error('\nUpdate MIGRATED_PATHS in scripts/check-tailwind-guardrail.ts.');
+  console.error('\nUpdate MIGRATED_PATHS / EXEMPT_PATHS in scripts/check-tailwind-guardrail.ts.');
   process.exit(1);
 }
 
-const offenders = files.flatMap((f) => scan(f, readFileSync(f, 'utf8').split('\n')));
+// An exemption that no longer has anything to protect is worse than none: it
+// silently un-guards a file the day someone moves Tailwind back into it. Fail
+// when one stops matching a collected file, the same way a stale manifest entry
+// fails above.
+const unusedExemptions = EXEMPT_PATHS.filter((p) => !files.includes(resolve(ROOT, p)));
+if (unusedExemptions.length > 0) {
+  console.error('Tailwind guardrail: exemptions that no longer sit under a guarded path:\n');
+  for (const p of unusedExemptions) console.error(`  ${p}`);
+  console.error('\nDrop them from EXEMPT_PATHS — the guard already covers nothing there.');
+  process.exit(1);
+}
+
+const offenders = guarded.flatMap((f) => scan(f, readFileSync(f, 'utf8').split('\n')));
 
 if (offenders.length > 0) {
   console.error('Tailwind utility classes found on migrated Astryx screens:\n');

@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Button, ConfirmDialog } from '@/src/components/ui/kit';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { useRouter } from '@/src/i18n/navigation';
 import { useToast } from '@/src/components/ui';
 import { cancelBookingAction } from '@/app/actions/bookings';
@@ -16,7 +15,7 @@ export interface CancelBookingButtonProps {
 }
 
 /**
- * Cancel a member's upcoming booking, gated behind an Astryx `AlertDialog`
+ * Cancel a member's upcoming booking, gated behind an the kit's `AlertDialog`
  * confirmation (T11.14). The trigger is an Astryx ghost `Button`; confirming runs
  * the existing {@link cancelBookingAction} server action, surfaces a success or
  * error toast (mapping the API's error code to a friendly line), then refreshes
@@ -48,24 +47,24 @@ export function CancelBookingButton({ classId, classTitle }: CancelBookingButton
     <>
       <Button
         variant="ghost"
-        size="sm"
+        size="inline"
         label={t('cancel')}
         onClick={() => setOpen(true)}
-        isDisabled={pending}
+        disabled={pending}
       />
-      <AlertDialog
-        isOpen={open}
-        onOpenChange={(next) => {
+      <ConfirmDialog
+        open={open}
+        onClose={() => {
           // Ignore the dialog's own close while a cancel is mid-flight.
-          if (!pending) setOpen(next);
+          if (!pending) setOpen(false);
         }}
         title={t('confirm.title')}
         description={t('confirm.description', { title: classTitle })}
         cancelLabel={t('confirm.keep')}
-        actionLabel={t('confirm.confirm')}
-        actionVariant="destructive"
-        isActionLoading={pending}
-        onAction={confirm}
+        confirmLabel={t('confirm.confirm')}
+        confirmVariant="destructive"
+        loading={pending}
+        onConfirm={confirm}
       />
     </>
   );

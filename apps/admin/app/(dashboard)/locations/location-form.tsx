@@ -13,7 +13,7 @@ import {
   type LocationStatus,
   type Weekday,
 } from '@fit/types';
-import { Btn, Switch } from '@/components/ui';
+import { Button, Switch } from '@fit/ui-kit';
 import {
   createLocationAction,
   requestLocationPhotoUploadAction,
@@ -660,9 +660,13 @@ export function LocationForm(props: Props) {
       ) : null}
 
       <div {...stylex.props(styles.actions)}>
-        <Btn type="submit" v="primary" disabled={pending || uploading || hasHourErrors}>
-          {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create location'}
-        </Btn>
+        <Button
+          variant="primary"
+          size="card"
+          type="submit"
+          disabled={pending || uploading || hasHourErrors}
+          label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create location'}
+        />
         <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
           Cancel
         </Link>

@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import type { ProductStatus } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Button } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { setProductActiveAction } from '../actions';
 
 const styles = stylex.create({
@@ -97,9 +98,13 @@ export function ProductActions({
         <Link href={`/shop/${productId}/edit`} {...stylex.props(styles.editLink)}>
           Edit
         </Link>
-        <Btn v={isInactive ? 'primary' : 'outline'} size="sm" onClick={toggle} disabled={pending}>
-          {pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
-        </Btn>
+        <Button
+          variant={isInactive ? 'primary' : 'secondary'}
+          size="inline"
+          onClick={toggle}
+          disabled={pending}
+          label={pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
+        />
       </div>
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>

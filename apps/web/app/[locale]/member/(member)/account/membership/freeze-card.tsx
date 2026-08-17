@@ -1,20 +1,17 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Button, Card, Meter, NumberField } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
-import { NumberInput } from '@astryxdesign/core/NumberInput';
-import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { MAX_FREEZE_DURATION_DAYS } from '@fit/types';
 import { useRouter } from '@/src/i18n/navigation';
 import { Icon, useToast } from '@/src/components/ui';
 import { freezeSubscriptionAction, unfreezeSubscriptionAction } from '@/app/actions/subscriptions';
 import { createDateTimeFormat } from '@fit/i18n';
 
-// Astryx migration (T11.16): the "Pause membership" self-service card is rebuilt
-// on the Astryx design system over the Fit brand theme — the header, allowance
+// Astryx migration (T11), now on the portal kit: the "Pause membership" self-service card is rebuilt
+// on the portal kit over the FormaCore theme — the header, allowance
 // bar, actions and the freeze-duration modal use Astryx
 // Card / Button / ProgressBar / NumberInput, all layout in compiled StyleX
 // (`var(--color-*)`), no Tailwind utilities. The freeze / unfreeze server
@@ -162,7 +159,7 @@ const styles = stylex.create({
 });
 
 /**
- * The "Pause membership" self-service card (T5.7), on the Astryx design system:
+ * The "Pause membership" self-service card (T5.7), on the portal kit:
  * surfaces the plan's freeze allowance and lets the member pause / resume their
  * own membership, wired to the `POST /subscriptions/:id/(un)freeze` endpoints. A
  * `422 EXCEEDS_FREEZE_ALLOWANCE` is surfaced as a toast carrying the days that
@@ -247,7 +244,7 @@ export function FreezeCard({
   }
 
   return (
-    <Card variant="default" padding={0}>
+    <Card padding="none">
       <div {...stylex.props(styles.card)}>
         <div {...stylex.props(styles.header)}>
           <span {...stylex.props(styles.headTile)}>
@@ -274,30 +271,30 @@ export function FreezeCard({
                 {t('remaining', { days: freezeDaysRemaining })}
               </span>
             </div>
-            <ProgressBar value={usedPct} label={t('title')} isLabelHidden variant="accent" />
+            <Meter value={usedPct} max={100} label={t('title')} showHeader={false} />
           </div>
         )}
 
         {isFrozen ? (
           <Button
             variant="secondary"
-            size="md"
+            size="card"
             icon={<Icon name="spark" {...stylex.props(styles.glyph)} />}
             label={pending ? t('working') : t('resume')}
             onClick={resume}
-            isDisabled={pending}
+            disabled={pending}
           />
         ) : freezeDaysPerPeriod === 0 ? (
           <p {...stylex.props(styles.unavailable)}>{t('notAvailable')}</p>
         ) : (
           <Button
             variant="secondary"
-            size="md"
+            size="card"
             icon={<Icon name="clock" {...stylex.props(styles.glyph)} />}
             label={t('freeze')}
             onClick={() => setOpen(true)}
-            isDisabled={!canFreeze || pending}
-            tooltip={canFreeze ? undefined : t('exhausted')}
+            disabled={!canFreeze || pending}
+            title={canFreeze ? undefined : t('exhausted')}
           />
         )}
       </div>
@@ -315,30 +312,34 @@ export function FreezeCard({
               {t('modalBody', { days: freezeDaysRemaining })}
             </p>
             <div {...stylex.props(styles.modalField)}>
-              <NumberInput
+              <NumberField
                 label={t('durationLabel')}
                 description={t('durationHint')}
                 value={days}
-                onChange={(value) => setDays(value)}
+                onChange={setDays}
                 min={1}
                 max={maxDays}
-                isIntegerOnly
+                labels={{
+                  decrease: t('durationLess'),
+                  increase: t('durationMore'),
+                  value: t('durationLabel'),
+                }}
               />
             </div>
             <div {...stylex.props(styles.modalActions)}>
               <Button
                 variant="secondary"
-                size="md"
+                size="card"
                 label={t('cancel')}
                 onClick={() => setOpen(false)}
-                isDisabled={pending}
+                disabled={pending}
               />
               <Button
                 variant="primary"
-                size="md"
+                size="card"
                 label={pending ? t('working') : t('confirmFreeze')}
                 onClick={submitFreeze}
-                isDisabled={pending}
+                disabled={pending}
               />
             </div>
           </div>

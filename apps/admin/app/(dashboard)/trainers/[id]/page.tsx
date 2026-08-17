@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLocale, getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import {
   Permission,
@@ -13,7 +12,8 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainer, fetchTrainerAvailability } from '@/lib/api';
-import { Btn, Icon, type IconName } from '@/components/ui';
+import { Button, Card } from '@fit/ui-kit';
+import { Icon, type IconName } from '@/components/ui';
 import { TrainerActions } from './trainer-actions';
 import { TrainerTabs } from './trainer-tabs';
 
@@ -38,6 +38,8 @@ const STATUS_LABEL_KEYS: Record<string, string> = {
 };
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   page: {
     display: 'flex',
     flexDirection: 'column',
@@ -310,7 +312,7 @@ function DetailKpi({
   icon: IconName;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.kpiCard}>
+    <Card padding="none" xstyle={styles.kpiCard}>
       <span {...stylex.props(styles.iconTile)}>
         <Icon name={icon} {...stylex.props(styles.icon)} />
       </span>
@@ -390,9 +392,13 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
           <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
           <span {...stylex.props(styles.crumbCurrent)}>{trainer.name}</span>
         </nav>
-        <Btn v="outline" size="sm" icon="message" disabled>
-          {t('detail.message')}
-        </Btn>
+        <Button
+          variant="secondary"
+          size="inline"
+          disabled
+          icon={<Icon name="message" {...stylex.props(styles.kitGlyph)} />}
+          label={t('detail.message')}
+        />
       </div>
 
       <Link href="/trainers" {...stylex.props(styles.backLink)}>
@@ -401,7 +407,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
       </Link>
 
       {/* Identity header card. */}
-      <Card variant="default" padding={0} xstyle={styles.identityCard}>
+      <Card padding="none" xstyle={styles.identityCard}>
         <div {...stylex.props(styles.identityLeft)}>
           {trainer.photoUrl ? (
             <img

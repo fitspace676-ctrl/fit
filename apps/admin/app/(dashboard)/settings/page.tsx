@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
+import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { ApiError, fetchGymSettings, fetchLocations } from '@/lib/api';
 import Link from 'next/link';
 import { Icon } from '@/components/ui';
@@ -144,7 +144,7 @@ export default async function SettingsPage() {
             {t('emailTemplatesLink')}
           </Link>
         </header>
-        <Card variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <p role="alert" {...stylex.props(styles.errorText)}>
             {message}

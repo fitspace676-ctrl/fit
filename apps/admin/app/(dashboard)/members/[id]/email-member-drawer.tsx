@@ -4,13 +4,13 @@ import { useState, useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { interpolateMergeFields, type EmailTemplateOption, type MergeValues } from '@fit/types';
-import { Btn, Drawer, Field, Icon, Input, Textarea, useToast } from '@/components/ui';
+import { Button, Drawer, Field, TextareaField } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { listEmailTemplatesAction, sendMemberEmailAction } from '../actions';
 
-/** Slide-out animation duration — keep in sync with the Drawer's exit (~0.28s). */
-const CLOSE_MS = 260;
-
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   // Recipient — a compact identity card so staff see exactly who they're writing.
   recipient: {
     display: 'flex',
@@ -176,7 +176,6 @@ export function EmailMemberDrawer({
   const t = useTranslations('admin.members');
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
-  const [closing, setClosing] = useState(false);
   const [templates, setTemplates] = useState<EmailTemplateOption[]>([]);
   const [templateId, setTemplateId] = useState<string>(BLANK);
   const [subject, setSubject] = useState('');
@@ -188,21 +187,16 @@ export function EmailMemberDrawer({
     setSubject('');
     setBody('');
     setTemplates([]);
-    setClosing(false);
     setIsOpen(true);
     // Lazy-load the gym's email templates; a failure (or no access) just leaves the
     // picker empty — composing a custom message always works.
     void listEmailTemplatesAction().then(setTemplates);
   }
 
+  // The sheet owns its own exit animation now, so closing is just a state flip —
+  // the `closing` flag and the CLOSE_MS timer that kept it mounted are gone.
   function handleClose(): void {
-    if (closing) return;
-    setClosing(true);
-    // Keep the drawer mounted for the slide-out, then unmount.
-    window.setTimeout(() => {
-      setIsOpen(false);
-      setClosing(false);
-    }, CLOSE_MS);
+    setIsOpen(false);
   }
 
   function pickTemplate(id: string): void {
@@ -236,26 +230,38 @@ export function EmailMemberDrawer({
 
   return (
     <>
-      <Btn v="outline" size="sm" icon="mail" onClick={open}>
-        {t('email.button')}
-      </Btn>
+      <Button
+        variant="secondary"
+        size="inline"
+        icon={<Icon name="mail" {...stylex.props(styles.kitGlyph)} />}
+        onClick={open}
+        label={t('email.button')}
+      />
 
       {isOpen ? (
         <Drawer
           open
           onClose={handleClose}
-          closing={closing}
-          side="right"
-          size="lg"
-          title={t('email.title')}
+          label={t('email.title')}
+          closeLabel={t('email.cancel')}
           footer={
             <div {...stylex.props(styles.footer)}>
-              <Btn v="ghost" size="md" onClick={handleClose} disabled={sending}>
-                {t('email.cancel')}
-              </Btn>
-              <Btn v="primary" size="md" icon="mail" onClick={send} disabled={!canSend}>
-                {sending ? t('email.sending') : t('email.send')}
-              </Btn>
+              <Button
+                variant="ghost"
+                size="block"
+                onClick={handleClose}
+                disabled={sending}
+                label={t('email.cancel')}
+              />
+              <Button
+                variant="primary"
+                size="block"
+                icon={<Icon name="mail" {...stylex.props(styles.kitGlyph)} />}
+                onClick={send}
+                disabled={!canSend}
+                loading={sending}
+                label={sending ? t('email.sending') : t('email.send')}
+              />
             </div>
           }
         >
@@ -293,30 +299,26 @@ export function EmailMemberDrawer({
             </div>
           ) : null}
 
-          <Field label={t('email.subjectLabel')} htmlFor="email-subject">
-            <Input
-              id="email-subject"
-              value={subject}
-              maxLength={200}
-              placeholder={t('email.subjectPlaceholder')}
-              onChange={(event) => setSubject(event.target.value)}
-            />
-          </Field>
-
+          {/* The kit's `Field` is the label AND the control — the old pair
+              wrapped a separate `<Input>`, which is what let the two drift apart
+              (a label bound by `htmlFor` to an id the caller had to remember to
+              set). Here the binding is internal and cannot be forgotten. */}
           <Field
+            label={t('email.subjectLabel')}
+            value={subject}
+            maxLength={200}
+            placeholder={t('email.subjectPlaceholder')}
+            onChange={(event) => setSubject(event.target.value)}
+          />
+
+          <TextareaField
             label={t('email.bodyLabel')}
-            htmlFor="email-body"
-            className={stylex.props(styles.messageField).className}
-          >
-            <Textarea
-              id="email-body"
-              value={body}
-              maxLength={5000}
-              placeholder={t('email.bodyPlaceholder')}
-              onChange={(event) => setBody(event.target.value)}
-              {...stylex.props(styles.messageInput)}
-            />
-          </Field>
+            value={body}
+            maxLength={5000}
+            placeholder={t('email.bodyPlaceholder')}
+            onChange={(event) => setBody(event.target.value)}
+            xstyle={styles.messageField}
+          />
         </Drawer>
       ) : null}
     </>

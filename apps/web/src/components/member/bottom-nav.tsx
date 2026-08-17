@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
+import { focus } from '@/src/components/ui/kit';
 import { NAV_ITEMS, isActive } from './nav-items';
 import { NotificationBell } from './notification-bell';
 
@@ -116,11 +117,16 @@ const styles = stylex.create({
 /** The floating primary navigation, shown at every width. */
 export function BottomNav() {
   const t = useTranslations('member.nav');
+  const tShell = useTranslations('member.shell');
   const pathname = usePathname();
 
   return (
     <div {...stylex.props(styles.rail)}>
-      <nav {...stylex.props(styles.capsule)} aria-label={t('home')}>
+      {/* The landmark names the WHOLE navigation, not its first item. It was
+          labelled `nav.home`, so a screen reader announced a six-item region as
+          "Home navigation" — and then read "Home" again as the first link
+          inside it. */}
+      <nav {...stylex.props(styles.capsule)} aria-label={tShell('primaryNav')}>
         {NAV_ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
           return (
@@ -129,7 +135,7 @@ export function BottomNav() {
               href={item.href}
               aria-label={t(item.key)}
               aria-current={active ? 'page' : undefined}
-              {...stylex.props(styles.item, active ? styles.active : styles.idle)}
+              {...stylex.props(styles.item, active ? styles.active : styles.idle, focus.ring)}
             >
               <Icon name={item.icon} sw={2.1} {...stylex.props(styles.icon)} />
               <span {...stylex.props(styles.label)}>{t(item.key)}</span>

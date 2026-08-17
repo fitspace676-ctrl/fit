@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
 import { loginWithApple } from '@/lib/auth';
 import { Icon } from '@/src/components/ui';
 
@@ -17,7 +17,7 @@ const REDIRECT_URI = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI;
 
 type Status = 'idle' | 'authenticating' | 'success' | 'error';
 
-// Astryx migration (T11.7): the hand-rolled `buttonClasses` anchor is replaced
+// Astryx migration (T11), now on the portal kit: the hand-rolled `buttonClasses` anchor is replaced
 // by an Astryx secondary `Button` with the Apple glyph as its leading icon;
 // wrapper + status copy are compiled StyleX on the Fit theme tokens and the
 // strings are wired to next-intl.
@@ -140,11 +140,11 @@ export function AppleSignInButton() {
       <Button
         type="button"
         variant="secondary"
-        size="lg"
+        size="block"
         label={busy ? t('signingIn') : t('continueWithApple')}
         icon={<Icon name="apple" />}
-        isDisabled={!ready || busy}
-        isLoading={busy}
+        disabled={!ready || busy}
+        loading={busy}
         onClick={signIn}
         xstyle={styles.button}
       />

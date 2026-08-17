@@ -6,7 +6,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import { MAX_CART_LINE_QUANTITY, type CartView } from '@fit/types';
 import { formatMoney } from '@/lib/shop';
 import { Link } from '@/src/i18n/navigation';
-import { controlSize, Icon, useToast } from '@/src/components/ui';
+import { Icon, useToast } from '@/src/components/ui';
+import { control, stretch } from '@/src/components/ui/kit';
 import { removeCartItemAction, updateCartItemAction } from '@/app/actions/cart';
 
 // FormaCore redesign — the cart, kept on screen beside the catalogue.
@@ -223,7 +224,7 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-element)',
     backgroundColor: {
       default: 'var(--color-accent)',
-      ':hover': 'var(--color-accent-hover)',
+      ':hover': 'var(--fc-accent-hover)',
     },
     color: 'var(--color-on-accent)',
     textDecoration: 'none',
@@ -387,10 +388,7 @@ export function CartPanel({ cart, onCart }: CartPanelProps) {
             </div>
           </div>
 
-          <Link
-            href="/member/cart"
-            {...stylex.props(styles.cta, controlSize.page, controlSize.full)}
-          >
+          <Link href="/member/cart" {...stylex.props(styles.cta, control.page, stretch.full)}>
             {t('checkout')}
           </Link>
         </>

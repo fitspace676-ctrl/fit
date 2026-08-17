@@ -3,12 +3,19 @@ import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { classCalendarViewSchema, DEFAULT_CLASS_VIEW } from '@fit/types';
 import { getActiveGymId, getActiveGymTimezone } from '@/lib/active-gym';
+import { ButtonLink } from '@/src/components/ui/kit';
 import { ClassesBrowser } from '@/src/components/classes/ClassesBrowser';
 import { parseFilters } from '@/src/components/classes/class-filters';
 
-// Astryx migration (T11.12): the page shell (heading + subtitle) is authored in
+// Astryx migration (T11), now on the portal kit: the page shell (heading + subtitle) is authored in
 // compiled StyleX over the Fit brand tokens — no Tailwind utilities. The
 // interactive schedule lives in the client `ClassesBrowser` below.
+//
+// The head is the portal's standard one — eyebrow, title, subtitle, and the way
+// onward on the same line — so this screen reads as a sibling of the membership
+// and bookings boards rather than as a page from another product. It used to
+// carry a bare title over a subtitle and nothing else, which is also why the
+// only route from the schedule back to your own bookings was the bottom nav.
 
 const styles = stylex.create({
   page: {
@@ -18,23 +25,33 @@ const styles = stylex.create({
   },
   header: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  eyebrow: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.2em',
+    color: 'var(--color-text-secondary)',
   },
   title: {
     margin: 0,
+    marginTop: '0.25rem',
     fontFamily: 'var(--font-family-heading)',
-    fontSize: {
-      default: '1.5rem',
-      '@media (min-width: 640px)': '1.875rem',
-    },
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
     fontWeight: 800,
     letterSpacing: '-0.02em',
     color: 'var(--color-text-primary)',
   },
   subtitle: {
     margin: 0,
-    fontSize: '0.875rem',
+    marginTop: '0.375rem',
+    maxWidth: '52ch',
+    fontSize: '0.9375rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -91,8 +108,17 @@ export default async function ClassesPage({
   return (
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
-        <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
+        <div>
+          <p {...stylex.props(styles.eyebrow)}>{t('eyebrow')}</p>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
+        </div>
+        <ButtonLink
+          href="/member/account/bookings"
+          variant="secondary"
+          size="card"
+          label={t('myBookings')}
+        />
       </header>
 
       <ClassesBrowser

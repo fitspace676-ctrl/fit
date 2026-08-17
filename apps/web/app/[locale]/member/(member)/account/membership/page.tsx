@@ -1,11 +1,7 @@
 import type { Metadata } from 'next';
+import { Badge, ButtonLink, Card, Meter, type BadgeTone } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
-import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
-import { ProgressBar } from '@astryxdesign/core/ProgressBar';
-import type { BadgeVariant } from '@astryxdesign/core/Badge';
 import type { MemberBookingHistoryEntry } from '@fit/types';
 import { fetchMembership } from '@/lib/membership';
 import {
@@ -15,13 +11,13 @@ import {
 } from '@/lib/credit-packs';
 import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
-import { ButtonLink, Icon } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { FreezeCard } from './freeze-card';
 import { BuyCreditsCard } from './buy-credits-card';
 import { createDateTimeFormat } from '@fit/i18n';
 
-// Astryx migration (T11.16): the member membership screen is rebuilt on the
-// Astryx design system over the Fit brand theme. The status badge, the gradient
+// Astryx migration (T11), now on the portal kit: the member membership screen is rebuilt on the
+// Astryx design system over the FormaCore theme. The status badge, the gradient
 // plan card, the manage-plan / metrics / invoices sections use Astryx
 // Card / Badge / Button / ProgressBar; all layout is compiled StyleX
 // (`var(--color-*)`), no Tailwind utilities. Live membership (GET
@@ -39,13 +35,22 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-const STATUS_VARIANT: Record<string, BadgeVariant> = {
-  TRIAL: 'purple',
-  ACTIVE: 'success',
-  FROZEN: 'blue',
-  CANCELED: 'neutral',
-  PAST_DUE: 'warning',
-  EXPIRED: 'neutral',
+/**
+ * The chip tone for each subscription status.
+ *
+ * The direction reduces sentiment to three signals, so five statuses collapse
+ * onto three tones rather than onto five hues: a live plan is `positive` (the
+ * lime), anything waiting or wound down is `pending` (ink), and a failed payment
+ * is the one red. TRIAL used to be purple and FROZEN blue — both rendered as
+ * grey anyway, because the theme flattens every categorical hue onto ink.
+ */
+const STATUS_TONE: Record<string, BadgeTone> = {
+  TRIAL: 'positive',
+  ACTIVE: 'positive',
+  FROZEN: 'pending',
+  CANCELED: 'pending',
+  PAST_DUE: 'danger',
+  EXPIRED: 'pending',
 };
 
 const styles = stylex.create({
@@ -366,10 +371,10 @@ const styles = stylex.create({
   },
 });
 
-function invoiceVariant(status: string): BadgeVariant {
-  if (status === 'PAID') return 'success';
-  if (status === 'FAILED') return 'error';
-  return 'warning';
+function invoiceTone(status: string): BadgeTone {
+  if (status === 'PAID') return 'positive';
+  if (status === 'FAILED') return 'danger';
+  return 'pending';
 }
 
 export default async function MembershipPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -419,7 +424,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         <ButtonLink
           href="/member/checkout"
           variant="primary"
-          size="md"
+          size="card"
           label={hasMembership ? t('changePlan') : t('choosePlan')}
         />
       </div>
@@ -445,7 +450,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             </span>
             {hasMembership ? (
               <Badge
-                variant={STATUS_VARIANT[status] ?? 'neutral'}
+                tone={STATUS_TONE[status] ?? 'neutral'}
                 label={t(`status.${status}`)}
                 xstyle={styles.planBadge}
               />
@@ -482,13 +487,13 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         </div>
 
         {/* Actions */}
-        <Card variant="default" padding={0}>
+        <Card padding="none">
           <div {...stylex.props(styles.actions)}>
             <p {...stylex.props(styles.actionsLabel)}>{t('managePlan')}</p>
             <ButtonLink
               href="/member/checkout"
               variant="secondary"
-              size="md"
+              size="card"
               icon={<Icon name="ticket" {...stylex.props(styles.glyph)} />}
               label={hasMembership ? t('changePlan') : t('choosePlan')}
               xstyle={styles.fullStart}
@@ -496,7 +501,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             <ButtonLink
               href="/member/account/bookings"
               variant="ghost"
-              size="md"
+              size="card"
               icon={<Icon name="calendar" {...stylex.props(styles.glyph)} />}
               label={t('viewBookings')}
               xstyle={styles.fullStart}
@@ -504,7 +509,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             <ButtonLink
               href="/member/shop"
               variant="ghost"
-              size="md"
+              size="card"
               icon={<Icon name="bag" {...stylex.props(styles.glyph)} />}
               label={t('shopMember')}
               xstyle={styles.fullStart}
@@ -529,14 +534,14 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
 
       {/* Metrics */}
       <section {...stylex.props(styles.metrics)}>
-        <Card variant="default" padding={0} xstyle={styles.metricCard}>
+        <Card padding="none" xstyle={styles.metricCard}>
           <div {...stylex.props(styles.metricHead)}>
             <Icon name="card" {...stylex.props(styles.metricIcon)} />
             <p {...stylex.props(styles.metricLabel)}>{t('paymentMethod')}</p>
           </div>
           <p {...stylex.props(styles.metricValue)}>{t('payAtDesk')}</p>
         </Card>
-        <Card variant="default" padding={0} xstyle={styles.metricCard}>
+        <Card padding="none" xstyle={styles.metricCard}>
           <div {...stylex.props(styles.metricHead)}>
             <Icon name="spark" {...stylex.props(styles.metricIcon)} />
             <p {...stylex.props(styles.metricLabel)}>{t('thisPeriod')}</p>
@@ -545,11 +550,11 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             {attended} <span {...stylex.props(styles.metricUnit)}>{t('classes')}</span>
           </p>
           <div {...stylex.props(styles.progressWrap)}>
-            <ProgressBar
+            <Meter
               value={Math.min(100, attended * 8)}
+              max={100}
               label={t('thisPeriod')}
-              isLabelHidden
-              variant="accent"
+              showHeader={false}
             />
           </div>
         </Card>
@@ -562,7 +567,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           <h2 {...stylex.props(styles.invoicesTitle)}>{t('invoices')}</h2>
         </div>
         {invoices.length > 0 ? (
-          <Card variant="default" padding={0} xstyle={styles.tableWrap}>
+          <Card padding="none" xstyle={styles.tableWrap}>
             <table {...stylex.props(styles.table)}>
               <thead>
                 <tr>
@@ -589,17 +594,17 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
                     </td>
                     <td {...stylex.props(styles.td)}>
                       <Badge
-                        variant={invoiceVariant(inv.status)}
+                        tone={invoiceTone(inv.status)}
                         label={t(`invoiceStatus.${inv.status}`)}
                       />
                     </td>
                     <td {...stylex.props(styles.td)}>
                       {/* Not a localized <Link>: the download proxy lives at the
                           locale-less `/api/invoices/:id` route handler. */}
-                      <Button
+                      <ButtonLink
                         href={`/api/invoices/${inv.id}`}
                         variant="ghost"
-                        size="sm"
+                        size="inline"
                         icon={<Icon name="download" {...stylex.props(styles.glyph)} />}
                         label={t('download')}
                         aria-label={t('downloadPdf')}
@@ -611,7 +616,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             </table>
           </Card>
         ) : (
-          <Card variant="default" padding={0}>
+          <Card padding="none">
             <div {...stylex.props(styles.emptyInvoices)}>
               <Icon name="download" {...stylex.props(styles.emptyIcon)} />
               <p {...stylex.props(styles.emptyText)}>{t('noInvoices')}</p>

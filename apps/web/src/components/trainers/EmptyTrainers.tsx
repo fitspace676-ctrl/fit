@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Icon } from '@/src/components/ui';
 
-// Astryx migration (T11.13): the empty state is authored in compiled StyleX over
+// Astryx migration (T11), now on the portal kit: the empty state is authored in compiled StyleX over
 // the Fit brand tokens — no Tailwind utilities and no formacore Aurora-glass
 // primitives.
 

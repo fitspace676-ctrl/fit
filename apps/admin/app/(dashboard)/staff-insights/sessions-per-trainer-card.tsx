@@ -11,8 +11,8 @@
 // trainer vanish silently.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import { TOP_TRAINERS } from '@fit/types';
 import type { TrainerDelivery } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
@@ -49,7 +49,7 @@ export function SessionsPerTrainerCard({ trainers }: { trainers: TrainerDelivery
   }));
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('perTrainer.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('perTrainer.caption', { count: TOP_TRAINERS })}</p>

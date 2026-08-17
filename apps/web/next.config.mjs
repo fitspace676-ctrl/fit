@@ -92,6 +92,11 @@ const MOVED_MEMBER_SEGMENTS = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // `@fit/ui-kit` ships TypeScript with un-compiled `stylex.create()` calls.
+  // Next does not run its SWC pipeline over node_modules by default, and a pnpm
+  // workspace package is symlinked in there — so without this the StyleX plugin
+  // never sees the kit and its `stylex.create` reaches the runtime, which throws.
+  transpilePackages: ['@fit/ui-kit'],
   reactStrictMode: true,
   images: { remotePatterns: r2RemotePatterns() },
   // Tree-shake the barrel imports the redesigned portal leans on most (T9.9):

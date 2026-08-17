@@ -11,8 +11,8 @@
 // beyond the hours they stated, which is exactly what an owner needs to see.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import type { TrainerDelivery } from '@fit/types';
 import { BarChart, type BarDatum } from '../charts';
 import { EmptyState } from '../overview/format';
@@ -55,7 +55,7 @@ export function TrainerUtilizationCard({ trainers }: { trainers: TrainerDelivery
   }));
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('utilization.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('utilization.caption')}</p>

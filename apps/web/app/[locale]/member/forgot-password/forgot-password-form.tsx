@@ -3,7 +3,7 @@
 import { type FormEvent, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { requestPasswordReset } from '@/lib/auth';
-import { AuthBanner, AuthField, AuthForm, AuthSubmit } from '../../_components/auth/auth-form-kit';
+import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
 
 /**
  * Password-reset request form. The API's response is deliberately generic — it
@@ -46,14 +46,14 @@ export function ForgotPasswordForm() {
   // catalogue. Saying it ourselves keeps the generic contract (the copy does not
   // vary with the answer) and keeps the page in one language.
   if (sent) {
-    return <AuthBanner tone="success">{t('forgot.sent')}</AuthBanner>;
+    return <Banner tone="success">{t('forgot.sent')}</Banner>;
   }
 
   return (
-    <AuthForm onSubmit={onSubmit}>
-      {error ? <AuthBanner tone="error">{error}</AuthBanner> : null}
+    <Form onSubmit={onSubmit}>
+      {error ? <Banner tone="error">{error}</Banner> : null}
 
-      <AuthField
+      <Field
         label={t('fields.email')}
         type="email"
         name="email"
@@ -66,9 +66,15 @@ export function ForgotPasswordForm() {
         invalid={error !== null}
       />
 
-      <AuthSubmit pending={pending}>
-        {pending ? t('forgot.submitting') : t('forgot.submit')}
-      </AuthSubmit>
-    </AuthForm>
+      <Button
+        type="submit"
+        variant="primary"
+        size="door"
+        fullWidth
+        loading={pending}
+        label={pending ? t('forgot.submitting') : t('forgot.submit')}
+        xstyle={spacing.formAction}
+      />
+    </Form>
   );
 }

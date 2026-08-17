@@ -16,22 +16,20 @@ import type {
 } from '@fit/types';
 import {
   Badge,
-  Btn,
+  Button,
   ConfirmDialog,
   DataTable,
+  Dialog,
   Field,
   FilterBar,
   FilterChips,
-  Icon,
-  Input,
-  Modal,
-  Select,
+  SelectField,
   TableSearch,
   nextSortDir,
-  useToast,
   type Column,
   type FilterChip,
-} from '@/components/ui';
+} from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { CampaignWizard, type CampaignWizardInitial } from './campaign-wizard';
 import {
   deleteCampaignAction,
@@ -56,6 +54,8 @@ const EDITABLE_STATUSES: readonly CampaignStatus[] = ['draft', 'scheduled'];
 const SEARCH_DEBOUNCE_MS = 200;
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   stack: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
   nameCell: { display: 'flex', flexDirection: 'column', gap: '0.125rem' },
   campaignName: { fontWeight: 500, color: 'var(--color-text-primary)' },
@@ -279,12 +279,15 @@ export function CampaignsView({
       key: 'channel',
       header: t('columns.channel'),
       cell: (c) => (
-        <Badge tone={CHANNEL_TONES[c.channel]}>
-          <span {...stylex.props(styles.channelCell)}>
-            <Icon name={CHANNEL_ICONS[c.channel]} {...stylex.props(styles.channelIcon)} />
-            {t(`channels.${c.channel}`)}
-          </span>
-        </Badge>
+        <Badge
+          tone={CHANNEL_TONES[c.channel]}
+          label={
+            <span {...stylex.props(styles.channelCell)}>
+              <Icon name={CHANNEL_ICONS[c.channel]} {...stylex.props(styles.channelIcon)} />
+              {t(`channels.${c.channel}`)}
+            </span>
+          }
+        />
       ),
     },
     {
@@ -300,7 +303,7 @@ export function CampaignsView({
     {
       key: 'status',
       header: t('columns.status'),
-      cell: (c) => <Badge tone={STATUS_TONES[c.status]}>{t(`status.${c.status}`)}</Badge>,
+      cell: (c) => <Badge tone={STATUS_TONES[c.status]} label={t(`status.${c.status}`)} />,
     },
     {
       key: 'when',
@@ -330,42 +333,46 @@ export function CampaignsView({
         canManage ? (
           <div {...stylex.props(styles.actionsCell)}>
             {EDITABLE_STATUSES.includes(c.status) ? (
-              <Btn
-                v="ghost"
-                size="icon"
-                icon="settings"
-                aria-label={t('list.editCampaign', { name: c.name })}
+              <Button
+                variant="ghost"
+                size="card"
+                iconOnly
                 title={t('list.edit')}
                 onClick={() => setDialog({ kind: 'edit', campaign: c })}
+                icon={<Icon name="settings" {...stylex.props(styles.kitGlyph)} />}
+                label={t('list.editCampaign', { name: c.name })}
               />
             ) : null}
-            <Btn
-              v="ghost"
-              size="icon"
-              icon="tag"
-              aria-label={t('list.duplicateCampaign', { name: c.name })}
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
               title={t('list.duplicate')}
-              disabled={busy}
               onClick={() => duplicate(c)}
+              disabled={busy}
+              icon={<Icon name="tag" {...stylex.props(styles.kitGlyph)} />}
+              label={t('list.duplicateCampaign', { name: c.name })}
             />
-            <Btn
-              v="ghost"
-              size="icon"
-              icon="star"
-              aria-label={t('list.saveTemplateFor', { name: c.name })}
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
               title={t('list.saveAsTemplate')}
               onClick={() => {
                 setTemplateName(c.name);
                 setDialog({ kind: 'template', campaign: c });
               }}
+              icon={<Icon name="star" {...stylex.props(styles.kitGlyph)} />}
+              label={t('list.saveTemplateFor', { name: c.name })}
             />
-            <Btn
-              v="ghost"
-              size="icon"
-              icon="trash"
-              aria-label={t('list.deleteCampaign', { name: c.name })}
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
               title={t('list.delete')}
               onClick={() => setDialog({ kind: 'delete', campaign: c })}
+              icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
+              label={t('list.deleteCampaign', { name: c.name })}
             />
           </div>
         ) : null,
@@ -397,7 +404,7 @@ export function CampaignsView({
         chips={chips}
         active={status}
         onSelect={(value) => commit('status', value)}
-        ariaLabel={t('list.statusFilterLabel')}
+        label={t('list.statusFilterLabel')}
       />
 
       <FilterBar>
@@ -405,27 +412,30 @@ export function CampaignsView({
           value={search}
           onSearch={(value) => commit('search', value)}
           placeholder={t('list.searchPlaceholder')}
-          ariaLabel={t('list.searchLabel')}
+          label={t('list.searchLabel')}
           debounceMs={SEARCH_DEBOUNCE_MS}
         />
         <div {...stylex.props(styles.channelSelect)}>
-          <Select
+          <SelectField
+            label={t('list.channelFilterLabel')}
+            labelHidden
+            size="chrome"
             value={channel}
-            onChange={(e) => commit('channel', e.target.value)}
-            aria-label={t('list.channelFilterLabel')}
-          >
-            <option value="">{t('list.channelAll')}</option>
-            {CHANNELS.map((ch) => (
-              <option key={ch} value={ch}>
-                {t(`channels.${ch}`)}
-              </option>
-            ))}
-          </Select>
+            onChange={(event) => commit('channel', event.target.value)}
+            options={[
+              { value: '', label: t('list.channelAll') },
+              ...CHANNELS.map((ch) => ({ value: ch, label: t(`channels.${ch}`) })),
+            ]}
+          />
         </div>
         {canManage ? (
-          <Btn v="primary" size="md" icon="plus" onClick={() => setDialog({ kind: 'create' })}>
-            {t('list.newCampaign')}
-          </Btn>
+          <Button
+            variant="primary"
+            size="card"
+            onClick={() => setDialog({ kind: 'create' })}
+            icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+            label={t('list.newCampaign')}
+          />
         ) : null}
       </FilterBar>
 
@@ -443,28 +453,26 @@ export function CampaignsView({
       <div {...stylex.props(styles.pagerRow)}>
         <span {...stylex.props(styles.pagerCount)}>{t('list.showing', { from, to, total })}</span>
         <div {...stylex.props(styles.pagerBtns)}>
-          <Btn
-            v="outline"
-            size="sm"
-            icon="chevronLeft"
-            disabled={!hasPrev}
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-          >
-            {t('list.previous')}
-          </Btn>
-          <Btn
-            v="outline"
-            size="sm"
-            iconRight="chevronRight"
-            disabled={!hasNext}
+            disabled={!hasPrev}
+            icon={<Icon name="chevronLeft" {...stylex.props(styles.kitGlyph)} />}
+            label={t('list.previous')}
+          />
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-          >
-            {t('list.next')}
-          </Btn>
+            disabled={!hasNext}
+            endContent={<Icon name="chevronRight" {...stylex.props(styles.kitGlyph)} />}
+            label={t('list.next')}
+          />
         </div>
       </div>
 
@@ -489,38 +497,39 @@ export function CampaignsView({
       ) : null}
 
       {dialog?.kind === 'template' ? (
-        <Modal
+        <Dialog
           open
           onClose={() => setDialog(null)}
           title={t('list.saveTemplateTitle')}
           description={t('list.saveTemplateDescription')}
-          size="sm"
-          footer={
+          actions={
             <>
-              <Btn v="outline" size="md" onClick={() => setDialog(null)} disabled={busy}>
-                {t('wizard.cancel')}
-              </Btn>
-              <Btn
-                v="primary"
-                size="md"
+              <Button
+                variant="secondary"
+                size="card"
+                onClick={() => setDialog(null)}
+                disabled={busy}
+                label={t('wizard.cancel')}
+              />
+              <Button
+                variant="primary"
+                size="card"
                 onClick={() => confirmSaveTemplate(dialog.campaign)}
                 disabled={busy || templateName.trim().length === 0}
-              >
-                {busy ? t('wizard.saving') : t('list.saveAsTemplate')}
-              </Btn>
+                label={busy ? t('wizard.saving') : t('list.saveAsTemplate')}
+              />
             </>
           }
         >
           <div {...stylex.props(styles.dialogBody)}>
-            <Field label={t('list.templateNameLabel')}>
-              <Input
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                autoFocus
-              />
-            </Field>
+            <Field
+              label={t('list.templateNameLabel')}
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              autoFocus
+            />
           </div>
-        </Modal>
+        </Dialog>
       ) : null}
 
       <ConfirmDialog
@@ -532,13 +541,13 @@ export function CampaignsView({
           }
         }}
         title={t('list.deleteTitle')}
-        message={
+        description={
           dialog?.kind === 'delete' ? t('list.deleteMessage', { name: dialog.campaign.name }) : ''
         }
         confirmLabel={t('list.delete')}
         cancelLabel={t('wizard.cancel')}
-        danger
-        busy={busy}
+        confirmVariant="destructive"
+        loading={busy}
       />
     </div>
   );

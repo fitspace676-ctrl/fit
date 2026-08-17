@@ -67,6 +67,11 @@ const adminBasePath = process.env.ADMIN_BASE_PATH ?? '/admin';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // `@fit/ui-kit` ships TypeScript with un-compiled `stylex.create()` calls.
+  // Next does not run its SWC pipeline over node_modules by default, and a pnpm
+  // workspace package is symlinked in there — so without this the StyleX plugin
+  // never sees the kit and its `stylex.create` reaches the runtime, which throws.
+  transpilePackages: ['@fit/ui-kit'],
   reactStrictMode: true,
   ...(adminBasePath ? { basePath: adminBasePath } : {}),
   env: { NEXT_PUBLIC_ADMIN_BASE_PATH: adminBasePath },

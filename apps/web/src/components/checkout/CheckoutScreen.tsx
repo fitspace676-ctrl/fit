@@ -16,7 +16,7 @@ import { createCheckout, EmailTakenError, fetchSignupCatalogue, signupMember } f
 import { useSession } from '@/hooks/use-session';
 import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
-import { AuthBanner, AuthField } from '../../../app/[locale]/_components/auth/auth-form-kit';
+import { Banner, Field } from '@/src/components/ui/kit';
 import { PRODUCT_TABS, toCards } from './product-cards';
 
 // FormaCore redesign — the purchase flow as ONE page.
@@ -927,14 +927,14 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                   <p {...stylex.props(styles.hint)}>{t('details.guestSubtitle')}</p>
 
                   {emailTaken ? (
-                    <AuthBanner tone="error">
+                    <Banner tone="error">
                       {t('details.emailTaken')}{' '}
                       <Link href="/member/login">{t('details.emailTakenAction')}</Link>
-                    </AuthBanner>
+                    </Banner>
                   ) : null}
 
                   <div {...stylex.props(styles.fieldGrid)}>
-                    <AuthField
+                    <Field
                       label={t('details.fields.firstName')}
                       name="given-name"
                       autoComplete="given-name"
@@ -942,7 +942,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                       onChange={(e) => setFirstName(e.target.value)}
                       disabled={submitting}
                     />
-                    <AuthField
+                    <Field
                       label={t('details.fields.lastName')}
                       name="family-name"
                       autoComplete="family-name"
@@ -950,7 +950,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                       onChange={(e) => setLastName(e.target.value)}
                       disabled={submitting}
                     />
-                    <AuthField
+                    <Field
                       label={t('details.fields.email')}
                       type="email"
                       name="email"
@@ -960,7 +960,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                       disabled={submitting}
                       invalid={emailTaken}
                     />
-                    <AuthField
+                    <Field
                       label={t('details.fields.password')}
                       type="password"
                       name="password"
@@ -971,7 +971,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                       disabled={submitting}
                       revealLabels={{ show: tAuth('showPassword'), hide: tAuth('hidePassword') }}
                     />
-                    <AuthField
+                    <Field
                       label={t('details.fields.phone')}
                       type="tel"
                       name="phone"
@@ -980,7 +980,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                       onChange={(e) => setPhone(e.target.value)}
                       disabled={submitting}
                     />
-                    <AuthField
+                    <Field
                       label={t('details.fields.dateOfBirth')}
                       type="date"
                       name="dateOfBirth"
@@ -988,7 +988,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                       onChange={(e) => setDateOfBirth(e.target.value)}
                       disabled={submitting}
                     />
-                    <AuthField
+                    <Field
                       label={t('details.fields.personalId')}
                       name="personalId"
                       hint={t('details.fields.personalIdHint')}
@@ -1120,7 +1120,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
 
           {error ? (
             <div {...stylex.props(styles.railError)}>
-              <AuthBanner tone="error">{error}</AuthBanner>
+              <Banner tone="error">{error}</Banner>
             </div>
           ) : null}
         </div>

@@ -1,18 +1,17 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Button, Card } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
 import { PACK_UNAVAILABLE_CODE, type CreditPackCatalogueEntry } from '@fit/types';
 import { useRouter } from '@/src/i18n/navigation';
 import { Icon, useToast } from '@/src/components/ui';
 import { formatMoney } from '@/lib/shop';
 import { purchaseCreditPackAction } from '@/app/actions/credit-packs';
 
-// Astryx migration (T11.16): the "PT credits" metric card + self-service pack
-// purchase flow is rebuilt on the Astryx design system over the Fit brand theme —
+// Astryx migration (T11), now on the portal kit: the "PT credits" metric card + self-service pack
+// purchase flow is rebuilt on the portal kit design system over the FormaCore theme —
 // the metric, the "Buy more" trigger and the pack picker modal use Astryx
 // Card / Button, all layout in compiled StyleX (`var(--color-*)`), no Tailwind
 // utilities. The purchase server action and toast behaviour are unchanged.
@@ -192,7 +191,7 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
   }
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <Icon name="dumbbell" {...stylex.props(styles.headIcon)} />
         <p {...stylex.props(styles.label)}>{t('title')}</p>
@@ -230,10 +229,10 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
                   </div>
                   <Button
                     variant="primary"
-                    size="sm"
+                    size="inline"
                     label={buyingId === pack.id ? t('buying') : t('buy')}
                     onClick={() => buy(pack)}
-                    isDisabled={pending}
+                    disabled={pending}
                   />
                 </li>
               ))}
@@ -241,10 +240,10 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
             <div {...stylex.props(styles.modalActions)}>
               <Button
                 variant="ghost"
-                size="sm"
+                size="inline"
                 label={t('close')}
                 onClick={() => setOpen(false)}
-                isDisabled={pending}
+                disabled={pending}
               />
             </div>
           </div>

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { TrainerStatus } from '@fit/types';
-import { Btn, Icon } from '@/components/ui';
+import { Button } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { setTrainerActiveAction } from '../actions';
 
 const styles = stylex.create({
@@ -111,13 +112,19 @@ export function TrainerActions({
           <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
           {t('detail.edit')}
         </Link>
-        <Btn v="outline" size="sm" onClick={toggle} disabled={pending}>
-          {pending
-            ? t('form.saving')
-            : isInactive
-              ? t('detail.reactivate')
-              : t('detail.deactivate')}
-        </Btn>
+        <Button
+          variant="secondary"
+          size="inline"
+          onClick={toggle}
+          disabled={pending}
+          label={
+            pending
+              ? t('form.saving')
+              : isInactive
+                ? t('detail.reactivate')
+                : t('detail.deactivate')
+          }
+        />
       </div>
       {error ? (
         <div {...stylex.props(styles.errorCard)}>

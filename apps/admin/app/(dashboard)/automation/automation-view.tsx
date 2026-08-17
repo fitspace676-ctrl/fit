@@ -7,18 +7,17 @@ import * as stylex from '@stylexjs/stylex';
 import type { AutomationRuleRow, ListAutomationRulesQuery, SortDir } from '@fit/types';
 import {
   Badge,
-  Btn,
+  Button,
   ConfirmDialog,
   DataTable,
   FilterBar,
   FilterChips,
-  Icon,
   TableSearch,
   nextSortDir,
-  useToast,
   type Column,
   type FilterChip,
-} from '@/components/ui';
+} from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { deleteAutomationRuleAction, toggleAutomationRuleAction } from './actions';
 import { RuleFormDialog } from './rule-form-dialog';
 import { SaveTemplateDialog } from './save-template-dialog';
@@ -37,6 +36,8 @@ const ACTIVE_TABS: readonly string[] = ['', 'true', 'false'];
 const SEARCH_DEBOUNCE_MS = 200;
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   stack: {
     display: 'flex',
     flexDirection: 'column',
@@ -331,11 +332,12 @@ export function AutomationView({
               {days !== undefined ? ` (${days})` : ''}
             </span>
             <span {...stylex.props(styles.badgeRow)}>
-              <Badge tone={CATEGORY_TONES[category]}>
-                {t(`categories.${CATEGORY_KEY[category]}`)}
-              </Badge>
+              <Badge
+                tone={CATEGORY_TONES[category]}
+                label={t(`categories.${CATEGORY_KEY[category]}`)}
+              />
               {rule.timingOffset !== 'day_of' ? (
-                <Badge tone="ink">{t(`timings.${rule.timingOffset}`)}</Badge>
+                <Badge tone="neutral" label={t(`timings.${rule.timingOffset}`)} />
               ) : null}
             </span>
           </div>
@@ -372,9 +374,10 @@ export function AutomationView({
           >
             <span {...stylex.props(styles.knob, rule.active && styles.knobOn)} />
           </button>
-          <Badge tone={rule.active ? 'success' : 'ink'}>
-            {rule.active ? t('status.active') : t('status.inactive')}
-          </Badge>
+          <Badge
+            tone={rule.active ? 'positive' : 'neutral'}
+            label={rule.active ? t('status.active') : t('status.inactive')}
+          />
         </span>
       ),
     },
@@ -403,29 +406,32 @@ export function AutomationView({
       cell: (rule) =>
         canManage ? (
           <div {...stylex.props(styles.actionsCell)}>
-            <Btn
-              v="ghost"
-              size="icon"
-              icon="settings"
-              aria-label={t('list.editRule', { name: rule.name })}
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
               title={t('form.editTitle')}
               onClick={() => setDialog({ kind: 'edit', rule })}
+              icon={<Icon name="settings" {...stylex.props(styles.kitGlyph)} />}
+              label={t('list.editRule', { name: rule.name })}
             />
-            <Btn
-              v="ghost"
-              size="icon"
-              icon="star"
-              aria-label={t('list.saveTemplate', { name: rule.name })}
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
               title={t('templates.saveTitle')}
               onClick={() => setDialog({ kind: 'template', rule })}
+              icon={<Icon name="star" {...stylex.props(styles.kitGlyph)} />}
+              label={t('list.saveTemplate', { name: rule.name })}
             />
-            <Btn
-              v="ghost"
-              size="icon"
-              icon="trash"
-              aria-label={t('list.deleteRule', { name: rule.name })}
+            <Button
+              variant="ghost"
+              size="card"
+              iconOnly
               title={t('list.delete')}
               onClick={() => setDialog({ kind: 'delete', rule })}
+              icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
+              label={t('list.deleteRule', { name: rule.name })}
             />
           </div>
         ) : null,
@@ -455,7 +461,7 @@ export function AutomationView({
         chips={chips}
         active={active}
         onSelect={(value) => commit('active', value)}
-        ariaLabel={t('list.tablistLabel')}
+        label={t('list.tablistLabel')}
       />
 
       <FilterBar>
@@ -463,13 +469,17 @@ export function AutomationView({
           value={search}
           onSearch={(value) => commit('search', value)}
           placeholder={t('filters.searchPlaceholder')}
-          ariaLabel={t('filters.searchLabel')}
+          label={t('filters.searchLabel')}
           debounceMs={SEARCH_DEBOUNCE_MS}
         />
         {canManage ? (
-          <Btn v="primary" size="md" icon="plus" onClick={() => setDialog({ kind: 'create' })}>
-            {t('list.addRule')}
-          </Btn>
+          <Button
+            variant="primary"
+            size="card"
+            onClick={() => setDialog({ kind: 'create' })}
+            icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+            label={t('list.addRule')}
+          />
         ) : null}
       </FilterBar>
 
@@ -487,28 +497,26 @@ export function AutomationView({
       <div {...stylex.props(styles.pagerRow)}>
         <span {...stylex.props(styles.pagerCount)}>{t('list.showing', { from, to, total })}</span>
         <div {...stylex.props(styles.pagerBtns)}>
-          <Btn
-            v="outline"
-            size="sm"
-            icon="chevronLeft"
-            disabled={!hasPrev}
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
-          >
-            {t('list.previous')}
-          </Btn>
-          <Btn
-            v="outline"
-            size="sm"
-            iconRight="chevronRight"
-            disabled={!hasNext}
+            disabled={!hasPrev}
+            icon={<Icon name="chevronLeft" {...stylex.props(styles.kitGlyph)} />}
+            label={t('list.previous')}
+          />
+          <Button
+            variant="secondary"
+            size="inline"
             onClick={() =>
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
-          >
-            {t('list.next')}
-          </Btn>
+            disabled={!hasNext}
+            endContent={<Icon name="chevronRight" {...stylex.props(styles.kitGlyph)} />}
+            label={t('list.next')}
+          />
         </div>
       </div>
 
@@ -534,13 +542,13 @@ export function AutomationView({
           }
         }}
         title={t('list.deleteTitle')}
-        message={
+        description={
           dialog?.kind === 'delete' ? t('list.deleteMessage', { name: dialog.rule.name }) : ''
         }
         confirmLabel={t('list.delete')}
         cancelLabel={t('form.cancel')}
-        danger
-        busy={deleting}
+        confirmVariant="destructive"
+        loading={deleting}
       />
     </div>
   );

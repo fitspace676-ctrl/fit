@@ -2,13 +2,12 @@
 
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Stack } from '@astryxdesign/core/Stack';
 import { Text } from '@astryxdesign/core/Text';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import type { DashboardOverviewResponse } from '@fit/types';
-import { CountUp } from '@/components/ui';
+import { Card, CountUp } from '@fit/ui-kit';
 import { AnimatedCircularProgressBar } from '../charts';
 
 const pulse = stylex.keyframes({
@@ -94,7 +93,7 @@ export function InGymNow({ data }: { data: DashboardOverviewResponse }) {
   const pct = capacity > 0 ? Math.round((current / capacity) * 100) : 0;
 
   return (
-    <Card variant="default" padding={5} xstyle={styles.occupancyCard}>
+    <Card padding="card" xstyle={styles.occupancyCard}>
       <Stack gap={4} height="100%">
         <HStack justify="between" align="center">
           <Text type="label" color="secondary" weight="bold">

@@ -40,12 +40,12 @@
 // no FormaCore Aurora-glass primitives.
 
 import { useDeferredValue, useMemo, useState, useTransition, type ReactNode } from 'react';
+import { Card } from '@fit/ui-kit';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import type { NumberFormatter } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import { Button } from '@astryxdesign/core/Button';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
@@ -711,7 +711,7 @@ export function ReportsView({
       </div>
 
       {shown === null ? (
-        <Card variant="default" padding={0}>
+        <Card padding="none">
           <EmptyState icon="search">
             {needle === '' ? (
               // Not "no matches" — nothing was searched. This is a gym that has
@@ -789,7 +789,7 @@ export function ReportsView({
               t={t}
             />
           ) : (
-            <Card variant="default" padding={0}>
+            <Card padding="none">
               <EmptyState icon="chart">
                 <p {...stylex.props(styles.emptyText)}>{t('selectPrompt')}</p>
               </EmptyState>
@@ -883,7 +883,7 @@ function ReportPreview({
     );
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.detailCard}>
+    <Card padding="none" xstyle={styles.detailCard}>
       <div {...stylex.props(styles.detailHead)}>
         <div {...stylex.props(styles.detailTitleBox)}>
           <h2 {...stylex.props(styles.detailTitle)}>{preview.name}</h2>

@@ -7,7 +7,7 @@
 
 import type { CampaignStatus, MarketingChannel, PromoCodeRow, PromoStatus } from '@fit/types';
 import type { IconName } from '@/components/ui';
-import type { Tone } from '@/components/ui';
+import type { BadgeTone } from '@fit/ui-kit';
 import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 
 /** The channel each campaign/template targets, in the order the pickers show them. */
@@ -21,19 +21,19 @@ export const CHANNEL_ICONS: Record<MarketingChannel, IconName> = {
 };
 
 /** The badge tone each channel renders in. */
-export const CHANNEL_TONES: Record<MarketingChannel, Tone> = {
+export const CHANNEL_TONES: Record<MarketingChannel, BadgeTone> = {
   email: 'accent',
-  sms: 'iris',
-  push: 'flame',
+  sms: 'neutral',
+  push: 'pending',
 };
 
 /** The badge tone each lifecycle state renders in (all five API statuses). */
-export const STATUS_TONES: Record<CampaignStatus, Tone> = {
-  draft: 'ink',
-  scheduled: 'warning',
-  sent: 'success',
-  paused: 'flame',
-  active: 'brand',
+export const STATUS_TONES: Record<CampaignStatus, BadgeTone> = {
+  draft: 'neutral',
+  scheduled: 'pending',
+  sent: 'positive',
+  paused: 'pending',
+  active: 'accent',
 };
 
 /**
@@ -90,9 +90,9 @@ export function majorToMinor(major: number): number {
 }
 
 /** The badge tone a promo code renders in per status (honoured vs paused). */
-export const PROMO_STATUS_TONES: Record<PromoStatus, Tone> = {
-  active: 'success',
-  inactive: 'ink',
+export const PROMO_STATUS_TONES: Record<PromoStatus, BadgeTone> = {
+  active: 'positive',
+  inactive: 'neutral',
 };
 
 /** Format a MINOR-unit amount as a whole-lari (₾) figure — the app's money format. */

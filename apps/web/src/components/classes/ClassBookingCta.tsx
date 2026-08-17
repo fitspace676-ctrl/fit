@@ -1,13 +1,12 @@
 'use client';
 
 import * as stylex from '@stylexjs/stylex';
+import { ButtonLink } from '@/src/components/ui/kit';
 import { useLocale, useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
-import { Link } from '@/src/i18n/navigation';
 import { useSession } from '@/hooks/use-session';
 import { BookingActionButton } from '@/src/components/member/booking-action-button';
 
-// Astryx migration (T11.12): the booking CTA renders the Astryx `<Button>` (via
+// Astryx migration (T11), now on the portal kit: the booking CTA renders the kit's `Button` (via
 // the brand-themed `BookingActionButton` for the signed-in server action, or a
 // link Button for the signed-out redirect). A grid wrapper stretches the button
 // to full width without any Tailwind utility.
@@ -54,8 +53,9 @@ export function ClassBookingCta({ classId, isFull }: ClassBookingCtaProps) {
           classId={classId}
           action="book"
           label={isFull ? t('drawer.full') : t('drawer.book')}
-          v="primary"
-          size="lg"
+          variant="primary"
+          size="page"
+          fullWidth
         />
       </div>
     );
@@ -68,13 +68,12 @@ export function ClassBookingCta({ classId, isFull }: ClassBookingCtaProps) {
   const loginHref = `/member/login?from=${encodeURIComponent(from)}`;
 
   return (
-    <Button
-      as={Link}
+    <ButtonLink
       href={loginHref}
       variant="primary"
-      size="lg"
+      size="page"
+      fullWidth
       label={t('drawer.signInToBook')}
-      xstyle={styles.fullBtn}
     />
   );
 }

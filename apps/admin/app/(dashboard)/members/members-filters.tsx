@@ -5,7 +5,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { MemberKind, MemberPlanSlice } from '@fit/types';
-import { Btn, FilterBar, TableSearch } from '@/components/ui';
+import { Button, FilterBar, SelectField, TableSearch } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 
 /**
  * The standings offered by the Filter panel, matching the segmented tabs above
@@ -40,25 +41,15 @@ const styles = stylex.create({
     },
     gap: '0.5rem',
   },
-  label: {
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: 'var(--color-text-primary)',
-  },
   select: {
-    height: '2.75rem',
     width: {
       default: '100%',
       '@media (min-width: 640px)': '12rem',
     },
-    paddingInline: '0.875rem',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-primary)',
+  },
+  btnGlyph: {
+    height: '1rem',
+    width: '1rem',
   },
 });
 
@@ -110,58 +101,53 @@ export function MembersFilters({
           value={search}
           onSearch={(value) => commit('search', value)}
           placeholder={t('filters.searchPlaceholder')}
-          ariaLabel={t('filters.searchLabel')}
+          label={t('filters.searchLabel')}
           debounceMs={SEARCH_DEBOUNCE_MS}
         />
 
-        <Btn
-          v={kind || planId || filtersOpen ? 'primary' : 'outline'}
-          size="md"
-          icon="filter"
+        <Button
+          variant={kind || planId || filtersOpen ? 'primary' : 'secondary'}
+          size="card"
+          icon={<Icon name="filter" {...stylex.props(styles.btnGlyph)} />}
           aria-expanded={filtersOpen}
           onClick={() => setFiltersOpen((open) => !open)}
-        >
-          {kind || planId ? t('filters.filterActive') : t('filters.filter')}
-        </Btn>
+          label={kind || planId ? t('filters.filterActive') : t('filters.filter')}
+        />
       </FilterBar>
 
       {filtersOpen ? (
         <div {...stylex.props(styles.statusRow)}>
-          <label htmlFor="member-status" {...stylex.props(styles.label)}>
-            {t('filters.statusLabel')}
-          </label>
-          <select
-            id="member-status"
+          {/* Both are `chrome` height: this row is a filter strip beside a
+              button, not a form, so a 52px control would outweigh the table it
+              filters. */}
+          <SelectField
+            label={t('filters.statusLabel')}
+            size="chrome"
             value={kind}
             onChange={(event) => commit('kind', event.target.value)}
-            {...stylex.props(styles.select)}
-          >
-            <option value="">{t('filters.allStatuses')}</option>
-            {KIND_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {t(`kind.${option.value}`)}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: t('filters.allStatuses') },
+              ...KIND_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(`kind.${option.value}`),
+              })),
+            ]}
+            xstyle={styles.select}
+          />
 
-          <label htmlFor="member-plan" {...stylex.props(styles.label)}>
-            {t('filters.planLabel')}
-          </label>
-          <select
-            id="member-plan"
+          <SelectField
+            label={t('filters.planLabel')}
+            size="chrome"
             value={planId}
             onChange={(event) => commit('planId', event.target.value)}
-            {...stylex.props(styles.select)}
-          >
-            <option value="">{t('filters.allPlans')}</option>
-            {plans
-              .filter((plan) => plan.planId !== null)
-              .map((plan) => (
-                <option key={plan.planId} value={plan.planId as string}>
-                  {plan.name}
-                </option>
-              ))}
-          </select>
+            options={[
+              { value: '', label: t('filters.allPlans') },
+              ...plans
+                .filter((plan) => plan.planId !== null)
+                .map((plan) => ({ value: plan.planId as string, label: plan.name })),
+            ]}
+            xstyle={styles.select}
+          />
         </div>
       ) : null}
     </div>

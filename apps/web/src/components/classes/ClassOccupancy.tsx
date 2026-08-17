@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 
-// Astryx migration (T11.12): the classes surfaces share one brand-themed
+// Astryx migration (T11), now on the portal kit: the classes surfaces share one brand-themed
 // occupancy meter — a "booked / cap" header over a fill bar, colour-coded by how
 // full the class is (success → warning → error) on the Fit brand status tokens.
 // Authored in compiled StyleX (`var(--color-*)`) so the calendar, list, detail
@@ -61,7 +61,7 @@ export interface ClassOccupancyProps {
 
 /**
  * A "value / cap" occupancy header over a fill bar, colour-coded by how full the
- * class is — rebuilt on the Astryx brand tokens (success → warning → error).
+ * class is — rebuilt on the portal kit brand tokens (success → warning → error).
  * Stateless and framework-free so it renders the same on the server-rendered
  * detail page and the client calendar/list.
  */

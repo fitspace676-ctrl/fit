@@ -11,7 +11,8 @@ import type {
   StaffRole,
   WorkingNowRow,
 } from '@fit/types';
-import { Btn, Drawer, Icon, Select, Tabs } from '@/components/ui';
+import { Button, Drawer, SegmentedControl, SelectField } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { STAFF_ROLES } from './role-meta';
 import { StaffTable } from './staff-table';
 import { AddStaffDrawer } from './add-staff-drawer';
@@ -36,6 +37,8 @@ const OPTIONAL_TABS: {
 }[] = [{ tab: 'roles', field: 'roles', labelKey: 'tabs.rolesPermissions' }];
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   stack: {
     display: 'flex',
     flexDirection: 'column',
@@ -214,7 +217,7 @@ export function StaffConsole({
     return counts;
   }, [staff]);
 
-  const tabItems = useMemo(
+  const tabItems = useMemo<{ value: ConsoleTab; label: string }[]>(
     () => [
       { value: 'staff', label: t('tabs.staffList') },
       ...OPTIONAL_TABS.filter((option) => display[option.field]).map((option) => ({
@@ -257,9 +260,13 @@ export function StaffConsole({
         </div>
         {canManage ? (
           <div {...stylex.props(styles.headerActions)}>
-            <Btn v="outline" icon="shield" onClick={() => setManageRolesOpen(true)}>
-              {t('manageRoles')}
-            </Btn>
+            <Button
+              variant="secondary"
+              size="card"
+              onClick={() => setManageRolesOpen(true)}
+              icon={<Icon name="shield" {...stylex.props(styles.kitGlyph)} />}
+              label={t('manageRoles')}
+            />
           </div>
         ) : null}
       </header>
@@ -268,11 +275,11 @@ export function StaffConsole({
 
       {/* A lone "Staff List" tab is chrome around nothing — drop the strip. */}
       {tabItems.length > 1 ? (
-        <Tabs
-          aria-label={t('title')}
+        <SegmentedControl
+          label={t('title')}
           value={activeTab}
-          onValueChange={(next) => setTab(next as ConsoleTab)}
-          items={tabItems}
+          onChange={setTab}
+          options={tabItems}
         />
       ) : null}
 
@@ -296,31 +303,37 @@ export function StaffConsole({
               />
             </div>
             <div {...stylex.props(styles.roleSelect)}>
-              <label htmlFor="staff-role-filter" {...stylex.props(styles.srOnly)}>
-                {t('filters.roleAria')}
-              </label>
-              <Select
-                id="staff-role-filter"
+              {/* The kit's field owns its own label, so the hand-rolled
+                  `srOnly` `<label htmlFor>` pair above it is gone. */}
+              <SelectField
+                label={t('filters.roleAria')}
+                labelHidden
+                size="chrome"
                 value={roleFilter}
                 onChange={(event) => setRoleFilter(event.target.value as StaffRole | '')}
-              >
-                <option value="">{t('filters.allRoles')}</option>
-                {STAFF_ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {t(`roles.${role}`)}
-                  </option>
-                ))}
-              </Select>
+                options={[
+                  { value: '', label: t('filters.allRoles') },
+                  ...STAFF_ROLES.map((role) => ({ value: role, label: t(`roles.${role}`) })),
+                ]}
+              />
             </div>
             <span aria-hidden {...stylex.props(styles.spacer)} />
             {canManage ? (
               <>
-                <Btn v="outline" icon="mail" onClick={() => setInviteOpen(true)}>
-                  {t('invite')}
-                </Btn>
-                <Btn v="primary" icon="plus" onClick={() => setAddOpen(true)}>
-                  {t('addStaff')}
-                </Btn>
+                <Button
+                  variant="secondary"
+                  size="card"
+                  onClick={() => setInviteOpen(true)}
+                  icon={<Icon name="mail" {...stylex.props(styles.kitGlyph)} />}
+                  label={t('invite')}
+                />
+                <Button
+                  variant="primary"
+                  size="card"
+                  onClick={() => setAddOpen(true)}
+                  icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+                  label={t('addStaff')}
+                />
               </>
             ) : null}
           </div>
@@ -347,8 +360,7 @@ export function StaffConsole({
           <Drawer
             open={manageRolesOpen}
             onClose={() => setManageRolesOpen(false)}
-            title={t('manageRolesDrawer.title')}
-            size="lg"
+            label={t('manageRolesDrawer.title')}
           >
             <RolesPanel roles={roles} />
           </Drawer>

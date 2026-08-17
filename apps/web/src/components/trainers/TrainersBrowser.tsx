@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
 import type { TrainerCard as TrainerCardModel } from '@fit/types';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchTrainers } from '@/lib/trainers';
@@ -18,9 +18,9 @@ import {
   type TrainerFilterState,
 } from './trainer-filters';
 
-// Astryx migration (T11.13): the orchestrator's loading / error / no-match
+// Astryx migration (T11), now on the portal kit: the orchestrator's loading / error / no-match
 // states are authored in compiled StyleX over the Fit brand tokens and the retry
-// / reset actions render the Astryx `Button` — no Tailwind utilities. The fetch
+// / reset actions render the kit's `Button` — no Tailwind utilities. The fetch
 // lifecycle and URL-sync logic below are unchanged; only the presentation moved
 // off Tailwind.
 
@@ -143,7 +143,7 @@ export function TrainersBrowser({ gymId, initialFilters }: TrainersBrowserProps)
           <p {...stylex.props(styles.stateText)}>{t('error')}</p>
           <Button
             variant="secondary"
-            size="sm"
+            size="inline"
             label={t('retry')}
             onClick={() => setReloadKey((key) => key + 1)}
           />
@@ -158,7 +158,7 @@ export function TrainersBrowser({ gymId, initialFilters }: TrainersBrowserProps)
           <p {...stylex.props(styles.stateText)}>{t('filters.noMatch.subtitle')}</p>
           <Button
             variant="secondary"
-            size="sm"
+            size="inline"
             label={t('filters.noMatch.action')}
             onClick={() => setFilters(EMPTY_FILTERS)}
           />

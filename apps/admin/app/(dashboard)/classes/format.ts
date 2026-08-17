@@ -11,13 +11,13 @@ import type {
   RecurrenceFreq,
   RecurrenceWeekday,
 } from '@fit/types';
-import type { Tone } from '@/components/ui';
+import type { BadgeTone } from '@fit/ui-kit';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 /** Visual treatment per template status — success active, warning paused. */
-export const STATUS_STYLES: Record<ClassTemplateStatus, { label: string; tone: Tone }> = {
-  ACTIVE: { label: 'Active', tone: 'success' },
-  PAUSED: { label: 'Paused', tone: 'warning' },
+export const STATUS_STYLES: Record<ClassTemplateStatus, { label: string; tone: BadgeTone }> = {
+  ACTIVE: { label: 'Active', tone: 'positive' },
+  PAUSED: { label: 'Paused', tone: 'pending' },
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */

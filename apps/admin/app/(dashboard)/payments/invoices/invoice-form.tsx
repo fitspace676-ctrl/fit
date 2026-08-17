@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { InvoiceType } from '@fit/types';
-import { Btn, Card, Icon } from '@/components/ui';
+import { Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { inputToMinor } from '../format';
 import { INVOICE_TYPES, todayIsoDate } from './format';
 import {
@@ -124,7 +125,7 @@ export function InvoiceForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
       {/* Who + what */}
-      <Card className="p-5 sm:p-6">
+      <Card>
         <h3 className={CARD_HEADING_CLASS}>Member</h3>
 
         {member ? (
@@ -143,9 +144,13 @@ export function InvoiceForm({
                 </div>
               )}
             </div>
-            <Btn type="button" v="ghost" size="sm" onClick={() => setMember(null)}>
-              Change
-            </Btn>
+            <Button
+              variant="ghost"
+              size="inline"
+              type="button"
+              onClick={() => setMember(null)}
+              label="Change"
+            />
           </div>
         ) : (
           <div className="mt-3 flex flex-col gap-1">
@@ -192,7 +197,7 @@ export function InvoiceForm({
       </Card>
 
       {/* What is being billed */}
-      <Card className="p-5 sm:p-6">
+      <Card>
         <h3 className={CARD_HEADING_CLASS}>Details</h3>
         <div className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-1">
@@ -296,13 +301,22 @@ export function InvoiceForm({
         className="sticky bottom-0 z-10 -mx-6 -mb-6 flex items-center gap-3 border-t border-ink-200 px-6 py-4 dark:border-white/10"
         style={{ backgroundColor: 'var(--color-background-body)' }}
       >
-        <Btn type="submit" v="primary" size="md" disabled={pending}>
-          {pending ? 'Creating…' : 'Create invoice'}
-        </Btn>
+        <Button
+          variant="primary"
+          size="card"
+          type="submit"
+          disabled={pending}
+          label={pending ? 'Creating…' : 'Create invoice'}
+        />
         {onCancel ? (
-          <Btn type="button" v="ghost" size="md" onClick={onCancel} disabled={pending}>
-            Cancel
-          </Btn>
+          <Button
+            variant="ghost"
+            size="card"
+            type="button"
+            onClick={onCancel}
+            disabled={pending}
+            label="Cancel"
+          />
         ) : null}
         <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-ink-400">
           <Icon name="info" className="h-3.5 w-3.5" sw={2} />

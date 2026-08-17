@@ -13,8 +13,8 @@
 // one window and this chart another.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
-import { Card } from '@astryxdesign/core/Card';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { SALES_GRANULARITIES, type ClassesGranularity, type ReportSeriesPoint } from '@fit/types';
 import { AreaChart, type AreaPoint } from '../charts';
@@ -76,7 +76,7 @@ export function BookingsTrendCard({
   const last = points[points.length - 1]?.label;
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div>
           <h2 {...stylex.props(styles.title)}>{t('bookings.title')}</h2>

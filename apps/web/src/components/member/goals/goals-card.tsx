@@ -1,11 +1,138 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import type { MeGoal } from '@fit/types';
 import { useRouter } from '@/src/i18n/navigation';
-import { Btn, Card, Icon, Progress, useToast } from '@/src/components/ui';
+import { Icon, useToast } from '@/src/components/ui';
+import { Button, Card, EmptyState, Meter, focus, text } from '@/src/components/ui/kit';
 import { saveGoalsAction } from '@/app/actions/goals';
+
+// The last Tailwind-authored screen in the member portal, on the kit.
+//
+// It was also the last place a `Card glow` survived — the Aurora-glass skin's
+// coloured bloom, which the FormaCore direction bans outright; the card is flat
+// now, like every other panel. The editor's four inputs were hand-rolled with
+// Tailwind focus rings in brand-500 at 20% opacity, one ring per field and none
+// of them matching the sign-in screen's; they share the kit's one ring now.
+//
+// The bars are the kit's `Meter` with its header hidden: this card prints its own
+// `current/target unit` line, which carries the unit the meter's plain `n/m`
+// cannot.
+
+const styles = stylex.create({
+  head: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  headLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  headIcon: {
+    height: '1.25rem',
+    width: '1.25rem',
+    color: 'var(--color-icon-accent)',
+  },
+  title: {
+    fontSize: '1rem',
+  },
+  headActions: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+
+  /* -------------------------------- editor -------------------------------- */
+  rows: {
+    marginTop: '1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  // The editor's inputs are bare controls in a row rather than labelled fields:
+  // the column headings are implied by position, and a 10px micro-label over
+  // each of four inline boxes would be more chrome than content. They keep the
+  // kit's field SKIN so they still belong to the same family.
+  input: {
+    height: '2.5rem',
+    minWidth: 0,
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: { default: 'var(--color-border)', ':focus': 'var(--color-accent)' },
+    backgroundColor: 'var(--fc-tile)',
+    color: 'var(--color-text-primary)',
+    paddingInline: '0.75rem',
+    fontFamily: 'inherit',
+    fontSize: '0.875rem',
+    outline: 'none',
+    boxShadow: { default: null, ':focus': 'var(--fc-focus-ring)' },
+    transitionProperty: 'border-color, box-shadow',
+    transitionDuration: '150ms',
+    '::placeholder': { color: 'var(--color-text-disabled)' },
+  },
+  inputLabel: { flex: 1 },
+  inputNumber: {
+    width: '4rem',
+    paddingInline: '0.5rem',
+    textAlign: 'center',
+    fontFamily: 'var(--font-family-code)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  inputUnit: { width: '5rem', paddingInline: '0.5rem' },
+  slash: { color: 'var(--color-text-disabled)' },
+  remove: {
+    display: 'grid',
+    height: '2.25rem',
+    width: '2.25rem',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: 0,
+    backgroundColor: { default: 'transparent', ':hover': 'var(--color-error-muted)' },
+    color: { default: 'var(--color-text-disabled)', ':hover': 'var(--color-text-red)' },
+    cursor: 'pointer',
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+  },
+  removeIcon: { height: '1rem', width: '1rem' },
+
+  /* --------------------------------- view --------------------------------- */
+  list: {
+    marginTop: '1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  goalHead: {
+    marginBottom: '0.375rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    fontSize: '0.875rem',
+  },
+  goalLabel: {
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+  },
+  emptyIcon: {
+    height: '2rem',
+    width: '2rem',
+  },
+});
+
+/** The maximum number of goals a member may track. */
+const MAX_GOALS = 8;
 
 interface Draft {
   label: string;
@@ -21,8 +148,12 @@ const toDraft = (g: MeGoal): Draft => ({
   unit: g.unit,
 });
 
-/** A "Your goals" card: progress bars in view mode, an inline editor (add/remove,
- * label/current/target/unit) in edit mode, persisted via the goals action. */
+const BLANK: Draft = { label: '', current: '0', target: '10', unit: '' };
+
+/**
+ * A "Your goals" card: progress bars in view mode, an inline editor (add/remove,
+ * label/current/target/unit) in edit mode, persisted via the goals action.
+ */
 export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
   const t = useTranslations('member.goals');
   const { toast } = useToast();
@@ -33,10 +164,12 @@ export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
   const [pending, startSaving] = useTransition();
 
   function startEdit(): void {
-    setDrafts(
-      goals.length > 0 ? goals.map(toDraft) : [{ label: '', current: '0', target: '10', unit: '' }],
-    );
+    setDrafts(goals.length > 0 ? goals.map(toDraft) : [BLANK]);
     setEditing(true);
+  }
+
+  function patch(index: number, key: keyof Draft, value: string): void {
+    setDrafts((prev) => prev.map((d, j) => (j === index ? { ...d, [key]: value } : d)));
   }
 
   function save(): void {
@@ -48,7 +181,7 @@ export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
         unit: d.unit.trim(),
       }))
       .filter((d) => d.label.length > 0)
-      .slice(0, 8);
+      .slice(0, MAX_GOALS);
 
     startSaving(async () => {
       const res = await saveGoalsAction(cleaned);
@@ -67,121 +200,129 @@ export function GoalsCard({ initialGoals }: { initialGoals: MeGoal[] }) {
   }
 
   return (
-    <Card glow className="p-5 sm:p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icon name="target" className="h-5 w-5 text-brand-600 dark:text-brand-300" />
-          <h2 className="font-display text-base font-bold text-ink-900 dark:text-white">
-            {t('title')}
-          </h2>
+    <Card>
+      <div {...stylex.props(styles.head)}>
+        <div {...stylex.props(styles.headLeft)}>
+          <Icon name="target" {...stylex.props(styles.headIcon)} />
+          <h2 {...stylex.props(text.heading, styles.title)}>{t('title')}</h2>
         </div>
-        {!editing ? (
-          <Btn v="ghost" size="sm" icon="settings" onClick={startEdit}>
-            {t('edit')}
-          </Btn>
-        ) : (
-          <div className="flex gap-2">
-            <Btn v="ghost" size="sm" onClick={() => setEditing(false)} disabled={pending}>
-              {t('cancel')}
-            </Btn>
-            <Btn v="primary" size="sm" icon="check" onClick={save} disabled={pending}>
-              {pending ? t('saving') : t('save')}
-            </Btn>
+
+        {editing ? (
+          <div {...stylex.props(styles.headActions)}>
+            <Button
+              variant="ghost"
+              size="inline"
+              label={t('cancel')}
+              onClick={() => setEditing(false)}
+              disabled={pending}
+            />
+            <Button
+              variant="primary"
+              size="inline"
+              label={pending ? t('saving') : t('save')}
+              icon={<Icon name="check" {...stylex.props(styles.removeIcon)} />}
+              onClick={save}
+              loading={pending}
+            />
           </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="inline"
+            label={t('edit')}
+            icon={<Icon name="settings" {...stylex.props(styles.removeIcon)} />}
+            onClick={startEdit}
+          />
         )}
       </div>
 
       {editing ? (
-        <div className="mt-4 space-y-3">
+        <div {...stylex.props(styles.rows)}>
           {drafts.map((d, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2">
+            <div key={i} {...stylex.props(styles.row)}>
               <input
                 value={d.label}
                 placeholder={t('labelPh')}
-                onChange={(e) =>
-                  setDrafts((p) => p.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
-                }
-                className="h-10 min-w-0 flex-1 rounded-field border border-ink-200 bg-white px-3 text-sm text-ink-900 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                aria-label={t('labelPh')}
+                onChange={(e) => patch(i, 'label', e.target.value)}
+                {...stylex.props(styles.input, styles.inputLabel)}
               />
               <input
                 type="number"
                 value={d.current}
                 aria-label={t('current')}
-                onChange={(e) =>
-                  setDrafts((p) =>
-                    p.map((x, j) => (j === i ? { ...x, current: e.target.value } : x)),
-                  )
-                }
-                className="h-10 w-16 rounded-field border border-ink-200 bg-white px-2 text-center text-sm text-ink-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                onChange={(e) => patch(i, 'current', e.target.value)}
+                {...stylex.props(styles.input, styles.inputNumber)}
               />
-              <span className="text-ink-400">/</span>
+              <span aria-hidden {...stylex.props(styles.slash)}>
+                /
+              </span>
               <input
                 type="number"
                 value={d.target}
                 aria-label={t('target')}
-                onChange={(e) =>
-                  setDrafts((p) =>
-                    p.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)),
-                  )
-                }
-                className="h-10 w-16 rounded-field border border-ink-200 bg-white px-2 text-center text-sm text-ink-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                onChange={(e) => patch(i, 'target', e.target.value)}
+                {...stylex.props(styles.input, styles.inputNumber)}
               />
               <input
                 value={d.unit}
                 placeholder={t('unitPh')}
-                onChange={(e) =>
-                  setDrafts((p) => p.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)))
-                }
-                className="h-10 w-20 rounded-field border border-ink-200 bg-white px-2 text-sm text-ink-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                aria-label={t('unitPh')}
+                onChange={(e) => patch(i, 'unit', e.target.value)}
+                {...stylex.props(styles.input, styles.inputUnit)}
               />
               <button
                 type="button"
                 aria-label={t('remove')}
                 onClick={() => setDrafts((p) => p.filter((_, j) => j !== i))}
-                className="grid h-9 w-9 place-items-center rounded-md text-ink-400 hover:bg-danger-50 hover:text-danger-600 dark:hover:bg-danger-500/10"
+                {...stylex.props(styles.remove, focus.ring)}
               >
-                <Icon name="trash" className="h-4 w-4" />
+                <Icon name="trash" {...stylex.props(styles.removeIcon)} />
               </button>
             </div>
           ))}
-          {drafts.length < 8 && (
-            <Btn
-              v="outline"
-              size="sm"
-              icon="plus"
-              onClick={() =>
-                setDrafts((p) => [...p, { label: '', current: '0', target: '10', unit: '' }])
-              }
-            >
-              {t('add')}
-            </Btn>
+
+          {drafts.length < MAX_GOALS && (
+            <Button
+              variant="secondary"
+              size="inline"
+              label={t('add')}
+              icon={<Icon name="plus" {...stylex.props(styles.removeIcon)} />}
+              onClick={() => setDrafts((p) => [...p, BLANK])}
+            />
           )}
         </div>
       ) : goals.length > 0 ? (
-        <div className="mt-4 space-y-4">
-          {goals.map((g) => {
-            const pct = g.target > 0 ? Math.round((g.current / g.target) * 100) : 0;
-            return (
-              <div key={g.id}>
-                <div className="mb-1.5 flex items-center justify-between text-sm">
-                  <span className="font-medium text-ink-800 dark:text-ink-200">{g.label}</span>
-                  <span className="font-mono text-ink-500 dark:text-ink-400">
-                    {g.current}/{g.target} {g.unit}
-                  </span>
-                </div>
-                <Progress value={pct} tone="bg-brand-500" />
+        <div {...stylex.props(styles.list)}>
+          {goals.map((g) => (
+            <div key={g.id}>
+              <div {...stylex.props(styles.goalHead)}>
+                <span {...stylex.props(styles.goalLabel)}>{g.label}</span>
+                <span {...stylex.props(text.numeral, text.secondary)}>
+                  {g.current}/{g.target} {g.unit}
+                </span>
               </div>
-            );
-          })}
+              {/* Header off: the line above already states the progress, and with
+                  the unit, which a bare `n/m` cannot carry. */}
+              <Meter value={g.current} max={g.target} label={g.label} showHeader={false} />
+            </div>
+          ))}
         </div>
       ) : (
-        <div className="mt-4 grid place-items-center gap-2 py-6 text-center">
-          <Icon name="target" className="h-8 w-8 text-ink-300 dark:text-ink-600" />
-          <p className="text-sm text-ink-500 dark:text-ink-400">{t('empty')}</p>
-          <Btn v="outline" size="sm" icon="plus" onClick={startEdit}>
-            {t('addFirst')}
-          </Btn>
-        </div>
+        <EmptyState
+          compact
+          icon={<Icon name="target" {...stylex.props(styles.emptyIcon)} />}
+          title={t('empty')}
+          action={
+            <Button
+              variant="secondary"
+              size="inline"
+              label={t('addFirst')}
+              icon={<Icon name="plus" {...stylex.props(styles.removeIcon)} />}
+              onClick={startEdit}
+            />
+          }
+        />
       )}
     </Card>
   );

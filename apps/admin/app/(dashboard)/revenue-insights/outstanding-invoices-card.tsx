@@ -13,9 +13,9 @@
 // of it.
 
 import * as stylex from '@stylexjs/stylex';
+import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
-import { Card } from '@astryxdesign/core/Card';
 import type { OutstandingInvoices } from '@fit/types';
 import { EmptyState } from '../overview/format';
 
@@ -69,7 +69,7 @@ export function OutstandingInvoicesCard({
   const t = useTranslations('admin.dashboard.revenue');
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <h2 {...stylex.props(styles.title)}>{t('outstanding.title')}</h2>
         <p {...stylex.props(styles.caption)}>{t('outstanding.caption')}</p>

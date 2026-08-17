@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { MANUAL_STOCK_REASONS, type ManualStockReason } from '@fit/types';
-import { Badge, Btn, Icon, Modal, useToast } from '@/components/ui';
+import { Badge, Button, Dialog } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { adjustStockAction } from '../actions';
 
 /**
@@ -26,6 +27,8 @@ const STEP = 1;
 const QUICK_ADDS = [5, 10, 25] as const;
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   descVariant: {
     color: 'var(--color-text-primary)',
   },
@@ -294,19 +297,18 @@ export function StockAdjuster({
 
   return (
     <>
-      <Btn
-        v="outline"
-        size="sm"
-        icon="settings"
+      <Button
+        variant="secondary"
+        size="inline"
         onClick={() => {
           reset();
           setOpen(true);
         }}
-      >
-        Adjust
-      </Btn>
+        icon={<Icon name="settings" {...stylex.props(styles.kitGlyph)} />}
+        label="Adjust"
+      />
 
-      <Modal
+      <Dialog
         open={open}
         onClose={close}
         title="Adjust stock"
@@ -316,34 +318,44 @@ export function StockAdjuster({
             {sku ? <span {...stylex.props(styles.descSku)}> · {sku}</span> : null}
           </>
         }
-        size="sm"
-        footer={
+        actions={
           <>
-            <Btn v="ghost" size="sm" onClick={close} disabled={saving}>
-              Cancel
-            </Btn>
-            <Btn v="primary" size="sm" icon="check" onClick={apply} disabled={unchanged || saving}>
-              {saving ? 'Saving…' : 'Apply adjustment'}
-            </Btn>
+            <Button
+              variant="ghost"
+              size="inline"
+              onClick={close}
+              disabled={saving}
+              label="Cancel"
+            />
+            <Button
+              variant="primary"
+              size="inline"
+              onClick={apply}
+              disabled={unchanged || saving}
+              icon={<Icon name="check" {...stylex.props(styles.kitGlyph)} />}
+              label={saving ? 'Saving…' : 'Apply adjustment'}
+            />
           </>
         }
       >
         <div {...stylex.props(styles.body)}>
           <div {...stylex.props(styles.onHandRow)}>
             <span {...stylex.props(styles.onHandLabel)}>On hand now</span>
-            <Badge tone={stock === 0 ? 'danger' : 'warning'}>
-              {stock === 0 ? 'Out of stock' : `${stock} left`}
-            </Badge>
+            <Badge
+              tone={stock === 0 ? 'danger' : 'pending'}
+              label={stock === 0 ? 'Out of stock' : `${stock} left`}
+            />
           </div>
 
           <div {...stylex.props(styles.stepperRow)}>
-            <Btn
-              v="outline"
-              size="icon"
-              icon="minus"
-              aria-label="Decrease"
-              disabled={target <= 0 || saving}
+            <Button
+              variant="secondary"
+              size="card"
+              iconOnly
               onClick={() => setTarget((value) => clamp(value - STEP))}
+              disabled={target <= 0 || saving}
+              icon={<Icon name="minus" {...stylex.props(styles.kitGlyph)} />}
+              label="Decrease"
             />
             <input
               type="number"
@@ -356,13 +368,14 @@ export function StockAdjuster({
               onChange={(event) => setTarget(clamp(event.target.valueAsNumber))}
               {...stylex.props(styles.countInput)}
             />
-            <Btn
-              v="outline"
-              size="icon"
-              icon="plus"
-              aria-label="Increase"
-              disabled={saving}
+            <Button
+              variant="secondary"
+              size="card"
+              iconOnly
               onClick={() => setTarget((value) => clamp(value + STEP))}
+              disabled={saving}
+              icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
+              label="Increase"
             />
           </div>
 
@@ -436,7 +449,7 @@ export function StockAdjuster({
             </p>
           ) : null}
         </div>
-      </Modal>
+      </Dialog>
     </>
   );
 }

@@ -9,10 +9,10 @@ import {
   type InventoryPositionRow,
   type ListInventoryResponse,
 } from '@fit/types';
-import { Card } from '@astryxdesign/core/Card';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchInventory } from '@/lib/api';
-import { Badge, Icon, type Tone } from '@/components/ui';
+import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { formatPrice } from '../format-price';
 import { StockAdjuster } from '../low-stock/stock-adjuster';
 
@@ -27,11 +27,11 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /** The badge each derived level wears in the table. */
-const LEVEL_BADGES: Record<string, { label: string; tone: Tone }> = {
-  untracked: { label: 'Not tracked', tone: 'ink' },
+const LEVEL_BADGES: Record<string, { label: string; tone: BadgeTone }> = {
+  untracked: { label: 'Not tracked', tone: 'neutral' },
   out: { label: 'Out', tone: 'danger' },
-  low: { label: 'Low', tone: 'warning' },
-  in: { label: 'In stock', tone: 'success' },
+  low: { label: 'Low', tone: 'pending' },
+  in: { label: 'In stock', tone: 'positive' },
 };
 
 const styles = stylex.create({
@@ -199,7 +199,7 @@ export default async function InventoryPage({
         : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.page)}>
-        <Card role="alert" variant="default" padding={0} xstyle={styles.errorCard}>
+        <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
           <span>{message}</span>
         </Card>
@@ -245,7 +245,7 @@ export default async function InventoryPage({
         />
       </div>
 
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         {data.length === 0 ? (
           <p {...stylex.props(styles.empty)}>Nothing to show. Add a product to start counting.</p>
         ) : (
@@ -315,7 +315,7 @@ function PositionRow({
         {position.stock === null ? '—' : position.stock}
       </td>
       <td {...stylex.props(styles.td)}>
-        <Badge tone={badge.tone}>{badge.label}</Badge>
+        <Badge tone={badge.tone} label={badge.label} />
       </td>
       <td {...stylex.props(styles.td, styles.num, styles.muted)}>
         {position.value === null ? '—' : formatPrice(position.value, position.currency)}

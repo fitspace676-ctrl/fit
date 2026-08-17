@@ -16,8 +16,8 @@ import {
   recordPosSaleAction,
   type PosMemberRow,
 } from '@/app/(dashboard)/pos/actions';
-import { Card } from '@astryxdesign/core/Card';
-import { Btn, Icon } from '@/components/ui';
+import { Button, Card } from '@fit/ui-kit';
+import { Icon } from '@/components/ui';
 import { useGymCurrency } from '@/components/gym-currency';
 import {
   lineTotal,
@@ -65,6 +65,8 @@ const METHODS: ReadonlyArray<{ method: PaymentMethod; labelKey: string; hintKey:
 const QUICK_TENDER_STEPS = [500, 1000, 2000, 5000];
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   overlay: {
     position: 'fixed',
     inset: 0,
@@ -781,7 +783,7 @@ export function PosPayment({
             </div>
 
             {saveError !== null ? (
-              <Card variant="default" padding={0} role="alert" xstyle={styles.errorCard}>
+              <Card padding="none" role="alert" xstyle={styles.errorCard}>
                 <Icon name="info" {...stylex.props(styles.errorIcon)} />
                 <span {...stylex.props(styles.errorText)}>
                   {t('recordError', { error: saveError })}
@@ -790,18 +792,22 @@ export function PosPayment({
             ) : null}
 
             <div {...stylex.props(styles.footer)}>
-              <Btn v="outline" size="md" onClick={onClose} {...stylex.props(styles.flex1)}>
-                {t('cancel')}
-              </Btn>
-              <Btn
-                v="primary"
-                size="md"
+              <Button
+                variant="secondary"
+                size="card"
+                onClick={onClose}
+                xstyle={styles.flex1}
+                label={t('cancel')}
+              />
+              <Button
+                variant="primary"
+                size="card"
                 onClick={() => void complete()}
                 disabled={!canComplete}
-                {...stylex.props(styles.flex2)}
-              >
-                {saving ? t('recording') : t('complete')}
-              </Btn>
+                loading={saving}
+                xstyle={styles.flex2}
+                label={saving ? t('recording') : t('complete')}
+              />
             </div>
           </>
         )}
@@ -875,17 +881,19 @@ function PaymentSuccess({
 
       {receipt.printEnabled ? (
         <div {...stylex.props(styles.receiptActions)}>
-          <Btn v="outline" size="sm" icon="download" onClick={() => printReceipt(sale, 'Receipt')}>
-            {t('success.print')}
-          </Btn>
+          <Button
+            variant="secondary"
+            size="inline"
+            onClick={() => printReceipt(sale, 'Receipt')}
+            icon={<Icon name="download" {...stylex.props(styles.kitGlyph)} />}
+            label={t('success.print')}
+          />
         </div>
       ) : null}
 
       {receipt.emailEnabled ? <ReceiptSender sale={sale} /> : null}
 
-      <Btn v="primary" size="md" onClick={onFinish}>
-        {t('success.newSale')}
-      </Btn>
+      <Button variant="primary" size="card" onClick={onFinish} label={t('success.newSale')} />
     </div>
   );
 }
@@ -942,9 +950,13 @@ function ReceiptSender({ sale }: { sale: CompletedSale }) {
           aria-label={t('label')}
           {...stylex.props(styles.receiptInput)}
         />
-        <Btn v="outline" size="md" onClick={() => void send()} disabled={!canSend}>
-          {status.kind === 'sending' ? t('sending') : t('send')}
-        </Btn>
+        <Button
+          variant="secondary"
+          size="card"
+          onClick={() => void send()}
+          disabled={!canSend}
+          label={status.kind === 'sending' ? t('sending') : t('send')}
+        />
       </div>
       {status.kind === 'sent' ? (
         <p {...stylex.props(styles.receiptSent)}>{t('sent', { email: trimmed })}</p>

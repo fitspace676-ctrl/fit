@@ -3,7 +3,7 @@ import { useTranslations } from 'next-intl';
 import type { TrainerCard as TrainerCardModel } from '@fit/types';
 import { TrainerCard } from './TrainerCard';
 
-// Astryx migration (T11.13): the responsive grid is authored in compiled StyleX
+// Astryx migration (T11), now on the portal kit: the responsive grid is authored in compiled StyleX
 // over the Fit brand tokens — no Tailwind utilities.
 
 const styles = stylex.create({

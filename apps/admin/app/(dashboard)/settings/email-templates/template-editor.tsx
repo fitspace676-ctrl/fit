@@ -4,10 +4,13 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import type { EmailTemplateRow } from '@fit/types';
-import { Badge, Btn, Icon, useToast } from '@/components/ui';
+import { Badge, Button } from '@fit/ui-kit';
+import { Icon, useToast } from '@/components/ui';
 import { resetEmailTemplateAction, saveEmailTemplateAction } from './actions';
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   row: {
     display: 'flex',
     flexDirection: 'column',
@@ -180,8 +183,8 @@ export function TemplateEditor({ template }: { template: EmailTemplateRow }) {
           <span {...stylex.props(styles.name)}>{template.name}</span>
           <span {...stylex.props(styles.desc)}>{template.description}</span>
         </div>
-        {!template.enabled ? <Badge tone="ink">Off</Badge> : null}
-        {template.customised ? <Badge tone="brand">Edited</Badge> : null}
+        {!template.enabled ? <Badge tone="neutral" label="Off" /> : null}
+        {template.customised ? <Badge tone="accent" label="Edited" /> : null}
         <Icon name="chevronDown" {...stylex.props(styles.chevron, open && styles.chevronOpen)} />
       </button>
 
@@ -243,13 +246,22 @@ export function TemplateEditor({ template }: { template: EmailTemplateRow }) {
             </label>
             <span {...stylex.props(styles.spacer)} />
             {template.customised ? (
-              <Btn v="ghost" size="sm" onClick={reset} disabled={saving}>
-                Restore default
-              </Btn>
+              <Button
+                variant="ghost"
+                size="inline"
+                onClick={reset}
+                disabled={saving}
+                label="Restore default"
+              />
             ) : null}
-            <Btn v="primary" size="sm" icon="check" onClick={save} disabled={!dirty || saving}>
-              {saving ? 'Saving…' : 'Save'}
-            </Btn>
+            <Button
+              variant="primary"
+              size="inline"
+              onClick={save}
+              disabled={!dirty || saving}
+              icon={<Icon name="check" {...stylex.props(styles.kitGlyph)} />}
+              label={saving ? 'Saving…' : 'Save'}
+            />
           </div>
 
           {error !== null ? <p {...stylex.props(styles.error)}>{error}</p> : null}

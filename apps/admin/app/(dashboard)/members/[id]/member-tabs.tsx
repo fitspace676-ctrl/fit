@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Card } from '@astryxdesign/core/Card';
 import {
   MAX_FREEZE_DURATION_DAYS,
   type CreditPackCatalogueEntry,
@@ -15,17 +14,8 @@ import {
   type MemberDetail,
   type MemberNoteEntry,
 } from '@fit/types';
-import {
-  Btn,
-  Field,
-  Icon,
-  Input,
-  Modal,
-  Progress,
-  Textarea,
-  useToast,
-  type IconName,
-} from '@/components/ui';
+import { Button, Card, Dialog, Field, Meter, TextareaField } from '@fit/ui-kit';
+import { Icon, useToast, type IconName } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
 import {
   addMemberNoteAction,
@@ -56,6 +46,8 @@ const ACTIVITY_ICON: Record<MemberActivityKind, IconName> = {
 const DAY_MS = 86_400_000;
 
 const styles = stylex.create({
+  /** Icon size inside a kit `Button`. */
+  kitGlyph: { height: '1rem', width: '1rem' },
   wrap: {
     display: 'flex',
     flexDirection: 'column',
@@ -690,7 +682,7 @@ function dash(value: string | null | undefined): string {
 /** A centered empty-state line shown when a tab/section has no records yet. */
 function EmptyState({ children }: { children: string }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.emptyCard}>
+    <Card padding="none" xstyle={styles.emptyCard}>
       <Icon name="info" {...stylex.props(styles.emptyIcon)} />
       <p {...stylex.props(styles.emptyText)}>{children}</p>
     </Card>
@@ -811,7 +803,7 @@ function StatCard({
   small?: boolean;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.statCard}>
+    <Card padding="none" xstyle={styles.statCard}>
       <span {...stylex.props(styles.statIcon)}>
         <Icon name={icon} {...stylex.props(styles.smIcon)} />
       </span>
@@ -850,7 +842,7 @@ function ActivityCard({
   locale: string;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.recentActivity')}</h3>
       {activity.length === 0 ? (
         <p {...stylex.props(styles.mutedText)}>{t('detail.noRecentActivity')}</p>
@@ -890,7 +882,7 @@ function MembershipSummaryCard({
 }) {
   const plan = member.currentPlan;
   return (
-    <Card variant="default" padding={0} xstyle={styles.cardTight}>
+    <Card padding="none" xstyle={styles.cardTight}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.currentMembership')}</h3>
       {plan ? (
         <>
@@ -931,7 +923,7 @@ function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; local
   const genderLabel = member.gender ? t(`gender.${member.gender}`) : '—';
   return (
     <div {...stylex.props(styles.panelStack)}>
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.basicInformation')}</h3>
         <div {...stylex.props(styles.fieldGrid)}>
           <FieldRow label={t('detail.fullName')} value={dash(member.name)} />
@@ -947,7 +939,7 @@ function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; local
         </div>
       </Card>
 
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.emergencyContact')}</h3>
         <div {...stylex.props(styles.fieldGrid)}>
           <FieldRow label={t('detail.contactName')} value={dash(member.emergencyContactName)} />
@@ -955,7 +947,7 @@ function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; local
         </div>
       </Card>
 
-      <Card variant="default" padding={0} xstyle={styles.cardTight}>
+      <Card padding="none" xstyle={styles.cardTight}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.medicalNotes')}</h3>
         {member.medicalNotes ? (
           <p {...stylex.props(styles.medicalPanel)}>{member.medicalNotes}</p>
@@ -1026,7 +1018,7 @@ function PreviousMembershipsCard({
   locale: string;
 }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.previousMemberships')}</h3>
       {member.subscriptions.length === 0 ? (
         <p {...stylex.props(styles.mutedText)}>{t('detail.noSubscriptions')}</p>
@@ -1055,7 +1047,7 @@ function PreviousMembershipsCard({
 /** The member's recent class bookings, newest first. */
 function BookingsCard({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.classBookings')}</h3>
       {member.bookings.length === 0 ? (
         <p {...stylex.props(styles.mutedText)}>{t('detail.noBookings')}</p>
@@ -1094,7 +1086,7 @@ function CurrentPlanCard({
 }) {
   if (!plan) {
     return (
-      <Card variant="default" padding={0} xstyle={styles.cardTight}>
+      <Card padding="none" xstyle={styles.cardTight}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.currentPlan')}</h3>
         <p {...stylex.props(styles.mutedText)}>{t('detail.noLiveSubscription')}</p>
       </Card>
@@ -1117,7 +1109,7 @@ function CurrentPlanCard({
         : 'intervalPeriod';
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.currentPlan')}</h3>
 
       <div {...stylex.props(styles.planNameRow)}>
@@ -1148,7 +1140,9 @@ function CurrentPlanCard({
             {t('detail.daysLeft', { count: plan.daysRemaining })}
           </span>
         </div>
-        <Progress value={pct} />
+        {/* Header off: the line above already states the renewal date and the
+            days left, which is more than a bare `n/m` could carry. */}
+        <Meter value={pct} max={100} label={t('detail.periodProgress')} showHeader={false} />
       </div>
 
       <PlanFreezeControls
@@ -1243,57 +1237,63 @@ function PlanFreezeControls({
 
       <div {...stylex.props(styles.btnRow)}>
         {isFrozen ? (
-          <Btn
-            v="outline"
-            size="sm"
-            icon="spark"
+          <Button
+            variant="secondary"
+            size="inline"
+            icon={<Icon name="spark" {...stylex.props(styles.kitGlyph)} />}
             onClick={resume}
-            disabled={!canManageBilling || pending}
-          >
-            {pending ? t('form.saving') : t('detail.resume')}
-          </Btn>
+            disabled={!canManageBilling}
+            loading={pending}
+            label={pending ? t('form.saving') : t('detail.resume')}
+          />
         ) : (
-          <Btn
-            v="outline"
-            size="sm"
-            icon="clock"
+          <Button
+            variant="secondary"
+            size="inline"
+            icon={<Icon name="clock" {...stylex.props(styles.kitGlyph)} />}
             onClick={() => setOpen(true)}
             disabled={!canFreeze || pending}
             title={canFreeze ? undefined : t('detail.freezeUnavailable')}
-          >
-            {t('detail.freeze')}
-          </Btn>
+            label={t('detail.freeze')}
+          />
         )}
       </div>
 
-      <Modal
+      <Dialog
         open={open}
         onClose={() => setOpen(false)}
         title={t('detail.freezeModalTitle')}
         description={t('detail.freezeModalBody', { days: remaining })}
-        size="sm"
-        footer={
+        actions={
           <>
-            <Btn v="outline" onClick={() => setOpen(false)} disabled={pending}>
-              {t('actions.cancel')}
-            </Btn>
-            <Btn v="primary" onClick={submitFreeze} disabled={pending}>
-              {pending ? t('form.saving') : t('detail.freezeConfirm')}
-            </Btn>
+            <Button
+              variant="ghost"
+              size="block"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+              label={t('actions.cancel')}
+            />
+            <Button
+              variant="primary"
+              size="block"
+              onClick={submitFreeze}
+              loading={pending}
+              label={pending ? t('form.saving') : t('detail.freezeConfirm')}
+            />
           </>
         }
       >
-        <Field label={t('detail.freezeDurationLabel')} hint={t('detail.freezeDurationHint')}>
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={Math.min(remaining || MAX_FREEZE_DURATION_DAYS, MAX_FREEZE_DURATION_DAYS)}
-            value={days}
-            onChange={(e) => setDays(e.target.value)}
-          />
-        </Field>
-      </Modal>
+        <Field
+          label={t('detail.freezeDurationLabel')}
+          hint={t('detail.freezeDurationHint')}
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={Math.min(remaining || MAX_FREEZE_DURATION_DAYS, MAX_FREEZE_DURATION_DAYS)}
+          value={days}
+          onChange={(event) => setDays(event.target.value)}
+        />
+      </Dialog>
     </>
   );
 }
@@ -1350,7 +1350,7 @@ function CreditsCard({
   }
 
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHead)}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.credits')}</h3>
         <span {...stylex.props(styles.balance)}>{totalRemaining}</span>
@@ -1384,24 +1384,22 @@ function CreditsCard({
       )}
 
       {canManageBilling ? (
-        <Btn
-          v="outline"
-          size="sm"
-          icon="plus"
+        <Button
+          variant="secondary"
+          size="inline"
+          icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
           onClick={() => setOpen(true)}
           disabled={!canBuy || pending}
           title={canBuy ? undefined : t('detail.noCreditPacksOnSale')}
-        >
-          {t('detail.addCredit')}
-        </Btn>
+          label={t('detail.addCredit')}
+        />
       ) : null}
 
-      <Modal
+      <Dialog
         open={open}
         onClose={() => (pending ? undefined : setOpen(false))}
         title={t('detail.addCreditModalTitle')}
         description={t('detail.addCreditModalBody')}
-        size="sm"
       >
         <ul {...stylex.props(styles.list)}>
           {catalogue.map((pack) => (
@@ -1415,13 +1413,18 @@ function CreditsCard({
                   })}
                 </p>
               </div>
-              <Btn v="primary" size="sm" onClick={() => grant(pack)} disabled={pending}>
-                {grantingId === pack.id ? t('form.saving') : t('detail.sell')}
-              </Btn>
+              <Button
+                variant="primary"
+                size="inline"
+                onClick={() => grant(pack)}
+                disabled={pending}
+                loading={grantingId === pack.id}
+                label={grantingId === pack.id ? t('form.saving') : t('detail.sell')}
+              />
             </li>
           ))}
         </ul>
-      </Modal>
+      </Dialog>
     </Card>
   );
 }
@@ -1434,7 +1437,7 @@ function CreditsCard({
 function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
   return (
     <div {...stylex.props(styles.panelStack)}>
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.paymentHistory')}</h3>
         {member.payments.length === 0 ? (
           <p {...stylex.props(styles.mutedText)}>{t('detail.noPayments')}</p>
@@ -1455,7 +1458,7 @@ function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
         )}
       </Card>
 
-      <Card variant="default" padding={0} xstyle={styles.card}>
+      <Card padding="none" xstyle={styles.card}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.invoices')}</h3>
         {member.invoices.length === 0 ? (
           <p {...stylex.props(styles.mutedText)}>{t('detail.noInvoices')}</p>
@@ -1496,7 +1499,7 @@ function PurchasesPanel({ member, t, locale }: { member: MemberDetail; t: T; loc
     return <EmptyState>{t('detail.noPurchases')}</EmptyState>;
   }
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.purchaseHistory')}</h3>
       <ul {...stylex.props(styles.list)}>
         {member.purchases.map((purchase) => {
@@ -1529,7 +1532,7 @@ function AccessLogPanel({ member, t, locale }: { member: MemberDetail; t: T; loc
     return <EmptyState>{t('detail.noAccessLog')}</EmptyState>;
   }
   return (
-    <Card variant="default" padding={0} xstyle={styles.card}>
+    <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.accessLog')}</h3>
       <ul {...stylex.props(styles.list)}>
         {member.accessLog.map((entry) => (
@@ -1583,26 +1586,28 @@ function NotesCard({
   }
 
   return (
-    <Card variant="default" padding={0} xstyle={[styles.card, styles.notesFill]}>
+    <Card padding="none" xstyle={[styles.card, styles.notesFill]}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.staffNotes')}</h3>
 
       <div {...stylex.props(styles.addForm)}>
-        <Textarea
+        <TextareaField
+          label={t('detail.addNote')}
+          labelHidden
           rows={3}
           placeholder={t('detail.addNotePlaceholder')}
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={(event) => setBody(event.target.value)}
         />
         <div {...stylex.props(styles.addFormActions)}>
-          <Btn
-            v="primary"
-            size="sm"
-            icon="plus"
+          <Button
+            variant="primary"
+            size="inline"
+            icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
             onClick={submit}
-            disabled={pending || !body.trim()}
-          >
-            {pending ? t('form.saving') : t('detail.addNote')}
-          </Btn>
+            disabled={!body.trim()}
+            loading={pending}
+            label={pending ? t('form.saving') : t('detail.addNote')}
+          />
         </div>
       </div>
 
