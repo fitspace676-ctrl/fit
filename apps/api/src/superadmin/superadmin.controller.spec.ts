@@ -8,7 +8,9 @@ import type { TenantContext } from '../common/tenant/tenant.context';
 function setup(userId: string | null = 'admin-1') {
   const listGyms = vi.fn(() => Promise.resolve({ gyms: [] }));
   const setGymStatus = vi.fn(() => Promise.resolve({ id: 'gym-1', status: GymStatus.SUSPENDED }));
-  const impersonate = vi.fn(() => Promise.resolve({ accessToken: 'scoped.jwt' }));
+  const impersonate = vi.fn(() =>
+    Promise.resolve({ handoffCode: 'handoff-code', expiresInSeconds: 60 }),
+  );
   const superadmin = { listGyms, setGymStatus, impersonate } as unknown as SuperAdminService;
   // `null` models "no authenticated actor" — the controller reads `undefined`
   // from a real TenantContext, so coerce it here. (A `= undefined` default
@@ -62,7 +64,7 @@ describe('SuperAdminController', () => {
     it('forwards the actor and gym id', async () => {
       const result = await ctx.controller.impersonate('gym-1');
       expect(ctx.impersonate).toHaveBeenCalledWith('admin-1', 'gym-1');
-      expect(result).toEqual({ accessToken: 'scoped.jwt' });
+      expect(result).toEqual({ handoffCode: 'handoff-code', expiresInSeconds: 60 });
     });
   });
 

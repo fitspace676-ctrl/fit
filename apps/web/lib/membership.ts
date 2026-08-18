@@ -27,6 +27,12 @@ export type InvoiceStatus = 'PAID' | 'PENDING' | 'FAILED' | 'REFUNDED';
 export interface MemberSubscription {
   id: string;
   status: SubscriptionStatus;
+  /**
+   * The plan behind this subscription. `null` when the API omits it or the plan
+   * was deleted — the screen only uses it to mark the member's live plan in the
+   * change-plan picker, so an absent id costs a highlight, not a feature.
+   */
+  planId: string | null;
   planName: string | null;
   priceAmount: number;
   currency: string;
@@ -86,6 +92,7 @@ function parseSubscription(raw: unknown): MemberSubscription | null {
   return {
     id,
     status: oneOf(r.status, STATUSES, 'ACTIVE'),
+    planId: str(r.planId),
     planName: str(r.planName),
     priceAmount: num(r.priceAmount),
     currency: str(r.currency) ?? 'GEL',

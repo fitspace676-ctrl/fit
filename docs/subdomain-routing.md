@@ -2,12 +2,33 @@
 
 Each gym (tenant) is served at `<slug>.<rootDomain>`:
 
-| Surface                  | Host                            | App               |
-| ------------------------ | ------------------------------- | ----------------- |
-| Member site              | `<slug>.<root>`                 | `@fit/web`        |
-| Staff console            | `<slug>.<root>/admin`           | `@fit/admin`      |
-| Marketing / owner signup | `<root>` (apex)                 | `@fit/platform`   |
-| Operator console         | `ops.<root>` (or separate host) | `@fit/superadmin` |
+| Surface                  | Host                  | App               |
+| ------------------------ | --------------------- | ----------------- |
+| Member site              | `<slug>.<root>`       | `@fit/web`        |
+| Staff console            | `<slug>.<root>/admin` | `@fit/admin`      |
+| Marketing / owner signup | `<root>` (apex)       | `@fit/platform`   |
+| Operator console         | `superadmin.<root>`   | `@fit/superadmin` |
+
+`superadmin` is in `RESERVED_SUBDOMAINS` (`packages/types/src/gyms.ts`), so no gym
+can ever claim that label and `SubdomainTenantMiddleware` never resolves it to a
+tenant — the operator console gets a host inside the tenant namespace without
+being mistaken for one. Its session cookies are named `ops*` and written
+**host-only**, so they neither read nor overwrite the parent-domain `accessToken`
+the tenant surfaces share.
+
+### Three cookie scopes, on purpose
+
+| Cookie                                     | Scope                          | Set by                       |
+| ------------------------------------------ | ------------------------------ | ---------------------------- |
+| `accessToken` / `refreshToken`             | parent domain `.<root>`        | web + admin sign-in          |
+| `opsAccessToken` / `opsRefreshToken`       | host-only, `superadmin.<root>` | the operator console         |
+| `impersonationToken` / `impersonationMeta` | host-only, one `<slug>.<root>` | `/admin/impersonation/start` |
+
+The tenant session is shared across a gym's portal and console by design. The
+other two are deliberately not: an operator holding a SUPER_ADMIN session and
+acting as one gym's owner in another tab are three identities that must not
+overwrite each other. `pickSessionToken` (`apps/admin/lib/auth-session.ts`) is
+the one place the precedence lives — impersonation wins where it exists.
 
 The active gym is derived from the request **Host**, not hard-coded. Everything is
 domain-agnostic via env, so connecting a real domain (or switching to a wildcard on

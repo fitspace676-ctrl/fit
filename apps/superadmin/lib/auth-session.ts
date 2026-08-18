@@ -11,8 +11,27 @@
 // Must stay free of `next/headers`, React, and any Node-only API so it runs
 // unchanged in the Edge middleware runtime — it uses Web Crypto, not `node:crypto`.
 
-/** The cookie the access token is persisted under (readable by middleware). */
-export const ACCESS_TOKEN_COOKIE = 'accessToken';
+/**
+ * The operator session's cookies — deliberately NOT `accessToken` /
+ * `refreshToken`.
+ *
+ * Those names belong to the tenant surfaces, which set them on the PARENT domain
+ * (`COOKIE_DOMAIN=.formacore.io`) so one sign-in covers `<slug>.formacore.io` and
+ * its `/admin`. This console lives on `superadmin.formacore.io`, inside that same
+ * parent — so writing `accessToken` here would overwrite the operator's own
+ * tenant sessions, and, once one-click impersonation lands, an impersonated gym
+ * session would overwrite the operator's SUPER_ADMIN one and log them out of the
+ * console they launched it from.
+ *
+ * Separate names, written host-only (no `domain` attribute — see
+ * `lib/session-refresh.ts`), keep the two identities independent: the operator
+ * can hold a SUPER_ADMIN session here and a gym session in another tab at once,
+ * and signing out of either leaves the other alone.
+ */
+export const ACCESS_TOKEN_COOKIE = 'opsAccessToken';
+
+/** Cookie holding the rotating refresh token for the operator session. */
+export const REFRESH_TOKEN_COOKIE = 'opsRefreshToken';
 
 /** The roles the platform recognises, mirroring the Prisma `Role` enum. */
 export const ROLES = [

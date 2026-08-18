@@ -235,17 +235,24 @@ import type {
   ListRedemptionsQuery,
   ListRedemptionsResponse,
 } from '@fit/types';
-import { ACCESS_TOKEN_COOKIE } from './auth-session';
+import { pickSessionToken } from './auth-session';
 
 /** Base URL of the @fit/api backend. Defaults to the local dev API. */
 function apiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 }
 
-/** Build the auth header forwarding the staff session token to the API. */
+/**
+ * Build the auth header forwarding the staff session token to the API.
+ *
+ * Reads whichever cookie authenticates this request — an operator impersonating
+ * the gym is carried by the impersonation cookie, and the API must see that
+ * token, not the tenant one it sits beside.
+ */
 async function authHeaders(): Promise<Record<string, string>> {
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
-  return token ? { authorization: `Bearer ${token}` } : {};
+  const jar = await cookies();
+  const token = pickSessionToken((name) => jar.get(name)?.value);
+  return token ? { authorization: `Bearer ${token.value}` } : {};
 }
 
 /** Raised when the API answers a non-2xx; carries the status for the caller. */

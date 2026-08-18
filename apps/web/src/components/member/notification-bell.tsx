@@ -42,14 +42,18 @@ const CATEGORY_ICON: Record<InboxItem['category'], IconName> = {
 };
 
 const styles = stylex.create({
-  // FormaCore redesign: matched to the other header controls — a 40px bordered
-  // button on the `--fc-control` surface at the `inner` radius, so bell, cart,
-  // theme track and avatar read as one row of hardware rather than four
-  // differently-shaped things.
   // The bell is its own floating capsule beside the nav, so it carries the same
   // glass material — same surface, same hairline, same blur. Two capsules that
   // look like one system, kept apart because they answer different questions:
   // "where do I go" and "what happened while I was away".
+  //
+  // 58px — the CAPSULE's outer height, not the 44px of the items inside it. It
+  // was tried at 44 to match those items, on the reasoning that what sits beside
+  // the bell is a row of round icon buttons; on screen it was the wrong
+  // neighbour. Nothing lines the bell up with the items — they are recessed
+  // behind the capsule's rim — so a 44px circle beside a 58px capsule simply
+  // read as undersized chrome. Matched to the capsule, the two are one row of
+  // two objects again.
   bell: {
     position: 'relative',
     display: 'grid',

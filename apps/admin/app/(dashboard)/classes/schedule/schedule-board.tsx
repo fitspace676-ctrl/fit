@@ -1125,7 +1125,7 @@ const styles = stylex.create({
     fontWeight: 800,
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'right',
-    color: 'var(--color-accent)',
+    color: 'var(--color-text-accent)',
   },
   nowMark: {
     position: 'relative',

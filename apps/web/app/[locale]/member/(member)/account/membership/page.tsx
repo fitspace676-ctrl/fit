@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { Badge, ButtonLink, Card, Meter, type BadgeTone } from '@/src/components/ui/kit';
+import { Badge, Banner, ButtonLink, Card, Meter, type BadgeTone } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
 import type { MemberBookingHistoryEntry } from '@fit/types';
 import { fetchMembership } from '@/lib/membership';
+import { getActiveGymId } from '@/lib/active-gym';
 import {
   fetchCreditPackCatalogue,
   fetchMyCreditPacks,
@@ -13,6 +14,7 @@ import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
 import { Icon } from '@/src/components/ui';
 import { FreezeCard } from './freeze-card';
+import { ChangePlanButton } from './change-plan-modal';
 import { BuyCreditsCard } from './buy-credits-card';
 import { createDateTimeFormat } from '@fit/i18n';
 
@@ -83,41 +85,6 @@ const styles = stylex.create({
     letterSpacing: '-0.02em',
     color: 'var(--color-text-primary)',
   },
-  alert: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.75rem',
-    borderRadius: 'var(--radius-container)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border-orange)',
-    backgroundColor: 'var(--color-warning-muted)',
-    padding: '1rem',
-  },
-  alertIcon: {
-    marginTop: '0.125rem',
-    display: 'grid',
-    placeItems: 'center',
-    height: '2rem',
-    width: '2rem',
-    flexShrink: 0,
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'color-mix(in srgb, var(--color-warning) 25%, transparent)',
-    color: 'var(--color-text-orange)',
-  },
-  alertTitle: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.875rem',
-    fontWeight: 700,
-    color: 'var(--color-text-orange)',
-  },
-  alertBody: {
-    margin: 0,
-    marginTop: '0.125rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
   twoCol: {
     display: 'grid',
     gap: '1.25rem',
@@ -126,6 +93,11 @@ const styles = stylex.create({
       '@media (min-width: 1024px)': '1.5fr 1fr',
     },
     alignItems: 'start',
+  },
+  // With no plan there is no freeze card either, so the pair is a single block
+  // — and a 1.5fr/1fr grid holding one child leaves a column-shaped hole.
+  oneCol: {
+    gridTemplateColumns: '1fr',
   },
   // The lime block again — the same surface as the dashboard's `MembershipHero`,
   // at the scale this screen gives it. Flat fill, ink type, hero radius; the
@@ -222,25 +194,6 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'rgba(19, 19, 18, 0.62)',
   },
-  actions: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-    padding: '1.5rem',
-  },
-  actionsLabel: {
-    margin: 0,
-    marginBottom: '0.25rem',
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.15em',
-    color: 'var(--color-text-secondary)',
-  },
-  fullStart: {
-    width: '100%',
-    justifyContent: 'flex-start',
-  },
   metrics: {
     display: 'grid',
     gap: '1rem',
@@ -278,12 +231,17 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-text-primary)',
   },
+  // Mono, at the same step as the bookings board's counter strip. It was the
+  // heading face, which left three metric cards on one screen setting their
+  // numbers in two different families.
   metricBig: {
     margin: 0,
     marginTop: '0.75rem',
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.75rem',
+    fontWeight: 700,
+    lineHeight: 1,
+    letterSpacing: '-0.03em',
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
@@ -381,10 +339,11 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, activeLocale, { subscription, invoices }, creditPacks, catalogue, bookings] =
+  const [t, activeLocale, gymId, { subscription, invoices }, creditPacks, catalogue, bookings] =
     await Promise.all([
       getTranslations('member.membership'),
       getLocale(),
+      getActiveGymId(),
       safe(fetchMembership(), { subscription: null, invoices: [] }),
       safe(fetchMyCreditPacks(), []),
       safe(fetchCreditPackCatalogue(), []),
@@ -421,27 +380,31 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           <p {...stylex.props(styles.eyebrow)}>{t('eyebrow')}</p>
           <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
         </div>
-        <ButtonLink
-          href="/member/checkout"
-          variant="primary"
-          size="card"
-          label={hasMembership ? t('changePlan') : t('choosePlan')}
+        {/* Changing a plan happens HERE, in a modal — see the note in
+            `change-plan-modal.tsx`. This used to leave for `/member/checkout`,
+            the public four-step signup wizard, which asks a signed-in member to
+            re-declare who they are on the way to answering the one question they
+            came with. */}
+        <ChangePlanButton
+          gymId={gymId}
+          currentPlanId={subscription?.planId ?? null}
+          hasMembership={hasMembership}
         />
       </div>
 
+      {/* A failed payment is the one place the direction spends its red. The
+          panel used to be hand-tinted on `--color-border-orange` /
+          `--color-text-orange` — a hue FormaCore retired and flattens onto plain
+          ink, so the single hard-stop on this screen rendered as a grey box no
+          louder than the card beside it. `Banner` carries the red, and the
+          `role="alert"` with it. */}
       {status === 'PAST_DUE' ? (
-        <div role="alert" {...stylex.props(styles.alert)}>
-          <span {...stylex.props(styles.alertIcon)}>
-            <Icon name="card" {...stylex.props(styles.glyph)} sw={2.3} />
-          </span>
-          <div>
-            <p {...stylex.props(styles.alertTitle)}>{t('pastDue.title')}</p>
-            <p {...stylex.props(styles.alertBody)}>{t('pastDue.body')}</p>
-          </div>
-        </div>
+        <Banner tone="error">
+          {t('pastDue.title')} — {t('pastDue.body')}
+        </Banner>
       ) : null}
 
-      <section {...stylex.props(styles.twoCol)}>
+      <section {...stylex.props(styles.twoCol, !subscription && styles.oneCol)}>
         {/* Current plan */}
         <div {...stylex.props(styles.planCard)}>
           <div {...stylex.props(styles.planTop)}>
@@ -486,41 +449,16 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           )}
         </div>
 
-        {/* Actions */}
-        <Card padding="none">
-          <div {...stylex.props(styles.actions)}>
-            <p {...stylex.props(styles.actionsLabel)}>{t('managePlan')}</p>
-            <ButtonLink
-              href="/member/checkout"
-              variant="secondary"
-              size="card"
-              icon={<Icon name="ticket" {...stylex.props(styles.glyph)} />}
-              label={hasMembership ? t('changePlan') : t('choosePlan')}
-              xstyle={styles.fullStart}
-            />
-            <ButtonLink
-              href="/member/account/bookings"
-              variant="ghost"
-              size="card"
-              icon={<Icon name="calendar" {...stylex.props(styles.glyph)} />}
-              label={t('viewBookings')}
-              xstyle={styles.fullStart}
-            />
-            <ButtonLink
-              href="/member/shop"
-              variant="ghost"
-              size="card"
-              icon={<Icon name="bag" {...stylex.props(styles.glyph)} />}
-              label={t('shopMember')}
-              xstyle={styles.fullStart}
-            />
-          </div>
-        </Card>
-      </section>
-
-      {/* Freeze / pause membership (T5.7) — only for a real, live subscription. */}
-      {subscription ? (
-        <section {...stylex.props(styles.twoCol)}>
+        {/* The plan block is paired with the freeze card, which is the only
+            other thing on this screen that is ABOUT the plan.
+            A "Manage plan" rail used to sit here holding three links. All three
+            are gone for different reasons: "Change plan" is now the header
+            button and opens the modal; "My bookings" and "Member shop" are
+            permanent destinations in the bottom nav, so the card was a second
+            copy of navigation that never leaves the screen — and being the only
+            card in the right column, it existed mostly to stop the grid
+            looking empty. */}
+        {subscription ? (
           <FreezeCard
             id={subscription.id}
             status={subscription.status}
@@ -529,8 +467,8 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             freezeDaysUsed={subscription.freezeDaysUsed}
             freezeDaysRemaining={subscription.freezeDaysRemaining}
           />
-        </section>
-      ) : null}
+        ) : null}
+      </section>
 
       {/* Metrics */}
       <section {...stylex.props(styles.metrics)}>

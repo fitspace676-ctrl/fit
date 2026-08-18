@@ -100,13 +100,20 @@ test.describe.serial('Member booking + checkout', () => {
 
   test('Book a class — capacity path', async () => {
     // Deep-link the occurrence detail page; a signed-in member gets the real
-    // booking button, labelled "Book" while seats remain.
+    // booking CTA, labelled "Book this class" while seats remain.
     await page.goto(`/en/member/classes/${catalogue.bookableClassId}`);
-    await page.getByRole('button', { name: 'Book' }).click();
+    await page.getByRole('button', { name: 'Book this class' }).click();
 
-    // The action toasts and refreshes in place (no navigation). Assert on the
-    // durable record: the bookings page lists it as "Booked".
-    await expect(page.getByText('Booked! See you there')).toBeVisible({ timeout: 20_000 });
+    // Booking runs through one modal wherever it starts from, so the CTA opens
+    // the dialog rather than firing the action. The confirm button repeats the
+    // CTA's label, so the click MUST be scoped to the dialog — unscoped, the two
+    // are ambiguous once it is open.
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible({ timeout: 20_000 });
+    await dialog.getByRole('button', { name: 'Book this class' }).click();
+
+    // The modal confirms in place rather than toasting and closing.
+    await expect(dialog.getByText('You’re booked')).toBeVisible({ timeout: 20_000 });
 
     await page.goto('/en/member/account/bookings');
     await expect(page.getByText('Booked', { exact: true }).first()).toBeVisible({
@@ -120,7 +127,14 @@ test.describe.serial('Member booking + checkout', () => {
     await page.goto(`/en/member/classes/${catalogue.fullClassId}`);
     await page.getByRole('button', { name: 'Join waitlist' }).click();
 
-    await expect(page.getByText('Added to the waitlist')).toBeVisible({ timeout: 20_000 });
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible({ timeout: 20_000 });
+    await dialog.getByRole('button', { name: 'Join waitlist' }).click();
+
+    await expect(dialog.getByText('You’re on the waitlist')).toBeVisible({ timeout: 20_000 });
+    // The queue position is the thing the old fire-and-forget button never told
+    // you, and the reason this flow moved into a modal at all.
+    await expect(dialog.getByText(/Position #\d+/)).toBeVisible();
 
     // The bookings page shows a waitlist entry as its queued position, e.g.
     // "Waitlist · #1" (a confirmed seat shows the "Booked" badge instead).

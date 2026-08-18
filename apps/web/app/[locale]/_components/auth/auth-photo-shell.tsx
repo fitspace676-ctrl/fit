@@ -24,7 +24,12 @@ import { ThemeToggle } from '@/src/components/member/theme-toggle';
  * it sits with the form where a visitor who cannot read the labels will look for
  * it. Light/dark changes the whole page, so it belongs on the chrome side — and
  * the photo panel is the one surface that does not itself change between the two
- * modes, which makes it a stable place to put the control that swaps them.
+ * modes, which makes it a stable place to put the control that swaps them. That
+ * split only has somewhere to be split TO while the two sides are columns. On a
+ * phone there is one column: the brand and the light/dark switch make the page
+ * header, and the language switch goes the other way, to the foot of the form
+ * under the terms line, where it is the last of the small print rather than one
+ * more control above the task.
  *
  * The photo replaces the artboard's copy block and live "next class" panel. That
  * is a deliberate departure from the Lime Block direction, which bans
@@ -37,6 +42,13 @@ import { ThemeToggle } from '@/src/components/member/theme-toggle';
  * at `/member/checkout`, which owns the real work (branch → product → details →
  * payment) and is reachable signed-out. It stays on the password screens too —
  * someone who cannot get in may simply not have an account yet.
+ *
+ * STACKED, THE FORM COMES FIRST. Under `lg` the two sides become one column, and
+ * the photo band on top meant a visitor who came to sign in opened the page on a
+ * 20rem advert and had to scroll to reach the email field. The form leads there
+ * and the photo panel follows, which is also why it is FIRST in the markup: the
+ * phone layout is the one where reading order and focus order now agree, and the
+ * desktop columns are restored with `order` rather than with the source.
  */
 
 /**
@@ -72,19 +84,26 @@ const styles = stylex.create({
     position: 'relative',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'space-between',
+    // Two children to push apart at desktop widths; on a phone the top row has
+    // moved out to the page header, so the lone join strip is pinned to the foot
+    // rather than left floating at the start of the band.
+    justifyContent: { default: 'flex-end', '@media (min-width: 1024px)': 'space-between' },
     gap: '2rem',
     overflow: 'hidden',
     // The panel keeps its own charcoal fill so a missing / still-loading photo
     // degrades to the flat surface it replaced rather than to a white hole.
     backgroundColor: '#131312',
-    borderBottomWidth: { default: '1px', '@media (min-width: 1024px)': 0 },
-    borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
+    // Second on a phone, first from `lg` — see the note on `form.order`. The
+    // seam travels with it: the panel's TOP edge is what meets the form when it
+    // is stacked underneath, and its inline end when the two are columns.
+    order: { default: 2, '@media (min-width: 1024px)': 1 },
+    borderTopWidth: { default: '1px', '@media (min-width: 1024px)': 0 },
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
     borderInlineEndWidth: { default: 0, '@media (min-width: 1024px)': '1px' },
     borderInlineEndStyle: 'solid',
     borderInlineEndColor: 'var(--color-border)',
-    // On a phone the panel is a band above the form, not a full column — a
+    // On a phone the panel is a band under the form, not a full column — a
     // half-height photo would push the password field off the first screen.
     minHeight: { default: '20rem', '@media (min-width: 1024px)': 0 },
     paddingInline: { default: '1.5rem', '@media (min-width: 1024px)': '3rem' },
@@ -104,9 +123,13 @@ const styles = stylex.create({
       'linear-gradient(180deg, rgba(19,19,18,0.74) 0%, rgba(19,19,18,0.26) 40%, rgba(19,19,18,0.34) 64%, rgba(19,19,18,0.68) 100%)',
   },
 
+  // Over the photo, and only there. On a phone the brand and the light/dark
+  // switch belong at the top of the PAGE, not at the top of a band that now sits
+  // below the form — so under `lg` this row is off and `formHeader` carries the
+  // same two controls on the page surface.
   topRow: {
     position: 'relative',
-    display: 'flex',
+    display: { default: 'none', '@media (min-width: 1024px)': 'flex' },
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '1rem',
@@ -134,6 +157,11 @@ const styles = stylex.create({
     fontWeight: 800,
     letterSpacing: '-0.025em',
     color: '#FFFFFF',
+  },
+  // On the form surface there is no scrim to sit on, so the wordmark takes the
+  // theme's ink and reads in light mode as well as dark.
+  brandWordInk: {
+    color: 'var(--color-text-primary)',
   },
 
   /* ------------------------------- join strip -------------------------------
@@ -248,14 +276,57 @@ const styles = stylex.create({
     position: 'relative',
     display: 'flex',
     flexDirection: 'column',
+    // FIRST on a phone. Stacked the other way, a 20rem photo band opened the
+    // page and a visitor who came to sign in had to scroll past an advert to
+    // reach the email field. What they came to do now leads; the join strip is
+    // the secondary path and reads as one, sitting under the form. From `lg`
+    // they are columns again and the photo takes the left one.
+    order: { default: 1, '@media (min-width: 1024px)': 2 },
     backgroundColor: 'var(--color-background-surface)',
     paddingInline: { default: '2rem', '@media (min-width: 1024px)': '3.5rem' },
     paddingBlock: { default: '2rem', '@media (min-width: 1024px)': '3rem' },
   },
+  // The row above the form. On a phone it is the page's header — brand on the
+  // leading edge, the light/dark and language switches on the trailing one, the
+  // same arrangement as the signed-in portal header. From `lg` the brand and the
+  // theme switch are back on the photo panel and only the language switch is
+  // left, so the row collapses to that one control on the trailing edge.
   formTop: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    gap: '1rem',
+    justifyContent: { default: 'space-between', '@media (min-width: 1024px)': 'flex-end' },
+  },
+  formTopActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  // The phone-only half of the header — the brand link and the theme switch.
+  // They are RENDERED TWICE and shown once: the panel's `topRow` owns the pair
+  // from `lg`, where they sit over the photo, and this row owns it below, where
+  // there is no photo above the form to sit on. Two hidden-at-the-other-width
+  // copies beat one copy moved by script, and `display: none` keeps the spare
+  // out of the accessibility tree, so nothing is announced twice.
+  phoneOnly: {
+    display: { default: 'flex', '@media (min-width: 1024px)': 'none' },
+  },
+  /** The mirror of `phoneOnly` — shown only where the columns are side by side. */
+  deskOnly: {
+    display: { default: 'none', '@media (min-width: 1024px)': 'flex' },
+  },
+  // The language switch, at the FOOT of the form on a phone.
+  //
+  // In the header it was the third control in a row that also carries the brand
+  // and the light/dark switch, and it read as chrome — one more thing between a
+  // visitor and the email field. Under the terms line it closes the column
+  // instead: everything above it is the task, and the two codes sit with the one
+  // other piece of small print on the screen. It stays in the header from `lg`,
+  // where the form column is tall enough that its foot is nowhere near the eye.
+  localeFoot: {
+    display: { default: 'flex', '@media (min-width: 1024px)': 'none' },
+    marginTop: '1.75rem',
+    justifyContent: 'center',
   },
   // Fills the column so the form sits optically centred between the language
   // switch and the foot of the page, rather than pinned to the top.
@@ -296,6 +367,27 @@ const styles = stylex.create({
   },
 });
 
+/**
+ * The lime bolt tile + wordmark, linking back to the marketing home.
+ *
+ * A component rather than inline markup because it appears in both halves of the
+ * header: over the photo panel from `lg`, and in the phone header above the form.
+ * `onPhoto` is the whole difference — over the picture the wordmark is always
+ * white, because the scrim is dark in both themes; on the form surface it takes
+ * the theme's ink, and the link hides itself at the width where the panel's copy
+ * takes over.
+ */
+function Brand({ label, onPhoto }: { label: string; onPhoto: boolean }) {
+  return (
+    <Link href="/" {...stylex.props(styles.brand, !onPhoto && styles.phoneOnly)}>
+      <span {...stylex.props(styles.brandMark)}>
+        <Icon name="bolt" sw={2.4} {...stylex.props(styles.brandIcon)} />
+      </span>
+      <span {...stylex.props(styles.brandWord, !onPhoto && styles.brandWordInk)}>{label}</span>
+    </Link>
+  );
+}
+
 export interface AuthPhotoShellProps {
   /** The one heading on the form side — what the visitor came here to do. */
   title: string;
@@ -317,16 +409,46 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
   return (
     <main {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.grid)}>
+        {/* ---------------------------- the form side --------------------------- */}
+        <section {...stylex.props(styles.form)}>
+          <div {...stylex.props(styles.formTop)}>
+            <Brand label={tShell('brand')} onPhoto={false} />
+            <div {...stylex.props(styles.formTopActions)}>
+              <div {...stylex.props(styles.phoneOnly)}>
+                <ThemeToggle />
+              </div>
+              <div {...stylex.props(styles.deskOnly)}>
+                <LocaleSwitcher />
+              </div>
+            </div>
+          </div>
+
+          <div {...stylex.props(styles.formBody)}>
+            <h2 {...stylex.props(styles.title, !subtitle && styles.titleAlone)}>{title}</h2>
+            {subtitle ? <p {...stylex.props(styles.subtitle)}>{subtitle}</p> : null}
+
+            {children}
+
+            {footer}
+
+            <div {...stylex.props(styles.localeFoot)}>
+              <LocaleSwitcher />
+            </div>
+          </div>
+        </section>
+
         {/* ---------------------------- the gym side ---------------------------- */}
         <aside {...stylex.props(styles.aside)}>
           <Image
             src={GYM_PHOTO}
             alt=""
             fill
-            // The panel is the full column from `lg` and a band below it, so the
-            // browser should fetch roughly half the viewport at desktop widths.
+            // The panel is the full column from `lg` and a band under the form
+            // below it, so the browser should fetch roughly half the viewport at
+            // desktop widths and the whole of it on a phone.
             sizes="(min-width: 1024px) 46vw, 100vw"
-            // It is the largest thing above the fold — let it race the form
+            // Still the largest thing above the fold at desktop widths, where it
+            // is a full-height column beside the form — let it race the form
             // rather than waiting for lazy-load.
             priority
             {...stylex.props(styles.photo)}
@@ -334,12 +456,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
           <span aria-hidden {...stylex.props(styles.scrim)} />
 
           <div {...stylex.props(styles.topRow)}>
-            <Link href="/" {...stylex.props(styles.brand)}>
-              <span {...stylex.props(styles.brandMark)}>
-                <Icon name="bolt" sw={2.4} {...stylex.props(styles.brandIcon)} />
-              </span>
-              <span {...stylex.props(styles.brandWord)}>{tShell('brand')}</span>
-            </Link>
+            <Brand label={tShell('brand')} onPhoto />
             <ThemeToggle />
           </div>
 
@@ -366,22 +483,6 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
             </div>
           </div>
         </aside>
-
-        {/* ---------------------------- the form side --------------------------- */}
-        <section {...stylex.props(styles.form)}>
-          <div {...stylex.props(styles.formTop)}>
-            <LocaleSwitcher />
-          </div>
-
-          <div {...stylex.props(styles.formBody)}>
-            <h2 {...stylex.props(styles.title, !subtitle && styles.titleAlone)}>{title}</h2>
-            {subtitle ? <p {...stylex.props(styles.subtitle)}>{subtitle}</p> : null}
-
-            {children}
-
-            {footer}
-          </div>
-        </section>
       </div>
     </main>
   );

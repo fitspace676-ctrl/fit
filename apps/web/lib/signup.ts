@@ -32,6 +32,26 @@ export class EmailTakenError extends Error {
   }
 }
 
+/**
+ * A `POST /checkout` rejection, carrying the API's own error code.
+ *
+ * The code, not the message, is what a caller can act on: `POST /checkout`
+ * answers `409 ALREADY_SUBSCRIBED` when the member already holds a live
+ * membership and `422 PRODUCT_UNAVAILABLE` when the plan has been withdrawn, and
+ * both deserve a sentence in the reader's own language rather than the API's
+ * English one. The wizard, which shows the API message verbatim, is unaffected —
+ * `message` is still the API's.
+ */
+export class CheckoutError extends Error {
+  readonly code: string | undefined;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'CheckoutError';
+    this.code = code;
+  }
+}
+
 /** Read `{ message, code }` off a non-2xx body, tolerating a non-JSON response. */
 async function errorBody(response: Response): Promise<{ message?: string; code?: string }> {
   return ((await response.json().catch(() => null)) as { message?: string; code?: string }) ?? {};
@@ -121,7 +141,7 @@ export async function createCheckout(
 
   if (!response.ok) {
     const detail = await errorBody(response);
-    throw new Error(detail.message ?? `Checkout failed (${response.status})`);
+    throw new CheckoutError(detail.message ?? `Checkout failed (${response.status})`, detail.code);
   }
 
   return createCheckoutResponseSchema.parse(await response.json());

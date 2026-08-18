@@ -145,8 +145,8 @@ export interface ClassDetailProps {
  * live capacity, plus the auth-gated booking CTA.
  *
  * Reuses the calendar's pure date helpers so the detail page and the calendar
- * format times identically, and the same capacity treatment as the calendar
- * drawer. Mostly a static Server Component; only the booking CTA
+ * format times identically, and the same capacity treatment as the booking
+ * modal. Mostly a static Server Component; only the booking CTA
  * ({@link ClassBookingCta}) is a client island. When the occurrence is no longer
  * `SCHEDULED` (a shared link to a since-canceled / completed class) a banner
  * explains it and the booking CTA is withheld.
@@ -222,7 +222,7 @@ export function ClassDetail({ instance, gymId, timeZone }: ClassDetailProps) {
 
       {isScheduled && (
         <div {...stylex.props(styles.cta)}>
-          <ClassBookingCta classId={instance.id} isFull={isFull} />
+          <ClassBookingCta instance={instance} isFull={isFull} timeZone={timeZone} />
         </div>
       )}
     </Card>

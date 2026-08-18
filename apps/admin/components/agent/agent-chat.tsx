@@ -93,7 +93,7 @@ const styles = stylex.create({
   launcherIcon: {
     width: '1.25rem',
     height: '1.25rem',
-    color: 'var(--color-accent)',
+    color: 'var(--color-icon-accent)',
   },
   // Scrim behind the panel — subtle, closes on click.
   scrim: {
@@ -381,7 +381,7 @@ const styles = stylex.create({
   emptyIcon: {
     width: '2rem',
     height: '2rem',
-    color: 'var(--color-accent)',
+    color: 'var(--color-icon-accent)',
   },
   emptyTitle: {
     fontSize: '0.9375rem',

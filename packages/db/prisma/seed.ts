@@ -178,19 +178,25 @@ async function main() {
   }
 
   // A platform SUPER_ADMIN fixture for local dev / E2E so the operator console
-  // (T2.12) is reachable out of the box. Gated to non-production: never seed a
-  // standing super-admin into a real database. In production the first admin is
-  // made by registering a user and running `fit admin grant --email <email>`.
-  // Created without a password (consistent with the other seed users); mint a
-  // session for it in dev with `fit token --role SUPER_ADMIN`.
+  // is reachable out of the box. Gated to non-production: never seed a standing
+  // super-admin into a real database. In production the first admin is made by
+  // registering a user and running `fit admin grant --email <email>`.
+  //
+  // It carries {@link DEV_PASSWORD_HASH} like every other seed user. It used to
+  // be created WITHOUT a password, on the reasoning that a dev would mint its
+  // session with `fit token --role SUPER_ADMIN` — but the operator console owns
+  // a sign-in of its own now (its cookies are host-only, so no other surface can
+  // mint a session for it), and a password-less fixture cannot get through a
+  // password form. `fit token` still works for scripted/API use.
   if (process.env.NODE_ENV !== 'production') {
     await prisma.user.upsert({
       where: { email: 'superadmin@fit.local' },
-      update: { isSuperAdmin: true },
+      update: { isSuperAdmin: true, passwordHash: DEV_PASSWORD_HASH },
       create: {
         email: 'superadmin@fit.local',
         name: 'Platform Admin',
         isSuperAdmin: true,
+        passwordHash: DEV_PASSWORD_HASH,
         emailVerifiedAt: new Date(),
       },
     });
