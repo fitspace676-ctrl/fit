@@ -11,7 +11,7 @@ import { ClassTemplateForm } from '../../class-template-form';
 import { loadRelationOptions } from '../../options';
 
 export const metadata: Metadata = {
-  title: 'Edit class - Fit Admin',
+  title: 'Edit class - FormaCore Admin',
 };
 
 // Reflects the staff session and writes live template state — never cached.
@@ -112,7 +112,7 @@ export default async function EditClassTemplatePage({
     const message =
       error instanceof ApiError
         ? `Could not load this class (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/classes" {...stylex.props(styles.backLink)}>

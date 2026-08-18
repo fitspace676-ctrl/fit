@@ -4,7 +4,7 @@ import { getActiveGymId } from '@/lib/active-gym';
 import { CheckoutScreen } from '@/src/components/checkout/CheckoutScreen';
 
 export const metadata: Metadata = {
-  title: 'Checkout — Fit',
+  title: 'Checkout - FormaCore',
   description: 'Choose a location and buy your membership.',
 };
 

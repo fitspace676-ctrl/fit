@@ -48,6 +48,13 @@ const styles = stylex.create({
   // and must never be flipped to white: white on this lime is ~1.5:1.
   primary: {
     backgroundColor: { default: 'var(--color-accent)', ':hover': 'var(--fc-accent-hover)' },
+    // An app may supply a brand gradient to paint OVER the accent fill (the
+    // console's light mode does); where the var is absent the fallback keeps
+    // the flat accent exactly as before.
+    backgroundImage: {
+      default: 'var(--brand-fill-image, none)',
+      ':hover': 'var(--brand-fill-image-hover, none)',
+    },
     color: 'var(--color-on-accent)',
   },
   // A filled but voiceless control — "also available", never competing with the

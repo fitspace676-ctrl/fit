@@ -410,7 +410,7 @@ export function ClassTypeForm(props: Props) {
             onChange={(e) => setPricingRule(e.target.value as ClassPricingRule)}
             {...stylex.props(styles.field)}
           >
-            <option value="FREE">Free — included in all memberships</option>
+            <option value="FREE">Free - included in all memberships</option>
             <option value="INCLUDED">Included in selected plans</option>
             <option value="PAID">Paid per session</option>
           </select>
@@ -439,7 +439,7 @@ export function ClassTypeForm(props: Props) {
           <div {...stylex.props(styles.fieldGroup)}>
             <span {...stylex.props(styles.label)}>Included in plans</span>
             {props.plans.length === 0 ? (
-              <p {...stylex.props(styles.hint)}>No membership plans yet — create one first.</p>
+              <p {...stylex.props(styles.hint)}>No membership plans yet - create one first.</p>
             ) : (
               <div {...stylex.props(styles.planList)}>
                 {props.plans.map((plan) => {

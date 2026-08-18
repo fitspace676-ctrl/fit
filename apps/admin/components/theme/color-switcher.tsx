@@ -297,7 +297,7 @@ export function ColorSwitcher() {
           </div>
 
           <p {...stylex.props(styles.note)}>
-            Saved in this browser only — nobody else sees it, and nothing is written to the gym.
+            Saved in this browser only - nobody else sees it, and nothing is written to the gym.
             Navigate around; every screen follows.
           </p>
 

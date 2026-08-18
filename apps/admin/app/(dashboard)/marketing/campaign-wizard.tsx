@@ -105,6 +105,7 @@ const styles = stylex.create({
   },
   stepDotActive: {
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
   },
   stepLine: {
@@ -115,6 +116,7 @@ const styles = stylex.create({
   },
   stepLineDone: {
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
   },
   section: {
     display: 'flex',
@@ -920,7 +922,7 @@ export function CampaignWizard({
                       ? t('audience.counting')
                       : previewCount !== null
                         ? t('audience.memberCount', { count: previewCount })
-                        : '—'
+                        : '-'
                   }
                 />
                 <Button
@@ -1074,7 +1076,7 @@ export function CampaignWizard({
                     : t(`audience.${form.audienceType}Title`)}
                 </span>
                 <span {...stylex.props(styles.summaryKey)}>{t('schedule.summarySubject')}</span>
-                <span {...stylex.props(styles.summaryVal)}>{form.subject || '—'}</span>
+                <span {...stylex.props(styles.summaryVal)}>{form.subject || '-'}</span>
               </div>
             </div>
           </div>

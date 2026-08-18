@@ -502,7 +502,7 @@ export function AudienceView({
         </div>
 
         <div {...stylex.props(styles.countWrap)}>
-          <span {...stylex.props(styles.count)}>{count !== null ? count : '—'}</span>
+          <span {...stylex.props(styles.count)}>{count !== null ? count : '-'}</span>
           <span {...stylex.props(styles.countLabel)}>{t('audienceTab.membersMatch')}</span>
         </div>
 

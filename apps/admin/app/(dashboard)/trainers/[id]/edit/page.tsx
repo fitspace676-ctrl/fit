@@ -10,7 +10,7 @@ import { Icon } from '@/components/ui';
 import { TrainerForm } from '../../trainer-form';
 
 export const metadata: Metadata = {
-  title: 'Edit trainer — Fit Admin',
+  title: 'Edit trainer - FormaCore Admin',
 };
 
 // Reflects the staff session and writes live trainer state — never cached.

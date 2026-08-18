@@ -95,7 +95,7 @@ export default function LoginScreen() {
               <View className="h-11 w-11 items-center justify-center rounded-btn bg-brand-600">
                 <Text className="text-xl font-black text-white">F</Text>
               </View>
-              <Text className="text-xl font-extrabold tracking-tight text-white">Fit</Text>
+              <Text className="text-xl font-extrabold tracking-tight text-white">FormaCore</Text>
             </View>
 
             <View className="absolute inset-x-0 bottom-0 px-5 pb-6">

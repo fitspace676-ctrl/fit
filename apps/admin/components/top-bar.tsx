@@ -31,6 +31,7 @@ import { Icon } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
 import type { ShellLocation } from './admin-shell';
 import { LocaleSwitcher } from './locale-switcher';
+import { NavIcon } from './nav-icon';
 
 /** localStorage key persisting the selected location across reloads. */
 const LOCATION_STORAGE_KEY = 'fit-admin-active-location';
@@ -196,7 +197,9 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
               label={t('locationLabel')}
               labelHidden
               size="chrome"
-              startIcon={<Icon name="pin" {...stylex.props(styles.glyph)} />}
+              // The location pin wears the brand treatment the nav glyphs do:
+              // the gradient in light mode, the flat phosphor lime in dark.
+              startIcon={<NavIcon name="locations" size={16} />}
               options={locationOptions}
               value={locationId}
               onChange={(event) => onLocationChange(event.target.value)}

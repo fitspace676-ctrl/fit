@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
 
 export const metadata: Metadata = {
-  title: 'Access denied — Fit',
+  title: 'Access denied - FormaCore',
   description: 'You do not have permission to view this page.',
 };
 

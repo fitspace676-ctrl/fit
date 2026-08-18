@@ -7,7 +7,7 @@ import { getServerSession } from '@/lib/session';
 import { getActiveGymSlug } from '@/lib/active-gym';
 
 export const metadata: Metadata = {
-  title: 'Profile - Fit Admin',
+  title: 'Profile - FormaCore Admin',
   description: 'Your account and the gym you are managing.',
 };
 

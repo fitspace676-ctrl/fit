@@ -29,7 +29,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'FormaCore — SuperAdmin',
+  title: 'FormaCore - SuperAdmin',
   description: 'FormaCore platform operator console.',
 };
 

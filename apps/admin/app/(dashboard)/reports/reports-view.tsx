@@ -321,14 +321,14 @@ const styles = stylex.create({
       cursor: 'default',
     },
   },
-  // Solid brand indigo, labelled in `--color-background-card`.
+  // Solid brand accent, labelled in `--color-on-accent`.
   //
-  // NOT `--color-on-accent`. That token is white in both modes, and the dark
-  // theme's accent is the LIGHTER of the two indigos (`#9184F1` against light
-  // mode's `#6257E3`) — so white-on-accent measures 3.10:1 there and fails AA for
-  // 13px text, while passing at 5.26:1 in light. The card colour inverts with the
-  // theme exactly as needed: near-black on the pale dark-mode indigo (4.88:1) and
-  // white on the saturated light-mode one (5.26:1). One token, AA in both.
+  // `--color-background-card` used to sit here, from the indigo era: the card
+  // colour inverted with the theme exactly as the two indigos needed. That
+  // trick painted white-on-lime in light mode (about 1.2:1 - invisible).
+  // `--color-on-accent` is the token that answers "ink on the accent" per mode:
+  // dark ink on the lime in dark, white on the console's green in light (see
+  // the accent-family override in globals.css). AA in both.
   //
   // Hover is re-declared, or the chip's own hover rule repaints the selected chip
   // in plain ink and it appears to deselect itself under the cursor.
@@ -337,9 +337,14 @@ const styles = stylex.create({
       default: 'var(--color-accent)',
       ':hover:not(:disabled)': 'var(--color-accent)',
     },
+    // The brand gradient in light mode, flat accent in dark (see globals.css).
+    backgroundImage: {
+      default: 'var(--brand-fill-image, none)',
+      ':hover:not(:disabled)': 'var(--brand-fill-image, none)',
+    },
     color: {
-      default: 'var(--color-background-card)',
-      ':hover:not(:disabled)': 'var(--color-background-card)',
+      default: 'var(--color-on-accent)',
+      ':hover:not(:disabled)': 'var(--color-on-accent)',
     },
   },
   // Bare, inheriting the chip's ink, and a shade under the label's cap height so it
@@ -979,7 +984,7 @@ function formatCell(
   number: NumberFormatter,
 ): string {
   if (value === null || value === '') {
-    return '—';
+    return '-';
   }
   switch (column.type) {
     case 'money':

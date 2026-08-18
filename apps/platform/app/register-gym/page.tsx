@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { RegisterGymForm } from '@/components/signup/register-gym-form';
 
 export const metadata: Metadata = {
-  title: 'Create your gym - Fit',
-  description: 'Set up your gym on Fit in minutes. No credit card required to start.',
+  title: 'Create your gym - FormaCore',
+  description: 'Set up your gym on FormaCore in minutes. No credit card required to start.',
 };
 
 /**

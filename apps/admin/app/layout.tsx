@@ -45,8 +45,8 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Fit - Admin',
-  description: 'Fit admin console.',
+  title: 'FormaCore - Admin',
+  description: 'FormaCore admin console.',
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {

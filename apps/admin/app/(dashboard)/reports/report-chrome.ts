@@ -96,7 +96,7 @@ export const chrome = stylex.create({
     color: 'var(--color-text-secondary)',
   },
 
-  /** The inline "could not reach the Fit API" box. */
+  /** The inline "could not reach the FormaCore API" box. */
   alert: {
     margin: 0,
     borderRadius: 'var(--radius-inner)',

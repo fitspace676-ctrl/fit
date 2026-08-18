@@ -10,7 +10,7 @@ import { Icon } from '@/components/ui';
 import { ProductForm } from '../../product-form';
 
 export const metadata: Metadata = {
-  title: 'Edit product - Fit Admin',
+  title: 'Edit product - FormaCore Admin',
 };
 
 // Reflects the staff session and writes live product state — never cached.
@@ -109,7 +109,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     const message =
       error instanceof ApiError
         ? `Could not load this product (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/shop" {...stylex.props(styles.backLink)}>

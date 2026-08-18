@@ -140,7 +140,7 @@ export function ClassTypesTable({
   if (types.length === 0) {
     return (
       <Card padding="none" xstyle={styles.emptyCard}>
-        No class types match your filters yet — add one to start scheduling.
+        No class types match your filters yet - add one to start scheduling.
       </Card>
     );
   }
@@ -177,7 +177,7 @@ export function ClassTypesTable({
     {
       key: 'minAttendance',
       header: 'Min',
-      cell: (type) => <span {...stylex.props(styles.numText)}>{type.minAttendance ?? '—'}</span>,
+      cell: (type) => <span {...stylex.props(styles.numText)}>{type.minAttendance ?? '-'}</span>,
     },
     {
       key: 'pricing',

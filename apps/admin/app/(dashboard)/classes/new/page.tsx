@@ -9,7 +9,7 @@ import { ClassTemplateForm } from '../class-template-form';
 import { loadRelationOptions } from '../options';
 
 export const metadata: Metadata = {
-  title: 'New class - Fit Admin',
+  title: 'New class - FormaCore Admin',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.
@@ -82,7 +82,7 @@ export default async function NewClassTemplatePage() {
       <header {...stylex.props(styles.header)}>
         <h1 {...stylex.props(styles.title)}>New class</h1>
         <p {...stylex.props(styles.subtitle)}>
-          Add a class to your gym — a one-off or a repeating one. Set its capacity and duration,
+          Add a class to your gym - a one-off or a repeating one. Set its capacity and duration,
           build the schedule with the visual recurrence editor, and pick a default trainer and
           location.
         </p>

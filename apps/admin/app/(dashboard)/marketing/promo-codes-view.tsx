@@ -175,7 +175,7 @@ export function PromoCodesView({
         p.minPurchase != null ? (
           formatMoney(p.minPurchase, locale)
         ) : (
-          <span {...stylex.props(styles.muted)}>—</span>
+          <span {...stylex.props(styles.muted)}>-</span>
         ),
     },
     {

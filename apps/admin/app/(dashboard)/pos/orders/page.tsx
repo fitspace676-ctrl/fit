@@ -19,7 +19,7 @@ import { OrdersFilters } from './orders-filters';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Sales log - Fit Admin',
+  title: 'Sales log - FormaCore Admin',
   description:
     'Every sale the till and the online shop have recorded: what was sold, how it was paid for, what was refunded, and when.',
 };
@@ -257,7 +257,7 @@ export default async function OrdersLogPage({
     const message =
       error instanceof ApiError
         ? `Could not load the sales log (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.page)}>
         <Card role="alert" padding="none" xstyle={styles.errorCard}>
@@ -291,7 +291,7 @@ export default async function OrdersLogPage({
         <div {...stylex.props(styles.headTitles)}>
           <h1 {...stylex.props(styles.title)}>Sales log</h1>
           <p {...stylex.props(styles.subtitle)}>
-            Every sale the till and the shop have recorded — what was in it, how it settled, and
+            Every sale the till and the shop have recorded - what was in it, how it settled, and
             anything refunded since. Open a sale for its full line-by-line history.
           </p>
         </div>
@@ -409,11 +409,11 @@ function OrderRow({ order }: { order: AdminOrderRow }) {
       </td>
       <td {...stylex.props(styles.td, styles.num)}>{order.itemCount}</td>
       <td {...stylex.props(styles.td, styles.muted)}>
-        {order.paymentMethod ? (METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod) : '—'}
+        {order.paymentMethod ? (METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod) : '-'}
       </td>
       <td {...stylex.props(styles.td, styles.num)}>{formatPrice(order.total, order.currency)}</td>
       <td {...stylex.props(styles.td, styles.refunded)}>
-        {order.refundedAmount > 0 ? `−${formatPrice(order.refundedAmount, order.currency)}` : '—'}
+        {order.refundedAmount > 0 ? `−${formatPrice(order.refundedAmount, order.currency)}` : '-'}
       </td>
       <td {...stylex.props(styles.td)}>
         <Badge tone={STATUS_TONES[order.status] ?? 'neutral'} label={order.status} />

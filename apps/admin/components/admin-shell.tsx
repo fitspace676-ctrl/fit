@@ -69,6 +69,18 @@ export function AdminShell({
 
   return (
     <ToastProvider>
+      {/* The document-wide brand gradient for icon strokes. Any glyph wrapped
+          in `.brand-grad-glyph` strokes it in light mode (see globals.css);
+          `url(#…)` resolves document-wide, so one def serves every icon,
+          including portalled drawers. */}
+      <svg aria-hidden width={0} height={0} style={{ position: 'absolute' }}>
+        <defs>
+          <radialGradient id="brand-icon-gradient" cx="0" cy="0" r="1.4142">
+            <stop offset="0" stopColor="#307654" />
+            <stop offset="1" stopColor="#e4f26a" />
+          </radialGradient>
+        </defs>
+      </svg>
       <SkipLink>{t('skipToContent')}</SkipLink>
       <AppShell
         variant="wash"

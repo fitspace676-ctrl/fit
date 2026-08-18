@@ -297,7 +297,7 @@ export function CampaignsView({
         c.audienceSize > 0 ? (
           t('audience.memberCount', { count: c.audienceSize })
         ) : (
-          <span {...stylex.props(styles.muted)}>—</span>
+          <span {...stylex.props(styles.muted)}>-</span>
         ),
     },
     {
@@ -313,7 +313,7 @@ export function CampaignsView({
         return when ? (
           <span {...stylex.props(styles.dateMono)}>{formatDateTime(when, locale)}</span>
         ) : (
-          <span {...stylex.props(styles.muted)}>—</span>
+          <span {...stylex.props(styles.muted)}>-</span>
         );
       },
     },

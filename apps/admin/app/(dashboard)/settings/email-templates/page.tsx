@@ -14,9 +14,9 @@ import { Icon } from '@/components/ui';
 import { TemplateEditor } from './template-editor';
 
 export const metadata: Metadata = {
-  title: 'Email templates - Fit Admin',
+  title: 'Email templates - FormaCore Admin',
   description:
-    'The wording of every email the system sends on your behalf — birthdays, renewals, payments, class changes and staff shifts.',
+    'The wording of every email the system sends on your behalf - birthdays, renewals, payments, class changes and staff shifts.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -117,7 +117,7 @@ export default async function EmailTemplatesPage() {
     const message =
       error instanceof ApiError
         ? `Could not load the templates (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API.';
+        : 'Could not reach the FormaCore API.';
     return (
       <div {...stylex.props(styles.page)}>
         <Card role="alert" padding="none" xstyle={styles.errorCard}>

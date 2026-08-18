@@ -25,7 +25,7 @@ import { createDateTimeFormat, createNumberFormat, defaultLocale } from '@fit/i1
 type T = Awaited<ReturnType<typeof getTranslations>>;
 
 export const metadata: Metadata = {
-  title: 'Member - Fit Admin',
+  title: 'Member - FormaCore Admin',
 };
 
 // The detail reflects live member state and the staff session token, so it must
@@ -273,19 +273,19 @@ function formatAmount(minorUnits: number, currency: string): string {
 
 /** "March 2025" from an ISO instant, or an em dash when absent/invalid. */
 function formatMonthYear(iso: string | null, locale: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : createDateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(date);
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 function formatDate(iso: string | null, locale: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
         date,
       );
@@ -309,7 +309,7 @@ function nextBillingKpi(member: MemberDetail, t: T, locale: string): string {
       return formatDate(member.nextBillingAt, locale);
     case 'none':
     default:
-      return '—';
+      return '-';
   }
 }
 

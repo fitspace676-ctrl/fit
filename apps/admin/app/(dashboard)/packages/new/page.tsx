@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui';
 import { PackagePlanForm } from '../package-plan-form';
 
 export const metadata: Metadata = {
-  title: 'New package plan - Fit Admin',
+  title: 'New package plan - FormaCore Admin',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.

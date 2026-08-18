@@ -137,33 +137,17 @@ const styles = stylex.create({
   brand: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.625rem',
     textDecoration: 'none',
   },
-  brandMark: {
-    display: 'grid',
-    placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
-    borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  brandIcon: { height: '1.25rem', width: '1.25rem' },
   // Over the photo the wordmark is always light — this panel no longer follows
-  // the light/dark canvas, because the scrim is dark in both.
-  brandWord: {
-    fontSize: '1.1875rem',
-    fontWeight: 800,
-    letterSpacing: '-0.025em',
-    color: '#FFFFFF',
+  // the light/dark canvas, because the scrim is dark in both. So this is always
+  // logodark.png (the white-inked logo), with no theme swap.
+  brandLogo: {
+    width: '9.25rem',
+    height: 'auto',
+    maxWidth: '100%',
+    objectFit: 'contain',
   },
-  // On the form surface there is no scrim to sit on, so the wordmark takes the
-  // theme's ink and reads in light mode as well as dark.
-  brandWordInk: {
-    color: 'var(--color-text-primary)',
-  },
-
   /* ------------------------------- join strip -------------------------------
      On the photo, so it carries its own dark surface rather than the theme's —
      a themed panel would go white here in light mode and punch a hole in the
@@ -368,22 +352,26 @@ const styles = stylex.create({
 });
 
 /**
- * The lime bolt tile + wordmark, linking back to the marketing home.
+ * The brand mark - the FormaCore logo image, linking back to the marketing home.
  *
  * A component rather than inline markup because it appears in both halves of the
  * header: over the photo panel from `lg`, and in the phone header above the form.
- * `onPhoto` is the whole difference — over the picture the wordmark is always
- * white, because the scrim is dark in both themes; on the form surface it takes
- * the theme's ink, and the link hides itself at the width where the panel's copy
- * takes over.
+ * `onPhoto` is the whole difference - over the picture the logo is always the
+ * white-inked file, because the scrim is dark in both themes; on the form
+ * surface it theme-swaps via the `.member-logo` classes (see globals.css), and
+ * the link hides itself at the width where the panel's copy takes over.
  */
 function Brand({ label, onPhoto }: { label: string; onPhoto: boolean }) {
   return (
-    <Link href="/" {...stylex.props(styles.brand, !onPhoto && styles.phoneOnly)}>
-      <span {...stylex.props(styles.brandMark)}>
-        <Icon name="bolt" sw={2.4} {...stylex.props(styles.brandIcon)} />
-      </span>
-      <span {...stylex.props(styles.brandWord, !onPhoto && styles.brandWordInk)}>{label}</span>
+    <Link href="/" aria-label={label} {...stylex.props(styles.brand, !onPhoto && styles.phoneOnly)}>
+      {onPhoto ? (
+        <img src="/logodark.png" alt="" {...stylex.props(styles.brandLogo)} />
+      ) : (
+        <>
+          <img src="/logodark.png" alt="" className="member-logo member-logo-dark" />
+          <img src="/logolight.png" alt="" className="member-logo member-logo-light" />
+        </>
+      )}
     </Link>
   );
 }

@@ -784,7 +784,7 @@ function PtSessionDetail({
           <LayoutContent padding={0} isScrollable xstyle={styles.drawerContent}>
             <div {...stylex.props(styles.detailRow)}>
               <span {...stylex.props(styles.detailLabel)}>Workout type</span>
-              <span {...stylex.props(styles.detailValue)}>{session.classTypeName ?? '—'}</span>
+              <span {...stylex.props(styles.detailValue)}>{session.classTypeName ?? '-'}</span>
             </div>
             <div {...stylex.props(styles.detailRow)}>
               <span {...stylex.props(styles.detailLabel)}>When</span>

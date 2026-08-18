@@ -37,8 +37,8 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-error)',
   },
-  // Footer buttons — styled to the Fit brand so the primary matches the shift
-  // toggles' purple→pink gradient (the Astryx `Btn` primary renders blue).
+  // Footer buttons - styled to the Fit brand so the primary matches the shift
+  // toggles' accent treatment (the Astryx `Btn` primary renders blue).
   btn: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -68,13 +68,15 @@ const styles = stylex.create({
     },
     color: 'var(--color-text-primary)',
   },
+  // The brand fill, not the retired purple-pink sweep: the gradient in light
+  // mode, the flat lime with dark ink in dark.
   btnPrimary: {
-    backgroundImage: 'linear-gradient(135deg, #7C3AED, #EC4899)',
-    color: '#ffffff',
-    boxShadow: '0 6px 24px -6px rgba(98, 87, 227, 0.7)',
+    backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
+    color: 'var(--color-on-accent)',
     filter: {
       default: 'brightness(1)',
-      ':hover': 'brightness(1.1)',
+      ':hover': 'brightness(1.05)',
       ':active': 'brightness(0.95)',
     },
   },
