@@ -10,7 +10,7 @@ import { MailerService } from './mailer.service';
 
 function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
-  Object.assign(mockEnv, { EMAIL_FROM: 'Fit <no-reply@fit.app>' }, overrides);
+  Object.assign(mockEnv, { EMAIL_FROM: 'FormaCore <no-reply@fit.app>' }, overrides);
 }
 
 const MESSAGE = {
@@ -59,7 +59,7 @@ describe('MailerService', () => {
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_123');
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
-    expect(body.from).toBe('Fit <no-reply@fit.app>');
+    expect(body.from).toBe('FormaCore <no-reply@fit.app>');
     expect(body.to).toEqual(['user@example.com']);
     expect(body.subject).toBe('Hello');
     expect(body.reply_to).toBeUndefined();

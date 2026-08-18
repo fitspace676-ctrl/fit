@@ -30,10 +30,10 @@ function StatusPill({ status }: { status: PackagePlanStatus }) {
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : createDateTimeFormat(defaultLocale, {
         year: 'numeric',
         month: 'short',
@@ -172,7 +172,7 @@ export function PackagePlansTable({
                       }
                     />
                   ) : (
-                    '—'
+                    '-'
                   )}
                 </td>
               </tr>

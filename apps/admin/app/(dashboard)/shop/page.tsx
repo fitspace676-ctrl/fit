@@ -19,7 +19,7 @@ import { AddProductDrawer } from './add-product-drawer';
 import { CategoriesDrawer } from './categories-drawer';
 
 export const metadata: Metadata = {
-  title: 'Shop - Fit Admin',
+  title: 'Shop - FormaCore Admin',
   description:
     'The gym’s retail catalog: a product grid with stock badges and low-stock surfacing. Search, filter by status, sort, open a product, or add one with an image gallery and variants.',
 };
@@ -158,7 +158,7 @@ export default async function ProductsPage({
     const message =
       error instanceof ApiError
         ? `Could not load products (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
       <Card role="alert" padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -174,7 +174,7 @@ export default async function ProductsPage({
           <h1 {...stylex.props(styles.title)}>Shop</h1>
           <p {...stylex.props(styles.subtitle)}>
             Your gym’s retail catalog. Search by name or description, filter by status, sort, and
-            watch stock at a glance — open a product to edit its gallery and variants, or add a new
+            watch stock at a glance - open a product to edit its gallery and variants, or add a new
             one.
           </p>
         </div>

@@ -85,7 +85,10 @@ const styles = stylex.create({
   },
   // The three signals the direction allows. `full` is the one place a meter is
   // allowed to go red: a class at capacity is a hard stop, not a warning.
-  fillOk: { backgroundColor: 'var(--color-accent)' },
+  fillOk: {
+    backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
+  },
   fillTight: { backgroundColor: 'var(--color-warning)' },
   fillFull: { backgroundColor: 'var(--color-error)' },
 });

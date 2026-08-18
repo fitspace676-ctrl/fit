@@ -940,7 +940,7 @@ export function ProductForm(props: Props) {
           {variants.length > 0
             ? countedVariants > 0
               ? 'This product counts stock per variant. Counts already being kept are moved from the product page, so every change is logged with a reason; a variant added here starts from the count you type for it.'
-              : 'This product counts stock per variant — set each opening count in the rows above. After that, restock from the product page so every change is logged.'
+              : 'This product counts stock per variant - set each opening count in the rows above. After that, restock from the product page so every change is logged.'
             : 'Leave “On hand” empty to sell this product without counting it. Correcting it here is recorded in the product’s history; day-to-day restocking belongs on the product page, where you say why.'}
         </p>
       </fieldset>
@@ -1115,7 +1115,7 @@ export function ProductForm(props: Props) {
         ) : null}
         {shelves.length === 0 && !namingShelf ? (
           <p {...stylex.props(styles.marginHint)}>
-            No categories yet — “New category” adds one without leaving this form.
+            No categories yet - “New category” adds one without leaving this form.
           </p>
         ) : null}
       </div>

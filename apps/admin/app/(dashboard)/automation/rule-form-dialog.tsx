@@ -194,6 +194,7 @@ const styles = stylex.create({
   },
   switchOn: {
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
   },
   knob: {
     position: 'absolute',

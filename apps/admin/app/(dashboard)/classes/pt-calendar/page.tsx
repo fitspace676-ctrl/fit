@@ -13,7 +13,7 @@ import { TrainerSelect, type TrainerOption } from './trainer-select';
 import { PtCalendarBoard } from './pt-calendar-board';
 
 export const metadata: Metadata = {
-  title: 'Classes · PT Calendar - Fit Admin',
+  title: 'Classes · PT Calendar - FormaCore Admin',
   description:
     'The gym’s weekly personal-training calendar: every trainer’s 1:1 sessions on one grid, filterable by trainer, with new sessions scheduled like classes.',
 };
@@ -123,7 +123,7 @@ export default async function PtCalendarPage({
     const message =
       error instanceof ApiError
         ? `Could not load PT sessions (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     body = (
       <Card padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />

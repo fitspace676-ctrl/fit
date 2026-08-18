@@ -31,7 +31,7 @@ import {
 import { PrimitivesTabs } from './primitives-tabs';
 
 export const metadata = {
-  title: 'Astryx primitives — Fit web',
+  title: 'Astryx primitives - FormaCore web',
   robots: { index: false, follow: false },
 };
 

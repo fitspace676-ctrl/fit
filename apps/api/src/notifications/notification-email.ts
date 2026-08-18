@@ -28,20 +28,20 @@ const CHROME: Record<EmailLocale, EmailChrome> = {
     cta: {
       [NotificationCategory.BOOKING]: 'View booking',
       [NotificationCategory.BILLING]: 'View membership',
-      [NotificationCategory.SYSTEM]: 'Open Fit',
+      [NotificationCategory.SYSTEM]: 'Open FormaCore',
     },
     footer: (sender) =>
-      `You're receiving this from ${sender} on Fit. Manage which notifications you get in your account settings.`,
+      `You're receiving this from ${sender} on FormaCore. Manage which notifications you get in your account settings.`,
   },
   ka: {
     greeting: (name) => (name ? `გამარჯობა ${name},` : 'გამარჯობა,'),
     cta: {
       [NotificationCategory.BOOKING]: 'ჯავშნის ნახვა',
       [NotificationCategory.BILLING]: 'გაწევრიანების ნახვა',
-      [NotificationCategory.SYSTEM]: 'Fit-ის გახსნა',
+      [NotificationCategory.SYSTEM]: 'FormaCore-ის გახსნა',
     },
     footer: (sender) =>
-      `ეს შეტყობინება მოგივიდათ ${sender}-გან Fit-ზე. შეტყობინებების მართვა შეგიძლიათ ანგარიშის პარამეტრებში.`,
+      `ეს შეტყობინება მოგივიდათ ${sender}-გან FormaCore-ზე. შეტყობინებების მართვა შეგიძლიათ ანგარიშის პარამეტრებში.`,
   },
 };
 
@@ -77,7 +77,7 @@ export function buildNotificationEmail(
   ctx: NotificationEmailContext,
 ): { subject: string; html: string; text: string } {
   const chrome = CHROME[ctx.locale];
-  const sender = ctx.senderName.trim() || 'Fit';
+  const sender = ctx.senderName.trim() || 'FormaCore';
   const greeting = chrome.greeting(ctx.recipientName?.trim() || undefined);
   const ctaLabel = chrome.cta[input.category];
 

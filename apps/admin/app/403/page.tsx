@@ -7,7 +7,7 @@ import { isStaff } from '@/lib/auth-session';
 import { getServerSession } from '@/lib/session';
 
 export const metadata: Metadata = {
-  title: 'Access denied - Fit Admin',
+  title: 'Access denied - FormaCore Admin',
   description: 'You do not have permission to view this page.',
 };
 

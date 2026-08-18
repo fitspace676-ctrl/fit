@@ -1,10 +1,23 @@
+'use client';
+
 // @fit/admin — inline nav icons.
 //
 // A tiny set of outline (heroicons-style) glyphs keyed by `NavIcon`, kept inline
-// so the sidebar needs no icon dependency. Each is a 20×20 `currentColor` stroke
-// path, so it inherits the link's text color (active vs. idle) for free.
+// so the sidebar needs no icon dependency. Each is a 20×20 stroke path.
+//
+// The stroke's paint depends on the theme. In dark mode it is the raw brand
+// lime (#E4F26A) - the phosphor the whole dark console glows in - stated as a
+// literal so neither an Astryx scope nor the palette playground can shift it.
+// In light mode it is the console's brand gradient - a radial sweep from the
+// deep green (#307654, top-left) out to the phosphor lime (#e4f26a) - because
+// flat ink there read as plain grey chrome and the raw lime alone is invisible
+// on the light rail. Each svg carries its own `<radialGradient>` def keyed by
+// `useId`, so any number of icons (rail, drawer, collapsed strip) coexist
+// without id collisions.
 
+import { useId } from 'react';
 import type { NavIcon as NavIconKey } from '@/lib/nav';
+import { useTheme } from '@/components/theme/theme-provider';
 
 /** SVG `d` paths per icon key. */
 const ICON_PATHS: Record<NavIconKey, string> = {
@@ -40,14 +53,25 @@ const ICON_PATHS: Record<NavIconKey, string> = {
     'M4 7h9M17 7h3M4 17h3M11 17h9M15 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM9 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
 };
 
-/** Render the inline glyph for `name`; inherits `currentColor`. */
-export function NavIcon({ name }: { name: NavIconKey }) {
+/**
+ * Render the inline glyph for `name`. Strokes the flat brand lime in dark mode;
+ * in light mode the path strokes the brand gradient defined alongside it.
+ * `size` is the rendered square in px - the rail's rows use the 20px default,
+ * chrome slots (the top bar's location pin) pass their own.
+ */
+export function NavIcon({ name, size = 20 }: { name: NavIconKey; size?: number }) {
+  const { theme } = useTheme();
+  // `useId` yields a document-unique, SSR-safe id; strip the framework's `:`
+  // delimiters so it is a valid `url(#…)` fragment reference.
+  const gradientId = `nav-icon-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const gradient = theme === 'light';
+
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      width={20}
-      height={20}
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth={1.75}
@@ -55,7 +79,18 @@ export function NavIcon({ name }: { name: NavIconKey }) {
       strokeLinejoin="round"
       style={{ flexShrink: 0 }}
     >
-      <path d={ICON_PATHS[name]} />
+      {gradient ? (
+        <defs>
+          {/* The CSS `radial-gradient(at 0% 0%, #307654, #e4f26a)` restated in
+              SVG terms: centred on the glyph's top-left corner, reaching the
+              lime at the far corner (r = sqrt(2) of the bounding box). */}
+          <radialGradient id={gradientId} cx="0" cy="0" r="1.4142">
+            <stop offset="0" stopColor="#307654" />
+            <stop offset="1" stopColor="#e4f26a" />
+          </radialGradient>
+        </defs>
+      ) : null}
+      <path d={ICON_PATHS[name]} stroke={gradient ? `url(#${gradientId})` : '#E4F26A'} />
     </svg>
   );
 }

@@ -69,7 +69,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Edit location - Fit Admin',
+  title: 'Edit location - FormaCore Admin',
 };
 
 // Reflects the staff session and writes live location state — never cached.
@@ -99,7 +99,7 @@ export default async function EditLocationPage({ params }: { params: Promise<{ i
     const message =
       error instanceof ApiError
         ? `Could not load this location (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/locations" {...stylex.props(styles.backLink)}>

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Access denied — Fit SuperAdmin',
+  title: 'Access denied - FormaCore SuperAdmin',
   description: 'This console is restricted to platform operators.',
 };
 

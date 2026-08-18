@@ -12,7 +12,7 @@ import { PackagePlansFilters } from './packages-filters';
 import { PackagePlansTable } from './packages-table';
 
 export const metadata: Metadata = {
-  title: 'Packages - Fit Admin',
+  title: 'Packages - FormaCore Admin',
   description:
     'The gym’s personal-training package plans: search, filter, sort, open a plan, or add and edit plans with pricing, billing cadence, sessions, and features.',
 };
@@ -63,7 +63,7 @@ export default async function PackagePlansPage({
     const message =
       error instanceof ApiError
         ? `Could not load package plans (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
       <p
         role="alert"

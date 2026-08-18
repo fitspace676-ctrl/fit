@@ -3,7 +3,7 @@ import { fetchGyms, ApiError } from '@/lib/api';
 import { GymsTable } from './gyms-table';
 
 export const metadata: Metadata = {
-  title: 'Gyms — Fit SuperAdmin',
+  title: 'Gyms - FormaCore SuperAdmin',
   description: 'Platform-wide gym roster: status, members, MRR, and operator actions.',
 };
 
@@ -27,7 +27,7 @@ export default async function GymsPage() {
     const message =
       error instanceof ApiError
         ? `Could not load gyms (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
       <p role="alert" className="rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">
         {message}

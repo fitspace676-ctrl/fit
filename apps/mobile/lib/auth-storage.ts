@@ -182,7 +182,9 @@ export async function isBiometricAvailable(): Promise<boolean> {
  * {@link isBiometricUnlockEnabled} + {@link isBiometricAvailable}; the authed
  * app shell (a later task) decides when to invoke it on resume / launch.
  */
-export async function authenticateWithBiometrics(promptMessage = 'Unlock Fit'): Promise<boolean> {
+export async function authenticateWithBiometrics(
+  promptMessage = 'Unlock FormaCore',
+): Promise<boolean> {
   const result = await LocalAuthentication.authenticateAsync({
     promptMessage,
     // Let the OS fall back to the device passcode if biometrics fail.

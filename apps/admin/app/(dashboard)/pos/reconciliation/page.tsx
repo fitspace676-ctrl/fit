@@ -17,7 +17,7 @@ import { CashCountForm } from './cash-count-form';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Cash reconciliation - Fit Admin',
+  title: 'Cash reconciliation - FormaCore Admin',
   description:
     "The gym's end-of-day cash reconciliation: the day's takings grouped by settlement method, with the expected cash drawer to balance against the count.",
 };
@@ -232,7 +232,7 @@ export default async function ReconciliationPage({
     error =
       caught instanceof ApiError
         ? `Could not load the report (${caught.status}): ${caught.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
   }
 
   return (

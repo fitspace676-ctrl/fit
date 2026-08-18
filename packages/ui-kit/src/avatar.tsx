@@ -37,6 +37,7 @@ const styles = stylex.create({
   member: {
     borderRadius: 'var(--radius-inner)',
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
   },
   /**

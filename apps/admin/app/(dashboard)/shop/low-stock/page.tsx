@@ -17,7 +17,7 @@ import { ThresholdPicker } from './threshold-picker';
 import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Inventory · Low stock - Fit Admin',
+  title: 'Inventory · Low stock - FormaCore Admin',
   description:
     'The gym’s inventory alerts: every active product carrying a variant at or below the reorder threshold, most urgent first, with a one-tap stock adjustment so staff can restock before a line sells out.',
 };
@@ -291,7 +291,7 @@ export default async function LowStockPage({
     error =
       caught instanceof ApiError
         ? `Could not load low-stock alerts (${caught.status}): ${caught.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
   }
 
   // Tiles only earn their space when something is actually low; the all-clear
@@ -306,7 +306,7 @@ export default async function LowStockPage({
           <h1 {...stylex.props(styles.title)}>Inventory</h1>
           <p {...stylex.props(styles.subtitle)}>
             Active products with a variant at or below {threshold} on hand, most urgent first.
-            Restock before a line sells out — adjust a variant’s on-hand count inline, or open the
+            Restock before a line sells out - adjust a variant’s on-hand count inline, or open the
             product to edit it in full.
           </p>
         </div>
@@ -373,7 +373,7 @@ export default async function LowStockPage({
                       )}
                     </td>
                     <td {...stylex.props(styles.variantCell)}>{variant.name}</td>
-                    <td {...stylex.props(styles.skuCell)}>{variant.sku || '—'}</td>
+                    <td {...stylex.props(styles.skuCell)}>{variant.sku || '-'}</td>
                     <td {...stylex.props(styles.rightCell)}>
                       <Badge
                         tone={variant.stock === 0 ? 'danger' : 'pending'}

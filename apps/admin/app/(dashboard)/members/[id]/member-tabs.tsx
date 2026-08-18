@@ -450,6 +450,7 @@ const styles = stylex.create({
     borderTopLeftRadius: 'var(--radius-inner)',
     borderTopRightRadius: 'var(--radius-inner)',
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
     transitionProperty: 'height',
     transitionDuration: '700ms',
     transitionTimingFunction: 'ease-out',
@@ -625,6 +626,7 @@ const styles = stylex.create({
   taskCheckDone: {
     borderColor: 'var(--color-accent)',
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
   },
   taskMain: {
     minWidth: 0,
@@ -676,7 +678,7 @@ function formatDateTime(iso: string, locale: string): string {
 
 /** A profile display value, falling back to an em dash when unset. */
 function dash(value: string | null | undefined): string {
-  return value && value.trim().length > 0 ? value : '—';
+  return value && value.trim().length > 0 ? value : '-';
 }
 
 /** A centered empty-state line shown when a tab/section has no records yet. */
@@ -820,7 +822,7 @@ function StatCards({ member, t, locale }: { member: MemberDetail; t: T; locale: 
     const at = new Date(entry.at);
     return at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth();
   }).length;
-  const lastVisit = member.lastVisitAt ? formatDate(member.lastVisitAt, locale) : '—';
+  const lastVisit = member.lastVisitAt ? formatDate(member.lastVisitAt, locale) : '-';
 
   return (
     <div {...stylex.props(styles.statGrid)}>
@@ -920,7 +922,7 @@ function MembershipSummaryCard({
 
 /** Profile — read-only personal details, emergency contact and medical notes. */
 function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
-  const genderLabel = member.gender ? t(`gender.${member.gender}`) : '—';
+  const genderLabel = member.gender ? t(`gender.${member.gender}`) : '-';
   return (
     <div {...stylex.props(styles.panelStack)}>
       <Card padding="none" xstyle={styles.card}>
@@ -931,7 +933,7 @@ function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; local
           <FieldRow label={t('detail.phone')} value={dash(member.phone)} />
           <FieldRow
             label={t('detail.dateOfBirth')}
-            value={member.dateOfBirth ? formatDate(member.dateOfBirth, locale) : '—'}
+            value={member.dateOfBirth ? formatDate(member.dateOfBirth, locale) : '-'}
           />
           <FieldRow label={t('detail.personalId')} value={dash(member.personalId)} />
           <FieldRow label={t('detail.gender')} value={genderLabel} />
@@ -1509,7 +1511,7 @@ function PurchasesPanel({ member, t, locale }: { member: MemberDetail; t: T; loc
           return (
             <li key={purchase.id} {...stylex.props(styles.row)}>
               <div {...stylex.props(styles.rowMin)}>
-                <p {...stylex.props(styles.rowTitleTrunc)}>{items || '—'}</p>
+                <p {...stylex.props(styles.rowTitleTrunc)}>{items || '-'}</p>
                 <p {...stylex.props(styles.rowSub)}>
                   {formatDateTime(purchase.at, locale)}
                   {purchase.method ? ` · ${purchase.method}` : ''}

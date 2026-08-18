@@ -70,6 +70,7 @@ const styles = stylex.create({
     height: '2px',
     borderRadius: 'var(--radius-full)',
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
   },
   panel: {
     marginTop: '1.5rem',

@@ -4,8 +4,8 @@ import './globals.css';
 import { SentryInit } from './sentry-init';
 
 export const metadata: Metadata = {
-  title: 'Fit — SuperAdmin',
-  description: 'Fit platform operator console.',
+  title: 'FormaCore - SuperAdmin',
+  description: 'FormaCore platform operator console.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

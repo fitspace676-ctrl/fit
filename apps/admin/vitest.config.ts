@@ -34,7 +34,10 @@ export default defineConfig({
     // `environmentMatchGlobs` below, mirroring @fit/ui-web's per-file pattern
     // without needing a docblock in each test file.
     environment: 'node',
-    environmentMatchGlobs: [['app/**/*.test.tsx', 'jsdom']],
+    environmentMatchGlobs: [
+      ['app/**/*.test.tsx', 'jsdom'],
+      ['components/**/*.test.tsx', 'jsdom'],
+    ],
     setupFiles: ['./vitest.setup.ts'],
     // `app/**/*.spec.ts` is included for co-located server-side specs (e.g. route
     // handlers, server actions); `app/**/*.test.tsx` for co-located component
@@ -43,6 +46,7 @@ export default defineConfig({
       'lib/**/*.spec.ts',
       'app/**/*.spec.ts',
       'app/**/*.test.tsx',
+      'components/**/*.test.tsx',
       'hooks/**/*.spec.ts',
       // The POS cart store is pure money arithmetic (percentage discounts, totals,
       // change due) — exactly the logic worth pinning down, and DOM-free.

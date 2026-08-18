@@ -48,8 +48,8 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Fit — Web',
-  description: 'Fit web application.',
+  title: 'FormaCore - Web',
+  description: 'FormaCore web application.',
 };
 
 /** Pre-render every supported locale at build time. */

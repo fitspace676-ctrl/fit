@@ -163,14 +163,6 @@ const styles = stylex.create({
   accordionButtonOpen: {
     color: 'var(--color-text-primary)',
   },
-  accordionMarker: {
-    width: '0.25rem',
-    height: '0.25rem',
-    flexShrink: 0,
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent)',
-    boxShadow: '0 0 0 3px var(--color-accent-muted)',
-  },
   accordionTitle: {
     flex: 1,
     textAlign: 'start',
@@ -185,11 +177,20 @@ const styles = stylex.create({
     height: '1.5rem',
     flexShrink: 0,
     borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-overlay-hover)',
+    // Closed: one flat colour, from the same family as the open state - in
+    // light the quiet green wash, in dark the neutral overlay it always had.
+    backgroundColor: 'light-dark(var(--color-accent-muted), var(--color-overlay-hover))',
+    // The chevron itself: quiet ink in light, the brand phosphor in dark - the
+    // same treatment the nav glyphs on the left wear.
+    color: 'light-dark(var(--color-text-secondary), #E4F26A)',
   },
+  // Open: the soft brand gradient in light mode (the full-strength fill
+  // overpowered the row); in dark the image resolves to none and the muted
+  // accent fill stands, unchanged.
   accordionChevronWrapOpen: {
     color: 'var(--color-text-accent)',
     backgroundColor: 'var(--color-accent-muted)',
+    backgroundImage: 'var(--brand-fill-image-soft, none)',
   },
   accordionChevron: {
     width: '0.875rem',
@@ -608,7 +609,6 @@ function AccordionNavGroup({
         onClick={() => setIsOpen((open) => !open)}
         {...stylex.props(styles.accordionButton, isOpen && styles.accordionButtonOpen)}
       >
-        {isOpen && <span aria-hidden {...stylex.props(styles.accordionMarker)} />}
         <span {...stylex.props(styles.accordionTitle)}>{title}</span>
         <span
           {...stylex.props(styles.accordionChevronWrap, isOpen && styles.accordionChevronWrapOpen)}

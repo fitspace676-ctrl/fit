@@ -114,26 +114,16 @@ const styles = stylex.create({
   brand: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.625rem',
     textDecoration: 'none',
   },
-  brandMark: {
-    display: 'grid',
-    placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
-    borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  brandIcon: { height: '1.25rem', width: '1.25rem' },
   // Over the photo the wordmark is always light — this panel no longer follows
-  // the light/dark canvas, because the scrim is dark in both.
-  brandWord: {
-    fontSize: '1.1875rem',
-    fontWeight: 800,
-    letterSpacing: '-0.025em',
-    color: '#FFFFFF',
+  // the light/dark canvas, because the scrim is dark in both. So this is always
+  // logodark.png (the white-inked logo), with no theme swap.
+  brandLogo: {
+    width: '9.25rem',
+    height: 'auto',
+    maxWidth: '100%',
+    objectFit: 'contain',
   },
 
   /* ------------------------------- join strip -------------------------------
@@ -335,10 +325,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
 
           <div {...stylex.props(styles.topRow)}>
             <Link href="/" {...stylex.props(styles.brand)}>
-              <span {...stylex.props(styles.brandMark)}>
-                <Icon name="bolt" sw={2.4} {...stylex.props(styles.brandIcon)} />
-              </span>
-              <span {...stylex.props(styles.brandWord)}>{tShell('brand')}</span>
+              <img src="/logodark.png" alt={tShell('brand')} {...stylex.props(styles.brandLogo)} />
             </Link>
             <ThemeToggle />
           </div>

@@ -8,7 +8,7 @@ import { Icon } from '@/components/ui';
 import { PackagePlanForm } from '../../package-plan-form';
 
 export const metadata: Metadata = {
-  title: 'Edit package plan - Fit Admin',
+  title: 'Edit package plan - FormaCore Admin',
 };
 
 // Reflects the staff session and writes live plan state — never cached.
@@ -38,7 +38,7 @@ export default async function EditPackagePlanPage({ params }: { params: Promise<
     const message =
       error instanceof ApiError
         ? `Could not load this package plan (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
         <Link

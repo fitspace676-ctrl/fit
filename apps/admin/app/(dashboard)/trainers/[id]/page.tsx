@@ -18,7 +18,7 @@ import { TrainerActions } from './trainer-actions';
 import { TrainerTabs } from './trainer-tabs';
 
 export const metadata: Metadata = {
-  title: 'Trainer — Fit Admin',
+  title: 'Trainer - FormaCore Admin',
 };
 
 // The detail reflects live trainer state and the staff session token, so it must
@@ -271,10 +271,10 @@ const styles = stylex.create({
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 function formatDate(iso: string | null, locale: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
@@ -286,7 +286,7 @@ function formatHired(
 ): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : t('detail.hired', {
         date: date.toLocaleDateString(locale, { month: 'long', year: 'numeric' }),
       });
@@ -463,7 +463,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
         />
         <DetailKpi
           label={t('detail.kpiShowUpRate')}
-          value={trainer.showUpRate === null ? '—' : `${trainer.showUpRate}%`}
+          value={trainer.showUpRate === null ? '-' : `${trainer.showUpRate}%`}
           context={t('detail.kpiShowUpRateContext')}
           icon="check"
         />

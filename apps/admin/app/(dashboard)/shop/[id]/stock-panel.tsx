@@ -183,9 +183,9 @@ export function StockPanel({
               return (
                 <tr key={position.variantIndex ?? 'base'}>
                   <td {...stylex.props(styles.td)}>{position.label}</td>
-                  <td {...stylex.props(styles.td, styles.muted)}>{position.sku || '—'}</td>
+                  <td {...stylex.props(styles.td, styles.muted)}>{position.sku || '-'}</td>
                   <td {...stylex.props(styles.td, styles.num)}>
-                    {position.stock === null ? '—' : position.stock}
+                    {position.stock === null ? '-' : position.stock}
                   </td>
                   <td {...stylex.props(styles.td)}>
                     <Badge tone={badge.tone} label={badge.label} />
@@ -260,9 +260,9 @@ export function StockPanel({
                   </td>
                   <td {...stylex.props(styles.td, styles.num)}>{movement.resultingStock}</td>
                   <td {...stylex.props(styles.td, styles.muted)}>
-                    {movement.actorName ?? (movement.orderId ? 'Checkout' : '—')}
+                    {movement.actorName ?? (movement.orderId ? 'Checkout' : '-')}
                   </td>
-                  <td {...stylex.props(styles.td, styles.muted)}>{movement.note || '—'}</td>
+                  <td {...stylex.props(styles.td, styles.muted)}>{movement.note || '-'}</td>
                 </tr>
               ))}
             </tbody>

@@ -36,7 +36,7 @@ const cashReceipt: PosReceipt = {
 
 function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
-  Object.assign(mockEnv, { EMAIL_FROM: 'Fit <no-reply@fit.app>' }, overrides);
+  Object.assign(mockEnv, { EMAIL_FROM: 'FormaCore <no-reply@fit.app>' }, overrides);
 }
 
 /** A weekly digest fixture: one money report, one percent report, one empty. */
@@ -124,7 +124,7 @@ describe('EmailService', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_123');
 
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
-    expect(body.from).toBe('Fit <no-reply@fit.app>');
+    expect(body.from).toBe('FormaCore <no-reply@fit.app>');
     expect(body.to).toEqual(['user@example.com']);
     expect(body.subject).toBe('Verify your email');
     expect(String(body.html)).toContain('https://app.fit/auth/verify?token=tok123');
@@ -234,7 +234,7 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
 
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.to).toEqual(['owner@example.com']);
-    expect(body.subject).toBe('Welcome to Fit — finish setting up Downtown');
+    expect(body.subject).toBe('Welcome to FormaCore — finish setting up Downtown');
     // Reuses the same verify deep link plain verification uses.
     expect(String(body.html)).toContain('https://app.fit/auth/verify?token=tok123');
     expect(String(body.html)).toContain('Downtown');
@@ -409,9 +409,9 @@ describe('buildReceiptEmail', () => {
     expect(discounted.text).toContain('Discount: -$1.00');
   });
 
-  it('names the attached member and falls back to "Fit" without a gym name', () => {
+  it('names the attached member and falls back to "FormaCore" without a gym name', () => {
     const { subject, html } = buildReceiptEmail({ ...cashReceipt, memberName: 'Sam Rivera' });
-    expect(subject).toBe('Your receipt from Fit');
+    expect(subject).toBe('Your receipt from FormaCore');
     expect(html).toContain('Charged to Sam Rivera');
   });
 

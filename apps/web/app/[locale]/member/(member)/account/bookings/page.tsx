@@ -80,7 +80,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'account.bookings' });
-  return { title: `${t('title')} — Fit` };
+  return { title: `${t('title')} - FormaCore` };
 }
 
 /**

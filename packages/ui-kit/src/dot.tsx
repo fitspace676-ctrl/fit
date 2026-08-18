@@ -25,7 +25,12 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-full)',
   },
   /** Live / on shift / confirmed. */
-  positive: { backgroundColor: 'var(--color-accent)' },
+  positive: {
+    backgroundColor: 'var(--color-accent)',
+    // The app-supplied brand gradient, where one exists (the console's light
+    // mode); the fallback keeps the flat accent.
+    backgroundImage: 'var(--brand-fill-image, none)',
+  },
   /** Idle, pending, invited. */
   pending: { backgroundColor: 'var(--color-icon-secondary)' },
   /** Off, unknown, not applicable. */

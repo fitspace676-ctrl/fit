@@ -73,7 +73,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Locations - Fit Admin',
+  title: 'Locations - FormaCore Admin',
   description:
     'The gym’s locations (branches): live open state, hours, amenities, and per-branch actions.',
 };

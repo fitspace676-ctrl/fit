@@ -67,7 +67,7 @@ export function InvoicesTable({
           No invoices yet
         </p>
         <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
-          Invoices raised for subscriptions and shop orders land here automatically — or create one
+          Invoices raised for subscriptions and shop orders land here automatically - or create one
           by hand.
         </p>
       </Card>
@@ -100,7 +100,7 @@ export function InvoicesTable({
                   <td className={`${TD_CLASS} font-mono tabular-nums`}>{invoice.number}</td>
                   <td className={TD_CLASS}>
                     <div className="font-medium text-ink-900 dark:text-white">
-                      {invoice.memberName ?? '—'}
+                      {invoice.memberName ?? '-'}
                     </div>
                     {invoice.description ? (
                       <div className="max-w-xs truncate text-xs text-ink-500 dark:text-ink-400">

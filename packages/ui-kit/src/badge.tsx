@@ -62,6 +62,9 @@ const styles = stylex.create({
   /** A solid lime chip — for the one place a badge IS the headline. */
   accent: {
     backgroundColor: 'var(--color-accent)',
+    // The app-supplied brand gradient, where one exists (the console's light
+    // mode); the fallback keeps the flat accent.
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
   },
   icon: {

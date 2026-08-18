@@ -31,11 +31,11 @@ export function invoiceTypeLabel(type: InvoiceType): string {
  */
 export function formatInvoiceDate(iso: string | null): string {
   if (!iso) {
-    return '—';
+    return '-';
   }
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
-    return '—';
+    return '-';
   }
   return createDateTimeFormat(defaultLocale, {
     day: 'numeric',

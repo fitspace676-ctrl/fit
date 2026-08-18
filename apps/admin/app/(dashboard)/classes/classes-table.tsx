@@ -177,7 +177,7 @@ export function ClassTemplatesTable({
       key: 'trainer',
       header: 'Trainer',
       cell: (template) => (
-        <span {...stylex.props(styles.cellText)}>{template.trainerName ?? '—'}</span>
+        <span {...stylex.props(styles.cellText)}>{template.trainerName ?? '-'}</span>
       ),
     },
     {

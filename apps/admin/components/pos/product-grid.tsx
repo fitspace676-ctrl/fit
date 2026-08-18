@@ -670,10 +670,10 @@ export function ProductGrid({
                         <span {...stylex.props(styles.memberEmail)}>{member.email}</span>
                       </td>
                       <td {...stylex.props(styles.td, !member.phone && styles.memberMuted)}>
-                        {member.phone ?? '—'}
+                        {member.phone ?? '-'}
                       </td>
                       <td {...stylex.props(styles.td, !member.planName && styles.memberMuted)}>
-                        {member.planName ?? '—'}
+                        {member.planName ?? '-'}
                       </td>
                       <td {...stylex.props(styles.td)}>
                         <span {...stylex.props(styles.statusWrap)}>

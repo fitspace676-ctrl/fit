@@ -70,27 +70,7 @@ const styles = stylex.create({
     display: 'flex',
     flexShrink: 0,
     alignItems: 'center',
-    gap: '0.625rem',
     textDecoration: 'none',
-  },
-  logoMark: {
-    display: 'grid',
-    placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
-    borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  logoIcon: {
-    height: '1.25rem',
-    width: '1.25rem',
-  },
-  logoWord: {
-    fontSize: '1.1875rem',
-    fontWeight: 800,
-    letterSpacing: '-0.025em',
-    color: 'var(--color-text-primary)',
   },
 
   /* -------------------------------- actions ------------------------------- */
@@ -211,14 +191,12 @@ function memberIdOf(userId: string): string {
   return `FC-${userId.slice(-4).toUpperCase()}`;
 }
 
-/** Brand mark — the lime bolt tile + wordmark, linking home. */
+/** Brand mark — the FormaCore logo image, theme-swapped, linking home. */
 function Logo({ label }: { label: string }) {
   return (
     <Link href="/member/home" {...stylex.props(styles.logo)}>
-      <span {...stylex.props(styles.logoMark)}>
-        <Icon name="bolt" sw={2.4} {...stylex.props(styles.logoIcon)} />
-      </span>
-      <span {...stylex.props(styles.logoWord)}>{label}</span>
+      <img src="/logodark.png" alt={label} className="member-logo member-logo-dark" />
+      <img src="/logolight.png" alt={label} className="member-logo member-logo-light" />
     </Link>
   );
 }

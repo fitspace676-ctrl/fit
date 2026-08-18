@@ -7,8 +7,8 @@ import { AuthPhotoShell } from '../../_components/auth/auth-photo-shell';
 import { RegisterForm } from './register-form';
 
 export const metadata: Metadata = {
-  title: 'Create account — Fit',
-  description: 'Create your Fit account.',
+  title: 'Create account - FormaCore',
+  description: 'Create your FormaCore account.',
 };
 
 /** The shell names the gym from the Host — never cache it. */

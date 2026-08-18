@@ -24,7 +24,7 @@ import { createDateTimeFormat } from '@fit/i18n';
 // /me/subscription) remains the single source of truth and the invoice download
 // proxy (`/api/invoices/:id`) is unchanged.
 
-export const metadata: Metadata = { title: 'Membership — Fit' };
+export const metadata: Metadata = { title: 'Membership - FormaCore' };
 export const dynamic = 'force-dynamic';
 
 async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {

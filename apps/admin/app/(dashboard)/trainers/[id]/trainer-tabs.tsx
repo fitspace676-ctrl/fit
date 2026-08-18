@@ -327,10 +327,10 @@ const styles = stylex.create({
 
 /** Format an ISO instant as a short local date-time, or an em dash when absent. */
 function formatDateTime(iso: string | null | undefined, locale: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : date.toLocaleString(locale, {
         weekday: 'short',
         month: 'short',

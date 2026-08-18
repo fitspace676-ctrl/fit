@@ -124,6 +124,7 @@ const styles = stylex.create({
   },
   segBtnActive: {
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
   },
   segBtnInactive: {
@@ -478,7 +479,11 @@ function KpiCard({
   return (
     <Card padding="none" xstyle={styles.kpiCard}>
       <span {...stylex.props(styles.iconTile)}>
-        <Icon name={icon} {...stylex.props(styles.icon)} />
+        {/* `.brand-grad-glyph`: in light mode the glyph strokes the brand
+            gradient (see globals.css); in dark it keeps the tile's ink. */}
+        <span className="brand-grad-glyph" style={{ display: 'contents' }}>
+          <Icon name={icon} {...stylex.props(styles.icon)} />
+        </span>
       </span>
       <p {...stylex.props(styles.kpiValue)}>
         {decimals ? value.toFixed(1) : <CountUp to={value} />}

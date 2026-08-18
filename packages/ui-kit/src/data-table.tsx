@@ -486,6 +486,7 @@ const chipStyles = stylex.create({
   // shadow — the exact combination the direction removes.
   active: {
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
   },
   count: {

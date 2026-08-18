@@ -179,7 +179,7 @@ const styles = stylex.create({
     color: 'var(--color-background-muted)',
   },
   donutValue: {
-    color: 'var(--color-accent)',
+    color: 'var(--chart-series-1)',
     transitionProperty: 'stroke-dasharray',
     transitionDuration: '900ms',
     transitionTimingFunction: 'ease-out',
@@ -826,7 +826,7 @@ export function AnimatedCircularProgressBar({
   max = 100,
   size = 104,
   stroke = 10,
-  primaryColor = 'var(--color-accent)',
+  primaryColor = 'var(--chart-series-1)',
   secondaryColor = 'var(--color-background-muted)',
   ariaLabel,
   children,
@@ -1129,8 +1129,10 @@ const heatStyles = stylex.create({
     width: '100%',
     aspectRatio: '1',
     borderRadius: '3px',
-    // Brand accent, tinted per-cell by opacity set inline off the value.
-    backgroundColor: 'var(--color-accent)',
+    // The chart's series-1 pair, tinted per-cell by opacity set inline off the
+    // value. `--chart-series-1`, not `--color-accent`: the accent token gets
+    // remapped inside some Astryx scopes, and the chart palette must not.
+    backgroundColor: 'var(--chart-series-1)',
   },
 });
 
