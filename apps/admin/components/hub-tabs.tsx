@@ -77,7 +77,7 @@ export function HubTabs({ items, ariaLabel }: { items: HubTab[]; ariaLabel: stri
             aria-current={active ? 'page' : undefined}
             className={`-mb-px inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
               active
-                ? 'border-brand-500 text-brand-700 dark:text-brand-300'
+                ? 'border-brand-800 text-brand-800 dark:border-brand-300 dark:text-brand-300'
                 : 'border-transparent text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200'
             }`}
           >

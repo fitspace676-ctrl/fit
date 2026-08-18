@@ -3122,16 +3122,6 @@
       "full": "Full",
       "joinWaitlist": "Join waitlist"
     },
-    "drawer": {
-      "close": "Close",
-      "time": "Time",
-      "trainer": "Trainer",
-      "location": "Location",
-      "capacity": "Capacity",
-      "book": "Book",
-      "full": "Join waitlist",
-      "signInToBook": "Sign in to book"
-    },
     "empty": {
       "title": "No classes this week",
       "subtitle": "There are no classes scheduled for the selected week. Try another week or check back soon."
@@ -3198,6 +3188,11 @@
           "error": "Something went wrong. Please try again."
         }
       }
+    },
+    "modal": {
+      "close": "Close",
+      "capacity": "Capacity",
+      "signInToBook": "Sign in to book"
     }
   },
   "common": {
@@ -3427,10 +3422,7 @@
       }
     },
     "actions": {
-      "booked": "Booked! See you there",
-      "waitlisted": "Added to the waitlist",
       "canceled": "Booking canceled",
-      "working": "…",
       "errAlreadyBooked": "You're already booked",
       "errNotBookable": "This class can't be booked",
       "errWindowPassed": "Cancellation window has passed",
@@ -3459,8 +3451,6 @@
       "endsOn": "Access until",
       "cancelNotice": "Set to cancel — won't renew.",
       "memberSince": "Member since",
-      "viewBookings": "My bookings",
-      "shopMember": "Member shop",
       "paymentMethod": "Payment method",
       "payAtDesk": "Pay at desk",
       "thisPeriod": "This period",
@@ -3510,7 +3500,10 @@
         "errAllowance": "That's more than the {days} freeze days you have left.",
         "errGeneric": "Something went wrong. Please try again.",
         "durationLess": "Fewer days",
-        "durationMore": "More days"
+        "durationMore": "More days",
+        "resumeTitle": "Resume your membership?",
+        "resumeBody": "Your plan starts again today, and the days you did not use stay in your allowance.",
+        "close": "Done"
       },
       "credits": {
         "title": "PT credits",
@@ -3524,7 +3517,30 @@
         "boughtToast": "{count, plural, one {# credit} other {# credits}} added",
         "errUnavailable": "That pack is no longer available.",
         "errGeneric": "Something went wrong. Please try again.",
-        "close": "Close"
+        "close": "Close",
+        "boughtBody": "They are on your account now — book a PT session whenever you are ready."
+      },
+      "plan": {
+        "subtitle": "Pick the plan you want. You pay for it at the front desk.",
+        "current": "Current plan",
+        "keep": "This is your plan",
+        "loading": "Loading plans…",
+        "none": "No plans on sale",
+        "noneHint": "This gym has not published any memberships yet.",
+        "location": "Train at",
+        "confirm": "Switch to {plan}",
+        "start": "Start {plan}",
+        "working": "Working…",
+        "close": "Done",
+        "cancel": "Cancel",
+        "changedTitle": "Plan changed",
+        "startedTitle": "Plan started",
+        "changedBody": "Pay at the front desk on your next visit and the new plan takes effect.",
+        "error": "We could not change the plan. Please try again.",
+        "perMonth": "/ mo",
+        "perYear": "/ yr",
+        "errAlreadySubscribed": "You already have a live membership. Cancel it first, or ask at the front desk to switch.",
+        "errUnavailable": "That plan is no longer on sale."
       }
     },
     "profile": {
@@ -3673,8 +3689,6 @@
       "increase": "Increase",
       "pickup": "Collect at",
       "payDesk": "Pay at desk",
-      "payCard": "Card",
-      "payApple": "Apple Pay",
       "promo": "Promo code",
       "subtotal": "Subtotal",
       "discount": "Discount",
@@ -3694,7 +3708,10 @@
       "errUpdate": "Couldn't update the cart",
       "errCheckout": "Checkout failed, try again",
       "errPrice": "Prices changed — review your cart",
-      "pickLocation": "Choose a pickup location"
+      "pickLocation": "Choose a pickup location",
+      "eyebrow": "Checkout",
+      "subtitle": "Review what you are collecting, then place the order.",
+      "payment": "Payment"
     },
     "goals": {
       "title": "Your goals",
@@ -4001,7 +4018,8 @@
         "title": "Order not found",
         "subtitle": "We couldn’t find that order. It may have been removed."
       }
-    }
+    },
+    "eyebrow": "Gym store"
   },
   "trainers": {
     "title": "Trainers",

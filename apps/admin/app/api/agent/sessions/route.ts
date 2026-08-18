@@ -6,7 +6,7 @@
 // (`/agent/sessions`), which scopes every session to the gym + the current user.
 
 import { cookies } from 'next/headers';
-import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { pickSessionToken } from '@/lib/auth-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,9 +16,14 @@ function apiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 }
 
-/** The operator's access token, or null when unauthenticated. */
+/**
+ * The caller's access token, or null when unauthenticated. Impersonation-aware:
+ * a platform operator acting as this gym's owner is carried by a different
+ * cookie, and the API must be handed that one.
+ */
 async function accessToken(): Promise<string | null> {
-  return (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value ?? null;
+  const jar = await cookies();
+  return pickSessionToken((name) => jar.get(name)?.value)?.value ?? null;
 }
 
 /** `GET /api/agent/sessions` — the current user's saved sessions (metadata). */

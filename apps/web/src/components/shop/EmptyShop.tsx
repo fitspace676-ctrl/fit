@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
-import { EmptyState } from '@/src/components/ui/kit';
+import { Card, EmptyState } from '@/src/components/ui/kit';
 import { useTranslations } from 'next-intl';
 import { Icon } from '@/src/components/ui';
 
@@ -22,10 +22,12 @@ export function EmptyShop() {
   const t = useTranslations('shop');
 
   return (
-    <EmptyState
-      icon={<Icon name="bag" {...stylex.props(styles.icon)} sw={1.9} />}
-      title={t('browse.empty.title')}
-      body={t('browse.empty.subtitle')}
-    />
+    <Card>
+      <EmptyState
+        icon={<Icon name="bag" {...stylex.props(styles.icon)} sw={1.9} />}
+        title={t('browse.empty.title')}
+        body={t('browse.empty.subtitle')}
+      />
+    </Card>
   );
 }

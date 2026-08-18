@@ -7,7 +7,7 @@
 // operator's token as a bearer, streaming the NDJSON reply straight back.
 
 import { cookies } from 'next/headers';
-import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { pickSessionToken } from '@/lib/auth-session';
 import { getServerSession } from '@/lib/session';
 
 export const runtime = 'nodejs';
@@ -21,7 +21,10 @@ function apiBaseUrl(): string {
 
 export async function POST(request: Request): Promise<Response> {
   const session = await getServerSession();
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+  // Impersonation-aware: an operator acting as this gym's owner is carried by a
+  // different cookie, and the API must be handed that one.
+  const jar = await cookies();
+  const token = pickSessionToken((name) => jar.get(name)?.value)?.value;
   if (!session || !token) {
     return new Response(JSON.stringify({ error: 'unauthenticated' }), {
       status: 401,

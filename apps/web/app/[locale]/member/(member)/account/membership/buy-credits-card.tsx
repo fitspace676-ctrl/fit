@@ -1,20 +1,34 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Button, Card } from '@/src/components/ui/kit';
+import { Banner, Button, Card, Dialog } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { PACK_UNAVAILABLE_CODE, type CreditPackCatalogueEntry } from '@fit/types';
 import { useRouter } from '@/src/i18n/navigation';
-import { Icon, useToast } from '@/src/components/ui';
+import { Icon } from '@/src/components/ui';
 import { formatMoney } from '@/lib/shop';
 import { purchaseCreditPackAction } from '@/app/actions/credit-packs';
 
 // Astryx migration (T11), now on the portal kit: the "PT credits" metric card + self-service pack
-// purchase flow is rebuilt on the portal kit design system over the FormaCore theme —
-// the metric, the "Buy more" trigger and the pack picker modal use Astryx
-// Card / Button, all layout in compiled StyleX (`var(--color-*)`), no Tailwind
-// utilities. The purchase server action and toast behaviour are unchanged.
+// purchase flow is rebuilt on the portal kit over the FormaCore theme, all
+// layout in compiled StyleX (`var(--color-*)`), no Tailwind utilities. The
+// purchase server action is unchanged.
+//
+// THE MODAL IS THE KIT'S NOW. The pack picker was a private overlay — and a
+// second, independent copy of the one in `freeze-card.tsx`: the same fixed
+// scrim, the same blur, the same panel rules, restated. Neither trapped focus,
+// locked the scroll behind it, or answered Escape. `Dialog` does, once, for
+// both.
+//
+// BUYING NOW HAS AN OUTCOME, like booking and pausing. It closed the modal and
+// flashed a toast; the panel now says what was bought and where it went, in the
+// place the member was already looking.
+//
+// "Buy more" was a bare underlined text link — the only control on this screen
+// that was not a Button. At metric-card scale it read as body copy with a hover
+// state, so the one way to spend money here was the least button-like thing on
+// the page.
 
 /** Props for the PT-credits card: the live balance and the gym's buyable packs. */
 export interface BuyCreditsCardProps {
@@ -43,74 +57,30 @@ const styles = stylex.create({
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
   },
+  // Mono, like every other counter in the portal — the dashboard's stat strip,
+  // the bookings board's. It was the heading face here alone.
   value: {
     margin: 0,
     marginTop: '0.75rem',
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.75rem',
+    fontWeight: 700,
+    lineHeight: 1,
+    letterSpacing: '-0.03em',
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
   buyMore: {
-    marginTop: '0.5rem',
-    display: 'inline-block',
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    padding: 0,
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    color: {
-      default: 'var(--color-text-accent)',
-      ':hover': 'var(--color-accent)',
-    },
-    textDecorationLine: {
-      default: 'none',
-      ':hover': 'underline',
-    },
-    cursor: 'pointer',
+    marginTop: '0.875rem',
   },
   none: {
     margin: 0,
-    marginTop: '0.5rem',
+    marginTop: '0.75rem',
     fontSize: '0.75rem',
     color: 'var(--color-text-disabled)',
   },
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    zIndex: 50,
-    display: 'grid',
-    placeItems: 'center',
-    padding: '1rem',
-    backgroundColor: 'var(--color-overlay)',
-    backdropFilter: 'blur(4px)',
-  },
-  modal: {
-    width: '100%',
-    maxWidth: '26rem',
-    borderRadius: 'var(--radius-container)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-card)',
-    padding: '1.5rem',
-  },
-  modalTitle: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.125rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
-  },
-  modalBody: {
-    margin: 0,
-    marginTop: '0.25rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
+  /* --------------------------------- modal -------------------------------- */
   packs: {
-    marginTop: '1.25rem',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
@@ -118,16 +88,18 @@ const styles = stylex.create({
     padding: 0,
     listStyle: 'none',
   },
+  // The artboards' inset tile, so a pack reads as a row seated in the panel
+  // rather than as a card floating on another card.
   pack: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.75rem',
-    borderRadius: 'var(--radius-container)',
+    borderRadius: 'var(--radius-element)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-card)',
+    borderColor: 'var(--fc-tile-border)',
+    backgroundColor: 'var(--fc-tile)',
     paddingInline: '1rem',
     paddingBlock: '0.75rem',
   },
@@ -139,38 +111,72 @@ const styles = stylex.create({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontSize: '0.875rem',
-    fontWeight: 600,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '0.9375rem',
+    fontWeight: 700,
     color: 'var(--color-text-primary)',
   },
   packMeta: {
     margin: 0,
+    marginTop: '0.125rem',
+    fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
-  modalActions: {
-    marginTop: '1.25rem',
+  body: {
     display: 'flex',
-    justifyContent: 'flex-end',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  // The same lime disc the booking and pause flows use to say "this happened".
+  outcome: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  outcomeDisc: {
+    display: 'grid',
+    placeItems: 'center',
+    height: '2.75rem',
+    width: '2.75rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+  },
+  outcomeIcon: {
+    height: '1.375rem',
+    width: '1.375rem',
+  },
+  outcomeText: {
+    margin: 0,
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    color: 'var(--color-text-secondary)',
   },
 });
 
+/** How far the purchase has got. `error` rides alongside the picker, inline. */
+type Flow =
+  | { kind: 'closed' }
+  | { kind: 'picking'; error: string | null }
+  | { kind: 'done'; message: string };
+
 /**
  * The "PT credits" metric card with a self-service purchase flow (T5.8), on the
- * Astryx design system: shows the member's remaining class credits and — when the
- * gym sells finite-session packs — a "Buy more" button that opens a picker.
+ * portal kit: shows the member's remaining class credits and — when the gym
+ * sells finite-session packs — a "Buy more" button that opens the picker.
  * Choosing a pack posts to `POST /credit-packs/purchase` via the server action,
- * toasts the outcome, and refreshes the page so the new balance shows. A gym with
- * no packs on sale renders the balance read-only (no button), matching the
- * honest-empty-state convention.
+ * states the outcome in the panel, and refreshes the page so the new balance
+ * shows. A gym with no packs on sale renders the balance read-only (no button),
+ * matching the honest-empty-state convention.
  */
 export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
   const t = useTranslations('member.membership.credits');
   const locale = useLocale();
-  const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [open, setOpen] = useState(false);
+  const [flow, setFlow] = useState<Flow>({ kind: 'closed' });
   const [buyingId, setBuyingId] = useState<string | null>(null);
 
   function buy(pack: CreditPackCatalogueEntry): void {
@@ -179,16 +185,17 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
       const result = await purchaseCreditPackAction(pack.id);
       setBuyingId(null);
       if (result.ok) {
-        setOpen(false);
-        toast(t('boughtToast', { count: pack.sessionCount }), { tone: 'success', icon: 'check' });
+        setFlow({ kind: 'done', message: t('boughtToast', { count: pack.sessionCount }) });
         router.refresh();
       } else if (result.code === PACK_UNAVAILABLE_CODE) {
-        toast(t('errUnavailable'), { tone: 'danger', icon: 'x' });
+        setFlow({ kind: 'picking', error: t('errUnavailable') });
       } else {
-        toast(t('errGeneric'), { tone: 'danger', icon: 'x' });
+        setFlow({ kind: 'picking', error: t('errGeneric') });
       }
     });
   }
+
+  const close = () => setFlow({ kind: 'closed' });
 
   return (
     <Card padding="none" xstyle={styles.card}>
@@ -198,57 +205,74 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
       </div>
       <p {...stylex.props(styles.value)}>{credits}</p>
       {catalogue.length > 0 ? (
-        <button type="button" onClick={() => setOpen(true)} {...stylex.props(styles.buyMore)}>
-          {t('buyMore')}
-        </button>
+        <Button
+          variant="secondary"
+          size="inline"
+          label={t('buyMore')}
+          onClick={() => setFlow({ kind: 'picking', error: null })}
+          xstyle={styles.buyMore}
+        />
       ) : (
         <p {...stylex.props(styles.none)}>{t('noneOnSale')}</p>
       )}
 
-      {open ? (
-        <div
-          {...stylex.props(styles.overlay)}
-          role="dialog"
-          aria-modal="true"
-          onClick={() => (pending ? undefined : setOpen(false))}
+      {flow.kind === 'closed' ? null : (
+        <Dialog
+          open
+          onClose={close}
+          dismissible={!pending}
+          title={flow.kind === 'done' ? flow.message : t('modalTitle')}
+          description={flow.kind === 'done' ? undefined : t('modalBody')}
+          actions={
+            <Button
+              variant={flow.kind === 'done' ? 'primary' : 'ghost'}
+              size="block"
+              label={t('close')}
+              onClick={close}
+              disabled={pending}
+            />
+          }
         >
-          <div {...stylex.props(styles.modal)} onClick={(e) => e.stopPropagation()}>
-            <p {...stylex.props(styles.modalTitle)}>{t('modalTitle')}</p>
-            <p {...stylex.props(styles.modalBody)}>{t('modalBody')}</p>
-            <ul {...stylex.props(styles.packs)}>
-              {catalogue.map((pack) => (
-                <li key={pack.id} {...stylex.props(styles.pack)}>
-                  <div {...stylex.props(styles.packText)}>
-                    <p {...stylex.props(styles.packName)}>{pack.name}</p>
-                    <p {...stylex.props(styles.packMeta)}>
-                      {t('packMeta', {
-                        count: pack.sessionCount,
-                        price: formatMoney(pack.priceAmount, pack.currency, locale),
-                      })}
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="inline"
-                    label={buyingId === pack.id ? t('buying') : t('buy')}
-                    onClick={() => buy(pack)}
-                    disabled={pending}
-                  />
-                </li>
-              ))}
-            </ul>
-            <div {...stylex.props(styles.modalActions)}>
-              <Button
-                variant="ghost"
-                size="inline"
-                label={t('close')}
-                onClick={() => setOpen(false)}
-                disabled={pending}
-              />
-            </div>
+          <div {...stylex.props(styles.body)}>
+            {flow.kind === 'done' ? (
+              <div {...stylex.props(styles.outcome)}>
+                <span aria-hidden {...stylex.props(styles.outcomeDisc)}>
+                  <Icon name="check" {...stylex.props(styles.outcomeIcon)} sw={2.6} />
+                </span>
+                <p {...stylex.props(styles.outcomeText)}>{t('boughtBody')}</p>
+              </div>
+            ) : (
+              <>
+                <ul {...stylex.props(styles.packs)}>
+                  {catalogue.map((pack) => (
+                    <li key={pack.id} {...stylex.props(styles.pack)}>
+                      <div {...stylex.props(styles.packText)}>
+                        <p {...stylex.props(styles.packName)}>{pack.name}</p>
+                        <p {...stylex.props(styles.packMeta)}>
+                          {t('packMeta', {
+                            count: pack.sessionCount,
+                            price: formatMoney(pack.priceAmount, pack.currency, locale),
+                          })}
+                        </p>
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="card"
+                        loading={buyingId === pack.id}
+                        label={buyingId === pack.id ? t('buying') : t('buy')}
+                        onClick={() => buy(pack)}
+                        disabled={pending}
+                      />
+                    </li>
+                  ))}
+                </ul>
+
+                {flow.error ? <Banner tone="error">{flow.error}</Banner> : null}
+              </>
+            )}
           </div>
-        </div>
-      ) : null}
+        </Dialog>
+      )}
     </Card>
   );
 }

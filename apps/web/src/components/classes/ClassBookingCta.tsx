@@ -1,79 +1,63 @@
 'use client';
 
+import { useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { ButtonLink } from '@/src/components/ui/kit';
-import { useLocale, useTranslations } from 'next-intl';
-import { useSession } from '@/hooks/use-session';
-import { BookingActionButton } from '@/src/components/member/booking-action-button';
+import { Button } from '@/src/components/ui/kit';
+import { useTranslations } from 'next-intl';
+import type { ClassInstanceCard } from '@fit/types';
+import { ClassBookingModal } from './ClassBookingModal';
 
-// Astryx migration (T11), now on the portal kit: the booking CTA renders the kit's `Button` (via
-// the brand-themed `BookingActionButton` for the signed-in server action, or a
-// link Button for the signed-out redirect). A grid wrapper stretches the button
-// to full width without any Tailwind utility.
+// The detail page's booking CTA — now the same door as the schedule's.
+//
+// It used to run its own flow: a `BookingActionButton` that fired the server
+// action straight from the page and reported the outcome as a toast, while the
+// calendar booked the same class through a side sheet. Two shapes, two outcomes,
+// one act. This is a plain button that opens {@link ClassBookingModal}, so the
+// booking flow is one object no matter where a member starts it — and the detail
+// page inherits the modal's confirmation, waitlist position and inline errors,
+// none of which it previously had.
 
 const styles = stylex.create({
-  fullBtnWrap: {
+  wrap: {
     display: 'grid',
-  },
-  fullBtn: {
-    width: '100%',
   },
 });
 
 export interface ClassBookingCtaProps {
-  /** The occurrence id — used to build the login return path. */
-  classId: string;
-  /** Whether every seat is taken (the booked CTA still allows joining the waitlist). */
+  /** The occurrence being booked — passed straight to the modal. */
+  instance: ClassInstanceCard;
+  /** Whether every seat is taken (the CTA then offers the waitlist). */
   isFull: boolean;
+  /**
+   * The gym's IANA zone. Times inside the modal are read in it rather than in
+   * the viewer's — a class is a wall-clock commitment at the gym.
+   */
+  timeZone: string;
 }
 
 /**
- * The class detail page's booking call-to-action, auth-gated like the calendar's
- * {@link import('./ClassDetailDrawer').ClassDetailDrawer}:
- *
- * - a signed-out visitor gets a link to `/member/login?from=<this detail page>` so they
- *   land back here after signing in;
- * - a signed-in member gets the real booking button ({@link BookingActionButton}),
- *   which runs the server action and refreshes the seat counts. When the class is
- *   full the action joins the waitlist, so the button stays enabled.
- *
- * Rendered as a client island so the rest of the detail page stays a static
- * Server Component (the session is only knowable client-side — see
- * {@link useSession}).
+ * Opens the booking modal for this class. Rendered as a client island so the
+ * rest of the detail page stays a Server Component; the modal itself resolves
+ * the session and gates the action (see {@link ClassBookingModal}).
  */
-export function ClassBookingCta({ classId, isFull }: ClassBookingCtaProps) {
+export function ClassBookingCta({ instance, isFull, timeZone }: ClassBookingCtaProps) {
   const t = useTranslations('classes');
-  const locale = useLocale();
-  const { user } = useSession();
-
-  if (user) {
-    return (
-      <div {...stylex.props(styles.fullBtnWrap)}>
-        <BookingActionButton
-          classId={classId}
-          action="book"
-          label={isFull ? t('drawer.full') : t('drawer.book')}
-          variant="primary"
-          size="page"
-          fullWidth
-        />
-      </div>
-    );
-  }
-
-  // Where login should send the visitor back to: this detail page. next-intl's
-  // <Link> prefixes the locale onto `/member/login`, and the login form validates this
-  // same-origin path.
-  const from = `/${locale}/member/classes/${classId}`;
-  const loginHref = `/member/login?from=${encodeURIComponent(from)}`;
+  const [open, setOpen] = useState(false);
 
   return (
-    <ButtonLink
-      href={loginHref}
-      variant="primary"
-      size="page"
-      fullWidth
-      label={t('drawer.signInToBook')}
-    />
+    <div {...stylex.props(styles.wrap)}>
+      <Button
+        variant="primary"
+        size="page"
+        fullWidth
+        label={isFull ? t('detail.booking.joinWaitlist') : t('detail.booking.book')}
+        onClick={() => setOpen(true)}
+      />
+      <ClassBookingModal
+        instance={open ? instance : null}
+        onClose={() => setOpen(false)}
+        timeZone={timeZone}
+      />
+    </div>
   );
 }

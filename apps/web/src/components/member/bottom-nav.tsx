@@ -6,7 +6,9 @@ import { Link, usePathname } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
 import { focus } from '@/src/components/ui/kit';
 import { NAV_ITEMS, isActive } from './nav-items';
+import { navCapsule } from './nav-capsule';
 import { NotificationBell } from './notification-bell';
+import { AccountMenu } from './account-menu';
 
 // The portal's primary navigation: a floating capsule pinned to the foot of the
 // screen, at EVERY width.
@@ -41,9 +43,11 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '0.75rem',
+    // Both shrink on a phone. Seven controls plus the bell is a fixed amount of
+    // object; what the rail can give back is the space around and between them.
+    gap: { default: '0.5rem', '@media (min-width: 640px)': '0.75rem' },
     pointerEvents: 'none',
-    paddingInline: '1rem',
+    paddingInline: { default: '0.75rem', '@media (min-width: 640px)': '1rem' },
     // Sit above the iOS home indicator rather than under it.
     paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
   },
@@ -51,8 +55,9 @@ const styles = stylex.create({
     pointerEvents: 'auto',
     display: 'flex',
     maxWidth: '100%',
+    minWidth: 0,
     alignItems: 'center',
-    gap: '0.25rem',
+    gap: { default: '0.125rem', '@media (min-width: 640px)': '0.25rem' },
     borderRadius: 'var(--radius-full)',
     borderWidth: '1px',
     borderStyle: 'solid',
@@ -66,51 +71,9 @@ const styles = stylex.create({
     padding: '0.375rem',
     boxShadow: 'var(--shadow-high)',
   },
-  item: {
-    display: 'flex',
-    minWidth: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.5rem',
-    height: '2.75rem',
-    borderRadius: 'var(--radius-full)',
-    // Icon-only on the narrowest screens: a circle, so the capsule keeps its
-    // shape rather than becoming a row of squashed pills.
-    paddingInline: {
-      default: '0.875rem',
-      '@media (min-width: 640px)': '1rem',
-    },
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    whiteSpace: 'nowrap',
-    textDecoration: 'none',
-    transitionProperty: 'background-color, color',
-    transitionDuration: '150ms',
-  },
-  idle: {
-    color: { default: 'var(--color-text-secondary)', ':hover': 'var(--color-text-primary)' },
-    backgroundColor: { default: 'transparent', ':hover': 'var(--color-overlay-hover)' },
-  },
-  active: {
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  icon: {
-    height: '1.125rem',
-    width: '1.125rem',
-    flexShrink: 0,
-  },
   bellSlot: {
     pointerEvents: 'auto',
     flexShrink: 0,
-  },
-  // Below `sm` the six Georgian labels cannot fit; the icons carry it, and the
-  // label stays in the accessible name rather than disappearing entirely.
-  label: {
-    display: {
-      default: 'none',
-      '@media (min-width: 640px)': 'inline',
-    },
   },
 });
 
@@ -135,18 +98,30 @@ export function BottomNav() {
               href={item.href}
               aria-label={t(item.key)}
               aria-current={active ? 'page' : undefined}
-              {...stylex.props(styles.item, active ? styles.active : styles.idle, focus.ring)}
+              {...stylex.props(
+                navCapsule.item,
+                active ? navCapsule.active : navCapsule.idle,
+                focus.ring,
+              )}
             >
-              <Icon name={item.icon} sw={2.1} {...stylex.props(styles.icon)} />
-              <span {...stylex.props(styles.label)}>{t(item.key)}</span>
+              <Icon name={item.icon} sw={2.1} {...stylex.props(navCapsule.icon)} />
+              <span {...stylex.props(navCapsule.label)}>{t(item.key)}</span>
             </Link>
           );
         })}
+
+        {/* Inside the capsule, drawn as one more control in it: the account is
+            not a destination, but it is the member's own entry to the portal's
+            chrome, and the thumb looks for it where everything else it can press
+            already is. It opens a panel instead of navigating, which is the only
+            difference the markup makes — same pill, same states, same label rule
+            as the six links beside it. */}
+        <AccountMenu />
       </nav>
 
-      {/* Its own capsule, not a seventh item in the nav: navigation answers
-          "where do I go", the bell answers "what happened while I was away".
-          Same material, deliberately separate objects. */}
+      {/* Its own capsule, not an item in the nav: the nav answers "where do I
+          go", the bell answers "what happened while I was away". Same material,
+          deliberately separate objects. */}
       <div {...stylex.props(styles.bellSlot)}>
         <NotificationBell />
       </div>

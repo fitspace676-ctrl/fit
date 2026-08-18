@@ -45,10 +45,15 @@ const styles = stylex.create({
     gap: '1rem',
   },
   headText: {
-    display: 'flex',
     minWidth: 0,
-    flexDirection: 'column',
-    gap: '0.25rem',
+  },
+  eyebrow: {
+    margin: 0,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.2em',
+    color: 'var(--color-text-secondary)',
   },
   // Below `lg` the cart panel sits at the foot of the single column, out of
   // sight until you scroll; this is the way to it from the top. At `lg` the
@@ -66,6 +71,7 @@ const styles = stylex.create({
   },
   title: {
     margin: 0,
+    marginTop: '0.25rem',
     fontFamily: 'var(--font-family-heading)',
     fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
     fontWeight: 800,
@@ -74,7 +80,9 @@ const styles = stylex.create({
   },
   subtitle: {
     margin: 0,
-    fontSize: '0.875rem',
+    marginTop: '0.375rem',
+    maxWidth: '52ch',
+    fontSize: '0.9375rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -110,6 +118,7 @@ export default async function ShopPage({ params }: { params: Promise<{ locale: s
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
         <div {...stylex.props(styles.headText)}>
+          <p {...stylex.props(styles.eyebrow)}>{t('eyebrow')}</p>
           <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
           <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </div>

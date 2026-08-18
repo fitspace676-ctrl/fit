@@ -215,6 +215,30 @@
   background-image: var(--brand-fill-image, none);
 }
 
+/*
+ * The canvas.
+ *
+ * Read from the theme rather than painted with a Tailwind class, which is what
+ * `<body>` used to do (`bg-ink-50 dark:bg-ink-950`). Two things were wrong with
+ * that.
+ *
+ * It disagreed with the member portal. `ink-50` is #F7F7F6 and the FormaCore
+ * canvas is #EEEEED — one step apart, enough that the two apps did not look like
+ * one product side by side in light mode. (Dark already matched at #131312.)
+ *
+ * And it outranked the palette playground. The playground sets
+ * `--color-background-body` on `:root`, but a utility class on `<body>` paints
+ * over it, so the panel's background control moved every surface EXCEPT the one
+ * behind them. Reading the token means the canvas follows the theme, follows the
+ * playground, and cannot drift from the portal again.
+ *
+ * UNLAYERED on purpose, so it beats Tailwind's preflight in `tw-base` below.
+ */
+body {
+  background-color: var(--color-background-body);
+  color: var(--color-text-primary);
+}
+
 @layer tw-base {
   @tailwind base;
 }

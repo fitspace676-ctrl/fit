@@ -78,7 +78,7 @@ const styles = stylex.create({
     color: 'var(--color-text-secondary)',
   },
   tabActive: {
-    borderBottomColor: 'var(--color-accent)',
+    borderBottomColor: 'var(--color-text-accent)',
     color: 'var(--color-text-accent)',
   },
   list: {
