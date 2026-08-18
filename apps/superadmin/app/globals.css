@@ -1,3 +1,36 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * @fit/superadmin — the only global stylesheet.
+ *
+ * Two imports and a handful of body rules, and that is the whole of it. The
+ * console is authored against `@fit/ui-kit` + Astryx, both of which ship their
+ * own styles, so there is no Tailwind here and no utility layer to keep in step
+ * with a theme file. (`@fit/admin` and `@fit/web` still carry a Tailwind config
+ * that MIRRORS `formacoreTheme.ts` by hand, purely because screens written
+ * before the kit existed still author `className=`. This app has no such history
+ * and should not acquire one.)
+ *
+ * NOTE: `@astryxdesign/core/astryx.css` is intentionally NOT imported here. A
+ * CSS `@import` always loads before the importing file's own rules; the
+ * component styles are imported from the root layout instead, right after this
+ * file, so their cascade layer is declared last.
+ */
+@import '@astryxdesign/core/reset.css';
+@import '@fit/astryx-theme/formacore.css';
+
+/*
+ * The theme's tokens are scoped to `[data-astryx-theme="formacore"]`, which
+ * `<Theme>` stamps on <html> — so the canvas has to be painted from inside that
+ * scope, not from a bare `body` rule that would resolve the variables to nothing.
+ */
+html {
+  background-color: var(--color-background-body);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background-color: var(--color-background-body);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-body);
+  -webkit-font-smoothing: antialiased;
+}

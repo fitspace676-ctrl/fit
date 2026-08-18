@@ -66,7 +66,11 @@ export class SuperAdminController {
     return this.superadmin.setGymStatus(this.actorId(), id, status);
   }
 
-  /** `POST /admin/gyms/:id/impersonate` — mint an audited, gym-scoped owner token. */
+  /**
+   * `POST /admin/gyms/:id/impersonate` — issue an audited, single-use handoff
+   * code the operator's browser redeems on the gym's own host. No token crosses
+   * this response; see {@link SuperAdminService.impersonate}.
+   */
   @Post(':id/impersonate')
   @HttpCode(HttpStatus.OK)
   @AllowCrossTenant()

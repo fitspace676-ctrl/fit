@@ -8,7 +8,7 @@ import { DEFAULT_CLASS_VIEW, type ClassCalendarView, type ClassInstanceCard } fr
 import { Icon } from '@/src/components/ui';
 import { usePathname, useRouter } from '@/src/i18n/navigation';
 import { fetchClassInstances } from '@/lib/classes';
-import { ClassDetailDrawer } from './ClassDetailDrawer';
+import { ClassBookingModal } from './ClassBookingModal';
 import { ClassFilters } from './ClassFilters';
 import { ClassListView } from './ClassListView';
 import { EmptyClasses } from './EmptyClasses';
@@ -88,7 +88,7 @@ export interface ClassesBrowserProps {
   initialView: ClassCalendarView;
   /** `?week=YYYY-MM-DD` from the server, normalised to its Monday. */
   initialWeek: string;
-  /** `?class=<id>` from the server — reopens the drawer after a login round-trip. */
+  /** `?class=<id>` from the server — reopens the booking modal after a login round-trip. */
   initialClassId?: string;
   /** Filters parsed from `?type/trainer/location/time` on the server. */
   initialFilters: ClassFilterState;
@@ -107,7 +107,7 @@ interface LoadState {
 
 /**
  * Client orchestrator for the classes page: owns the view (week/list), the
- * selected week, the fetched instances, and the detail drawer. It keeps `?view`,
+ * selected week, the fetched instances, and the booking modal. It keeps `?view`,
  * `?week`, and `?class` in the URL (via a soft router replace, no full reload)
  * so the toggle preserves the week and a shared/return link reopens the same
  * state. Week navigation refetches the matching `[from, to)` window with an
@@ -266,7 +266,7 @@ export function ClassesBrowser({
         <ClassListView instances={filtered} onClassClick={setSelectedId} timeZone={timeZone} />
       )}
 
-      <ClassDetailDrawer
+      <ClassBookingModal
         instance={selectedInstance}
         onClose={() => setSelectedId(null)}
         timeZone={timeZone}

@@ -36,12 +36,13 @@ describe('SuperAdmin authorization (integration)', () => {
             subdomainSlug: 'downtown',
             status: 'ACTIVE',
             memberCount: 3,
-            mrr: 0,
+            createdAt: '2026-01-15T10:00:00.000Z',
+            owner: { email: 'alex@example.com', name: 'Alex' },
           },
         ],
       }),
     setGymStatus: (_actor: string, id: string) => Promise.resolve({ id, status: 'SUSPENDED' }),
-    impersonate: () => Promise.resolve({ accessToken: 'scoped.jwt' }),
+    impersonate: () => Promise.resolve({ handoffCode: 'handoff-code', expiresInSeconds: 60 }),
   };
 
   beforeAll(async () => {

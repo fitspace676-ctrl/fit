@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Badge, Button, ButtonLink, Card, Field, SelectField } from '@/src/components/ui/kit';
+import {
+  Badge,
+  Banner,
+  Button,
+  ButtonLink,
+  Card,
+  EmptyState,
+  Field,
+  SelectField,
+} from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import type { CartView, LocationSummary } from '@fit/types';
@@ -13,8 +22,28 @@ import { checkoutCartAction, removeCartItemAction, updateCartItemAction } from '
 // `Card` / `Button` / `IconButton` / `Badge` / `Selector` / `TextInput` over the
 // Fit brand theme tokens, with the quantity stepper, payment-method picker and
 // totals authored in compiled StyleX (`var(--color-*)` / `var(--font-family-*)`)
-// — no Tailwind utilities. Cart state, the stub-payment checkout server action
-// and the totals are unchanged.
+// — no Tailwind utilities. Cart state, the checkout server action and the
+// totals are unchanged.
+//
+// THE PAYMENT PICKER WAS FICTION, AND IS GONE. The summary offered three methods
+// — Pay at desk, Card, Apple Pay — as a real-looking radio group with a lime
+// selected state and a tick. Its own source called it "(cosmetic)": the `pay`
+// state was never read, never sent, never stored. `checkoutCartAction` takes a
+// location and a promo code and places a pay-on-collection order, full stop. So
+// choosing "Apple Pay" and pressing Place order placed a pay-at-the-desk order
+// and told you nothing, which is not a styling problem — the screen made a
+// promise about money that the system does not keep. The one true method is now
+// stated as a fact, the way the membership screen states it.
+//
+// The rest is a consistency pass with the other member screens:
+//   • the head is the portal's (eyebrow · title · subtitle), not a bare `<h1>`;
+//   • failures are `Banner`s inside the summary, beside the button that caused
+//     them, rather than toasts at the edge of the screen;
+//   • the empty cart and the placed order use the kit's `EmptyState` and the
+//     lime outcome disc the booking / pause / credits flows use;
+//   • money is mono everywhere, and the missing-image placeholder is the
+//     product's initial — the shop already draws it that way. This screen had a
+//     literal 🛍️ emoji, the only one in the portal.
 
 const styles = stylex.create({
   // Confirmed-order panel
@@ -24,6 +53,10 @@ const styles = stylex.create({
     padding: '2rem',
     textAlign: 'center',
   },
+  // The lime disc, at page scale — the same mark the booking, pause and credit
+  // flows use to say "this happened". It was a 15%-tint circle on
+  // `--color-success`, which in FormaCore IS the lime, so it read as a washed
+  // version of a colour the portal only ever uses at full strength.
   successIcon: {
     marginInline: 'auto',
     display: 'grid',
@@ -31,8 +64,8 @@ const styles = stylex.create({
     width: '4rem',
     placeItems: 'center',
     borderRadius: 'var(--radius-full)',
-    backgroundColor: 'color-mix(in srgb, var(--color-success) 15%, transparent)',
-    color: 'var(--color-success)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
   },
   successGlyph: {
     height: '2rem',
@@ -64,40 +97,42 @@ const styles = stylex.create({
     marginInline: 'auto',
     maxWidth: '36rem',
   },
-  emptyCard: {
-    display: 'grid',
-    placeItems: 'center',
-    gap: '0.75rem',
-    paddingBlock: '3.5rem',
-    textAlign: 'center',
-  },
   emptyIcon: {
     height: '2.5rem',
     width: '2.5rem',
     color: 'var(--color-text-disabled)',
   },
-  emptyTitle: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.125rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
+  emptyState: {
+    paddingBlock: '3.5rem',
   },
-  emptyHint: {
+  // Page head — the portal's, so the cart is a sibling of the bookings,
+  // membership and shop screens rather than a lone `<h1>`.
+  header: {
+    marginBottom: '1.5rem',
+  },
+  eyebrow: {
     margin: 0,
-    maxWidth: '20rem',
-    fontSize: '0.875rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.2em',
     color: 'var(--color-text-secondary)',
   },
-  // Page
   title: {
-    marginTop: 0,
-    marginBottom: '1.5rem',
+    margin: 0,
+    marginTop: '0.25rem',
     fontFamily: 'var(--font-family-heading)',
     fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
     fontWeight: 800,
     letterSpacing: '-0.02em',
     color: 'var(--color-text-primary)',
+  },
+  subtitle: {
+    margin: 0,
+    marginTop: '0.375rem',
+    maxWidth: '52ch',
+    fontSize: '0.9375rem',
+    color: 'var(--color-text-secondary)',
   },
   layout: {
     display: 'grid',
@@ -133,8 +168,16 @@ const styles = stylex.create({
     width: '100%',
     objectFit: 'cover',
   },
-  itemEmoji: {
+  // The product's initial as a mono glyph — a distinguishable mark per product,
+  // the way `ProductRow` and `CartPanel` already draw a missing image. This was
+  // a literal 🛍️ emoji: the same picture on every imageless line, and the only
+  // emoji rendered anywhere in the portal.
+  itemInitial: {
+    fontFamily: 'var(--font-family-code)',
     fontSize: '1.5rem',
+    fontWeight: 700,
+    lineHeight: 1,
+    color: 'var(--color-text-secondary)',
   },
   itemBody: {
     minWidth: 0,
@@ -219,52 +262,44 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-text-primary)',
   },
-  payList: {
+  // The one real method, stated rather than chosen — the same treatment the
+  // membership screen gives it. Seated on the artboards' inset tile so it reads
+  // as a fact of the order, not as a control you failed to notice was disabled.
+  payment: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  payOption: {
-    display: 'flex',
-    width: '100%',
     alignItems: 'center',
-    gap: '0.75rem',
-    borderRadius: 'var(--radius-container)',
+    gap: '0.625rem',
+    borderRadius: 'var(--radius-element)',
     borderWidth: '1px',
     borderStyle: 'solid',
+    borderColor: 'var(--fc-tile-border)',
+    backgroundColor: 'var(--fc-tile)',
     paddingInline: '0.875rem',
-    paddingBlock: '0.625rem',
-    textAlign: 'left',
-    fontSize: '0.875rem',
-    cursor: 'pointer',
-    transitionProperty: 'background-color, border-color',
-    transitionDuration: '150ms',
+    paddingBlock: '0.75rem',
   },
-  payIdle: {
-    borderColor: 'var(--color-border)',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-overlay-hover)',
-    },
-  },
-  payActive: {
-    borderColor: 'var(--color-accent)',
-    backgroundColor: 'var(--color-accent-muted)',
-  },
-  payIcon: {
+  paymentIcon: {
     height: '1rem',
     width: '1rem',
+    flexShrink: 0,
     color: 'var(--color-text-secondary)',
   },
-  payLabel: {
-    flex: 1,
-    fontWeight: 500,
-    color: 'var(--color-text-primary)',
+  paymentText: {
+    minWidth: 0,
   },
-  payCheck: {
-    height: '1rem',
-    width: '1rem',
-    color: 'var(--color-text-accent)',
+  paymentLabel: {
+    margin: 0,
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.14em',
+    color: 'var(--color-text-secondary)',
+  },
+  paymentValue: {
+    margin: 0,
+    marginTop: '0.125rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
   },
   totals: {
     display: 'flex',
@@ -290,7 +325,7 @@ const styles = stylex.create({
     color: 'var(--color-text-primary)',
   },
   rowValueDiscount: {
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   totalRow: {
     display: 'flex',
@@ -302,10 +337,14 @@ const styles = stylex.create({
     fontWeight: 600,
     color: 'var(--color-text-primary)',
   },
+  // Mono, like the shop panel's subtotal and every other figure in the portal.
+  // It was the heading face, so the two totals a buyer sees in one session — the
+  // panel's and this one — were set in different families.
   totalValue: {
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.25rem',
-    fontWeight: 800,
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.375rem',
+    fontWeight: 700,
+    letterSpacing: '-0.02em',
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
@@ -325,8 +364,6 @@ export interface CartScreenProps {
   locations: LocationSummary[];
 }
 
-type Pay = 'card' | 'apple' | 'desk';
-
 /** The shop cart + checkout screen: editable line items, an order summary with a
  * pickup location + promo, and a checkout that places the order. */
 export function CartScreen({ initialCart, locations }: CartScreenProps) {
@@ -335,8 +372,10 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
   const { toast } = useToast();
   const [cart, setCart] = useState<CartView>(initialCart);
   const [pending, startTransition] = useTransition();
-  const [pay, setPay] = useState<Pay>('desk');
   const [locationId, setLocationId] = useState(locations[0]?.id ?? '');
+  // Checkout failures belong beside the button that caused them, not in a toast
+  // at the corner of a screen whose summary the buyer is staring at.
+  const [error, setError] = useState<string | null>(null);
   const [promo, setPromo] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
 
@@ -358,19 +397,17 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
 
   function checkout(): void {
     if (!locationId) {
-      toast(t('pickLocation'), { tone: 'warning', icon: 'info' });
+      setError(t('pickLocation'));
       return;
     }
+    setError(null);
     startTransition(async () => {
       const res = await checkoutCartAction(locationId, promo || undefined);
       if (res.ok) {
         setOrderId(res.orderId);
         setCart({ items: [], subtotal: 0, discount: 0, total: 0, currency: cart.currency });
       } else {
-        toast(res.code === 'PRICE_CHANGED' ? t('errPrice') : t('errCheckout'), {
-          tone: 'danger',
-          icon: 'x',
-        });
+        setError(res.code === 'PRICE_CHANGED' ? t('errPrice') : t('errCheckout'));
       }
     });
   }
@@ -400,17 +437,22 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
   if (cart.items.length === 0) {
     return (
       <div {...stylex.props(styles.emptyWrap)}>
-        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
-        <Card padding="none" xstyle={styles.emptyCard}>
-          <Icon name="bag" {...stylex.props(styles.emptyIcon)} />
-          <p {...stylex.props(styles.emptyTitle)}>{t('empty')}</p>
-          <p {...stylex.props(styles.emptyHint)}>{t('emptyHint')}</p>
-          <ButtonLink
-            href="/member/shop"
-            variant="primary"
-            size="card"
-            icon={<Icon name="bag" />}
-            label={t('browseShop')}
+        <Head t={t} />
+        <Card>
+          <EmptyState
+            icon={<Icon name="bag" {...stylex.props(styles.emptyIcon)} />}
+            title={t('empty')}
+            body={t('emptyHint')}
+            action={
+              <ButtonLink
+                href="/member/shop"
+                variant="primary"
+                size="card"
+                icon={<Icon name="bag" />}
+                label={t('browseShop')}
+              />
+            }
+            xstyle={styles.emptyState}
           />
         </Card>
       </div>
@@ -419,7 +461,7 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
 
   return (
     <div>
-      <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+      <Head t={t} />
       <div {...stylex.props(styles.layout)}>
         {/* Items */}
         <div {...stylex.props(styles.items)}>
@@ -429,7 +471,9 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
                 {item.imageUrl ? (
                   <img src={item.imageUrl} alt="" {...stylex.props(styles.itemImg)} />
                 ) : (
-                  <span {...stylex.props(styles.itemEmoji)}>🛍️</span>
+                  <span aria-hidden {...stylex.props(styles.itemInitial)}>
+                    {item.productName.trim().charAt(0).toUpperCase()}
+                  </span>
                 )}
               </div>
               <div {...stylex.props(styles.itemBody)}>
@@ -495,27 +539,15 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
             />
           )}
 
-          {/* Payment method (cosmetic) */}
-          <div {...stylex.props(styles.payList)}>
-            {(
-              [
-                { k: 'desk', icon: 'pin' as const, label: t('payDesk') },
-                { k: 'card', icon: 'card' as const, label: t('payCard') },
-                { k: 'apple', icon: 'apple' as const, label: t('payApple') },
-              ] as const
-            ).map((m) => (
-              <button
-                key={m.k}
-                type="button"
-                aria-pressed={pay === m.k}
-                onClick={() => setPay(m.k)}
-                {...stylex.props(styles.payOption, pay === m.k ? styles.payActive : styles.payIdle)}
-              >
-                <Icon name={m.icon} {...stylex.props(styles.payIcon)} />
-                <span {...stylex.props(styles.payLabel)}>{m.label}</span>
-                {pay === m.k && <Icon name="check" {...stylex.props(styles.payCheck)} />}
-              </button>
-            ))}
+          {/* How this order is paid — stated, not chosen. See the note at the
+              top of the file: the three-way picker that stood here was
+              decorative, and "Apple Pay" placed a pay-at-desk order. */}
+          <div {...stylex.props(styles.payment)}>
+            <Icon name="card" {...stylex.props(styles.paymentIcon)} sw={2.2} />
+            <div {...stylex.props(styles.paymentText)}>
+              <p {...stylex.props(styles.paymentLabel)}>{t('payment')}</p>
+              <p {...stylex.props(styles.paymentValue)}>{t('payDesk')}</p>
+            </div>
           </div>
 
           {/* Promo */}
@@ -547,6 +579,8 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
             </div>
           </div>
 
+          {error ? <Banner tone="error">{error}</Banner> : null}
+
           <Button
             variant="primary"
             size="block"
@@ -561,5 +595,16 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
         </Card>
       </div>
     </div>
+  );
+}
+
+/** The portal's page head — eyebrow, title, subtitle — shared by both states. */
+function Head({ t }: { t: (key: string) => string }) {
+  return (
+    <header {...stylex.props(styles.header)}>
+      <p {...stylex.props(styles.eyebrow)}>{t('eyebrow')}</p>
+      <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+      <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
+    </header>
   );
 }

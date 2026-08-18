@@ -18,9 +18,16 @@ export const gymStatusSchema = z.enum(['ACTIVE', 'SUSPENDED']);
 export type GymStatus = z.infer<typeof gymStatusSchema>;
 
 /**
- * A single gym as listed by `GET /admin/gyms` for the operator console. The
- * `subdomainSlug` is the tenant's DNS label (`<subdomainSlug>.fit.ge`); `mrr` is
- * the gym's monthly recurring revenue in minor currency units (tetri / cents).
+ * A single gym as listed by `GET /admin/gyms` for the operator console.
+ * `subdomainSlug` is the tenant's DNS label (`<subdomainSlug>.<root>`), which is
+ * also how the console builds a link into that gym's portal and staff console.
+ *
+ * It used to carry an `mrr` field that the API filled with a literal `0`,
+ * because the subscription model it would aggregate had not landed. A column of
+ * zeroes is not a placeholder in a roster an operator uses to judge accounts —
+ * it reads as "these gyms earn nothing". The field is gone until there is
+ * revenue to report; `createdAt` and `owner` replace it with facts the platform
+ * actually holds today.
  */
 export interface AdminGymSummary {
   id: string;
@@ -30,13 +37,18 @@ export interface AdminGymSummary {
   status: GymStatus;
   /** Total memberships in the gym (across every role and status). */
   memberCount: number;
-  /** Monthly recurring revenue in minor units (tetri). 0 until billing lands. */
-  mrr: number;
+  /** When the tenant was provisioned, ISO-8601. */
+  createdAt: string;
+  /**
+   * The gym's owner, or `null` for a gym not yet bound to one — which is also
+   * exactly the gym that cannot be impersonated (`GYM_HAS_NO_OWNER`).
+   */
+  owner: { email: string; name: string | null } | null;
 }
 
 /**
- * Successful `GET /admin/gyms` response — the platform-wide gym roster with
- * status, member counts, and MRR. Cross-tenant by nature; SUPER_ADMIN only.
+ * Successful `GET /admin/gyms` response — the platform-wide gym roster.
+ * Cross-tenant by nature; SUPER_ADMIN only.
  */
 export interface ListAdminGymsResponse {
   gyms: AdminGymSummary[];
@@ -59,10 +71,56 @@ export interface UpdateGymStatusResponse {
 }
 
 /**
- * Successful `POST /admin/gyms/:id/impersonate` response. Returns a short-lived,
- * gym-scoped access token minted for the gym's owner so an operator can act as
- * them for support; the impersonation is always written to the audit log.
+ * Successful `POST /admin/gyms/:id/impersonate` response — a **handoff code**,
+ * not a token.
+ *
+ * The endpoint used to answer with the impersonation JWT itself, which left the
+ * operator console holding a credential it could only display. Getting that
+ * credential into the tenant's own console means moving it across an origin, and
+ * the obvious ways to move a JWT (a query string, a fragment) put a live session
+ * into browser history, the referrer header, and every proxy log between here and
+ * there.
+ *
+ * So the console gets an opaque, single-use, short-lived code instead. It travels
+ * in the URL, where it is worth nothing after the one redemption that turns it
+ * into a session — `POST /auth/impersonation/exchange`, which mints the token
+ * server-side and hands it straight to a cookie.
  */
 export interface ImpersonateResponse {
+  /** Opaque single-use code, redeemed at `POST /auth/impersonation/exchange`. */
+  handoffCode: string;
+  /** How long the code stays redeemable. Seconds — deliberately very short. */
+  expiresInSeconds: number;
+}
+
+/**
+ * Body for `POST /auth/impersonation/exchange`. The code IS the credential, so
+ * the route carries no session of its own: it is called by the tenant console's
+ * server the moment an operator lands on its impersonation entry point.
+ */
+export const impersonationExchangeSchema = z.object({
+  code: z.string().min(1),
+});
+
+export type ImpersonationExchangeInput = z.infer<typeof impersonationExchangeSchema>;
+
+/**
+ * Successful `POST /auth/impersonation/exchange` response — the gym-scoped OWNER
+ * session, plus who and what it belongs to so the console can say so on screen.
+ *
+ * There is deliberately **no refresh token**. An impersonated session is meant to
+ * run out: it lasts `expiresInSeconds` and then it is over, rather than renewing
+ * itself in a tab the operator forgot about.
+ */
+export interface ImpersonationExchangeResponse {
   accessToken: string;
+  /** The access token's remaining lifetime, in seconds. */
+  expiresInSeconds: number;
+  gym: {
+    id: string;
+    name: string;
+    subdomainSlug: string;
+  };
+  /** The owner being impersonated — what the console's banner names. */
+  ownerEmail: string;
 }

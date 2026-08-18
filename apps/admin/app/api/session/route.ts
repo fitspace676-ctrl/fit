@@ -13,6 +13,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { IMPERSONATION_COOKIES, impersonationCookieOptions } from '@/lib/impersonation';
 import { getServerSession } from '@/lib/session';
 
 /** Cookie holding the rotating refresh token (httpOnly; never exposed to JS). */
@@ -131,10 +132,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return res;
 }
 
-/** `DELETE /api/session` — clear the session cookies (sign-out). */
+/**
+ * `DELETE /api/session` — clear the session cookies (sign-out).
+ *
+ * The impersonation cookies go too. They are written host-only with their own
+ * options, so the parent-domain clears above do not reach them — and a "sign
+ * out" that left an operator still acting as the gym's owner would be a sign-out
+ * in name only. Signing out is the blunter sibling of `/impersonation/exit`,
+ * which drops only the impersonation and puts back the session underneath.
+ */
 export function DELETE(): NextResponse {
   const res = new NextResponse(null, { status: 204 });
   res.cookies.set(ACCESS_TOKEN_COOKIE, '', clearOptions());
   res.cookies.set(REFRESH_TOKEN_COOKIE, '', clearOptions());
+  for (const name of IMPERSONATION_COOKIES) {
+    res.cookies.set(name, '', impersonationCookieOptions(0));
+  }
   return res;
 }

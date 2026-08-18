@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, EmptyState } from '@/src/components/ui/kit';
+import { Button, Card, EmptyState, Spinner } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import type { CartView, ProductSummary } from '@fit/types';
@@ -21,9 +21,24 @@ import { ProductList } from './ProductList';
 // the same state — this component still only fetches and gates the catalogue.
 
 const styles = stylex.create({
-  loading: {
-    paddingBlock: '4rem',
-    textAlign: 'center',
+  // Loading keeps the catalogue's footprint rather than collapsing to a line of
+  // grey text on the canvas, so the page does not jump when the products land —
+  // and, next to a cart panel that stays put, a bare line read as a failure.
+  loadingCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.75rem',
+    minHeight: '18rem',
+  },
+  spinner: {
+    height: '1.5rem',
+    width: '1.5rem',
+    color: 'var(--color-text-secondary)',
+  },
+  loadingText: {
+    margin: 0,
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
@@ -88,23 +103,32 @@ export function ShopBrowser({ gymId, cart, onCart }: ShopBrowserProps) {
   }, [gymId, reloadKey]);
 
   if (load.status === 'loading') {
-    return <p {...stylex.props(styles.loading)}>{t('browse.loading')}</p>;
+    return (
+      <Card padding="none" xstyle={styles.loadingCard}>
+        <Spinner xstyle={styles.spinner} />
+        <p {...stylex.props(styles.loadingText)}>{t('browse.loading')}</p>
+      </Card>
+    );
   }
 
+  // Seated in a Card, like every other state in the portal. Bare on the canvas
+  // it read as a paragraph that happened to have a button under it.
   if (load.status === 'error') {
     return (
-      <EmptyState
-        icon={<Icon name="bag" {...stylex.props(styles.errorIcon)} sw={1.8} />}
-        title={t('browse.error')}
-        action={
-          <Button
-            variant="secondary"
-            size="card"
-            label={t('retry')}
-            onClick={() => setReloadKey((key) => key + 1)}
-          />
-        }
-      />
+      <Card>
+        <EmptyState
+          icon={<Icon name="bag" {...stylex.props(styles.errorIcon)} sw={1.8} />}
+          title={t('browse.error')}
+          action={
+            <Button
+              variant="secondary"
+              size="card"
+              label={t('retry')}
+              onClick={() => setReloadKey((key) => key + 1)}
+            />
+          }
+        />
+      </Card>
     );
   }
 

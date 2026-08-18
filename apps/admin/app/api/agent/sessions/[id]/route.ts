@@ -5,7 +5,7 @@
 // current user. See ../route.ts for the list endpoint and rationale.
 
 import { cookies } from 'next/headers';
-import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { pickSessionToken } from '@/lib/auth-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,8 +14,10 @@ function apiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 }
 
+/** Impersonation-aware: whichever cookie authenticates this request. */
 async function token(): Promise<string | null> {
-  return (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value ?? null;
+  const jar = await cookies();
+  return pickSessionToken((name) => jar.get(name)?.value)?.value ?? null;
 }
 
 function unauthorized(): Response {

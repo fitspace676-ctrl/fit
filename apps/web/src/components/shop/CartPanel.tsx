@@ -5,9 +5,8 @@ import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { MAX_CART_LINE_QUANTITY, type CartView } from '@fit/types';
 import { formatMoney } from '@/lib/shop';
-import { Link } from '@/src/i18n/navigation';
 import { Icon, useToast } from '@/src/components/ui';
-import { control, stretch } from '@/src/components/ui/kit';
+import { ButtonLink, EmptyState } from '@/src/components/ui/kit';
 import { removeCartItemAction, updateCartItemAction } from '@/app/actions/cart';
 
 // FormaCore redesign — the cart, kept on screen beside the catalogue.
@@ -218,42 +217,11 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
-  cta: {
-    display: 'grid',
-    placeItems: 'center',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: {
-      default: 'var(--color-accent)',
-      ':hover': 'var(--fc-accent-hover)',
-    },
-    color: 'var(--color-on-accent)',
-    textDecoration: 'none',
-  },
   // Empty state — the panel keeps its footprint so the layout does not jump the
   // moment the first item lands.
-  empty: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '0.5rem',
-    paddingBlock: '2rem',
-    textAlign: 'center',
-  },
   emptyIcon: {
     height: '1.75rem',
     width: '1.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  emptyTitle: {
-    margin: 0,
-    fontSize: '0.9375rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
-  },
-  emptyHint: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    lineHeight: 1.5,
     color: 'var(--color-text-secondary)',
   },
 });
@@ -300,11 +268,16 @@ export function CartPanel({ cart, onCart }: CartPanelProps) {
       </div>
 
       {cart.items.length === 0 ? (
-        <div {...stylex.props(styles.empty)}>
-          <Icon name="bag" sw={1.8} {...stylex.props(styles.emptyIcon)} />
-          <p {...stylex.props(styles.emptyTitle)}>{t('empty.title')}</p>
-          <p {...stylex.props(styles.emptyHint)}>{t('empty.subtitle')}</p>
-        </div>
+        // The kit's object, not a private restatement of it: this was an icon
+        // over a bold line over a muted line, at its own type ramp, which is
+        // exactly `EmptyState` drawn slightly differently from the other five in
+        // the portal.
+        <EmptyState
+          icon={<Icon name="bag" sw={1.8} {...stylex.props(styles.emptyIcon)} />}
+          title={t('empty.title')}
+          body={t('empty.subtitle')}
+          compact
+        />
       ) : (
         <>
           <ul {...stylex.props(styles.lines)}>
@@ -388,9 +361,16 @@ export function CartPanel({ cart, onCart }: CartPanelProps) {
             </div>
           </div>
 
-          <Link href="/member/cart" {...stylex.props(styles.cta, control.page, stretch.full)}>
-            {t('checkout')}
-          </Link>
+          {/* `ButtonLink`, not a `<Link>` hand-painted lime with `control.page` +
+              `stretch.full`. The panel's one primary action was the only button
+              in the shop that was not built from the kit's button. */}
+          <ButtonLink
+            href="/member/cart"
+            variant="primary"
+            size="page"
+            fullWidth
+            label={t('checkout')}
+          />
         </>
       )}
     </aside>

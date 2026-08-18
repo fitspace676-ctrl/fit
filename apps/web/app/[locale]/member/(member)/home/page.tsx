@@ -74,8 +74,8 @@ const styles = stylex.create({
     display: 'grid',
     gap: '1.25rem',
     gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 1024px)': '1.05fr 1.4fr',
+      default: 'minmax(0, 1fr)',
+      '@media (min-width: 1024px)': 'minmax(0, 1.05fr) minmax(0, 1.4fr)',
     },
   },
   col: {
@@ -309,8 +309,18 @@ const styles = stylex.create({
   bookableGrid: {
     display: 'grid',
     gap: '0.75rem',
+    // `minmax(0, 1fr)` at EVERY step, the narrow one included.
+    //
+    // A bare `1fr` is `minmax(auto, 1fr)`, so the track refuses to go below the
+    // widest card's min-content — and a class card's min-content is not small:
+    // a 56px time chip that never shrinks, plus a `flex-shrink: 0` category
+    // badge, plus whatever the title cannot ellipsis away. One class named
+    // "E2E Booking Class 1786805841922" was enough to push the single mobile
+    // column past the viewport and set the whole page scrolling sideways. With
+    // a 0 floor the track takes the width it is given and the card's own
+    // ellipsis and clipping do the rest, which is what they were written for.
     gridTemplateColumns: {
-      default: '1fr',
+      default: 'minmax(0, 1fr)',
       '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
       '@media (min-width: 1280px)': 'repeat(3, minmax(0, 1fr))',
     },
@@ -332,8 +342,10 @@ const styles = stylex.create({
   twoCol: {
     display: 'grid',
     gap: '1.25rem',
+    // Same 0 floor as `bookableGrid` — the trainer card holds a 64px avatar and
+    // a row of specialty badges that do not shrink either.
     gridTemplateColumns: {
-      default: '1fr',
+      default: 'minmax(0, 1fr)',
       '@media (min-width: 1024px)': 'repeat(2, minmax(0, 1fr))',
     },
   },

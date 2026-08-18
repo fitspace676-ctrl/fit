@@ -50,8 +50,8 @@ const styles = stylex.create({
     ':focus-visible': { outline: '2px solid var(--color-accent)', outlineOffset: '-2px' },
   },
   active: {
-    borderBottomColor: 'var(--color-accent)',
-    color: 'var(--color-accent)',
+    borderBottomColor: 'var(--color-text-accent)',
+    color: 'var(--color-text-accent)',
   },
 });
 

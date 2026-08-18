@@ -14,7 +14,7 @@ import { createDateTimeFormat } from '@fit/i18n';
 // the FormaCore theme, with every row authored in compiled StyleX
 // (`var(--color-*)`) and the shared brand `ClassOccupancy` meter — no Tailwind
 // utilities and no formacore Aurora-glass primitives. Behaviour is unchanged:
-// grouping is derived from `instances`; clicking a row opens the parent's drawer.
+// grouping is derived from `instances`; clicking a row opens the parent's booking modal.
 //
 // DESIGN PASS.
 //
@@ -232,7 +232,7 @@ function durationMinutes(startsAt: string, endsAt: string): number {
  * a left time block, an accent colour bar, the title + category badge, the
  * trainer + room, an occupancy bar, and how many spots are left. Stateless —
  * grouping is derived from the `instances` the parent supplies; clicking a row
- * opens the detail drawer the parent owns.
+ * opens the booking modal the parent owns.
  */
 export function ClassListView({ instances, onClassClick, timeZone }: ClassListViewProps) {
   const t = useTranslations('classes');

@@ -1,9 +1,9 @@
-// @fit/superadmin — server-side @fit/api client for the SuperAdmin console.
+// @fit/superadmin — server-side @fit/api client for the operator console.
 //
-// Thin typed wrapper over the cross-tenant `/admin/gyms` endpoints. Runs only on
-// the server (Server Components + Server Actions): it reads the operator's
-// `accessToken` cookie via `next/headers` and forwards it as a Bearer token, so
-// the API's `TenantGuard` sees the same SUPER_ADMIN the middleware already
+// A thin typed wrapper over the cross-tenant `/admin/gyms` endpoints. Runs only
+// on the server (Server Components + Server Actions): it reads the operator's
+// `opsAccessToken` cookie via `next/headers` and forwards it as a Bearer token,
+// so the API's `TenantGuard` sees the same SUPER_ADMIN the middleware already
 // verified. Never import this from a Client Component — the cookie is httpOnly
 // and the token must never reach the browser bundle.
 
@@ -53,7 +53,7 @@ async function unwrap<T>(res: Response): Promise<T> {
   throw new ApiError(res.status, code);
 }
 
-/** `GET /admin/gyms` — the platform-wide roster with status, members, and MRR. */
+/** `GET /admin/gyms` — the platform-wide roster with status, members, and owner. */
 export async function fetchGyms(): Promise<ListAdminGymsResponse> {
   const res = await fetch(`${apiBaseUrl()}/admin/gyms`, {
     headers: await authHeaders(),
@@ -77,7 +77,12 @@ export async function setGymStatus(
   return unwrap<UpdateGymStatusResponse>(res);
 }
 
-/** `POST /admin/gyms/:id/impersonate` — mint an audited, gym-scoped owner token. */
+/**
+ * `POST /admin/gyms/:id/impersonate` — an audited, single-use handoff code.
+ *
+ * The response carries no token: the code is redeemed on the gym's own host, by
+ * that console's server, which is what keeps a live session out of the URL bar.
+ */
 export async function impersonateGym(id: string): Promise<ImpersonateResponse> {
   const res = await fetch(`${apiBaseUrl()}/admin/gyms/${encodeURIComponent(id)}/impersonate`, {
     method: 'POST',

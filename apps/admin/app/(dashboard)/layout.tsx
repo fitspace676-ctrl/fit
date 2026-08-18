@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { DEFAULT_CURRENCY, Permission, roleHasPermission } from '@fit/types';
 import { AdminShell, type ShellLocation, type ShellSystemState } from '@/components/admin-shell';
 import { GymCurrencyProvider } from '@/components/gym-currency';
+import { ImpersonationBanner } from '@/components/impersonation-banner';
+import { IMPERSONATION_META_COOKIE, parseImpersonationMeta } from '@/lib/impersonation';
 import { SIDEBAR_COLLAPSED_COOKIE, SIDEBAR_COLLAPSED_VALUE } from '@/lib/sidebar-collapse';
 import { getActiveGymSlug } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
@@ -35,6 +37,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // its final width — the client provider starts from the same value.
   const sidebarCollapsed =
     cookieStore.get(SIDEBAR_COLLAPSED_COOKIE)?.value === SIDEBAR_COLLAPSED_VALUE;
+
+  // Present only while a platform operator is acting as this gym's owner. Every
+  // screen below renders exactly as it does for the owner — which is the point,
+  // and exactly why the banner has to be there to say so.
+  const impersonation = parseImpersonationMeta(cookieStore.get(IMPERSONATION_META_COOKIE)?.value);
 
   let system: ShellSystemState = { online: false, checkInCount: null };
   if (session && roleHasPermission(session.role, Permission.MemberRead)) {
@@ -69,6 +76,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <GymCurrencyProvider currency={currency}>
+      {impersonation ? <ImpersonationBanner meta={impersonation} /> : null}
       <AdminShell
         gymSlug={gymSlug}
         system={system}

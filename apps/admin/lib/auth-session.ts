@@ -16,6 +16,47 @@
 /** The cookie the access token is persisted under (readable by middleware). */
 export const ACCESS_TOKEN_COOKIE = 'accessToken';
 
+/**
+ * The cookie a SUPER_ADMIN's impersonated session is persisted under.
+ *
+ * A SEPARATE NAME, written host-only by `/impersonation/start`, rather than
+ * reusing `accessToken`. `accessToken` is set on the parent domain
+ * (`COOKIE_DOMAIN=.<root>`) so one sign-in covers a gym's portal and its console
+ * — which means writing an impersonated session into it would replace whatever
+ * session the operator already had, on every tenant host at once. The operator
+ * would lose their own console the moment they entered someone else's.
+ *
+ * Kept distinct, the two coexist: this cookie wins where it exists (see
+ * {@link pickSessionToken}), it is scoped to the one gym's host, and leaving the
+ * impersonation is a single cookie deletion that puts back whatever was there.
+ */
+export const IMPERSONATION_TOKEN_COOKIE = 'impersonationToken';
+
+/** The token a request is authenticated by, and which cookie it came from. */
+export interface SessionToken {
+  value: string;
+  /** True when this is a platform operator acting as the gym's owner. */
+  impersonated: boolean;
+}
+
+/**
+ * Pick the access token this request is authenticated by: an impersonation
+ * cookie outranks the ordinary session cookie.
+ *
+ * `read` is a cookie getter, so this works unchanged in the Edge middleware
+ * (`req.cookies.get`), in Server Components (`next/headers`), and anywhere else
+ * a cookie jar can be handed over — the precedence rule then lives in exactly one
+ * place rather than being restated by every reader.
+ */
+export function pickSessionToken(read: (name: string) => string | undefined): SessionToken | null {
+  const impersonation = read(IMPERSONATION_TOKEN_COOKIE);
+  if (impersonation) {
+    return { value: impersonation, impersonated: true };
+  }
+  const access = read(ACCESS_TOKEN_COOKIE);
+  return access ? { value: access, impersonated: false } : null;
+}
+
 /** The roles the platform recognises, mirroring the Prisma `Role` enum. */
 export const ROLES = [
   'SUPER_ADMIN',

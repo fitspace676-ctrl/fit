@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import {
-  ACCESS_TOKEN_COOKIE,
   hasRoleAtLeast,
   isStaff,
+  pickSessionToken,
   requiredRoleForPath,
   verifyAccessToken,
 } from '@/lib/auth-session';
@@ -50,8 +50,17 @@ import {
  */
 const BASE_PATH = process.env.ADMIN_BASE_PATH ?? '/admin';
 
-/** Paths reachable without a session — the console's own sign-in and the 403 page. */
-const PUBLIC_PATHS = ['/login', '/403'];
+/**
+ * Paths reachable without a session — the console's own sign-in, the 403 page,
+ * and the impersonation handoff.
+ *
+ * `/impersonation/start` is public BECAUSE it is what creates the session: a
+ * platform operator arrives there holding a single-use code and nothing else, so
+ * gating it behind a session would mean the only way to be let in is to already
+ * be in. `/impersonation/exit` is public for the mirror-image reason — it must
+ * still work when the impersonated token it is clearing has already expired.
+ */
+const PUBLIC_PATHS = ['/login', '/403', '/impersonation'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -91,13 +100,26 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  const token = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  const token = pickSessionToken((name) => req.cookies.get(name)?.value);
   const secret = process.env.JWT_SECRET;
-  let session = token && secret ? await verifyAccessToken(token, secret) : null;
+  let session = token && secret ? await verifyAccessToken(token.value, secret) : null;
+
+  // An impersonated session that no longer verifies is OVER — expired, or the
+  // secret rotated under it. It must not fall through to the refresh below or to
+  // whatever `accessToken` sits beside it: both would silently swap the operator
+  // into a different identity on a page they believe they are viewing as the
+  // owner. Send them to the exit, which clears the cookie and hands them back to
+  // the operator console.
+  if (token?.impersonated && !session) {
+    return redirectTo(req, `${BASE_PATH}/impersonation/exit`);
+  }
 
   // On an expired/missing access token, silently mint a new session from the
   // refresh cookie — but only on a genuine navigation, so the API's single-use
   // rotation never races itself into a family revocation (the logout symptom).
+  // Impersonated sessions are excluded by construction: they are issued without
+  // a refresh token, so there is nothing here to renew them with, and that is
+  // deliberate — an impersonation is meant to run out.
   let refreshed: RefreshedTokens | null = null;
   if (!session && secret && isNavigationRequest(req)) {
     const refreshToken = req.cookies.get(REFRESH_TOKEN_COOKIE)?.value;

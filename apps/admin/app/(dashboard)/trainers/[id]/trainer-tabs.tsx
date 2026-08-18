@@ -50,7 +50,7 @@ const styles = stylex.create({
     cursor: 'pointer',
   },
   tabBtnActive: {
-    borderBottomColor: 'var(--color-accent)',
+    borderBottomColor: 'var(--color-text-accent)',
     color: 'var(--color-text-accent)',
   },
   tabBtnInactive: {

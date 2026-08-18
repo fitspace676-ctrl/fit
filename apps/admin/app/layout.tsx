@@ -66,7 +66,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       className={`${notoGeorgian.variable} ${jetbrains.variable} ${theme === 'dark' ? 'dark' : ''}`}
       suppressHydrationWarning
     >
-      <body className="min-h-screen bg-ink-50 font-sans text-ink-900 antialiased dark:bg-ink-950 dark:text-white">
+      <body className="min-h-screen font-sans antialiased">
         {/* Re-apply a saved palette before first paint. The playground is a
             client component, so without this a chosen palette would flash the
             theme's own colours on every navigation — which is exactly the

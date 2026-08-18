@@ -179,7 +179,7 @@ const styles = stylex.create({
     color: 'var(--color-background-muted)',
   },
   donutValue: {
-    color: 'var(--color-accent)',
+    color: 'var(--color-icon-accent)',
     transitionProperty: 'stroke-dasharray',
     transitionDuration: '900ms',
     transitionTimingFunction: 'ease-out',

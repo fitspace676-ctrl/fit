@@ -69,14 +69,19 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.25rem',
   },
+  // The row's focal point, at the portal's row-title step — the same as a
+  // booking card or a class row. At 15px/600 it sat level with its own meta
+  // line, so a column of products had nothing to scan down.
   name: {
     margin: 0,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontSize: '0.9375rem',
-    fontWeight: 600,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.0625rem',
+    fontWeight: 800,
     lineHeight: 1.25,
+    letterSpacing: '-0.01em',
     color: 'var(--color-text-primary)',
   },
   meta: {
@@ -89,6 +94,12 @@ const styles = stylex.create({
   },
   // Money is mono and tabular everywhere in the portal, so a column of prices
   // lines up on the decimal.
+  //
+  // INK, NOT LIME. The price was `--color-text-accent`, which put a second lime
+  // on every row beside the lime add button — and the accent is supposed to mark
+  // what the member ACTS on. A price is not an action; it is the fact the action
+  // is about. With the price in ink the plus is the only lime in the row, which
+  // is what makes it findable at a glance down a list.
   price: {
     marginTop: '0.375rem',
     marginBottom: 0,
@@ -97,7 +108,7 @@ const styles = stylex.create({
     fontSize: '0.9375rem',
     fontWeight: 700,
     fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-accent)',
+    color: 'var(--color-text-primary)',
   },
   soldOut: {
     marginTop: '0.375rem',
