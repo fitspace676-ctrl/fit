@@ -5,6 +5,7 @@ import {
   SubscriptionPlanStatus,
   type Prisma,
 } from '@fit/db';
+import { gymPublicFreeAccount, gymPublicMemberIntake } from '@fit/types';
 import type {
   PackageInterval,
   PackageSummary,
@@ -85,13 +86,22 @@ export class CatalogueService {
   ) {}
 
   /**
-   * Read the gym's branches and its three product catalogues. An unknown gym
-   * matches nothing and yields empty arrays rather than a 404 — the wizard
-   * renders that as its "nothing on sale yet" state.
+   * Read the gym's branches, its three product catalogues, and its free-account
+   * offer. An unknown gym matches nothing and yields empty arrays (and a disabled
+   * free account) rather than a 404 — the wizard renders that as its "nothing on
+   * sale yet" state.
    */
   async read(query: SignupCatalogueQuery): Promise<SignupCatalogueResponse> {
-    const [{ locations }, plans, subscriptionPlans] = await Promise.all([
+    const [{ locations }, gym, plans, subscriptionPlans] = await Promise.all([
       this.locations.listLocations({ gymId: query.gymId }),
+      // The free-account offer and the member-intake switches live in the gym's
+      // settings blob rather than in a catalogue table — they are policy, not
+      // product — so they are read here and folded into the same response the
+      // tabs come from.
+      this.prisma.client.gym.findUnique({
+        where: { id: query.gymId },
+        select: { settings: true },
+      }),
       this.prisma.client.packagePlan.findMany({
         where: { gymId: query.gymId, status: PackagePlanStatus.ACTIVE },
         select: PACKAGE_SELECT,
@@ -128,6 +138,13 @@ export class CatalogueService {
       packages,
       subscriptionPlans: subscriptionPlans.map((plan) => toSubscriptionSummary(plan)),
       creditPacks,
+      // An unknown gym matched no row; `gymPublicFreeAccount` reads that as the
+      // schema default, which is "no free account" — the same empty-catalogue
+      // answer the arrays above give.
+      freeAccount: gymPublicFreeAccount(gym?.settings ?? null),
+      // Same read, same reason: the join form has no session to ask which fields
+      // this gym collects, so the answer travels with the catalogue.
+      memberIntake: gymPublicMemberIntake(gym?.settings ?? null),
     };
   }
 }

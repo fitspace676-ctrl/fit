@@ -1,14 +1,17 @@
 import type { CheckoutProductType, PackageSummary, SignupCatalogueResponse } from '@fit/types';
 
 /**
- * The three tabs of the product step, in render order. Each maps to one
- * catalogue in the `GET /catalogue` response.
+ * The tabs of the product step, in render order — the first is what the step
+ * opens on. Each maps to one catalogue in the `GET /catalogue` response.
+ *
+ * A recurring membership is what a gym actually sells to someone joining, so
+ * subscriptions lead. Session packs (`credit_pack`) are deliberately NOT offered
+ * here: they are a top-up an existing member buys, not a way in, and a third tab
+ * of them made the join screen ask a first-time buyer to compare three pricing
+ * models before picking one. `toCards` still maps them for any other caller —
+ * only the join wizard stops surfacing them.
  */
-export const PRODUCT_TABS: readonly CheckoutProductType[] = [
-  'package',
-  'subscription',
-  'credit_pack',
-];
+export const PRODUCT_TABS: readonly CheckoutProductType[] = ['subscription', 'package'];
 
 /**
  * Flatten one catalogue into the card view model.

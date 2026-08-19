@@ -210,6 +210,25 @@ const styles = stylex.create({
   },
 });
 
+/**
+ * The control skin, for kit-internal controls that are NOT an `<input>`.
+ *
+ * `DateField`'s trigger is a `<button>` that has to be indistinguishable from a
+ * text field — same 52px height, same recessed fill, same focus ring. Handing it
+ * these styles is what keeps the two from drifting the next time the field skin
+ * is retuned. Not re-exported from the package index: this is an internal seam,
+ * not a public one.
+ */
+export const fieldSkin = {
+  base: styles.base,
+  input: styles.input,
+  invalid: styles.invalid,
+  disabled: styles.disabled,
+  trailing: styles.trailing,
+  withTrailing: styles.withTrailing,
+  glyph: styles.glyph,
+} as const;
+
 export interface FormProps extends Omit<
   FormHTMLAttributes<HTMLFormElement>,
   'className' | 'style'
@@ -227,7 +246,7 @@ export function Form({ children, xstyle, ...rest }: FormProps) {
   );
 }
 
-interface FieldShellProps {
+export interface FieldShellProps {
   id: string;
   label: string;
   /**
@@ -250,7 +269,7 @@ interface FieldShellProps {
 }
 
 /** The label / control / hint scaffolding every control in this file shares. */
-function FieldShell({
+export function FieldShell({
   id,
   label,
   labelHidden = false,

@@ -15,6 +15,12 @@
 
 import { z } from 'zod';
 import type { creditPackCatalogueEntrySchema } from './credit-packs';
+import { requiredIntakeFields } from './gym-settings';
+import type {
+  GymFreeAccountSettings,
+  GymMemberIntakeSettings,
+  MemberIntakeField,
+} from './gym-settings';
 import type { locationSummarySchema } from './locations';
 import { genderSchema } from './members';
 import type { packageSummarySchema } from './packages';
@@ -72,6 +78,21 @@ export interface SignupCatalogueResponse {
   packages: z.infer<typeof packageSummarySchema>[];
   subscriptionPlans: SubscriptionPlanSummary[];
   creditPacks: z.infer<typeof creditPackCatalogueEntrySchema>[];
+  /**
+   * The gym's free (no-purchase) join offer, from its settings. Travels with the
+   * catalogue because it is one more thing the product step can offer, and the
+   * step already pays for exactly one round trip; a disabled offer is `enabled:
+   * false` rather than an absent key, so the client branches on a value it always
+   * has.
+   */
+  freeAccount: GymFreeAccountSettings;
+  /**
+   * Which profile fields this gym's join form asks for — the same Settings →
+   * Membership switches the staff console's Add-Member drawer reads. It travels
+   * with the catalogue because the visitor filling the form has no session and
+   * no other way to be told, and the step already pays for one round trip.
+   */
+  memberIntake: GymMemberIntakeSettings;
 }
 
 // ── Signup (step 3) ───────────────────────────────────────────────────────
@@ -79,12 +100,15 @@ export interface SignupCatalogueResponse {
 /**
  * Body for `POST /auth/signup` — public member self-registration on one gym.
  *
- * Unlike {@link import('./auth').registerSchema} the profile fields are
- * **required**: the gym is onboarding a real member, so the front desk needs a
- * reachable phone, a date of birth, and a national identity number on file from
- * the first day. The column behind `personalId` is nullable (memberships created
- * before self-signup, and staff added through the directory, have none) — the
- * requirement lives here, in the signup contract, not in the table.
+ * Name, email and password are the account and are always required. WHICH
+ * PROFILE FIELDS ARE MANDATORY IS THE GYM'S CALL, not this schema's: a gym that
+ * wants a phone and a national id on file from day one switches them on under
+ * Settings → Membership, and one that wants a two-field door does not. So they
+ * are optional *here* and enforced by {@link memberSignupSchemaFor} against the
+ * gym's own settings — the same `requiredIntakeFields` policy the staff console's
+ * Add-Member drawer and `POST /members` already answer to. Before that they were
+ * unconditionally required, which meant the join wizard was the one member-create
+ * in the product that ignored the gym's form settings.
  *
  * `gymId` names the tenant the membership is created on; the wizard resolves it
  * from the subdomain. It is context, not a credential — the endpoint only ever
@@ -96,18 +120,80 @@ export const memberSignupSchema = z.object({
   name: z.string().trim().min(1).max(100),
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
-  phone: z.string().trim().min(3).max(32),
+  phone: z.string().trim().min(3).max(32).optional(),
   /** Calendar date, `YYYY-MM-DD`. Parsed to a `DateTime` server-side. */
   dateOfBirth: z
     .string()
     .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'),
-  gender: genderSchema,
-  personalId: z.string().trim().min(1).max(64),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
+    .optional(),
+  gender: genderSchema.optional(),
+  personalId: z.string().trim().min(1).max(64).optional(),
 });
 
 /** Validated `POST /auth/signup` body — {@link memberSignupSchema}. */
 export type MemberSignupInput = z.infer<typeof memberSignupSchema>;
+
+/**
+ * Which of the gym's required intake fields a signup body leaves empty.
+ *
+ * The single statement of "on means required" for the JOIN WIZARD, mirroring
+ * `MembersService.assertIntakeSatisfied` for the staff console: the wizard marks
+ * these inputs required and the API refuses a signup that omits one, both by
+ * calling this — so the form a visitor is shown and the body the server accepts
+ * cannot drift apart.
+ *
+ * The map is exhaustive over `MemberIntakeField` on purpose: adding a toggle
+ * without answering for it here is a compile error rather than a setting the
+ * form renders as mandatory and the server never checks. The fields the join form
+ * does not collect are marked satisfied — a gym's address/next-of-kin switch
+ * governs its own front desk, and enforcing it against a form with no such input
+ * would make joining online impossible.
+ */
+export function missingSignupIntakeFields(
+  input: Partial<MemberSignupInput>,
+  intake: GymMemberIntakeSettings,
+): MemberIntakeField[] {
+  const filled = (value: string | null | undefined): boolean => Boolean(value?.trim());
+  const present: Record<MemberIntakeField, boolean> = {
+    name: filled(input.name),
+    // The wizard joins first + last into `name` before sending, so there is no
+    // separate value to be missing.
+    surname: true,
+    email: filled(input.email),
+    phone: filled(input.phone),
+    gender: Boolean(input.gender),
+    dateOfBirth: filled(input.dateOfBirth),
+    personalId: filled(input.personalId),
+    // Not on the join form — see the docstring.
+    address: true,
+    emergencyContact: true,
+    medicalNotes: true,
+    // Never required (`requiredIntakeFields` exempts both); the wizard's own
+    // steps are where a plan and a payment method get chosen.
+    membershipPlan: true,
+    paymentMethod: true,
+  };
+  return requiredIntakeFields(intake).filter((field) => !present[field]);
+}
+
+/**
+ * {@link memberSignupSchema} narrowed to one gym's form settings — the schema the
+ * wizard validates against and the server enforces. A field the gym switched on
+ * is reported as missing on the field itself, so the form can mark the input
+ * rather than showing a form-level error.
+ */
+export function memberSignupSchemaFor(intake: GymMemberIntakeSettings) {
+  return memberSignupSchema.superRefine((value, ctx) => {
+    for (const field of missingSignupIntakeFields(value, intake)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [field],
+        message: 'Required',
+      });
+    }
+  });
+}
 
 /**
  * `409` code returned when the email already has an account. The wizard turns it

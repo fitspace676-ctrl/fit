@@ -4,6 +4,18 @@ import { DEFAULT_TIMEZONE, type GymPublicContact } from '@fit/types';
 import { env } from './env';
 
 /**
+ * Dev-only fallback tenant, from `NEXT_PUBLIC_DEV_GYM_SLUG`. Local browsers that
+ * refuse to resolve `<slug>.localhost` can only reach the portal on the bare
+ * host, which would leave every page tenant-less; setting the var in
+ * `apps/web/.env.local` pins the tenant instead. Unset in production, where the
+ * Host stays the only source of truth.
+ */
+function devGymSlug(): string | null {
+  const slug = env.NEXT_PUBLIC_DEV_GYM_SLUG?.trim();
+  return slug ? slug : null;
+}
+
+/**
  * The gym slug the current request is served under (`<slug>.<root>`), resolved
  * from the request `Host` against `NEXT_PUBLIC_ROOT_DOMAIN`. Returns `null` on
  * the apex domain or a `.vercel.app` preview URL, where the member site renders
@@ -16,7 +28,7 @@ import { env } from './env';
 export async function getActiveGymSlug(): Promise<string | null> {
   const h = await headers();
   const host = h.get('x-forwarded-host') ?? h.get('host');
-  return extractGymSlug(host, env.NEXT_PUBLIC_ROOT_DOMAIN);
+  return extractGymSlug(host, env.NEXT_PUBLIC_ROOT_DOMAIN) ?? devGymSlug();
 }
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */

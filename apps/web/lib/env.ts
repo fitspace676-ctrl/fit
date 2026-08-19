@@ -16,6 +16,12 @@ export const env = validateEnv(
     // served at `<slug>.<root>`; the active gym is derived from the request Host
     // against this value. Unset → no tenant in scope (apex / preview URL).
     NEXT_PUBLIC_ROOT_DOMAIN: z.string().optional(),
+    // Dev-only escape hatch: the gym slug to fall back to when the request Host
+    // carries none (`localhost:3001` instead of `downtown.localhost:3001`). Some
+    // local browsers/preview panes refuse to resolve `<slug>.localhost`, which
+    // would otherwise leave the whole portal tenant-less. Never set in
+    // production — the Host is the only source of truth there.
+    NEXT_PUBLIC_DEV_GYM_SLUG: z.string().optional(),
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
     NEXT_PUBLIC_APPLE_CLIENT_ID: z.string().optional(),
     NEXT_PUBLIC_APPLE_REDIRECT_URI: z.string().url().optional(),

@@ -2060,6 +2060,17 @@
           "medicalNotes": "Medical notes"
         }
       },
+      "freeAccount": {
+        "title": "Free account",
+        "subtitle": "Let a visitor create an account without buying a package. Nothing is charged and no plan is assigned — the member picks one later.",
+        "enabledLabel": "Offer a free account",
+        "enabledDescription": "When on, the join screen offers a free account alongside the paid plans.",
+        "nameLabel": "Name",
+        "namePlaceholder": "Free account",
+        "wordingHint": "Leave blank to use the portal's own wording.",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Browse the schedule, book a tour, and pick a plan later."
+      },
       "staff": {
         "columns": {
           "title": "Roster columns",
@@ -3008,6 +3019,12 @@
         "package": "Packages",
         "subscription": "Subscriptions",
         "credit_pack": "Session packs"
+      },
+      "free": {
+        "name": "Free account",
+        "description": "Create an account for free and pick a plan whenever you are ready.",
+        "price": "Free",
+        "or": "or"
       }
     },
     "details": {
@@ -3029,7 +3046,8 @@
         "dateOfBirth": "Date of birth",
         "personalId": "National ID number",
         "personalIdHint": "Required by the gym for membership records.",
-        "gender": "Gender"
+        "gender": "Gender",
+        "datePlaceholder": "dd.mm.yyyy"
       },
       "gender": {
         "female": "Female",
@@ -3047,6 +3065,12 @@
           "title": "Your login",
           "hint": "You will use these to sign in to the member portal."
         }
+      },
+      "calendar": {
+        "open": "Choose a date",
+        "previousMonth": "Previous month",
+        "nextMonth": "Next month",
+        "chooseYear": "Choose a year"
       }
     },
     "payment": {
@@ -3054,8 +3078,7 @@
       "subtitle": "Confirm your order and complete your purchase.",
       "loading": "Loading your order…",
       "processing": "Processing…",
-      "pay": "Pay now",
-      "reserve": "Reserve my membership",
+      "pay": "Pay",
       "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk — no card is charged online.",
       "error": "We couldn't place your order. Please try again.",
       "terms": "I agree to the terms of service and the membership policy.",
@@ -3066,7 +3089,9 @@
       "unavailable": {
         "title": "This package is no longer available",
         "subtitle": "Please go back and choose another package."
-      }
+      },
+      "freeNotice": "A free account needs no payment — your account is created right away and you can add a plan at any time.",
+      "createFree": "Create account"
     },
     "success": {
       "title": "You're all set!",
