@@ -6,18 +6,24 @@ import {
 } from '@nestjs/common';
 import { GymStatus, Prisma, Role } from '@fit/db';
 import type {
+  AdminGymDetail,
+  AdminGymStaffMember,
+  CreateAdminGymInput,
+  CreateAdminGymResponse,
   ImpersonateResponse,
   ImpersonationExchangeResponse,
   ListAdminGymsResponse,
+  StaffRole,
   UpdateGymStatusResponse,
 } from '@fit/types';
 import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TokenService } from '../auth/token.service';
-import { generateVerificationToken } from '../auth/auth.service';
+import { AuthService, generateVerificationToken } from '../auth/auth.service';
 
 /** Audit-log action keys written by the SuperAdmin console. */
+const AUDIT_GYM_CREATE = 'gym.create';
 const AUDIT_IMPERSONATE = 'gym.impersonate';
 const AUDIT_IMPERSONATE_START = 'gym.impersonate.start';
 const AUDIT_STATUS_UPDATE = 'gym.status.update';
@@ -66,6 +72,7 @@ export class SuperAdminService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly redis: RedisService,
+    private readonly auth: AuthService,
   ) {}
 
   /**
@@ -122,6 +129,130 @@ export class SuperAdminService {
         };
       }),
     };
+  }
+
+  /**
+   * One gym in full, for the operator console's detail screen.
+   *
+   * Three reads rather than one join, for the same reason {@link listGyms} needs
+   * two: `Gym.ownerId` is a bare column with no Prisma relation, and `GymMember`
+   * carries a `userId` rather than an embedded user. So the gym is read, then its
+   * staff memberships, then every user id those two produced — batched into one
+   * lookup, so the cost does not grow with the size of the staff.
+   *
+   * `staff` is every membership holding a role other than `MEMBER`: the answer to
+   * "who can sign into this console", which is what support is actually asking.
+   * Trashed memberships (`deletedAt`) are excluded — the gym's own roster hides
+   * them, and an operator seeing people the owner cannot see would be reading a
+   * different gym than the one being described to them on the phone.
+   */
+  async getGym(gymId: string): Promise<AdminGymDetail> {
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { id: gymId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        status: true,
+        createdAt: true,
+        ownerId: true,
+        _count: { select: { members: true, locations: true } },
+      },
+    });
+    if (!gym) {
+      throw new NotFoundException({ message: 'Gym not found', code: 'GYM_NOT_FOUND' });
+    }
+
+    const staffMemberships = await this.prisma.client.gymMember.findMany({
+      where: { gymId: gym.id, role: { not: Role.MEMBER }, deletedAt: null },
+      orderBy: { joinedAt: 'asc' },
+      select: { userId: true, role: true, status: true, joinedAt: true },
+    });
+
+    // One lookup covering the owner and every staff member — the owner is
+    // usually among them, so a separate query for them would mostly be a repeat.
+    const userIds = [
+      ...new Set([...staffMemberships.map((m) => m.userId), ...(gym.ownerId ? [gym.ownerId] : [])]),
+    ];
+    const users = userIds.length
+      ? await this.prisma.client.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, email: true, name: true, emailVerifiedAt: true },
+        })
+      : [];
+    const userById = new Map(users.map((user) => [user.id, user]));
+
+    const owner = gym.ownerId ? userById.get(gym.ownerId) : undefined;
+    const staff: AdminGymStaffMember[] = staffMemberships.flatMap((membership) => {
+      const user = userById.get(membership.userId);
+      // A membership whose user row is gone is not a person who can sign in, so
+      // it is not an answer to "who has access" — drop it rather than render a
+      // nameless row.
+      if (!user) return [];
+      return [
+        {
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          // The query already excludes `MEMBER`, and `SUPER_ADMIN` is never a
+          // gym membership — but Prisma's enum cannot say so, hence the narrow.
+          // `status` needs none: `GymMemberStatus` and `StaffStatus` agree.
+          role: membership.role as StaffRole,
+          status: membership.status,
+          joinedAt: membership.joinedAt.toISOString(),
+        },
+      ];
+    });
+
+    return {
+      id: gym.id,
+      name: gym.name,
+      subdomainSlug: gym.slug,
+      status: gym.status,
+      memberCount: gym._count.members,
+      createdAt: gym.createdAt.toISOString(),
+      locationCount: gym._count.locations,
+      owner: owner
+        ? {
+            id: owner.id,
+            email: owner.email,
+            name: owner.name,
+            emailVerifiedAt: owner.emailVerifiedAt?.toISOString() ?? null,
+          }
+        : null,
+      staff,
+    };
+  }
+
+  /**
+   * Provision a gym on an owner's behalf, then record who did it.
+   *
+   * The provisioning itself is {@link AuthService.registerGym} — the SAME call
+   * the marketing site's self-signup makes, given the operator's id as the
+   * creator. Nothing about the resulting tenant differs, and nothing here
+   * re-implements the transaction, the `409` mapping, or the onboarding email;
+   * the owner receives exactly the email they would have received had they signed
+   * up themselves, and finishes onboarding through it.
+   *
+   * The audit row is written AFTER provisioning, unlike impersonation's, which is
+   * written before. The orderings answer different risks: an impersonation must
+   * never mint a credential that is not on the record, while a gym that failed to
+   * provision must not leave a row claiming it exists.
+   */
+  async createGym(actorId: string, input: CreateAdminGymInput): Promise<CreateAdminGymResponse> {
+    const created = await this.auth.registerGym(input, actorId);
+
+    await this.prisma.client.auditLog.create({
+      data: {
+        action: AUDIT_GYM_CREATE,
+        actorId,
+        gymId: created.gymId,
+        targetId: created.ownerUserId,
+        metadata: { subdomainSlug: created.subdomainSlug, ownerEmail: input.ownerEmail },
+      },
+    });
+
+    return created;
   }
 
   /**

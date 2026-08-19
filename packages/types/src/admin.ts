@@ -7,6 +7,8 @@
 // drifts between the operator UI and the backend.
 
 import { z } from 'zod';
+import { registerGymSchema, type RegisterGymResponse } from './gyms';
+import type { StaffRole, StaffStatus } from './staff';
 
 /**
  * Platform lifecycle of a whole gym (tenant), mirroring the Prisma `GymStatus`
@@ -53,6 +55,68 @@ export interface AdminGymSummary {
 export interface ListAdminGymsResponse {
   gyms: AdminGymSummary[];
 }
+
+/**
+ * One gym in full, as `GET /admin/gyms/:id` returns it for the detail screen.
+ *
+ * Everything the roster row carries, plus the two things an operator opens a
+ * single gym to find out: whether its owner ever finished onboarding
+ * (`owner.emailVerifiedAt` — an unverified owner has never signed in, which is
+ * what a "the gym I made isn't working" report almost always turns out to be),
+ * and who else can get in (`staff`).
+ */
+export interface AdminGymDetail extends AdminGymSummary {
+  /** The owner, with the onboarding state the summary omits. */
+  owner: AdminGymOwner | null;
+  /** Memberships holding a staff role — everyone who can reach the console. */
+  staff: AdminGymStaffMember[];
+  /** Active locations, so an operator can see a gym set up but never furnished. */
+  locationCount: number;
+}
+
+/** The gym's owner on the detail screen. */
+export interface AdminGymOwner {
+  id: string;
+  email: string;
+  name: string | null;
+  /**
+   * When the owner verified their address, ISO-8601, or `null` if they never
+   * have — which means the onboarding email was never followed and the account
+   * cannot sign in yet.
+   */
+  emailVerifiedAt: string | null;
+}
+
+/** One staff membership, listed on the detail screen. */
+export interface AdminGymStaffMember {
+  userId: string;
+  email: string;
+  name: string | null;
+  role: StaffRole;
+  status: StaffStatus;
+  /** ISO-8601. */
+  joinedAt: string;
+}
+
+/**
+ * Body for `POST /admin/gyms` — provision a gym on an owner's behalf.
+ *
+ * Deliberately the SAME shape as `registerGymSchema`, the self-signup body, and
+ * served by the same provisioning code: a gym an operator creates and a gym an
+ * owner creates must not be able to differ, or the platform would grow two
+ * kinds of tenant. The one difference is recorded rather than structural — the
+ * gym's `createdByUserId` names the operator, while `ownerId` names the owner.
+ */
+export const createAdminGymSchema = registerGymSchema;
+
+export type CreateAdminGymInput = z.infer<typeof createAdminGymSchema>;
+
+/**
+ * Successful `POST /admin/gyms` response (`201`). No session is issued: the
+ * owner finishes onboarding through the emailed link, exactly as they would have
+ * on self-signup.
+ */
+export type CreateAdminGymResponse = RegisterGymResponse;
 
 /**
  * Body for `PATCH /admin/gyms/:id/status`. The only mutable field is the gym's

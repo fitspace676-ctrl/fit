@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ListAuditLogQuery } from '@fit/types';
+import type { ListAdminAuditLogQuery, ListAuditLogQuery } from '@fit/types';
 import { AuditService } from './audit.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -12,6 +12,14 @@ interface AuditRecord {
   targetId: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: Date;
+  /** Only the platform feed selects this. */
+  gymId?: string | null;
+}
+
+interface GymRecord {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 interface UserRecord {
@@ -31,7 +39,12 @@ interface UserFindManyArgs {
   where?: { id?: { in?: string[] } };
 }
 
-function setup(overrides?: { findMany?: AuditRecord[]; count?: number; users?: UserRecord[] }) {
+function setup(overrides?: {
+  findMany?: AuditRecord[];
+  count?: number;
+  users?: UserRecord[];
+  gyms?: GymRecord[];
+}) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<AuditRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
   );
@@ -42,15 +55,25 @@ function setup(overrides?: { findMany?: AuditRecord[]; count?: number; users?: U
     Promise.resolve(overrides?.users ?? []),
   );
 
+  const gymFindMany = vi.fn<(args: { where?: { id?: { in?: string[] } } }) => Promise<GymRecord[]>>(
+    () => Promise.resolve(overrides?.gyms ?? []),
+  );
+
   const client = {
     auditLog: { findMany, count },
     user: { findMany: userFindMany },
+    gym: { findMany: gymFindMany },
   };
 
   const prisma = { client } as unknown as PrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
 
-  return { service: new AuditService(prisma, tenant), findMany, count, userFindMany };
+  return { service: new AuditService(prisma, tenant), findMany, count, userFindMany, gymFindMany };
+}
+
+/** Build a full platform query with defaults, overridable per test. */
+function adminQuery(overrides?: Partial<ListAdminAuditLogQuery>): ListAdminAuditLogQuery {
+  return { page: 1, limit: 20, ...overrides };
 }
 
 /** Build a full list query with defaults, overridable per test. */
@@ -191,6 +214,80 @@ describe('AuditService', () => {
         targetEmail: null,
         metadata: null,
       });
+    });
+  });
+
+  describe('listPlatformAuditLogs', () => {
+    it('spans every gym when none is named, and names the gym on each row', async () => {
+      const { service, findMany, gymFindMany } = setup({
+        findMany: [
+          row({ id: 'al-1', gymId: 'gym-1' }),
+          row({ id: 'al-2', gymId: 'gym-2', action: 'gym.status.update' }),
+        ],
+        count: 2,
+        users: [{ id: 'u-actor', name: 'Ops', email: 'ops@example.com' }],
+        gyms: [
+          { id: 'gym-1', name: 'Downtown', slug: 'downtown' },
+          { id: 'gym-2', name: 'Riverside', slug: 'riverside' },
+        ],
+      });
+
+      const result = await service.listPlatformAuditLogs(adminQuery());
+
+      // No gym constraint at all — that is what "platform-wide" means here.
+      expect(findMany.mock.calls[0]![0].where?.gymId).toBeUndefined();
+      expect(result.data[0]?.gym).toEqual({
+        id: 'gym-1',
+        name: 'Downtown',
+        subdomainSlug: 'downtown',
+      });
+      expect(result.data[1]?.gym).toMatchObject({ subdomainSlug: 'riverside' });
+      // One batched lookup for the page, not one per row.
+      expect(gymFindMany).toHaveBeenCalledOnce();
+    });
+
+    it('narrows to one gym when the operator names it', async () => {
+      const { service, findMany } = setup({ findMany: [], count: 0 });
+
+      await service.listPlatformAuditLogs(adminQuery({ gymId: 'gym-2' }));
+
+      expect(findMany.mock.calls[0]![0].where?.gymId).toBe('gym-2');
+    });
+
+    it('reports a null gym for an entry whose gym has been deleted', async () => {
+      const { service } = setup({
+        findMany: [row({ gymId: 'gone' })],
+        count: 1,
+        users: [],
+        gyms: [],
+      });
+
+      const result = await service.listPlatformAuditLogs(adminQuery());
+      expect(result.data[0]?.gym).toBeNull();
+    });
+
+    it('skips the gym lookup on an empty page', async () => {
+      const { service, gymFindMany } = setup({ findMany: [], count: 0 });
+
+      const result = await service.listPlatformAuditLogs(adminQuery());
+
+      expect(result).toEqual({ data: [], total: 0, page: 1, limit: 20 });
+      expect(gymFindMany).not.toHaveBeenCalled();
+    });
+
+    it('applies the same paging and action filters as the gym-scoped feed', async () => {
+      const { service, findMany } = setup();
+
+      await service.listPlatformAuditLogs(
+        adminQuery({ page: 3, limit: 10, action: 'gym.impersonate.start' }),
+      );
+
+      expect(findMany.mock.calls[0]![0]).toMatchObject({
+        skip: 20,
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(findMany.mock.calls[0]![0].where?.action).toBe('gym.impersonate.start');
     });
   });
 });
