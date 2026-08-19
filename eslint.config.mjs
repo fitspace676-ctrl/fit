@@ -4,4 +4,14 @@
 // shared preset for `turbo run lint`.
 import config from '@fit/config/eslint';
 
-export default config;
+export default [
+  ...config,
+  {
+    // The design workstation's artboards are reference material, not app source.
+    // They belong to no tsconfig project, so the type-checked rules cannot parse
+    // them at all — and there is nothing in a mock screen for a linter to
+    // protect. Ignored here rather than in the shared preset because only the
+    // root config (lint-staged in the pre-commit hook) ever reaches this path.
+    ignores: ['forma-core-app/**'],
+  },
+];
