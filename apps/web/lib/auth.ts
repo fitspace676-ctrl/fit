@@ -20,7 +20,13 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').rep
  */
 function currentGymSlug(): string | null {
   if (typeof window === 'undefined') return null;
-  return extractGymSlug(window.location.host, process.env.NEXT_PUBLIC_ROOT_DOMAIN);
+  return (
+    extractGymSlug(window.location.host, process.env.NEXT_PUBLIC_ROOT_DOMAIN) ??
+    // Dev-only fallback for hosts that carry no tenant label (see
+    // `NEXT_PUBLIC_DEV_GYM_SLUG` in lib/env.ts). Unset in production.
+    process.env.NEXT_PUBLIC_DEV_GYM_SLUG?.trim() ??
+    null
+  );
 }
 
 /** Same-origin route that owns the httpOnly session cookies. */
