@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@fit/db';
-import type { AuditLogRow, ListAuditLogQuery, ListAuditLogResponse } from '@fit/types';
+import type {
+  AdminAuditLogRow,
+  AuditLogRow,
+  ListAdminAuditLogQuery,
+  ListAdminAuditLogResponse,
+  ListAuditLogQuery,
+  ListAuditLogResponse,
+} from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -19,8 +26,17 @@ type AuditRecord = Prisma.AuditLogGetPayload<{ select: typeof AUDIT_SELECT }>;
 /** The identity fields resolved for an actor / target, keyed by user id. */
 type UserIdentity = { name: string | null; email: string };
 
+/** The gym fields the platform feed resolves for an entry, keyed by gym id. */
+type GymIdentity = { id: string; name: string; subdomainSlug: string };
+
 /**
- * Read side of the gym's audit trail for the staff console viewer (T4.9).
+ * Read side of the audit trail — for one gym's staff, and for the platform.
+ *
+ * Two entry points over one projection. {@link listAuditLogs} is the staff
+ * console's view of its OWN gym, pinned to the tenant context. {@link
+ * listPlatformAuditLogs} is the operator console's view ACROSS gyms, which
+ * additionally resolves the gym each entry belongs to — because across tenants
+ * "suspended" means nothing until you know whose.
  *
  * Runs on the **unscoped** {@link PrismaService}: `AuditLog` carries no `gymId`
  * filter in the tenant Prisma extension (it is deliberately denormalised and not
@@ -49,7 +65,7 @@ export class AuditService {
    * never loaded into memory. An empty page is a normal result.
    */
   async listAuditLogs(query: ListAuditLogQuery): Promise<ListAuditLogResponse> {
-    const where = this.buildWhere(query);
+    const where = this.buildWhere(query, this.tenant.gymId);
     const skip = (query.page - 1) * query.limit;
 
     const [rows, total] = await Promise.all([
@@ -74,13 +90,69 @@ export class AuditService {
   }
 
   /**
-   * The `where` for the trail: always pinned to the caller's gym (read from the
-   * tenant context, never trusted from the client), narrowed by an optional exact
-   * `action` and a `from`/`to` calendar-day range. `to` is made inclusive of the
-   * whole day by taking entries strictly before the *next* midnight.
+   * One page of the PLATFORM's audit trail, newest first — every gym, or one when
+   * `gymId` narrows it.
+   *
+   * The same page shape as the staff feed plus the gym each entry belongs to,
+   * resolved in one batched query over the page's distinct gym ids. `AuditLog`
+   * carries `gymId` as a denormalised scalar with no FK (the trail outlives what
+   * it references), so an entry whose gym has been deleted resolves to `null`
+   * rather than disappearing — which is the honest answer about something that
+   * did happen to a gym that is now gone.
+   *
+   * SUPER_ADMIN-only; the gate is the controller's (`@AllowCrossTenant` +
+   * `TenantGuard`), and this method deliberately applies no tenant filter of its
+   * own — that is the whole point of it.
    */
-  private buildWhere(query: ListAuditLogQuery): Prisma.AuditLogWhereInput {
-    const where: Prisma.AuditLogWhereInput = { gymId: this.tenant.gymId };
+  async listPlatformAuditLogs(query: ListAdminAuditLogQuery): Promise<ListAdminAuditLogResponse> {
+    const where = this.buildWhere(query, query.gymId);
+    const skip = (query.page - 1) * query.limit;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.client.auditLog.findMany({
+        where,
+        select: { ...AUDIT_SELECT, gymId: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.client.auditLog.count({ where }),
+    ]);
+
+    const [identities, gyms] = await Promise.all([
+      this.resolveIdentities(rows),
+      this.resolveGyms(rows),
+    ]);
+
+    return {
+      data: rows.map(
+        (row): AdminAuditLogRow => ({
+          ...this.toRow(row, identities),
+          gym: (row.gymId ? gyms.get(row.gymId) : undefined) ?? null,
+        }),
+      ),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
+
+  /**
+   * The `where` for the trail: pinned to `gymId` when one is given, narrowed by an
+   * optional exact `action` and a `from`/`to` calendar-day range. `to` is made
+   * inclusive of the whole day by taking entries strictly before the *next*
+   * midnight.
+   *
+   * The gym is a PARAMETER rather than something read here, so the two callers
+   * cannot be confused for each other: the staff feed passes the tenant context's
+   * gym (never a client-supplied one), and the platform feed passes whatever the
+   * operator asked to narrow to, or nothing at all.
+   */
+  private buildWhere(query: ListAuditLogQuery, gymId?: string): Prisma.AuditLogWhereInput {
+    // `undefined` in a Prisma filter means "do not constrain", which is exactly
+    // what an unnarrowed platform query wants — and is why the gym-scoped caller
+    // passes its context gym explicitly rather than relying on a default.
+    const where: Prisma.AuditLogWhereInput = { gymId };
 
     if (query.action) {
       where.action = query.action;
@@ -128,6 +200,27 @@ export class AuditService {
     });
 
     return new Map(users.map((user) => [user.id, { name: user.name, email: user.email }]));
+  }
+
+  /**
+   * Resolve the distinct gym ids on a page to their name + subdomain in a single
+   * query. Only the platform feed needs this — the staff feed's entries are all
+   * one gym, and that gym is the one asking.
+   */
+  private async resolveGyms(rows: { gymId: string | null }[]): Promise<Map<string, GymIdentity>> {
+    const ids = [...new Set(rows.map((row) => row.gymId).filter((id) => id !== null))];
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const gyms = await this.prisma.client.gym.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, slug: true },
+    });
+
+    return new Map(
+      gyms.map((gym) => [gym.id, { id: gym.id, name: gym.name, subdomainSlug: gym.slug }]),
+    );
   }
 
   /** Project a queried entry + the resolved identities to the wire {@link AuditLogRow}. */

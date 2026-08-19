@@ -84,6 +84,61 @@ The table is unpaged and unsorted on purpose: the platform has tens of gyms, and
 paging controls over 20 rows are furniture. `DataTable` already carries the sort
 and pager wiring for when that changes.
 
+## Gym detail (`/gyms/:id`)
+
+`GET /admin/gyms/:id` — the gym with its owner, its staff, and its counts. It
+answers what a support conversation actually opens with:
+
+- **Has the owner ever signed in?** `owner.emailVerifiedAt` being `null` means
+  the onboarding email was never followed, so the account cannot sign in at all —
+  which is what "the gym you set up isn't working" nearly always turns out to be.
+- **Who else can get in?** Every membership holding a role other than `MEMBER`,
+  with its status. Trashed memberships are excluded, so an operator sees the same
+  people the gym's own roster shows.
+- Members, staff, locations, provisioning date — and the same two actions the
+  roster row carries, from the same `GymActions` component so they cannot drift.
+
+## New gym (`/gyms/new`)
+
+`POST /admin/gyms` provisions a tenant on an owner's behalf. It delegates to
+`AuthService.registerGym` — **the same call the marketing site's self-signup
+makes** — passing the operator's id as the creator. Nothing about the resulting
+tenant differs; the only trace is `Gym.createdByUserId` naming the operator
+rather than the owner, and a `gym.create` audit row.
+
+No password field, deliberately: the owner sets their own from the onboarding
+email, exactly as on self-signup. An operator typing a password for someone else
+is an operator who knows it.
+
+The slug is validated with `gymSlugSchema` before the request and again by the
+API, so the form cannot accept what the platform would refuse — reserved labels
+(`superadmin`, `api`, `www`, …) included. A taken subdomain is `409
+SUBDOMAIN_TAKEN`; an address that already has an account is `409 EMAIL_TAKEN`
+rather than being quietly bound as the owner.
+
+## Activity (`/activity`)
+
+`GET /admin/audit-logs` — the platform-wide trail, newest first, with the gym
+named on every row. It is the reason those rows are written: a trail nobody can
+read is a log file, not an audit.
+
+Everything privileged this console can do appears here — `gym.create`,
+`gym.status.update`, `gym.impersonate`, `gym.impersonate.start`. **Impersonation
+is two entries on purpose**: a request is an operator asking for a handoff code,
+a start is a session actually being minted from one. A request with no matching
+start is a code that expired unused, which is a normal thing to see and is not a
+session anyone opened.
+
+Filtering and paging are **links**, not client state: the screen is server-rendered
+from the query string, so a filtered view is a URL that can be kept, shared, or
+arrived at from a gym's detail screen (`/activity?gymId=…`). A hand-mangled query
+string falls back to the defaults rather than erroring.
+
+The read is `AuditService.listPlatformAuditLogs` — the same projection and identity
+resolution the gym-scoped viewer uses, with the tenant pin replaced by an optional
+filter. The route lives in the SUPER_ADMIN module with the rest of its gate; the
+reading lives with the model.
+
 ## One-click impersonation
 
 **Enter admin** opens the gym's own staff console, already signed in as its
