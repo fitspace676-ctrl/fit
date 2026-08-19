@@ -11,7 +11,7 @@ import { STATUS_STYLES, formatDate, formatDateTime, formatDuration } from '../fo
 import { TemplateActions } from './template-actions';
 
 export const metadata: Metadata = {
-  title: 'Class - Fit Admin',
+  title: 'Class - FormaCore Admin',
 };
 
 // The detail reflects live template state and the staff session token, so it must
@@ -192,7 +192,7 @@ export default async function ClassTemplateDetailPage({
     const message =
       error instanceof ApiError
         ? `Could not load this class (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/classes" {...stylex.props(styles.backLink)}>
@@ -255,12 +255,12 @@ export default async function ClassTemplateDetailPage({
         </div>
         <div {...stylex.props(styles.stat)}>
           <span {...stylex.props(styles.statLabel)}>Trainer</span>
-          <span {...stylex.props(styles.statValue)}>{template.trainerName ?? '—'}</span>
+          <span {...stylex.props(styles.statValue)}>{template.trainerName ?? '-'}</span>
         </div>
         <div {...stylex.props(styles.stat)}>
           <span {...stylex.props(styles.statLabel)}>Location</span>
           <span {...stylex.props(styles.statValue)}>
-            {template.locationName ?? '—'}
+            {template.locationName ?? '-'}
             {template.room ? ` · ${template.room}` : ''}
           </span>
         </div>

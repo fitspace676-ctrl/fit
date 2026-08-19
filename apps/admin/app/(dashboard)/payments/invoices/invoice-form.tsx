@@ -140,7 +140,7 @@ export function InvoiceForm({
                 </div>
               ) : (
                 <div className="text-xs text-warning-600 dark:text-warning-400">
-                  No email address — this invoice can be downloaded but not sent.
+                  No email address - this invoice can be downloaded but not sent.
                 </div>
               )}
             </div>
@@ -228,7 +228,7 @@ export function InvoiceForm({
               required
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="e.g. Personal training block — 10 sessions"
+              placeholder="e.g. Personal training block - 10 sessions"
               className={FIELD_CLASS}
             />
             <p className="text-xs text-ink-400">This is the line the member sees on the PDF.</p>

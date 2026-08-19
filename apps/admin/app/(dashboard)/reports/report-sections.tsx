@@ -304,7 +304,7 @@ export function formatCell(
   locale: string,
 ): string {
   if (value === null || value === '') {
-    return '—';
+    return '-';
   }
   switch (type) {
     case 'money':

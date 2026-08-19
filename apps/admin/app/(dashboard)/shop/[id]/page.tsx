@@ -13,7 +13,7 @@ import { StockPanel } from './stock-panel';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Product - Fit Admin',
+  title: 'Product - FormaCore Admin',
 };
 
 // The detail reflects live product state and the staff session token, so it must
@@ -198,10 +198,10 @@ const styles = stylex.create({
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : createDateTimeFormat(defaultLocale, {
         year: 'numeric',
         month: 'short',
@@ -230,7 +230,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     const message =
       error instanceof ApiError
         ? `Could not load this product (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/shop" {...stylex.props(styles.backLink)}>
@@ -322,7 +322,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 {product.variants.map((variant, index) => (
                   <tr key={index} {...stylex.props(styles.bodyRow)}>
                     <td {...stylex.props(styles.nameCell)}>{variant.name}</td>
-                    <td {...stylex.props(styles.skuCell)}>{variant.sku || '—'}</td>
+                    <td {...stylex.props(styles.skuCell)}>{variant.sku || '-'}</td>
                     <td {...stylex.props(styles.numCell)}>
                       {variant.priceAmount === null
                         ? formatPrice(product.priceAmount, product.currency)

@@ -7,8 +7,8 @@ import { AuthPhotoShell } from '../../_components/auth/auth-photo-shell';
 import { ForgotPasswordForm } from './forgot-password-form';
 
 export const metadata: Metadata = {
-  title: 'Forgot password — Fit',
-  description: 'Request a password reset link for your Fit account.',
+  title: 'Forgot password - FormaCore',
+  description: 'Request a password reset link for your FormaCore account.',
 };
 
 /** The shell names the gym from the Host, same as sign-in — never cache it. */

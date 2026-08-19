@@ -107,7 +107,7 @@ const styles = stylex.create({
 function formatDate(iso: string, locale: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
         date,
       );

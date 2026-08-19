@@ -109,7 +109,7 @@ function withPosition(
 }
 
 /** Em dash for a cell with nothing to show (a staff member with no surname). */
-const DASH = '—';
+const DASH = '-';
 
 const styles = stylex.create({
   stack: {

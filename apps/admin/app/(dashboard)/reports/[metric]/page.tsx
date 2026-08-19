@@ -17,7 +17,7 @@ import { DrilldownView } from './drilldown-view';
 import { chrome } from '../report-chrome';
 
 export const metadata: Metadata = {
-  title: 'Report - Fit Admin',
+  title: 'Report - FormaCore Admin',
 };
 
 // The drill-down reflects live tenant state + the staff session token, so this page

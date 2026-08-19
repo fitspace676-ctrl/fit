@@ -17,7 +17,7 @@ import { AddClassTypeDrawer } from './add-class-type-drawer';
 import { loadRelationOptions } from './options';
 
 export const metadata: Metadata = {
-  title: 'Class Types - Fit Admin',
+  title: 'Class Types - FormaCore Admin',
   description:
     'The gym’s reusable class types: search, filter, sort, or add a new kind of class (Boxing, CrossFit) with capacity, duration, pricing, and a colour - the catalogue the schedule places occurrences of.',
 };
@@ -129,7 +129,7 @@ export default async function ClassTypesPage({
     const message =
       error instanceof ApiError
         ? `Could not load class types (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     content = (
       <Card padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -147,7 +147,7 @@ export default async function ClassTypesPage({
           <h1 {...stylex.props(styles.title)}>Classes</h1>
           <p {...stylex.props(styles.subtitle)}>
             Your gym’s reusable class types. Search by name, filter by status, sort any column, or
-            add a new kind of class with capacity, duration, pricing, and a colour — the catalogue
+            add a new kind of class with capacity, duration, pricing, and a colour - the catalogue
             the schedule then places occurrences of.
           </p>
         </div>

@@ -262,8 +262,14 @@ export class AuthService {
    * as the owner without its consent. A subdomain already in use is rejected with
    * `409 SUBDOMAIN_TAKEN`. Both pre-checks are backed by the DB unique
    * constraints, so a race still collapses to the same `409` (mapped from the
-   * violated target) rather than a `500`. The gym records who provisioned it in
-   * `createdByUserId` (the owner, for self-signup).
+   * violated target) rather than a `500`.
+   *
+   * `createdByUserId` records who provisioned the gym: the owner on self-signup,
+   * and the acting SUPER_ADMIN when the operator console creates a gym on an
+   * owner's behalf — which is what `createdBy` carries. That is the ONLY
+   * difference between the two paths, deliberately: a gym is a gym, and letting
+   * the operator route grow its own provisioning code is how a platform ends up
+   * with two subtly different kinds of tenant.
    *
    * This runs on the **unscoped** {@link PrismaService}: provisioning a tenant
    * inherently precedes any tenant context (the route is excluded from
@@ -276,7 +282,7 @@ export class AuthService {
    * verification. A supplied `password` is set on the new account; when omitted
    * the owner sets one later through the reset flow.
    */
-  async registerGym(input: RegisterGymInput): Promise<RegisterGymResponse> {
+  async registerGym(input: RegisterGymInput, createdBy?: string): Promise<RegisterGymResponse> {
     const [existingGym, existingOwner] = await Promise.all([
       this.prisma.client.gym.findUnique({
         where: { slug: input.subdomainSlug },
@@ -320,7 +326,7 @@ export class AuthService {
             name: input.gymName,
             slug: input.subdomainSlug,
             ownerId: owner.id,
-            createdByUserId: owner.id,
+            createdByUserId: createdBy ?? owner.id,
           },
           select: { id: true },
         });

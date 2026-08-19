@@ -22,7 +22,7 @@ import { MembersTable } from './members-table';
 import { AddMemberDrawer } from './add-member-drawer';
 
 export const metadata: Metadata = {
-  title: 'Members - Fit Admin',
+  title: 'Members - FormaCore Admin',
   description: 'The gym member roster: plan mix, search, filter, sort, open a profile, and export.',
 };
 

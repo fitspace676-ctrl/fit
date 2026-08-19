@@ -14,7 +14,7 @@ import { Icon } from '@/components/ui';
 import { TrainersRoster } from './trainers-roster';
 
 export const metadata: Metadata = {
-  title: 'Trainers — Fit Admin',
+  title: 'Trainers - FormaCore Admin',
   description:
     'The gym trainer roster: KPIs, specialty filter, search, and a card per coach with live rating, classes this week and next class.',
 };
@@ -77,6 +77,7 @@ const styles = stylex.create({
     paddingInline: '1.25rem',
     borderRadius: 'var(--radius-element)',
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
     fontSize: '0.875rem',
     fontWeight: 600,

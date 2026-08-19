@@ -293,6 +293,7 @@ const styles = stylex.create({
   },
   railBtnActive: {
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
     boxShadow: '0 6px 20px -8px var(--color-shadow)',
   },
@@ -1755,7 +1756,7 @@ function DayRow({ day }: { day: Weekday }) {
               {...register(`hours.${day}.open`)}
               {...stylex.props(styles.timeInput)}
             />
-            <span {...stylex.props(styles.timeDash)}>—</span>
+            <span {...stylex.props(styles.timeDash)}>-</span>
             <input
               type="time"
               aria-label={t('hours.closeAria', { day: label })}

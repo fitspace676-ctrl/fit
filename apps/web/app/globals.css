@@ -57,3 +57,29 @@ input[type='password'] {
     Arial,
     sans-serif !important;
 }
+
+/*
+ * Brand logo (logodark.png / logolight.png) — theme-aware swap, mirroring the
+ * admin console's `.admin-logo` rules: the dark-ink logo on the light canvas,
+ * the white-ink logo on the dark one. Global CSS rather than StyleX because the
+ * swap keys off the `.dark` class the theme provider stamps on <html>, and
+ * StyleX has no descendant selectors.
+ */
+.member-logo {
+  width: 9.25rem;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+.member-logo-dark {
+  display: none;
+}
+.member-logo-light {
+  display: block;
+}
+.dark .member-logo-dark {
+  display: block;
+}
+.dark .member-logo-light {
+  display: none;
+}

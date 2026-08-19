@@ -65,7 +65,7 @@ function toMessage(error: unknown): string {
       return 'A category with that name already exists.';
     }
     if (error.message === 'NOT_FOUND') {
-      return 'That category no longer exists — refresh the page.';
+      return 'That category no longer exists - refresh the page.';
     }
     if (error.status === 503) {
       return 'Image storage is not configured. Save the product without images, or try again later.';

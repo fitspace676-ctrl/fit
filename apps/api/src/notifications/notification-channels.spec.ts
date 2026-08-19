@@ -16,7 +16,7 @@ function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
   Object.assign(
     mockEnv,
-    { EMAIL_FROM: 'Fit <no-reply@fit.app>', WEB_URL: 'https://app.fit' },
+    { EMAIL_FROM: 'FormaCore <no-reply@fit.app>', WEB_URL: 'https://app.fit' },
     overrides,
   );
 }

@@ -96,10 +96,10 @@ export class EmailService {
 
     const html =
       `<p>${greeting}</p>` +
-      `<p>Confirm your email to finish setting up your Fit account:</p>` +
+      `<p>Confirm your email to finish setting up your FormaCore account:</p>` +
       `<p><a href="${url}">Verify your email</a></p>` +
       `<p>This link expires in 24 hours. If you didn't create an account, you can ignore this email.</p>`;
-    const text = `${greeting}\n\nConfirm your email to finish setting up your Fit account:\n${url}\n\nThis link expires in 24 hours. If you didn't create an account, you can ignore this email.`;
+    const text = `${greeting}\n\nConfirm your email to finish setting up your FormaCore account:\n${url}\n\nThis link expires in 24 hours. If you didn't create an account, you can ignore this email.`;
 
     const response = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
@@ -142,10 +142,10 @@ export class EmailService {
 
     const html =
       `<p>${greeting}</p>` +
-      `<p>We received a request to reset your Fit password. Choose a new one here:</p>` +
+      `<p>We received a request to reset your FormaCore password. Choose a new one here:</p>` +
       `<p><a href="${url}">Reset your password</a></p>` +
       `<p>This link expires in 1 hour. If you didn't request a reset, you can ignore this email — your password won't change.</p>`;
-    const text = `${greeting}\n\nWe received a request to reset your Fit password. Choose a new one here:\n${url}\n\nThis link expires in 1 hour. If you didn't request a reset, you can ignore this email — your password won't change.`;
+    const text = `${greeting}\n\nWe received a request to reset your FormaCore password. Choose a new one here:\n${url}\n\nThis link expires in 1 hour. If you didn't request a reset, you can ignore this email — your password won't change.`;
 
     const response = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
@@ -197,10 +197,10 @@ export class EmailService {
 
     const html =
       `<p>${greeting}</p>` +
-      `<p><strong>${gymName}</strong> is ready on Fit. Confirm your email to finish setting up your gym and sign in:</p>` +
+      `<p><strong>${gymName}</strong> is ready on FormaCore. Confirm your email to finish setting up your gym and sign in:</p>` +
       `<p><a href="${url}">Verify your email &amp; get started</a></p>` +
       `<p>This link expires in 24 hours. If you didn't create this gym, you can ignore this email.</p>`;
-    const text = `${greeting}\n\n${gymName} is ready on Fit. Confirm your email to finish setting up your gym and sign in:\n${url}\n\nThis link expires in 24 hours. If you didn't create this gym, you can ignore this email.`;
+    const text = `${greeting}\n\n${gymName} is ready on FormaCore. Confirm your email to finish setting up your gym and sign in:\n${url}\n\nThis link expires in 24 hours. If you didn't create this gym, you can ignore this email.`;
 
     const response = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
@@ -211,7 +211,7 @@ export class EmailService {
       body: JSON.stringify({
         from: env.EMAIL_FROM,
         to: [to],
-        subject: `Welcome to Fit — finish setting up ${gymName}`,
+        subject: `Welcome to FormaCore — finish setting up ${gymName}`,
         html,
         text,
       }),
@@ -252,11 +252,11 @@ export class EmailService {
 
     const html =
       `<p>Hi,</p>` +
-      `<p>You've been invited to join <strong>${gymName}</strong> on Fit as a ${roleLabel}. ` +
+      `<p>You've been invited to join <strong>${gymName}</strong> on FormaCore as a ${roleLabel}. ` +
       `Accept the invitation to set up your account and get started:</p>` +
       `<p><a href="${url}">Accept your invitation</a></p>` +
       `<p>This link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.</p>`;
-    const text = `Hi,\n\nYou've been invited to join ${gymName} on Fit as a ${roleLabel}. Accept the invitation to set up your account and get started:\n${url}\n\nThis link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.`;
+    const text = `Hi,\n\nYou've been invited to join ${gymName} on FormaCore as a ${roleLabel}. Accept the invitation to set up your account and get started:\n${url}\n\nThis link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.`;
 
     const response = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
@@ -267,7 +267,7 @@ export class EmailService {
       body: JSON.stringify({
         from: env.EMAIL_FROM,
         to: [to],
-        subject: `You're invited to join ${gymName} on Fit`,
+        subject: `You're invited to join ${gymName} on FormaCore`,
         html,
         text,
       }),
@@ -529,7 +529,7 @@ export function buildReceiptEmail(
   gymName?: string,
   gymContact?: GymBusinessSettings,
 ): { subject: string; html: string; text: string } {
-  const seller = gymName?.trim() || 'Fit';
+  const seller = gymName?.trim() || 'FormaCore';
   const money = (amount: number): string => formatReceiptMoney(amount, receipt.currency);
   const methodLabel = PAYMENT_METHOD_LABELS[receipt.paymentMethod];
   const subject = `Your receipt from ${seller}`;
@@ -713,7 +713,7 @@ export function buildReportDigestEmail(
   digest: ReportDigest,
   options?: { reportsUrl?: string },
 ): { subject: string; html: string; text: string } {
-  const seller = digest.gymName.trim() || 'Fit';
+  const seller = digest.gymName.trim() || 'FormaCore';
   const cadenceLabel = REPORT_DIGEST_CADENCE_LABEL[digest.cadence];
   const subject = `${cadenceLabel} report digest — ${seller}`;
   const windowLabel = digest.cadence === 'weekly' ? 'the past week' : 'the past 30 days';
@@ -728,7 +728,7 @@ export function buildReportDigestEmail(
     senderName: escapeHtml(seller),
     heading: `${cadenceLabel} report digest`,
     contentHtml: intro + sectionsHtml + linkHtml,
-    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on Fit.`,
+    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on FormaCore.`,
   });
 
   const sectionsText = digest.sections.map(renderDigestSectionText).join('\n\n');
@@ -754,7 +754,7 @@ export function buildLowStockDigestEmail(digest: LowStockDigest): {
   html: string;
   text: string;
 } {
-  const seller = digest.gymName.trim() || 'Fit';
+  const seller = digest.gymName.trim() || 'FormaCore';
   const lineCount = digest.products.reduce((sum, product) => sum + product.variants.length, 0);
   const unit = lineCount === 1 ? 'item' : 'items';
   const subject = `Low stock: ${lineCount} ${unit} to reorder — ${seller}`;
@@ -793,7 +793,7 @@ export function buildLowStockDigestEmail(digest: LowStockDigest): {
     senderName: escapeHtml(seller),
     heading: 'Low stock alert',
     contentHtml: intro + table + linkHtml,
-    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on Fit.`,
+    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on FormaCore.`,
   });
 
   const textRows = digest.products
@@ -825,7 +825,7 @@ export function buildDailySummaryEmail(summary: DailySummary): {
   html: string;
   text: string;
 } {
-  const seller = summary.gymName.trim() || 'Fit';
+  const seller = summary.gymName.trim() || 'FormaCore';
   const revenue = formatReceiptMoney(summary.revenue, summary.currency);
   const subject = `Daily summary ${summary.date} — ${seller}`;
 
@@ -860,7 +860,7 @@ export function buildDailySummaryEmail(summary: DailySummary): {
     senderName: escapeHtml(seller),
     heading: `Daily summary — ${summary.date}`,
     contentHtml: intro + table + linkHtml,
-    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on Fit.`,
+    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on FormaCore.`,
   });
 
   const textRows = metrics.map((metric) => `  ${metric.label}: ${metric.value}`).join('\n');

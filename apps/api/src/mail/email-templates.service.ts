@@ -152,7 +152,7 @@ export class EmailTemplatesService {
         .join('');
 
       const html = renderBrandedEmail({
-        senderName: values.gym_name ?? 'Fit',
+        senderName: values.gym_name ?? 'FormaCore',
         heading: subject,
         contentHtml,
       });

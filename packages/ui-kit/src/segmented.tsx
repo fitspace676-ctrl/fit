@@ -58,6 +58,9 @@ const styles = stylex.create({
   // control, which is what makes "where am I" readable at a glance.
   selected: {
     backgroundColor: 'var(--color-accent)',
+    // The app-supplied brand gradient, where one exists (the console's light
+    // mode); the fallback keeps the flat accent.
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
   },
   /** Icon-only options (the theme toggle) — square, so the group stays a capsule. */

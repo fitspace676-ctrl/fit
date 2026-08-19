@@ -29,31 +29,41 @@
 @import '@fit/astryx-theme/formacore.css';
 
 /*
- * Chart series colours.
+ * Chart series colours, on the FormaCore lime direction.
  *
- * NOT the theme's `--color-text-*` tokens: those are text colours, and text
- * colours are not series colours. Measured against the dark card surface, the
- * pair the chart kit used to reach for (`--color-accent` + a pastel teal) scores
- * ΔE 13.8 for normal vision against a threshold of 15 — two lines a reader with
- * full colour vision cannot reliably tell apart.
+ * Series 1 wears the console's own accent pair AS LITERALS: the raw brand lime
+ * (#E4F26A) in dark and the owner's dark green (#285d43) in light - the same
+ * two colours the dashboard's active tab wears. Literals, NOT
+ * `var(--color-accent)`: that token is remapped inside Astryx surface scopes
+ * (a card resolves it to the functional blue), so a chart riding the var
+ * painted blue the moment it sat on a card. Fixed values cannot be re-scoped.
  *
- * These two are snapped into the OKLCH lightness band per mode and re-validated
- * until every check passes: lightness, chroma floor, CVD separation,
- * normal-vision floor, and contrast against the surface. Worst adjacent pair is
- * ΔE 27.8 in both modes.
+ * The dark value fails the dataviz lightness-band style check on purpose
+ * (matching the accent chrome is the product call), and the light green sits
+ * just under the chroma floor - it is the owner's exact colour, kept as given.
+ *
+ * Series 2 is a blue, not the indigo/orange pair of the retired restyle: against
+ * a green-family primary a blue survives every CVD axis, where an orange
+ * collapses toward it for deutan readers.
+ *
+ * Both pairs run through the dataviz six-check script against the real card
+ * surfaces (#FFFFFF light, #1E1E1C dark): CVD separation (ΔE 24.4 light /
+ * 36.2 dark), normal-vision floor and contrast all pass, with the two waivers
+ * noted above.
  *
  * A third series is deliberately absent. Nothing here draws one, and if
- * something ever does it gets validated then — the first question being whether
+ * something ever does it gets validated then - the first question being whether
  * that chart wants small multiples instead.
  *
- * See docs/superpowers/specs/2026-08-07-dashboard-chart-restyle-design.md.
+ * See docs/superpowers/specs/2026-08-07-dashboard-chart-restyle-design.md for
+ * the original method; the values above supersede that spec's palette.
  */
 :root {
-  --chart-series-1: light-dark(#6b5dcf, #7e74e1);
-  --chart-series-2: light-dark(#ab5a00, #be7100);
-  /* The glow under series 1. Same hue, carried by opacity rather than a second
-     colour, so it can never drift from the stroke it sits behind. */
-  --chart-glow-1: light-dark(rgb(107 93 207 / 0.28), rgb(126 116 225 / 0.34));
+  --chart-series-1: light-dark(#285d43, #e4f26a);
+  --chart-series-2: light-dark(#0074e2, #5b9bff);
+  /* The glow under series 1. The same pair, carried by opacity rather than a
+     second colour, so it can never drift from the stroke it sits behind. */
+  --chart-glow-1: light-dark(rgb(40 93 67 / 0.28), rgb(228 242 106 / 0.3));
   /* Reference lines, crosshairs and the grid: recessive by construction. */
   --chart-guide: light-dark(rgb(23 23 23 / 0.16), rgb(250 250 250 / 0.18));
 }
@@ -75,6 +85,134 @@
 }
 :root.dark {
   color-scheme: dark;
+}
+
+/*
+ * Accent-as-ink, console edition.
+ *
+ * The console's light mode swaps the brand lime for the owner's dark green
+ * (#285d43) across the WHOLE accent family, not just text. The theme ships the
+ * raw lime (#E4F26A) as accent in both modes, which works in dark - it is the
+ * phosphor glow the brand wants - and physically disappears in light: a lime
+ * badge, a lime pill button or a lime dot on a white card has about 1.2:1
+ * contrast. So in light mode:
+ *
+ *   - accent surfaces (badges, primary buttons, active dots) become the dark
+ *     green, and `--color-on-accent` flips to white ink for them;
+ *   - accent-as-text stays the same dark green;
+ *   - the pale lime washes (`*-muted`) become a quiet green wash;
+ *   - `--color-success` follows, because the theme already equates success
+ *     with the accent in dark, and its light value (#C2D625) had the same
+ *     invisibility problem.
+ *
+ * Dark mode keeps every value exactly as the theme ships it.
+ *
+ * The second selector is the load-bearing one: Astryx declares its tokens ON
+ * the `[data-astryx-theme]` wrapper (via `@scope`, `:scope`, specificity
+ * 0,1,0), so a bare `:root` override never reaches anything inside the app -
+ * the wrapper's own declaration is nearer. `:root [data-astryx-theme]` hits
+ * the same element at 0,2,0, unlayered, and wins.
+ */
+:root,
+:root [data-astryx-theme='formacore'] {
+  --color-accent: light-dark(#285d43, #e4f26a);
+  --color-on-accent: light-dark(#ffffff, #131312);
+  --color-accent-muted: light-dark(#e4eee9, #2c330a);
+  --color-text-accent: light-dark(#285d43, #e4f26a);
+  --color-icon-accent: light-dark(#285d43, #e4f26a);
+  --color-success: light-dark(#285d43, #e4f26a);
+  --color-success-muted: light-dark(#e4eee9, #2c330a);
+  /* Ink on the success fill. The theme ships flat #131312 (right for the lime),
+     which on the light mode's green was ink-on-ink - the ACTIVE badges were
+     unreadable. White in light, untouched in dark. */
+  --color-on-success: light-dark(#ffffff, #131312);
+  /* The primary button's hover fill. The theme ships a flat paler lime
+     (#EFF9A2), which would flash lime over the green button in light mode. */
+  --fc-accent-hover: light-dark(#336b50, #eff9a2);
+  /* The "booked / confirmed" tint (kit positive badges - the Member chips).
+     The theme's light values are the pale lime wash family; in light they
+     follow the green wash, dark keeps the theme's own values. */
+  --fc-booked: light-dark(#e4eee9, #2c330a);
+  --fc-on-booked: light-dark(#285d43, #eff9a2);
+  --fc-booked-border: light-dark(#285d43, #63701d);
+}
+
+/*
+ * The brand fill, as an IMAGE. `light-dark()` only takes colours, so the
+ * gradient version of the accent lives in its own pair of rules: in light mode
+ * every accent surface (badges, primary buttons, active dots and chips) paints
+ * the owner's radial sweep - deep green at the top-left corner out to the
+ * phosphor lime - over its `--color-accent` fallback; in dark mode the image is
+ * `none` and the flat lime shows through, unchanged. Components reference it as
+ * `background-image: var(--brand-fill-image, none)`, so in the member portal
+ * (where this var does not exist) the fallback keeps them flat.
+ */
+:root,
+:root [data-astryx-theme='formacore'] {
+  --brand-fill-image: radial-gradient(at 0% 0%, #307654, #e4f26a);
+  --brand-fill-image-hover: radial-gradient(at 0% 0%, #35835c, #e9f584);
+  /* The same sweep as a quiet wash, for chrome (the sidebar's chevron discs)
+     where the full-strength fill overpowers its row. */
+  --brand-fill-image-soft: radial-gradient(
+    at 0% 0%,
+    rgb(48 118 84 / 0.18),
+    rgb(228 242 106 / 0.18)
+  );
+}
+:root.dark,
+:root.dark [data-astryx-theme='formacore'] {
+  --brand-fill-image: none;
+  --brand-fill-image-hover: none;
+  --brand-fill-image-soft: none;
+}
+
+/*
+ * Astryx's primary buttons (drawer triggers, form submits) ship pre-compiled
+ * StyleX, so unlike the kit they cannot opt into `--brand-fill-image` in
+ * source. `x1ewilqj` is the compiled atom for the primary variant's
+ * `background-color: var(--color-accent)` (@astryxdesign/core 0.1.3), so this
+ * paints the brand gradient over every one of them in light mode; in dark the
+ * var is `none` and nothing changes. VERSION-COUPLED ON PURPOSE: if an Astryx
+ * upgrade renames the atom, these buttons quietly fall back to the flat accent
+ * - re-grep `primary: {` in dist/Button/Button.js and update the class here.
+ */
+.x1ewilqj {
+  background-image: var(--brand-fill-image, none);
+}
+
+/*
+ * The route-change progress bar (nextjs-toploader). The component's `color`
+ * prop is a single value, so the mode split lives here instead: the brand
+ * gradient sweeping along the bar in light, the flat phosphor lime in dark.
+ * `:root` prefix outranks the library's runtime-injected `#nprogress .bar`.
+ */
+:root:not(.dark) #nprogress .bar {
+  background: linear-gradient(90deg, #307654, #e4f26a);
+}
+:root.dark #nprogress .bar {
+  background: #e4f26a;
+}
+
+/*
+ * Brand-gradient icon strokes. Wrap any stroke-drawn glyph (the shared Icon
+ * component's svg) in `.brand-grad-glyph` and, in light mode, every shape
+ * inside strokes the radial brand sweep defined once in the admin shell
+ * (`#brand-icon-gradient`). Dark mode is untouched - the glyph keeps whatever
+ * ink its slot gives it.
+ */
+:root:not(.dark) .brand-grad-glyph svg * {
+  stroke: url(#brand-icon-gradient);
+}
+
+/*
+ * Astryx's success badge (ACTIVE chips on the roster pages). Its fill and ink
+ * come from compiled atoms reading `--color-success` / `--color-on-success`,
+ * so those are steered from the token overrides above (white ink in light).
+ * The atoms never set a background-image, so the brand gradient lays over the
+ * fill here without any specificity fight; in dark the var is none.
+ */
+.astryx-badge.success {
+  background-image: var(--brand-fill-image, none);
 }
 
 /*

@@ -19,7 +19,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 
 export const metadata = {
-  title: 'Astryx smoke - Fit admin',
+  title: 'Astryx smoke - FormaCore admin',
   robots: { index: false, follow: false },
 };
 
@@ -50,7 +50,7 @@ const styles = stylex.create({
 export default function AstryxSmokePage() {
   return (
     <main {...stylex.props(styles.page)}>
-      <h1>Astryx × Fit brand</h1>
+      <h1>Astryx × FormaCore brand</h1>
       <p>
         If this button is electric indigo (#6257E3) and the heading is set in Archivo, the Fit
         Astryx theme is wired correctly — brand tokens and fonts are resolving, not the neutral

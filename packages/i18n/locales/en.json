@@ -56,6 +56,10 @@
     }
   },
   "admin": {
+    "login": {
+      "title": "Sign in to the console",
+      "invitation": "Staff accounts are created by invitation from the console. Ask your gym's administrator for access."
+    },
     "common": {
       "brand": "FormaCore",
       "brandTagline": "Management platform",
@@ -90,7 +94,7 @@
       "role": "Role",
       "userId": "User ID",
       "gym": "Gym",
-      "noGym": "—",
+      "noGym": "-",
       "signOut": "Sign out"
     },
     "nav": {
@@ -135,7 +139,7 @@
     },
     "dashboard": {
       "title": "Dashboard",
-      "welcomeBody": "Welcome to the FormaCore admin console. Use the navigation to manage members, schedule, billing, and staff — you only see the areas your role can access.",
+      "welcomeBody": "Welcome to the FormaCore admin console. Use the navigation to manage members, schedule, billing, and staff - you only see the areas your role can access.",
       "subtitle": "Welcome back! Here's what's happening with your gym.",
       "allSystemsLive": "All systems live",
       "period": {
@@ -181,7 +185,7 @@
           "refunded": "Refunded",
           "avgSale": "Avg sale"
         },
-        "kpiCaption": "{window} · {productType} · captured payments only — subscription renewals bill separately.",
+        "kpiCaption": "{window} · {productType} · captured payments only - subscription renewals bill separately.",
         "refundedHint": "Against sales in this window",
         "trend": {
           "title": "Revenue over time",
@@ -263,7 +267,7 @@
           },
           "caption": "Members still here {days} days on",
           "chartAria": "Retention rate per period",
-          "gapNote": "Gaps are periods with nobody to retain — not 0%.",
+          "gapNote": "Gaps are periods with nobody to retain - not 0%.",
           "empty": "Not enough history to measure retention yet."
         },
         "status": {
@@ -337,7 +341,7 @@
         },
         "byLocation": {
           "title": "Revenue by location",
-          "caption": "Sales & POS only — a subscription names no location.",
+          "caption": "Sales & POS only - a subscription names no location.",
           "empty": "No located revenue in this window."
         },
         "loadError": "Couldn't load revenue.",
@@ -362,7 +366,7 @@
           "utilizationRate": "Utilization"
         },
         "kpiCaption": "{window} · cancelled classes are excluded throughout",
-        "noValue": "—",
+        "noValue": "-",
         "bookings": {
           "title": "Bookings over time",
           "caption": "Seats held, by when the class runs",
@@ -375,14 +379,14 @@
           "chartAria": "Attendance rate per period",
           "coverage": "{coverage}% of finished bookings were marked",
           "coverageUnknown": "No classes have finished in this window yet",
-          "gapNote": "Gaps are periods with nothing marked — not 0%.",
+          "gapNote": "Gaps are periods with nothing marked - not 0%.",
           "empty": "Nothing has been marked in this window."
         },
         "utilization": {
           "title": "Utilization",
           "caption": "Seats booked against seats offered",
           "chartAria": "Utilization per period",
-          "gapNote": "Gaps are periods with no capacity to fill — not 0%.",
+          "gapNote": "Gaps are periods with no capacity to fill - not 0%.",
           "empty": "No classes with capacity in this window."
         },
         "pt": {
@@ -434,7 +438,7 @@
           "scheduledHoursPerWeek": "Scheduled / week"
         },
         "kpiCaption": "{window} · the rota is a standing week and does not follow it",
-        "noValue": "—",
+        "noValue": "-",
         "sessions": {
           "title": "Sessions delivered",
           "caption": "Classes taught against one-to-one sessions",
@@ -457,7 +461,7 @@
         },
         "coverage": {
           "title": "Shift coverage",
-          "caption": "The standing weekly rota — scheduled, not worked",
+          "caption": "The standing weekly rota - scheduled, not worked",
           "weekday": {
             "mon": "Mon",
             "tue": "Tue",
@@ -478,7 +482,7 @@
           "noAvailability": "{count} trainers with no availability set",
           "noTrainer": "{count} classes with no trainer assigned",
           "invalidShifts": "{count} shifts that do not end after they start",
-          "none": "Nothing missing — every figure above is complete."
+          "none": "Nothing missing - every figure above is complete."
         },
         "loadError": "Couldn't load staff.",
         "retry": "Retry"
@@ -490,13 +494,13 @@
       },
       "error": {
         "withStatus": "Could not load the dashboard ({status}): {message}",
-        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+        "unreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
       },
       "inGymNow": {
         "title": "In the gym now",
         "live": "Live",
         "of": "of {capacity}",
-        "quiet": "Quiet right now — no members checked in today yet.",
+        "quiet": "Quiet right now - no members checked in today yet.",
         "capacity": "{pct}% of capacity in use across {areas, plural, one {# area} other {# areas}}."
       },
       "metrics": {
@@ -551,7 +555,7 @@
       },
       "alerts": {
         "title": "Alerts",
-        "empty": "All clear — no alerts right now."
+        "empty": "All clear - no alerts right now."
       },
       "recentCheckIns": {
         "title": "Recent check-ins",
@@ -590,10 +594,10 @@
     },
     "analytics": {
       "title": "Analytics",
-      "description": "Revenue, membership, attendance, and subscription trends for your gym — every figure is computed live from your real data.",
+      "description": "Revenue, membership, attendance, and subscription trends for your gym - every figure is computed live from your real data.",
       "noAccess": "Your role does not have access to analytics. Ask an owner or manager for the reporting permission.",
       "loadError": "Could not load analytics ({status}): {message}",
-      "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+      "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
       "range7d": "7 days",
       "range30d": "30 days",
       "range12w": "12 weeks",
@@ -622,7 +626,7 @@
       "title": "Reports",
       "noAccess": "Your role does not have access to reports. Ask an owner or manager for the reporting permission.",
       "loadError": "Could not load reports ({status}): {message}",
-      "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+      "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
       "reportingRange": "Reporting range",
       "range7d": "7 days",
       "range30d": "30 days",
@@ -647,7 +651,7 @@
     },
     "billingPlans": {
       "title": "Billing",
-      "subtitle": "Your gym’s recurring membership plans — pricing, perks, and who’s subscribed. Create a plan, edit it, or archive one when it’s retired.",
+      "subtitle": "Your gym’s recurring membership plans - pricing, perks, and who’s subscribed. Create a plan, edit it, or archive one when it’s retired.",
       "kpi": {
         "activePlans": "Active plans",
         "subscribers": "Subscribers",
@@ -679,7 +683,7 @@
       "toastRestored": "{name} is live",
       "toastError": "Couldn’t update the plan. Please try again.",
       "loadError": "Could not load billing plans ({status}): {message}",
-      "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
     },
     "checkin": {
       "title": "Reception",
@@ -687,7 +691,7 @@
       "subtitle": "Scan a member's QR or look them up to check them in. Arrivals appear in the live feed as they happen.",
       "error": {
         "withStatus": "Could not load reception data ({status}): {message}",
-        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+        "unreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
       },
       "metrics": {
         "aria": "Reception metrics"
@@ -762,7 +766,7 @@
         "searchMembersLabel": "Search members (F1)",
         "searchMembersPlaceholder": "Member name, phone or email…  (F1)",
         "membersEmpty": "No members match that.",
-        "membersTableCaption": "Members — tap one to attach them to this sale",
+        "membersTableCaption": "Members - tap one to attach them to this sale",
         "membersColumnName": "Member",
         "membersColumnPhone": "Phone",
         "membersColumnPlan": "Plan",
@@ -773,7 +777,7 @@
       "member": {
         "searchLabel": "Look up a member by name or phone (F2)",
         "searchPlaceholder": "Member name or phone…  (F2)",
-        "walkIn": "Walk-in sale — no member required.",
+        "walkIn": "Walk-in sale - no member required.",
         "remove": "Remove",
         "addNew": "Add new member",
         "addNewTitle": "Add member",
@@ -836,7 +840,7 @@
           "send": "Send",
           "sending": "Sending…",
           "sent": "Receipt sent to {email}.",
-          "unconfigured": "Email delivery isn’t configured — receipt not sent."
+          "unconfigured": "Email delivery isn’t configured - receipt not sent."
         },
         "promoLabel": "Promo code",
         "promoPlaceholder": "Optional"
@@ -862,7 +866,7 @@
       },
       "empty": "No activity matches your filters yet.",
       "error": "Could not load the activity feed ({status}): {message}",
-      "errorUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+      "errorUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
       "guest": "Guest",
       "pager": {
         "range": "{from}–{to} of {total}",
@@ -881,7 +885,7 @@
         "audit": "Audit log"
       },
       "audit": {
-        "subtitle": "A record of privileged actions taken on your gym — owner impersonation and status changes. Filter by action or narrow to a date range.",
+        "subtitle": "A record of privileged actions taken on your gym - owner impersonation and status changes. Filter by action or narrow to a date range.",
         "filters": {
           "action": "Action",
           "all": "All actions",
@@ -902,7 +906,7 @@
         },
         "empty": "No audit entries match your filters yet.",
         "error": "Could not load the audit log ({status}): {message}",
-        "errorUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "errorUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
         "pager": {
           "range": "{from}–{to} of {total}",
           "previous": "Previous",
@@ -915,7 +919,7 @@
       "subtitle": "Your gym's week at a glance. Page between weeks and filter by trainer or location; each class shows its time, coach, branch, and how full it is.",
       "error": {
         "withStatus": "Could not load the schedule ({status}): {message}",
-        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+        "unreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
       },
       "manageClasses": "Manage classes",
       "newClass": "New class",
@@ -966,7 +970,7 @@
         "COMPLETED": "Completed"
       },
       "card": {
-        "viewAria": "{title} at {time} — open class",
+        "viewAria": "{title} at {time} - open class",
         "spots": "{booked}/{cap} booked",
         "remaining": "{remaining} left",
         "full": "Full"
@@ -1027,7 +1031,7 @@
           "canceled": "Class canceled and bookings released.",
           "promoted": "Member promoted from the waitlist.",
           "booked": "Member booked onto the class.",
-          "waitlisted": "Class was full — member added to the waitlist."
+          "waitlisted": "Class was full - member added to the waitlist."
         },
         "errors": {
           "notFound": "This class no longer exists.",
@@ -1112,7 +1116,7 @@
         "restore": "Restore",
         "confirmTitle": "Move member to trash?",
         "confirmMessage": "They’ll be hidden from the roster and every count, and permanently deleted after {days} days. You can restore them any time until then.",
-        "bannerCountdown": "This member is in trash — permanently deleted in {days, plural, one {# day} other {# days}}. Restore them from the actions above to bring them back.",
+        "bannerCountdown": "This member is in trash - permanently deleted in {days, plural, one {# day} other {# days}}. Restore them from the actions above to bring them back.",
         "toastTrashed": "Member moved to trash",
         "toastRestored": "Member restored"
       },
@@ -1344,7 +1348,7 @@
       "errors": {
         "loadMembers": "Could not load members ({status}): {message}",
         "loadMember": "Could not load this member ({status}): {message}",
-        "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
         "notAuthorized": "Not authorized",
         "memberExists": "A member with that email already exists in your gym.",
         "memberNotFound": "That member no longer exists.",
@@ -1484,7 +1488,7 @@
         "noSpecialties": "No specialties listed.",
         "certifications": "Certifications",
         "certified": "Certified · {tag}",
-        "noCertifications": "No certifications recorded — this gym tracks specialties, not formal certificates.",
+        "noCertifications": "No certifications recorded - this gym tracks specialties, not formal certificates.",
         "thisWeek": "This week",
         "classesLed": "Classes led",
         "newReviews": "New reviews",
@@ -1500,7 +1504,7 @@
         "weeklyAvailability": "Weekly availability"
       },
       "availability": {
-        "intro": "The recurring hours this coach can be booked. A day can hold several blocks — a morning and an evening shift, for example — as long as they do not overlap.",
+        "intro": "The recurring hours this coach can be booked. A day can hold several blocks - a morning and an evening shift, for example - as long as they do not overlap.",
         "readOnly": "The recurring hours this coach can be booked. You need the trainer-write capability to change them.",
         "working": "Working",
         "notWorking": "Not working",
@@ -1522,7 +1526,7 @@
       "errors": {
         "loadTrainers": "Could not load trainers ({status}): {message}",
         "loadTrainer": "Could not load this trainer ({status}): {message}",
-        "unreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "unreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
         "notAuthorized": "Not authorized",
         "invalidDetails": "Invalid trainer details",
         "trainerNotFound": "That trainer no longer exists.",
@@ -1644,7 +1648,7 @@
       },
       "addStaffDrawer": {
         "title": "Add staff member",
-        "subtitle": "Saves a staff record to the directory only — no app login or invitation email is sent.",
+        "subtitle": "Saves a staff record to the directory only - no app login or invitation email is sent.",
         "firstName": "First name",
         "firstNamePlaceholder": "John",
         "lastName": "Last name",
@@ -1717,7 +1721,7 @@
         "downgradeNoChange": "No capabilities change.",
         "downgradeConfirm": "Change role",
         "removeTitle": "Remove {name}?",
-        "removeBody": "They’ll lose access immediately — their sessions are revoked and they’re removed from your staff. You’d need to re-invite them.",
+        "removeBody": "They’ll lose access immediately - their sessions are revoked and they’re removed from your staff. You’d need to re-invite them.",
         "removeConfirm": "Remove",
         "revokeTitle": "Revoke invitation?",
         "revokeBody": "The invite to {email} will stop working. You can always send a new one.",
@@ -1762,10 +1766,10 @@
       },
       "errors": {
         "loadStaff": "Could not load staff ({status}): {message}",
-        "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
         "notAuthorized": "Not authorized",
         "alreadyStaff": "That person is already a staff member of your gym.",
-        "lastOwner": "You can’t change or remove the gym’s only owner — add another owner first.",
+        "lastOwner": "You can’t change or remove the gym’s only owner - add another owner first.",
         "staffNotFound": "That staff member no longer exists.",
         "inviteNotFound": "That invitation no longer exists.",
         "requestFailed": "Request failed ({status}): {message}",
@@ -1775,7 +1779,7 @@
       },
       "depth": {
         "roles": {
-          "intro": "The capabilities each staff role grants. This matrix is read-only — it mirrors exactly what the API enforces.",
+          "intro": "The capabilities each staff role grants. This matrix is read-only - it mirrors exactly what the API enforces.",
           "capability": "Capability",
           "grantedAria": "Granted",
           "deniedAria": "Not granted"
@@ -1799,7 +1803,7 @@
         "locations": "Locations"
       },
       "title": "Locations",
-      "subtitle": "Every branch of your gym — hours, amenities and live open state.",
+      "subtitle": "Every branch of your gym - hours, amenities and live open state.",
       "add": "New location",
       "kpi": {
         "total": "Locations",
@@ -1851,7 +1855,7 @@
       },
       "errors": {
         "loadLocations": "Could not load locations ({status}): {message}",
-        "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+        "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
       }
     },
     "settings": {
@@ -1936,7 +1940,7 @@
         "title": "Booking rules",
         "subtitle": "How close to a class members can still cancel a confirmed spot.",
         "cutoffLabel": "Cancellation cutoff (hours before start)",
-        "hintNone": "No cutoff — members can cancel right up to the class start.",
+        "hintNone": "No cutoff - members can cancel right up to the class start.",
         "hintActive": "Members can’t cancel a booked spot within {count, plural, one {# hour} other {# hours}} of the class. Leaving a waitlist is always allowed.",
         "lateCancellationPenaltyLabel": "Late-cancellation penalty",
         "penaltyTypeLabel": "Penalty type",
@@ -1970,7 +1974,7 @@
         "cutoffMin": "The cutoff can’t be negative.",
         "cutoffMax": "The cutoff can’t be more than {max} hours.",
         "loadSettings": "Could not load settings ({status}): {message}",
-        "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
         "gymNotFound": "This gym no longer exists.",
         "forbidden": "You do not have permission to change gym settings.",
         "storageUnavailable": "Image storage is not configured. Save your other changes, or try the logo again later.",
@@ -2101,7 +2105,7 @@
         "acceptCardDesc": "Accept card payments.",
         "acceptPrepaidLabel": "Prepaid credits",
         "acceptPrepaidDesc": "Let members pay from their prepaid credit balance.",
-        "noneEnabled": "Keep at least one payment method on — the POS cannot settle a sale without one."
+        "noneEnabled": "Keep at least one payment method on - the POS cannot settle a sale without one."
       },
       "invoice": {
         "title": "Invoice settings",
@@ -2135,7 +2139,7 @@
       "locations": {
         "title": "Locations",
         "subtitle": "Your gym’s branches and their capacity.",
-        "description": "Manage each branch — its address, manager, capacity, and status — in the full locations manager.",
+        "description": "Manage each branch - its address, manager, capacity, and status - in the full locations manager.",
         "cta": "Manage locations",
         "empty": "No locations yet.",
         "inactive": "Inactive",
@@ -2335,7 +2339,7 @@
         "notAuthorized": "You don’t have permission to manage automations.",
         "invalidDetails": "Please check the automation details and try again.",
         "ruleNotFound": "That automation no longer exists.",
-        "templateNotActivatable": "A template can’t be activated — create a rule from it first.",
+        "templateNotActivatable": "A template can’t be activated - create a rule from it first.",
         "requestFailed": "Request failed ({status}): {message}",
         "unexpected": "Something went wrong. Please try again.",
         "loadRules": "Couldn’t load automations ({status}): {message}",
@@ -2429,7 +2433,7 @@
         "emptyHintRead": "There are no campaigns to show."
       },
       "wizard": {
-        "title": "Create campaign — Step {step} of {total}",
+        "title": "Create campaign - Step {step} of {total}",
         "stepDescription": {
           "1": "Name your campaign and pick a channel.",
           "2": "Choose who receives this campaign.",
@@ -2612,7 +2616,7 @@
         "clear": "Clear filters",
         "saveSegment": "Save as segment",
         "matchingTitle": "Matching members",
-        "matchingAll": "Every member matches — add filters to narrow the audience.",
+        "matchingAll": "Every member matches - add filters to narrow the audience.",
         "matchingFiltered": "Members who match every filter you’ve set.",
         "membersMatch": "members match",
         "noMatches": "No members match these filters.",
@@ -2809,7 +2813,7 @@
       "subtitle": "Raised automatically for subscriptions and shop orders, or by hand against a member. Download one as a PDF, or email it.",
       "invoiceCount": "{count, plural, one {# invoice} other {# invoices}}",
       "loadError": "Could not load invoices ({status}): {message}",
-      "apiUnreachable": "Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
     },
     "ptHub": {
       "title": "PT Calendar",
@@ -2827,7 +2831,7 @@
       "placeholder": "Ask anything, or ask me to make a change…",
       "error": "Something went wrong. Please try again.",
       "emptyTitle": "How can I help?",
-      "emptyHint": "Ask about members, classes, or payments — or tell me to update something in the admin.",
+      "emptyHint": "Ask about members, classes, or payments - or tell me to update something in the admin.",
       "model": "Model",
       "attach": "Attach files",
       "removeAttachment": "Remove",
@@ -2875,7 +2879,7 @@
       "invalid": "This invitation link is invalid or has expired. Ask your gym to send a new one."
     },
     "login": {
-      "title": "Sign in to Fit",
+      "title": "Sign in to FormaCore",
       "subtitle": "Welcome back — enter your details to continue.",
       "heroTitle": "Welcome back.",
       "heroSubtitle": "Book classes, check in with a tap, and track every session.",
@@ -2887,7 +2891,7 @@
     },
     "register": {
       "title": "Create your account",
-      "subtitle": "Join Fit to discover gyms, classes, and trainers near you.",
+      "subtitle": "Join FormaCore to discover gyms, classes, and trainers near you.",
       "submit": "Create account",
       "submitting": "Creating account…",
       "success": "Almost there! Check your inbox to verify your email and finish setting up your account.",
@@ -3217,7 +3221,7 @@
     }
   },
   "common": {
-    "appName": "Fit",
+    "appName": "FormaCore",
     "nav": {
       "home": "Home",
       "classes": "Classes",
@@ -3266,13 +3270,13 @@
       "privacy": "Privacy policy",
       "terms": "Terms of service"
     },
-    "copyright": "© {year} Fit. All rights reserved."
+    "copyright": "© {year} FormaCore. All rights reserved."
   },
   "home": {
     "hero": {
       "badge": "Now live in Georgia",
       "title": "Find your gym. Book your class.",
-      "subtitle": "Fit connects you with gyms, trainers, and classes near you — book and manage your membership in one place.",
+      "subtitle": "FormaCore connects you with gyms, trainers, and classes near you — book and manage your membership in one place.",
       "ctaPrimary": "Get started",
       "ctaSecondary": "Browse classes"
     },
@@ -3883,7 +3887,7 @@
     "title": "Notifications",
     "subtitle": "Choose what you'd like to hear about. Delivery is enabled in a later update.",
     "push": "Push notifications",
-    "pushHint": "Allow Fit to send notifications to this device.",
+    "pushHint": "Allow FormaCore to send notifications to this device.",
     "categories": "Categories",
     "classReminders": "Class reminders",
     "classRemindersHint": "Before your booked classes start.",

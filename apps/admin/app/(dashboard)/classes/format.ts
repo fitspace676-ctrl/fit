@@ -22,10 +22,10 @@ export const STATUS_STYLES: Record<ClassTemplateStatus, { label: string; tone: B
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 export function formatDateTime(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : createDateTimeFormat(defaultLocale, {
         year: 'numeric',
         month: 'short',
@@ -35,7 +35,7 @@ export function formatDateTime(iso: string | null): string {
 
 /** Render a `YYYY-MM-DD` validity date as a short local date, or an em dash when absent. */
 export function formatDate(date: string | null): string {
-  if (!date) return '—';
+  if (!date) return '-';
   const parsed = new Date(`${date}T00:00:00`);
   return Number.isNaN(parsed.getTime())
     ? date

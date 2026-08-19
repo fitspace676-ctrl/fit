@@ -229,7 +229,7 @@ export function SubscriptionPlanForm(props: Props) {
         // The plan itself is saved; only the class links failed. Say so rather than
         // reporting a clean success or a total failure, since neither is true.
         setError(
-          `The plan was saved, but its classes could not be updated: ${coverage.error} — set them from the Classes screen, or try saving again.`,
+          `The plan was saved, but its classes could not be updated: ${coverage.error} - set them from the Classes screen, or try saving again.`,
         );
         router.refresh();
         return;

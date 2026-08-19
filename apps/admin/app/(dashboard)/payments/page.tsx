@@ -8,7 +8,7 @@ import { BillingPlansView } from './billing-plans-view';
 import { fetchPlanClassTypeOptions } from './class-type-options';
 
 export const metadata: Metadata = {
-  title: 'Billing · Plans - Fit Admin',
+  title: 'Billing · Plans - FormaCore Admin',
   description:
     'The gym’s recurring membership plans: pricing, renewal cadence, perks and live subscriber counts, with active/archived plans and a live MRR summary.',
 };

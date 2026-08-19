@@ -131,6 +131,8 @@ const styles = stylex.create({
     placeItems: 'center',
     borderRadius: 'var(--radius-full)',
     backgroundColor: 'var(--color-accent)',
+    // The brand gradient in light mode, flat accent in dark (see globals.css).
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
     fontFamily: 'var(--font-family-heading)',
     fontSize: '0.75rem',
@@ -196,14 +198,14 @@ export function RecentCheckInsBody({ data }: { data: DashboardOverviewResponse }
             <Link
               href={`/members/${row.memberId}`}
               {...stylex.props(styles.checkInRow)}
-              title={`${row.name} — ${detail}`}
+              title={`${row.name} - ${detail}`}
             >
               {/*
                 Duplicates the two lines below, so `aria-hidden`: a screen reader
                 reads the row, not the tooltip that exists for a clipped one.
               */}
               <span {...stylex.props(styles.tip)} aria-hidden="true">
-                {row.name} — {detail}
+                {row.name} - {detail}
               </span>
               <span {...stylex.props(styles.avatar)} aria-hidden="true">
                 {initials(row.name)}
@@ -245,10 +247,10 @@ export function RecentMembersBody({ data }: { data: DashboardOverviewResponse })
             <Link
               href={`/members/${row.id}`}
               {...stylex.props(styles.checkInRow)}
-              title={`${row.name} — ${detail}`}
+              title={`${row.name} - ${detail}`}
             >
               <span {...stylex.props(styles.tip)} aria-hidden="true">
-                {row.name} — {detail}
+                {row.name} - {detail}
               </span>
               <span {...stylex.props(styles.avatar)} aria-hidden="true">
                 {initials(row.name)}

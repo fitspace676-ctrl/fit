@@ -386,10 +386,10 @@ function initialsOf(name: string): string {
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 function formatDate(iso: string | null, locale: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
         date,
       );
@@ -402,7 +402,7 @@ function formatDate(iso: string | null, locale: string): string {
 function formatLastVisit(iso: string | null, t: T, locale: string): string {
   if (!iso) return t('lastVisit.never');
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '—';
+  if (Number.isNaN(date.getTime())) return '-';
   const diffMs = Date.now() - date.getTime();
   const hours = Math.floor(diffMs / 3_600_000);
   if (hours < 1) return t('lastVisit.justNow');
@@ -445,7 +445,7 @@ function NextBillingCell({
       );
     case 'none':
     default:
-      return <span {...stylex.props(styles.billingMono)}>—</span>;
+      return <span {...stylex.props(styles.billingMono)}>-</span>;
   }
 }
 

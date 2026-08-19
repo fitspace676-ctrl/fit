@@ -4,7 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/src/i18n/navigation';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
 import { ThemeToggle } from '@/src/components/member/theme-toggle';
-import { Icon, SkipLink, ToastProvider } from '@/src/components/ui';
+import { SkipLink, ToastProvider } from '@/src/components/ui';
 
 // FormaCore redesign (T11.10) — the join shell in StyleX. The artboards treat
 // this and the login screen as one pair: same charcoal canvas, no nav, a logo
@@ -39,33 +39,12 @@ const styles = stylex.create({
   logo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.625rem',
     textDecoration: 'none',
   },
   switches: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
-  },
-  logoMark: {
-    display: 'grid',
-    placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
-    borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  logoIcon: {
-    height: '1.25rem',
-    width: '1.25rem',
-  },
-  logoWord: {
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.25rem',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-    color: 'var(--color-text-primary)',
   },
   main: {
     flex: 1,
@@ -109,10 +88,12 @@ export default async function JoinLayout({
           <div {...stylex.props(styles.bar)}>
             {/* Home, not `/member/home`: a signed-out visitor has no member home to land on. */}
             <Link href="/" {...stylex.props(styles.logo)}>
-              <span {...stylex.props(styles.logoMark)}>
-                <Icon name="bolt" sw={2.4} {...stylex.props(styles.logoIcon)} />
-              </span>
-              <span {...stylex.props(styles.logoWord)}>{t('brand')}</span>
+              <img src="/logodark.png" alt={t('brand')} className="member-logo member-logo-dark" />
+              <img
+                src="/logolight.png"
+                alt={t('brand')}
+                className="member-logo member-logo-light"
+              />
             </Link>
             <div {...stylex.props(styles.switches)}>
               <ThemeToggle />

@@ -114,7 +114,7 @@ export function buildLeadNotificationEmail(
     .join('');
 
   const html = renderBrandedEmail({
-    senderName: 'Fit',
+    senderName: 'FormaCore',
     heading: label,
     contentHtml:
       `<p style="margin:0 0 12px;">A new ${escapeHtml(label.toLowerCase())} came in from the marketing site.</p>` +

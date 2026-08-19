@@ -49,9 +49,21 @@ const styles = stylex.create({
     ':hover': { color: 'var(--color-text-primary)' },
     ':focus-visible': { outline: '2px solid var(--color-accent)', outlineOffset: '-2px' },
   },
+  // Dark mode wears the raw brand accent, exactly as before; light mode wears
+  // the brand gradient - the label as gradient-clipped text, the underline via
+  // `border-image` from the same `--brand-fill-image` (which is `none` in dark,
+  // so there the plain border-color and solid accent ink stand). Literals and
+  // the image var rather than `--color-text-accent`, so nothing downstream (the
+  // palette playground remixes that token at runtime) can shift the dark tab
+  // off the accent.
   active: {
-    borderBottomColor: 'var(--color-text-accent)',
-    color: 'var(--color-text-accent)',
+    borderBottomColor: 'light-dark(#285d43, var(--color-accent))',
+    borderImageSource: 'var(--brand-fill-image, none)',
+    borderImageSlice: 1,
+    color: 'light-dark(transparent, var(--color-accent))',
+    backgroundImage: 'var(--brand-fill-image, none)',
+    backgroundClip: 'text',
+    WebkitBackgroundClip: 'text',
   },
 });
 

@@ -7,7 +7,7 @@ import { fetchMyCreditPacks, totalRemainingCredits } from '@/lib/credit-packs';
 import { fetchMyProfile } from '@/lib/profile';
 import { ProfileScreen } from '@/src/components/member/profile/profile-screen';
 
-export const metadata: Metadata = { title: 'Profile — Fit' };
+export const metadata: Metadata = { title: 'Profile - FormaCore' };
 export const dynamic = 'force-dynamic';
 
 async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {

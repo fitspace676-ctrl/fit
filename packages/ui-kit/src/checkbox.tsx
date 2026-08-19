@@ -79,6 +79,7 @@ const styles = stylex.create({
   boxOn: {
     borderColor: 'var(--color-accent)',
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
   },
   glyph: {
     height: '0.8125rem',

@@ -6,7 +6,7 @@ import { fetchCart } from '@/lib/cart';
 import { fetchLocations } from '@/lib/locations';
 import { CartScreen } from '@/src/components/member/cart/cart-screen';
 
-export const metadata: Metadata = { title: 'Cart — Fit' };
+export const metadata: Metadata = { title: 'Cart - FormaCore' };
 export const dynamic = 'force-dynamic';
 
 async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {

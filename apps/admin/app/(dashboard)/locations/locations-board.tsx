@@ -66,6 +66,7 @@ const styles = stylex.create({
     paddingInline: '1.25rem',
     borderRadius: 'var(--radius-element)',
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
     fontSize: '0.875rem',
     fontWeight: 600,
@@ -807,7 +808,7 @@ export function LocationsBoard({
                   <div {...stylex.props(styles.metaRow)}>
                     <span {...stylex.props(styles.metaItem)}>
                       <Icon name="clock" {...stylex.props(styles.metaIcon)} sw={2} />
-                      {today ?? '—'}
+                      {today ?? '-'}
                     </span>
                     {location.phone ? (
                       <span {...stylex.props(styles.metaItem)}>

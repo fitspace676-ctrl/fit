@@ -3,7 +3,6 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/src/i18n/navigation';
-import { Icon } from '@/src/components/ui';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
 import { ThemeToggle } from './theme-toggle';
 
@@ -69,34 +68,7 @@ const styles = stylex.create({
     display: 'flex',
     flexShrink: 0,
     alignItems: 'center',
-    gap: '0.625rem',
     textDecoration: 'none',
-  },
-  logoMark: {
-    display: 'grid',
-    placeItems: 'center',
-    height: '2.5rem',
-    width: '2.5rem',
-    borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  logoIcon: {
-    height: '1.25rem',
-    width: '1.25rem',
-  },
-  // The mark alone below `sm`. Opposite it sit two two-option segmented tracks —
-  // light/dark and KA/EN — which come to ~184px on their own, and a 360px screen
-  // has 312px between the gutters. With the wordmark the bar wanted ~358px of it
-  // and simply ran off the edge. The bolt tile still carries the brand, which is
-  // all it has to do on a screen the member is already signed in to; the name
-  // stays in the link's accessible text.
-  logoWord: {
-    display: { default: 'none', '@media (min-width: 640px)': 'inline' },
-    fontSize: '1.1875rem',
-    fontWeight: 800,
-    letterSpacing: '-0.025em',
-    color: 'var(--color-text-primary)',
   },
 
   /* -------------------------------- actions ------------------------------- */
@@ -109,17 +81,12 @@ const styles = stylex.create({
   },
 });
 
-/** Brand mark — the lime bolt tile + wordmark, linking home. */
+/** Brand mark — the FormaCore logo image, theme-swapped, linking home. */
 function Logo({ label }: { label: string }) {
   return (
-    // Named on the link itself: below `sm` the wordmark is `display: none` and so
-    // is out of the accessibility tree, which would leave the only link to the
-    // dashboard announced as an unlabelled graphic.
     <Link href="/member/home" aria-label={label} {...stylex.props(styles.logo)}>
-      <span {...stylex.props(styles.logoMark)}>
-        <Icon name="bolt" sw={2.4} {...stylex.props(styles.logoIcon)} />
-      </span>
-      <span {...stylex.props(styles.logoWord)}>{label}</span>
+      <img src="/logodark.png" alt="" className="member-logo member-logo-dark" />
+      <img src="/logolight.png" alt="" className="member-logo member-logo-light" />
     </Link>
   );
 }

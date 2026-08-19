@@ -25,7 +25,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Reports - Fit Admin',
+  title: 'Reports - FormaCore Admin',
 };
 
 // The hub reflects live tenant state + the staff session token, so this page must
@@ -97,7 +97,7 @@ export default async function ReportsPage({
 /**
  * Fetches the gym's report catalogue (and, when one is selected, its preview for
  * `range`) and hands the real responses to the client view. A failed fetch becomes
- * the same inline "Could not reach the Fit API" alert the other screens use, rather
+ * the same inline "Could not reach the FormaCore API" alert the other screens use, rather
  * than crashing the page.
  */
 async function ReportsBody({

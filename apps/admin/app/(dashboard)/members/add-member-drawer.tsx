@@ -2,7 +2,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { Button } from '@astryxdesign/core/Button';
+import { Button } from '@fit/ui-kit';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout } from '@astryxdesign/core/Layout';
 import { LayoutContent } from '@astryxdesign/core/Layout';
@@ -45,9 +45,12 @@ export function AddMemberDrawer({ intake }: { intake: GymMemberIntakeSettings })
 
   return (
     <>
+      {/* The kit's primary, not Astryx's: it is the control "Add trainer"
+          renders, so the two headers read identically - the brand gradient in
+          light mode, the flat lime in dark. */}
       <Button
         variant="primary"
-        size="lg"
+        size="block"
         label={title}
         icon={<Icon name="plus" sw={2} {...stylex.props(styles.icon)} />}
         onClick={drawer.open}

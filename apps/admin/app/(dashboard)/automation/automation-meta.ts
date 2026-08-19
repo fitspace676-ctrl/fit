@@ -70,8 +70,8 @@ export function triggerNeedsDays(trigger: AutomationTriggerType): boolean {
 
 /** Format an ISO timestamp as a short localized date, or an em dash when absent. */
 export function formatDate(iso: string | null | undefined, locale: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '—';
+  if (Number.isNaN(date.getTime())) return '-';
   return createDateTimeFormat(locale, { dateStyle: 'medium' }).format(date);
 }

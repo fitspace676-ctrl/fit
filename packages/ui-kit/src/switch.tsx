@@ -60,6 +60,7 @@ const styles = stylex.create({
   },
   trackOn: {
     backgroundColor: 'var(--color-accent)',
+    backgroundImage: 'var(--brand-fill-image, none)',
   },
   trackDisabled: {
     opacity: 0.5,

@@ -11,7 +11,7 @@ import { PlanActions } from './plan-actions';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Subscription plan - Fit Admin',
+  title: 'Subscription plan - FormaCore Admin',
 };
 
 // The detail reflects live plan state and the staff session token, so it must
@@ -26,10 +26,10 @@ const STATUS_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
-    ? '—'
+    ? '-'
     : createDateTimeFormat(defaultLocale, {
         year: 'numeric',
         month: 'short',
@@ -62,7 +62,7 @@ export default async function SubscriptionPlanDetailPage({
     const message =
       error instanceof ApiError
         ? `Could not load this subscription plan (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
         <Link

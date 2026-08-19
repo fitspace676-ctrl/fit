@@ -9,7 +9,7 @@ import { SubscriptionPlanForm } from '../../subscription-plan-form';
 import { fetchPlanClassTypeOptions } from '../../class-type-options';
 
 export const metadata: Metadata = {
-  title: 'Edit subscription plan - Fit Admin',
+  title: 'Edit subscription plan - FormaCore Admin',
 };
 
 // Reflects the staff session and writes live plan state — never cached.
@@ -47,7 +47,7 @@ export default async function EditSubscriptionPlanPage({
     const message =
       error instanceof ApiError
         ? `Could not load this subscription plan (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div className="flex flex-col gap-4">
         <Link

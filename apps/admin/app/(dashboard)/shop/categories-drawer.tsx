@@ -246,7 +246,7 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
             <LayoutContent padding={0} isScrollable xstyle={styles.content}>
               <div {...stylex.props(styles.body)}>
                 <p {...stylex.props(styles.intro)}>
-                  Shelves you can file products under. Deleting one keeps its products — they just
+                  Shelves you can file products under. Deleting one keeps its products - they just
                   become uncategorised.
                 </p>
 

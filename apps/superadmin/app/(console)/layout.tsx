@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import { Badge } from '@fit/ui-kit';
 import { SignOutButton } from '@/components/sign-out-button';
@@ -12,9 +13,9 @@ import { SignOutButton } from '@/components/sign-out-button';
  * SUPER_ADMIN before anything here renders, so the shell never has to reason
  * about who it is drawing for.
  *
- * The rail carries one destination today. It is a rail rather than a top bar
- * because the destinations that follow (gym detail, audit) are siblings of it,
- * not children — and a list that grows downward costs nothing to extend.
+ * A rail rather than a top bar because its destinations are siblings — the gym
+ * roster and the platform's trail — and a list that grows downward costs nothing
+ * to extend. Gym detail hangs off the roster rather than appearing here.
  */
 const styles = stylex.create({
   frame: {
@@ -96,9 +97,12 @@ export default function ConsoleLayout({ children }: { children: ReactNode }) {
         </div>
 
         <nav {...stylex.props(styles.nav)}>
-          <a href="/" {...stylex.props(styles.navLink)}>
+          <Link href="/" {...stylex.props(styles.navLink)}>
             Gyms
-          </a>
+          </Link>
+          <Link href="/activity" {...stylex.props(styles.navLink)}>
+            Activity
+          </Link>
         </nav>
 
         <div {...stylex.props(styles.foot)}>

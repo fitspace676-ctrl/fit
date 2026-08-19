@@ -17,7 +17,7 @@ import { formatPrice } from '../format-price';
 import { StockAdjuster } from '../low-stock/stock-adjuster';
 
 export const metadata: Metadata = {
-  title: 'Inventory - Fit Admin',
+  title: 'Inventory - FormaCore Admin',
   description:
     'What the gym stocks and how much of each: every product’s on-hand count, its status against the reorder threshold, and the value sitting on the shelf.',
 };
@@ -196,7 +196,7 @@ export default async function InventoryPage({
     const message =
       error instanceof ApiError
         ? `Could not load the inventory (${error.status}): ${error.message}`
-        : 'Could not reach the Fit API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
     return (
       <div {...stylex.props(styles.page)}>
         <Card role="alert" padding="none" xstyle={styles.errorCard}>
@@ -308,17 +308,17 @@ function PositionRow({
         </Link>
       </td>
       <td {...stylex.props(styles.td, styles.muted)}>
-        {position.variantIndex === null ? '—' : position.label}
+        {position.variantIndex === null ? '-' : position.label}
       </td>
-      <td {...stylex.props(styles.td, styles.muted)}>{position.sku || '—'}</td>
+      <td {...stylex.props(styles.td, styles.muted)}>{position.sku || '-'}</td>
       <td {...stylex.props(styles.td, styles.num)}>
-        {position.stock === null ? '—' : position.stock}
+        {position.stock === null ? '-' : position.stock}
       </td>
       <td {...stylex.props(styles.td)}>
         <Badge tone={badge.tone} label={badge.label} />
       </td>
       <td {...stylex.props(styles.td, styles.num, styles.muted)}>
-        {position.value === null ? '—' : formatPrice(position.value, position.currency)}
+        {position.value === null ? '-' : formatPrice(position.value, position.currency)}
       </td>
       {canWrite ? (
         <td {...stylex.props(styles.td, styles.actionCell)}>

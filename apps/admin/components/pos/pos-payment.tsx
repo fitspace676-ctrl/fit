@@ -627,7 +627,7 @@ export function PosPayment({
     // carries at most one plan for the API to enrol the member on.
     const planId = items.find((item) => item.planId)?.planId;
     if (planId && !member) {
-      setSaveError('A membership must be sold to a member — attach one before completing.');
+      setSaveError('A membership must be sold to a member - attach one before completing.');
       return;
     }
 

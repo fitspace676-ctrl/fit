@@ -14,9 +14,9 @@ import { InvoiceFilters } from './invoice-filters';
 import { InvoicesTable } from './invoices-table';
 
 export const metadata: Metadata = {
-  title: 'Payments · Invoices - Fit Admin',
+  title: 'Payments · Invoices - FormaCore Admin',
   description:
-    'The gym’s invoices — raised automatically for subscriptions and shop orders, or by hand against a member. Search, filter, download a PDF, or email one to the member.',
+    'The gym’s invoices - raised automatically for subscriptions and shop orders, or by hand against a member. Search, filter, download a PDF, or email one to the member.',
 };
 
 // The roster reflects live billing state and the staff session token, so it must never
