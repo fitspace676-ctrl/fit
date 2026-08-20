@@ -8,6 +8,7 @@ import {
   type DashboardSegment,
 } from '@fit/types';
 import { navigationMock } from '@/test/next-navigation-mock';
+import { ThemeProvider } from '@/components/theme/theme-provider';
 
 vi.mock('next/navigation', () => navigationMock.factory());
 
@@ -72,7 +73,9 @@ const overviewFixture = {
 function renderShell(initialSegment: DashboardSegment = 'overview') {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <SegmentedDashboard overview={overviewFixture} initialSegment={initialSegment} />
+      <ThemeProvider initial="dark">
+        <SegmentedDashboard overview={overviewFixture} initialSegment={initialSegment} />
+      </ThemeProvider>
     </NextIntlClientProvider>,
   );
 }

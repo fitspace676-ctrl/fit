@@ -6,17 +6,15 @@ import { NavIcon } from './nav-icon';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 
 describe('NavIcon', () => {
-  it('strokes the brand gradient in light mode', () => {
+  it('strokes the darker lime ink in light mode', () => {
     const { container } = render(
       <ThemeProvider initial="light">
         <NavIcon name="dashboard" />
       </ThemeProvider>,
     );
     const path = container.querySelector('path');
-    expect(path?.getAttribute('stroke')).toMatch(/^url\(#nav-icon-/);
-    const gradient = container.querySelector('radialGradient');
-    expect(gradient).not.toBeNull();
-    expect(gradient?.querySelectorAll('stop')).toHaveLength(2);
+    expect(path?.getAttribute('stroke')).toBe('#63701D');
+    expect(container.querySelector('radialGradient')).toBeNull();
   });
 
   it('strokes the flat brand lime in dark mode, with no gradient def', () => {

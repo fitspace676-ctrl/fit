@@ -32,19 +32,33 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     color: 'var(--color-text-secondary)',
   },
+  // An outlined pill, not a bare text link — it sits among the cart's real
+  // controls and has to read as one of them.
   trigger: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.375rem',
     flexShrink: 0,
-    borderStyle: 'none',
-    backgroundColor: 'transparent',
-    padding: 0,
+    borderRadius: 'var(--radius-pill, 999px)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-text-accent)',
+    },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':hover': 'var(--color-accent-muted)',
+    },
+    paddingInline: '0.75rem',
+    paddingBlock: '0.375rem',
     fontFamily: 'inherit',
     fontSize: '0.8125rem',
     fontWeight: 600,
     color: 'var(--color-text-accent)',
     cursor: 'pointer',
+    transitionProperty: 'background-color, border-color',
+    transitionDuration: '150ms',
   },
   triggerIcon: { width: '0.875rem', height: '0.875rem' },
 });

@@ -363,6 +363,8 @@ function PlanCard({
               checked={isActive}
               onChange={busy ? () => undefined : onToggle}
               label={isActive ? t('off') : t('live')}
+              // The live/off caption already sits beside the track.
+              hideLabel
             />
           ) : null}
         </div>

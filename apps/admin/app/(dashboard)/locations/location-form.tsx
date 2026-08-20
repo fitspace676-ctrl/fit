@@ -618,6 +618,8 @@ export function LocationForm(props: Props) {
                       checked={!value.closed}
                       onChange={(open) => setDay(day, { closed: !open })}
                       label={`${label} open`}
+                      // The "Open" caption already sits beside the track.
+                      hideLabel
                     />
                   </div>
                 </div>

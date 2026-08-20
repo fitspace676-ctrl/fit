@@ -7,6 +7,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { AdminTrainerDetail, WeeklyAvailability } from '@fit/types';
 import { Icon } from '@/components/ui';
+import { useTheme } from '@/components/theme/theme-provider';
+import { formatClassDateTime } from '../format';
 import { TrainerAvailabilityEditor } from './availability-editor';
 
 type T = ReturnType<typeof useTranslations>;
@@ -35,7 +37,9 @@ const styles = stylex.create({
     gap: '0.25rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
+    // No rule under the bar in light mode — the active pill alone carries the
+    // state; dark keeps the hairline under its underline tabs.
+    borderBottomColor: 'light-dark(transparent, var(--color-border))',
   },
   tabBtn: {
     marginBottom: '-1px',
@@ -52,6 +56,17 @@ const styles = stylex.create({
   tabBtnActive: {
     borderBottomColor: 'var(--color-text-accent)',
     color: 'var(--color-text-accent)',
+  },
+  // The active tab, light mode: a brand pill — the raw lime with the theme's
+  // on-accent ink, the member portal's pairing (mirrors the dashboard's
+  // segment tabs). A separate per-theme style, not `light-dark()`: the pill's
+  // radius is a length, which `light-dark()` cannot carry — and dark must keep
+  // its straight underline.
+  tabBtnActiveLight: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    borderBottomColor: 'transparent',
+    borderRadius: '9999px',
   },
   tabBtnInactive: {
     borderBottomColor: 'transparent',
@@ -325,21 +340,6 @@ const styles = stylex.create({
   },
 });
 
-/** Format an ISO instant as a short local date-time, or an em dash when absent. */
-function formatDateTime(iso: string | null | undefined, locale: string): string {
-  if (!iso) return '-';
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? '-'
-    : date.toLocaleString(locale, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-}
-
 /** One "This week" row in the Overview side card. */
 function WeekRow({ label, value }: { label: string; value: number }) {
   return (
@@ -361,12 +361,16 @@ export function TrainerTabs({
   trainer,
   availability,
   canWrite,
+  timeZone,
 }: {
   trainer: AdminTrainerDetail;
   availability: WeeklyAvailability;
   canWrite: boolean;
+  /** The gym's IANA zone — the next-class time is read on it. */
+  timeZone: string;
 }) {
   const t = useTranslations('admin.trainers');
+  const { theme } = useTheme();
   const locale = useLocale();
   const [active, setActive] = useState<Tab>('Overview');
 
@@ -385,6 +389,7 @@ export function TrainerTabs({
               {...stylex.props(
                 styles.tabBtn,
                 isActive ? styles.tabBtnActive : styles.tabBtnInactive,
+                isActive && theme === 'light' && styles.tabBtnActiveLight,
               )}
             >
               {t(TAB_LABEL_KEYS[tab])}
@@ -395,7 +400,9 @@ export function TrainerTabs({
 
       <div role="tabpanel">
         {active === 'Overview' && <OverviewPanel trainer={trainer} t={t} />}
-        {active === 'Schedule' && <SchedulePanel trainer={trainer} t={t} locale={locale} />}
+        {active === 'Schedule' && (
+          <SchedulePanel trainer={trainer} t={t} locale={locale} timeZone={timeZone} />
+        )}
         {active === 'Clients' && <ClientsPanel t={t} />}
         {active === 'Reviews' && <ReviewsPanel trainer={trainer} t={t} />}
         {active === 'Availability' && (
@@ -474,10 +481,12 @@ function SchedulePanel({
   trainer,
   t,
   locale,
+  timeZone,
 }: {
   trainer: AdminTrainerDetail;
   t: T;
   locale: string;
+  timeZone: string;
 }) {
   return (
     <Card padding="none" xstyle={styles.panelCard}>
@@ -490,7 +499,7 @@ function SchedulePanel({
           <div>
             <p {...stylex.props(styles.nextTitle)}>{trainer.nextClass.title}</p>
             <p {...stylex.props(styles.nextTime)}>
-              {formatDateTime(trainer.nextClass.startsAt, locale)}
+              {formatClassDateTime(trainer.nextClass.startsAt, locale, timeZone)}
             </p>
           </div>
         </div>

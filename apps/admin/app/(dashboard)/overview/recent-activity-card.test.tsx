@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import type { DashboardOverviewResponse } from '@fit/types';
+import { ThemeProvider } from '@/components/theme/theme-provider';
 
 // The two feeds are already covered by their own rendering; this test is about
 // the switch between them, so stand them in with markers.
@@ -27,7 +28,9 @@ const messages = {
 function renderCard() {
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <RecentActivityCard data={{} as DashboardOverviewResponse} />
+      <ThemeProvider initial="dark">
+        <RecentActivityCard data={{} as DashboardOverviewResponse} />
+      </ThemeProvider>
     </NextIntlClientProvider>,
   );
 }

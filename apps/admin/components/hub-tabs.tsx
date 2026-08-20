@@ -64,7 +64,10 @@ export function HubTabs({ items, ariaLabel }: { items: HubTab[]; ariaLabel: stri
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="flex gap-1 overflow-x-auto border-b border-ink-200 dark:border-white/10"
+      // No rule under the bar in light mode — the active pill alone carries the
+      // state (matching the dashboard's segment tabs); dark keeps its hairline
+      // under the underline tabs.
+      className="flex gap-1 overflow-x-auto border-b border-transparent dark:border-white/10"
     >
       {items.map((tab) => {
         const active = tab.href === activeHref;
@@ -75,9 +78,12 @@ export function HubTabs({ items, ariaLabel }: { items: HubTab[]; ariaLabel: stri
             role="tab"
             aria-selected={active}
             aria-current={active ? 'page' : undefined}
+            // Active, light: a brand pill — the raw lime with near-black bold
+            // ink, the member portal's accent pairing. Active, dark: the flat
+            // accent ink + underline, exactly as before.
             className={`-mb-px inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
               active
-                ? 'border-brand-800 text-brand-800 dark:border-brand-300 dark:text-brand-300'
+                ? 'rounded-full border-transparent bg-[var(--color-accent)] font-bold text-[#131312] dark:rounded-none dark:border-brand-300 dark:bg-transparent dark:font-medium dark:text-brand-300'
                 : 'border-transparent text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200'
             }`}
           >

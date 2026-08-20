@@ -93,7 +93,7 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
   },
   toneBalanced: {
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   toneOver: {
     color: 'var(--color-warning)',

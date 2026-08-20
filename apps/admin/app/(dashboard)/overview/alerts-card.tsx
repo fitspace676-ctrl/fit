@@ -56,7 +56,7 @@ const styles = stylex.create({
   },
   alertToneSuccess: {
     backgroundColor: 'var(--color-success-muted)',
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   alertToneWarning: {
     backgroundColor: 'var(--color-warning-muted)',

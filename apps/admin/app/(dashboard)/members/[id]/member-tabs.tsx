@@ -17,6 +17,7 @@ import {
 import { Button, Card, Dialog, Field, Meter, TextareaField } from '@fit/ui-kit';
 import { Icon, useToast, type IconName } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
+import { useTheme } from '@/components/theme/theme-provider';
 import {
   addMemberNoteAction,
   freezeMemberSubscriptionAction,
@@ -59,7 +60,9 @@ const styles = stylex.create({
     overflowX: 'auto',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
+    // No rule under the bar in light mode — the active pill alone carries the
+    // state; dark keeps the hairline under its underline tabs.
+    borderBottomColor: 'light-dark(transparent, var(--color-border))',
   },
   tab: {
     flexShrink: 0,
@@ -80,6 +83,17 @@ const styles = stylex.create({
   tabActive: {
     borderBottomColor: 'var(--color-text-accent)',
     color: 'var(--color-text-accent)',
+  },
+  // The active tab, light mode: a brand pill — the raw lime with the theme's
+  // on-accent ink, the member portal's pairing (mirrors the dashboard's
+  // segment tabs). A separate per-theme style, not `light-dark()`: the pill's
+  // radius is a length, which `light-dark()` cannot carry — and dark must keep
+  // its straight underline.
+  tabActiveLight: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    borderBottomColor: 'transparent',
+    borderRadius: '9999px',
   },
   list: {
     listStyle: 'none',
@@ -720,6 +734,7 @@ export function MemberTabs({
   creditCatalogue: CreditPackCatalogueEntry[];
 }) {
   const t = useTranslations('admin.members');
+  const { theme } = useTheme();
   const locale = useLocale();
   const [active, setActive] = useState<Tab>('overview');
 
@@ -735,7 +750,11 @@ export function MemberTabs({
               role="tab"
               aria-selected={isActive}
               onClick={() => setActive(tab)}
-              {...stylex.props(styles.tab, isActive && styles.tabActive)}
+              {...stylex.props(
+                styles.tab,
+                isActive && styles.tabActive,
+                isActive && theme === 'light' && styles.tabActiveLight,
+              )}
             >
               {t(`memberTabs.${tab}`)}
             </button>

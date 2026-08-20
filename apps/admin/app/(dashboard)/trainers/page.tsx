@@ -10,6 +10,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainers } from '@/lib/api';
+import { gymCalendarContext } from '@/lib/gym-time';
 import { Icon } from '@/components/ui';
 import { TrainersRoster } from './trainers-roster';
 
@@ -142,7 +143,7 @@ export default async function TrainersPage({
   let subtitle = t('list.subtitleDefault');
   let content;
   try {
-    const result = await fetchTrainers(query);
+    const [result, { timeZone }] = await Promise.all([fetchTrainers(query), gymCalendarContext()]);
     const { total, active } = result.summary;
     subtitle = total === 0 ? t('list.subtitleEmpty') : t('list.subtitleCount', { total, active });
     content = (
@@ -153,6 +154,7 @@ export default async function TrainersPage({
         page={result.page}
         limit={result.limit}
         canWrite={canWrite}
+        timeZone={timeZone}
       />
     );
   } catch (error) {

@@ -67,16 +67,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       suppressHydrationWarning
     >
       <body className="min-h-screen font-sans antialiased">
-        {/* Re-apply a saved palette before first paint. The playground is a
-            client component, so without this a chosen palette would flash the
-            theme's own colours on every navigation — which is exactly the
-            flicker that makes a colour hard to judge. Kept tiny and dependency
-            free; the same expansion logic lives in `lib/color-overrides.ts`. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var p=JSON.parse(localStorage.getItem('fit-admin-palette')||'{}');if(!p||!Object.keys(p).length)return;var d=document.documentElement.classList.contains('dark');var s=document.documentElement.style;var hex=function(h){h=(h||'').replace('#','');if(h.length===3)h=h.split('').map(function(c){return c+c}).join('');return /^[0-9a-f]{6}$/i.test(h)?[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]:null};var mix=function(a,b,t){var x=hex(a),y=hex(b);if(!x||!y)return null;return '#'+[0,1,2].map(function(i){return Math.round(x[i]+(y[i]-x[i])*t).toString(16).padStart(2,'0')}).join('')};var canvas=p.background||(d?'#1B1B1B':'#F1F1F1');if(p.accent){s.setProperty('--color-accent',p.accent);var m=mix(p.accent,canvas,d?0.72:0.86);if(m)s.setProperty('--color-accent-muted',m);var t=mix(p.accent,d?'#FFFFFF':'#000000',0.18);if(t){s.setProperty('--color-text-accent',t);s.setProperty('--color-icon-accent',t)}var c=hex(p.accent);if(c)s.setProperty('--color-on-accent',(0.299*c[0]+0.587*c[1]+0.114*c[2])/255>0.62?'#101010':'#FFFFFF');s.setProperty('--brand-gradient-from',p.accent);var gp=mix(p.accent,'#EC4899',0.55);if(gp)s.setProperty('--brand-gradient-to',gp)}if(p.background)s.setProperty('--color-background-body',p.background);if(p.surface){s.setProperty('--color-background-surface',p.surface);s.setProperty('--color-background-card',p.surface);var mu=mix(p.surface,d?'#FFFFFF':'#000000',0.06);if(mu)s.setProperty('--color-background-muted',mu);var ov=mix(p.surface,d?'#FFFFFF':'#000000',0.08);if(ov)s.setProperty('--color-overlay-hover',ov)}if(p.border){s.setProperty('--color-border',p.border);var be=mix(p.border,d?'#FFFFFF':'#000000',0.18);if(be)s.setProperty('--color-border-emphasized',be)}if(p.text)s.setProperty('--color-text-primary',p.text);if(p.textMuted)s.setProperty('--color-text-secondary',p.textMuted)}catch(e){}})()`,
-          }}
-        />
         <SentryInit />
         <TopLoader />
         <NextIntlClientProvider locale={locale} messages={messages}>

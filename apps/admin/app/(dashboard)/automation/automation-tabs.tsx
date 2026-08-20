@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
+import { useTheme } from '@/components/theme/theme-provider';
 
 /** The Automation shell's tab keys — labels come from `shellTabs.<key>`. */
 export type AutomationTab = 'rules' | 'templates';
@@ -17,7 +18,9 @@ const styles = stylex.create({
     overflowX: 'auto',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
+    // No rule under the bar in light mode — the active pill alone carries the
+    // state; dark keeps the hairline under its underline tabs.
+    borderBottomColor: 'light-dark(transparent, var(--color-border))',
   },
   tab: {
     flexShrink: 0,
@@ -39,6 +42,17 @@ const styles = stylex.create({
     borderBottomColor: 'var(--color-text-accent)',
     color: 'var(--color-text-accent)',
   },
+  // The active tab, light mode: a brand pill — the raw lime with the theme's
+  // on-accent ink, the member portal's pairing (mirrors the dashboard's
+  // segment tabs). A separate per-theme style, not `light-dark()`: the pill's
+  // radius is a length, which `light-dark()` cannot carry — and dark must keep
+  // its straight underline.
+  tabActiveLight: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    borderBottomColor: 'transparent',
+    borderRadius: '9999px',
+  },
 });
 
 /**
@@ -48,6 +62,7 @@ const styles = stylex.create({
  */
 export function AutomationTabs({ active }: { active: AutomationTab }) {
   const t = useTranslations('admin.automation');
+  const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const [, startTransition] = useTransition();
@@ -68,7 +83,11 @@ export function AutomationTabs({ active }: { active: AutomationTab }) {
             role="tab"
             aria-selected={isActive}
             onClick={() => select(tab)}
-            {...stylex.props(styles.tab, isActive && styles.tabActive)}
+            {...stylex.props(
+              styles.tab,
+              isActive && styles.tabActive,
+              isActive && theme === 'light' && styles.tabActiveLight,
+            )}
           >
             {t(`shellTabs.${tab}`)}
           </button>

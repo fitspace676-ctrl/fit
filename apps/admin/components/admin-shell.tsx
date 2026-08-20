@@ -14,7 +14,6 @@ import { useTranslations } from 'next-intl';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { SkipLink, ToastProvider } from '@/components/ui';
 import { AgentChat } from './agent/agent-chat';
-import { ColorSwitcher } from './theme/color-switcher';
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
 
@@ -69,18 +68,6 @@ export function AdminShell({
 
   return (
     <ToastProvider>
-      {/* The document-wide brand gradient for icon strokes. Any glyph wrapped
-          in `.brand-grad-glyph` strokes it in light mode (see globals.css);
-          `url(#…)` resolves document-wide, so one def serves every icon,
-          including portalled drawers. */}
-      <svg aria-hidden width={0} height={0} style={{ position: 'absolute' }}>
-        <defs>
-          <radialGradient id="brand-icon-gradient" cx="0" cy="0" r="1.4142">
-            <stop offset="0" stopColor="#307654" />
-            <stop offset="1" stopColor="#e4f26a" />
-          </radialGradient>
-        </defs>
-      </svg>
       <SkipLink>{t('skipToContent')}</SkipLink>
       <AppShell
         variant="wash"
@@ -98,7 +85,6 @@ export function AdminShell({
         <AgentChat />
         {/* Palette playground — docked bottom-centre on every console screen so a
             colour can be judged against real pages rather than a swatch sheet. */}
-        <ColorSwitcher />
       </AppShell>
     </ToastProvider>
   );

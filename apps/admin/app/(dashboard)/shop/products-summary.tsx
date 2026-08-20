@@ -47,7 +47,7 @@ const styles = stylex.create({
     color: 'var(--color-text-accent)',
   },
   toneSuccess: {
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   toneWarning: {
     color: 'var(--color-warning)',

@@ -145,10 +145,13 @@ const styles = stylex.create({
       ':disabled': 0.4,
     },
   },
+  // The ring rides `--color-text-accent` (olive in light, lime in dark) — the
+  // raw accent ring was a lime hairline on the light modal, too faint to read
+  // as "selected".
   methodBtnSelected: {
-    borderColor: 'var(--color-accent)',
+    borderColor: 'var(--color-text-accent)',
     backgroundColor: 'var(--color-accent-muted)',
-    boxShadow: '0 0 0 1px var(--color-accent)',
+    boxShadow: '0 0 0 1px var(--color-text-accent)',
   },
   methodBtnIdle: {
     borderColor: {
@@ -348,7 +351,7 @@ const styles = stylex.create({
     justifyContent: 'center',
     borderRadius: 'var(--radius-full)',
     backgroundColor: 'var(--color-success-muted)',
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   successDiscIcon: {
     width: '1.5rem',
@@ -470,7 +473,7 @@ const styles = stylex.create({
   receiptSent: {
     margin: 0,
     fontSize: '0.75rem',
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   receiptNote: {
     margin: 0,

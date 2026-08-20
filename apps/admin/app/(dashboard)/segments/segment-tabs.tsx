@@ -14,6 +14,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { DASHBOARD_SEGMENTS, type DashboardSegment } from '@fit/types';
+import { useTheme } from '@/components/theme/theme-provider';
 import { useRovingTablist } from './use-roving-tablist';
 
 const styles = stylex.create({
@@ -23,7 +24,9 @@ const styles = stylex.create({
     overflowX: 'auto',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
+    // No rule under the bar in light mode — the active pill alone carries the
+    // state; dark keeps the theme's hairline under its underline tabs.
+    borderBottomColor: 'light-dark(transparent, var(--color-border))',
   },
   tab: {
     display: 'inline-flex',
@@ -49,21 +52,23 @@ const styles = stylex.create({
     ':hover': { color: 'var(--color-text-primary)' },
     ':focus-visible': { outline: '2px solid var(--color-accent)', outlineOffset: '-2px' },
   },
-  // Dark mode wears the raw brand accent, exactly as before; light mode wears
-  // the brand gradient - the label as gradient-clipped text, the underline via
-  // `border-image` from the same `--brand-fill-image` (which is `none` in dark,
-  // so there the plain border-color and solid accent ink stand). Literals and
-  // the image var rather than `--color-text-accent`, so nothing downstream (the
-  // palette playground remixes that token at runtime) can shift the dark tab
-  // off the accent.
+  // The active tab, dark mode: the flat accent ink + underline, exactly as the
+  // theme ships it.
   active: {
-    borderBottomColor: 'light-dark(#285d43, var(--color-accent))',
-    borderImageSource: 'var(--brand-fill-image, none)',
-    borderImageSlice: 1,
-    color: 'light-dark(transparent, var(--color-accent))',
-    backgroundImage: 'var(--brand-fill-image, none)',
-    backgroundClip: 'text',
-    WebkitBackgroundClip: 'text',
+    borderBottomColor: 'var(--color-accent)',
+    color: 'var(--color-text-accent)',
+  },
+  // The active tab, light mode: a brand pill — the raw brand lime
+  // (`--color-accent`, #E4F26A) as the fill with the theme's on-accent ink
+  // (#131312), the same pairing the member portal's active nav pill wears.
+  // A separate style applied per theme (not `light-dark()`) because the pill's
+  // radius is a length, which `light-dark()` cannot carry — and dark must keep
+  // its straight underline.
+  activeLight: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    borderBottomColor: 'transparent',
+    borderRadius: '9999px',
   },
 });
 
@@ -75,6 +80,7 @@ export function SegmentTabs({
   onSelect: (segment: DashboardSegment) => void;
 }) {
   const t = useTranslations('admin.dashboard.segments');
+  const { theme } = useTheme();
   const { registerRef, onKeyDown } = useRovingTablist(DASHBOARD_SEGMENTS, onSelect);
 
   return (
@@ -93,7 +99,11 @@ export function SegmentTabs({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onSelect(segment)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            {...stylex.props(styles.tab, isActive && styles.active)}
+            {...stylex.props(
+              styles.tab,
+              isActive && styles.active,
+              isActive && theme === 'light' && styles.activeLight,
+            )}
           >
             {t(segment)}
           </button>

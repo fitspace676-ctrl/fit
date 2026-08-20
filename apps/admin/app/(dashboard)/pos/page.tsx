@@ -101,14 +101,34 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
+  // Outlined pill buttons, not bare links — a till's chrome actions have to
+  // read as pressable at a glance. Hover fills with the accent wash; the ink
+  // stays the readable accent pair (its raw-accent hover used to vanish into
+  // the light canvas).
   endOfDayLink: {
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: {
-      default: 'var(--color-text-accent)',
-      ':hover': 'var(--color-accent)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    borderRadius: 'var(--radius-pill, 999px)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'var(--color-border)',
+      ':hover': 'var(--color-text-accent)',
     },
+    backgroundColor: {
+      default: 'var(--color-background-surface)',
+      ':hover': 'var(--color-accent-muted)',
+    },
+    paddingInline: '0.875rem',
+    paddingBlock: '0.4375rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
     textDecoration: 'none',
+    transitionProperty: 'background-color, border-color',
+    transitionDuration: '150ms',
   },
 });
 

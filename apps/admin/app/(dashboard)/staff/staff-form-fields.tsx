@@ -359,6 +359,8 @@ export function StaffFormFields({
                   checked={h.on}
                   onChange={(next) => setDay(d, { on: next })}
                   label={t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
+                  // The day-name span already names the row.
+                  hideLabel
                 />
                 {h.on ? (
                   <>

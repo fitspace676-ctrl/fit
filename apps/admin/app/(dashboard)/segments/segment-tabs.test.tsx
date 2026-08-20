@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import type { DashboardSegment } from '@fit/types';
+import { ThemeProvider } from '@/components/theme/theme-provider';
 import { SegmentTabs } from './segment-tabs';
 
 const messages = {
@@ -24,7 +25,9 @@ const messages = {
 function renderTabs(active: DashboardSegment = 'overview', onSelect = vi.fn()) {
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <SegmentTabs active={active} onSelect={onSelect} />
+      <ThemeProvider initial="dark">
+        <SegmentTabs active={active} onSelect={onSelect} />
+      </ThemeProvider>
     </NextIntlClientProvider>,
   );
   return onSelect;

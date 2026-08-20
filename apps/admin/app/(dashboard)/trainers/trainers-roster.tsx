@@ -9,6 +9,7 @@ import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import type { AdminTrainerRow, AdminTrainerSummary, TrainerStatus } from '@fit/types';
 import { Button, Card, CountUp } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
+import { formatNextClass } from './format';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -124,7 +125,6 @@ const styles = stylex.create({
   },
   segBtnActive: {
     backgroundColor: 'var(--color-accent)',
-    backgroundImage: 'var(--brand-fill-image, none)',
     color: 'var(--color-on-accent)',
   },
   segBtnInactive: {
@@ -443,25 +443,6 @@ function initialsOf(name: string): string {
   return (parts[0]![0]! + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
-/**
- * Format an upcoming class instant into the card's "next class" footer, e.g.
- * "Today 18:00", "Tomorrow 07:30", or "Mon 18:00". Local to the staff member.
- */
-function formatNextClass(iso: string, t: T, locale: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  const time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const dayDiff = Math.round((startOfDay(date) - startOfDay(new Date())) / 86_400_000);
-  const day =
-    dayDiff === 0
-      ? t('relative.today')
-      : dayDiff === 1
-        ? t('relative.tomorrow')
-        : date.toLocaleDateString(locale, { weekday: 'short' });
-  return `${day} ${time}`;
-}
-
 /** One roster KPI card — icon tile, animated headline value, label, and context. */
 function KpiCard({
   label,
@@ -479,11 +460,7 @@ function KpiCard({
   return (
     <Card padding="none" xstyle={styles.kpiCard}>
       <span {...stylex.props(styles.iconTile)}>
-        {/* `.brand-grad-glyph`: in light mode the glyph strokes the brand
-            gradient (see globals.css); in dark it keeps the tile's ink. */}
-        <span className="brand-grad-glyph" style={{ display: 'contents' }}>
-          <Icon name={icon} {...stylex.props(styles.icon)} />
-        </span>
+        <Icon name={icon} {...stylex.props(styles.icon)} />
       </span>
       <p {...stylex.props(styles.kpiValue)}>
         {decimals ? value.toFixed(1) : <CountUp to={value} />}
@@ -505,7 +482,17 @@ function StatTile({ label, value }: { label: string; value: string }) {
 }
 
 /** A single trainer card in the 2-up grid. */
-function TrainerCard({ trainer, t, locale }: { trainer: AdminTrainerRow; t: T; locale: string }) {
+function TrainerCard({
+  trainer,
+  t,
+  locale,
+  timeZone,
+}: {
+  trainer: AdminTrainerRow;
+  t: T;
+  locale: string;
+  timeZone: string;
+}) {
   return (
     <Card padding="none" xstyle={styles.trainerCard}>
       <div {...stylex.props(styles.cardTop)}>
@@ -562,7 +549,8 @@ function TrainerCard({ trainer, t, locale }: { trainer: AdminTrainerRow; t: T; l
           <Icon name="calendar" {...stylex.props(styles.smIcon)} />
           {trainer.nextClass ? (
             <span {...stylex.props(styles.truncate)}>
-              {formatNextClass(trainer.nextClass.startsAt, t, locale)} · {trainer.nextClass.title}
+              {formatNextClass(trainer.nextClass.startsAt, t, locale, timeZone)} ·{' '}
+              {trainer.nextClass.title}
             </span>
           ) : (
             <span>{t('list.noUpcomingClass')}</span>
@@ -591,6 +579,7 @@ export function TrainersRoster({
   page,
   limit,
   canWrite,
+  timeZone,
 }: {
   trainers: AdminTrainerRow[];
   summary: AdminTrainerSummary;
@@ -598,6 +587,8 @@ export function TrainersRoster({
   page: number;
   limit: number;
   canWrite: boolean;
+  /** The gym's IANA zone — every class time on the roster is read on it. */
+  timeZone: string;
 }) {
   const t = useTranslations('admin.trainers');
   const locale = useLocale();
@@ -739,7 +730,13 @@ export function TrainersRoster({
       ) : (
         <div {...stylex.props(styles.cardGrid)}>
           {visible.map((trainer) => (
-            <TrainerCard key={trainer.id} trainer={trainer} t={t} locale={locale} />
+            <TrainerCard
+              key={trainer.id}
+              trainer={trainer}
+              t={t}
+              locale={locale}
+              timeZone={timeZone}
+            />
           ))}
         </div>
       )}

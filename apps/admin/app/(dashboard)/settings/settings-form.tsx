@@ -230,30 +230,14 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.75rem',
   },
-  switchRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem',
+  // Dresses the kit Switch's own row as a settings card; the Switch supplies
+  // the layout (label + description left, track right) itself.
+  switchShell: {
     borderRadius: 'var(--radius-container)',
     backgroundColor: 'var(--color-background-muted)',
-    padding: '0.875rem 1rem',
+    paddingInline: '1rem',
+    paddingBlock: '0.875rem',
     boxShadow: 'inset 0 0 0 1px var(--color-border)',
-  },
-  switchText: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.125rem',
-    flex: 1,
-    minWidth: 0,
-  },
-  switchLabel: {
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    color: 'var(--color-text-primary)',
-  },
-  switchDesc: {
-    fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
   },
   // Section rail
   railWrap: {
@@ -1365,8 +1349,12 @@ function SectionCard({
 }
 
 /**
- * A labelled boolean toggle row: title + description on the left, an on/off
- * {@link Switch} on the right, bound to the form by `name` through a `Controller`.
+ * A labelled boolean toggle row, bound to the form by `name` through a
+ * `Controller`. The kit {@link Switch} already lays out the whole row — label
+ * and description on the left, the track on the right — so the text goes
+ * THROUGH it, never next to it: a second copy rendered alongside used to
+ * overlap the switch's own label on every settings toggle. The shell style
+ * only dresses the row as a settings card.
  */
 function SwitchRow({
   name,
@@ -1379,19 +1367,19 @@ function SwitchRow({
 }) {
   const { control } = useFormContext<SettingsFormValues>();
   return (
-    <div {...stylex.props(styles.switchRow)}>
-      <div {...stylex.props(styles.switchText)}>
-        <span {...stylex.props(styles.switchLabel)}>{label}</span>
-        {description ? <span {...stylex.props(styles.switchDesc)}>{description}</span> : null}
-      </div>
-      <Controller
-        control={control}
-        name={name}
-        render={({ field }) => (
-          <Switch checked={Boolean(field.value)} onChange={field.onChange} label={label} />
-        )}
-      />
-    </div>
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <Switch
+          checked={Boolean(field.value)}
+          onChange={field.onChange}
+          label={label}
+          description={description}
+          xstyle={styles.switchShell}
+        />
+      )}
+    />
   );
 }
 
@@ -1775,6 +1763,9 @@ function DayRow({ day }: { day: Weekday }) {
                 checked={!field.value}
                 onChange={(open) => field.onChange(!open)}
                 label={t('hours.toggleAria', { day: label })}
+                // The row already says "open" next to the track; the per-day
+                // label is for screen readers, not a second visible caption.
+                hideLabel
               />
             )}
           />

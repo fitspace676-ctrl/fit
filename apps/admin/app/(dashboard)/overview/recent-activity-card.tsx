@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
+import { useTheme } from '@/components/theme/theme-provider';
 import { useTranslations } from 'next-intl';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { useRovingTablist } from '../segments/use-roving-tablist';
@@ -36,7 +37,9 @@ const styles = stylex.create({
     paddingTop: '1rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--color-border)',
+    // No rule under the bar in light mode — the active pill alone carries the
+    // state; dark keeps the hairline under its underline tabs.
+    borderBottomColor: 'light-dark(transparent, var(--color-border))',
   },
   tabList: {
     display: 'flex',
@@ -64,6 +67,18 @@ const styles = stylex.create({
     borderBottomColor: 'var(--color-text-accent)',
     color: 'var(--color-text-accent)',
   },
+  // The active tab, light mode: a brand pill — the raw lime with the theme's
+  // on-accent ink (mirrors the dashboard's segment tabs). Carries its own
+  // padding: the base tab hugs the underline, a pill needs air on every side.
+  activeLight: {
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    borderBottomColor: 'transparent',
+    borderRadius: '9999px',
+    paddingInline: '0.625rem',
+    paddingTop: '0.375rem',
+    paddingBottom: '0.375rem',
+  },
   body: {
     paddingInline: '1.25rem',
     paddingBlock: '1rem',
@@ -72,6 +87,7 @@ const styles = stylex.create({
 
 export function RecentActivityCard({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
+  const { theme } = useTheme();
   const [feed, setFeed] = useState<Feed>('checkIns');
   const { registerRef, onKeyDown } = useRovingTablist(FEEDS, setFeed);
 
@@ -98,7 +114,11 @@ export function RecentActivityCard({ data }: { data: DashboardOverviewResponse }
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => setFeed(value)}
                 onKeyDown={(event) => onKeyDown(event, index)}
-                {...stylex.props(styles.tab, isActive && styles.active)}
+                {...stylex.props(
+                  styles.tab,
+                  isActive && styles.active,
+                  isActive && theme === 'light' && styles.activeLight,
+                )}
               >
                 {labels[value]}
               </button>
