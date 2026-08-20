@@ -687,6 +687,7 @@ interface SettingsFormValues {
     paymentMethod: boolean;
     medicalNotes: boolean;
   };
+  freeAccount: { enabled: boolean; name: string; description: string };
   staffDirectory: GymStaffDirectorySettings;
   reports: GymReportsSettings;
   payments: { acceptCash: boolean; acceptCard: boolean; acceptPrepaidCredits: boolean };
@@ -713,6 +714,7 @@ type BoolFieldName =
   | 'memberIntake.membershipPlan'
   | 'memberIntake.paymentMethod'
   | 'memberIntake.medicalNotes'
+  | 'freeAccount.enabled'
   | 'staffDirectory.lastName'
   | 'staffDirectory.role'
   | 'staffDirectory.location'
@@ -755,7 +757,7 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
   if (errors.brand || errors.locale) return 'general';
   if (errors.business) return 'business';
   if (errors.hours) return 'hours';
-  if (errors.memberIntake) return 'membership';
+  if (errors.memberIntake || errors.freeAccount) return 'membership';
   if (errors.staffDirectory) return 'staff';
   if (errors.reports) return 'reports';
   if (errors.payments) return 'payments';
@@ -862,6 +864,14 @@ export function SettingsForm({
         paymentMethod: z.boolean(),
         medicalNotes: z.boolean(),
       }),
+      // The offer's wording is the gym's own, so both strings may be blank —
+      // the member portal falls back to its translated default copy. Only the
+      // lengths are enforced, and they mirror the contract's.
+      freeAccount: z.object({
+        enabled: z.boolean(),
+        name: z.string().trim().max(60),
+        description: z.string().trim().max(240),
+      }),
       // The staff-page toggles are a plain boolean map, so the contract's own
       // schema is the form schema — no field-by-field restatement to drift.
       staffDirectory: gymStaffDirectorySettingsSchema,
@@ -916,6 +926,7 @@ export function SettingsForm({
       locale: values.locale,
       hours: values.hours,
       memberIntake: values.memberIntake,
+      freeAccount: values.freeAccount,
       staffDirectory: values.staffDirectory,
       reports: values.reports,
       payments: values.payments,
@@ -1022,37 +1033,68 @@ export function SettingsForm({
           ) : null}
 
           {section === 'membership' ? (
-            <SectionCard title={t('membership.title')} description={t('membership.subtitle')}>
-              <div {...stylex.props(styles.switchList)}>
-                {(
-                  [
-                    'name',
-                    'surname',
-                    'email',
-                    'phone',
-                    'gender',
-                    'dateOfBirth',
-                    'personalId',
-                    'address',
-                    'emergencyContact',
-                    'membershipPlan',
-                    'paymentMethod',
-                    'medicalNotes',
-                  ] as const
-                ).map((field) => (
+            <>
+              <SectionCard title={t('membership.title')} description={t('membership.subtitle')}>
+                <div {...stylex.props(styles.switchList)}>
+                  {(
+                    [
+                      'name',
+                      'surname',
+                      'email',
+                      'phone',
+                      'gender',
+                      'dateOfBirth',
+                      'personalId',
+                      'address',
+                      'emergencyContact',
+                      'membershipPlan',
+                      'paymentMethod',
+                      'medicalNotes',
+                    ] as const
+                  ).map((field) => (
+                    <SwitchRow
+                      key={field}
+                      name={`memberIntake.${field}`}
+                      label={t(`membership.fields.${field}`)}
+                      description={
+                        field === 'name' || field === 'email'
+                          ? t('membership.requiredWarning')
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              </SectionCard>
+
+              {/* The free-account offer is the other half of "how someone becomes a
+                member here": the intake card is what the DESK collects, this is
+                what the public join screen offers. Same section, because a gym
+                deciding its membership policy decides both in one sitting. */}
+              <SectionCard title={t('freeAccount.title')} description={t('freeAccount.subtitle')}>
+                <div {...stylex.props(styles.stack4)}>
                   <SwitchRow
-                    key={field}
-                    name={`memberIntake.${field}`}
-                    label={t(`membership.fields.${field}`)}
-                    description={
-                      field === 'name' || field === 'email'
-                        ? t('membership.requiredWarning')
-                        : undefined
-                    }
+                    name="freeAccount.enabled"
+                    label={t('freeAccount.enabledLabel')}
+                    description={t('freeAccount.enabledDescription')}
                   />
-                ))}
-              </div>
-            </SectionCard>
+                  {/* The wording is optional on purpose: a gym can switch the offer
+                    on and let the portal's own copy stand, or name it itself. */}
+                  <TextField
+                    name="freeAccount.name"
+                    label={t('freeAccount.nameLabel')}
+                    placeholder={t('freeAccount.namePlaceholder')}
+                    hint={t('freeAccount.wordingHint')}
+                    autoComplete="off"
+                  />
+                  <TextField
+                    name="freeAccount.description"
+                    label={t('freeAccount.descriptionLabel')}
+                    placeholder={t('freeAccount.descriptionPlaceholder')}
+                    autoComplete="off"
+                  />
+                </div>
+              </SectionCard>
+            </>
           ) : null}
 
           {section === 'staff' ? (
@@ -1241,6 +1283,11 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       membershipPlan: settings.memberIntake.membershipPlan,
       paymentMethod: settings.memberIntake.paymentMethod,
       medicalNotes: settings.memberIntake.medicalNotes,
+    },
+    freeAccount: {
+      enabled: settings.freeAccount.enabled,
+      name: settings.freeAccount.name,
+      description: settings.freeAccount.description,
     },
     staffDirectory: settings.staffDirectory,
     reports: settings.reports,

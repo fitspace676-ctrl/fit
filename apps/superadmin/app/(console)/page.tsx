@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { Banner } from '@fit/ui-kit';
+import { ButtonLink } from '@/components/button-link';
 import { ApiError, fetchGyms } from '@/lib/api';
 import { tenantAdminUrl, tenantPortalUrl } from '@/lib/tenant-url';
 import { GymsTable, type GymRow } from './gyms-table';
@@ -32,6 +33,13 @@ const styles = stylex.create({
     maxWidth: '72rem',
   },
   header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  heading: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.375rem',
@@ -74,10 +82,14 @@ export default async function GymsPage() {
   return (
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>Gyms</h1>
-        <p {...stylex.props(styles.subtitle)}>
-          Every gym on the platform. Suspending one locks its staff and members out of new sessions.
-        </p>
+        <div {...stylex.props(styles.heading)}>
+          <h1 {...stylex.props(styles.title)}>Gyms</h1>
+          <p {...stylex.props(styles.subtitle)}>
+            Every gym on the platform. Suspending one locks its staff and members out of new
+            sessions.
+          </p>
+        </div>
+        <ButtonLink href="/gyms/new" label="New gym" />
       </header>
       {content}
     </div>

@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { GymMemberStatus, GymStatus, Prisma, Role } from '@fit/db';
-import { EMAIL_TAKEN_CODE } from '@fit/types';
+import { EMAIL_TAKEN_CODE, gymPublicMemberIntake, missingSignupIntakeFields } from '@fit/types';
 import type {
   AppleAuthInput,
   AppleProfile,
@@ -166,10 +166,24 @@ export class AuthService {
     // subdomain, so a bad value is a malformed request, not a missing resource.
     const gym = await this.prisma.client.gym.findFirst({
       where: { id: input.gymId, status: GymStatus.ACTIVE },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, settings: true },
     });
     if (!gym) {
       throw new BadRequestException({ message: 'Unknown gym', code: 'GYM_NOT_FOUND' });
+    }
+
+    // The gym decides which profile fields its join form demands (Settings →
+    // Membership), exactly as it does for the staff console's Add-Member drawer.
+    // Checked here rather than in the schema because only the server can read the
+    // gym's settings, and a stale browser tab left open across a settings change
+    // must not be able to post a body the current policy rejects.
+    const missing = missingSignupIntakeFields(input, gymPublicMemberIntake(gym.settings));
+    if (missing.length > 0) {
+      throw new BadRequestException({
+        message: `This gym’s join form requires: ${missing.join(', ')}`,
+        code: 'MEMBER_INTAKE_REQUIRED',
+        fields: missing,
+      });
     }
 
     const existing = await this.prisma.client.user.findUnique({
@@ -197,7 +211,9 @@ export class AuthService {
         data: {
           email: input.email,
           name: input.name,
-          phone: input.phone,
+          // Every profile field below is optional in the contract now: a gym that
+          // asks for none of them gets a member with none of them on file.
+          phone: input.phone ?? null,
           passwordHash,
         },
         select: { id: true },
@@ -211,9 +227,9 @@ export class AuthService {
           status: GymMemberStatus.ACTIVE,
           // A calendar date, not an instant: parsed at UTC midnight so the stored
           // value round-trips to the same `YYYY-MM-DD` in every server timezone.
-          dateOfBirth: new Date(`${input.dateOfBirth}T00:00:00.000Z`),
-          gender: input.gender,
-          personalId: input.personalId,
+          dateOfBirth: input.dateOfBirth ? new Date(`${input.dateOfBirth}T00:00:00.000Z`) : null,
+          gender: input.gender ?? null,
+          personalId: input.personalId ?? null,
         },
       });
 
@@ -246,8 +262,14 @@ export class AuthService {
    * as the owner without its consent. A subdomain already in use is rejected with
    * `409 SUBDOMAIN_TAKEN`. Both pre-checks are backed by the DB unique
    * constraints, so a race still collapses to the same `409` (mapped from the
-   * violated target) rather than a `500`. The gym records who provisioned it in
-   * `createdByUserId` (the owner, for self-signup).
+   * violated target) rather than a `500`.
+   *
+   * `createdByUserId` records who provisioned the gym: the owner on self-signup,
+   * and the acting SUPER_ADMIN when the operator console creates a gym on an
+   * owner's behalf — which is what `createdBy` carries. That is the ONLY
+   * difference between the two paths, deliberately: a gym is a gym, and letting
+   * the operator route grow its own provisioning code is how a platform ends up
+   * with two subtly different kinds of tenant.
    *
    * This runs on the **unscoped** {@link PrismaService}: provisioning a tenant
    * inherently precedes any tenant context (the route is excluded from
@@ -260,7 +282,7 @@ export class AuthService {
    * verification. A supplied `password` is set on the new account; when omitted
    * the owner sets one later through the reset flow.
    */
-  async registerGym(input: RegisterGymInput): Promise<RegisterGymResponse> {
+  async registerGym(input: RegisterGymInput, createdBy?: string): Promise<RegisterGymResponse> {
     const [existingGym, existingOwner] = await Promise.all([
       this.prisma.client.gym.findUnique({
         where: { slug: input.subdomainSlug },
@@ -304,7 +326,7 @@ export class AuthService {
             name: input.gymName,
             slug: input.subdomainSlug,
             ownerId: owner.id,
-            createdByUserId: owner.id,
+            createdByUserId: createdBy ?? owner.id,
           },
           select: { id: true },
         });

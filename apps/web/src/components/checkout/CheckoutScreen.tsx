@@ -5,7 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import {
-  memberSignupSchema,
+  memberSignupSchemaFor,
   type CheckoutProductType,
   type Gender,
   type PackageSummary,
@@ -16,7 +16,7 @@ import { createCheckout, EmailTakenError, fetchSignupCatalogue, signupMember } f
 import { useSession } from '@/hooks/use-session';
 import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
-import { Banner, Field } from '@/src/components/ui/kit';
+import { Banner, DateField, Field } from '@/src/components/ui/kit';
 import { PRODUCT_TABS, toCards } from './product-cards';
 
 // FormaCore redesign — the purchase flow as ONE page.
@@ -192,6 +192,87 @@ const styles = stylex.create({
     color: 'var(--color-on-accent)',
   },
 
+  /* ------------------------------- locations ------------------------------- */
+  // A branch is a PLACE, so the card leads with the picture of it and puts the
+  // address directly under the name: the two things someone deciding where to
+  // train actually weighs. It replaced a row of name-only chips, which asked a
+  // buyer to know the branch names by heart.
+  locationGrid: {
+    display: 'grid',
+    gap: '0.75rem',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+    },
+  },
+  locationCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-card)',
+    padding: 0,
+    textAlign: 'start',
+    cursor: 'pointer',
+    transitionProperty: 'border-color, box-shadow',
+    transitionDuration: '150ms',
+  },
+  locationThumb: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    aspectRatio: '16 / 9',
+    width: '100%',
+    overflow: 'hidden',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  locationImg: {
+    height: '100%',
+    width: '100%',
+    objectFit: 'cover',
+  },
+  // Same placeholder grammar as the shop: the branch's initial, not one map pin
+  // repeated down the whole list.
+  locationInitial: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '1.875rem',
+    fontWeight: 700,
+    lineHeight: 1,
+    color: 'var(--color-text-secondary)',
+  },
+  locationBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    padding: '1rem',
+  },
+  locationName: {
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1rem',
+    fontWeight: 800,
+    letterSpacing: '-0.01em',
+    color: 'var(--color-text-primary)',
+  },
+  locationAddress: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.375rem',
+    fontSize: '0.8125rem',
+    fontWeight: 500,
+    lineHeight: 1.5,
+    color: 'var(--color-text-secondary)',
+  },
+  locationPin: {
+    marginTop: '0.125rem',
+    flexShrink: 0,
+    height: '0.875rem',
+    width: '0.875rem',
+    color: 'var(--color-text-accent)',
+  },
+
   /* --------------------------------- cards --------------------------------- */
   cardGrid: {
     marginTop: '1rem',
@@ -293,6 +374,37 @@ const styles = stylex.create({
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.1em',
+  },
+
+  /* ------------------------------ free account ----------------------------- */
+  // Set apart from the paid cards rather than mixed into their grid: it is not a
+  // cheaper plan, it is the choice not to buy one — and a "0,00 ₾" card sitting
+  // beside Premium reads as the former.
+  freeWrap: {
+    marginTop: '1.25rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  freeOr: {
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.14em',
+    color: 'var(--color-text-secondary)',
+  },
+  // The offer sits on the SAME surface as the plan cards — white in light, the
+  // card fill in dark — so the only thing setting it apart is the dashed rule.
+  // It buys nothing; it should not also look like a different kind of object.
+  freeCard: {
+    borderStyle: 'dashed',
+  },
+  freePrice: {
+    margin: 0,
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    whiteSpace: 'nowrap',
+    color: 'var(--color-text-accent)',
   },
 
   /* --------------------------------- fields -------------------------------- */
@@ -542,6 +654,16 @@ type Status = 'loading' | 'ready' | 'error';
  * per branch, so choosing the product before the branch could re-price what the
  * buyer already picked.
  */
+/**
+ * The `productId` that means "no product" — the gym's free account.
+ *
+ * A sentinel rather than a fourth product type: a free account buys nothing, so
+ * there is no catalogue row to point at and `POST /checkout` is never called for
+ * it. Carrying it in the same state as a real selection is what lets the step
+ * chips, the order rail and the submit button stay one code path instead of two.
+ */
+const FREE_ACCOUNT_ID = '__free_account__';
+
 const SECTIONS = ['location', 'package', 'details', 'payment'] as const;
 
 type Step = 0 | 1 | 2 | 3;
@@ -642,6 +764,16 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
     [catalogue, locationId],
   );
 
+  // The gym's free-account offer, if it runs one. Only ever shown to a visitor
+  // with no account: it is a way IN, and a signed-in member already has the one
+  // thing it grants. Both strings are the gym's own wording, blank meaning "use
+  // the portal's".
+  const freeOffered = Boolean(catalogue?.freeAccount.enabled) && !signedIn;
+  const isFree = freeOffered && productId === FREE_ACCOUNT_ID;
+  const freeName = catalogue?.freeAccount.name.trim() || t('packages.free.name');
+  const freeDescription =
+    catalogue?.freeAccount.description.trim() || t('packages.free.description');
+
   const money = useCallback(
     (minor: number, currency: string) =>
       createNumberFormat(locale, { style: 'currency', currency }).format(minor / 100),
@@ -657,21 +789,40 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
 
   const name = `${firstName.trim()} ${lastName.trim()}`.trim();
 
-  /** Everything the details step needs before the purchase can be attempted. */
-  const detailsReady =
-    signedIn ||
-    memberSignupSchema.safeParse({
+  // Which profile fields this gym asks for (Settings → Membership). Until the
+  // catalogue lands, ask for nothing beyond the account itself rather than
+  // guessing: a field that flickers in and out as the response arrives is worse
+  // than one that appears once.
+  const intake = catalogue?.memberIntake ?? null;
+  const asks = useCallback(
+    (field: keyof NonNullable<typeof intake>): boolean => Boolean(intake?.[field]),
+    [intake],
+  );
+
+  /**
+   * The signup body, from the fields this gym collects. A field it does not ask
+   * for is OMITTED rather than sent empty — the member has no phone on file,
+   * which is a different thing from a blank one.
+   */
+  const signupBody = useMemo(
+    () => ({
       gymId: gymId ?? '',
       name,
       email,
       password,
-      phone,
-      dateOfBirth,
-      gender,
-      personalId,
-    }).success;
+      ...(asks('phone') ? { phone } : {}),
+      ...(asks('dateOfBirth') ? { dateOfBirth } : {}),
+      ...(asks('gender') ? { gender } : {}),
+      ...(asks('personalId') ? { personalId } : {}),
+    }),
+    [gymId, name, email, password, asks, phone, dateOfBirth, gender, personalId],
+  );
 
-  const canPay = Boolean(gymId && product && terms && detailsReady) && !submitting;
+  /** Everything the details step needs before the purchase can be attempted. */
+  const detailsReady =
+    signedIn || (intake !== null && memberSignupSchemaFor(intake).safeParse(signupBody).success);
+
+  const canPay = Boolean(gymId && (product || isFree) && terms && detailsReady) && !submitting;
 
   /**
    * Reserve the membership.
@@ -685,14 +836,20 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!gymId || !product || !terms || submitting) return;
+      if (!gymId || (!product && !isFree) || !terms || submitting) return;
 
       setSubmitting(true);
       setError(null);
       setEmailTaken(false);
 
-      const settle = () =>
-        createCheckout({
+      const settle = (): Promise<void> => {
+        // A free account has nothing to settle: the signup that just ran IS the
+        // membership, so there is no order to place and no receipt to show.
+        if (!product) {
+          router.replace('/member/home', { scroll: false });
+          return Promise.resolve();
+        }
+        return createCheckout({
           productType,
           productId: product.id,
           ...(locationId ? { locationId } : {}),
@@ -705,21 +862,13 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
             { scroll: false },
           );
         });
+      };
 
       const run = signedIn
         ? settle()
         : (() => {
-            const parsed = memberSignupSchema.safeParse({
-              gymId,
-              name,
-              email,
-              password,
-              phone,
-              dateOfBirth,
-              gender,
-              personalId,
-            });
-            if (!parsed.success) {
+            const parsed = intake ? memberSignupSchemaFor(intake).safeParse(signupBody) : null;
+            if (!parsed?.success) {
               return Promise.reject(new Error(t('details.invalid')));
             }
             return signupMember(parsed.data).then(settle);
@@ -737,24 +886,25 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
     [
       gymId,
       product,
+      isFree,
       terms,
       submitting,
       signedIn,
       productType,
       locationId,
-      name,
-      email,
-      password,
-      phone,
-      dateOfBirth,
-      gender,
-      personalId,
+      intake,
+      signupBody,
       router,
       t,
     ],
   );
 
-  const done: readonly boolean[] = [Boolean(locationId), Boolean(product), detailsReady, terms];
+  const done: readonly boolean[] = [
+    Boolean(locationId),
+    Boolean(product) || isFree,
+    detailsReady,
+    terms,
+  ];
   /** A step is reachable once every step before it is satisfied. */
   const reachable = (i: number): boolean => done.slice(0, i).every(Boolean);
   const canAdvance = done[step] === true;
@@ -811,7 +961,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
               ) : (catalogue?.locations.length ?? 0) === 0 ? (
                 <p {...stylex.props(styles.hint)}>{t('locations.empty.subtitle')}</p>
               ) : (
-                <div {...stylex.props(styles.chipRow)}>
+                <div {...stylex.props(styles.locationGrid)}>
                   {catalogue?.locations.map((l) => (
                     <button
                       key={l.id}
@@ -823,12 +973,26 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                         setProductId(undefined);
                       }}
                       aria-pressed={locationId === l.id}
-                      {...stylex.props(
-                        styles.chip,
-                        locationId === l.id ? styles.chipOn : styles.chipIdle,
-                      )}
+                      {...stylex.props(styles.locationCard, locationId === l.id && styles.cardOn)}
                     >
-                      {l.name}
+                      <span {...stylex.props(styles.locationThumb)}>
+                        {l.photoUrl ? (
+                          <img src={l.photoUrl} alt="" {...stylex.props(styles.locationImg)} />
+                        ) : (
+                          <span aria-hidden {...stylex.props(styles.locationInitial)}>
+                            {l.name.trim().charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </span>
+                      <span {...stylex.props(styles.locationBody)}>
+                        <span {...stylex.props(styles.locationName)}>{l.name}</span>
+                        {l.address.trim() ? (
+                          <span {...stylex.props(styles.locationAddress)}>
+                            <Icon name="pin" sw={2} {...stylex.props(styles.locationPin)} />
+                            {l.address}
+                          </span>
+                        ) : null}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -909,6 +1073,24 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                   })}
                 </div>
               )}
+
+              {freeOffered ? (
+                <div {...stylex.props(styles.freeWrap)}>
+                  <span {...stylex.props(styles.freeOr)}>{t('packages.free.or')}</span>
+                  <button
+                    type="button"
+                    onClick={() => setProductId(FREE_ACCOUNT_ID)}
+                    aria-pressed={isFree}
+                    {...stylex.props(styles.card, styles.freeCard, isFree && styles.cardOn)}
+                  >
+                    <div {...stylex.props(styles.cardTop)}>
+                      <p {...stylex.props(styles.cardName)}>{freeName}</p>
+                      <p {...stylex.props(styles.freePrice)}>{t('packages.free.price')}</p>
+                    </div>
+                    <p {...stylex.props(styles.cardDesc)}>{freeDescription}</p>
+                  </button>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -942,14 +1124,20 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                       onChange={(e) => setFirstName(e.target.value)}
                       disabled={submitting}
                     />
-                    <Field
-                      label={t('details.fields.lastName')}
-                      name="family-name"
-                      autoComplete="family-name"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      disabled={submitting}
-                    />
+                    {/* Every field below the account itself is the gym's call —
+                        Settings → Membership. A switched-off field is not shown at
+                        all (and not sent), which is the same "on means shown and
+                        required" rule the staff console's Add-Member drawer obeys. */}
+                    {asks('surname') ? (
+                      <Field
+                        label={t('details.fields.lastName')}
+                        name="family-name"
+                        autoComplete="family-name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        disabled={submitting}
+                      />
+                    ) : null}
                     <Field
                       label={t('details.fields.email')}
                       type="email"
@@ -971,34 +1159,51 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                       disabled={submitting}
                       revealLabels={{ show: tAuth('showPassword'), hide: tAuth('hidePassword') }}
                     />
-                    <Field
-                      label={t('details.fields.phone')}
-                      type="tel"
-                      name="phone"
-                      autoComplete="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      disabled={submitting}
-                    />
-                    <Field
-                      label={t('details.fields.dateOfBirth')}
-                      type="date"
-                      name="dateOfBirth"
-                      value={dateOfBirth}
-                      onChange={(e) => setDateOfBirth(e.target.value)}
-                      disabled={submitting}
-                    />
-                    <Field
-                      label={t('details.fields.personalId')}
-                      name="personalId"
-                      hint={t('details.fields.personalIdHint')}
-                      value={personalId}
-                      onChange={(e) => setPersonalId(e.target.value)}
-                      disabled={submitting}
-                    />
+                    {asks('phone') ? (
+                      <Field
+                        label={t('details.fields.phone')}
+                        type="tel"
+                        name="phone"
+                        autoComplete="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        disabled={submitting}
+                      />
+                    ) : null}
+                    {/* The kit's own calendar rather than `<input type="date">`:
+                        the native control draws an American month-first date
+                        under a Georgian label and paints a picker no theme can
+                        reach. The value it hands back is the same ISO string. */}
+                    {asks('dateOfBirth') ? (
+                      <DateField
+                        label={t('details.fields.dateOfBirth')}
+                        name="dateOfBirth"
+                        value={dateOfBirth}
+                        onChange={setDateOfBirth}
+                        locale={locale}
+                        placeholder={t('details.fields.datePlaceholder')}
+                        labels={{
+                          open: t('details.calendar.open'),
+                          previousMonth: t('details.calendar.previousMonth'),
+                          nextMonth: t('details.calendar.nextMonth'),
+                          chooseYear: t('details.calendar.chooseYear'),
+                        }}
+                        disabled={submitting}
+                      />
+                    ) : null}
+                    {asks('personalId') ? (
+                      <Field
+                        label={t('details.fields.personalId')}
+                        name="personalId"
+                        hint={t('details.fields.personalIdHint')}
+                        value={personalId}
+                        onChange={(e) => setPersonalId(e.target.value)}
+                        disabled={submitting}
+                      />
+                    ) : null}
                     {/* Three options, so chips rather than a select: the whole
                         choice is visible and it is one tap on a phone. */}
-                    <div {...stylex.props(styles.fieldWide)}>
+                    <div {...stylex.props(styles.fieldWide)} hidden={!asks('gender')}>
                       <span {...stylex.props(styles.fieldLabel)}>{t('details.fields.gender')}</span>
                       <div {...stylex.props(styles.chipRow)}>
                         {(['FEMALE', 'MALE', 'OTHER'] as const).map((value) => (
@@ -1042,7 +1247,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
 
               <p {...stylex.props(styles.notice)}>
                 <Icon name="info" sw={2} {...stylex.props(styles.noticeIcon)} />
-                {t('payment.notice')}
+                {isFree ? t('payment.freeNotice') : t('payment.notice')}
               </p>
             </div>
           </section>
@@ -1053,18 +1258,20 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
           <div {...stylex.props(styles.order)}>
             <p {...stylex.props(styles.orderEyebrow)}>{t('summary.title')}</p>
 
-            {product ? (
+            {product || isFree ? (
               <>
-                <p {...stylex.props(styles.orderName)}>{product.name}</p>
+                <p {...stylex.props(styles.orderName)}>{product ? product.name : freeName}</p>
                 <p {...stylex.props(styles.orderMeta)}>
-                  {[locationName, cadenceOf(product)].filter(Boolean).join(' · ')}
+                  {[locationName, product ? cadenceOf(product) : null].filter(Boolean).join(' · ')}
                 </p>
 
                 <div {...stylex.props(styles.orderRule)} />
 
                 <p {...stylex.props(styles.totalLabel)}>{t('summary.total')}</p>
                 <p {...stylex.props(styles.totalValue)}>
-                  {money(product.priceAmount, product.currency)}
+                  {product
+                    ? money(product.priceAmount, product.currency)
+                    : t('packages.free.price')}
                 </p>
               </>
             ) : (
@@ -1072,7 +1279,7 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
             )}
 
             {/* ONE action locus. The rail's button is "continue" while there
-                are steps left and "reserve" on the last one, so the buyer never
+                are steps left and "pay" on the last one, so the buyer never
                 has to look in two places for the way forward — and the total is
                 directly above it the whole time.
 
@@ -1109,13 +1316,19 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                   disabled={!canPay}
                   {...stylex.props(styles.pay, !canPay && styles.payOff)}
                 >
-                  <Icon name="lock" sw={2} {...stylex.props(styles.payIcon)} />
-                  {submitting ? t('payment.processing') : t('payment.reserve')}
+                  <Icon name={isFree ? 'check' : 'lock'} sw={2} {...stylex.props(styles.payIcon)} />
+                  {submitting
+                    ? t('payment.processing')
+                    : isFree
+                      ? t('payment.createFree')
+                      : t('payment.pay')}
                 </button>
               )}
             </div>
 
-            <p {...stylex.props(styles.orderNote)}>{t('summary.note')}</p>
+            {/* The standing note is about settling at reception — true of every
+                purchase, and untrue of the one choice that buys nothing. */}
+            {isFree ? null : <p {...stylex.props(styles.orderNote)}>{t('summary.note')}</p>}
           </div>
 
           {error ? (

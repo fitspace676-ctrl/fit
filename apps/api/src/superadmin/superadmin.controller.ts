@@ -13,7 +13,10 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  createAdminGymSchema,
   updateGymStatusSchema,
+  type AdminGymDetail,
+  type CreateAdminGymResponse,
   type ImpersonateResponse,
   type ListAdminGymsResponse,
   type UpdateGymStatusResponse,
@@ -52,6 +55,28 @@ export class SuperAdminController {
   @AllowCrossTenant()
   async list(): Promise<ListAdminGymsResponse> {
     return this.superadmin.listGyms();
+  }
+
+  /**
+   * `POST /admin/gyms` — provision a gym and onboard its first owner.
+   *
+   * `201`, like the self-signup route it delegates to, and the same `409`s:
+   * `SUBDOMAIN_TAKEN` for a slug in use, `EMAIL_TAKEN` for an address that
+   * already has an account (which is never silently bound as the owner).
+   */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @AllowCrossTenant()
+  async create(@Body() body: unknown): Promise<CreateAdminGymResponse> {
+    return this.superadmin.createGym(this.actorId(), parse(createAdminGymSchema, body));
+  }
+
+  /** `GET /admin/gyms/:id` — one gym with its owner, staff, and counts. */
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @AllowCrossTenant()
+  async detail(@Param('id') id: string): Promise<AdminGymDetail> {
+    return this.superadmin.getGym(id);
   }
 
   /** `PATCH /admin/gyms/:id/status` — suspend or reactivate a gym. */

@@ -4,10 +4,11 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { GymStatus, Prisma, Role } from '@fit/db';
+import { GymMemberStatus, GymStatus, Prisma, Role } from '@fit/db';
 import { SuperAdminService } from './superadmin.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
+import type { AuthService } from '../auth/auth.service';
 import type { TokenService } from '../auth/token.service';
 
 /** A gym row as `listGyms`'s projection returns it. */
@@ -21,11 +22,21 @@ interface GymRow {
   _count: { members: number };
 }
 
-/** An owner row as the batched second query returns it. */
+/** A user row as the batched lookup returns it (owner and/or staff). */
 interface OwnerRow {
   id: string;
   email: string;
   name: string | null;
+  /** Only `getGym` projects this; `listGyms` does not select it. */
+  emailVerifiedAt?: Date | null;
+}
+
+/** A staff membership as `getGym`'s projection returns it. */
+interface StaffRow {
+  userId: string;
+  role: Role;
+  status: GymMemberStatus;
+  joinedAt: Date;
 }
 
 function setup(overrides?: {
@@ -40,6 +51,8 @@ function setup(overrides?: {
   /** The gym row the exchange re-reads, and the owner it resolves. */
   exchangeGym?: { id: string; name: string; slug: string } | null;
   exchangeOwner?: { email: string } | null;
+  /** Staff memberships `getGym` lists. */
+  staff?: StaffRow[];
 }) {
   const findMany = vi.fn<() => Promise<GymRow[]>>(() => Promise.resolve(overrides?.findMany ?? []));
   const userFindMany = vi.fn<() => Promise<OwnerRow[]>>(() =>
@@ -64,9 +77,14 @@ function setup(overrides?: {
     ),
   );
 
+  const gymMemberFindMany = vi.fn<() => Promise<StaffRow[]>>(() =>
+    Promise.resolve(overrides?.staff ?? []),
+  );
+
   const prisma = {
     client: {
       gym: { findMany, update, findUnique },
+      gymMember: { findMany: gymMemberFindMany },
       user: { findMany: userFindMany, findUnique: userFindUnique },
       auditLog: { create: auditCreate },
     },
@@ -84,8 +102,13 @@ function setup(overrides?: {
     client: { set: redisSet, get: redisGet, del: redisDel },
   } as unknown as RedisService;
 
+  const registerGym = vi.fn(() =>
+    Promise.resolve({ gymId: 'gym-new', subdomainSlug: 'newgym', ownerUserId: 'owner-new' }),
+  );
+  const auth = { registerGym } as unknown as AuthService;
+
   return {
-    service: new SuperAdminService(prisma, tokens, redis),
+    service: new SuperAdminService(prisma, tokens, redis, auth),
     findMany,
     userFindMany,
     userFindUnique,
@@ -96,6 +119,8 @@ function setup(overrides?: {
     redisSet,
     redisGet,
     redisDel,
+    registerGym,
+    gymMemberFindMany,
   };
 }
 
@@ -186,6 +211,160 @@ describe('SuperAdminService', () => {
       const { service, userFindMany } = setup({ findMany: [] });
       await expect(service.listGyms()).resolves.toEqual({ gyms: [] });
       expect(userFindMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getGym', () => {
+    it('assembles the gym, its owner, and its staff from one batched user lookup', async () => {
+      const { service, userFindMany } = setup({
+        findUnique: () =>
+          Promise.resolve({
+            id: 'gym-1',
+            name: 'Downtown',
+            slug: 'downtown',
+            status: GymStatus.ACTIVE,
+            createdAt: new Date('2026-01-15T10:00:00.000Z'),
+            ownerId: 'owner-1',
+            _count: { members: 12, locations: 2 },
+          } as never),
+        staff: [
+          {
+            userId: 'owner-1',
+            role: Role.OWNER,
+            status: GymMemberStatus.ACTIVE,
+            joinedAt: new Date('2026-01-15T10:00:00.000Z'),
+          },
+          {
+            userId: 'mgr-1',
+            role: Role.MANAGER,
+            status: GymMemberStatus.ACTIVE,
+            joinedAt: new Date('2026-02-01T10:00:00.000Z'),
+          },
+        ],
+        owners: [
+          {
+            id: 'owner-1',
+            email: 'alex@example.com',
+            name: 'Alex',
+            emailVerifiedAt: new Date('2026-01-16T10:00:00.000Z'),
+          },
+          { id: 'mgr-1', email: 'mgr@example.com', name: null, emailVerifiedAt: null },
+        ],
+      });
+
+      const detail = await service.getGym('gym-1');
+
+      expect(detail).toMatchObject({
+        id: 'gym-1',
+        subdomainSlug: 'downtown',
+        memberCount: 12,
+        locationCount: 2,
+        owner: {
+          id: 'owner-1',
+          email: 'alex@example.com',
+          emailVerifiedAt: '2026-01-16T10:00:00.000Z',
+        },
+      });
+      expect(detail.staff).toHaveLength(2);
+      expect(detail.staff[1]).toMatchObject({ email: 'mgr@example.com', role: 'MANAGER' });
+      // The owner is usually staff too, so both come from a single lookup.
+      expect(userFindMany).toHaveBeenCalledOnce();
+    });
+
+    it('reports an owner who never verified their address', async () => {
+      const { service } = setup({
+        findUnique: () =>
+          Promise.resolve({
+            id: 'gym-1',
+            name: 'Downtown',
+            slug: 'downtown',
+            status: GymStatus.ACTIVE,
+            createdAt: new Date('2026-01-15T10:00:00.000Z'),
+            ownerId: 'owner-1',
+            _count: { members: 0, locations: 0 },
+          } as never),
+        staff: [],
+        owners: [{ id: 'owner-1', email: 'new@example.com', name: null, emailVerifiedAt: null }],
+      });
+
+      const detail = await service.getGym('gym-1');
+      expect(detail.owner?.emailVerifiedAt).toBeNull();
+    });
+
+    it('drops a staff membership whose user row is gone', async () => {
+      const { service } = setup({
+        findUnique: () =>
+          Promise.resolve({
+            id: 'gym-1',
+            name: 'Downtown',
+            slug: 'downtown',
+            status: GymStatus.ACTIVE,
+            createdAt: new Date('2026-01-15T10:00:00.000Z'),
+            ownerId: null,
+            _count: { members: 0, locations: 0 },
+          } as never),
+        staff: [
+          {
+            userId: 'ghost',
+            role: Role.MANAGER,
+            status: GymMemberStatus.ACTIVE,
+            joinedAt: new Date('2026-02-01T10:00:00.000Z'),
+          },
+        ],
+        owners: [],
+      });
+
+      const detail = await service.getGym('gym-1');
+      expect(detail.staff).toEqual([]);
+      expect(detail.owner).toBeNull();
+    });
+
+    it('404s for an unknown gym', async () => {
+      const { service } = setup({ findUnique: () => Promise.resolve(null) });
+      await expect(service.getGym('missing')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('createGym', () => {
+    it('provisions through the self-signup path, naming the operator as creator', async () => {
+      const { service, registerGym, auditCreate } = setup();
+
+      const result = await service.createGym('admin-1', {
+        gymName: 'New Gym',
+        subdomainSlug: 'newgym',
+        ownerEmail: 'owner@example.com',
+      });
+
+      expect(result).toEqual({
+        gymId: 'gym-new',
+        subdomainSlug: 'newgym',
+        ownerUserId: 'owner-new',
+      });
+      // The SAME provisioning the marketing site calls — only the creator differs.
+      expect(registerGym).toHaveBeenCalledWith(
+        expect.objectContaining({ subdomainSlug: 'newgym' }),
+        'admin-1',
+      );
+      expect(auditCreate.mock.calls[0]![0].data).toMatchObject({
+        action: 'gym.create',
+        actorId: 'admin-1',
+        gymId: 'gym-new',
+        targetId: 'owner-new',
+      });
+    });
+
+    it('does not audit a gym that failed to provision', async () => {
+      const { service, registerGym, auditCreate } = setup();
+      registerGym.mockRejectedValueOnce(new Error('SUBDOMAIN_TAKEN'));
+
+      await expect(
+        service.createGym('admin-1', {
+          gymName: 'New Gym',
+          subdomainSlug: 'taken',
+          ownerEmail: 'owner@example.com',
+        }),
+      ).rejects.toThrow();
+      expect(auditCreate).not.toHaveBeenCalled();
     });
   });
 

@@ -261,6 +261,32 @@ export const gymTrialSettingsSchema = z.object({
 export type GymTrialSettings = z.infer<typeof gymTrialSettingsSchema>;
 
 /**
+ * The free (no-purchase) membership the public join wizard may offer.
+ *
+ * A gym that wants a way in for someone not ready to buy switches `enabled` on;
+ * the join screen then offers a "free account" alongside the paid plans, and
+ * choosing it registers the member with **no** plan, order or subscription —
+ * exactly the state a walk-in added at the desk without a plan is already in.
+ * There is no new membership tier behind this: "free" IS a member with nothing
+ * bought yet, which is why enabling it needs no catalogue row.
+ *
+ * `name` and `description` are the gym's own wording for the offer ("Free
+ * account", "Book a tour, browse the schedule"). Both may be blank, in which
+ * case the portal falls back to its translated default copy — so a gym can turn
+ * the offer on without being made to write marketing to do it.
+ *
+ * Off by default: a gym that has never opened Settings sells only what it lists.
+ */
+export const gymFreeAccountSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  name: z.string().trim().max(60).default(''),
+  description: z.string().trim().max(240).default(''),
+});
+
+/** The gym's free-account offer — {@link gymFreeAccountSettingsSchema}. */
+export type GymFreeAccountSettings = z.infer<typeof gymFreeAccountSettingsSchema>;
+
+/**
  * Which inputs the member-create form asks for — the admin-console Add-Member drawer
  * and the POS till's, which are the same form reading this same config.
  *
@@ -614,6 +640,7 @@ export const gymSettingsStoredSchema = z.object({
   freeze: gymFreezeSettingsSchema.default({}),
   guestPass: gymGuestPassSettingsSchema.default({}),
   trial: gymTrialSettingsSchema.default({}),
+  freeAccount: gymFreeAccountSettingsSchema.default({}),
   memberIntake: gymMemberIntakeSettingsSchema.default({}),
   staffDirectory: gymStaffDirectorySettingsSchema.default({}),
   reports: gymReportsSettingsSchema.default({}),
@@ -645,6 +672,7 @@ export interface GymSettings {
   freeze: GymFreezeSettings;
   guestPass: GymGuestPassSettings;
   trial: GymTrialSettings;
+  freeAccount: GymFreeAccountSettings;
   memberIntake: GymMemberIntakeSettings;
   staffDirectory: GymStaffDirectorySettings;
   reports: GymReportsSettings;
@@ -693,6 +721,7 @@ export const updateGymSettingsSchema = z
     freeze: gymFreezeSettingsSchema.partial().strict().optional(),
     guestPass: gymGuestPassSettingsSchema.partial().strict().optional(),
     trial: gymTrialSettingsSchema.partial().strict().optional(),
+    freeAccount: gymFreeAccountSettingsSchema.partial().strict().optional(),
     memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional(),
     staffDirectory: gymStaffDirectorySettingsSchema.partial().strict().optional(),
     reports: gymReportsSettingsSchema.partial().strict().optional(),
@@ -770,6 +799,34 @@ export function gymPublicContact(rawSettings: unknown): GymPublicContact {
  */
 export function gymPublicTimezone(rawSettings: unknown): string {
   return gymSettingsStoredSchema.parse(rawSettings ?? {}).locale.timezone;
+}
+
+/**
+ * Project a gym's raw stored settings to its {@link GymFreeAccountSettings}.
+ *
+ * Public on purpose — the join wizard is browsed signed out and has to know
+ * whether this gym offers a free way in *before* anyone has an account. Only the
+ * offer itself crosses: whether it is on and the gym's wording for it. Tolerates
+ * a `null` / legacy value by falling back to the schema defaults, so the caller
+ * never has to null-check the container; the default is "off".
+ */
+export function gymPublicFreeAccount(rawSettings: unknown): GymFreeAccountSettings {
+  return gymSettingsStoredSchema.parse(rawSettings ?? {}).freeAccount;
+}
+
+/**
+ * Project a gym's raw stored settings to its {@link GymMemberIntakeSettings}.
+ *
+ * Public on purpose, and the reason the public join wizard can honour the same
+ * Settings → Membership switches the staff console's Add-Member drawer does: the
+ * visitor filling in the join form has no session, so the only way the form can
+ * know which fields this gym asks for is to be told alongside the catalogue.
+ *
+ * It leaks nothing a visitor cannot already see by looking at the form. Tolerates
+ * a `null` / legacy value by falling back to the schema defaults.
+ */
+export function gymPublicMemberIntake(rawSettings: unknown): GymMemberIntakeSettings {
+  return gymSettingsStoredSchema.parse(rawSettings ?? {}).memberIntake;
 }
 
 /**

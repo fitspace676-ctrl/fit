@@ -9,6 +9,11 @@
 
 import { cookies } from 'next/headers';
 import type {
+  AdminGymDetail,
+  ListAdminAuditLogQuery,
+  ListAdminAuditLogResponse,
+  CreateAdminGymInput,
+  CreateAdminGymResponse,
   GymStatus,
   ImpersonateResponse,
   ListAdminGymsResponse,
@@ -63,6 +68,26 @@ export async function fetchGyms(): Promise<ListAdminGymsResponse> {
   return unwrap<ListAdminGymsResponse>(res);
 }
 
+/** `GET /admin/gyms/:id` — one gym with its owner, staff, and counts. */
+export async function fetchGym(id: string): Promise<AdminGymDetail> {
+  const res = await fetch(`${apiBaseUrl()}/admin/gyms/${encodeURIComponent(id)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AdminGymDetail>(res);
+}
+
+/** `POST /admin/gyms` — provision a gym and onboard its first owner. */
+export async function createGym(input: CreateAdminGymInput): Promise<CreateAdminGymResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/gyms`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<CreateAdminGymResponse>(res);
+}
+
 /** `PATCH /admin/gyms/:id/status` — suspend or reactivate a gym. */
 export async function setGymStatus(
   id: string,
@@ -90,4 +115,27 @@ export async function impersonateGym(id: string): Promise<ImpersonateResponse> {
     cache: 'no-store',
   });
   return unwrap<ImpersonateResponse>(res);
+}
+
+/**
+ * `GET /admin/audit-logs` — one page of the platform-wide trail.
+ *
+ * Every filter is server-side: the trail grows without bound, so the console
+ * never holds more than the page it is showing.
+ */
+export async function fetchAuditLogs(
+  query: Partial<ListAdminAuditLogQuery>,
+): Promise<ListAdminAuditLogResponse> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') {
+      params.set(key, String(value));
+    }
+  }
+
+  const res = await fetch(`${apiBaseUrl()}/admin/audit-logs?${params.toString()}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminAuditLogResponse>(res);
 }

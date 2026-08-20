@@ -1,0 +1,36 @@
+{
+  "pages": [
+    {
+      "id": "pzusj3xq",
+      "name": "Page 1"
+    },
+    {
+      "id": "poq0m1xo",
+      "name": "Member Portal"
+    },
+    {
+      "id": "p3lyhmko",
+      "name": "Foundations"
+    }
+  ],
+  "assign": {
+    "mobile-class-detail.tsx": "pzusj3xq",
+    "mobile-classes.tsx": "pzusj3xq",
+    "mobile-home-v2.tsx": "pzusj3xq",
+    "mobile-profile.tsx": "pzusj3xq",
+    "mobile-qr.tsx": "pzusj3xq",
+    "mobile-shop.tsx": "pzusj3xq",
+    "web-checkout.tsx": "poq0m1xo",
+    "web-member-classes.tsx": "poq0m1xo",
+    "web-member-home.tsx": "poq0m1xo",
+    "web-member-login.tsx": "poq0m1xo",
+    "web-member-membership.tsx": "poq0m1xo"
+  },
+  "lastHint": {
+    "web-member-home.tsx": "Member Portal",
+    "web-member-classes.tsx": "Member Portal",
+    "web-member-membership.tsx": "Member Portal",
+    "web-member-login.tsx": "Member Portal",
+    "web-checkout.tsx": "Member Portal"
+  }
+}

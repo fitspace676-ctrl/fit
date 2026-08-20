@@ -1,32 +1,53 @@
-// @fit/types — gym audit-log viewer contracts (Zod schemas + inferred types).
+// @fit/types — audit-log viewer contracts (Zod schemas + inferred types).
 //
-// The wire shape for the staff console's audit-log viewer (T4.9): the paginated,
-// filtered `GET /audit-logs` feed the admin table renders. The API validates the
-// inbound query with `listAuditLogQuerySchema` and the `@fit/admin` console reuses
-// the inferred types, so the table and the controller can never drift on the wire
-// format.
+// The wire shape for TWO reads of one trail:
+//   • `GET /audit-logs`       — the staff console's view of its OWN gym, pinned
+//                               to the caller's tenant and unable to name another.
+//   • `GET /admin/audit-logs` — the operator console's view ACROSS every gym,
+//                               SUPER_ADMIN only, with `gymId` as a filter rather
+//                               than a boundary, and the gym named on each row.
 //
-// `AuditLog` rows are written by privileged platform actions (the SuperAdmin
-// console — owner impersonation and gym suspend/reactivate, T2.12); this viewer
-// is the gym-side read of the trail for the operator's *own* gym. The store keeps
-// `actorId` / `targetId` as denormalised scalars (no FK — the trail must outlive
-// whatever it references), so the service resolves the acting / targeted user's
-// name + email best-effort for display, leaving them `null` when the user no
-// longer exists.
+// The API validates each inbound query with the schema below and both consoles
+// reuse the inferred types, so a table and its controller can never drift on the
+// wire format.
+//
+// `AuditLog` rows are written by privileged platform actions — the operator
+// console creating, suspending and impersonating into gyms. The store keeps
+// `actorId` / `targetId` (and `gymId`) as denormalised scalars with no FK, because
+// the trail must outlive whatever it references; identities are therefore resolved
+// best-effort for display and left `null` when the record is gone.
 
 import { z } from 'zod';
 
 /**
- * The audit-log action keys the platform writes today (T2.12): owner
- * impersonation and a gym status change. Exposed as a closed list so the viewer's
- * action filter can offer human labels; the query filter itself accepts any
- * string (see {@link listAuditLogQuerySchema}) so a newly-added action is
- * filterable the moment it is written, without a contract change.
+ * The audit-log action keys the platform writes today, all of them from the
+ * operator console. Exposed as a closed list so a viewer's action filter can
+ * offer human labels; the query filter itself accepts any string (see
+ * {@link listAuditLogQuerySchema}) so a newly-added action is filterable the
+ * moment it is written, without a contract change.
+ *
+ * Impersonation is TWO keys, and the difference matters when reading the trail:
+ * `gym.impersonate` is the operator asking for a handoff code, `…start` is a
+ * session actually being minted from one. A request with no matching start is a
+ * code that expired unused — which is a normal thing to see, and not a session.
  */
-export const AUDIT_ACTIONS = ['gym.impersonate', 'gym.status.update'] as const;
+export const AUDIT_ACTIONS = [
+  'gym.create',
+  'gym.status.update',
+  'gym.impersonate',
+  'gym.impersonate.start',
+] as const;
 
 /** A known audit action key — {@link AUDIT_ACTIONS}. */
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+/** Human labels for the known actions, for a filter or a table cell. */
+export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
+  'gym.create': 'Gym created',
+  'gym.status.update': 'Status changed',
+  'gym.impersonate': 'Impersonation requested',
+  'gym.impersonate.start': 'Impersonation started',
+};
 
 /**
  * A `YYYY-MM-DD` calendar day, the format an `<input type="date">` emits and the
@@ -95,6 +116,43 @@ export interface AuditLogRow {
  */
 export interface ListAuditLogResponse {
   data: AuditLogRow[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/**
+ * Query for the platform-wide `GET /admin/audit-logs` (SUPER_ADMIN only).
+ *
+ * The gym-scoped query plus one filter the gym-scoped feed cannot have: `gymId`.
+ * A staff member's trail is pinned to their own gym by the tenant context and
+ * they may not name another; an operator reads ACROSS tenants, so naming one is
+ * how they narrow rather than how they escape.
+ */
+export const listAdminAuditLogQuerySchema = listAuditLogQuerySchema.extend({
+  /** Narrow to one gym; omitted means every gym on the platform. */
+  gymId: z.string().trim().min(1).max(64).optional(),
+});
+
+/** Validated `GET /admin/audit-logs` query — {@link listAdminAuditLogQuerySchema}. */
+export type ListAdminAuditLogQuery = z.infer<typeof listAdminAuditLogQuerySchema>;
+
+/**
+ * One entry in the platform-wide trail: the gym-scoped row plus **which gym** it
+ * belongs to. Across tenants that is not decoration — "suspended" and
+ * "impersonated" mean nothing without naming the tenant they happened to.
+ *
+ * `gym` is `null` for an entry whose gym has since been deleted. The trail is
+ * denormalised on purpose and outlives what it references, so an entry about a
+ * gym that no longer exists is a real answer, not a broken row.
+ */
+export interface AdminAuditLogRow extends AuditLogRow {
+  gym: { id: string; name: string; subdomainSlug: string } | null;
+}
+
+/** Successful `GET /admin/audit-logs` response — one page, newest first. */
+export interface ListAdminAuditLogResponse {
+  data: AdminAuditLogRow[];
   total: number;
   page: number;
   limit: number;
