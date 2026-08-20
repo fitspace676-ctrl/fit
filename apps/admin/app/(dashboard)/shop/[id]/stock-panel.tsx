@@ -84,7 +84,7 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   deltaUp: {
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
     fontWeight: 600,
   },
   deltaDown: {

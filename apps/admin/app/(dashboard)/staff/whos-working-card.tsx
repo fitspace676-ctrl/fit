@@ -37,7 +37,7 @@ const styles = stylex.create({
     placeItems: 'center',
     borderRadius: 'var(--radius-element)',
     backgroundColor: 'var(--color-success-muted)',
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   titleIconSvg: {
     height: '1.125rem',
@@ -57,7 +57,7 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     fontWeight: 600,
     fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
     whiteSpace: 'nowrap',
   },
   grid: {
@@ -90,7 +90,7 @@ const styles = stylex.create({
     backgroundColor: 'var(--color-success-muted)',
     fontSize: '0.8125rem',
     fontWeight: 700,
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   info: {
     display: 'flex',

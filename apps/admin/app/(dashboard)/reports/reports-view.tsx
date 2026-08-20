@@ -221,23 +221,24 @@ const styles = stylex.create({
       cursor: 'default',
     },
   },
-  // Solid brand indigo, labelled in `--color-background-card` for the same reason
-  // the chips are — `--color-on-accent` is white in both themes, and white on the
-  // dark theme's paler indigo measures 3.10:1. The card colour inverts with the
-  // theme and clears AA on both (4.88:1 dark, 5.26:1 light).
+  // The brand accent with its own ink token. This was written for the retired
+  // indigo, labelled in `--color-background-card`; on the lime accent that card
+  // colour is white in light mode — white on lime is ~1.5:1 and unreadable —
+  // while `--color-on-accent` is the near-black the theme pairs with the lime
+  // in both modes.
   //
-  // The same fill as the active chip, deliberately: indigo means "current" on this
-  // screen, and it should not mean one thing in the top row and another in the
-  // second. Scale carries the hierarchy instead — 16px for the family you are in,
-  // 13px for the report you are reading.
+  // The same fill as the active chip, deliberately: the accent means "current"
+  // on this screen, and it should not mean one thing in the top row and another
+  // in the second. Scale carries the hierarchy instead — 16px for the family
+  // you are in, 13px for the report you are reading.
   tabActive: {
     backgroundColor: {
       default: 'var(--color-accent)',
       ':hover:not(:disabled)': 'var(--color-accent)',
     },
     color: {
-      default: 'var(--color-background-card)',
-      ':hover:not(:disabled)': 'var(--color-background-card)',
+      default: 'var(--color-on-accent)',
+      ':hover:not(:disabled)': 'var(--color-on-accent)',
     },
   },
   // How many reports the tab leads to. Mono and tabular so the five counts read as
@@ -336,11 +337,6 @@ const styles = stylex.create({
     backgroundColor: {
       default: 'var(--color-accent)',
       ':hover:not(:disabled)': 'var(--color-accent)',
-    },
-    // The brand gradient in light mode, flat accent in dark (see globals.css).
-    backgroundImage: {
-      default: 'var(--brand-fill-image, none)',
-      ':hover:not(:disabled)': 'var(--brand-fill-image, none)',
     },
     color: {
       default: 'var(--color-on-accent)',

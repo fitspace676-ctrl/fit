@@ -31,7 +31,7 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.5rem',
   },
-  fillOk: { color: 'var(--color-success)' },
+  fillOk: { color: 'var(--color-text-accent)' },
   fillWarn: { color: 'var(--color-warning)' },
   fillFull: { color: 'var(--color-error)' },
   scheduleRow: {

@@ -95,7 +95,11 @@ const styles = stylex.create({
   },
   num: { textAlign: 'end', fontVariantNumeric: 'tabular-nums' },
   muted: { color: 'var(--color-text-secondary)' },
-  credit: { color: 'var(--color-success)', fontVariantNumeric: 'tabular-nums', textAlign: 'end' },
+  credit: {
+    color: 'var(--color-text-accent)',
+    fontVariantNumeric: 'tabular-nums',
+    textAlign: 'end',
+  },
   debit: { color: 'var(--color-error)', fontVariantNumeric: 'tabular-nums', textAlign: 'end' },
   totalsRow: { fontWeight: 700 },
   empty: {

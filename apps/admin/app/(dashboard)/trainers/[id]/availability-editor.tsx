@@ -323,6 +323,8 @@ export function TrainerAvailabilityEditor({
                       checked={value.available}
                       onChange={(next) => toggleDay(day, next)}
                       label={t('availability.toggleAria', { day: label })}
+                      // The working/not-working caption already names the row.
+                      hideLabel
                     />
                   ) : null}
                 </span>

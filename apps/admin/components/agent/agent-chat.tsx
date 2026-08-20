@@ -56,7 +56,9 @@ function readAttachment(file: File): Promise<ChatAttachment> {
 }
 
 const styles = stylex.create({
-  // Right-edge launcher — a floating pill that echoes the sidebar surface.
+  // Right-edge launcher — a floating brand pill: the raw lime with its
+  // near-black on-accent ink, the same pairing every accent surface wears, so
+  // it pops off the canvas in both modes and stays readable.
   launcher: {
     position: 'fixed',
     insetBlockEnd: '1.5rem',
@@ -70,9 +72,9 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-full)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: 'var(--color-border-emphasized)',
-    backgroundColor: 'var(--color-background-surface)',
-    color: 'var(--color-text-primary)',
+    borderColor: 'transparent',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
     boxShadow: 'var(--shadow-high)',
     cursor: 'pointer',
     fontFamily: 'var(--font-family-body)',
@@ -93,7 +95,9 @@ const styles = stylex.create({
   launcherIcon: {
     width: '1.25rem',
     height: '1.25rem',
-    color: 'var(--color-icon-accent)',
+    // Inherit the pill's on-accent ink — the accent-coloured icon it carried
+    // before would be lime-on-lime here.
+    color: 'inherit',
   },
   // Scrim behind the panel — subtle, closes on click.
   scrim: {

@@ -89,12 +89,31 @@ const styles = stylex.create({
   knobOn: {
     insetInlineStart: '1.3125rem',
   },
+  // Visually-hidden label, for a switch whose surroundings already name it —
+  // screen readers still get the text, sighted users don't see it twice.
+  labelHidden: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
 });
 
 export interface SwitchProps {
   label: string;
   /** One line under the label on what the setting does. */
   description?: string;
+  /**
+   * Keep the label for screen readers only — for a switch whose row already
+   * names it visibly (e.g. next to its own caption), so the text is not shown
+   * twice.
+   */
+  hideLabel?: boolean;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -104,6 +123,7 @@ export interface SwitchProps {
 export function Switch({
   label,
   description,
+  hideLabel = false,
   checked,
   onChange,
   disabled = false,
@@ -114,7 +134,7 @@ export function Switch({
   return (
     <div {...stylex.props(styles.row, xstyle)}>
       <span>
-        <label htmlFor={id} {...stylex.props(styles.labelText)}>
+        <label htmlFor={id} {...stylex.props(styles.labelText, hideLabel && styles.labelHidden)}>
           {label}
         </label>
         {description ? (

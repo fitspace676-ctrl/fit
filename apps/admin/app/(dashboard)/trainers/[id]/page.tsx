@@ -12,6 +12,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainer, fetchTrainerAvailability } from '@/lib/api';
+import { gymCalendarContext } from '@/lib/gym-time';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
 import { TrainerActions } from './trainer-actions';
@@ -380,6 +381,10 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     .then((res) => res.availability)
     .catch(() => weeklyAvailabilitySchema.parse({}));
 
+  // The gym's zone, for the next-class label — read on the gym clock, like the
+  // schedule board (falls back to the platform default inside the helper).
+  const { timeZone } = await gymCalendarContext();
+
   return (
     <div {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.topRow)}>
@@ -469,7 +474,12 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
         />
       </section>
 
-      <TrainerTabs trainer={trainer} availability={availability} canWrite={canWrite} />
+      <TrainerTabs
+        trainer={trainer}
+        availability={availability}
+        canWrite={canWrite}
+        timeZone={timeZone}
+      />
 
       <p {...stylex.props(styles.addedNote)}>
         {t('detail.profileAdded', { date: formatDate(trainer.createdAt, locale) })}

@@ -5,10 +5,8 @@
 // A thin brand-colored line that fills across the top of the viewport during
 // App Router navigations. `nextjs-toploader` handles the fiddly bits (patching
 // `history.pushState`, intercepting anchor clicks, completing on route commit);
-// we only feed it the Fit look. The `color` prop is only the fallback: the
-// bar's real paint is set per mode in globals.css (`#nprogress .bar`) - the
-// brand gradient in light, the flat phosphor lime in dark - because one prop
-// cannot say both. The glow shadow below still follows `--color-accent`.
+// we only feed it the Fit look: the flat brand accent in both modes, same as
+// the member portal. The glow shadow follows `--color-accent` too.
 
 import NextTopLoader from 'nextjs-toploader';
 

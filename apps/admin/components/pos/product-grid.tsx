@@ -205,15 +205,19 @@ const styles = stylex.create({
     color: 'var(--color-text-secondary)',
     cursor: 'pointer',
   },
+  // The active chip: in light mode the pale accent wash reads as "barely a
+  // button", so it wears the solid brand lime with its on-accent ink — the
+  // pill every active tab in the console now wears; dark keeps its wash.
   shelfActive: {
-    borderColor: 'var(--color-accent)',
-    backgroundColor: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
-    color: 'var(--color-text-primary)',
+    borderColor: 'light-dark(transparent, var(--color-accent))',
+    backgroundColor:
+      'light-dark(var(--color-accent), color-mix(in srgb, var(--color-accent) 14%, transparent))',
+    color: 'light-dark(var(--color-on-accent), var(--color-text-primary))',
   },
   tab: {
     height: '2.25rem',
     paddingInline: '0.875rem',
-    borderRadius: 'var(--radius-element)',
+    borderRadius: 'var(--radius-pill, 999px)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'var(--color-border)',
@@ -225,9 +229,10 @@ const styles = stylex.create({
     cursor: 'pointer',
   },
   tabActive: {
-    borderColor: 'var(--color-accent)',
-    backgroundColor: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
-    color: 'var(--color-text-primary)',
+    borderColor: 'light-dark(transparent, var(--color-accent))',
+    backgroundColor:
+      'light-dark(var(--color-accent), color-mix(in srgb, var(--color-accent) 14%, transparent))',
+    color: 'light-dark(var(--color-on-accent), var(--color-text-primary))',
   },
   // A membership tile has no image, so it leads with the name and carries a
   // duration badge instead of the product tile's media block.
@@ -237,6 +242,28 @@ const styles = stylex.create({
     justifyContent: 'space-between',
     gap: '0.5rem',
     width: '100%',
+  },
+  // Membership tiles are the till's headline goods, so they wear the brand:
+  // the pale accent wash as the card, a stronger name, and the price as the
+  // biggest thing on the tile. Products keep the plain tile — their image is
+  // what sells them.
+  membershipTile: {
+    gap: '0.75rem',
+    backgroundColor: 'var(--color-accent-muted)',
+    borderColor: {
+      default: 'color-mix(in srgb, var(--color-accent) 45%, var(--color-border))',
+      ':hover': 'var(--color-text-accent)',
+      ':focus': 'var(--color-text-accent)',
+    },
+  },
+  membershipName: {
+    fontSize: '1rem',
+    fontWeight: 700,
+  },
+  membershipPrice: {
+    fontSize: '1.25rem',
+    fontWeight: 700,
+    color: 'var(--color-text-primary)',
   },
   // ── The members table ──────────────────────────────────────────────────────
   table: {
@@ -304,25 +331,30 @@ const styles = stylex.create({
     gap: '0.375rem',
     whiteSpace: 'nowrap',
   },
+  // Solid brand pills, not the pale wash — the wash was near-invisible on the
+  // light canvas. The same lime + near-black pairing the status badges wear.
   attachedTag: {
     display: 'inline-block',
     borderRadius: 'var(--radius-pill, 999px)',
-    backgroundColor: 'color-mix(in srgb, var(--color-accent) 16%, transparent)',
+    backgroundColor: 'var(--color-accent)',
     paddingInline: '0.5rem',
-    paddingBlock: '0.125rem',
+    paddingBlock: '0.1875rem',
     fontSize: '0.6875rem',
-    fontWeight: 600,
-    color: 'var(--color-text-accent)',
+    fontWeight: 700,
+    color: 'var(--color-on-accent)',
   },
+  // On the membership tile's lime wash a lime pill disappears, so in light the
+  // badge flips to the dark accent ink with white text; dark keeps the lime
+  // pill, where the tile wash is a deep olive it stands off from.
   durationBadge: {
     flexShrink: 0,
     paddingInline: '0.5rem',
-    paddingBlock: '0.125rem',
+    paddingBlock: '0.1875rem',
     borderRadius: 'var(--radius-pill, 999px)',
-    backgroundColor: 'color-mix(in srgb, var(--color-accent) 16%, transparent)',
+    backgroundColor: 'light-dark(var(--color-text-accent), var(--color-accent))',
     fontSize: '0.6875rem',
-    fontWeight: 600,
-    color: 'var(--color-text-accent)',
+    fontWeight: 700,
+    color: 'light-dark(#ffffff, var(--color-on-accent))',
   },
 });
 
@@ -571,13 +603,15 @@ export function ProductGrid({
                   <button
                     type="button"
                     onClick={() => onAddMembership(plan)}
-                    {...stylex.props(styles.tile)}
+                    {...stylex.props(styles.tile, styles.membershipTile)}
                   >
                     <span {...stylex.props(styles.membershipTop)}>
-                      <span {...stylex.props(styles.tileName)}>{plan.name}</span>
+                      <span {...stylex.props(styles.tileName, styles.membershipName)}>
+                        {plan.name}
+                      </span>
                       <span {...stylex.props(styles.durationBadge)}>{plan.durationLabel}</span>
                     </span>
-                    <span {...stylex.props(styles.tilePrice)}>
+                    <span {...stylex.props(styles.tilePrice, styles.membershipPrice)}>
                       {formatPrice(plan.priceAmount, plan.currency)}
                     </span>
                   </button>

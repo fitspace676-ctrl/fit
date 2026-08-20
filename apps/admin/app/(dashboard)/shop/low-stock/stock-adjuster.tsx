@@ -133,7 +133,7 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
   },
   deltaUp: {
-    color: 'var(--color-success)',
+    color: 'var(--color-text-accent)',
   },
   deltaDown: {
     color: 'var(--color-error)',
