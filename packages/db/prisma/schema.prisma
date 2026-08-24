@@ -1140,6 +1140,10 @@ model ClassTemplate {
   startTime       String              @default("09:00")
   rrule           String
   color           String              @default("#2563eb")
+  /// Public URL of the class's cover image in R2 (`{gymId}/classes/…`), or null
+  /// when the class has none. Referenced by the media sweep — an object no
+  /// template points at is cleanup's to delete.
+  imageUrl        String?
   status          ClassTemplateStatus @default(ACTIVE)
   pricingRule     ClassPricingRule    @default(FREE)
   priceMinor      Int?

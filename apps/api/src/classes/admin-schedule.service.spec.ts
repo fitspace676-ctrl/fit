@@ -34,6 +34,7 @@ interface ScheduleRow {
     pricingRule: string;
     priceMinor: number | null;
     color: string;
+    imageUrl: string | null;
     room: string | null;
     capacity: number;
     durationMinutes: number;
@@ -67,6 +68,7 @@ const row = (over?: Partial<ScheduleRow>): ScheduleRow => ({
     pricingRule: 'FREE',
     priceMinor: null,
     color: '#2563eb',
+    imageUrl: 'https://pub.example.com/gym-1/classes/cover.jpg',
     room: 'Studio A',
     capacity: 12,
     durationMinutes: 60,
@@ -135,6 +137,7 @@ describe('AdminScheduleService', () => {
         pricingRule: 'FREE',
         priceMinor: null,
         color: '#2563eb',
+        imageUrl: 'https://pub.example.com/gym-1/classes/cover.jpg',
         startsAt: '2026-06-01T09:00:00.000Z',
         endsAt: '2026-06-01T10:00:00.000Z',
         durationMinutes: 60,

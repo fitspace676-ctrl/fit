@@ -103,7 +103,7 @@ export const envSchema = z.object({
   // Default 24 hours.
   EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(86_400),
   // Base URL the verification token is appended to in the email deep link
-  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/auth/verify`).
+  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/member/verify`).
   EMAIL_VERIFICATION_URL: z.string().url().optional(),
 
   // ── Password reset ──
@@ -112,7 +112,7 @@ export const envSchema = z.object({
   // should live no longer than necessary. Default 1 hour.
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(3_600),
   // Base URL the reset token is appended to in the email deep link
-  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/auth/reset-password`).
+  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/member/reset-password`).
   PASSWORD_RESET_URL: z.string().url().optional(),
 
   // ── Staff invitations (T4.7) ──

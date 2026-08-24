@@ -45,6 +45,7 @@ const SCHEDULE_SELECT = {
       pricingRule: true,
       priceMinor: true,
       color: true,
+      imageUrl: true,
       room: true,
       capacity: true,
       durationMinutes: true,
@@ -726,6 +727,8 @@ function toScheduleInstance(row: ScheduleRow): AdminScheduleInstance {
     pricingRule: row.template?.pricingRule ?? 'FREE',
     priceMinor: row.template?.priceMinor ?? null,
     color: row.template?.color ?? row.classType?.color ?? '#2563eb',
+    // Only templates carry a cover; a one-off from a class type has none.
+    imageUrl: row.template?.imageUrl ?? null,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     durationMinutes,

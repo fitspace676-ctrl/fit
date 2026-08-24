@@ -6,6 +6,7 @@ import {
   InstanceStatus,
   planInstanceRegeneration,
   Prisma,
+  startOfDayInZone,
   type ExistingInstance,
 } from '@fit/db';
 import {
@@ -43,6 +44,7 @@ const CLASS_TEMPLATE_SELECT = {
   startTime: true,
   rrule: true,
   color: true,
+  imageUrl: true,
   status: true,
   pricingRule: true,
   priceMinor: true,
@@ -166,6 +168,7 @@ export class AdminClassTemplatesService {
         startTime: input.startTime,
         rrule: input.rrule,
         color: input.color,
+        imageUrl: input.imageUrl,
         status: input.status,
         pricingRule: input.pricingRule,
         priceMinor: input.priceMinor,
@@ -184,13 +187,20 @@ export class AdminClassTemplatesService {
     // template created in the console used to show nothing on the calendar until
     // that job next ran, which read as "the class didn't save".
     if (row.status === ClassTemplateStatus.ACTIVE) {
-      await this.regenerateInstances(row.id, {
-        rrule: row.rrule,
-        validFrom: row.validFrom,
-        validUntil: row.validUntil,
-        durationMinutes: row.durationMinutes,
-        startTime: row.startTime,
-      });
+      // From the top of the gym's *day*, not the current instant: a class created
+      // for today at a clock time that has already passed must still materialise
+      // (it shows as an ended class), or the create silently produces nothing.
+      await this.regenerateInstances(
+        row.id,
+        {
+          rrule: row.rrule,
+          validFrom: row.validFrom,
+          validUntil: row.validUntil,
+          durationMinutes: row.durationMinutes,
+          startTime: row.startTime,
+        },
+        { fromStartOfDay: true },
+      );
     }
 
     return this.toDetail(row);
@@ -227,6 +237,7 @@ export class AdminClassTemplatesService {
         startTime: input.startTime,
         rrule: input.rrule,
         color: input.color,
+        imageUrl: input.imageUrl,
         pricingRule: input.pricingRule,
         priceMinor: input.priceMinor,
         includedPlanIds: input.includedPlanIds,
@@ -276,9 +287,17 @@ export class AdminClassTemplatesService {
       durationMinutes: number;
       startTime: string;
     },
+    options?: {
+      /**
+       * Open the window at local midnight of the gym's current day instead of
+       * the current instant — creation only, so today's already-passed start
+       * still materialises. Edits keep the instant: they must never rewrite
+       * occurrences that have already run.
+       */
+      fromStartOfDay?: boolean;
+    },
   ): Promise<void> {
     const now = new Date();
-    const windowEnd = new Date(now.getTime() + DEFAULT_WEEKS_AHEAD * 7 * 24 * 60 * 60 * 1000);
 
     // `startTime` is a wall clock, so it only becomes an instant against the
     // gym's own zone.
@@ -288,8 +307,11 @@ export class AdminClassTemplatesService {
     });
     const timeZone = gymTimeZone(gym?.settings);
 
+    const from = options?.fromStartOfDay ? startOfDayInZone(now, timeZone) : now;
+    const windowEnd = new Date(from.getTime() + DEFAULT_WEEKS_AHEAD * 7 * 24 * 60 * 60 * 1000);
+
     const existing: ExistingInstance[] = await this.prisma.client.classInstance.findMany({
-      where: { templateId, startsAt: { gte: now, lt: windowEnd } },
+      where: { templateId, startsAt: { gte: from, lt: windowEnd } },
       select: {
         id: true,
         startsAt: true,
@@ -300,7 +322,7 @@ export class AdminClassTemplatesService {
       },
     });
 
-    const plan = planInstanceRegeneration({ ...recurrence, timeZone, existing, now });
+    const plan = planInstanceRegeneration({ ...recurrence, timeZone, existing, now: from });
 
     if (plan.toDelete.length > 0) {
       await this.prisma.client.classInstance.deleteMany({ where: { id: { in: plan.toDelete } } });
@@ -526,6 +548,7 @@ export class AdminClassTemplatesService {
       trainerId: row.trainerId,
       locationId: row.locationId,
       room: row.room,
+      imageUrl: row.imageUrl,
       updatedAt: row.updatedAt.toISOString(),
     };
   }

@@ -127,8 +127,8 @@ describe('EmailService', () => {
     expect(body.from).toBe('FormaCore <no-reply@fit.app>');
     expect(body.to).toEqual(['user@example.com']);
     expect(body.subject).toBe('Verify your email');
-    expect(String(body.html)).toContain('https://app.fit/auth/verify?token=tok123');
-    expect(String(body.text)).toContain('https://app.fit/auth/verify?token=tok123');
+    expect(String(body.html)).toContain('https://app.fit/member/verify?token=tok123');
+    expect(String(body.text)).toContain('https://app.fit/member/verify?token=tok123');
   });
 
   it('throws when Resend returns a non-2xx response', async () => {
@@ -181,8 +181,11 @@ describe('EmailService.sendPasswordResetEmail', () => {
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.to).toEqual(['user@example.com']);
     expect(body.subject).toBe('Reset your password');
-    expect(String(body.html)).toContain('https://app.fit/auth/reset-password?token=tok123');
-    expect(String(body.text)).toContain('https://app.fit/auth/reset-password?token=tok123');
+    expect(String(body.html)).toContain('https://app.fit/member/reset-password?token=tok123');
+    expect(String(body.text)).toContain('https://app.fit/member/reset-password?token=tok123');
+    // House copy rule: no em-dashes or double hyphens in member-facing text.
+    expect(String(body.html)).not.toMatch(/—|--/);
+    expect(String(body.text)).not.toMatch(/—|--/);
   });
 
   it('throws when Resend returns a non-2xx response', async () => {
@@ -234,11 +237,11 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
 
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.to).toEqual(['owner@example.com']);
-    expect(body.subject).toBe('Welcome to FormaCore — finish setting up Downtown');
+    expect(body.subject).toBe('Welcome to FormaCore - finish setting up Downtown');
     // Reuses the same verify deep link plain verification uses.
-    expect(String(body.html)).toContain('https://app.fit/auth/verify?token=tok123');
+    expect(String(body.html)).toContain('https://app.fit/member/verify?token=tok123');
     expect(String(body.html)).toContain('Downtown');
-    expect(String(body.text)).toContain('https://app.fit/auth/verify?token=tok123');
+    expect(String(body.text)).toContain('https://app.fit/member/verify?token=tok123');
   });
 
   it('throws when Resend returns a non-2xx response', async () => {
@@ -260,9 +263,9 @@ describe('buildVerificationUrl', () => {
     expect(buildVerificationUrl('abc')).toBe('https://m.fit/verify?token=abc');
   });
 
-  it('derives <WEB_URL>/auth/verify when no explicit base is set', () => {
+  it('derives <WEB_URL>/member/verify when no explicit base is set', () => {
     configure({ WEB_URL: 'https://app.fit/' });
-    expect(buildVerificationUrl('abc')).toBe('https://app.fit/auth/verify?token=abc');
+    expect(buildVerificationUrl('abc')).toBe('https://app.fit/member/verify?token=abc');
   });
 
   it('url-encodes the token', () => {
@@ -279,9 +282,9 @@ describe('buildPasswordResetUrl', () => {
     expect(buildPasswordResetUrl('abc')).toBe('https://m.fit/reset?token=abc');
   });
 
-  it('derives <WEB_URL>/auth/reset-password when no explicit base is set', () => {
+  it('derives <WEB_URL>/member/reset-password when no explicit base is set', () => {
     configure({ WEB_URL: 'https://app.fit/' });
-    expect(buildPasswordResetUrl('abc')).toBe('https://app.fit/auth/reset-password?token=abc');
+    expect(buildPasswordResetUrl('abc')).toBe('https://app.fit/member/reset-password?token=abc');
   });
 
   it('url-encodes the token', () => {
@@ -418,7 +421,7 @@ describe('buildReceiptEmail', () => {
   it('wraps the receipt in the branded shell — brand wordmark + heading', () => {
     const { html } = buildReceiptEmail(cashReceipt, 'Downtown');
     // Formacore brand violet + the seller wordmark and the receipt heading.
-    expect(html).toContain('#6257E3');
+    expect(html).toContain('#E4F26A');
     expect(html).toContain('Downtown');
     expect(html).toContain('Your receipt');
   });
@@ -436,10 +439,10 @@ describe('buildReceiptEmail', () => {
 describe('buildReportDigestEmail', () => {
   it('subjects the digest with the cadence label and gym name', () => {
     const { subject } = buildReportDigestEmail(weeklyDigest);
-    expect(subject).toBe('Weekly report digest — Downtown');
+    expect(subject).toBe('Weekly report digest - Downtown');
 
     const monthly = buildReportDigestEmail({ ...weeklyDigest, cadence: 'monthly', range: '30d' });
-    expect(monthly.subject).toBe('Monthly report digest — Downtown');
+    expect(monthly.subject).toBe('Monthly report digest - Downtown');
   });
 
   it('renders each section title, its money in the section currency, and percents', () => {
@@ -474,7 +477,7 @@ describe('buildReportDigestEmail', () => {
 
   it('wraps the digest in the branded shell and escapes the gym name', () => {
     const { html } = buildReportDigestEmail({ ...weeklyDigest, gymName: '<b>Gym</b>' });
-    expect(html).toContain('#6257E3');
+    expect(html).toContain('#E4F26A');
     expect(html).not.toContain('<b>Gym</b>');
     expect(html).toContain('&lt;b&gt;Gym&lt;/b&gt;');
   });
@@ -515,7 +518,7 @@ describe('EmailService.sendReportDigestEmail', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
     expect(body.to).toEqual(['owner@example.com']);
-    expect(body.subject).toBe('Weekly report digest — Downtown');
+    expect(body.subject).toBe('Weekly report digest - Downtown');
     expect(String(body.html)).toContain('https://admin.fit/reports');
   });
 
@@ -563,7 +566,7 @@ describe('buildLowStockDigestEmail', () => {
   it('subjects the mail with the low-line count and gym name', () => {
     const { subject } = buildLowStockDigestEmail(lowStockDigest);
     // Three low variant lines across the two products.
-    expect(subject).toBe('Low stock: 3 items to reorder — Downtown');
+    expect(subject).toBe('Low stock: 3 items to reorder - Downtown');
   });
 
   it('singularises the subject for a single low line', () => {
@@ -572,7 +575,7 @@ describe('buildLowStockDigestEmail', () => {
       products: [{ name: 'Shaker', variants: [{ label: '600ml', stock: 2 }], lowestStock: 2 }],
     };
     expect(buildLowStockDigestEmail(single).subject).toBe(
-      'Low stock: 1 item to reorder — Downtown',
+      'Low stock: 1 item to reorder - Downtown',
     );
   });
 
@@ -582,8 +585,8 @@ describe('buildLowStockDigestEmail', () => {
     expect(html).toContain('Chocolate');
     expect(html).toContain('600ml');
     expect(html).toContain('threshold of 5');
-    expect(text).toContain('Protein bar — Chocolate: 0 on hand');
-    expect(text).toContain('Shaker — 600ml: 5 on hand');
+    expect(text).toContain('Protein bar - Chocolate: 0 on hand');
+    expect(text).toContain('Shaker - 600ml: 5 on hand');
   });
 
   it('renders the products link only when a productsUrl is supplied', () => {
@@ -602,7 +605,7 @@ describe('buildLowStockDigestEmail', () => {
       gymName: '<b>Gym</b>',
       products: [{ name: '<i>Bar</i>', variants: [{ label: 'x', stock: 0 }], lowestStock: 0 }],
     });
-    expect(html).toContain('#6257E3');
+    expect(html).toContain('#E4F26A');
     expect(html).not.toContain('<b>Gym</b>');
     expect(html).toContain('&lt;i&gt;Bar&lt;/i&gt;');
   });
@@ -611,7 +614,7 @@ describe('buildLowStockDigestEmail', () => {
 describe('buildDailySummaryEmail', () => {
   it('subjects the mail with the business day and gym name', () => {
     expect(buildDailySummaryEmail(dailySummary).subject).toBe(
-      'Daily summary 2026-07-05 — Downtown',
+      'Daily summary 2026-07-05 - Downtown',
     );
   });
 
@@ -638,7 +641,7 @@ describe('buildDailySummaryEmail', () => {
 
   it('wraps the summary in the branded shell and escapes the gym name', () => {
     const { html } = buildDailySummaryEmail({ ...dailySummary, gymName: '<b>Gym</b>' });
-    expect(html).toContain('#6257E3');
+    expect(html).toContain('#E4F26A');
     expect(html).not.toContain('<b>Gym</b>');
     expect(html).toContain('&lt;b&gt;Gym&lt;/b&gt;');
   });
@@ -678,7 +681,7 @@ describe('EmailService ops-alert senders', () => {
     expect(sent).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
     expect(body.to).toEqual(['owner@example.com']);
-    expect(body.subject).toBe('Low stock: 3 items to reorder — Downtown');
+    expect(body.subject).toBe('Low stock: 3 items to reorder - Downtown');
   });
 
   it('sendDailySummaryEmail POSTs to Resend and resolves true when configured', async () => {
@@ -686,7 +689,7 @@ describe('EmailService ops-alert senders', () => {
     const sent = await new EmailService().sendDailySummaryEmail('owner@example.com', dailySummary);
     expect(sent).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
-    expect(body.subject).toBe('Daily summary 2026-07-05 — Downtown');
+    expect(body.subject).toBe('Daily summary 2026-07-05 - Downtown');
   });
 
   it('an ops sender throws when Resend returns a non-2xx response', async () => {

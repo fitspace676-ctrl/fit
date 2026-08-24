@@ -36,6 +36,7 @@ export {
   gymTimeZone,
   occurrencesInWindow,
   planInstanceRegeneration,
+  startOfDayInZone,
   type ExistingInstance,
   type GenerateClassInstancesOptions,
   type GenerateClassInstancesResult,

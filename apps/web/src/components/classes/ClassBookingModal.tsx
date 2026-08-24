@@ -53,6 +53,27 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
   },
+  cover: {
+    width: '100%',
+    aspectRatio: '16 / 9',
+    objectFit: 'cover',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  /**
+   * The category badge hugs its text instead of spanning the modal.
+   *
+   * `Badge` is already `inline-flex`, but it sits directly in the body's flex
+   * column, whose default `align-items: stretch` pulled it to the full width —
+   * which drew a one-word category as a full-bleed grey bar. `align-self` is
+   * the fix, and it belongs here rather than in the shared badge: everywhere
+   * else the badge is laid out correctly by its own container.
+   */
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+  },
   // The lime block, at modal scale — the same object as the bookings board's
   // "Next up" hero, so the class you are about to book and the class you have
   // booked are drawn the same way. Flat fill, ink type, no gradient or glow.
@@ -381,7 +402,15 @@ export function ClassBookingModal({ instance, onClose, timeZone }: ClassBookingM
           </>
         ) : (
           <>
-            {instance.category ? <Badge tone="neutral" label={instance.category} /> : null}
+            {/* The class's cover, when it has one — what the class looks like,
+                before the figures. Same treatment as the console's class drawer
+                and the member detail page. */}
+            {instance.imageUrl ? (
+              <img src={instance.imageUrl} alt={instance.title} {...stylex.props(styles.cover)} />
+            ) : null}
+            {instance.category ? (
+              <Badge tone="neutral" label={instance.category} xstyle={styles.categoryBadge} />
+            ) : null}
             {when}
 
             <Card variant="muted" padding="none" xstyle={styles.capCard}>

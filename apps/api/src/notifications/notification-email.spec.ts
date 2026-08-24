@@ -27,7 +27,7 @@ describe('buildNotificationEmail', () => {
       recipientName: 'Sam',
     });
     expect(subject).toBe('Booking confirmed');
-    expect(html).toContain('#6257E3'); // formacore brand violet
+    expect(html).toContain('#E4F26A'); // formacore brand lime
     expect(html).toContain('Downtown'); // sender wordmark
     expect(html).toContain('Booking confirmed'); // heading
     expect(html).toContain('Morning HIIT');

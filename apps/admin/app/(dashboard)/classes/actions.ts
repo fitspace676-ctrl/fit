@@ -14,10 +14,12 @@ import { getServerSession } from '@/lib/session';
 import {
   ApiError,
   createClassTemplate,
+  createUpload,
   deleteClassTemplate,
   pauseClassTemplate,
   resumeClassTemplate,
   updateClassTemplate,
+  type SignedUploadResponse,
 } from '@/lib/api';
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
@@ -44,6 +46,27 @@ function toMessage(error: unknown): string {
     return `Request failed (${error.status}): ${error.message}`;
   }
   return error instanceof Error ? error.message : 'Unexpected error';
+}
+
+/**
+ * Mint a presigned R2 `PUT` URL for a class cover image (`{gymId}/classes/…`).
+ * Mirrors the product-gallery uploader: the browser sends the bytes straight to
+ * R2 and only the resulting public URL is ever persisted on the template.
+ */
+export async function requestClassImageUploadAction(input: {
+  contentType: string;
+  contentLength: number;
+  fileName?: string;
+}): Promise<ActionResult<SignedUploadResponse>> {
+  if (!(await requireClassWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const signed = await createUpload({ ...input, entity: 'classes' });
+    return { ok: true, data: signed };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
 }
 
 /**

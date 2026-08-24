@@ -24,6 +24,7 @@ interface ClassTemplateRecord {
   startTime: string;
   rrule: string;
   color: string;
+  imageUrl: string | null;
   status: ClassTemplateStatus;
   validFrom: Date;
   validUntil: Date | null;
@@ -57,6 +58,7 @@ const row = (over?: Partial<ClassTemplateRecord>): ClassTemplateRecord => ({
   startTime: '09:00',
   rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
   color: '#2563eb',
+  imageUrl: null,
   status: ClassTemplateStatus.ACTIVE,
   validFrom: new Date('2026-06-01T00:00:00.000Z'),
   validUntil: new Date('2026-12-31T00:00:00.000Z'),
@@ -175,6 +177,7 @@ const createInput = (over?: Partial<CreateClassTemplateData>): CreateClassTempla
   startTime: '09:00',
   rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
   color: '#2563eb',
+  imageUrl: null,
   status: 'ACTIVE',
   pricingRule: 'FREE',
   priceMinor: null,
@@ -200,6 +203,7 @@ const updateInput = (over?: Partial<UpdateClassTemplateData>): UpdateClassTempla
   startTime: '09:00',
   rrule: 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU',
   color: '#16a34a',
+  imageUrl: null,
   pricingRule: 'FREE',
   priceMinor: null,
   includedPlanIds: [],
@@ -358,6 +362,35 @@ describe('AdminClassTemplatesService', () => {
       expect(create.mock.calls[0]?.[0]?.data?.validUntil).toBeNull();
     });
 
+    it('persists the cover imageUrl and returns it on the detail', async () => {
+      const { service, create } = setup();
+
+      const detail = await service.createClassTemplate(
+        createInput({ imageUrl: 'https://pub.example.com/gym/classes/cover.jpg' }),
+      );
+
+      expect(create.mock.calls[0]?.[0]?.data).toMatchObject({
+        imageUrl: 'https://pub.example.com/gym/classes/cover.jpg',
+      });
+      // The mocked row carries imageUrl: null — the detail must pass it through.
+      expect(detail.imageUrl).toBeNull();
+    });
+
+    it("materialises today's occurrence even when its start time has already passed", async () => {
+      // Monday 10:00 UTC — an hour past the template's 09:00 start. The class was
+      // created *for today*, so today's occurrence must still appear on the
+      // calendar (as an already-started/ended class), not silently never exist.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-06-08T10:00:00.000Z'));
+
+      const { service, instanceCreateMany } = setup();
+
+      await service.createClassTemplate(createInput());
+
+      const created = instanceCreateMany.mock.calls[0]?.[0]?.data as Array<{ startsAt: Date }>;
+      expect(created[0]?.startsAt.toISOString()).toBe('2026-06-08T09:00:00.000Z');
+    });
+
     it('validates a provided trainerId against the gym (400 when missing)', async () => {
       const { service, create } = setup({ trainer: null });
 
@@ -396,6 +429,19 @@ describe('AdminClassTemplatesService', () => {
         validUntil: null,
       });
       expect(data).not.toHaveProperty('status');
+    });
+
+    it('persists an edited cover imageUrl', async () => {
+      const { service, update } = setup({ findFirst: row() });
+
+      await service.updateClassTemplate(
+        'ct-1',
+        updateInput({ imageUrl: 'https://pub.example.com/gym/classes/new-cover.jpg' }),
+      );
+
+      expect(update.mock.calls[0]?.[0]?.data).toMatchObject({
+        imageUrl: 'https://pub.example.com/gym/classes/new-cover.jpg',
+      });
     });
 
     it('throws 404 for an unknown / cross-tenant id', async () => {

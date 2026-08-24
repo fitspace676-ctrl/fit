@@ -42,6 +42,9 @@ const PUBLIC_PATHS = [
   '/member/register',
   '/member/forgot-password',
   '/member/reset-password',
+  // Where the verification email's button lands - the visitor by definition
+  // has no session yet.
+  '/member/verify',
   // Public discovery surface — a logged-out visitor browses the class schedule
   // and is only sent to /member/login when they act on a class (the booking CTA).
   '/member/classes',

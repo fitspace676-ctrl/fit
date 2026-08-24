@@ -204,7 +204,7 @@ export function FreezeCard({
           month: 'short',
           year: 'numeric',
         }).format(new Date(iso))
-      : '—';
+      : '-';
 
   function submitFreeze(): void {
     if (!Number.isInteger(days) || days < 1) {
@@ -268,7 +268,7 @@ export function FreezeCard({
           // grey box. The kit's Banner is the object, and it is already neutral
           // by design rather than by accident.
           <Banner tone="info">
-            {t('frozenUntil', { date: fmtDate(frozenUntil) })} — {t('frozenHint')}
+            {t('frozenUntil', { date: fmtDate(frozenUntil) })} - {t('frozenHint')}
           </Banner>
         ) : (
           <div {...stylex.props(styles.allowance)}>

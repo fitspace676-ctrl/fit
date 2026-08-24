@@ -121,6 +121,8 @@ export interface AdminScheduleInstance {
   pricingRule: ClassPricingRule;
   priceMinor: number | null;
   color: string;
+  /** The template's cover image, shown when the class is opened; null when none. */
+  imageUrl: string | null;
   startsAt: string;
   endsAt: string;
   durationMinutes: number;
