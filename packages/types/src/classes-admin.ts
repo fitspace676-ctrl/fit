@@ -381,6 +381,8 @@ export interface AdminClassTemplateDetail extends AdminClassTemplateRow {
   trainerId: string | null;
   locationId: string | null;
   room: string | null;
+  /** Public URL of the class's cover image, or null when it has none. */
+  imageUrl: string | null;
   updatedAt: string;
 }
 
@@ -437,6 +439,14 @@ const classTemplateProfileFields = {
     .trim()
     .regex(/^#[0-9a-fA-F]{6}$/, 'Color must be a hex value like #2563eb')
     .default('#2563eb'),
+  // The cover image shown when the class is opened. '' and absent both normalise
+  // to null so "no cover" has exactly one representation on the wire.
+  imageUrl: z
+    .preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.string().trim().url('The cover image must be a URL').max(2048).nullable(),
+    )
+    .default(null),
   pricingRule: classPricingRuleSchema.default('FREE'),
   priceMinor: nullableMinorField.default(null),
   includedPlanIds: z.array(z.string().trim().min(1)).max(100).default([]),

@@ -371,7 +371,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           month: 'short',
           year: 'numeric',
         }).format(new Date(iso))
-      : '—';
+      : '-';
 
   return (
     <div {...stylex.props(styles.root)}>
@@ -400,7 +400,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           `role="alert"` with it. */}
       {status === 'PAST_DUE' ? (
         <Banner tone="error">
-          {t('pastDue.title')} — {t('pastDue.body')}
+          {t('pastDue.title')} - {t('pastDue.body')}
         </Banner>
       ) : null}
 

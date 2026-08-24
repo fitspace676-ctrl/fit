@@ -27,6 +27,7 @@ const DETAIL_SELECT = {
       description: true,
       category: true,
       color: true,
+      imageUrl: true,
       room: true,
       capacity: true,
       durationMinutes: true,
@@ -63,6 +64,7 @@ const CARD_SELECT = {
       title: true,
       category: true,
       color: true,
+      imageUrl: true,
       capacity: true,
       trainer: { select: { name: true } },
       location: { select: { name: true } },
@@ -169,6 +171,8 @@ function toCard(row: InstanceCardRow): ListClassInstancesResponse['instances'][n
     bookedCount: row.bookedCount,
     category: row.template?.category ?? row.classType?.name ?? '',
     color: row.template?.color ?? row.classType?.color ?? '#2563eb',
+    // Only templates carry a cover; a one-off from a class type has none.
+    imageUrl: row.template?.imageUrl ?? null,
   };
 }
 
@@ -193,6 +197,8 @@ function toDetail(row: InstanceDetailRow): GetClassInstanceResponse['instance'] 
       Math.max(1, Math.round((row.endsAt.getTime() - row.startsAt.getTime()) / 60000)),
     category: row.template?.category ?? '',
     color: row.template?.color ?? row.classType?.color ?? '#2563eb',
+    // Only templates carry a cover; a one-off from a class type has none.
+    imageUrl: row.template?.imageUrl ?? null,
     status: row.status,
   };
 }

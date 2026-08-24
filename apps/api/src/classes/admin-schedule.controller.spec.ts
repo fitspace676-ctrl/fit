@@ -26,6 +26,7 @@ const detail = (over?: Partial<AdminClassInstanceDetail>): AdminClassInstanceDet
   pricingRule: 'FREE',
   priceMinor: null,
   color: '#2563eb',
+  imageUrl: null,
   startsAt: FROM,
   endsAt: TO,
   durationMinutes: 60,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
@@ -16,7 +16,11 @@ import {
 } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
-import { createClassTemplateAction, updateClassTemplateAction } from './actions';
+import {
+  createClassTemplateAction,
+  requestClassImageUploadAction,
+  updateClassTemplateAction,
+} from './actions';
 import { RecurrenceEditor } from './recurrence-editor';
 
 /** A trainer / location option the default-assignment selects offer. */
@@ -165,6 +169,39 @@ const styles = stylex.create({
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
+  coverPreviewWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  coverPreview: {
+    width: '100%',
+    maxWidth: '20rem',
+    aspectRatio: '16 / 9',
+    objectFit: 'cover',
+    borderRadius: 'var(--radius-element)',
+    borderColor: 'var(--color-border)',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+  },
+  coverActions: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  /* Kept in the DOM (for the ref) but never shown — the buttons drive it. */
+  coverInput: {
+    display: 'none',
+  },
+  coverHint: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  coverError: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-error)',
+  },
 });
 
 /** The default recurrence a new template starts on — a weekly Monday class. */
@@ -172,6 +209,10 @@ const DEFAULT_RECURRENCE: Recurrence = {
   freq: 'WEEKLY',
   weekdays: ['MO'],
 };
+
+/** The image types the cover accepts — mirrors the product gallery's rules. */
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type Initial = {
   title: string;
@@ -185,6 +226,7 @@ type Initial = {
   startTime: string;
   rrule: string;
   color: string;
+  imageUrl: string | null;
   pricingRule: ClassPricingRule;
   priceMinor: number | null;
   includedPlanIds: string[];
@@ -277,6 +319,7 @@ export function ClassTemplateForm(props: Props) {
           props.seed ? { freq: 'WEEKLY', weekdays: [props.seed.weekday] } : DEFAULT_RECURRENCE,
         ),
         color: '#2563eb',
+        imageUrl: null,
         pricingRule: 'FREE',
         priceMinor: null,
         includedPlanIds: [],
@@ -301,6 +344,10 @@ export function ClassTemplateForm(props: Props) {
   const [durationMinutes, setDurationMinutes] = useState(String(initial.durationMinutes));
   const [startTime, setStartTime] = useState(initial.startTime);
   const [color, setColor] = useState(initial.color);
+  const [imageUrl, setImageUrl] = useState<string | null>(initial.imageUrl);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [validFrom, setValidFrom] = useState(initial.validFrom);
   const [validUntil, setValidUntil] = useState(initial.validUntil ?? '');
   const [status, setStatus] = useState<ClassTemplateStatus>('ACTIVE');
@@ -327,6 +374,59 @@ export function ClassTemplateForm(props: Props) {
 
   // Reflect the stored type name back to its id so the select shows the right row.
   const selectedClassTypeId = props.classTypes.find((type) => type.name === category)?.id ?? '';
+
+  /**
+   * Upload the chosen cover to R2 via a presigned PUT (same flow as the product
+   * gallery) and keep only the public URL. Failure is non-fatal: the class still
+   * saves without a cover.
+   */
+  async function onCoverChange(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setUploadError('Choose a JPEG, PNG, WebP, or GIF image.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setUploadError('The image is larger than 5 MB. Choose a smaller file.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const signed = await requestClassImageUploadAction({
+        contentType: file.type,
+        contentLength: file.size,
+        fileName: file.name,
+      });
+      if (!signed.ok) {
+        setUploadError(signed.error);
+        return;
+      }
+      const put = await fetch(signed.data.url, {
+        method: 'PUT',
+        headers: { 'content-type': signed.data.contentType },
+        body: file,
+      });
+      if (!put.ok) {
+        setUploadError(`Upload failed (${put.status}). Please try again.`);
+        return;
+      }
+      if (!signed.data.publicUrl) {
+        setUploadError('Uploaded, but no public URL is configured for storage.');
+        return;
+      }
+      setImageUrl(signed.data.publicUrl);
+    } catch {
+      setUploadError('Could not upload the image. Check your connection and try again.');
+    } finally {
+      setUploading(false);
+      // Allow re-selecting the same file after an error.
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   /** A one-off runs on its start date and stops — no weekdays, no end date. */
   const isOneOff = recurrence.freq === 'ONCE';
@@ -356,6 +456,7 @@ export function ClassTemplateForm(props: Props) {
       startTime,
       rrule: buildRRule(parsedRecurrence.data),
       color,
+      imageUrl,
       // Pricing is the class type's answer, not a second question here. Copied at
       // save because nothing links a template to its type, so this is a snapshot:
       // repricing a type does not reprice templates already built from it.
@@ -468,6 +569,57 @@ export function ClassTemplateForm(props: Props) {
           placeholder="A short description of the class."
           {...stylex.props(styles.textarea)}
         />
+      </div>
+
+      <div {...stylex.props(styles.fieldGroup)}>
+        <span {...stylex.props(styles.label)}>
+          Cover image <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+        </span>
+        {imageUrl ? (
+          <div {...stylex.props(styles.coverPreviewWrap)}>
+            <img src={imageUrl} alt="Class cover" {...stylex.props(styles.coverPreview)} />
+            <div {...stylex.props(styles.coverActions)}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                label={uploading ? 'Uploading…' : 'Replace'}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setImageUrl(null);
+                  setUploadError(null);
+                }}
+                disabled={uploading}
+                label="Remove"
+              />
+            </div>
+          </div>
+        ) : (
+          <div>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              label={uploading ? 'Uploading…' : 'Upload cover image'}
+            />
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPTED_IMAGE_TYPES.join(',')}
+          onChange={(event) => void onCoverChange(event)}
+          {...stylex.props(styles.coverInput)}
+        />
+        <p {...stylex.props(styles.coverHint)}>
+          Shown when the class is opened. JPEG, PNG, WebP, or GIF, up to 5 MB.
+        </p>
+        {uploadError ? <p {...stylex.props(styles.coverError)}>{uploadError}</p> : null}
       </div>
 
       <div {...stylex.props(styles.row)}>

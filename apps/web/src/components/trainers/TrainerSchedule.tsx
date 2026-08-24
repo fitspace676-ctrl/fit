@@ -181,7 +181,7 @@ export function TrainerSchedule({ schedule, timeZone }: TrainerScheduleProps) {
                   <span {...stylex.props(styles.time)}>
                     <Icon name="clock" {...stylex.props(styles.timeIcon)} sw={2} />
                     <span {...stylex.props(styles.timeText)}>
-                      {formatZonedTime(entry.startsAt, timeZone)}–
+                      {formatZonedTime(entry.startsAt, timeZone)}-
                       {formatZonedTime(entry.endsAt, timeZone)}
                     </span>
                   </span>

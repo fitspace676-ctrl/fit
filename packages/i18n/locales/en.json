@@ -2880,7 +2880,7 @@
     },
     "login": {
       "title": "Sign in to FormaCore",
-      "subtitle": "Welcome back — enter your details to continue.",
+      "subtitle": "Welcome back - enter your details to continue.",
       "heroTitle": "Welcome back.",
       "heroSubtitle": "Book classes, check in with a tap, and track every session.",
       "submit": "Sign in",
@@ -2916,8 +2916,13 @@
     },
     "verify": {
       "verifying": "Verifying your email…",
-      "success": "Email verified — you’re all set.",
-      "missingToken": "This verification link is invalid or has expired."
+      "success": "Email verified - you're all set.",
+      "missingToken": "This verification link is invalid or has expired.",
+      "successTitle": "Email verified",
+      "successSubtitle": "You're all set - sign in to get started.",
+      "invalidTitle": "This link no longer works",
+      "invalidSubtitle": "The verification link is invalid or has expired. Sign in to request a new one.",
+      "cta": "Sign in"
     },
     "splitHeading": "Sign in or join the gym",
     "join": {
@@ -3004,7 +3009,7 @@
       "subtitle": "Pick the membership that fits how you train.",
       "loading": "Loading packages…",
       "error": "We couldn't load the packages. Please try again.",
-      "noGym": "Open this page on your gym’s address (e.g. downtown.formacore.ge) — there is no gym in scope here, so nothing can be listed.",
+      "noGym": "Open this page on your gym’s address (e.g. downtown.formacore.ge) - there is no gym in scope here, so nothing can be listed.",
       "retry": "Try again",
       "empty": {
         "title": "No packages available",
@@ -3036,7 +3041,7 @@
       "subtitle": "Confirm who this membership is for.",
       "guestSubtitle": "Create an account to complete your purchase.",
       "loading": "Checking your account…",
-      "signedIn": "You're signed in — your membership will be added to your account.",
+      "signedIn": "You're signed in - your membership will be added to your account.",
       "submitting": "Saving…",
       "invalid": "Please enter your name, a valid email, and a password of at least 8 characters.",
       "fields": {
@@ -3083,7 +3088,7 @@
       "loading": "Loading your order…",
       "processing": "Processing…",
       "pay": "Pay",
-      "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk — no card is charged online.",
+      "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk - no card is charged online.",
       "error": "We couldn't place your order. Please try again.",
       "terms": "I agree to the terms of service and the membership policy.",
       "summary": {
@@ -3094,7 +3099,7 @@
         "title": "This package is no longer available",
         "subtitle": "Please go back and choose another package."
       },
-      "freeNotice": "A free account needs no payment — your account is created right away and you can add a plan at any time.",
+      "freeNotice": "A free account needs no payment - your account is created right away and you can add a plan at any time.",
       "createFree": "Create account"
     },
     "success": {
@@ -3107,13 +3112,13 @@
         "title": "We couldn't find that order",
         "subtitle": "The order may have expired or the link is incomplete."
       },
-      "verifyEmail": "One more thing — we have emailed you a confirmation link. Click it to confirm your address, otherwise you will not be able to sign in again once this session ends."
+      "verifyEmail": "One more thing - we have emailed you a confirmation link. Click it to confirm your address, otherwise you will not be able to sign in again once this session ends."
     },
     "summary": {
       "title": "Your selection",
       "branch": "Branch",
       "total": "Total",
-      "empty": "Pick a branch and a plan — your choice will show up here.",
+      "empty": "Pick a branch and a plan - your choice will show up here.",
       "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
     }
   },
@@ -3132,7 +3137,8 @@
       "prev": "Previous week",
       "next": "Next week",
       "today": "This week",
-      "dayEmpty": "No classes this day"
+      "dayEmpty": "No classes this day",
+      "time": "Time"
     },
     "listView": {
       "label": "Class list",
@@ -3204,7 +3210,7 @@
         "waitlistedTitle": "You’re on the waitlist",
         "waitlistedSubtitle": "We’ll let you know if a spot opens up.",
         "waitlistPosition": "Position #{position}",
-        "fullNote": "This class is full — join the waitlist and we’ll notify you if a spot opens up.",
+        "fullNote": "This class is full - join the waitlist and we’ll notify you if a spot opens up.",
         "toast": {
           "booked": "You’re booked!",
           "waitlisted": "You’re on the waitlist.",
@@ -3257,7 +3263,7 @@
     }
   },
   "footer": {
-    "tagline": "Book gyms, classes, and trainers across Georgia — all in one app.",
+    "tagline": "Book gyms, classes, and trainers across Georgia - all in one app.",
     "product": "Product",
     "company": "Company",
     "legal": "Legal",
@@ -3276,13 +3282,13 @@
     "hero": {
       "badge": "Now live in Georgia",
       "title": "Find your gym. Book your class.",
-      "subtitle": "FormaCore connects you with gyms, trainers, and classes near you — book and manage your membership in one place.",
+      "subtitle": "FormaCore connects you with gyms, trainers, and classes near you - book and manage your membership in one place.",
       "ctaPrimary": "Get started",
       "ctaSecondary": "Browse classes"
     },
     "features": {
       "title": "Everything you need to stay in shape",
-      "subtitle": "One app for members, trainers, and gyms — from discovery to check-in.",
+      "subtitle": "One app for members, trainers, and gyms - from discovery to check-in.",
       "items": {
         "discover": {
           "title": "Discover gyms & studios",
@@ -3298,7 +3304,7 @@
         },
         "membership": {
           "title": "One membership, everywhere",
-          "description": "Manage your plan, track visits, and pay in one place — no paper cards."
+          "description": "Manage your plan, track visits, and pay in one place - no paper cards."
         }
       }
     },
@@ -3474,7 +3480,7 @@
       "perks": "Unlimited classes · 1 guest pass / mo · −10% shop",
       "nextBilling": "Next billing",
       "endsOn": "Access until",
-      "cancelNotice": "Set to cancel — won't renew.",
+      "cancelNotice": "Set to cancel - won't renew.",
       "memberSince": "Member since",
       "paymentMethod": "Payment method",
       "payAtDesk": "Pay at desk",
@@ -3499,7 +3505,7 @@
       "downloadPdf": "Download invoice PDF",
       "pastDue": {
         "title": "Payment didn't go through",
-        "body": "We couldn't process your last renewal. We'll retry automatically over the next few days — please settle up at the desk to keep your membership active."
+        "body": "We couldn't process your last renewal. We'll retry automatically over the next few days - please settle up at the desk to keep your membership active."
       },
       "freeze": {
         "title": "Pause membership",
@@ -3512,7 +3518,7 @@
         "notAvailable": "Your plan doesn't include freezes.",
         "exhausted": "You've used all your freeze days this period.",
         "frozenUntil": "Paused until {date}",
-        "frozenHint": "Your membership resumes automatically — or resume it any time.",
+        "frozenHint": "Your membership resumes automatically - or resume it any time.",
         "modalTitle": "Pause membership",
         "modalBody": "You have {days} freeze days left this period.",
         "durationLabel": "How many days?",
@@ -3543,7 +3549,7 @@
         "errUnavailable": "That pack is no longer available.",
         "errGeneric": "Something went wrong. Please try again.",
         "close": "Close",
-        "boughtBody": "They are on your account now — book a PT session whenever you are ready."
+        "boughtBody": "They are on your account now - book a PT session whenever you are ready."
       },
       "plan": {
         "subtitle": "Pick the plan you want. You pay for it at the front desk.",
@@ -3629,7 +3635,7 @@
         "freezeSheet": {
           "title": "Freeze membership",
           "subtitle": "Pause billing while you're away.",
-          "carryover": "Your remaining days carry over — nothing is lost. You can freeze up to {days} more days this period.",
+          "carryover": "Your remaining days carry over - nothing is lost. You can freeze up to {days} more days this period.",
           "confirm": "Freeze for {label}",
           "opt2w": "2 weeks",
           "opt1m": "1 month",
@@ -3732,7 +3738,7 @@
       "signInToAdd": "Sign in to add to cart",
       "errUpdate": "Couldn't update the cart",
       "errCheckout": "Checkout failed, try again",
-      "errPrice": "Prices changed — review your cart",
+      "errPrice": "Prices changed - review your cart",
       "pickLocation": "Choose a pickup location",
       "eyebrow": "Checkout",
       "subtitle": "Review what you are collecting, then place the order.",
@@ -3747,7 +3753,7 @@
       "saving": "Saving…",
       "cancel": "Cancel",
       "remove": "Remove",
-      "empty": "No goals yet — set a target to track your progress.",
+      "empty": "No goals yet - set a target to track your progress.",
       "saved": "Goals saved",
       "error": "Couldn't save goals",
       "signIn": "Please sign in",
@@ -3822,7 +3828,7 @@
         "secure": "Secure checkout · payment is simulated for now.",
         "open": "Open cart"
       },
-      "perk": "Collect your order at the front desk — no shipping, no waiting.",
+      "perk": "Collect your order at the front desk - no shipping, no waiting.",
       "loading": "Loading products…",
       "error": "We couldn’t load the shop. Please try again.",
       "retry": "Try again",
@@ -3866,7 +3872,7 @@
         "error": "We couldn’t load this order. Please try again.",
         "retry": "Try again",
         "title": "Order placed",
-        "subtitle": "We’ll let you know when it’s ready at the front desk — usually within 2 hours.",
+        "subtitle": "We’ll let you know when it’s ready at the front desk - usually within 2 hours.",
         "orderLabel": "Order",
         "paidLabel": "Paid",
         "total": "Total",
@@ -4023,7 +4029,7 @@
     "checkout": {
       "pay": "Place order",
       "processing": "Placing order…",
-      "note": "Payment is simulated for now — no card is charged.",
+      "note": "Payment is simulated for now - no card is charged.",
       "error": "We couldn’t place your order. Please try again."
     },
     "order": {

@@ -16,25 +16,28 @@ import {
   startOfWeek,
   weekDays,
   zonedDayIndexInWeek,
-  zonedMinutesIntoDay,
   zonedParts,
 } from './date-utils';
 import { createDateTimeFormat } from '@fit/i18n';
 
-// Astryx migration (T11), now on the portal kit: the week grid is rebuilt on the kit's `Card` over
-// the FormaCore theme, with the 7-column time grid, hour gridlines, and
-// positioned class cards authored in compiled StyleX (`var(--color-*)`) — no
-// Tailwind utilities and no formacore Aurora-glass primitives. The per-card
-// absolute positioning (top/height/lane) stays as inline styles since it is
-// data-derived. Layout math is unchanged.
+// The week is a slot grid, not a time-proportional one: one row per hour, one
+// column per day, and every class an equal-height card in its start-hour cell.
+// A gym's week is a timetable of discrete sessions, and a card with room for the
+// trainer, the length and how full the class is tells a member more than a block
+// whose height encodes minutes. It also fixes what the proportional grid could
+// not: classes sharing an hour used to be squeezed into side-by-side lanes,
+// which truncated their titles to a letter or two. They now stack, and the row
+// grows to fit. Mirrors the console's own week grid so both read the same.
 
-/** Pixels per hour row — drives both the gutter scale and card positioning. */
-const HOUR_HEIGHT = 56;
 /** Default visible band (06:00–22:00) when the data doesn't push it wider. */
 const DEFAULT_START_HOUR = 6;
 const DEFAULT_END_HOUR = 22;
-/** Floor on a card's rendered height so a short class stays readable/clickable. */
-const MIN_CARD_HEIGHT = 28;
+
+/**
+ * Above this many seats the occupancy bar stops drawing one segment per seat —
+ * a 30-seat studio would render confetti — and falls back to a solid fill.
+ */
+const MAX_SEGMENTS = 12;
 
 const styles = stylex.create({
   section: {
@@ -57,15 +60,11 @@ const styles = stylex.create({
     height: '1rem',
     width: '1rem',
   },
-  // The week range is the calendar's title, so it is set like one. At 14px it
-  // sat below the day numbers inside the grid it was supposed to name.
   navLabel: {
     margin: 0,
-    marginInlineStart: '0.5rem',
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.0625rem',
-    fontWeight: 800,
-    letterSpacing: '-0.01em',
+    marginInlineStart: '0.25rem',
+    fontSize: '0.875rem',
+    fontWeight: 700,
     color: 'var(--color-text-primary)',
   },
   card: {
@@ -73,132 +72,197 @@ const styles = stylex.create({
   },
   grid: {
     display: 'grid',
-    minWidth: '720px',
-    gridTemplateColumns: '3.5rem repeat(7, 1fr)',
+    gridTemplateColumns: '3.5rem repeat(7, minmax(10rem, 1fr))',
+    minWidth: '58rem',
   },
-  headGutter: {
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
+  row: {
+    display: 'contents',
+  },
+  corner: {
+    position: 'sticky',
+    left: 0,
+    zIndex: 2,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0.5rem 0.25rem',
+    fontSize: '0.625rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    color: 'var(--color-text-secondary)',
+    backgroundColor: 'var(--color-background-surface)',
     borderBottomColor: 'var(--color-border)',
+    borderBottomStyle: 'solid',
+    borderBottomWidth: '1px',
   },
   headCell: {
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: '0.375rem',
+    padding: '0.625rem 0.5rem',
     borderBottomColor: 'var(--color-border)',
-    borderLeftWidth: '1px',
-    borderLeftStyle: 'solid',
+    borderBottomStyle: 'solid',
+    borderBottomWidth: '1px',
     borderLeftColor: 'var(--color-border)',
-    paddingInline: '0.5rem',
-    paddingBlock: '0.5rem',
-    textAlign: 'center',
+    borderLeftStyle: 'solid',
+    borderLeftWidth: '1px',
   },
-  // Today is the lime. It was `--color-background-purple` — a token the
-  // FormaCore theme keeps only as an alias and flattens onto plain ink, so the
-  // one column a member looks for first was tinted the same grey as the rest of
-  // the header and read as nothing at all. The direction has exactly one colour
-  // for "this is the one"; this is it.
   headCellToday: {
     backgroundColor: 'var(--color-accent-muted)',
   },
   headDow: {
     margin: 0,
-    fontSize: '0.75rem',
+    fontSize: '0.625rem',
+    fontWeight: 600,
     textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    letterSpacing: '0.06em',
     color: 'var(--color-text-secondary)',
   },
   headDate: {
     margin: 0,
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.875rem',
+    fontSize: '0.9375rem',
     fontWeight: 700,
-    fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
   headDateToday: {
     color: 'var(--color-text-accent)',
   },
-  gutter: {
-    position: 'relative',
-  },
-  gutterLabel: {
-    position: 'absolute',
-    right: '0.25rem',
-    transform: 'translateY(-50%)',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.6875rem',
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-secondary)',
-  },
-  dayCol: {
-    position: 'relative',
-    borderLeftWidth: '1px',
-    borderLeftStyle: 'solid',
-    borderLeftColor: 'var(--color-border)',
-  },
-  gridline: {
-    position: 'absolute',
+  hourCell: {
+    position: 'sticky',
     left: 0,
-    right: 0,
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--color-border)',
-    opacity: 0.5,
-  },
-  classCard: {
-    position: 'absolute',
-    overflow: 'hidden',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    borderLeftWidth: '3px',
-    backgroundColor: 'var(--color-background-card)',
-    paddingInline: '0.375rem',
-    paddingBlock: '0.25rem',
-    textAlign: 'left',
-    cursor: 'pointer',
-    outline: 'none',
-    transitionProperty: 'box-shadow',
-    transitionDuration: '150ms',
-    // No resting elevation — the direction reserves shadow for things that
-    // FLOAT, and a card sitting in a grid does not. On hover it lifts, because
-    // then it genuinely is above its neighbours (`zIndex: 10`).
-    ':hover': {
-      zIndex: 10,
-      boxShadow: '0 4px 12px -2px var(--color-shadow)',
-    },
-    ':focus-visible': {
-      zIndex: 10,
-      boxShadow: '0 0 0 2px var(--color-accent-muted)',
-    },
-  },
-  classTitle: {
-    display: 'block',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    zIndex: 2,
+    display: 'flex',
+    justifyContent: 'center',
+    padding: '0.75rem 0.25rem',
+    fontFamily: 'var(--font-family-code)',
     fontSize: '0.6875rem',
     fontWeight: 700,
-    color: 'var(--color-text-primary)',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+    backgroundColor: 'var(--color-background-surface)',
+    borderTopColor: 'var(--color-border)',
+    borderTopStyle: 'solid',
+    borderTopWidth: '1px',
+  },
+  slot: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    padding: '0.5rem',
+    minHeight: '3rem',
+    borderTopColor: 'var(--color-border)',
+    borderTopStyle: 'solid',
+    borderTopWidth: '1px',
+    borderLeftColor: 'var(--color-border)',
+    borderLeftStyle: 'solid',
+    borderLeftWidth: '1px',
+  },
+  slotToday: {
+    backgroundColor: 'var(--color-accent-muted)',
+  },
+  classCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    textAlign: 'start',
+    width: '100%',
+    padding: 0,
+    overflow: 'hidden',
+    cursor: 'pointer',
+    appearance: 'none',
+    backgroundColor: 'var(--color-background-surface)',
+    borderColor: 'var(--color-border)',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderTopWidth: '3px',
+    borderRadius: 'var(--radius-element)',
+    boxShadow: {
+      default: 'var(--shadow-low)',
+      ':hover': 'var(--shadow-high)',
+    },
+    transitionProperty: 'box-shadow, transform',
+    transitionDuration: '120ms',
+    transform: {
+      default: 'none',
+      ':hover': 'translateY(-1px)',
+    },
+  },
+  classBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.3125rem',
+    padding: '0.5rem 0.625rem 0.625rem',
   },
   classTime: {
-    display: 'block',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
     fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
+    fontSize: '0.9375rem',
+    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  classTitle: {
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    lineHeight: 1.3,
+    color: 'var(--color-text-primary)',
+    overflowWrap: 'anywhere',
+  },
+  metaRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    minWidth: 0,
+    fontSize: '0.6875rem',
     color: 'var(--color-text-secondary)',
   },
-  classSpots: {
-    marginTop: '0.125rem',
-    display: 'block',
+  metaIcon: {
+    height: '0.8125rem',
+    width: '0.8125rem',
+    flexShrink: 0,
+  },
+  metaText: {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontSize: '0.625rem',
+  },
+  meter: {
+    display: 'flex',
+    gap: '2px',
+    height: '0.3125rem',
+    marginTop: '0.125rem',
+    borderRadius: 'var(--radius-full)',
+    overflow: 'hidden',
+  },
+  meterSeg: {
+    flexGrow: 1,
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  meterSegFilled: {
+    backgroundColor: 'var(--color-accent)',
+  },
+  meterTrack: {
+    flexGrow: 1,
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    overflow: 'hidden',
+  },
+  meterFill: {
+    height: '100%',
+    backgroundColor: 'var(--color-accent)',
+  },
+  foot: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0.375rem 0.5rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    backgroundColor: 'var(--color-background-muted)',
     color: 'var(--color-text-secondary)',
+  },
+  footFull: {
+    color: 'var(--color-error)',
   },
 });
 
@@ -217,23 +281,31 @@ export interface WeekCalendarProps {
   timeZone: string;
 }
 
-/** A class positioned within its day column. */
-interface PositionedInstance {
-  instance: ClassInstanceCard;
-  dayIndex: number;
-  top: number;
-  height: number;
-  /** 0-based lane within the day, for side-by-side overlap layout. */
-  lane: number;
-  /** Total lanes the day uses, so every card in it shares one width. */
-  lanes: number;
+/** How long a class runs, in whole minutes (never negative across midnight). */
+function durationMinutes(instance: ClassInstanceCard): number {
+  const span = new Date(instance.endsAt).getTime() - new Date(instance.startsAt).getTime();
+  return Math.max(0, Math.round(span / 60_000));
 }
 
 /**
- * Week view: a 7-column (Mon→Sun) time grid with class cards positioned by their
- * start offset and sized by duration. The visible hour band auto-expands to fit
- * the week's earliest/latest classes around a 06:00–22:00 default. Overlapping
- * classes within a day are split into side-by-side lanes so none is hidden.
+ * The hour rows the grid draws: the default 06:00–22:00 band widened to whatever
+ * hour the week's earliest / latest class *starts* on. Only starts matter now —
+ * a card sits on the row it begins on rather than spanning its duration.
+ */
+function hourRows(instances: ClassInstanceCard[], timeZone: string): number[] {
+  let first = DEFAULT_START_HOUR;
+  let last = DEFAULT_END_HOUR;
+  for (const instance of instances) {
+    const { hour } = zonedParts(instance.startsAt, timeZone);
+    if (hour < first) first = hour;
+    if (hour + 1 > last) last = hour + 1;
+  }
+  return Array.from({ length: last - first }, (_, i) => first + i);
+}
+
+/**
+ * Week view: a 7-column (Mon→Sun) grid of hour rows, each day cell holding the
+ * classes that start in that hour as stacked cards.
  *
  * Stateless: the selected `week` and the data are owned by the parent; this
  * component only renders them and reports navigation / clicks back up.
@@ -249,18 +321,25 @@ export function WeekCalendar({
   const locale = useLocale();
 
   const days = useMemo(() => weekDays(week), [week]);
-  const { startHour, endHour } = useMemo(
-    () => hourBand(instances, timeZone),
-    [instances, timeZone],
-  );
-  const positioned = useMemo(
-    () => layoutWeek(instances, week, startHour, timeZone),
-    [instances, week, startHour, timeZone],
-  );
+  const hours = useMemo(() => hourRows(instances, timeZone), [instances, timeZone]);
+
+  /** `dayIndex:hour` → the classes starting in that cell, earliest first. */
+  const byCell = useMemo(() => {
+    const map = new Map<string, ClassInstanceCard[]>();
+    for (const instance of instances) {
+      const dayIndex = zonedDayIndexInWeek(instance.startsAt, dayKey(week), timeZone);
+      if (dayIndex === -1) continue;
+      const { hour } = zonedParts(instance.startsAt, timeZone);
+      const key = `${dayIndex}:${hour}`;
+      map.set(key, [...(map.get(key) ?? []), instance]);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    }
+    return map;
+  }, [instances, week, timeZone]);
 
   const today = new Date();
-  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
-  const gridHeight = (endHour - startHour) * HOUR_HEIGHT;
 
   return (
     <section aria-label={t('weekView.label')} {...stylex.props(styles.section)}>
@@ -278,67 +357,63 @@ export function WeekCalendar({
         <EmptyClasses />
       ) : (
         <Card padding="none" xstyle={styles.card}>
-          <div {...stylex.props(styles.grid)}>
-            {/* Header row: empty gutter + weekday headings. */}
-            <div {...stylex.props(styles.headGutter)} />
-            {days.map((day) => {
-              const isToday = isSameDay(day, today);
-              return (
-                <div
-                  key={day.toISOString()}
-                  {...stylex.props(styles.headCell, isToday && styles.headCellToday)}
-                >
-                  <p {...stylex.props(styles.headDow)}>
-                    {createDateTimeFormat(locale, { weekday: 'short' }).format(day)}
-                  </p>
-                  <p {...stylex.props(styles.headDate, isToday && styles.headDateToday)}>
-                    {day.getDate()}
-                  </p>
-                </div>
-              );
-            })}
-
-            {/* Body row: hour gutter + 7 day columns. */}
-            <div {...stylex.props(styles.gutter)} style={{ height: gridHeight }}>
-              {hours.map((hour, i) => (
-                <div
-                  key={hour}
-                  {...stylex.props(styles.gutterLabel)}
-                  style={{ top: i * HOUR_HEIGHT }}
-                >
-                  {`${hour}`.padStart(2, '0')}:00
-                </div>
-              ))}
+          <div role="grid" aria-label={t('weekView.label')} {...stylex.props(styles.grid)}>
+            <div role="row" {...stylex.props(styles.row)}>
+              <div role="columnheader" {...stylex.props(styles.corner)}>
+                {t('weekView.time')}
+              </div>
+              {days.map((day) => {
+                const isToday = isSameDay(day, today);
+                return (
+                  <div
+                    key={day.toISOString()}
+                    role="columnheader"
+                    {...stylex.props(styles.headCell, isToday && styles.headCellToday)}
+                  >
+                    <p {...stylex.props(styles.headDow)}>
+                      {createDateTimeFormat(locale, { weekday: 'short' }).format(day)}
+                    </p>
+                    <p {...stylex.props(styles.headDate, isToday && styles.headDateToday)}>
+                      {day.getDate()}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
 
-            {days.map((day, dayIndex) => (
-              <div
-                key={day.toISOString()}
-                {...stylex.props(styles.dayCol)}
-                style={{ height: gridHeight }}
-              >
-                {/* Hour gridlines. */}
-                {hours.map((hour, i) => (
-                  <div
-                    key={hour}
-                    {...stylex.props(styles.gridline)}
-                    style={{ top: i * HOUR_HEIGHT }}
-                  />
-                ))}
-
-                {positioned
-                  .filter((p) => p.dayIndex === dayIndex)
-                  .map((p) => (
-                    <ClassCard
-                      key={p.instance.id}
-                      positioned={p}
-                      timeZone={timeZone}
-                      spotsLeftLabel={t('card.spotsLeft', {
-                        count: Math.max(p.instance.capacity - p.instance.bookedCount, 0),
-                      })}
-                      onClick={() => onClassClick(p.instance.id)}
-                    />
-                  ))}
+            {hours.map((hour) => (
+              <div key={hour} role="row" {...stylex.props(styles.row)}>
+                <div role="rowheader" {...stylex.props(styles.hourCell)}>
+                  {`${hour}`.padStart(2, '0')}:00
+                </div>
+                {days.map((day, dayIndex) => {
+                  const cell = byCell.get(`${dayIndex}:${hour}`) ?? [];
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      role="gridcell"
+                      {...stylex.props(styles.slot, isSameDay(day, today) && styles.slotToday)}
+                    >
+                      {cell.map((instance) => (
+                        <ClassCard
+                          key={instance.id}
+                          instance={instance}
+                          timeZone={timeZone}
+                          durationLabel={t('detail.minutes', { count: durationMinutes(instance) })}
+                          spotsLabel={
+                            instance.bookedCount >= instance.capacity
+                              ? t('card.full')
+                              : t('card.spotsLeft', {
+                                  count: instance.capacity - instance.bookedCount,
+                                })
+                          }
+                          isFull={instance.bookedCount >= instance.capacity}
+                          onClick={() => onClassClick(instance.id)}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -348,42 +423,80 @@ export function WeekCalendar({
   );
 }
 
-/** A single positioned class card inside a day column. */
+/** One class card inside its hour-row slot. */
 function ClassCard({
-  positioned,
+  instance,
   timeZone,
-  spotsLeftLabel,
+  durationLabel,
+  spotsLabel,
+  isFull,
   onClick,
 }: {
-  positioned: PositionedInstance;
+  instance: ClassInstanceCard;
   timeZone: string;
-  spotsLeftLabel: string;
+  durationLabel: string;
+  spotsLabel: string;
+  isFull: boolean;
   onClick: () => void;
 }) {
-  const { instance, top, height, lane, lanes } = positioned;
-  const widthPct = 100 / lanes;
-
   return (
     <button
       type="button"
       onClick={onClick}
       {...stylex.props(styles.classCard)}
-      style={{
-        top,
-        height,
-        left: `calc(${lane * widthPct}% + 2px)`,
-        width: `calc(${widthPct}% - 4px)`,
-        borderInlineStartColor: instance.color,
-      }}
+      style={{ borderTopColor: instance.color }}
     >
-      <span {...stylex.props(styles.classTitle)}>{instance.title}</span>
-      <span {...stylex.props(styles.classTime)}>
-        {formatZonedTime(instance.startsAt, timeZone)}
+      <span {...stylex.props(styles.classBody)}>
+        <span {...stylex.props(styles.classTime)}>
+          {formatZonedTime(instance.startsAt, timeZone)}
+        </span>
+        <span {...stylex.props(styles.classTitle)}>{instance.title}</span>
+        {instance.trainerName ? (
+          <span {...stylex.props(styles.metaRow)}>
+            <Icon name="user" sw={2} {...stylex.props(styles.metaIcon)} />
+            <span {...stylex.props(styles.metaText)}>{instance.trainerName}</span>
+          </span>
+        ) : null}
+        <span {...stylex.props(styles.metaRow)}>
+          <Icon name="clock" sw={2} {...stylex.props(styles.metaIcon)} />
+          <span {...stylex.props(styles.metaText)}>{durationLabel}</span>
+        </span>
+        <OccupancyMeter instance={instance} label={spotsLabel} />
       </span>
-      {height >= MIN_CARD_HEIGHT * 1.6 ? (
-        <span {...stylex.props(styles.classSpots)}>{spotsLeftLabel}</span>
-      ) : null}
+      <span {...stylex.props(styles.foot, isFull && styles.footFull)}>{spotsLabel}</span>
     </button>
+  );
+}
+
+/**
+ * The card's occupancy bar: one segment per seat while that stays legible,
+ * a solid fill past {@link MAX_SEGMENTS}.
+ */
+function OccupancyMeter({ instance, label }: { instance: ClassInstanceCard; label: string }) {
+  const { bookedCount, capacity } = instance;
+  const pct = capacity > 0 ? Math.min(100, Math.round((bookedCount / capacity) * 100)) : 0;
+  return (
+    <span
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={capacity}
+      aria-valuenow={Math.min(bookedCount, capacity)}
+      {...stylex.props(styles.meter)}
+    >
+      {capacity > 0 && capacity <= MAX_SEGMENTS ? (
+        Array.from({ length: capacity }, (_, i) => (
+          <span
+            key={i}
+            {...stylex.props(styles.meterSeg, i < bookedCount && styles.meterSegFilled)}
+          />
+        ))
+      ) : (
+        <span {...stylex.props(styles.meterTrack)}>
+          <span {...stylex.props(styles.meterFill)} style={{ width: `${pct}%` }} />
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -429,92 +542,4 @@ function WeekNav({
       <Button variant="secondary" size="inline" label={todayLabel} onClick={onToday} />
     </div>
   );
-}
-
-/** The visible hour band: the default 06:00–22:00 widened to fit the data. */
-function hourBand(
-  instances: ClassInstanceCard[],
-  timeZone: string,
-): { startHour: number; endHour: number } {
-  let startHour = DEFAULT_START_HOUR;
-  let endHour = DEFAULT_END_HOUR;
-
-  for (const instance of instances) {
-    const start = zonedParts(instance.startsAt, timeZone);
-    const end = zonedParts(instance.endsAt, timeZone);
-    startHour = Math.min(startHour, start.hour);
-    // Round the end up to the next whole hour so a 09:30 finish still has room.
-    const endRounded = end.minute > 0 ? end.hour + 1 : end.hour;
-    endHour = Math.max(endHour, endRounded);
-  }
-
-  return {
-    startHour: Math.max(0, startHour),
-    endHour: Math.min(24, Math.max(endHour, startHour + 1)),
-  };
-}
-
-/**
- * Position every in-week instance into its day column, splitting same-day
- * overlaps into side-by-side lanes. Cards outside the week window are dropped.
- */
-function layoutWeek(
-  instances: ClassInstanceCard[],
-  week: Date,
-  startHour: number,
-  timeZone: string,
-): PositionedInstance[] {
-  const byDay = new Map<number, ClassInstanceCard[]>();
-  for (const instance of instances) {
-    const dayIndex = zonedDayIndexInWeek(instance.startsAt, dayKey(week), timeZone);
-    if (dayIndex === -1) {
-      continue;
-    }
-    const bucket = byDay.get(dayIndex);
-    if (bucket) {
-      bucket.push(instance);
-    } else {
-      byDay.set(dayIndex, [instance]);
-    }
-  }
-
-  const positioned: PositionedInstance[] = [];
-  for (const [dayIndex, dayInstances] of byDay) {
-    const sorted = [...dayInstances].sort(
-      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
-    );
-
-    // Greedy lane assignment: reuse the first lane free at this card's start.
-    const laneEnds: number[] = [];
-    const laneOf = new Map<string, number>();
-    for (const instance of sorted) {
-      const start = new Date(instance.startsAt).getTime();
-      const end = new Date(instance.endsAt).getTime();
-      let lane = laneEnds.findIndex((laneEnd) => laneEnd <= start);
-      if (lane === -1) {
-        lane = laneEnds.length;
-        laneEnds.push(end);
-      } else {
-        laneEnds[lane] = end;
-      }
-      laneOf.set(instance.id, lane);
-    }
-    const lanes = Math.max(laneEnds.length, 1);
-
-    for (const instance of sorted) {
-      const startMinutes = zonedMinutesIntoDay(instance.startsAt, timeZone) - startHour * 60;
-      const durationMinutes =
-        (new Date(instance.endsAt).getTime() - new Date(instance.startsAt).getTime()) / 60000;
-      positioned.push({
-        instance,
-        dayIndex,
-        top: (startMinutes / 60) * HOUR_HEIGHT,
-        height: Math.max((durationMinutes / 60) * HOUR_HEIGHT, MIN_CARD_HEIGHT),
-        lane: laneOf.get(instance.id) ?? 0,
-        lanes,
-      });
-    }
-  }
-
-  return positioned;
 }

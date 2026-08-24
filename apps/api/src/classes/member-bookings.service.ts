@@ -34,6 +34,7 @@ const HISTORY_SELECT = {
           description: true,
           category: true,
           color: true,
+          imageUrl: true,
           room: true,
           capacity: true,
           durationMinutes: true,
@@ -170,6 +171,8 @@ function toHistoryEntry(row: HistoryRow): MemberBookingHistoryEntry {
         Math.max(1, Math.round((instance.endsAt.getTime() - instance.startsAt.getTime()) / 60000)),
       category: instance.template?.category ?? '',
       color: instance.template?.color ?? instance.classType?.color ?? '#2563eb',
+      // Only templates carry a cover; a one-off from a class type has none.
+      imageUrl: instance.template?.imageUrl ?? null,
       status: instance.status,
     },
   };

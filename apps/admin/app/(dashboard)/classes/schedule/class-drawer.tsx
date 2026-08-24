@@ -71,6 +71,13 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1.25rem',
   },
+  cover: {
+    width: '100%',
+    aspectRatio: '16 / 9',
+    objectFit: 'cover',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
   statusSection: {
     display: 'flex',
     flexDirection: 'column',
@@ -623,6 +630,12 @@ export function ClassDrawer({
       >
         {head ? (
           <div {...stylex.props(styles.body)}>
+            {/* The class's cover, when it has one — the visual identity of the
+                class, shown before any figures (mirrors the booking modal the
+                design references). */}
+            {head.imageUrl ? (
+              <img src={head.imageUrl} alt="" {...stylex.props(styles.cover)} />
+            ) : null}
             {/* Status + when / where. */}
             <div {...stylex.props(styles.statusSection)}>
               <span {...stylex.props(styles.badgeWrap)}>

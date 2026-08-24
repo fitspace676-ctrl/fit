@@ -29,6 +29,13 @@ const styles = stylex.create({
     top: 0,
     height: '0.25rem',
   },
+  cover: {
+    width: '100%',
+    aspectRatio: '16 / 9',
+    objectFit: 'cover',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
   head: {
     display: 'flex',
     flexDirection: 'column',
@@ -168,6 +175,12 @@ export function ClassDetail({ instance, gymId, timeZone }: ClassDetailProps) {
         style={{ backgroundColor: instance.color }}
       />
 
+      {/* The class's cover, when it has one — the same treatment the console's
+          class drawer gives it, leading the page before any figures. */}
+      {instance.imageUrl && (
+        <img src={instance.imageUrl} alt={instance.title} {...stylex.props(styles.cover)} />
+      )}
+
       <div {...stylex.props(styles.head)}>
         {instance.category && <Badge tone="neutral" label={instance.category} />}
         <h1 {...stylex.props(styles.title)}>{instance.title}</h1>
@@ -187,7 +200,7 @@ export function ClassDetail({ instance, gymId, timeZone }: ClassDetailProps) {
       <dl {...stylex.props(styles.dl)}>
         <DetailRow label={t('detail.time')}>
           <span {...stylex.props(styles.mono)}>
-            {formatZonedTime(instance.startsAt, timeZone)} –{' '}
+            {formatZonedTime(instance.startsAt, timeZone)} -{' '}
             {formatZonedTime(instance.endsAt, timeZone)}
           </span>
         </DetailRow>

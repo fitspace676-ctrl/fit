@@ -108,7 +108,7 @@ export function parseWeekParam(value: string | undefined | null): Date {
 export function formatWeekRange(weekStart: Date, locale: string): string {
   const end = addDays(weekStart, DAYS_IN_WEEK - 1);
   const fmt = createDateTimeFormat(locale, { month: 'short', day: 'numeric' });
-  return `${fmt.format(weekStart)} – ${fmt.format(end)}`;
+  return `${fmt.format(weekStart)} - ${fmt.format(end)}`;
 }
 
 /** A class occurrence carrying at least the `startsAt` instant used to group. */
@@ -194,12 +194,6 @@ function asUtcWallClock(iso: string, timeZone: string): Date {
 export function zonedDayKey(iso: string, timeZone: string): string {
   const { year, month, day } = zonedParts(iso, timeZone);
   return `${year}-${`${month}`.padStart(2, '0')}-${`${day}`.padStart(2, '0')}`;
-}
-
-/** Minutes past the gym's midnight — what positions a card on the grid. */
-export function zonedMinutesIntoDay(iso: string, timeZone: string): number {
-  const { hour, minute } = zonedParts(iso, timeZone);
-  return hour * 60 + minute;
 }
 
 /** `HH:mm` on the gym's clock, 24-hour. */

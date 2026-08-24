@@ -30,6 +30,7 @@ const DETAIL: GetClassInstanceResponse = {
     durationMinutes: 60,
     category: 'Yoga',
     color: '#2563eb',
+    imageUrl: null,
     status: 'SCHEDULED',
   },
 };

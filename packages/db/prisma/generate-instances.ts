@@ -92,6 +92,23 @@ export function wallClockToUtc(
 }
 
 /**
+ * The UTC instant at which `instant`'s calendar day begins in `timeZone` —
+ * local midnight of "today at the gym". Lets a caller widen a generation
+ * window back to the top of the gym's day instead of the current instant, so
+ * an occurrence earlier the same day still counts as part of today.
+ */
+export function startOfDayInZone(instant: Date, timeZone: string): Date {
+  // en-CA formats as `YYYY-MM-DD`, giving the local calendar day directly.
+  const day = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(instant);
+  return wallClockToUtc(new Date(`${day}T00:00:00.000Z`), 0, 0, timeZone);
+}
+
+/**
  * The IANA zone out of a gym's settings blob, falling back to the platform
  * default when the gym has never saved settings. Read structurally rather than
  * through `gymSettingsStoredSchema` so the generator — which runs over every gym

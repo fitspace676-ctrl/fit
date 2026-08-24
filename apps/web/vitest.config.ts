@@ -11,15 +11,26 @@ import { defineConfig } from 'vitest/config';
  * other screen printed them on the gym's clock, for months, with nothing to
  * catch it.
  *
- * Scope is deliberately narrow: DOM-free, pure logic. That is where this app's
- * real bugs live (zone arithmetic, day boundaries, filter predicates), and it
- * needs neither jsdom nor the StyleX shim the admin config carries. Component
- * tests can be added later by mirroring `apps/admin/vitest.config.ts`, which
- * already solves both.
+ * Most of it is DOM-free, pure logic — that is where this app's real bugs live
+ * (zone arithmetic, day boundaries, filter predicates). Component tests
+ * (`*.test.tsx`) opt into jsdom automatically via `environmentMatchGlobs`
+ * below, mirroring `apps/admin/vitest.config.ts`: the same StyleX shim (the
+ * compiler never runs under Vitest) and the same jest-dom + cleanup setup.
  */
 export default defineConfig({
+  // The app's tsconfig sets `"jsx": "preserve"` — Next's SWC compiler does the
+  // JSX transform, not tsc. Vite/esbuild reads that same tsconfig by default,
+  // which would leave JSX untouched and break `.test.tsx` component tests;
+  // force the automatic runtime here so esbuild transforms it itself.
+  esbuild: {
+    jsx: 'automatic',
+  },
   resolve: {
     alias: {
+      // Component tests never run the StyleX SWC build (Next-only), so
+      // `stylex.create()` throws unless it's swapped for a pass-through shim.
+      // See `test/stylex-mock.ts` for the full rationale.
+      '@stylexjs/stylex': fileURLToPath(new URL('./test/stylex-mock.ts', import.meta.url)),
       // Mirrors tsconfig.json's `paths` (`"@/*": ["./*"]`). Vite does not read
       // tsconfig `paths` on its own, so without this any spec whose module
       // imports `@/lib/...` fails to resolve under Vitest even though it builds
@@ -30,7 +41,9 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
-    include: ['src/**/*.spec.ts', 'lib/**/*.spec.ts', 'app/**/*.spec.ts'],
+    environmentMatchGlobs: [['src/**/*.test.tsx', 'jsdom']],
+    setupFiles: ['./vitest.setup.ts'],
+    include: ['src/**/*.spec.ts', 'lib/**/*.spec.ts', 'app/**/*.spec.ts', 'src/**/*.test.tsx'],
     exclude: ['node_modules/**', '.next/**'],
   },
 });

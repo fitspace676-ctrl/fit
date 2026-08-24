@@ -17,6 +17,7 @@ const detail = (over?: Partial<GetAdminClassTemplateResponse>): GetAdminClassTem
   startTime: '09:00',
   recurrence: 'Every week on Mon, Wed, Fri',
   color: '#2563eb',
+  imageUrl: null,
   trainerName: null,
   locationName: null,
   status: 'ACTIVE',

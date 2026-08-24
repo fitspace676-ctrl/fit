@@ -17,6 +17,7 @@ interface InstanceRow {
     description: string;
     category: string;
     color: string;
+    imageUrl: string | null;
     room: string | null;
     capacity: number;
     durationMinutes: number;
@@ -42,6 +43,7 @@ const row = (over?: Partial<InstanceRow>): InstanceRow => ({
     description: 'A gentle vinyasa to start the day.',
     category: 'Yoga',
     color: '#2563eb',
+    imageUrl: 'https://pub.example.com/gym-1/classes/cover.jpg',
     room: 'Studio A',
     capacity: 12,
     durationMinutes: 60,
@@ -127,6 +129,7 @@ describe('ClassesService', () => {
             bookedCount: 4,
             category: 'Yoga',
             color: '#2563eb',
+            imageUrl: 'https://pub.example.com/gym-1/classes/cover.jpg',
           },
         ],
       });
@@ -161,6 +164,7 @@ describe('ClassesService', () => {
           durationMinutes: 60,
           category: 'Yoga',
           color: '#2563eb',
+          imageUrl: 'https://pub.example.com/gym-1/classes/cover.jpg',
           status: 'SCHEDULED',
         },
       });

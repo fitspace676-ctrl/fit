@@ -45,6 +45,13 @@ export const classInstanceCardSchema = z.object({
   bookedCount: z.number().int().nonnegative(),
   category: z.string(),
   color: z.string(),
+  /**
+   * The class's cover image, or null when it has none. On the card — not just
+   * the detail — because the booking modal opens straight from a calendar card:
+   * fetching the detail for the cover would cost a round-trip per click, where
+   * one nullable URL per row costs almost nothing.
+   */
+  imageUrl: z.string().url().nullable(),
 });
 
 /** A single class occurrence card — {@link classInstanceCardSchema}. */

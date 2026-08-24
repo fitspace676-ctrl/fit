@@ -165,6 +165,7 @@ export default async function EditClassTemplatePage({
           startTime: template.startTime,
           rrule: template.rrule,
           color: template.color,
+          imageUrl: template.imageUrl,
           pricingRule: template.pricingRule,
           priceMinor: template.priceMinor,
           includedPlanIds: template.includedPlanIds,

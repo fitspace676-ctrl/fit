@@ -12,6 +12,7 @@ import {
   generateClassInstances,
   occurrencesInWindow,
   planInstanceRegeneration,
+  startOfDayInZone,
   type ExistingInstance,
   type GeneratorPrisma,
 } from './generate-instances';
@@ -76,6 +77,26 @@ function makePrisma(templates: TemplateRow[], existingStarts: Date[] = []) {
 
   return { prisma: prisma as unknown as GeneratorPrisma, created, templateWhere, createMany };
 }
+
+describe('startOfDayInZone', () => {
+  it('is the instant itself at UTC midnight for a UTC gym', () => {
+    expect(startOfDayInZone(utc(2026, 6, 8, 10, 30), 'UTC')).toEqual(utc(2026, 6, 8));
+  });
+
+  it('is local midnight for a gym east of UTC — earlier than the UTC day start', () => {
+    // 14:30 in Tbilisi (UTC+4); the local day began at 2026-06-07T20:00Z.
+    expect(startOfDayInZone(utc(2026, 6, 8, 10, 30), 'Asia/Tbilisi')).toEqual(
+      utc(2026, 6, 7, 20, 0),
+    );
+  });
+
+  it('lands on the local calendar day, not the UTC one, west of UTC', () => {
+    // 02:00Z is still 22:00 the previous evening in New York (UTC-4 in June).
+    expect(startOfDayInZone(utc(2026, 6, 8, 2, 0), 'America/New_York')).toEqual(
+      utc(2026, 6, 7, 4, 0),
+    );
+  });
+});
 
 describe('occurrencesInWindow', () => {
   it('expands a weekly MO/WE/FR rule across the 4-week window', () => {

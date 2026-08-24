@@ -26,6 +26,7 @@ interface Rows {
   products?: { images: string[] }[];
   trainers?: { photoUrl: string | null }[];
   locations?: { photoUrl: string | null }[];
+  classTemplates?: { imageUrl: string | null }[];
   gyms?: { settings: unknown }[];
 }
 
@@ -45,6 +46,7 @@ function setup(objects: StoredObject[], rows: Rows = {}) {
       product: { findMany: vi.fn(() => Promise.resolve(rows.products ?? [])) },
       trainer: { findMany: vi.fn(() => Promise.resolve(rows.trainers ?? [])) },
       location: { findMany: vi.fn(() => Promise.resolve(rows.locations ?? [])) },
+      classTemplate: { findMany: vi.fn(() => Promise.resolve(rows.classTemplates ?? [])) },
       gym: { findMany: vi.fn(() => Promise.resolve(rows.gyms ?? [])) },
     },
   } as unknown as PrismaService;
@@ -83,6 +85,18 @@ describe('MediaSweepService.sweep', () => {
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
     expect(summary).toMatchObject({ referenced: 1, orphaned: 0, deleted: 0 });
+  });
+
+  it('owns the classes prefix: keeps a referenced cover, deletes an orphaned one', async () => {
+    const { service, deleteObjects } = setup(
+      [object('gym-1/classes/live.jpg'), object('gym-1/classes/orphan.jpg')],
+      { classTemplates: [{ imageUrl: `${PUBLIC_BASE}/gym-1/classes/live.jpg` }] },
+    );
+
+    const summary = await service.sweep(NOW);
+
+    expect(deleteObjects).toHaveBeenCalledWith(['gym-1/classes/orphan.jpg']);
+    expect(summary).toMatchObject({ referenced: 1, orphaned: 1, deleted: 1 });
   });
 
   it('keeps the gym logo stored inside the settings JSON blob', async () => {

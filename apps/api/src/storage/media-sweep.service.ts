@@ -163,7 +163,7 @@ export class MediaSweepService {
       if (key) keys.add(key);
     };
 
-    const [products, trainers, locations, gyms] = await Promise.all([
+    const [products, trainers, locations, classTemplates, gyms] = await Promise.all([
       this.prisma.client.product.findMany({ select: { images: true } }),
       this.prisma.client.trainer.findMany({
         where: { photoUrl: { not: null } },
@@ -173,12 +173,17 @@ export class MediaSweepService {
         where: { photoUrl: { not: null } },
         select: { photoUrl: true },
       }),
+      this.prisma.client.classTemplate.findMany({
+        where: { imageUrl: { not: null } },
+        select: { imageUrl: true },
+      }),
       this.prisma.client.gym.findMany({ select: { settings: true } }),
     ]);
 
     for (const product of products) for (const image of product.images) add(image);
     for (const trainer of trainers) add(trainer.photoUrl);
     for (const location of locations) add(location.photoUrl);
+    for (const template of classTemplates) add(template.imageUrl);
     // The gym logo lives inside the `settings` JSON blob rather than its own column;
     // read it defensively, since a hand-edited row must not abort the sweep.
     for (const gym of gyms) {
