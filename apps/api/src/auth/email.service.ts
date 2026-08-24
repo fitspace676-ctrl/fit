@@ -144,8 +144,8 @@ export class EmailService {
       `<p>${greeting}</p>` +
       `<p>We received a request to reset your FormaCore password. Choose a new one here:</p>` +
       `<p><a href="${url}">Reset your password</a></p>` +
-      `<p>This link expires in 1 hour. If you didn't request a reset, you can ignore this email — your password won't change.</p>`;
-    const text = `${greeting}\n\nWe received a request to reset your FormaCore password. Choose a new one here:\n${url}\n\nThis link expires in 1 hour. If you didn't request a reset, you can ignore this email — your password won't change.`;
+      `<p>This link expires in 1 hour. If you didn't request a reset, you can ignore this email - your password won't change.</p>`;
+    const text = `${greeting}\n\nWe received a request to reset your FormaCore password. Choose a new one here:\n${url}\n\nThis link expires in 1 hour. If you didn't request a reset, you can ignore this email - your password won't change.`;
 
     const response = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
@@ -211,7 +211,7 @@ export class EmailService {
       body: JSON.stringify({
         from: env.EMAIL_FROM,
         to: [to],
-        subject: `Welcome to FormaCore — finish setting up ${gymName}`,
+        subject: `Welcome to FormaCore - finish setting up ${gymName}`,
         html,
         text,
       }),
@@ -451,31 +451,33 @@ export class EmailService {
 
 /**
  * Build the verification deep link the token is appended to. Prefers an explicit
- * `EMAIL_VERIFICATION_URL`, then the web client's `/auth/verify` route, falling
- * back to a localhost default that is only ever hit (and logged, not sent) in
- * unconfigured dev / CI environments.
+ * `EMAIL_VERIFICATION_URL`, then the web client's `/member/verify` page (the
+ * locale prefix is added by the web middleware), falling back to a localhost
+ * default that is only ever hit (and logged, not sent) in unconfigured dev / CI
+ * environments.
  */
 export function buildVerificationUrl(token: string): string {
   const base =
     env.EMAIL_VERIFICATION_URL ??
     (env.WEB_URL
-      ? `${env.WEB_URL.replace(/\/+$/, '')}/auth/verify`
-      : 'http://localhost:3001/auth/verify');
+      ? `${env.WEB_URL.replace(/\/+$/, '')}/member/verify`
+      : 'http://localhost:3001/member/verify');
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
 /**
  * Build the password-reset deep link the token is appended to. Prefers an
- * explicit `PASSWORD_RESET_URL`, then the web client's `/auth/reset-password`
- * route, falling back to a localhost default that is only ever hit (and logged,
- * not sent) in unconfigured dev / CI environments.
+ * explicit `PASSWORD_RESET_URL`, then the web client's `/member/reset-password`
+ * page (the locale prefix is added by the web middleware), falling back to a
+ * localhost default that is only ever hit (and logged, not sent) in
+ * unconfigured dev / CI environments.
  */
 export function buildPasswordResetUrl(token: string): string {
   const base =
     env.PASSWORD_RESET_URL ??
     (env.WEB_URL
-      ? `${env.WEB_URL.replace(/\/+$/, '')}/auth/reset-password`
-      : 'http://localhost:3001/auth/reset-password');
+      ? `${env.WEB_URL.replace(/\/+$/, '')}/member/reset-password`
+      : 'http://localhost:3001/member/reset-password');
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
@@ -715,7 +717,7 @@ export function buildReportDigestEmail(
 ): { subject: string; html: string; text: string } {
   const seller = digest.gymName.trim() || 'FormaCore';
   const cadenceLabel = REPORT_DIGEST_CADENCE_LABEL[digest.cadence];
-  const subject = `${cadenceLabel} report digest — ${seller}`;
+  const subject = `${cadenceLabel} report digest - ${seller}`;
   const windowLabel = digest.cadence === 'weekly' ? 'the past week' : 'the past 30 days';
 
   const intro = `<p style="margin:0 0 4px;">Here's how <strong>${escapeHtml(seller)}</strong> performed over ${windowLabel}.</p>`;
@@ -757,7 +759,7 @@ export function buildLowStockDigestEmail(digest: LowStockDigest): {
   const seller = digest.gymName.trim() || 'FormaCore';
   const lineCount = digest.products.reduce((sum, product) => sum + product.variants.length, 0);
   const unit = lineCount === 1 ? 'item' : 'items';
-  const subject = `Low stock: ${lineCount} ${unit} to reorder — ${seller}`;
+  const subject = `Low stock: ${lineCount} ${unit} to reorder - ${seller}`;
 
   const intro =
     `<p style="margin:0 0 4px;">${lineCount} ${unit} at <strong>${escapeHtml(seller)}</strong> ` +
@@ -799,7 +801,7 @@ export function buildLowStockDigestEmail(digest: LowStockDigest): {
   const textRows = digest.products
     .flatMap((product) =>
       product.variants.map(
-        (variant) => `  ${product.name} — ${variant.label}: ${variant.stock} on hand`,
+        (variant) => `  ${product.name} - ${variant.label}: ${variant.stock} on hand`,
       ),
     )
     .join('\n');
@@ -827,7 +829,7 @@ export function buildDailySummaryEmail(summary: DailySummary): {
 } {
   const seller = summary.gymName.trim() || 'FormaCore';
   const revenue = formatReceiptMoney(summary.revenue, summary.currency);
-  const subject = `Daily summary ${summary.date} — ${seller}`;
+  const subject = `Daily summary ${summary.date} - ${seller}`;
 
   const metrics: Array<{ label: string; value: string }> = [
     { label: 'Revenue', value: revenue },
@@ -858,14 +860,14 @@ export function buildDailySummaryEmail(summary: DailySummary): {
 
   const html = renderBrandedEmail({
     senderName: escapeHtml(seller),
-    heading: `Daily summary — ${summary.date}`,
+    heading: `Daily summary - ${summary.date}`,
     contentHtml: intro + table + linkHtml,
     footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on FormaCore.`,
   });
 
   const textRows = metrics.map((metric) => `  ${metric.label}: ${metric.value}`).join('\n');
   const linkText = summary.dashboardUrl ? `\n\nOpen dashboard: ${summary.dashboardUrl}` : '';
-  const text = `Daily summary for ${seller} — ${summary.date}\n\n` + `${textRows}${linkText}`;
+  const text = `Daily summary for ${seller} - ${summary.date}\n\n` + `${textRows}${linkText}`;
 
   return { subject, html, text };
 }
