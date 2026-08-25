@@ -70,8 +70,11 @@ export class InvoiceDocumentService {
     });
     if (!invoice) return null;
 
-    // Serve the cached copy when one exists and R2 can read it back.
-    if (invoice.pdfUrl && this.storage.isConfigured) {
+    // Serve the cached copy when one exists, was rendered by the CURRENT template,
+    // and R2 can read it back. A key from an older template version is simply
+    // ignored — the invoice is re-rendered and cached again under the new key.
+    const key = invoiceObjectKey(invoice.gymId, invoice.year, invoice.number);
+    if (invoice.pdfUrl === key && this.storage.isConfigured) {
       const cached = await this.storage.getObject(invoice.pdfUrl).catch((error: unknown) => {
         this.logger.warn(
           `Cached invoice ${invoice.number} unreadable, re-rendering: ${String(error)}`,
@@ -100,8 +103,7 @@ export class InvoiceDocumentService {
     // Best-effort persist so the document lives in object storage and the next
     // download is served from cache. A write failure must not break this download —
     // we already hold the rendered bytes and will simply try again next time.
-    if (this.storage.isConfigured && !invoice.pdfUrl) {
-      const key = invoiceObjectKey(invoice.gymId, invoice.year, invoice.number);
+    if (this.storage.isConfigured && invoice.pdfUrl !== key) {
       try {
         await this.storage.putObject(key, buffer, 'application/pdf');
         await this.prisma.client.invoice.update({
@@ -141,7 +143,18 @@ export class InvoiceDocumentService {
   }
 }
 
-/** R2 object key for an invoice PDF: `{gymId}/invoices/{year}/{number}.pdf`. */
+/**
+ * The invoice template's version, baked into the object key. Bump it whenever the
+ * rendered document changes (layout, typefaces, the FormaCore wordmark fallback) so
+ * every invoice cached under the previous look is re-rendered on its next download
+ * instead of being served stale forever — the cached PDF is a rendering, not the
+ * record, so redrawing it never changes what the invoice says.
+ *
+ * `1` was the unversioned `{number}.pdf` key of the original template.
+ */
+const INVOICE_TEMPLATE_VERSION = 2;
+
+/** R2 object key for an invoice PDF: `{gymId}/invoices/{year}/{number}.v{version}.pdf`. */
 export function invoiceObjectKey(gymId: string, year: number, number: string): string {
-  return `${gymId}/invoices/${year}/${number}.pdf`;
+  return `${gymId}/invoices/${year}/${number}.v${INVOICE_TEMPLATE_VERSION}.pdf`;
 }

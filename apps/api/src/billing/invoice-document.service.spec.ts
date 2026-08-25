@@ -101,20 +101,42 @@ describe('InvoiceDocumentService', () => {
 
   it('serves the cached copy from R2 without re-rendering', async () => {
     const { service, findFirst, render, getObject, putObject } = setup({ configured: true });
-    findFirst.mockResolvedValue(invoiceRow({ pdfUrl: 'gym-1/invoices/2026/2026-0001.pdf' }));
+    const key = invoiceObjectKey('gym-1', 2026, '2026-0001');
+    findFirst.mockResolvedValue(invoiceRow({ pdfUrl: key }));
     getObject.mockResolvedValue(Buffer.from('%PDF-cached'));
 
     const result = await service.getPdf('inv-1');
 
-    expect(getObject).toHaveBeenCalledWith('gym-1/invoices/2026/2026-0001.pdf');
+    expect(getObject).toHaveBeenCalledWith(key);
     expect(render).not.toHaveBeenCalled();
     expect(putObject).not.toHaveBeenCalled();
     expect(result?.buffer.toString('latin1')).toBe('%PDF-cached');
   });
 
+  it('re-renders and re-caches an invoice cached under an older template version', async () => {
+    // The unversioned key of the original template: its PDF has the old look, so
+    // it must not be served — the invoice is drawn again and stored under the
+    // current key, which then becomes the cached copy.
+    const { service, findFirst, render, getObject, putObject, update } = setup({
+      configured: true,
+    });
+    findFirst.mockResolvedValue(invoiceRow({ pdfUrl: 'gym-1/invoices/2026/2026-0001.pdf' }));
+
+    const result = await service.getPdf('inv-1');
+
+    expect(getObject).not.toHaveBeenCalled();
+    expect(render).toHaveBeenCalledOnce();
+    const key = invoiceObjectKey('gym-1', 2026, '2026-0001');
+    expect(putObject).toHaveBeenCalledWith(key, expect.any(Buffer), 'application/pdf');
+    expect(update).toHaveBeenCalledWith({ where: { id: 'inv-1' }, data: { pdfUrl: key } });
+    expect(result?.buffer.toString('latin1')).toBe('%PDF-rendered');
+  });
+
   it('re-renders when the cached object has gone missing', async () => {
     const { service, findFirst, render, getObject } = setup({ configured: true });
-    findFirst.mockResolvedValue(invoiceRow({ pdfUrl: 'gym-1/invoices/2026/2026-0001.pdf' }));
+    findFirst.mockResolvedValue(
+      invoiceRow({ pdfUrl: invoiceObjectKey('gym-1', 2026, '2026-0001') }),
+    );
     getObject.mockResolvedValue(null);
 
     const result = await service.getPdf('inv-1');
@@ -205,6 +227,8 @@ describe('InvoiceDocumentService', () => {
 
 describe('invoiceObjectKey', () => {
   it('namespaces the PDF under the gym, year, and invoice number', () => {
-    expect(invoiceObjectKey('gym-1', 2026, '2026-0007')).toBe('gym-1/invoices/2026/2026-0007.pdf');
+    expect(invoiceObjectKey('gym-1', 2026, '2026-0007')).toBe(
+      'gym-1/invoices/2026/2026-0007.v2.pdf',
+    );
   });
 });
