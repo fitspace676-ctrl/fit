@@ -36,6 +36,7 @@ export type NavIcon =
   | 'checkin'
   | 'locations'
   | 'products'
+  | 'services'
   | 'pos'
   | 'orders'
   | 'packages'
@@ -100,6 +101,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'products',
     permission: Permission.ProductRead,
   },
+  {
+    // Services — the gym's bookable / sellable services, beside the retail Shop.
+    labelKey: 'nav.services',
+    href: '/services',
+    icon: 'services',
+    permission: Permission.ProductRead,
+  },
   { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
   {
     labelKey: 'nav.staff',
@@ -150,7 +158,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   { labelKey: 'navGroups.overview', hrefs: ['/'] },
   { labelKey: 'navGroups.people', hrefs: ['/members', '/trainers', '/staff'] },
   { labelKey: 'navGroups.operations', hrefs: ['/classes'] },
-  { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/shop', '/pos'] },
+  { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/shop', '/services', '/pos'] },
   { labelKey: 'navGroups.growth', hrefs: ['/automation', '/marketing'] },
   { labelKey: 'navGroups.insights', hrefs: ['/reports'] },
   { labelKey: 'navGroups.system', hrefs: ['/settings'] },

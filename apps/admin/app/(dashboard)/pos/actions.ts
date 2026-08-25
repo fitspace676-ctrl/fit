@@ -13,10 +13,12 @@ import {
   type RecordPosSaleResponse,
   type SendReceiptInput,
   type SendReceiptResponse,
+  type ServiceType,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  fetchAdminServices,
   fetchLocations,
   fetchMembers,
   fetchProductCategories,
@@ -65,6 +67,8 @@ export interface PosMemberRow {
    * operator actually has to answer, and a name and a phone alone cannot.
    */
   planName: string | null;
+  /** Unsettled invoices, summed — the till's "owes" badge; `null` when clear. */
+  outstanding: { amount: number; currency: string } | null;
   /**
    * What this person currently is to the gym — the roster's own standing, derived
    * from their subscriptions. The till's badge reads off this: whether someone is
@@ -122,6 +126,7 @@ function toPosMember(row: MemberRow): PosMemberRow {
     email: row.email,
     photoUrl: null,
     planName: row.plan?.name ?? row.planName,
+    outstanding: row.outstanding,
     kind: row.kind,
     status: row.status,
   };
@@ -338,6 +343,49 @@ export async function fetchPosMembershipsAction(): Promise<ActionResult<PosMembe
         priceAmount: plan.priceAmount,
         currency: plan.currency,
         durationLabel: `${INTERVAL_DAYS[plan.interval] ?? 30} days`,
+      })),
+    };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/** A catalogue service as the POS Services tab renders it. */
+export interface PosServiceRow {
+  id: string;
+  type: ServiceType;
+  name: string;
+  staffName: string;
+  priceAmount: number;
+  currency: string;
+  durationMinutes: number;
+}
+
+/** Enough services to fill the tab without paging — a gym has a handful. */
+const SERVICE_RESULT_LIMIT = 100;
+
+/** The gym's ACTIVE services, priced, for the Services tab. */
+export async function fetchPosServicesAction(): Promise<ActionResult<PosServiceRow[]>> {
+  if (!(await sessionHas(Permission.ProductRead))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const { data } = await fetchAdminServices({
+      limit: SERVICE_RESULT_LIMIT,
+      status: 'ACTIVE',
+      sort: 'name',
+      dir: 'asc',
+    });
+    return {
+      ok: true,
+      data: data.map((service) => ({
+        id: service.id,
+        type: service.type,
+        name: service.name,
+        staffName: service.staff.name,
+        priceAmount: service.priceMinor,
+        currency: service.currency,
+        durationMinutes: service.durationMinutes,
       })),
     };
   } catch (error) {

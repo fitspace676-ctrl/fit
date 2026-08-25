@@ -46,3 +46,44 @@ describe('percentage discounts', () => {
     ).toBe(5000);
   });
 });
+
+import { usePosCart } from './pos-cart-store';
+
+describe('service lines', () => {
+  it('adds a service line keyed by its id and increments quantity on repeat', () => {
+    usePosCart.getState().clear();
+    const add = usePosCart.getState().addItem;
+    add({
+      productId: 'svc-1',
+      serviceId: 'svc-1',
+      name: 'Massage',
+      unitPrice: 8000,
+      currency: 'GEL',
+    });
+    add({
+      productId: 'svc-1',
+      serviceId: 'svc-1',
+      name: 'Massage',
+      unitPrice: 8000,
+      currency: 'GEL',
+    });
+
+    const items = usePosCart.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ serviceId: 'svc-1', qty: 2, planId: undefined });
+  });
+
+  it('keeps a service line beside a membership line', () => {
+    usePosCart.getState().clear();
+    const add = usePosCart.getState().addItem;
+    add({ productId: 'plan-1', planId: 'plan-1', name: 'Gold', unitPrice: 10000, currency: 'GEL' });
+    add({
+      productId: 'svc-1',
+      serviceId: 'svc-1',
+      name: 'Massage',
+      unitPrice: 8000,
+      currency: 'GEL',
+    });
+    expect(usePosCart.getState().items).toHaveLength(2);
+  });
+});

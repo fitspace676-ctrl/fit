@@ -11,13 +11,14 @@ import {
   DEFAULT_FREEZE_DAYS_PER_PERIOD,
   Gender,
   GymMemberStatus,
+  InvoiceStatus,
+  MemberKind as MemberKindEnum,
   PaymentStatus,
   Prisma,
   Role,
   SubscriptionInterval,
   SubscriptionPlanStatus,
   SubscriptionStatus,
-  MemberKind as MemberKindEnum,
 } from '@fit/db';
 import type {
   BulkExportMembersInput,
@@ -142,6 +143,11 @@ const MEMBER_SELECT = {
     orderBy: { checkedInAt: 'desc' },
     take: 1,
     select: { checkedInAt: true },
+  },
+  // Unsettled invoices — summed into the roster's "owes" badge.
+  invoices: {
+    where: { status: InvoiceStatus.PENDING },
+    select: { amount: true, currency: true },
   },
 } satisfies Prisma.GymMemberSelect;
 
@@ -1051,8 +1057,19 @@ export class MembersService {
       lastVisitAt,
       nextBillingAt,
       billingState,
+      outstanding: this.toOutstanding(row.invoices),
       deletedAt: row.deletedAt?.toISOString() ?? null,
     };
+  }
+
+  /** The sum of PENDING invoices, in the first one's currency; `null` when clear. */
+  private toOutstanding(
+    invoices: ReadonlyArray<{ amount: number; currency: string }>,
+  ): MemberRow['outstanding'] {
+    if (invoices.length === 0) return null;
+    const currency = invoices[0]!.currency;
+    const amount = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+    return amount > 0 ? { amount, currency } : null;
   }
 
   /** The live plan denormalised for the roster's PLAN cell, or `null` for none. */

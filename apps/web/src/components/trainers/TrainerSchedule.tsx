@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { TrainerScheduleEntry } from '@fit/types';
 import { formatZonedTime, groupByZonedDay } from '@/src/components/classes/date-utils';
 import { Icon } from '@/src/components/ui';
+import { Link } from '@/src/i18n/navigation';
 import { createDateTimeFormat } from '@fit/i18n';
 
 // Astryx migration (T11), now on the portal kit: the schedule is rebuilt on the kit's `Card` over
@@ -115,6 +116,20 @@ const styles = stylex.create({
     fontWeight: 600,
     color: 'var(--color-text-primary)',
   },
+  bookLink: {
+    flexShrink: 0,
+    alignSelf: 'center',
+    height: '2rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    paddingInline: '0.75rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    textDecoration: 'none',
+  },
   location: {
     display: 'block',
     overflow: 'hidden',
@@ -191,6 +206,14 @@ export function TrainerSchedule({ schedule, timeZone }: TrainerScheduleProps) {
                       <span {...stylex.props(styles.location)}>{entry.locationName}</span>
                     )}
                   </span>
+                  {entry.kind === 'SERVICE' && entry.serviceId ? (
+                    <Link
+                      href={`/member/services/${entry.serviceId}`}
+                      {...stylex.props(styles.bookLink)}
+                    >
+                      {t('detail.schedule.book')}
+                    </Link>
+                  ) : null}
                 </li>
               ))}
             </ul>

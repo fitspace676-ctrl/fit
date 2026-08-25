@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -186,6 +187,31 @@ export class OrdersService {
       await this.enrollment.enrollMember(memberId, planId);
     }
 
+    // A service line must name an ACTIVE service of this gym. Resolved once for
+    // every distinct id on the receipt; the tenant-scoped client makes another
+    // gym's service simply not found.
+    const serviceIds = [
+      ...new Set(receipt.items.flatMap((line) => (line.serviceId ? [line.serviceId] : []))),
+    ];
+    if (serviceIds.length > 0) {
+      const found = await this.prisma.client.service.findMany({
+        where: { id: { in: serviceIds } },
+        select: { id: true, status: true },
+      });
+      for (const id of serviceIds) {
+        const match = found.find((row) => row.id === id);
+        if (!match) {
+          throw new NotFoundException({ message: 'Service not found', code: 'SERVICE_NOT_FOUND' });
+        }
+        if (match.status !== 'ACTIVE') {
+          throw new ConflictException({
+            message: 'That service is archived',
+            code: 'SERVICE_ARCHIVED',
+          });
+        }
+      }
+    }
+
     // The order, its lines, and the payment are written in one transaction so a
     // partial sale can never land. `gymId` is stamped by the tenant extension at
     // runtime and passed explicitly here to satisfy the create input's static type
@@ -240,6 +266,8 @@ export class OrdersService {
                 // survives onto the order detail and onto both stock moves.
                 productVariantId: soldPosition(line),
                 qty: line.quantity,
+                // The catalogue service the line sold, when it is a service line.
+                serviceId: line.serviceId ?? null,
               })),
             ),
           },

@@ -2,7 +2,13 @@ import type { Metadata } from 'next';
 import { Avatar, Badge, ButtonLink, Card, CountUp, Meter } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
-import type { ClassInstanceCard, MemberBookingHistoryEntry, ProductSummary } from '@fit/types';
+import type {
+  ClassInstanceCard,
+  MemberBookingHistoryEntry,
+  MemberServiceSession,
+  ProductSummary,
+  ServiceCard,
+} from '@fit/types';
 import { getActiveGymId, getActiveGymTimezone } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
 import { fetchMemberBookings } from '@/lib/member-bookings';
@@ -10,6 +16,8 @@ import { fetchMyCreditPacks, totalRemainingCredits } from '@/lib/credit-packs';
 import { fetchMembership, type MemberSubscription } from '@/lib/membership';
 import { fetchProducts, formatMoney } from '@/lib/shop';
 import { fetchTrainers } from '@/lib/trainers';
+import { fetchServices } from '@/lib/services';
+import { fetchMyServiceSessions } from '@/lib/my-service-sessions';
 import { fetchClassInstances } from '@/lib/classes';
 import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
@@ -531,8 +539,9 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, activeLocale, gymId, timeZone, session] = await Promise.all([
+  const [t, tServices, activeLocale, gymId, timeZone, session] = await Promise.all([
     getTranslations('member.home'),
+    getTranslations('services'),
     getLocale(),
     getActiveGymId(),
     getActiveGymTimezone(),
@@ -542,21 +551,28 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
   const now = new Date();
   const weekAhead = new Date(now.getTime() + 7 * 86_400_000);
 
-  const [bookings, creditPacks, membership, products, trainers, classes] = await Promise.all([
-    safe(fetchMemberBookings({ scope: 'all' }), [] as MemberBookingHistoryEntry[]),
-    safe(fetchMyCreditPacks(), []),
-    // The dashboard's flagship card states the member's PLAN, so it has to read
-    // the subscription — same `GET /me/subscription` the membership screen uses.
-    safe(fetchMembership(), { subscription: null, invoices: [] }),
-    gymId ? safe(fetchProducts({ gymId }), [] as ProductSummary[]) : Promise.resolve([]),
-    gymId ? safe(fetchTrainers({ gymId }), []) : Promise.resolve([]),
-    gymId
-      ? safe(
-          fetchClassInstances({ gymId, from: now.toISOString(), to: weekAhead.toISOString() }),
-          [] as ClassInstanceCard[],
-        )
-      : Promise.resolve([] as ClassInstanceCard[]),
-  ]);
+  const [bookings, creditPacks, membership, products, trainers, classes, services, mySessions] =
+    await Promise.all([
+      safe(fetchMemberBookings({ scope: 'all' }), [] as MemberBookingHistoryEntry[]),
+      safe(fetchMyCreditPacks(), []),
+      // The dashboard's flagship card states the member's PLAN, so it has to read
+      // the subscription — same `GET /me/subscription` the membership screen uses.
+      safe(fetchMembership(), { subscription: null, invoices: [] }),
+      gymId ? safe(fetchProducts({ gymId }), [] as ProductSummary[]) : Promise.resolve([]),
+      gymId ? safe(fetchTrainers({ gymId }), []) : Promise.resolve([]),
+      gymId
+        ? safe(
+            fetchClassInstances({ gymId, from: now.toISOString(), to: weekAhead.toISOString() }),
+            [] as ClassInstanceCard[],
+          )
+        : Promise.resolve([] as ClassInstanceCard[]),
+      gymId
+        ? safe(fetchServices({ gymId }), [] as ServiceCard[])
+        : Promise.resolve([] as ServiceCard[]),
+      session
+        ? safe(fetchMyServiceSessions(), [] as MemberServiceSession[])
+        : Promise.resolve([] as MemberServiceSession[]),
+    ]);
 
   const dayLabels = { today: t('today'), tomorrow: t('tomorrow') };
 
@@ -586,6 +602,11 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
 
   const trainer = trainers[0] ?? null;
   const topProducts = products.slice(0, 4);
+  const topServices = services.slice(0, 3);
+  const nextSession =
+    mySessions
+      .filter((s) => s.status === 'BOOKED' && new Date(s.startsAt).getTime() >= now.getTime())
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0] ?? null;
   const bookable = classes
     .slice()
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
@@ -769,6 +790,81 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
           <Card padding="none" xstyle={styles.emptyLg}>
             <Icon name="calendar" {...stylex.props(styles.mutedIcon)} />
             <p {...stylex.props(styles.emptyText)}>{t('noBookable')}</p>
+          </Card>
+        )}
+      </section>
+
+      {/* Services: personal training and the gym's other services */}
+      <section>
+        <div {...stylex.props(styles.sectionHead)}>
+          <h2 {...stylex.props(styles.sectionTitle)}>{t('services')}</h2>
+          <Link href="/member/services" {...stylex.props(styles.viewAll)}>
+            {t('viewServices')}
+          </Link>
+        </div>
+        {nextSession ? (
+          <Card padding="none" xstyle={styles.classCard}>
+            <div {...stylex.props(styles.classTop)}>
+              <div {...stylex.props(styles.timeBoxSm)}>
+                <span {...stylex.props(styles.timeTextSm)}>
+                  {formatZonedTime(nextSession.startsAt, timeZone)}
+                </span>
+                <span {...stylex.props(styles.daySub)}>
+                  {zonedRelativeDay(nextSession.startsAt, now, timeZone, activeLocale, dayLabels)}
+                </span>
+              </div>
+              <div {...stylex.props(styles.grow)}>
+                <p {...stylex.props(styles.itemTitleSm)}>{t('nextSession')}</p>
+                <p {...stylex.props(styles.itemSubXs)}>
+                  {nextSession.serviceName} · {nextSession.staffName}
+                  {nextSession.invoice
+                    ? ` · ${nextSession.invoice.number} · ${tServices(`mine.invoice.${nextSession.invoice.status}`)}`
+                    : ''}
+                </p>
+              </div>
+              <Badge tone="positive" label={tServices('mine.status.BOOKED')} />
+            </div>
+            <ButtonLink
+              href="/member/account/bookings"
+              variant="secondary"
+              size="card"
+              label={t('myBookings')}
+              fullWidth
+            />
+          </Card>
+        ) : null}
+        {topServices.length > 0 ? (
+          <div {...stylex.props(styles.bookableGrid)}>
+            {topServices.map((s) => (
+              <Card key={s.id} padding="none" xstyle={styles.classCard}>
+                <div {...stylex.props(styles.classTop)}>
+                  <Avatar src={s.staff.photoUrl ?? undefined} name={s.staff.name} size={44} />
+                  <div {...stylex.props(styles.grow)}>
+                    <p {...stylex.props(styles.itemTitleSm)}>
+                      {s.type === 'PERSONAL_TRAINING'
+                        ? tServices('ptTitle', { staff: s.staff.name })
+                        : s.name}
+                    </p>
+                    <p {...stylex.props(styles.itemSubXs)}>
+                      {s.staff.name} · {tServices('card.minutes', { count: s.durationMinutes })} ·{' '}
+                      {formatMoney(s.priceMinor, s.currency, activeLocale)}
+                    </p>
+                  </div>
+                </div>
+                <ButtonLink
+                  href={`/member/services/${s.id}`}
+                  variant="secondary"
+                  size="card"
+                  label={tServices('card.bookSession')}
+                  fullWidth
+                />
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card padding="none" xstyle={styles.emptyLg}>
+            <Icon name="dumbbell" {...stylex.props(styles.mutedIcon)} />
+            <p {...stylex.props(styles.emptyText)}>{t('noServices')}</p>
           </Card>
         )}
       </section>

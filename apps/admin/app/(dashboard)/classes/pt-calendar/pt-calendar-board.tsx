@@ -6,13 +6,13 @@ import { useLocale } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
-import type { AdminPtSession, ClassInstanceStatus } from '@fit/types';
+import type { AdminPtSession, AdminServiceSession, ClassInstanceStatus } from '@fit/types';
 import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
-import { addWeeks, toIsoDate, weekDays, zonedClock } from '../schedule/week';
-import { AddPtSessionDrawer, type ClassTypeOption } from './add-pt-session-drawer';
-import type { TrainerOption } from './trainer-select';
+import { addWeeks, toIsoDate, weekDays, zonedClock, zonedIsoDate } from '../schedule/week';
+import { AddSlotDrawer, type ServiceOption } from './add-slot-drawer';
+import { SlotBlock, SlotDetail } from './slot-block';
 import { cancelPtSessionAction, completePtSessionAction } from './pt-session-actions';
 import { createDateTimeFormat } from '@fit/i18n';
 
@@ -347,7 +347,7 @@ function atLeast(
  * window spent most of its height on rows with nothing in them.
  */
 function hourRange(
-  sessions: AdminPtSession[],
+  sessions: TimeSpan[],
   timeZone: string,
   openHour: number,
   closeHour: number,
@@ -408,8 +408,15 @@ function formatTime(iso: string, _locale: string, timeZone: string): string {
   return zonedClock(new Date(iso), timeZone);
 }
 
-interface PlacedSession {
-  session: AdminPtSession;
+/** Anything the grid can place: a PT session or a service slot. */
+export interface TimeSpan {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface PlacedSession<T extends TimeSpan = AdminPtSession> {
+  session: T;
   topRem: number;
   heightRem: number;
   leftPct: number;
@@ -417,12 +424,12 @@ interface PlacedSession {
 }
 
 /** Position one day's sessions in the grid, splitting overlaps into side-by-side lanes. */
-function placeSessions(
-  sessions: AdminPtSession[],
+function placeSessions<T extends TimeSpan>(
+  sessions: T[],
   timeZone: string,
   startHour: number,
   endHour: number,
-): PlacedSession[] {
+): PlacedSession<T>[] {
   const totalMin = (endHour - startHour) * 60;
   const items = sessions
     .map((session) => {
@@ -435,7 +442,7 @@ function placeSessions(
     })
     .sort((a, b) => a.start - b.start || a.end - b.end);
 
-  const placed: PlacedSession[] = [];
+  const placed: PlacedSession<T>[] = [];
   let cluster: typeof items = [];
   let clusterEnd = -Infinity;
 
@@ -491,9 +498,8 @@ function placeSessions(
 export function PtCalendarBoard({
   weekStart,
   sessions,
-  classTypes,
-  trainers,
-  trainerId,
+  slots,
+  services,
   canWrite,
   timeZone,
   openHour,
@@ -501,11 +507,10 @@ export function PtCalendarBoard({
 }: {
   weekStart: string;
   sessions: AdminPtSession[];
-  classTypes: ClassTypeOption[];
-  /** Every active trainer — the add drawer's picker. */
-  trainers: TrainerOption[];
-  /** The trainer the calendar is narrowed to, or `null` for all of them. */
-  trainerId: string | null;
+  /** The service slots (open / booked / done) in the same week. */
+  slots: AdminServiceSession[];
+  /** ACTIVE services the "Open a slot" drawer can pick from. */
+  services: ServiceOption[];
   canWrite: boolean;
   /** The gym's IANA zone — the grid's rows and clock labels are read on it. */
   timeZone: string;
@@ -533,8 +538,26 @@ export function PtCalendarBoard({
     return map;
   }, [sessions]);
 
+  const slotsByDay = useMemo(() => {
+    const map = new Map<string, AdminServiceSession[]>();
+    for (const slot of slots) {
+      const key = zonedIsoDate(new Date(slot.startsAt), timeZone);
+      const list = map.get(key);
+      if (list) list.push(slot);
+      else map.set(key, [slot]);
+    }
+    return map;
+  }, [slots, timeZone]);
+
   const [selected, setSelected] = useState<AdminPtSession | null>(null);
   const detail = useSlideDrawer();
+  const [selectedSlot, setSelectedSlot] = useState<AdminServiceSession | null>(null);
+  const slotDetail = useSlideDrawer();
+
+  function openSlot(slot: AdminServiceSession): void {
+    setSelectedSlot(slot);
+    slotDetail.open();
+  }
 
   function goToWeek(nextMonday: Date): void {
     const params = new URLSearchParams(searchParams.toString());
@@ -556,7 +579,7 @@ export function PtCalendarBoard({
 
   // The window follows the week's own sessions — a PT calendar is sparse, and a
   // fixed 06:00–22:00 grid was mostly rows with nothing in them.
-  const { startHour, endHour } = hourRange(sessions, timeZone, openHour, closeHour);
+  const { startHour, endHour } = hourRange([...sessions, ...slots], timeZone, openHour, closeHour);
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   return (
@@ -592,14 +615,7 @@ export function PtCalendarBoard({
         </div>
 
         {canWrite ? (
-          <AddPtSessionDrawer
-            trainers={trainers}
-            // Prefill with whoever the calendar is filtered to; otherwise the staffer
-            // picks in the drawer.
-            defaultTrainerId={trainerId}
-            classTypes={classTypes}
-            defaultDate={weekStart}
-          />
+          <AddSlotDrawer services={services} defaultDate={weekStart} timeZone={timeZone} />
         ) : null}
       </div>
 
@@ -631,6 +647,12 @@ export function PtCalendarBoard({
           {days.map((day) => {
             const key = toIsoDate(day);
             const placed = placeSessions(byDay.get(key) ?? [], timeZone, startHour, endHour);
+            const placedSlots = placeSessions(
+              slotsByDay.get(key) ?? [],
+              timeZone,
+              startHour,
+              endHour,
+            );
             const isToday = key === todayKey;
             return (
               <div
@@ -647,6 +669,14 @@ export function PtCalendarBoard({
                     onOpen={openSession}
                   />
                 ))}
+                {placedSlots.map((ev) => (
+                  <SlotBlock
+                    key={ev.session.id}
+                    placed={ev}
+                    timeZone={timeZone}
+                    onOpen={openSlot}
+                  />
+                ))}
               </div>
             );
           })}
@@ -656,6 +686,14 @@ export function PtCalendarBoard({
       <PtSessionDetail
         drawer={detail}
         session={selected}
+        locale={locale}
+        timeZone={timeZone}
+        canWrite={canWrite}
+        onChanged={() => router.refresh()}
+      />
+      <SlotDetail
+        drawer={slotDetail}
+        slot={selectedSlot}
         locale={locale}
         timeZone={timeZone}
         canWrite={canWrite}

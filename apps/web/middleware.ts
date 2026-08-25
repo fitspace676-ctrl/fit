@@ -50,6 +50,9 @@ const PUBLIC_PATHS = [
   '/member/classes',
   // Public discovery surface — the trainers index (T3.6) is pure browsing.
   '/member/trainers',
+  // Public discovery surface — the services catalogue (what the gym offers and
+  // when it runs) is pure browsing too.
+  '/member/services',
   // Purchase wizard — location/package selection is browsable signed-out; the
   // auth gate is the final payment step (T3.10), not the browse.
   '/member/checkout',

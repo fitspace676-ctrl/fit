@@ -2,12 +2,18 @@
 
 import {
   Permission,
-  createPtSessionSchema,
+  createServiceSessionSchema,
   roleHasPermission,
-  type CreatePtSessionInput,
+  type CreateServiceSessionInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, cancelPtSession, completePtSession, createPtSession } from '@/lib/api';
+import {
+  ApiError,
+  cancelPtSession,
+  completePtSession,
+  createServiceSession,
+  setServiceSessionStatus,
+} from '@/lib/api';
 import type { ActionResult } from '../actions';
 
 /** Re-assert `ClassWrite` inside the action (defence in depth; the API re-checks). */
@@ -28,6 +34,18 @@ function toMessage(error: unknown): string {
     if (error.message === 'CLASS_TYPE_NOT_FOUND') {
       return 'That workout type no longer exists.';
     }
+    if (error.message === 'SERVICE_NOT_FOUND') {
+      return 'That service no longer exists or is archived.';
+    }
+    if (error.message === 'SESSION_NOT_FOUND') {
+      return 'That slot no longer exists.';
+    }
+    if (error.message === 'STAFF_BUSY') {
+      return 'The staff member already has a session at that time.';
+    }
+    if (error.message === 'SESSION_STATUS_INVALID') {
+      return 'That slot cannot change to this status.';
+    }
     return `Request failed (${error.status}): ${error.message}`;
   }
   return error instanceof Error ? error.message : 'Unexpected error';
@@ -38,25 +56,6 @@ function toMessage(error: unknown): string {
  * enforces `ClassWrite`, then relies on the calling client's `router.refresh()` to
  * re-pull the calendar. Returns the new session's id.
  */
-export async function createPtSessionAction(
-  input: CreatePtSessionInput,
-): Promise<ActionResult<{ id: string }>> {
-  if (!(await requireClassWrite())) {
-    return { ok: false, error: 'Not authorized' };
-  }
-  const parsed = createPtSessionSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid PT session details' };
-  }
-  try {
-    const session = await createPtSession(parsed.data);
-    return { ok: true, data: { id: session.id } };
-  } catch (error) {
-    return { ok: false, error: toMessage(error) };
-  }
-}
-
-/** Cancel a PT session (status `CANCELED`). Enforces `ClassWrite`. */
 export async function cancelPtSessionAction(id: string): Promise<ActionResult<{ id: string }>> {
   if (!(await requireClassWrite())) {
     return { ok: false, error: 'Not authorized' };
@@ -76,6 +75,53 @@ export async function completePtSessionAction(id: string): Promise<ActionResult<
   }
   try {
     await completePtSession(id);
+    return { ok: true, data: { id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/** Open one slot of a service on the PT calendar (`POST /admin/service-sessions`). */
+export async function createServiceSessionAction(
+  input: CreateServiceSessionInput,
+): Promise<ActionResult<{ id: string }>> {
+  if (!(await requireClassWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const parsed = createServiceSessionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid slot details' };
+  }
+  try {
+    const session = await createServiceSession(parsed.data);
+    return { ok: true, data: { id: session.id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+export async function cancelServiceSessionAction(
+  id: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!(await requireClassWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    await setServiceSessionStatus(id, 'cancel');
+    return { ok: true, data: { id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+export async function completeServiceSessionAction(
+  id: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!(await requireClassWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    await setServiceSessionStatus(id, 'complete');
     return { ok: true, data: { id } };
   } catch (error) {
     return { ok: false, error: toMessage(error) };

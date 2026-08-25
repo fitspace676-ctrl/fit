@@ -610,12 +610,14 @@ export function PosPayment({
         unitPrice: item.unitPrice,
         amount: lineTotal(item),
         // Which stock position left the shelf, so the API draws it down the way the
-        // online checkout does. A membership line's key is a plan id, not a
-        // product's — it owns no stock, so it names none. The till sells the base
-        // position: it has no variant picker, and a variant product counts per
-        // variant, which the server then leaves alone rather than guessing at.
-        productId: item.planId ? null : item.productId,
+        // online checkout does. A membership or service line's key is a plan/service
+        // id, not a product's — neither owns stock, so the line names none. The till
+        // sells the base position: it has no variant picker, and a variant product
+        // counts per variant, which the server then leaves alone rather than
+        // guessing at.
+        productId: item.planId || item.serviceId ? null : item.productId,
         variantIndex: null,
+        serviceId: item.serviceId ?? null,
       })),
       subtotal,
       discountTotal,

@@ -3,6 +3,9 @@ import { getActiveGymTimezone } from '@/lib/active-gym';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { fetchMemberBookings } from '@/lib/member-bookings';
+import { fetchMyServiceSessions } from '@/lib/my-service-sessions';
+import { MySessions } from '@/src/components/services/MySessions';
+import { Link } from '@/src/i18n/navigation';
 import { ButtonLink } from '@/src/components/ui/kit';
 import { BookingHistory } from '@/src/components/account/BookingHistory';
 
@@ -60,6 +63,38 @@ const styles = stylex.create({
     letterSpacing: '-0.02em',
     color: 'var(--color-text-primary)',
   },
+  sessions: { display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' },
+  sessionsHead: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  sessionsTitle: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: '1.375rem',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
+  sessionsGroup: {
+    margin: 0,
+    marginTop: '0.5rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    color: 'var(--color-text-secondary)',
+  },
+  sessionsLink: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-accent)',
+    textDecoration: { default: 'none', ':hover': 'underline' },
+  },
+  sessionsEmpty: { margin: 0, fontSize: '0.875rem', color: 'var(--color-text-secondary)' },
   subtitle: {
     margin: 0,
     marginTop: '0.375rem',
@@ -99,11 +134,22 @@ export default async function AccountBookingsPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, entries, timeZone] = await Promise.all([
+  const [t, entries, sessions, timeZone] = await Promise.all([
     getTranslations('account.bookings'),
     fetchMemberBookings({ scope: 'all' }),
+    fetchMyServiceSessions().catch(() => []),
     getActiveGymTimezone(),
   ]);
+
+  // Service sessions (personal training and the like) live beside the class
+  // bookings: booked-and-ahead first, everything else as history.
+  const now = Date.now();
+  const upcomingSessions = sessions.filter(
+    (s) => s.status === 'BOOKED' && new Date(s.startsAt).getTime() >= now,
+  );
+  const pastSessions = sessions
+    .filter((s) => !upcomingSessions.includes(s))
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -121,7 +167,39 @@ export default async function AccountBookingsPage({
         />
       </header>
 
-      <BookingHistory timeZone={timeZone} entries={entries} now={Date.now()} />
+      <BookingHistory timeZone={timeZone} entries={entries} now={now} />
+
+      <section {...stylex.props(styles.sessions)}>
+        <div {...stylex.props(styles.sessionsHead)}>
+          <div>
+            <h2 {...stylex.props(styles.sessionsTitle)}>{t('sessions.title')}</h2>
+            <p {...stylex.props(styles.subtitle)}>{t('sessions.subtitle')}</p>
+          </div>
+          <Link href="/member/services" {...stylex.props(styles.sessionsLink)}>
+            {t('sessions.action')}
+          </Link>
+        </div>
+        {sessions.length === 0 ? (
+          <p {...stylex.props(styles.sessionsEmpty)}>{t('sessions.empty')}</p>
+        ) : (
+          <>
+            <h3 {...stylex.props(styles.sessionsGroup)}>
+              {t('sessions.upcoming')} ({upcomingSessions.length})
+            </h3>
+            {upcomingSessions.length === 0 ? (
+              <p {...stylex.props(styles.sessionsEmpty)}>{t('sessions.noUpcoming')}</p>
+            ) : (
+              <MySessions sessions={upcomingSessions} timeZone={timeZone} />
+            )}
+            {pastSessions.length > 0 ? (
+              <>
+                <h3 {...stylex.props(styles.sessionsGroup)}>{t('sessions.past')}</h3>
+                <MySessions sessions={pastSessions} timeZone={timeZone} />
+              </>
+            ) : null}
+          </>
+        )}
+      </section>
     </div>
   );
 }

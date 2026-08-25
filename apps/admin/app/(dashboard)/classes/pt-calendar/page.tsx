@@ -3,14 +3,20 @@ import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import type { AdminClassTypeOption } from '@fit/types';
-import { ApiError, fetchClassTypeOptions, fetchPtSessions, fetchTrainers } from '@/lib/api';
+import {
+  ApiError,
+  fetchAdminServiceSessions,
+  fetchAdminServices,
+  fetchPtSessions,
+  fetchTrainers,
+} from '@/lib/api';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
 import { resolveWeekStart, toIsoDate, weekWindow, zonedToday } from '../schedule/week';
 import { TrainerSelect, type TrainerOption } from './trainer-select';
 import { PtCalendarBoard } from './pt-calendar-board';
+import type { ServiceOption } from './add-slot-drawer';
 
 export const metadata: Metadata = {
   title: 'Classes · PT Calendar - FormaCore Admin',
@@ -101,11 +107,20 @@ export default async function PtCalendarPage({
 
   let body;
   try {
-    const [classTypes, sessionsRes] = await Promise.all([
-      fetchClassTypeOptions().catch(() => [] as AdminClassTypeOption[]),
+    const [sessionsRes, slotsRes, servicesRes] = await Promise.all([
       // No trainer filter unless one was picked — the calendar opens on everyone.
       fetchPtSessions({ from, to, ...(trainerId ? { trainerId } : {}) }),
+      // Service slots are keyed by staff member, not trainer profile, so the
+      // trainer filter does not apply to them; the week does.
+      fetchAdminServiceSessions({ from, to }).catch(() => ({ sessions: [] })),
+      fetchAdminServices({ status: 'ACTIVE', limit: 100 }).catch(() => null),
     ]);
+    const services: ServiceOption[] = (servicesRes?.data ?? []).map((service) => ({
+      id: service.id,
+      name: service.name,
+      staffName: service.staff.name,
+      durationMinutes: service.durationMinutes,
+    }));
     body = (
       <PtCalendarBoard
         timeZone={timeZone}
@@ -113,9 +128,8 @@ export default async function PtCalendarPage({
         closeHour={closeHour}
         weekStart={toIsoDate(weekStart)}
         sessions={sessionsRes.sessions}
-        classTypes={classTypes}
-        trainers={trainers}
-        trainerId={trainerId || null}
+        slots={slotsRes.sessions}
+        services={services}
         canWrite={canWrite}
       />
     );

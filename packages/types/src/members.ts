@@ -178,6 +178,12 @@ export interface MemberRow {
   /** How the NEXT-BILLING cell should read (`due` date / `paused` / `overdue` / `none`). */
   billingState: MemberBillingState;
   /**
+   * What the member still owes: the sum of their PENDING invoices in the gym
+   * currency, or `null` when nothing is outstanding. The till shows it as a badge
+   * so staff can collect at the counter.
+   */
+  outstanding: { amount: number; currency: string } | null;
+  /**
    * ISO instant the member was moved to trash (soft-deleted), or `null` for a live
    * member. When set, the UI shows the trash banner + restore, and computes the
    * "purges in N days" countdown from this instant + {@link MEMBER_TRASH_RETENTION_DAYS}.

@@ -64,6 +64,8 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'StaffTask',
   'TimeOffRequest',
   'ShiftSlot',
+  'Service',
+  'ServiceSession',
 ]);
 
 /** Read operations whose `where` is constrained to the current tenant. */

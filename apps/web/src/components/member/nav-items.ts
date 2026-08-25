@@ -3,7 +3,7 @@ import type { IconName } from '@/src/components/ui';
 /** A member-portal navigation destination. */
 export interface NavItem {
   /** i18n key under `member.nav`. */
-  key: 'home' | 'classes' | 'bookings' | 'trainer' | 'shop' | 'membership';
+  key: 'home' | 'classes' | 'bookings' | 'trainer' | 'services' | 'shop' | 'membership';
   /** Locale-less href (the i18n `Link` adds the prefix). */
   href: string;
   icon: IconName;
@@ -15,6 +15,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'classes', href: '/member/classes', icon: 'calendar' },
   { key: 'bookings', href: '/member/account/bookings', icon: 'clock' },
   { key: 'trainer', href: '/member/trainers', icon: 'dumbbell' },
+  { key: 'services', href: '/member/services', icon: 'spark' },
   { key: 'shop', href: '/member/shop', icon: 'bag' },
   { key: 'membership', href: '/member/account/membership', icon: 'ticket' },
 ];

@@ -25,6 +25,7 @@ export const SWEEPABLE_ENTITIES: ReadonlySet<string> = new Set([
   'locations',
   'logos',
   'classes',
+  'services',
 ]);
 
 /**

@@ -31,6 +31,7 @@ import { PackagePlansModule } from './packages/package-plans.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
+import { ServicesModule } from './services/services.module';
 import { RedisModule } from './redis/redis.module';
 import { ReportsModule } from './reports/reports.module';
 import { ReviewsModule } from './reviews/reviews.module';
@@ -162,6 +163,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     TrainersModule,
     LocationsModule,
     ProductsModule,
+    ServicesModule,
     PackagePlansModule,
     CatalogueModule,
     SubscriptionPlansModule,
@@ -254,9 +256,12 @@ export class AppModule implements NestModule {
         { path: 'class-instances/occupancy/stream', method: RequestMethod.GET },
         { path: 'class-instances/:id', method: RequestMethod.GET },
         { path: 'trainers', method: RequestMethod.ALL },
+        { path: 'trainers/:id', method: RequestMethod.GET },
         { path: 'trainers/:id/reviews', method: RequestMethod.GET },
         { path: 'packages', method: RequestMethod.GET },
         { path: 'products', method: RequestMethod.GET },
+        { path: 'services', method: RequestMethod.GET },
+        { path: 'service-sessions', method: RequestMethod.GET },
         { path: 'locations', method: RequestMethod.GET },
         { path: 'catalogue', method: RequestMethod.GET },
         { path: 'cart', method: RequestMethod.ALL },
