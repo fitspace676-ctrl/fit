@@ -14,6 +14,7 @@ import { ServicesSummary } from './services-summary';
 import { ServicesStatusTabs } from './services-status-tabs';
 import { ServicesFilters } from './services-filters';
 import { ServicesList } from './services-list';
+import { ServicesPager } from './services-pager';
 import { ServiceDrawer } from './service-drawer';
 
 export const metadata: Metadata = {
@@ -106,7 +107,14 @@ export default async function ServicesPage({
   try {
     const result = await fetchAdminServices(query);
     summary = <ServicesSummary summary={result.summary} />;
-    content = <ServicesList services={result.data} canWrite={canWrite} />;
+    content = (
+      <>
+        <ServicesList services={result.data} canWrite={canWrite} />
+        {result.total > result.limit ? (
+          <ServicesPager total={result.total} page={result.page} limit={result.limit} />
+        ) : null}
+      </>
+    );
   } catch (error) {
     const message =
       error instanceof ApiError

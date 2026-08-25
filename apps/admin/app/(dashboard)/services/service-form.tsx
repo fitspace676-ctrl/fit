@@ -155,7 +155,7 @@ export function ServiceForm(props: Props) {
       weekdays: freq === 'WEEKLY' ? weekdays : [],
       startDate,
       startTime,
-      until: until || null,
+      until: freq === 'ONCE' ? null : until || null,
     };
 
     startTransition(async () => {

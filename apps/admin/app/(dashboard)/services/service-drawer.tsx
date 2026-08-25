@@ -79,6 +79,17 @@ export function ServiceDrawer(
     };
   }, [drawer.isOpen, staff]);
 
+  // Closing without picking a type (Escape, backdrop, the X) skips both the
+  // Cancel handler and the create-success handler, so without this the type
+  // step would stay skipped for every "New service" open for the rest of the
+  // page's life. Reset once the close animation finishes and `drawer.isOpen`
+  // actually goes false.
+  useEffect(() => {
+    if (props.mode === 'create' && !drawer.isOpen && type !== null) {
+      setType(null);
+    }
+  }, [props.mode, drawer.isOpen, type]);
+
   const title = props.mode === 'edit' ? 'Edit service' : 'New service';
 
   return (

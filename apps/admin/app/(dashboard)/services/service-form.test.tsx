@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ServiceForm } from './service-form';
+import { createServiceAction } from './actions';
 
 vi.mock('./actions', () => ({
   createServiceAction: vi.fn(() => Promise.resolve({ ok: true, data: { id: 's-1' } })),
@@ -62,5 +63,42 @@ describe('ServiceForm', () => {
     expect(screen.queryByRole('checkbox', { name: 'Mon' })).toBeNull();
     fireEvent.click(screen.getByRole('radio', { name: 'Weekly' }));
     expect(screen.getByRole('checkbox', { name: 'Mon' })).toBeTruthy();
+  });
+
+  it('clears the end date and weekdays on submit when Weekly is switched to Once', async () => {
+    render(
+      <ServiceForm
+        mode="create"
+        type="CUSTOM"
+        staff={staff}
+        onSuccess={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Massage' } });
+    fireEvent.change(screen.getByLabelText('Staff member'), { target: { value: 'gm-1' } });
+    fireEvent.change(screen.getByLabelText('Price per session'), { target: { value: '50' } });
+    fireEvent.change(screen.getByLabelText('Starts on'), { target: { value: '2026-09-01' } });
+
+    // Still Weekly (the default): pick a weekday and set an end date.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mon' }));
+    fireEvent.change(screen.getByLabelText('Until (optional)'), {
+      target: { value: '2026-12-01' },
+    });
+
+    // Switch to Once — the Until field disappears, but its typed value must
+    // not still be sent once it's no longer shown.
+    fireEvent.click(screen.getByRole('radio', { name: 'Once' }));
+    expect(screen.queryByLabelText('Until (optional)')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create service' }));
+
+    await waitFor(() => expect(createServiceAction).toHaveBeenCalledTimes(1));
+    const [input] = vi.mocked(createServiceAction).mock.calls[0]!;
+    expect(input).toMatchObject({
+      type: 'CUSTOM',
+      schedule: { freq: 'ONCE', weekdays: [], until: null },
+    });
   });
 });
