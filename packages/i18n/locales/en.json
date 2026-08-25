@@ -106,6 +106,7 @@
       "checkIn": "Check-in",
       "pos": "POS",
       "shop": "Shop",
+      "services": "Services",
       "orders": "Orders",
       "billing": "Billing",
       "automation": "Automation",

@@ -25,6 +25,11 @@ const ICON_PATHS: Record<NavIconKey, string> = {
     'M4 4h6v6H4V4zM14 4h6v6h-6V4zM4 14h6v6H4v-6zM14 14h2v2h-2v-2zM18 14h2v2h-2v-2zM14 18h2v2h-2v-2zM18 18h2v2h-2v-2z',
   locations: 'M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11zM12 12a3 3 0 100-6 3 3 0 000 6z',
   products: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  // Sparkles — the "extras / services" glyph, and the one Commerce sibling that
+  // is neither a box (Shop) nor a receipt (POS): one large four-point star with
+  // two small ones, so it still reads at the rail's 20px.
+  services:
+    'M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3zM5 16l.8 1.7 1.7.8-1.7.8L5 21l-.8-1.7-1.7-.8 1.7-.8L5 16zM19 14l.7 1.5 1.5.7-1.5.7L19 18.5l-.7-1.5-1.5-.7 1.5-.7L19 14z',
   pos: 'M5 8h14v12H5zM5 8l1.5-4h11L19 8M9 12h6M9 16h3',
   orders: 'M7 3h10l1 4H6l1-4zM6 7h12v13a1 1 0 01-1 1H7a1 1 0 01-1-1V7zM9 11h6',
   packages: 'M3 8.5l2-3.5h14l2 3.5M3 8.5h18M3 8.5V19a1 1 0 001 1h16a1 1 0 001-1V8.5M9.5 12h5',
