@@ -79,6 +79,12 @@ import type {
   UpdateProductCategoryInput,
   ProductCategoryResponse,
   DeleteProductCategoryResponse,
+  CreateServiceData,
+  ListAdminServicesQuery,
+  ListAdminServicesResponse,
+  ListServiceStaffResponse,
+  ServiceResponse,
+  UpdateServiceData,
   ListAdminPackagePlansQuery,
   ListAdminPackagePlansResponse,
   CreatePackagePlanData,
@@ -847,6 +853,77 @@ export async function reactivateProduct(id: string): Promise<SetProductStatusRes
   });
   return unwrap<SetProductStatusResponse>(res);
 }
+
+// ── Services (Services catalogue, stage 1) ────────────────────────────────────
+
+/** Serialise a services roster query to `?key=value`, dropping empty values. */
+export function servicesQueryString(query: Partial<ListAdminServicesQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') continue;
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** `GET /admin/services` — one filtered, server-paginated page of the gym's services. */
+export async function fetchAdminServices(
+  query: Partial<ListAdminServicesQuery> = {},
+): Promise<ListAdminServicesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services${servicesQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminServicesResponse>(res);
+}
+
+/** `GET /admin/services/staff` — who a service can be assigned to. */
+export async function fetchServiceStaff(): Promise<ListServiceStaffResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services/staff`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListServiceStaffResponse>(res);
+}
+
+/** `POST /admin/services` — create a service. */
+export async function createService(input: CreateServiceData): Promise<ServiceResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<ServiceResponse>(res);
+}
+
+/** `PATCH /admin/services/:id` — edit a service. */
+export async function updateService(
+  id: string,
+  input: UpdateServiceData,
+): Promise<ServiceResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<ServiceResponse>(res);
+}
+
+/** `POST /admin/services/:id/archive` / `/restore`. */
+async function setServiceStatus(id: string, verb: 'archive' | 'restore'): Promise<ServiceResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services/${encodeURIComponent(id)}/${verb}`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ServiceResponse>(res);
+}
+
+export const archiveService = (id: string) => setServiceStatus(id, 'archive');
+export const restoreService = (id: string) => setServiceStatus(id, 'restore');
 
 // ── Package plans (T4.11) ─────────────────────────────────────────────────────
 
