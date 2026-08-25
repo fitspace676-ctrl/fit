@@ -176,6 +176,12 @@ export const receiptLineSchema = z.object({
    * how one is addressed here as everywhere else.
    */
   variantIndex: z.number().int().nonnegative().nullable().optional(),
+  /**
+   * The catalogue service sold on this line (Services, stage 1). Null/absent for
+   * every product, membership and adjustment line. A service owns no stock, so the
+   * API records it on the order item and skips the stock ledger for the line.
+   */
+  serviceId: z.string().min(1).nullable().optional(),
 });
 
 /** A single POS receipt line — {@link receiptLineSchema}. */
