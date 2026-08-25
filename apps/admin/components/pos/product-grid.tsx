@@ -9,11 +9,13 @@ import {
   fetchPosCategoriesAction,
   fetchPosMembersAction,
   fetchPosMembershipsAction,
+  fetchPosServicesAction,
   searchPosProductsAction,
   type PosCategoryRow,
   type PosMemberRow,
   type PosMembershipRow,
   type PosProductRow,
+  type PosServiceRow,
 } from '@/app/(dashboard)/pos/actions';
 import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
@@ -265,6 +267,7 @@ const styles = stylex.create({
     fontWeight: 700,
     color: 'var(--color-text-primary)',
   },
+  tileSub: { fontSize: '0.75rem', color: 'var(--color-text-secondary)' },
   // ── The members table ──────────────────────────────────────────────────────
   table: {
     width: '100%',
@@ -362,7 +365,7 @@ const styles = stylex.create({
  * The panels the till's left column switches between: the two catalogues it sells
  * from, and the member roster it attaches a sale to.
  */
-type Catalogue = 'memberships' | 'products' | 'members';
+type Catalogue = 'memberships' | 'products' | 'services' | 'members';
 
 /**
  * Visual treatment per standing, matching the members roster's own pill so the
@@ -379,6 +382,7 @@ const KIND_TONES: Record<MemberKind, BadgeTone> = {
 const TABS: ReadonlyArray<{ value: Catalogue; label: string }> = [
   { value: 'memberships', label: 'Memberships' },
   { value: 'products', label: 'Products' },
+  { value: 'services', label: 'Services' },
   { value: 'members', label: 'Members' },
 ];
 
@@ -412,12 +416,14 @@ export function ProductGrid({
   searchRef,
   onAdd,
   onAddMembership,
+  onAddService,
   onSelectMember,
   selectedMemberId,
 }: {
   searchRef: RefObject<HTMLInputElement | null>;
   onAdd: (product: PosProductRow) => void;
   onAddMembership: (membership: PosMembershipRow) => void;
+  onAddService: (service: PosServiceRow) => void;
   /** Attach the sale to this member — the same handler the cart's lookup calls. */
   onSelectMember: (member: PosMemberRow) => void;
   /** Who the sale is attached to, so the table can mark them. */
@@ -428,6 +434,7 @@ export function ProductGrid({
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<PosProductRow[]>([]);
   const [memberships, setMemberships] = useState<PosMembershipRow[]>([]);
+  const [services, setServices] = useState<PosServiceRow[]>([]);
   const [categories, setCategories] = useState<PosCategoryRow[]>([]);
   const [members, setMembers] = useState<PosMemberRow[]>([]);
   /** The selected shelf — a category id, {@link UNCATEGORISED_FILTER}, or `''` for all. */
@@ -442,6 +449,19 @@ export function ProductGrid({
     void fetchPosMembershipsAction().then((result) => {
       if (cancelled) return;
       if (result.ok) setMemberships(result.data);
+      else setError(result.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Services are as few and as stable as memberships, so they load once too.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPosServicesAction().then((result) => {
+      if (cancelled) return;
+      if (result.ok) setServices(result.data);
       else setError(result.error);
     });
     return () => {
@@ -468,6 +488,16 @@ export function ProductGrid({
     if (!needle) return memberships;
     return memberships.filter((plan) => plan.name.toLowerCase().includes(needle));
   }, [memberships, query]);
+
+  const shownServices = useMemo(
+    () =>
+      services.filter(
+        (s) =>
+          s.name.toLowerCase().includes(query.toLowerCase()) ||
+          s.staffName.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [services, query],
+  );
 
   // Run the search whenever the (debounced) query or the selected shelf changes,
   // including the initial empty query that populates the grid on mount.
@@ -613,6 +643,41 @@ export function ProductGrid({
                     </span>
                     <span {...stylex.props(styles.tilePrice, styles.membershipPrice)}>
                       {formatPrice(plan.priceAmount, plan.currency)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : catalogue === 'services' ? (
+        <div {...stylex.props(styles.scrollArea)}>
+          {shownServices.length === 0 ? (
+            <p {...stylex.props(styles.empty)}>
+              {services.length === 0
+                ? 'No active services to sell yet.'
+                : 'No services match that.'}
+            </p>
+          ) : (
+            <ul {...stylex.props(styles.grid)}>
+              {shownServices.map((service) => (
+                <li key={service.id}>
+                  <button
+                    type="button"
+                    onClick={() => onAddService(service)}
+                    {...stylex.props(styles.tile, styles.membershipTile)}
+                  >
+                    <span {...stylex.props(styles.membershipTop)}>
+                      <span {...stylex.props(styles.tileName, styles.membershipName)}>
+                        {service.name}
+                      </span>
+                      <span {...stylex.props(styles.durationBadge)}>
+                        {service.durationMinutes} min
+                      </span>
+                    </span>
+                    <span {...stylex.props(styles.tileSub)}>{service.staffName}</span>
+                    <span {...stylex.props(styles.tilePrice, styles.membershipPrice)}>
+                      {formatPrice(service.priceAmount, service.currency)}
                     </span>
                   </button>
                 </li>

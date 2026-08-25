@@ -29,6 +29,8 @@ export interface CartItem {
    * on that plan. Absent on an ordinary product line.
    */
   planId?: string;
+  /** Set when this line is a catalogue **service** — the API records it on the order item. */
+  serviceId?: string;
   /** Display name captured at add-time so the cart renders without a re-fetch. */
   name: string;
   /** Unit price in the currency's minor units, captured at add-time. */
@@ -53,6 +55,8 @@ export interface AddItemInput {
   currency: string;
   /** Set to sell a membership on this line — see {@link CartItem.planId}. */
   planId?: string;
+  /** Set to sell a catalogue service on this line — see {@link CartItem.serviceId}. */
+  serviceId?: string;
 }
 
 /** The POS cart's state and the actions that mutate it (the T7.2 contract surface). */
@@ -195,7 +199,13 @@ export const usePosCart = create<PosCartState>((set) => ({
           ...withoutOtherMembership,
           {
             productId: product.productId,
-            ...(product.planId ? { planId: product.planId } : {}),
+            // Always set (even to `undefined`) rather than spread-conditionally: a
+            // consumer that checks `item.planId` truthily behaves identically either
+            // way, and an explicit key lets `toMatchObject({ planId: undefined })`
+            // assertions distinguish "not a membership/service line" from "field
+            // omitted by mistake".
+            planId: product.planId,
+            serviceId: product.serviceId,
             name: product.name,
             unitPrice: product.unitPrice,
             currency: product.currency,

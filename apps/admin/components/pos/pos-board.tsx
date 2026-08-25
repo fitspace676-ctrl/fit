@@ -11,6 +11,7 @@ import {
   type PosMemberRow,
   type PosMembershipRow,
   type PosProductRow,
+  type PosServiceRow,
 } from '@/app/(dashboard)/pos/actions';
 import { MemberLookup } from './member-lookup';
 import { PosCart } from './pos-cart';
@@ -157,6 +158,20 @@ export function PosBoard({
     [addItem],
   );
 
+  /** A service line is keyed by the service id and carries `serviceId` for the order item. */
+  const onAddService = useCallback(
+    (service: PosServiceRow) => {
+      addItem({
+        productId: service.id,
+        serviceId: service.id,
+        name: service.name,
+        unitPrice: service.priceAmount,
+        currency: service.currency,
+      });
+    },
+    [addItem],
+  );
+
   const onSelectMember = useCallback(
     (member: PosMemberRow | null) => {
       setSelectedMember(member);
@@ -200,6 +215,7 @@ export function PosBoard({
           searchRef={productSearchRef}
           onAdd={onAdd}
           onAddMembership={onAddMembership}
+          onAddService={onAddService}
           onSelectMember={onSelectMember}
           selectedMemberId={selectedMember?.id ?? null}
         />

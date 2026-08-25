@@ -17,6 +17,7 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  fetchAdminServices,
   fetchLocations,
   fetchMembers,
   fetchProductCategories,
@@ -338,6 +339,47 @@ export async function fetchPosMembershipsAction(): Promise<ActionResult<PosMembe
         priceAmount: plan.priceAmount,
         currency: plan.currency,
         durationLabel: `${INTERVAL_DAYS[plan.interval] ?? 30} days`,
+      })),
+    };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/** A catalogue service as the POS Services tab renders it. */
+export interface PosServiceRow {
+  id: string;
+  name: string;
+  staffName: string;
+  priceAmount: number;
+  currency: string;
+  durationMinutes: number;
+}
+
+/** Enough services to fill the tab without paging — a gym has a handful. */
+const SERVICE_RESULT_LIMIT = 100;
+
+/** The gym's ACTIVE services, priced, for the Services tab. */
+export async function fetchPosServicesAction(): Promise<ActionResult<PosServiceRow[]>> {
+  if (!(await sessionHas(Permission.ProductRead))) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const { data } = await fetchAdminServices({
+      limit: SERVICE_RESULT_LIMIT,
+      status: 'ACTIVE',
+      sort: 'name',
+      dir: 'asc',
+    });
+    return {
+      ok: true,
+      data: data.map((service) => ({
+        id: service.id,
+        name: service.name,
+        staffName: service.staff.name,
+        priceAmount: service.priceMinor,
+        currency: service.currency,
+        durationMinutes: service.durationMinutes,
       })),
     };
   } catch (error) {
