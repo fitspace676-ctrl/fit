@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -84,6 +85,19 @@ export class AdminServicesController {
   @RequirePermissions(Permission.ProductWrite)
   async restore(@Param('id') id: string): Promise<ServiceResponse> {
     return this.services.restoreService(id);
+  }
+
+  /**
+   * `DELETE /admin/services/:id` — permanently remove an ARCHIVED service. An
+   * active one is `409 SERVICE_NOT_ARCHIVED` (archive it first); one that has been
+   * booked or delivered is `409 SERVICE_HAS_SESSIONS` — that history stays.
+   */
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductWrite)
+  async remove(@Param('id') id: string): Promise<{ id: string }> {
+    await this.services.deleteService(id);
+    return { id };
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@fit/ui-kit';
 
@@ -37,6 +38,7 @@ export function ServicesPager({
   page: number;
   limit: number;
 }) {
+  const t = useTranslations('admin.services.pager');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -62,9 +64,7 @@ export function ServicesPager({
 
   return (
     <div {...stylex.props(styles.pagerRow)}>
-      <span {...stylex.props(styles.pagerCount)}>
-        {from}–{to} of {total}
-      </span>
+      <span {...stylex.props(styles.pagerCount)}>{t('range', { from, to, total })}</span>
       <div {...stylex.props(styles.pagerBtns)}>
         <Button
           variant="secondary"
@@ -73,7 +73,7 @@ export function ServicesPager({
             startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
           }
           disabled={!hasPrev}
-          label="Previous"
+          label={t('previous')}
         />
         <Button
           variant="secondary"
@@ -82,7 +82,7 @@ export function ServicesPager({
             startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
           }
           disabled={!hasNext}
-          label="Next"
+          label={t('next')}
         />
       </div>
     </div>

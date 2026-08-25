@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
@@ -59,6 +60,7 @@ const styles = stylex.create({
 export function ServiceDrawer(
   props: { mode: 'create' } | { mode: 'edit'; service: AdminServiceRow; trigger: React.ReactNode },
 ) {
+  const t = useTranslations('admin.services');
   const drawer = useSlideDrawer();
   const [type, setType] = useState<ServiceType | null>(
     props.mode === 'edit' ? props.service.type : null,
@@ -90,7 +92,7 @@ export function ServiceDrawer(
     }
   }, [props.mode, drawer.isOpen, type]);
 
-  const title = props.mode === 'edit' ? 'Edit service' : 'New service';
+  const title = props.mode === 'edit' ? t('editService') : t('newService');
 
   return (
     <>
@@ -100,7 +102,7 @@ export function ServiceDrawer(
         <Button
           variant="primary"
           size="lg"
-          label="New service"
+          label={t('newService')}
           icon={<Icon name="plus" sw={2} {...stylex.props(styles.icon)} />}
           onClick={drawer.open}
         />
@@ -133,7 +135,7 @@ export function ServiceDrawer(
             <LayoutContent padding={0} isScrollable xstyle={styles.content}>
               {loadError ? <p role="alert">{loadError}</p> : null}
               {staff === null && !loadError ? (
-                <p {...stylex.props(styles.loading)}>Loading staff…</p>
+                <p {...stylex.props(styles.loading)}>{t('drawer.loadingStaff')}</p>
               ) : null}
               {staff !== null && type === null ? (
                 <div {...stylex.props(styles.typeGrid)}>
@@ -142,22 +144,16 @@ export function ServiceDrawer(
                     onClick={() => setType('PERSONAL_TRAINING')}
                     {...stylex.props(styles.typeCard)}
                   >
-                    <span {...stylex.props(styles.typeTitle)}>Personal training</span>
-                    <span {...stylex.props(styles.typeHint)}>
-                      One-to-one sessions with a trainer. Named after the trainer; slots are added
-                      on the PT calendar.
-                    </span>
+                    <span {...stylex.props(styles.typeTitle)}>{t('drawer.ptTitle')}</span>
+                    <span {...stylex.props(styles.typeHint)}>{t('drawer.ptHint')}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setType('CUSTOM')}
                     {...stylex.props(styles.typeCard)}
                   >
-                    <span {...stylex.props(styles.typeTitle)}>Custom service</span>
-                    <span {...stylex.props(styles.typeHint)}>
-                      Anything else — a massage, a body-composition test. You name it and set when
-                      it runs.
-                    </span>
+                    <span {...stylex.props(styles.typeTitle)}>{t('drawer.customTitle')}</span>
+                    <span {...stylex.props(styles.typeHint)}>{t('drawer.customHint')}</span>
                   </button>
                 </div>
               ) : null}

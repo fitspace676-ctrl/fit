@@ -27,6 +27,7 @@ interface Rows {
   trainers?: { photoUrl: string | null }[];
   locations?: { photoUrl: string | null }[];
   classTemplates?: { imageUrl: string | null }[];
+  services?: { coverUrl: string | null }[];
   gyms?: { settings: unknown }[];
 }
 
@@ -47,6 +48,7 @@ function setup(objects: StoredObject[], rows: Rows = {}) {
       trainer: { findMany: vi.fn(() => Promise.resolve(rows.trainers ?? [])) },
       location: { findMany: vi.fn(() => Promise.resolve(rows.locations ?? [])) },
       classTemplate: { findMany: vi.fn(() => Promise.resolve(rows.classTemplates ?? [])) },
+      service: { findMany: vi.fn(() => Promise.resolve(rows.services ?? [])) },
       gym: { findMany: vi.fn(() => Promise.resolve(rows.gyms ?? [])) },
     },
   } as unknown as PrismaService;
@@ -85,6 +87,18 @@ describe('MediaSweepService.sweep', () => {
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
     expect(summary).toMatchObject({ referenced: 1, orphaned: 0, deleted: 0 });
+  });
+
+  it('owns the services prefix: keeps a referenced cover, deletes an orphaned one', async () => {
+    const { service, deleteObjects } = setup(
+      [object('gym-1/services/live.jpg'), object('gym-1/services/orphan.jpg')],
+      { services: [{ coverUrl: `${PUBLIC_BASE}/gym-1/services/live.jpg` }] },
+    );
+
+    const summary = await service.sweep(NOW);
+
+    expect(deleteObjects).toHaveBeenCalledWith(['gym-1/services/orphan.jpg']);
+    expect(summary).toMatchObject({ referenced: 1, orphaned: 1, deleted: 1 });
   });
 
   it('owns the classes prefix: keeps a referenced cover, deletes an orphaned one', async () => {

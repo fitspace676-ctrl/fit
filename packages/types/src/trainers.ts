@@ -70,6 +70,13 @@ export const trainerScheduleEntrySchema = z.object({
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
   locationName: z.string(),
+  /**
+   * `CLASS` — a scheduled class occurrence; `SERVICE` — an OPEN slot of one of the
+   * trainer's services (personal training), bookable on `/member/services/:serviceId`.
+   */
+  kind: z.enum(['CLASS', 'SERVICE']).default('CLASS'),
+  /** The service the slot belongs to; null for a class. */
+  serviceId: z.string().nullable().default(null),
 });
 
 /** A single scheduled session on a trainer's detail page — {@link trainerScheduleEntrySchema}. */

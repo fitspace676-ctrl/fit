@@ -7,6 +7,7 @@ import {
   roleHasPermission,
   type ListAdminServicesQuery,
 } from '@fit/types';
+import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchAdminServices } from '@/lib/api';
 import { Icon } from '@/components/ui';
@@ -99,6 +100,7 @@ export default async function ServicesPage({
     ? parsed.data
     : listAdminServicesQuerySchema.parse({});
 
+  const t = await getTranslations('admin.services');
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ProductWrite);
 
@@ -118,8 +120,8 @@ export default async function ServicesPage({
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load services (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.load', { status: error.status, message: error.message })
+        : t('errors.unreachable');
     content = (
       <Card role="alert" padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -132,11 +134,8 @@ export default async function ServicesPage({
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
         <div {...stylex.props(styles.headTitles)}>
-          <h1 {...stylex.props(styles.title)}>Services</h1>
-          <p {...stylex.props(styles.subtitle)}>
-            Personal training and custom services, who delivers them and what a session costs. Sell
-            them at the POS; personal-training slots go on the PT calendar.
-          </p>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </div>
         <div {...stylex.props(styles.headActions)}>
           {canWrite ? <ServiceDrawer mode="create" /> : null}

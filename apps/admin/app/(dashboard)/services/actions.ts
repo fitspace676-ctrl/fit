@@ -14,9 +14,12 @@ import {
   ApiError,
   archiveService,
   createService,
+  createUpload,
+  deleteService,
   fetchServiceStaff,
   restoreService,
   updateService,
+  type SignedUploadResponse,
 } from '@/lib/api';
 import { getServerSession } from '@/lib/session';
 
@@ -38,6 +41,12 @@ function toMessage(error: unknown): string {
         return 'Pick a staff member of this gym.';
       case 'SERVICE_STAFF_NOT_TRAINER':
         return 'A personal-training service needs a staff member with a trainer profile.';
+      case 'SERVICE_SCHEDULE_REQUIRED':
+        return 'A custom service needs a schedule.';
+      case 'SERVICE_NOT_ARCHIVED':
+        return 'Archive the service before deleting it.';
+      case 'SERVICE_HAS_SESSIONS':
+        return 'This service has booked or completed sessions and cannot be deleted.';
       default:
         return `Request failed (${error.status}): ${error.message}`;
     }
@@ -97,6 +106,35 @@ export async function restoreServiceAction(id: string): Promise<ActionResult> {
     await restoreService(id);
     revalidatePath('/services');
     return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+export async function deleteServiceAction(id: string): Promise<ActionResult> {
+  if (!(await sessionHas(Permission.ProductWrite))) return { ok: false, error: 'Not authorized' };
+  try {
+    await deleteService(id);
+    revalidatePath('/services');
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Mint a presigned R2 `PUT` URL for a service cover image (`{gymId}/services/…`).
+ * Same flow as the class cover: the browser sends the bytes straight to R2 and
+ * only the resulting public URL is persisted on the service.
+ */
+export async function requestServiceCoverUploadAction(input: {
+  contentType: string;
+  contentLength: number;
+  fileName?: string;
+}): Promise<ActionResult<SignedUploadResponse>> {
+  if (!(await sessionHas(Permission.ProductWrite))) return { ok: false, error: 'Not authorized' };
+  try {
+    return { ok: true, data: await createUpload({ ...input, entity: 'services' }) };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }

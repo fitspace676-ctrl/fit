@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { Prisma, ServiceStatus, ServiceType } from '@fit/db';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { Prisma, ServiceSessionStatus, ServiceStatus, ServiceType } from '@fit/db';
 import type {
   AdminServiceRow,
+  GymLanguage,
   AdminServiceStaff,
   CreateServiceData,
   ListAdminServicesQuery,
@@ -37,6 +43,7 @@ const SERVICE_SELECT = {
   durationMinutes: true,
   description: true,
   schedule: true,
+  coverUrl: true,
   status: true,
   createdAt: true,
   staff: { select: STAFF_SELECT },
@@ -44,9 +51,28 @@ const SERVICE_SELECT = {
 
 type ServiceRecord = Prisma.ServiceGetPayload<{ select: typeof SERVICE_SELECT }>;
 
-/** The generated name of a personal-training service. */
-export function personalTrainingName(staffName: string): string {
-  return `Personal training — ${staffName}`;
+/** "Personal training" in each interface language a gym can pick. */
+const PERSONAL_TRAINING_LABEL: Record<GymLanguage, string> = {
+  ka: 'პერსონალური ვარჯიში',
+  en: 'Personal training',
+  ru: 'Персональная тренировка',
+};
+
+/**
+ * The generated name of a personal-training service, in the gym's own language:
+ * `"პერსონალური ვარჯიში - ნინო ბერიძე"`. A plain hyphen, never an em or en
+ * dash: the name reaches receipts, CSV exports and SMS, where a long dash
+ * arrives mangled through anything that is not UTF-8 clean.
+ */
+export function personalTrainingName(staffName: string, language: GymLanguage): string {
+  return `${PERSONAL_TRAINING_LABEL[language]} - ${staffName}`;
+}
+
+/** A schedule as the `Json?` column stores it — `null` becomes SQL NULL, not the JSON `null`. */
+function toScheduleColumn(
+  schedule: ServiceSchedule | null,
+): Prisma.InputJsonValue | Prisma.NullTypes.JsonNull {
+  return schedule === null ? Prisma.JsonNull : schedule;
 }
 
 /** The name staff see for a member row: the gym-scoped name, else the account name. */
@@ -141,7 +167,7 @@ export class AdminServicesService {
 
   async createService(input: CreateServiceData): Promise<ServiceResponse> {
     const staff = await this.requireStaff(input.staffId, input.type);
-    const currency = (await this.locale.get()).currency;
+    const { currency, language } = await this.locale.get();
 
     const row = await this.prisma.client.service.create({
       data: {
@@ -149,17 +175,15 @@ export class AdminServicesService {
         type: input.type,
         name:
           input.type === 'PERSONAL_TRAINING'
-            ? personalTrainingName(displayName(staff))
+            ? personalTrainingName(displayName(staff), language)
             : input.name,
         staffId: staff.id,
         priceMinor: input.priceMinor,
         currency,
         durationMinutes: input.durationMinutes,
         description: input.description,
-        schedule:
-          input.type === 'CUSTOM'
-            ? (input.schedule as unknown as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
+        coverUrl: input.coverUrl,
+        schedule: toScheduleColumn(input.schedule),
       },
       select: SERVICE_SELECT,
     });
@@ -174,13 +198,22 @@ export class AdminServicesService {
       ...(input.priceMinor !== undefined ? { priceMinor: input.priceMinor } : {}),
       ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.coverUrl !== undefined ? { coverUrl: input.coverUrl } : {}),
       ...(staff ? { staffId: staff.id } : {}),
     };
     if (existing.type === ServiceType.PERSONAL_TRAINING) {
-      if (staff) data.name = personalTrainingName(displayName(staff));
+      if (staff)
+        data.name = personalTrainingName(displayName(staff), (await this.locale.get()).language);
+      if (input.schedule !== undefined) data.schedule = toScheduleColumn(input.schedule);
     } else {
       if (input.name !== undefined) data.name = input.name;
-      if (input.schedule !== undefined) data.schedule = input.schedule;
+      if (input.schedule === null) {
+        throw new UnprocessableEntityException({
+          message: 'A custom service needs a schedule',
+          code: 'SERVICE_SCHEDULE_REQUIRED',
+        });
+      }
+      if (input.schedule !== undefined) data.schedule = toScheduleColumn(input.schedule);
     }
 
     const row = await this.prisma.client.service.update({
@@ -197,6 +230,39 @@ export class AdminServicesService {
 
   async restoreService(id: string): Promise<ServiceResponse> {
     return this.setStatus(id, ServiceStatus.ACTIVE);
+  }
+
+  /**
+   * Permanently delete an ARCHIVED service. Its open / cancelled slots go with
+   * it; a service that was ever booked or delivered is kept (`409
+   * SERVICE_HAS_SESSIONS`) because those sessions carry invoices and history.
+   * Sale lines that referenced it keep their snapshot (`OrderItem.serviceId` is
+   * set null by the schema).
+   */
+  async deleteService(id: string): Promise<void> {
+    const existing = await this.requireService(id);
+    if (existing.status !== ServiceStatus.ARCHIVED) {
+      throw new ConflictException({
+        message: 'Archive the service before deleting it',
+        code: 'SERVICE_NOT_ARCHIVED',
+      });
+    }
+    const delivered = await this.prisma.client.serviceSession.count({
+      where: {
+        serviceId: id,
+        status: { in: [ServiceSessionStatus.BOOKED, ServiceSessionStatus.COMPLETED] },
+      },
+    });
+    if (delivered > 0) {
+      throw new ConflictException({
+        message: 'This service has booked or completed sessions and cannot be deleted',
+        code: 'SERVICE_HAS_SESSIONS',
+      });
+    }
+    await this.prisma.client.$transaction([
+      this.prisma.client.serviceSession.deleteMany({ where: { serviceId: id } }),
+      this.prisma.client.service.delete({ where: { id }, select: { id: true } }),
+    ]);
   }
 
   /** Staff the form can assign: every non-MEMBER, non-deleted person in the gym. */
@@ -277,6 +343,7 @@ function toRow(row: ServiceRecord): AdminServiceRow {
     durationMinutes: row.durationMinutes,
     description: row.description,
     schedule: (row.schedule as ServiceSchedule | null) ?? null,
+    coverUrl: row.coverUrl,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
   };

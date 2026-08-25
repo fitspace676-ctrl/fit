@@ -22,7 +22,7 @@ import { AccountMenu } from './account-menu';
 // separate full-width tab bar under `lg`. Two navigations meant two sets of
 // states to keep in step and two answers to "where am I" depending on how wide
 // the window happened to be. One capsule is the same object at 390px and at
-// 1400px — only the labels drop away on the narrowest screens, where six
+// 1400px — only the labels drop away on the narrowest screens, where seven
 // Georgian words cannot fit and the icons carry recognition on their own.
 //
 // The capsule is the product's ONE glass surface. The direction bans
@@ -43,7 +43,7 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    // Both shrink on a phone. Seven controls plus the bell is a fixed amount of
+    // Both shrink on a phone. Eight controls plus the bell is a fixed amount of
     // object; what the rail can give back is the space around and between them.
     gap: { default: '0.5rem', '@media (min-width: 640px)': '0.75rem' },
     pointerEvents: 'none',
@@ -86,7 +86,7 @@ export function BottomNav() {
   return (
     <div {...stylex.props(styles.rail)}>
       {/* The landmark names the WHOLE navigation, not its first item. It was
-          labelled `nav.home`, so a screen reader announced a six-item region as
+          labelled `nav.home`, so a screen reader announced a seven-item region as
           "Home navigation" — and then read "Home" again as the first link
           inside it. */}
       <nav {...stylex.props(styles.capsule)} aria-label={tShell('primaryNav')}>
@@ -115,7 +115,7 @@ export function BottomNav() {
             chrome, and the thumb looks for it where everything else it can press
             already is. It opens a panel instead of navigating, which is the only
             difference the markup makes — same pill, same states, same label rule
-            as the six links beside it. */}
+            as the seven links beside it. */}
         <AccountMenu />
       </nav>
 

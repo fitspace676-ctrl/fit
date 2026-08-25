@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   createServiceSchema,
-  formatServiceSchedule,
   listAdminServicesQuerySchema,
   serviceScheduleSchema,
   updateServiceSchema,
-  type ServiceSchedule,
 } from './services-admin';
 
 const schedule = {
@@ -94,34 +92,5 @@ describe('listAdminServicesQuerySchema', () => {
       page: 3,
       limit: 5,
     });
-  });
-});
-
-describe('formatServiceSchedule', () => {
-  it('spells a weekly schedule', () => {
-    expect(formatServiceSchedule({ ...schedule, until: null } as ServiceSchedule)).toBe(
-      'Every Mon, Wed · 18:00',
-    );
-  });
-
-  it('spells a daily schedule', () => {
-    const dailySchedule: ServiceSchedule = {
-      ...schedule,
-      freq: 'DAILY',
-      weekdays: [],
-      until: null,
-    };
-    expect(formatServiceSchedule(dailySchedule)).toBe('Daily · 18:00');
-  });
-
-  it('spells a one-off with its date', () => {
-    const onceSchedule: ServiceSchedule = { ...schedule, freq: 'ONCE', weekdays: [], until: null };
-    expect(formatServiceSchedule(onceSchedule)).toBe('Once · 1 Sep 2026 · 18:00');
-  });
-
-  it('appends the end date when set', () => {
-    expect(formatServiceSchedule({ ...schedule, until: '2026-12-31' } as ServiceSchedule)).toBe(
-      'Every Mon, Wed · 18:00 · until 31 Dec 2026',
-    );
   });
 });

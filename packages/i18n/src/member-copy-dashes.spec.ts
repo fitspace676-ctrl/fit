@@ -27,6 +27,7 @@ const MEMBER_NAMESPACES = [
   'footer',
   'home',
   'member',
+  'services',
   'shop',
   'trainers',
 ] as const;
@@ -56,5 +57,35 @@ describe('member portal copy', () => {
     ['ka', ka],
   ])('uses a plain hyphen, never an em or en dash (%s)', (_locale, catalogue) => {
     expect(offenders(catalogue as Record<string, unknown>)).toEqual([]);
+  });
+});
+
+/**
+ * Console namespaces held to the same rule. The console's older copy predates it,
+ * so this list grows one feature at a time rather than covering `admin.*` wholesale.
+ */
+const CONSOLE_NAMESPACES = ['admin.services', 'admin.pos.products'] as const;
+
+/** The subtree at a dotted `path`, e.g. `admin.services`. */
+function at(catalogue: Record<string, unknown>, path: string): unknown {
+  return path
+    .split('.')
+    .reduce<unknown>(
+      (node, key) => (node as Record<string, unknown> | undefined)?.[key],
+      catalogue,
+    );
+}
+
+describe('console copy (services, POS catalogue)', () => {
+  it.each([
+    ['en', en],
+    ['ka', ka],
+  ])('uses a plain hyphen, never an em or en dash (%s)', (_locale, catalogue) => {
+    const found = CONSOLE_NAMESPACES.flatMap((ns) =>
+      leaves(at(catalogue as Record<string, unknown>, ns), ns),
+    )
+      .filter(([, value]) => LONG_DASH.test(value))
+      .map(([path, value]) => `${path}: ${value}`);
+    expect(found).toEqual([]);
   });
 });

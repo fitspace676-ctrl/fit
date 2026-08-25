@@ -378,13 +378,8 @@ const KIND_TONES: Record<MemberKind, BadgeTone> = {
   INACTIVE: 'pending',
 };
 
-/** The tab strip, in the order the counter uses them. */
-const TABS: ReadonlyArray<{ value: Catalogue; label: string }> = [
-  { value: 'memberships', label: 'Memberships' },
-  { value: 'products', label: 'Products' },
-  { value: 'services', label: 'Services' },
-  { value: 'members', label: 'Members' },
-];
+/** The tab strip, in the order the counter uses them. Labels are `admin.pos.products.tabs.*`. */
+const TABS: ReadonlyArray<Catalogue> = ['memberships', 'products', 'services', 'members'];
 
 /**
  * The POS catalogue (left column): what a gym sells across the counter —
@@ -577,14 +572,14 @@ export function ProductGrid({
       <div {...stylex.props(styles.tabs)} role="tablist" aria-label="Catalogue">
         {TABS.map((tab) => (
           <button
-            key={tab.value}
+            key={tab}
             type="button"
             role="tab"
-            aria-selected={catalogue === tab.value}
-            onClick={() => setCatalogue(tab.value)}
-            {...stylex.props(styles.tab, catalogue === tab.value && styles.tabActive)}
+            aria-selected={catalogue === tab}
+            onClick={() => setCatalogue(tab)}
+            {...stylex.props(styles.tab, catalogue === tab && styles.tabActive)}
           >
-            {tab.label}
+            {t(`tabs.${tab}`)}
           </button>
         ))}
       </div>
@@ -654,9 +649,7 @@ export function ProductGrid({
         <div {...stylex.props(styles.scrollArea)}>
           {shownServices.length === 0 ? (
             <p {...stylex.props(styles.empty)}>
-              {services.length === 0
-                ? 'No active services to sell yet.'
-                : 'No services match that.'}
+              {services.length === 0 ? t('servicesEmpty') : t('servicesNoMatch')}
             </p>
           ) : (
             <ul {...stylex.props(styles.grid)}>
@@ -669,7 +662,9 @@ export function ProductGrid({
                   >
                     <span {...stylex.props(styles.membershipTop)}>
                       <span {...stylex.props(styles.tileName, styles.membershipName)}>
-                        {service.name}
+                        {service.type === 'PERSONAL_TRAINING'
+                          ? t('ptTitle', { staff: service.staffName })
+                          : service.name}
                       </span>
                       <span {...stylex.props(styles.durationBadge)}>
                         {service.durationMinutes} min
@@ -777,6 +772,17 @@ export function ProductGrid({
                       <td {...stylex.props(styles.td)}>
                         <span {...stylex.props(styles.statusWrap)}>
                           <MemberStanding member={member} />
+                          {member.outstanding ? (
+                            <Badge
+                              tone="danger"
+                              label={t('membersOwing', {
+                                amount: formatPrice(
+                                  member.outstanding.amount,
+                                  member.outstanding.currency,
+                                ),
+                              })}
+                            />
+                          ) : null}
                           {attached ? (
                             <span {...stylex.props(styles.attachedTag)}>
                               {t('membersAttached')}

@@ -153,6 +153,7 @@ export function PosAddMemberDrawer({
                     ...member,
                     photoUrl: null,
                     planName: null,
+                    outstanding: null,
                     kind: 'GUEST',
                     status: 'ACTIVE',
                   });

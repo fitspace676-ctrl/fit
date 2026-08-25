@@ -389,6 +389,16 @@ enum ServiceStatus {
   ARCHIVED
 }
 
+/// A {@link ServiceSession}'s lifecycle: an OPEN slot any member may book, BOOKED
+/// once a member holds it (an invoice is raised at that moment), COMPLETED after it
+/// ran, CANCELLED by staff (the row stays for history).
+enum ServiceSessionStatus {
+  OPEN
+  BOOKED
+  COMPLETED
+  CANCELLED
+}
+
 /// A physical gym / tenant. The top-level entity most other records hang off.
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
@@ -416,6 +426,7 @@ model Gym {
   locations               Location[]
   products                Product[]
   services                Service[]
+  serviceSessions         ServiceSession[]
   productCategories       ProductCategory[]
   packagePlans            PackagePlan[]
   staffInvites            StaffInvite[]
@@ -672,40 +683,42 @@ model GymMember {
   lastName            String?
   assignedLocationIds String[] @default([])
 
-  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gym                Gym                  @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  bookings           Booking[]
-  reviews            Review[]
+  user                    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym                     Gym                  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  bookings                Booking[]
+  reviews                 Review[]
   /// Orders this person BOUGHT. Named because {@link Order} now points at
   /// `GymMember` twice — once for the buyer, once for the staff member who rang
   /// the sale — and Prisma cannot tell two relations between the same pair apart
   /// on its own.
-  orders             Order[]              @relation("OrderBuyer")
+  orders                  Order[]              @relation("OrderBuyer")
   /// Orders this staff member SOLD, for the sales-by-staff report. Empty for a
   /// plain member, and for every sale that predates the attribution.
-  sales              Order[]              @relation("OrderSeller")
+  sales                   Order[]              @relation("OrderSeller")
   /// Services this staff member delivers (the Services catalogue).
-  services           Service[]            @relation("ServiceStaff")
+  services                Service[]            @relation("ServiceStaff")
+  serviceSessionsAsStaff  ServiceSession[]     @relation("ServiceSessionStaff")
+  serviceSessionsAsMember ServiceSession[]     @relation("ServiceSessionMember")
   /// Refunds this staff member processed.
-  refundsProcessed   Refund[]
-  subscriptions      Subscription[]
-  creditPacks        CreditPack[]
-  goals              MemberGoal[]
-  checkIns           CheckIn[]
-  invoices           Invoice[]
-  notes              MemberNote[]
-  tasks              MemberTask[]
-  opportunities      Opportunity[]
-  loyaltyLedger      LoyaltyLedgerEntry[]
-  loyaltyRedemptions LoyaltyRedemption[]
-  promoRedemptions   PromoRedemption[]
-  staffNotes         StaffNote[]
-  staffTasks         StaffTask[]
-  timeOffRequests    TimeOffRequest[]
-  shiftSlots         ShiftSlot[]
+  refundsProcessed        Refund[]
+  subscriptions           Subscription[]
+  creditPacks             CreditPack[]
+  goals                   MemberGoal[]
+  checkIns                CheckIn[]
+  invoices                Invoice[]
+  notes                   MemberNote[]
+  tasks                   MemberTask[]
+  opportunities           Opportunity[]
+  loyaltyLedger           LoyaltyLedgerEntry[]
+  loyaltyRedemptions      LoyaltyRedemption[]
+  promoRedemptions        PromoRedemption[]
+  staffNotes              StaffNote[]
+  staffTasks              StaffTask[]
+  timeOffRequests         TimeOffRequest[]
+  shiftSlots              ShiftSlot[]
   /// The coach profile this staff member teaches under, when they hold (or once
   /// held) the `TRAINER` role. One-to-one — see {@link Trainer.staffId}.
-  trainerProfile     Trainer?
+  trainerProfile          Trainer?
 
   @@unique([userId, gymId])
   // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
@@ -996,19 +1009,58 @@ model Service {
   durationMinutes Int           @default(60)
   description     String        @default("")
   schedule        Json?
+  /// Public URL of the service's cover image in R2 (`{gymId}/services/…`), or null
+  /// when it has none. Referenced by the media sweep.
+  coverUrl        String?
   status          ServiceStatus @default(ACTIVE)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  gym        Gym         @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  gym        Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
   /// `Restrict`: a staff member with services cannot be hard-deleted — reassign first.
-  staff      GymMember   @relation("ServiceStaff", fields: [staffId], references: [id], onDelete: Restrict)
+  staff      GymMember        @relation("ServiceStaff", fields: [staffId], references: [id], onDelete: Restrict)
   orderItems OrderItem[]
+  sessions   ServiceSession[]
 
   /// Backs the admin roster: a tenant's services by status and type.
   @@index([gymId, status, type])
   @@index([gymId, staffId])
   @@map("services")
+}
+
+/// One bookable run of a {@link Service}: a slot staff open on the PT calendar
+/// (`OPEN`), which a member books from the portal (`BOOKED`, `memberId` set and a
+/// PENDING invoice raised for the service price). `staffId` is snapshotted from
+/// the service at creation so reassigning the service never moves a scheduled
+/// session. `endsAt = startsAt + service.durationMinutes` at creation.
+model ServiceSession {
+  id        String               @id @default(cuid())
+  gymId     String
+  serviceId String
+  staffId   String
+  /// null = an open slot any member may book.
+  memberId  String?
+  startsAt  DateTime
+  endsAt    DateTime
+  status    ServiceSessionStatus @default(OPEN)
+  /// The invoice raised when the session was booked, or null while it is open.
+  invoiceId String?
+  notes     String               @default("")
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  gym     Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  service Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  staff   GymMember  @relation("ServiceSessionStaff", fields: [staffId], references: [id], onDelete: Restrict)
+  member  GymMember? @relation("ServiceSessionMember", fields: [memberId], references: [id], onDelete: SetNull)
+  invoice Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([gymId, startsAt])
+  @@index([gymId, staffId, startsAt])
+  @@index([gymId, memberId, startsAt])
+  @@index([serviceId])
+  @@index([invoiceId])
+  @@map("service_sessions")
 }
 
 /// Why a {@link StockMovement} happened. `RECEIVE` is a delivery landing on the
@@ -1952,10 +2004,11 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  gym          Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  member       GymMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  gym             Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  subscription    Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  order           Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  member          GymMember?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  serviceSessions ServiceSession[]
 
   /// The invoice reference is unique within its gym; the per-gym+year counter that
   /// generates it guarantees sequentiality.

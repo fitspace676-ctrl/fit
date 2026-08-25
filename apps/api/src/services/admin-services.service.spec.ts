@@ -30,12 +30,13 @@ const staff = (over: Record<string, unknown> = {}) => ({
 const row = (over: Record<string, unknown> = {}) => ({
   id: 's-1',
   type: 'PERSONAL_TRAINING',
-  name: 'Personal training — Nino Beridze',
+  name: 'Personal training - Nino Beridze',
   priceMinor: 5000,
   currency: 'GEL',
   durationMinutes: 60,
   description: '',
   schedule: null,
+  coverUrl: null,
   status: 'ACTIVE',
   createdAt: new Date('2026-08-25T10:00:00Z'),
   staff: staff(),
@@ -46,6 +47,7 @@ function setup(overrides?: {
   staffRow?: ReturnType<typeof staff> | null;
   rows?: ReturnType<typeof row>[];
   existing?: ReturnType<typeof row> | null;
+  deliveredSessions?: number;
 }) {
   const serviceFindMany = vi.fn<(args: Args) => Promise<unknown[]>>(() =>
     Promise.resolve(overrides?.rows ?? []),
@@ -63,6 +65,8 @@ function setup(overrides?: {
   const serviceUpdate = vi.fn<(args: Args) => Promise<unknown>>((args) =>
     Promise.resolve(row({ ...(args.data as object) })),
   );
+  const serviceDelete = vi.fn(() => Promise.resolve({ id: 's-1' }));
+  const sessionCount = vi.fn(() => Promise.resolve(overrides?.deliveredSessions ?? 0));
   const memberFindFirst = vi.fn<(args: Args) => Promise<unknown>>(() =>
     Promise.resolve(overrides?.staffRow === undefined ? staff() : overrides.staffRow),
   );
@@ -78,27 +82,33 @@ function setup(overrides?: {
       findFirst: serviceFindFirst,
       create: serviceCreate,
       update: serviceUpdate,
+      delete: serviceDelete,
     },
+    serviceSession: { count: sessionCount, deleteMany: vi.fn(() => Promise.resolve({ count: 0 })) },
     gymMember: { findFirst: memberFindFirst, findMany: memberFindMany },
   };
+  Object.assign(client, { $transaction: vi.fn((ops: unknown[]) => Promise.all(ops)) });
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
   const locale = {
-    get: vi.fn(() => Promise.resolve({ currency: 'GEL' })),
+    get: vi.fn(() => Promise.resolve({ currency: 'GEL', language: 'en' })),
   } as unknown as GymLocaleService;
 
   return {
     service: new AdminServicesService(prisma, tenant, locale),
     serviceCreate,
     serviceUpdate,
+    serviceDelete,
     serviceFindMany,
     memberFindFirst,
   };
 }
 
 describe('personalTrainingName', () => {
-  it('prefixes the trainer name', () => {
-    expect(personalTrainingName('Nino Beridze')).toBe('Personal training — Nino Beridze');
+  it('prefixes the trainer name in the gym language, with a plain hyphen', () => {
+    expect(personalTrainingName('Nino Beridze', 'en')).toBe('Personal training - Nino Beridze');
+    expect(personalTrainingName('ნინო ბერიძე', 'ka')).toBe('პერსონალური ვარჯიში - ნინო ბერიძე');
+    expect(personalTrainingName('Nino Beridze', 'ka')).not.toMatch(/[—–]/);
   });
 });
 
@@ -110,6 +120,8 @@ describe('AdminServicesService.createService', () => {
 
     const created = await service.createService({
       type: 'PERSONAL_TRAINING',
+      schedule: null,
+      coverUrl: null,
       staffId: 'gm-1',
       priceMinor: 5000,
       durationMinutes: 60,
@@ -119,7 +131,7 @@ describe('AdminServicesService.createService', () => {
     expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({
       gymId: 'gym-1',
       type: 'PERSONAL_TRAINING',
-      name: 'Personal training — Nino Beridze',
+      name: 'Personal training - Nino Beridze',
       staffId: 'gm-1',
       currency: 'GEL',
       schedule: Prisma.JsonNull,
@@ -142,6 +154,8 @@ describe('AdminServicesService.createService', () => {
         priceMinor: 5000,
         durationMinutes: 60,
         description: '',
+        schedule: null,
+        coverUrl: null,
       }),
     ).rejects.toMatchObject({
       constructor: UnprocessableEntityException,
@@ -156,6 +170,7 @@ describe('AdminServicesService.createService', () => {
       service.createService({
         type: 'CUSTOM',
         name: 'Massage',
+        coverUrl: null,
         staffId: 'gm-9',
         priceMinor: 8000,
         durationMinutes: 45,
@@ -186,6 +201,7 @@ describe('AdminServicesService.createService', () => {
     await service.createService({
       type: 'CUSTOM',
       name: 'Massage',
+      coverUrl: null,
       staffId: 'gm-2',
       priceMinor: 8000,
       durationMinutes: 45,
@@ -194,6 +210,32 @@ describe('AdminServicesService.createService', () => {
     });
 
     expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({ name: 'Massage', schedule });
+  });
+
+  it('stores an optional schedule and cover on a PT service', async () => {
+    const { service, serviceCreate } = setup();
+    const schedule = {
+      freq: 'WEEKLY' as const,
+      weekdays: ['MO' as const, 'WE' as const],
+      startDate: '2026-09-01',
+      startTime: '18:00',
+      until: '2026-12-31',
+    };
+
+    await service.createService({
+      type: 'PERSONAL_TRAINING',
+      staffId: 'gm-1',
+      priceMinor: 5000,
+      durationMinutes: 60,
+      description: '',
+      schedule,
+      coverUrl: 'https://cdn/gym-1/services/pt.jpg',
+    });
+
+    expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      schedule,
+      coverUrl: 'https://cdn/gym-1/services/pt.jpg',
+    });
   });
 });
 
@@ -214,7 +256,7 @@ describe('AdminServicesService.updateService', () => {
 
     expect(serviceUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
       staffId: 'gm-3',
-      name: 'Personal training — Giorgi K',
+      name: 'Personal training - Giorgi K',
     });
   });
 
@@ -223,6 +265,25 @@ describe('AdminServicesService.updateService', () => {
     await expect(service.updateService('nope', { priceMinor: 1 })).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('clears a PT schedule and replaces the cover', async () => {
+    const { service, serviceUpdate } = setup();
+
+    await service.updateService('s-1', { schedule: null, coverUrl: null });
+
+    expect(serviceUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
+      schedule: Prisma.JsonNull,
+      coverUrl: null,
+    });
+  });
+
+  it('refuses to clear a custom service schedule', async () => {
+    const { service } = setup({ existing: row({ type: 'CUSTOM', name: 'Massage' }) });
+
+    await expect(service.updateService('s-1', { schedule: null })).rejects.toMatchObject({
+      response: { code: 'SERVICE_SCHEDULE_REQUIRED' },
+    });
   });
 });
 
@@ -264,5 +325,34 @@ describe('AdminServicesService.listStaffOptions', () => {
       },
       { id: 'gm-2', name: 'Nino Beridze', role: 'RECEPTIONIST', photoUrl: null, isTrainer: false },
     ]);
+  });
+});
+
+describe('AdminServicesService.deleteService', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('deletes an archived service that was never booked, along with its open slots', async () => {
+    const { service, serviceDelete } = setup({ existing: row({ status: 'ARCHIVED' }) });
+    await service.deleteService('s-1');
+    expect(serviceDelete).toHaveBeenCalledWith({ where: { id: 's-1' }, select: { id: true } });
+  });
+
+  it('refuses an active service', async () => {
+    const { service, serviceDelete } = setup();
+    await expect(service.deleteService('s-1')).rejects.toMatchObject({
+      response: { code: 'SERVICE_NOT_ARCHIVED' },
+    });
+    expect(serviceDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses a service with booked or completed sessions', async () => {
+    const { service, serviceDelete } = setup({
+      existing: row({ status: 'ARCHIVED' }),
+      deliveredSessions: 2,
+    });
+    await expect(service.deleteService('s-1')).rejects.toMatchObject({
+      response: { code: 'SERVICE_HAS_SESSIONS' },
+    });
+    expect(serviceDelete).not.toHaveBeenCalled();
   });
 });

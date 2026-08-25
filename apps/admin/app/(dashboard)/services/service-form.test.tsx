@@ -1,7 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { NextIntlClientProvider } from 'next-intl';
+import { en } from '@fit/i18n';
 import { ServiceForm } from './service-form';
 import { createServiceAction } from './actions';
+
+/** Render inside the console's English catalogue, as the dashboard layout does. */
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={en}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
 
 vi.mock('./actions', () => ({
   createServiceAction: vi.fn(() => Promise.resolve({ ok: true, data: { id: 's-1' } })),
@@ -15,8 +26,10 @@ const staff = [
 ];
 
 describe('ServiceForm', () => {
+  afterEach(() => vi.clearAllMocks());
+
   it('shows no name field and only trainers for a personal-training service', () => {
-    render(
+    renderWithIntl(
       <ServiceForm
         mode="create"
         type="PERSONAL_TRAINING"
@@ -32,8 +45,44 @@ describe('ServiceForm', () => {
     expect(options).not.toContain('Lasha M');
   });
 
+  it('offers a cover image and an optional schedule on a personal-training service', () => {
+    renderWithIntl(
+      <ServiceForm
+        mode="create"
+        type="PERSONAL_TRAINING"
+        staff={staff}
+        onSuccess={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Upload cover image' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Weekly' })).toBeTruthy();
+    expect(screen.getByLabelText<HTMLInputElement>('Starts on').required).toBe(false);
+  });
+
+  it('sends no schedule for a personal-training service left without a start date', async () => {
+    renderWithIntl(
+      <ServiceForm
+        mode="create"
+        type="PERSONAL_TRAINING"
+        staff={staff}
+        onSuccess={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Staff member'), { target: { value: 'gm-1' } });
+    fireEvent.change(screen.getByLabelText('Price per session'), { target: { value: '80' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create service' }));
+
+    await waitFor(() => expect(createServiceAction).toHaveBeenCalledTimes(1));
+    const [input] = vi.mocked(createServiceAction).mock.calls[0]!;
+    expect(input).toMatchObject({ type: 'PERSONAL_TRAINING', schedule: null, coverUrl: null });
+  });
+
   it('shows the name, schedule and every staff member for a custom service', () => {
-    render(
+    renderWithIntl(
       <ServiceForm
         mode="create"
         type="CUSTOM"
@@ -49,7 +98,7 @@ describe('ServiceForm', () => {
   });
 
   it('only shows weekday chips for a weekly schedule', () => {
-    render(
+    renderWithIntl(
       <ServiceForm
         mode="create"
         type="CUSTOM"
@@ -66,7 +115,7 @@ describe('ServiceForm', () => {
   });
 
   it('clears the end date and weekdays on submit when Weekly is switched to Once', async () => {
-    render(
+    renderWithIntl(
       <ServiceForm
         mode="create"
         type="CUSTOM"
@@ -95,7 +144,7 @@ describe('ServiceForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create service' }));
 
     await waitFor(() => expect(createServiceAction).toHaveBeenCalledTimes(1));
-    const [input] = vi.mocked(createServiceAction).mock.calls[0]!;
+    const [input] = vi.mocked(createServiceAction).mock.calls.at(-1)!;
     expect(input).toMatchObject({
       type: 'CUSTOM',
       schedule: { freq: 'ONCE', weekdays: [], until: null },

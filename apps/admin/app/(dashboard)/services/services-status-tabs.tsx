@@ -2,13 +2,14 @@
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { FilterChips, type FilterChip } from '@fit/ui-kit';
 
 /** The tabs, in roster-priority order. No "All" — the API defaults to ACTIVE. */
-const TABS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'ARCHIVED', label: 'Archived' },
-];
+const TABS = [
+  { value: 'ACTIVE', key: 'active' },
+  { value: 'ARCHIVED', key: 'archived' },
+] as const;
 
 /**
  * The services catalogue's segmented status tabs: a pill row that maps to the
@@ -17,6 +18,7 @@ const TABS: ReadonlyArray<{ value: string; label: string }> = [
  * responsive. Mirrors the shop catalog's status tabs.
  */
 export function ServicesStatusTabs({ status }: { status: string }) {
+  const t = useTranslations('admin.services.tabs');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -34,14 +36,7 @@ export function ServicesStatusTabs({ status }: { status: string }) {
     startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname));
   }
 
-  const chips: FilterChip[] = TABS.map((tab) => ({ label: tab.label, value: tab.value }));
+  const chips: FilterChip[] = TABS.map((tab) => ({ label: t(tab.key), value: tab.value }));
 
-  return (
-    <FilterChips
-      chips={chips}
-      active={status}
-      onSelect={select}
-      label="Filter services by status"
-    />
-  );
+  return <FilterChips chips={chips} active={status} onSelect={select} label={t('ariaLabel')} />;
 }

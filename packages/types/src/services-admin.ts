@@ -7,11 +7,7 @@
 // two can never drift.
 
 import { z } from 'zod';
-import {
-  recurrenceFreqSchema,
-  recurrenceWeekdaySchema,
-  type RecurrenceWeekday,
-} from './classes-admin';
+import { recurrenceFreqSchema, recurrenceWeekdaySchema } from './classes-admin';
 import { sortDirSchema } from './members';
 
 export const serviceTypeSchema = z.enum(['PERSONAL_TRAINING', 'CUSTOM']);
@@ -26,9 +22,11 @@ const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
 const clockTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM');
 
 /**
- * When a CUSTOM service runs. The classes-admin recurrence vocabulary plus a
- * start date, a start time and an optional end date. `weekdays` only applies to
+ * When a service runs. The classes-admin recurrence vocabulary plus a start
+ * date, a start time and an optional end date. `weekdays` only applies to
  * `WEEKLY` (and is then required); the API expands this into sessions in stage 2.
+ * Required on a CUSTOM service; optional on a PT one, whose slots otherwise
+ * come from the trainer's PT calendar.
  */
 export const serviceScheduleSchema = z
   .object({
@@ -63,20 +61,37 @@ export const serviceScheduleSchema = z
 export type ServiceSchedule = z.infer<typeof serviceScheduleSchema>;
 export type ServiceScheduleInput = z.input<typeof serviceScheduleSchema>;
 
+/**
+ * The optional cover image, as a public URL. `''` and absent both normalise to
+ * null so "no cover" has exactly one representation on the wire.
+ */
+const coverUrlSchema = z
+  .preprocess(
+    (value) => (value === '' || value === undefined ? null : value),
+    z.string().trim().url('The cover image must be a URL').max(2048).nullable(),
+  )
+  .default(null);
+
 /** The fields every service carries, whatever its type. */
 const serviceProfileFields = {
   staffId: z.string().trim().min(1, 'Pick a staff member'),
   priceMinor: z.number().int().nonnegative(),
   durationMinutes: z.number().int().min(15).max(480).default(60),
   description: z.string().trim().max(2000).default(''),
+  coverUrl: coverUrlSchema,
 };
 
 /**
  * Body for `POST /admin/services`, discriminated on `type`. A PT service has no
- * `name` (generated from its trainer) and no `schedule`; a CUSTOM one needs both.
+ * `name` (generated from its trainer) and an optional `schedule`; a CUSTOM one
+ * needs both.
  */
 export const createServiceSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('PERSONAL_TRAINING'), ...serviceProfileFields }),
+  z.object({
+    type: z.literal('PERSONAL_TRAINING'),
+    schedule: serviceScheduleSchema.nullable().default(null),
+    ...serviceProfileFields,
+  }),
   z.object({
     type: z.literal('CUSTOM'),
     name: z.string().trim().min(1, 'Give the service a name').max(120),
@@ -89,9 +104,10 @@ export type CreateServiceInput = z.input<typeof createServiceSchema>;
 export type CreateServiceData = z.infer<typeof createServiceSchema>;
 
 /**
- * Body for `PATCH /admin/services/:id`. `type` is immutable. `name` and `schedule`
- * are ignored by the API on a PT service (its name is regenerated when `staffId`
- * changes).
+ * Body for `PATCH /admin/services/:id`. `type` is immutable. `name` is ignored by
+ * the API on a PT service (regenerated when `staffId` changes). `schedule: null`
+ * clears a PT service's schedule; on a CUSTOM service the API rejects it
+ * (`SERVICE_SCHEDULE_REQUIRED`).
  */
 export const updateServiceSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
@@ -99,7 +115,8 @@ export const updateServiceSchema = z.object({
   priceMinor: z.number().int().nonnegative().optional(),
   durationMinutes: z.number().int().min(15).max(480).optional(),
   description: z.string().trim().max(2000).optional(),
-  schedule: serviceScheduleSchema.optional(),
+  schedule: serviceScheduleSchema.nullable().optional(),
+  coverUrl: coverUrlSchema.optional(),
 });
 
 export type UpdateServiceData = z.infer<typeof updateServiceSchema>;
@@ -139,6 +156,7 @@ export interface AdminServiceRow {
   durationMinutes: number;
   description: string;
   schedule: ServiceSchedule | null;
+  coverUrl: string | null;
   status: ServiceStatus;
   createdAt: string;
 }
@@ -174,48 +192,39 @@ export interface ListServiceStaffResponse {
   data: ServiceStaffOption[];
 }
 
-const WEEKDAY_LABEL: Record<RecurrenceWeekday, string> = {
-  MO: 'Mon',
-  TU: 'Tue',
-  WE: 'Wed',
-  TH: 'Thu',
-  FR: 'Fri',
-  SA: 'Sat',
-  SU: 'Sun',
-};
-
-/** `"2026-09-01"` → `"1 Sep 2026"`, locale-independent (admin copy is English). */
-function formatIsoDate(iso: string): string {
-  const [year, month, day] = iso.split('-').map(Number);
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return `${day} ${months[(month ?? 1) - 1]} ${year}`;
-}
+// ── Member portal (public catalogue) ─────────────────────────────────────────
 
 /**
- * A schedule in words for the roster row: `"Every Mon, Wed · 18:00"`,
- * `"Daily · 09:00"`, `"Once · 3 Sep 2026 · 18:00"`, each with `" · until <date>"`
- * when an end date is set.
+ * Query for the public `GET /services?gymId=<id>` — the member portal's
+ * catalogue. Like `/trainers` and `/products` the route is unauthenticated and
+ * the gym is named explicitly (resolved from the subdomain), not by a session.
  */
-export function formatServiceSchedule(schedule: ServiceSchedule): string {
-  const head =
-    schedule.freq === 'WEEKLY'
-      ? `Every ${schedule.weekdays.map((day) => WEEKDAY_LABEL[day]).join(', ')}`
-      : schedule.freq === 'DAILY'
-        ? 'Daily'
-        : `Once · ${formatIsoDate(schedule.startDate)}`;
-  const until = schedule.until ? ` · until ${formatIsoDate(schedule.until)}` : '';
-  return `${head} · ${schedule.startTime}${until}`;
+export const listServicesQuerySchema = z.object({
+  gymId: z.string().min(1),
+});
+
+export type ListServicesQuery = z.infer<typeof listServicesQuerySchema>;
+
+/** One ACTIVE service as the member portal renders it. Parsed client-side. */
+export const serviceCardSchema = z.object({
+  id: z.string(),
+  type: serviceTypeSchema,
+  name: z.string(),
+  description: z.string(),
+  priceMinor: z.number().int(),
+  currency: z.string(),
+  durationMinutes: z.number().int(),
+  coverUrl: z.string().nullable(),
+  schedule: serviceScheduleSchema.nullable(),
+  staff: z.object({
+    id: z.string(),
+    name: z.string(),
+    photoUrl: z.string().nullable(),
+  }),
+});
+
+export type ServiceCard = z.infer<typeof serviceCardSchema>;
+
+export interface ListServicesResponse {
+  services: ServiceCard[];
 }

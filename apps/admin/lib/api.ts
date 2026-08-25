@@ -189,6 +189,10 @@ import type {
   CreatePtSessionData,
   CreatePtSessionResponse,
   PtSessionStatusResponse,
+  AdminServiceSession,
+  AdminServiceSessionsResponse,
+  CreateServiceSessionData,
+  ListAdminServiceSessionsQuery,
   MarkAttendanceData,
   MarkAttendanceResponse,
   ReportCatalogResponse,
@@ -854,6 +858,47 @@ export async function reactivateProduct(id: string): Promise<SetProductStatusRes
   return unwrap<SetProductStatusResponse>(res);
 }
 
+// ── Service sessions (PT calendar slots, stage 2) ─────────────────────────────
+
+/** `GET /admin/service-sessions?from&to&staffId?&serviceId?` — the PT calendar's slots. */
+export async function fetchAdminServiceSessions(
+  query: ListAdminServiceSessionsQuery,
+): Promise<AdminServiceSessionsResponse> {
+  const params = new URLSearchParams({ from: query.from, to: query.to });
+  if (query.staffId) params.set('staffId', query.staffId);
+  if (query.serviceId) params.set('serviceId', query.serviceId);
+  const res = await fetch(`${apiBaseUrl()}/admin/service-sessions?${params.toString()}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AdminServiceSessionsResponse>(res);
+}
+
+/** `POST /admin/service-sessions` — open one slot of a service. Gated `ClassWrite`. */
+export async function createServiceSession(
+  input: CreateServiceSessionData,
+): Promise<AdminServiceSession> {
+  const res = await fetch(`${apiBaseUrl()}/admin/service-sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<AdminServiceSession>(res);
+}
+
+/** `POST /admin/service-sessions/:id/cancel` / `/complete`. */
+export async function setServiceSessionStatus(
+  id: string,
+  action: 'cancel' | 'complete',
+): Promise<AdminServiceSession> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/service-sessions/${encodeURIComponent(id)}/${action}`,
+    { method: 'POST', headers: await authHeaders(), cache: 'no-store' },
+  );
+  return unwrap<AdminServiceSession>(res);
+}
+
 // ── Services (Services catalogue, stage 1) ────────────────────────────────────
 
 /** Serialise a services roster query to `?key=value`, dropping empty values. */
@@ -924,6 +969,16 @@ async function setServiceStatus(id: string, verb: 'archive' | 'restore'): Promis
 
 export const archiveService = (id: string) => setServiceStatus(id, 'archive');
 export const restoreService = (id: string) => setServiceStatus(id, 'restore');
+
+/** `DELETE /admin/services/:id` — permanently remove an archived service. */
+export async function deleteService(id: string): Promise<{ id: string }> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<{ id: string }>(res);
+}
 
 // ── Package plans (T4.11) ─────────────────────────────────────────────────────
 

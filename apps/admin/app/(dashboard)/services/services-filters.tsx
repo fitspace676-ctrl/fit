@@ -2,16 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
 
-const TYPE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: '', label: 'All types' },
-  { value: 'PERSONAL_TRAINING', label: 'Personal training' },
-  { value: 'CUSTOM', label: 'Custom' },
-];
+/** The type select's values; `''` is "all types". Labels come from `admin.services`. */
+const TYPE_OPTIONS = ['', 'PERSONAL_TRAINING', 'CUSTOM'] as const;
 
 const styles = stylex.create({
   row: {
@@ -78,6 +76,7 @@ const styles = stylex.create({
  * `ServicesStatusTabs`.
  */
 export function ServicesFilters({ search, type }: { search: string; type: string }) {
+  const t = useTranslations('admin.services');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -113,21 +112,21 @@ export function ServicesFilters({ search, type }: { search: string; type: string
     <div {...stylex.props(styles.row)}>
       <div {...stylex.props(styles.searchWrap)}>
         <label htmlFor="service-search" {...stylex.props(styles.srOnly)}>
-          Search services by name or description
+          {t('filters.searchLabel')}
         </label>
         <input
           id="service-search"
           type="search"
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search by name or description…"
+          placeholder={t('filters.searchPlaceholder')}
           {...stylex.props(styles.control)}
         />
       </div>
 
       <div {...stylex.props(styles.typeWrap)}>
         <label htmlFor="service-type-filter" {...stylex.props(styles.srOnly)}>
-          Filter services by type
+          {t('filters.typeLabel')}
         </label>
         <select
           id="service-type-filter"
@@ -136,8 +135,8 @@ export function ServicesFilters({ search, type }: { search: string; type: string
           {...stylex.props(styles.control)}
         >
           {TYPE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+            <option key={option} value={option}>
+              {option === '' ? t('filters.allTypes') : t(`type.${option}`)}
             </option>
           ))}
         </select>

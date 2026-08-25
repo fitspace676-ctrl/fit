@@ -13,6 +13,7 @@ import {
   type RecordPosSaleResponse,
   type SendReceiptInput,
   type SendReceiptResponse,
+  type ServiceType,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import {
@@ -66,6 +67,8 @@ export interface PosMemberRow {
    * operator actually has to answer, and a name and a phone alone cannot.
    */
   planName: string | null;
+  /** Unsettled invoices, summed — the till's "owes" badge; `null` when clear. */
+  outstanding: { amount: number; currency: string } | null;
   /**
    * What this person currently is to the gym — the roster's own standing, derived
    * from their subscriptions. The till's badge reads off this: whether someone is
@@ -123,6 +126,7 @@ function toPosMember(row: MemberRow): PosMemberRow {
     email: row.email,
     photoUrl: null,
     planName: row.plan?.name ?? row.planName,
+    outstanding: row.outstanding,
     kind: row.kind,
     status: row.status,
   };
@@ -349,6 +353,7 @@ export async function fetchPosMembershipsAction(): Promise<ActionResult<PosMembe
 /** A catalogue service as the POS Services tab renders it. */
 export interface PosServiceRow {
   id: string;
+  type: ServiceType;
   name: string;
   staffName: string;
   priceAmount: number;
@@ -375,6 +380,7 @@ export async function fetchPosServicesAction(): Promise<ActionResult<PosServiceR
       ok: true,
       data: data.map((service) => ({
         id: service.id,
+        type: service.type,
         name: service.name,
         staffName: service.staff.name,
         priceAmount: service.priceMinor,

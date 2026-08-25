@@ -2,7 +2,8 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@fit/ui-kit';
 import type { ServiceRosterSummary } from '@fit/types';
 import { Icon, type IconName } from '@/components/ui';
-import { createNumberFormat, defaultLocale } from '@fit/i18n';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { createNumberFormat } from '@fit/i18n';
 
 const styles = stylex.create({
   grid: {
@@ -74,37 +75,39 @@ type Tile = {
  * Server-rendered from the `GET /admin/services` response `summary`, so the
  * tiles always agree with the list below.
  */
-export function ServicesSummary({ summary }: { summary: ServiceRosterSummary }) {
+export async function ServicesSummary({ summary }: { summary: ServiceRosterSummary }) {
   const { total, personalTraining, custom, archived } = summary;
+  const t = await getTranslations('admin.services.summary');
+  const count = createNumberFormat(await getLocale());
 
   const tiles: Tile[] = [
     {
       key: 'total',
-      label: 'Services',
+      label: t('total'),
       icon: 'spark',
       tone: styles.toneBrand,
-      value: createNumberFormat(defaultLocale).format(total),
+      value: count.format(total),
     },
     {
       key: 'pt',
-      label: 'Personal training',
+      label: t('personalTraining'),
       icon: 'dumbbell',
       tone: styles.toneSuccess,
-      value: createNumberFormat(defaultLocale).format(personalTraining),
+      value: count.format(personalTraining),
     },
     {
       key: 'custom',
-      label: 'Custom',
+      label: t('custom'),
       icon: 'tag',
       tone: styles.toneWarning,
-      value: createNumberFormat(defaultLocale).format(custom),
+      value: count.format(custom),
     },
     {
       key: 'archived',
-      label: 'Archived',
+      label: t('archived'),
       icon: 'info',
       tone: styles.toneDanger,
-      value: createNumberFormat(defaultLocale).format(archived),
+      value: count.format(archived),
     },
   ];
 

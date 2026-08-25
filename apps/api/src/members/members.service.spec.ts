@@ -29,6 +29,7 @@ interface MemberRecord {
   emergencyContactPhone: string | null;
   medicalNotes: string | null;
   user: { name: string | null; email: string; phone: string | null };
+  invoices: { amount: number; currency: string }[];
   subscriptions: Array<{
     id: string;
     planId: string | null;
@@ -320,6 +321,7 @@ const row = (over?: Partial<MemberRecord>): MemberRecord => ({
   user: { name: 'Nino Beridze', email: 'nino@example.com', phone: null },
   subscriptions: [],
   checkIns: [],
+  invoices: [],
   kindOverride: null,
   _count: { subscriptions: 0, checkIns: 0 },
   ...over,

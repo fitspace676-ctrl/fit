@@ -48,6 +48,7 @@ export * from './src/reports-drilldown';
 export * from './src/reviews';
 export * from './src/schedule-admin';
 export * from './src/services-admin';
+export * from './src/service-sessions';
 export * from './src/signup';
 export * from './src/staff';
 export * from './src/staff-depth';
