@@ -33,7 +33,15 @@ type T = ReturnType<typeof useTranslations>;
  * The detail page's tab keys — the reference's seven-tab member experience, ported
  * onto our data. Labels come from `memberTabs.<key>`.
  */
-const TABS = ['overview', 'profile', 'membership', 'payments', 'purchases', 'access'] as const;
+const TABS = [
+  'overview',
+  'profile',
+  'membership',
+  'payments',
+  'invoices',
+  'purchases',
+  'access',
+] as const;
 type Tab = (typeof TABS)[number];
 
 /** Icon per activity kind. */
@@ -717,7 +725,7 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 
 /**
  * The member detail page's tabbed experience: Overview, Profile, Membership,
- * Payments, Purchases and Access Log. Data is fetched server-side and passed in;
+ * Payments, Invoices, Purchases and Access Log. Data is fetched server-side and passed in;
  * this component owns the active-tab selection. The Overview surfaces the full
  * staff Notes section (add + list). Every populated surface is a real,
  * tenant-scoped fact; empty collections render honest empty states.
@@ -776,6 +784,7 @@ export function MemberTabs({
           />
         )}
         {active === 'payments' && <PaymentsPanel member={member} t={t} locale={locale} />}
+        {active === 'invoices' && <InvoicesPanel member={member} t={t} locale={locale} />}
         {active === 'purchases' && <PurchasesPanel member={member} t={t} locale={locale} />}
         {active === 'access' && <AccessLogPanel member={member} t={t} locale={locale} />}
       </div>
@@ -1451,10 +1460,10 @@ function CreditsCard({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Payments / Purchases / Access Log                                 */
+/*  Payments / Invoices / Purchases / Access Log                      */
 /* ------------------------------------------------------------------ */
 
-/** Payments — captured payments + numbered invoices (with PDF download). */
+/** Payments — the member's captured / declined charges, newest first. */
 function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
   return (
     <div {...stylex.props(styles.panelStack)}>
@@ -1478,7 +1487,14 @@ function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
           </ul>
         )}
       </Card>
+    </div>
+  );
+}
 
+/** Invoices — the member's numbered invoices (status + PDF download), newest first. */
+function InvoicesPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  return (
+    <div {...stylex.props(styles.panelStack)}>
       <Card padding="none" xstyle={styles.card}>
         <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.invoices')}</h3>
         {member.invoices.length === 0 ? (
