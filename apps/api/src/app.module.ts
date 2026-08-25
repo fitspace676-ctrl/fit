@@ -31,6 +31,7 @@ import { PackagePlansModule } from './packages/package-plans.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
+import { ServicesModule } from './services/services.module';
 import { RedisModule } from './redis/redis.module';
 import { ReportsModule } from './reports/reports.module';
 import { ReviewsModule } from './reviews/reviews.module';
@@ -162,6 +163,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     TrainersModule,
     LocationsModule,
     ProductsModule,
+    ServicesModule,
     PackagePlansModule,
     CatalogueModule,
     SubscriptionPlansModule,
