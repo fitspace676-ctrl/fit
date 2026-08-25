@@ -64,6 +64,8 @@ function setup(over?: {
   staff?: { id: string } | null;
   /** The product rows the sale's stock draw-down reads back. */
   productFindMany?: unknown[];
+  /** The catalogue service rows a service line on the receipt resolves against. */
+  services?: Array<{ id: string; status: string }>;
 }) {
   const sendReceiptEmail = vi.fn<() => Promise<boolean>>(() =>
     Promise.resolve(over?.delivered ?? true),
@@ -102,10 +104,12 @@ function setup(over?: {
   // `gymId` into the `where`, and `findUnique` is not one of the operations it
   // scopes, so a compound-unique lookup here would run across every gym.
   const gymMemberFindFirst = vi.fn((_args: unknown) => Promise.resolve(over?.staff ?? null));
+  const serviceFindMany = vi.fn((_args: unknown) => Promise.resolve(over?.services ?? []));
   const prisma = {
     client: {
       gym: { findUnique, findFirst: gymFindFirst },
       gymMember: { findFirst: gymMemberFindFirst },
+      service: { findMany: serviceFindMany },
       payment: { groupBy },
       $transaction,
     },
@@ -119,6 +123,7 @@ function setup(over?: {
     findUnique,
     gymFindFirst,
     gymMemberFindFirst,
+    serviceFindMany,
     orderCreate,
     paymentCreate,
     groupBy,
@@ -251,8 +256,8 @@ describe('OrdersService.recordSale', () => {
     // Quantity is folded into the line label only when more than one was sold, but
     // the raw `qty` is recorded on each line (for refund restock) regardless.
     expect(orderArgs.data.items.create).toEqual([
-      { label: 'Protein bar ×2', amount: 500, qty: 2, productVariantId: null },
-      { label: 'Towel', amount: 300, qty: 1, productVariantId: null },
+      { label: 'Protein bar ×2', amount: 500, qty: 2, productVariantId: null, serviceId: null },
+      { label: 'Towel', amount: 300, qty: 1, productVariantId: null, serviceId: null },
     ]);
     // The opening PAID transition is logged for the status timeline (T7.9). This
     // `setup()` has no authenticated caller, so the transition has no actor.
@@ -399,6 +404,86 @@ describe('OrdersService.recordSale', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(enrollMember).not.toHaveBeenCalled();
     expect(orderCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrdersService.recordSale — service lines', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  const serviceLine = {
+    name: 'Massage',
+    quantity: 2,
+    unitPrice: 8000,
+    amount: 16000,
+    productId: null,
+    variantIndex: null,
+    serviceId: 'svc-1',
+  };
+
+  it('records the service on the order item and skips stock', async () => {
+    const { service, orderCreate } = setup({ services: [{ id: 'svc-1', status: 'ACTIVE' }] });
+
+    await service.recordSale({
+      ...saleInput,
+      memberId: null,
+      receipt: {
+        ...saleInput.receipt,
+        items: [serviceLine],
+        subtotal: 16000,
+        discountTotal: 0,
+        total: 16000,
+      },
+    });
+
+    const orderArgs = orderCreate.mock.calls[0]![0] as {
+      data: { items: { create: Array<Record<string, unknown>> } };
+    };
+    const items = orderArgs.data.items.create;
+    expect(items).toContainEqual(
+      expect.objectContaining({
+        label: 'Massage ×2',
+        amount: 16000,
+        qty: 2,
+        serviceId: 'svc-1',
+        productVariantId: null,
+      }),
+    );
+  });
+
+  it('refuses an archived service', async () => {
+    const { service } = setup({ services: [{ id: 'svc-1', status: 'ARCHIVED' }] });
+
+    await expect(
+      service.recordSale({
+        ...saleInput,
+        memberId: null,
+        receipt: {
+          ...saleInput.receipt,
+          items: [serviceLine],
+          subtotal: 16000,
+          discountTotal: 0,
+          total: 16000,
+        },
+      }),
+    ).rejects.toMatchObject({ response: { code: 'SERVICE_ARCHIVED' } });
+  });
+
+  it('refuses a service from another gym or that does not exist', async () => {
+    const { service } = setup({ services: [] });
+
+    await expect(
+      service.recordSale({
+        ...saleInput,
+        memberId: null,
+        receipt: {
+          ...saleInput.receipt,
+          items: [serviceLine],
+          subtotal: 16000,
+          discountTotal: 0,
+          total: 16000,
+        },
+      }),
+    ).rejects.toMatchObject({ response: { code: 'SERVICE_NOT_FOUND' } });
   });
 });
 
