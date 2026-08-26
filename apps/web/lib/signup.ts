@@ -97,7 +97,13 @@ export async function fetchSignupCatalogue({
 export async function signupMember(input: MemberSignupInput): Promise<TokenPair> {
   const response = await fetch(`${API_URL}/auth/signup`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // The interface language, so the verification email matches the screen.
+    headers: {
+      'Content-Type': 'application/json',
+      ...(typeof document !== 'undefined' && document.documentElement.lang
+        ? { 'Accept-Language': document.documentElement.lang }
+        : {}),
+    },
     body: JSON.stringify(input),
   });
 

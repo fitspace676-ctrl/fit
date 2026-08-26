@@ -13,7 +13,9 @@ import { automationTriggerConfigSchema } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { MailerService } from '../mail/mailer.service';
-import { renderBrandedEmail, escapeHtml } from '../mail/branded-email';
+import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
+import { resolveEmailLocale } from '../mail/email-locale';
+import { emailStrings } from '../mail/email-strings';
 import { AutomationMergeService } from './automation-merge.service';
 import { env } from '../config/env';
 
@@ -251,10 +253,13 @@ export class AutomationExecutorService {
       const subject = interpolateMergeFields(action.data.subject ?? '', target.values);
       const body = interpolateMergeFields(action.data.body, target.values);
 
+      const locale = resolveEmailLocale(brand.language);
       const html = renderBrandedEmail({
-        senderName: brand.name,
-        heading: subject,
-        contentHtml: `<p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`,
+        locale,
+        senderName: escapeHtml(brand.name),
+        heading: escapeHtml(subject),
+        contentHtml: renderEmailParagraphs(body),
+        footerNote: escapeHtml(emailStrings(locale).shell.sentBy(brand.name)),
       });
 
       const { sent } = await this.mailer.send({

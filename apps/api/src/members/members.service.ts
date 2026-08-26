@@ -64,7 +64,9 @@ import { TenantContext } from '../common/tenant/tenant.context';
 import { GymMemberIntakeService } from '../gyms/gym-member-intake.service';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { MailerService } from '../mail/mailer.service';
-import { renderBrandedEmail, escapeHtml } from '../mail/branded-email';
+import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
+import { resolveEmailLocale } from '../mail/email-locale';
+import { emailStrings } from '../mail/email-strings';
 import { buildMemberMergeValues } from './member-merge-values';
 
 /** A subscription is "live" (occupies the member's slot) in these states — including
@@ -737,10 +739,13 @@ export class MembersService {
     const subject = interpolateMergeFields(input.subject, values);
     const body = interpolateMergeFields(input.body, values);
 
+    const locale = resolveEmailLocale(language);
     const html = renderBrandedEmail({
-      senderName: gymName,
-      heading: subject,
-      contentHtml: `<p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`,
+      locale,
+      senderName: escapeHtml(gymName),
+      heading: escapeHtml(subject),
+      contentHtml: renderEmailParagraphs(body),
+      footerNote: escapeHtml(emailStrings(locale).shell.sentBy(gymName)),
     });
 
     const { sent } = await this.mailer.send({ to: member.user.email, subject, html, text: body });

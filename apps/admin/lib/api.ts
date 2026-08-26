@@ -59,9 +59,6 @@ import type {
   ListAdminProductsQuery,
   ListAdminProductsResponse,
   ListLowStockResponse,
-  ListEmailTemplatesResponse,
-  EmailTemplateRow,
-  UpdateEmailTemplateInput,
   ListOrdersQueryInput,
   ListOrdersResponse,
   AdminOrderDetail,
@@ -2454,41 +2451,6 @@ export async function fetchCashReconciliation(date: string): Promise<CashReconci
     },
   );
   return unwrap<CashReconciliationReport>(res);
-}
-
-/** `GET /gyms/settings/email-templates` — every system email and its current wording. */
-export async function fetchEmailTemplates(): Promise<ListEmailTemplatesResponse> {
-  const res = await fetch(`${apiBaseUrl()}/gyms/settings/email-templates`, {
-    headers: await authHeaders(),
-    cache: 'no-store',
-  });
-  return unwrap<ListEmailTemplatesResponse>(res);
-}
-
-/** `PUT /gyms/settings/email-templates/:key` — save this gym's wording for one email. */
-export async function updateEmailTemplate(
-  key: string,
-  input: UpdateEmailTemplateInput,
-): Promise<EmailTemplateRow> {
-  const res = await fetch(
-    `${apiBaseUrl()}/gyms/settings/email-templates/${encodeURIComponent(key)}`,
-    {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-      body: JSON.stringify(input),
-      cache: 'no-store',
-    },
-  );
-  return unwrap<EmailTemplateRow>(res);
-}
-
-/** `POST /gyms/settings/email-templates/:key/reset` — go back to the built-in wording. */
-export async function resetEmailTemplate(key: string): Promise<EmailTemplateRow> {
-  const res = await fetch(
-    `${apiBaseUrl()}/gyms/settings/email-templates/${encodeURIComponent(key)}/reset`,
-    { method: 'POST', headers: await authHeaders(), cache: 'no-store' },
-  );
-  return unwrap<EmailTemplateRow>(res);
 }
 
 /**

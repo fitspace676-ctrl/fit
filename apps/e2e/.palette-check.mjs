@@ -80,7 +80,7 @@ console.log('primary button now  :', btnBg.slice(0, 80));
 await p.screenshot({ path: `${OUT}/palette-members.png` });
 
 // Navigate to two other screens — the colour must follow, with no flash back.
-for (const path of ['/admin/shop', '/admin/settings/email-templates']) {
+for (const path of ['/admin/shop']) {
   await p.goto(`http://downtown.localhost:3001${path}`, { waitUntil: 'domcontentloaded' });
   await p.waitForTimeout(2000);
   console.log(`${path.padEnd(34)}:`, await accentOf());

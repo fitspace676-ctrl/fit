@@ -9,7 +9,13 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { GymMemberStatus, GymStatus, Prisma, Role } from '@fit/db';
-import { EMAIL_TAKEN_CODE, gymPublicMemberIntake, missingSignupIntakeFields } from '@fit/types';
+import {
+  EMAIL_TAKEN_CODE,
+  gymPublicMemberIntake,
+  gymSettingsStoredSchema,
+  missingSignupIntakeFields,
+} from '@fit/types';
+import { DEFAULT_EMAIL_LOCALE, resolveEmailLocale, type EmailLocale } from '../mail/email-locale';
 import type {
   AppleAuthInput,
   AppleProfile,
@@ -93,7 +99,10 @@ export class AuthService {
    * single-use verification token in Redis, and sends the verification email.
    * Throws `409 EMAIL_TAKEN` when the address already exists.
    */
-  async register(input: RegisterInput): Promise<RegisterResponse> {
+  async register(
+    input: RegisterInput,
+    locale: EmailLocale | null = null,
+  ): Promise<RegisterResponse> {
     const existing = await this.prisma.client.user.findUnique({
       where: { email: input.email },
       select: { id: true },
@@ -118,7 +127,12 @@ export class AuthService {
     // mail failure must not 500 the request (which would orphan an account that
     // then collides on a retry). Log and let registration succeed.
     try {
-      await this.email.sendVerificationEmail(input.email, token, input.name);
+      await this.email.sendVerificationEmail(
+        input.email,
+        token,
+        input.name,
+        locale ?? DEFAULT_EMAIL_LOCALE,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to send verification email to ${input.email}: ${
@@ -160,7 +174,10 @@ export class AuthService {
    * scope to satisfy the tenant extension — the same reasoning as
    * {@link registerGym}.
    */
-  async signupMember(input: MemberSignupInput): Promise<TokenPair> {
+  async signupMember(
+    input: MemberSignupInput,
+    locale: EmailLocale | null = null,
+  ): Promise<TokenPair> {
     // Only a live tenant can be joined. An unknown / suspended gym is a 400
     // rather than a 404: `gymId` is client-supplied context resolved from the
     // subdomain, so a bad value is a malformed request, not a missing resource.
@@ -239,7 +256,15 @@ export class AuthService {
     const token = generateVerificationToken();
     await this.redis.client.set(verifyKey(token), userId, 'EX', env.EMAIL_VERIFICATION_TTL);
     try {
-      await this.email.sendVerificationEmail(input.email, token, input.name);
+      // The language the visitor was reading wins; the gym's own language is the
+      // fallback for a client that sent none.
+      const gymLanguage = gymSettingsStoredSchema.parse(gym.settings ?? {}).locale.language;
+      await this.email.sendVerificationEmail(
+        input.email,
+        token,
+        input.name,
+        locale ?? resolveEmailLocale(gymLanguage),
+      );
     } catch (error) {
       this.logger.error(
         `Failed to send verification email to ${input.email}: ${
@@ -282,7 +307,11 @@ export class AuthService {
    * verification. A supplied `password` is set on the new account; when omitted
    * the owner sets one later through the reset flow.
    */
-  async registerGym(input: RegisterGymInput, createdBy?: string): Promise<RegisterGymResponse> {
+  async registerGym(
+    input: RegisterGymInput,
+    createdBy?: string,
+    locale: EmailLocale | null = null,
+  ): Promise<RegisterGymResponse> {
     const [existingGym, existingOwner] = await Promise.all([
       this.prisma.client.gym.findUnique({
         where: { slug: input.subdomainSlug },
@@ -367,6 +396,7 @@ export class AuthService {
         token,
         input.gymName,
         input.ownerName,
+        locale ?? DEFAULT_EMAIL_LOCALE,
       );
     } catch (error) {
       this.logger.error(
@@ -427,7 +457,10 @@ export class AuthService {
    * registration's is — the token already exists, so a transient mail failure is
    * logged rather than surfaced (which would itself leak that the email exists).
    */
-  async requestPasswordReset(input: ForgotPasswordInput): Promise<ForgotPasswordResponse> {
+  async requestPasswordReset(
+    input: ForgotPasswordInput,
+    locale: EmailLocale | null = null,
+  ): Promise<ForgotPasswordResponse> {
     const user = await this.prisma.client.user.findUnique({
       where: { email: input.email },
       select: { id: true, name: true },
@@ -438,7 +471,12 @@ export class AuthService {
       await this.redis.client.set(resetKey(token), user.id, 'EX', env.PASSWORD_RESET_TTL);
 
       try {
-        await this.email.sendPasswordResetEmail(input.email, token, user.name ?? undefined);
+        await this.email.sendPasswordResetEmail(
+          input.email,
+          token,
+          user.name ?? undefined,
+          locale ?? DEFAULT_EMAIL_LOCALE,
+        );
       } catch (error) {
         this.logger.error(
           `Failed to send password-reset email to ${input.email}: ${

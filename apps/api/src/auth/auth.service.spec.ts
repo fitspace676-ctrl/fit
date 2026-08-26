@@ -213,7 +213,25 @@ describe('AuthService', () => {
       expect(ttl).toBe(86_400);
 
       const emailedToken = key.slice('email-verify:'.length);
-      expect(ctx.sendVerificationEmail).toHaveBeenCalledWith('a@b.com', emailedToken, 'Alice');
+      expect(ctx.sendVerificationEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        emailedToken,
+        'Alice',
+        'en',
+      );
+    });
+
+    it('emails the verification link in the requested locale', async () => {
+      ctx.findUnique.mockResolvedValue(null);
+
+      await ctx.service.register(VALID_REGISTER, 'ka');
+
+      expect(ctx.sendVerificationEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        expect.any(String),
+        'Alice',
+        'ka',
+      );
     });
 
     it('throws 409 EMAIL_TAKEN when the address already exists, without creating a user', async () => {
@@ -301,7 +319,7 @@ describe('AuthService', () => {
       expect(ttl).toBe(3_600);
 
       const emailedToken = key.slice('password-reset:'.length);
-      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith('a@b.com', emailedToken, 'Sam');
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith('a@b.com', emailedToken, 'Sam', 'en');
     });
 
     it('returns the same generic message without minting a token when no account exists', async () => {
@@ -1055,6 +1073,7 @@ describe('AuthService.registerGym', () => {
       token,
       'Downtown Strength',
       'Olivia Owner',
+      'en',
     );
 
     expect(result).toEqual({

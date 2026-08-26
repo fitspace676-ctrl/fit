@@ -1,9 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   REPORT_DEFINITIONS,
-  REPORT_DIGEST_CADENCE_LABEL,
   type GymBusinessSettings,
-  type PaymentMethod,
   type PosReceipt,
   type ReportCellValue,
   type ReportColumn,
@@ -11,7 +9,24 @@ import {
   type ReportDigestSection,
 } from '@fit/types';
 import { env } from '../config/env';
-import { EMAIL_BRAND, escapeHtml, renderBrandedEmail } from '../mail/branded-email';
+import {
+  EMAIL_BRAND,
+  escapeHtml,
+  renderBrandedEmail,
+  renderEmailButton,
+  renderEmailLinkFallback,
+  renderEmailPanel,
+  renderEmailRows,
+  renderEmailTd,
+  renderEmailTh,
+} from '../mail/branded-email';
+import {
+  DEFAULT_EMAIL_LOCALE,
+  formatEmailDate,
+  formatEmailMoney,
+  type EmailLocale,
+} from '../mail/email-locale';
+import { emailStrings } from '../mail/email-strings';
 
 /** Resend's transactional-email endpoint. */
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
@@ -41,6 +56,8 @@ export interface LowStockDigest {
   threshold: number;
   products: LowStockDigestProduct[];
   productsUrl?: string;
+  /** The gym's email language; English when omitted. */
+  locale?: EmailLocale;
 }
 
 /** A gym's computed end-of-day summary (T8.8): the day's takings, orders,
@@ -57,6 +74,8 @@ export interface DailySummary {
   newMembers: number;
   lowStockProducts: number;
   dashboardUrl?: string;
+  /** The gym's email language; English when omitted. */
+  locale?: EmailLocale;
 }
 
 /**
@@ -83,45 +102,20 @@ export class EmailService {
    * Resolves once the mail is accepted by Resend (or immediately, having logged
    * the link, when Resend is unconfigured); rejects when Resend returns an error.
    */
-  async sendVerificationEmail(to: string, token: string, name?: string): Promise<void> {
+  async sendVerificationEmail(
+    to: string,
+    token: string,
+    name?: string,
+    locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+  ): Promise<void> {
     const url = buildVerificationUrl(token);
-    const greeting = name ? `Hi ${name},` : 'Hi,';
-
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — verification link for ${to}: ${url}`,
       );
       return;
     }
-
-    const html =
-      `<p>${greeting}</p>` +
-      `<p>Confirm your email to finish setting up your FormaCore account:</p>` +
-      `<p><a href="${url}">Verify your email</a></p>` +
-      `<p>This link expires in 24 hours. If you didn't create an account, you can ignore this email.</p>`;
-    const text = `${greeting}\n\nConfirm your email to finish setting up your FormaCore account:\n${url}\n\nThis link expires in 24 hours. If you didn't create an account, you can ignore this email.`;
-
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: [to],
-        subject: 'Verify your email',
-        html,
-        text,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
-    }
-
-    this.logger.debug(`Verification email dispatched to ${to}`);
+    await this.deliver(to, buildVerificationEmail(url, name, locale), 'verification');
   }
 
   /**
@@ -129,45 +123,20 @@ export class EmailService {
    * once the mail is accepted by Resend (or immediately, having logged the link,
    * when Resend is unconfigured); rejects when Resend returns an error.
    */
-  async sendPasswordResetEmail(to: string, token: string, name?: string): Promise<void> {
+  async sendPasswordResetEmail(
+    to: string,
+    token: string,
+    name?: string,
+    locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+  ): Promise<void> {
     const url = buildPasswordResetUrl(token);
-    const greeting = name ? `Hi ${name},` : 'Hi,';
-
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — password-reset link for ${to}: ${url}`,
       );
       return;
     }
-
-    const html =
-      `<p>${greeting}</p>` +
-      `<p>We received a request to reset your FormaCore password. Choose a new one here:</p>` +
-      `<p><a href="${url}">Reset your password</a></p>` +
-      `<p>This link expires in 1 hour. If you didn't request a reset, you can ignore this email - your password won't change.</p>`;
-    const text = `${greeting}\n\nWe received a request to reset your FormaCore password. Choose a new one here:\n${url}\n\nThis link expires in 1 hour. If you didn't request a reset, you can ignore this email - your password won't change.`;
-
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: [to],
-        subject: 'Reset your password',
-        html,
-        text,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
-    }
-
-    this.logger.debug(`Password-reset email dispatched to ${to}`);
+    await this.deliver(to, buildPasswordResetEmail(url, name, locale), 'password-reset');
   }
 
   /**
@@ -184,45 +153,20 @@ export class EmailService {
     token: string,
     gymName: string,
     name?: string,
+    locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
   ): Promise<void> {
     const url = buildVerificationUrl(token);
-    const greeting = name ? `Hi ${name},` : 'Hi,';
-
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — owner onboarding link for ${to}: ${url}`,
       );
       return;
     }
-
-    const html =
-      `<p>${greeting}</p>` +
-      `<p><strong>${gymName}</strong> is ready on FormaCore. Confirm your email to finish setting up your gym and sign in:</p>` +
-      `<p><a href="${url}">Verify your email &amp; get started</a></p>` +
-      `<p>This link expires in 24 hours. If you didn't create this gym, you can ignore this email.</p>`;
-    const text = `${greeting}\n\n${gymName} is ready on FormaCore. Confirm your email to finish setting up your gym and sign in:\n${url}\n\nThis link expires in 24 hours. If you didn't create this gym, you can ignore this email.`;
-
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: [to],
-        subject: `Welcome to FormaCore - finish setting up ${gymName}`,
-        html,
-        text,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
-    }
-
-    this.logger.debug(`Owner onboarding email dispatched to ${to}`);
+    await this.deliver(
+      to,
+      buildOwnerOnboardingEmail(url, gymName, name, locale),
+      'owner onboarding',
+    );
   }
 
   /**
@@ -239,46 +183,16 @@ export class EmailService {
     token: string,
     gymName: string,
     role: string,
+    locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
   ): Promise<void> {
     const url = buildInviteAcceptUrl(token);
-    const roleLabel = role.toLowerCase();
-
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — staff invite link for ${to}: ${url}`,
       );
       return;
     }
-
-    const html =
-      `<p>Hi,</p>` +
-      `<p>You've been invited to join <strong>${gymName}</strong> on FormaCore as a ${roleLabel}. ` +
-      `Accept the invitation to set up your account and get started:</p>` +
-      `<p><a href="${url}">Accept your invitation</a></p>` +
-      `<p>This link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.</p>`;
-    const text = `Hi,\n\nYou've been invited to join ${gymName} on FormaCore as a ${roleLabel}. Accept the invitation to set up your account and get started:\n${url}\n\nThis link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.`;
-
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: [to],
-        subject: `You're invited to join ${gymName} on FormaCore`,
-        html,
-        text,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
-    }
-
-    this.logger.debug(`Staff invite email dispatched to ${to}`);
+    await this.deliver(to, buildStaffInviteEmail(url, gymName, role, locale), 'staff invite');
   }
 
   /**
@@ -295,38 +209,10 @@ export class EmailService {
     receipt: PosReceipt,
     gymName?: string,
     gymContact?: GymBusinessSettings,
+    locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
   ): Promise<boolean> {
-    const { subject, html, text } = buildReceiptEmail(receipt, gymName, gymContact);
-
-    if (!this.isConfigured) {
-      this.logger.warn(
-        `Resend not configured (RESEND_API_KEY unset) — receipt for ${to} not sent: ${subject}`,
-      );
-      return false;
-    }
-
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: [to],
-        subject,
-        html,
-        text,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
-    }
-
-    this.logger.debug(`Receipt email dispatched to ${to}`);
-    return true;
+    const message = buildReceiptEmail(receipt, gymName, gymContact, locale);
+    return this.deliver(to, message, 'receipt');
   }
 
   /**
@@ -341,39 +227,10 @@ export class EmailService {
   async sendReportDigestEmail(
     to: string,
     digest: ReportDigest,
-    options?: { reportsUrl?: string },
+    options?: { reportsUrl?: string; locale?: EmailLocale },
   ): Promise<boolean> {
-    const { subject, html, text } = buildReportDigestEmail(digest, options);
-
-    if (!this.isConfigured) {
-      this.logger.warn(
-        `Resend not configured (RESEND_API_KEY unset) — ${digest.cadence} report digest for ${to} not sent: ${subject}`,
-      );
-      return false;
-    }
-
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: [to],
-        subject,
-        html,
-        text,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
-    }
-
-    this.logger.debug(`Report digest email dispatched to ${to}`);
-    return true;
+    const message = buildReportDigestEmail(digest, options);
+    return this.deliver(to, message, `${digest.cadence} report digest`);
   }
 
   /**
@@ -493,48 +350,179 @@ export function buildInviteAcceptUrl(token: string): string {
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
-/** Assumed minor units per major unit (USD/EUR/GEL — all two-decimal). */
-const MINOR_PER_MAJOR = 100;
+/** The platform's own name, the sender of every account email. */
+const PLATFORM_NAME = 'FormaCore';
 
-/**
- * Format a minor-unit amount as a localized currency string (e.g. `$29.99`),
- * mirroring the admin's `formatPrice`. Falls back to `29.99 USD` for a currency
- * code `Intl` doesn't recognise so the receipt always renders a number.
- */
-function formatReceiptMoney(amountMinor: number, currency: string): string {
-  const major = amountMinor / MINOR_PER_MAJOR;
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(major);
-  } catch {
-    return `${major.toFixed(2)} ${currency}`;
-  }
+/** A body paragraph in the shell's running-text style. `html` is already escaped. */
+function paragraph(html: string): string {
+  return `<p style="margin:0 0 14px;">${html}</p>`;
 }
 
-/** Human-facing label for a POS settlement method, matching the POS UI copy. */
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: 'Cash',
-  card: 'Card',
-  member_account: 'Member account',
-};
+/** A name set in ink and bold inside running text. `html` is already escaped. */
+function strong(html: string): string {
+  return `<strong class="em-ink" style="color:${EMAIL_BRAND.ink};">${html}</strong>`;
+}
+
+/** The "expires in ..." panel every link-carrying account mail ends with. */
+function expiryPanel(expires: string, ignore: string): string {
+  return renderEmailPanel(`${strong(escapeHtml(expires))} ${escapeHtml(ignore)}`);
+}
+
+/**
+ * Render the address-verification email (subject, HTML, plain text) in `locale`.
+ * Pure - no I/O - so the copy is unit-testable and
+ * {@link EmailService.sendVerificationEmail} is just the delivery wrapper. `url`
+ * is the trusted verification deep link.
+ */
+export function buildVerificationEmail(
+  url: string,
+  name?: string,
+  locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+): { subject: string; html: string; text: string } {
+  const t = emailStrings(locale);
+  const greeting = t.shell.greeting(name?.trim() || undefined);
+  const html = renderBrandedEmail({
+    locale,
+    senderName: PLATFORM_NAME,
+    eyebrow: escapeHtml(t.verify.eyebrow),
+    heading: escapeHtml(t.verify.heading),
+    preheader: t.verify.preheader,
+    contentHtml:
+      paragraph(escapeHtml(greeting)) +
+      paragraph(escapeHtml(t.verify.body)) +
+      renderEmailButton(url, escapeHtml(t.verify.button)) +
+      renderEmailLinkFallback(url, locale) +
+      expiryPanel(t.verify.expires, t.verify.ignore),
+    footerNote: escapeHtml(t.verify.footer),
+  });
+  const text = `${greeting}\n\n${t.verify.body}\n${url}\n\n${t.verify.expires} ${t.verify.ignore}`;
+  return { subject: t.verify.subject, html, text };
+}
+
+/**
+ * Render the password-reset email (subject, HTML, plain text) in `locale`. Pure -
+ * no I/O - so the copy is unit-testable and
+ * {@link EmailService.sendPasswordResetEmail} is just the delivery wrapper. `url`
+ * is the trusted reset deep link.
+ */
+export function buildPasswordResetEmail(
+  url: string,
+  name?: string,
+  locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+): { subject: string; html: string; text: string } {
+  const t = emailStrings(locale);
+  const greeting = t.shell.greeting(name?.trim() || undefined);
+  const html = renderBrandedEmail({
+    locale,
+    senderName: PLATFORM_NAME,
+    eyebrow: escapeHtml(t.reset.eyebrow),
+    heading: escapeHtml(t.reset.heading),
+    preheader: t.reset.preheader,
+    contentHtml:
+      paragraph(escapeHtml(greeting)) +
+      paragraph(escapeHtml(t.reset.body)) +
+      renderEmailButton(url, escapeHtml(t.reset.button)) +
+      renderEmailLinkFallback(url, locale) +
+      expiryPanel(t.reset.expires, t.reset.ignore),
+    footerNote: escapeHtml(t.reset.footer),
+  });
+  const text = `${greeting}\n\n${t.reset.body}\n${url}\n\n${t.reset.expires} ${t.reset.ignore}`;
+  return { subject: t.reset.subject, html, text };
+}
+
+/**
+ * Render the gym-owner onboarding email (subject, HTML, plain text) in `locale`.
+ * Pure - no I/O - so the copy is unit-testable and
+ * {@link EmailService.sendOwnerOnboardingEmail} is just the delivery wrapper.
+ * `url` is the trusted verification deep link; `gymName` is gym-supplied and
+ * escaped here.
+ */
+export function buildOwnerOnboardingEmail(
+  url: string,
+  gymName: string,
+  name?: string,
+  locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+): { subject: string; html: string; text: string } {
+  const t = emailStrings(locale);
+  const greeting = t.shell.greeting(name?.trim() || undefined);
+  const gym = escapeHtml(gymName);
+  const html = renderBrandedEmail({
+    locale,
+    senderName: PLATFORM_NAME,
+    eyebrow: escapeHtml(t.onboarding.eyebrow),
+    heading: escapeHtml(t.onboarding.heading(gymName)),
+    preheader: t.onboarding.preheader(gymName),
+    contentHtml:
+      paragraph(escapeHtml(greeting)) +
+      paragraph(escapeHtml(t.onboarding.body('\u0000')).replace('\u0000', strong(gym))) +
+      renderEmailButton(url, escapeHtml(t.onboarding.button)) +
+      renderEmailLinkFallback(url, locale) +
+      expiryPanel(t.onboarding.expires, t.onboarding.ignore),
+    footerNote: escapeHtml(t.onboarding.footer(gymName)),
+  });
+  const text =
+    `${greeting}\n\n${t.onboarding.body(gymName)}\n${url}\n\n` +
+    `${t.onboarding.expires} ${t.onboarding.ignore}`;
+  return { subject: t.onboarding.subject(gymName), html, text };
+}
+
+/**
+ * Render the staff-invitation email (subject, HTML, plain text) in `locale`. Pure
+ * - no I/O - so the copy is unit-testable and {@link EmailService.sendStaffInviteEmail}
+ * is just the delivery wrapper. The gym is the sender (an invitee recognises the
+ * gym, not the platform); `gymName` and `role` are gym-supplied and escaped here.
+ */
+export function buildStaffInviteEmail(
+  url: string,
+  gymName: string,
+  role: string,
+  locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+): { subject: string; html: string; text: string } {
+  const t = emailStrings(locale);
+  const roleKey = role.toLowerCase();
+  const roleLabel = t.invite.roles[roleKey] ?? roleKey;
+  const sender = gymName.trim() || PLATFORM_NAME;
+  const gym = escapeHtml(sender);
+  const html = renderBrandedEmail({
+    locale,
+    senderName: gym,
+    eyebrow: escapeHtml(t.invite.eyebrow),
+    heading: escapeHtml(t.invite.heading(sender, roleLabel)),
+    preheader: t.invite.preheader(sender),
+    contentHtml:
+      paragraph(escapeHtml(t.shell.greeting())) +
+      paragraph(escapeHtml(t.invite.body('\u0000', roleLabel)).replace('\u0000', strong(gym))) +
+      renderEmailButton(url, escapeHtml(t.invite.button)) +
+      renderEmailLinkFallback(url, locale) +
+      expiryPanel(t.invite.expires, t.invite.ignore),
+    footerNote: escapeHtml(t.shell.sentBy(sender)),
+  });
+  const text =
+    `${t.shell.greeting()}\n\n${t.invite.body(sender, roleLabel)}\n${url}\n\n` +
+    `${t.invite.expires} ${t.invite.ignore}`;
+  return { subject: t.invite.subject(sender), html, text };
+}
 
 /**
  * Render a completed POS sale snapshot into the receipt email's subject, HTML, and
- * plain-text bodies (T7.4). Pure — no I/O, no env beyond formatting — so the copy
- * is unit-testable in isolation and {@link EmailService.sendReceiptEmail} is just
- * the delivery wrapper around it. The line table, the discount line (only when a
- * discount applied), and the cash tendered/change rows (only for a cash sale) are
- * all derived from the snapshot, which the caller validated against
+ * plain-text bodies (T7.4) in `locale`. Pure - no I/O, no env beyond formatting -
+ * so the copy is unit-testable in isolation and {@link EmailService.sendReceiptEmail}
+ * is just the delivery wrapper around it. The line table, the discount line (only
+ * when a discount applied), and the cash tendered/change rows (only for a cash
+ * sale) are all derived from the snapshot, which the caller validated against
  * `sendReceiptSchema`.
  */
 export function buildReceiptEmail(
   receipt: PosReceipt,
   gymName?: string,
   gymContact?: GymBusinessSettings,
+  locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
 ): { subject: string; html: string; text: string } {
-  const seller = gymName?.trim() || 'FormaCore';
-  const money = (amount: number): string => formatReceiptMoney(amount, receipt.currency);
-  const methodLabel = PAYMENT_METHOD_LABELS[receipt.paymentMethod];
-  const subject = `Your receipt from ${seller}`;
+  const t = emailStrings(locale);
+  const seller = gymName?.trim() || PLATFORM_NAME;
+  const money = (amount: number): string => formatEmailMoney(amount, receipt.currency, locale);
+  const methodLabel = t.receipt.methods[receipt.paymentMethod];
+  const subject = t.receipt.subject(seller);
   const contactLines = [
     gymContact?.address,
     gymContact?.phone,
@@ -544,50 +532,58 @@ export function buildReceiptEmail(
     .map((value) => value?.trim() ?? '')
     .filter((value) => value.length > 0);
 
+  const muted = `color:${EMAIL_BRAND.muted};`;
+  const mutedCell = `class="em-muted" style="`;
   const itemRowsHtml = receipt.items
     .map(
       (item) =>
         `<tr>` +
-        `<td style="padding:4px 0;">${escapeHtml(item.name)}${item.quantity > 1 ? ` &times; ${item.quantity}` : ''}</td>` +
-        `<td style="padding:4px 0;text-align:right;">${money(item.amount)}</td>` +
+        `<td style="padding:6px 0;">${escapeHtml(item.name)}${item.quantity > 1 ? `<span class="em-muted" style="${muted}"> &times; ${item.quantity}</span>` : ''}</td>` +
+        `<td style="padding:6px 0;text-align:right;font-weight:600;">${money(item.amount)}</td>` +
         `</tr>`,
     )
     .join('');
 
+  const quietRow = (label: string, value: string): string =>
+    `<tr><td ${mutedCell}padding:4px 0;${muted}">${escapeHtml(label)}</td><td ${mutedCell}padding:4px 0;text-align:right;${muted}">${value}</td></tr>`;
+
   const totalsHtml =
     (receipt.discountTotal > 0
-      ? `<tr><td style="padding:2px 0;">Discount</td><td style="padding:2px 0;text-align:right;">-${money(receipt.discountTotal)}</td></tr>`
+      ? quietRow(t.receipt.discount, `-${money(receipt.discountTotal)}`)
       : '') +
-    `<tr><td style="padding:6px 0;font-weight:bold;">Total</td><td style="padding:6px 0;text-align:right;font-weight:bold;">${money(receipt.total)}</td></tr>` +
+    `<tr><td style="padding:10px 0;border-top:1px solid ${EMAIL_BRAND.border};font-size:16px;font-weight:800;">${escapeHtml(t.receipt.total)}</td><td style="padding:10px 0;border-top:1px solid ${EMAIL_BRAND.border};text-align:right;font-size:16px;font-weight:800;">${money(receipt.total)}</td></tr>` +
     (receipt.paymentMethod === 'cash'
-      ? `<tr><td style="padding:2px 0;">Cash received</td><td style="padding:2px 0;text-align:right;">${money(receipt.cashTendered)}</td></tr>` +
-        `<tr><td style="padding:2px 0;">Change</td><td style="padding:2px 0;text-align:right;">${money(receipt.changeDue)}</td></tr>`
+      ? quietRow(t.receipt.cashReceived, money(receipt.cashTendered)) +
+        quietRow(t.receipt.change, money(receipt.changeDue))
       : '');
 
   const contentHtml =
-    `<p style="margin:0 0 12px;">Thanks for your purchase at <strong>${escapeHtml(seller)}</strong>.</p>` +
-    (receipt.memberName
-      ? `<p style="margin:0 0 12px;">Charged to ${escapeHtml(receipt.memberName)}.</p>`
-      : '') +
-    `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:14px;">` +
+    paragraph(
+      escapeHtml(t.receipt.thanks('\u0000')).replace('\u0000', strong(escapeHtml(seller))),
+    ) +
+    (receipt.memberName ? paragraph(escapeHtml(t.receipt.chargedTo(receipt.memberName))) : '') +
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="em-ink" style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px;line-height:20px;color:${EMAIL_BRAND.ink};">` +
     itemRowsHtml +
-    `<tr><td style="padding:6px 0;border-top:1px solid ${EMAIL_BRAND.border};">Subtotal</td><td style="padding:6px 0;border-top:1px solid ${EMAIL_BRAND.border};text-align:right;">${money(receipt.subtotal)}</td></tr>` +
+    `<tr><td ${mutedCell}padding:10px 0 4px;border-top:1px solid ${EMAIL_BRAND.border};${muted}">${escapeHtml(t.receipt.subtotal)}</td><td ${mutedCell}padding:10px 0 4px;border-top:1px solid ${EMAIL_BRAND.border};text-align:right;${muted}">${money(receipt.subtotal)}</td></tr>` +
     totalsHtml +
     `</table>` +
-    `<p style="margin:16px 0 0;font-size:13px;color:${EMAIL_BRAND.muted};">Paid by ${methodLabel}.</p>` +
-    // The seller's own contact details (Settings → Business info), so a customer
+    `<p ${mutedCell}margin:16px 0 0;font-size:13px;line-height:20px;${muted}">${escapeHtml(t.receipt.paidBy(methodLabel))}</p>` +
+    // The seller's own contact details (Settings > Business info), so a customer
     // with a question about the sale can answer it from the receipt itself.
     (contactLines.length > 0
-      ? `<p style="margin:12px 0 0;font-size:13px;line-height:20px;color:${EMAIL_BRAND.muted};">` +
+      ? `<p ${mutedCell}margin:12px 0 0;font-size:13px;line-height:20px;${muted}">` +
         contactLines.map((line) => escapeHtml(line)).join('<br />') +
         `</p>`
       : '');
 
   const html = renderBrandedEmail({
+    locale,
     senderName: escapeHtml(seller),
-    heading: 'Your receipt',
+    eyebrow: escapeHtml(t.receipt.eyebrow),
+    heading: escapeHtml(t.receipt.heading),
+    preheader: t.receipt.preheader(money(receipt.total), seller),
     contentHtml,
-    footerNote: 'This is a receipt for your records. No payment is due.',
+    footerNote: escapeHtml(t.receipt.footer),
   });
 
   const itemLines = receipt.items
@@ -598,18 +594,23 @@ export function buildReceiptEmail(
     .join('\n');
 
   const totalsLines = [
-    `Subtotal: ${money(receipt.subtotal)}`,
-    ...(receipt.discountTotal > 0 ? [`Discount: -${money(receipt.discountTotal)}`] : []),
-    `Total: ${money(receipt.total)}`,
+    `${t.receipt.subtotal}: ${money(receipt.subtotal)}`,
+    ...(receipt.discountTotal > 0
+      ? [`${t.receipt.discount}: -${money(receipt.discountTotal)}`]
+      : []),
+    `${t.receipt.total}: ${money(receipt.total)}`,
     ...(receipt.paymentMethod === 'cash'
-      ? [`Cash received: ${money(receipt.cashTendered)}`, `Change: ${money(receipt.changeDue)}`]
+      ? [
+          `${t.receipt.cashReceived}: ${money(receipt.cashTendered)}`,
+          `${t.receipt.change}: ${money(receipt.changeDue)}`,
+        ]
       : []),
   ].join('\n');
 
   const text =
-    `Thanks for your purchase at ${seller}.\n` +
-    (receipt.memberName ? `Charged to ${receipt.memberName}.\n` : '') +
-    `\n${itemLines}\n\n${totalsLines}\n\nPaid by ${methodLabel}.` +
+    `${t.receipt.thanks(seller)}\n` +
+    (receipt.memberName ? `${t.receipt.chargedTo(receipt.memberName)}\n` : '') +
+    `\n${itemLines}\n\n${totalsLines}\n\n${t.receipt.paidBy(methodLabel)}` +
     (contactLines.length > 0 ? `\n\n${contactLines.join('\n')}` : '');
 
   return { subject, html, text };
@@ -620,16 +621,21 @@ export function buildReceiptEmail(
  * type: `money` minor units become a localized currency string in the section's
  * `currency` (e.g. `₾29.99`), `percent` a one-decimal figure with a `%` suffix,
  * `date`/`number`/`text` their own string. A `null` cell (a slice with no value,
- * e.g. attendance rate for a class with no completed bookings) renders as an em
+ * e.g. attendance rate for a class with no completed bookings) renders as a
  * dash so the column still lines up.
  */
-function formatDigestCell(column: ReportColumn, value: ReportCellValue, currency: string): string {
+function formatDigestCell(
+  column: ReportColumn,
+  value: ReportCellValue,
+  currency: string,
+  locale: EmailLocale,
+): string {
   if (value === null || value === '') {
-    return '—';
+    return '-';
   }
   switch (column.type) {
     case 'money':
-      return formatReceiptMoney(Number(value), currency);
+      return formatEmailMoney(Number(value), currency, locale);
     case 'percent':
       return `${Math.round(Number(value) * 10) / 10}%`;
     default:
@@ -640,40 +646,41 @@ function formatDigestCell(column: ReportColumn, value: ReportCellValue, currency
 /**
  * Render one digest section as a branded HTML block: the report's name + one-line
  * description, then either its rows as a bordered table (money right-aligned) or
- * an honest "No activity in this period." empty state when the report produced no
- * rows. Every interpolated value is escaped — report rows carry gym-supplied names
- * (class titles, trainer names) that must not break out of the markup.
+ * an honest empty state when the report produced no rows. Every interpolated
+ * value is escaped - report rows carry gym-supplied names (class titles, trainer
+ * names) that must not break out of the markup. Report names and column labels
+ * come from the report catalogue and are not yet translated.
  */
-function renderDigestSectionHtml(section: ReportDigestSection): string {
+function renderDigestSectionHtml(section: ReportDigestSection, locale: EmailLocale): string {
+  const t = emailStrings(locale);
   const heading =
-    `<h2 style="margin:24px 0 4px;font-size:15px;line-height:22px;font-weight:700;color:${EMAIL_BRAND.ink};">${escapeHtml(section.name)}</h2>` +
-    `<p style="margin:0 0 8px;font-size:12px;line-height:18px;color:${EMAIL_BRAND.muted};">${escapeHtml(REPORT_DEFINITIONS[section.key].description)}</p>`;
+    `<h2 class="em-ink" style="margin:28px 0 4px;font-size:16px;line-height:22px;font-weight:800;letter-spacing:-0.01em;color:${EMAIL_BRAND.ink};">${escapeHtml(section.name)}</h2>` +
+    `<p class="em-muted" style="margin:0 0 12px;font-size:13px;line-height:20px;color:${EMAIL_BRAND.muted};">${escapeHtml(REPORT_DEFINITIONS[section.key].description)}</p>`;
 
   if (section.rows.length === 0) {
     return (
       heading +
-      `<p style="margin:0;font-size:13px;line-height:20px;color:${EMAIL_BRAND.muted};">No activity in this period.</p>`
+      `<p class="em-muted" style="margin:0;font-size:13px;line-height:20px;color:${EMAIL_BRAND.muted};">${escapeHtml(t.digest.empty)}</p>`
     );
   }
 
-  const align = (column: ReportColumn): string =>
+  const align = (column: ReportColumn): 'left' | 'right' =>
     column.type === 'money' || column.type === 'percent' || column.type === 'number'
       ? 'right'
       : 'left';
 
   const headerCells = section.columns
-    .map(
-      (column) =>
-        `<th style="padding:6px 8px;text-align:${align(column)};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:${EMAIL_BRAND.muted};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(column.label)}</th>`,
-    )
+    .map((column) => renderEmailTh(escapeHtml(column.label), align(column)))
     .join('');
 
   const bodyRows = section.rows
     .map((row) => {
       const cells = section.columns
-        .map(
-          (column) =>
-            `<td style="padding:6px 8px;text-align:${align(column)};font-size:13px;color:${EMAIL_BRAND.ink};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(formatDigestCell(column, row[column.key] ?? null, section.currency))}</td>`,
+        .map((column) =>
+          renderEmailTd(
+            escapeHtml(formatDigestCell(column, row[column.key] ?? null, section.currency, locale)),
+            align(column),
+          ),
         )
         .join('');
       return `<tr>${cells}</tr>`;
@@ -688,14 +695,14 @@ function renderDigestSectionHtml(section: ReportDigestSection): string {
 }
 
 /** Render one digest section as plain text: a title line then `label: value` rows. */
-function renderDigestSectionText(section: ReportDigestSection): string {
+function renderDigestSectionText(section: ReportDigestSection, locale: EmailLocale): string {
   if (section.rows.length === 0) {
-    return `${section.name}\n  No activity in this period.`;
+    return `${section.name}\n  ${emailStrings(locale).digest.empty}`;
   }
   const lines = section.rows.map((row) => {
     const cells = section.columns.map(
       (column) =>
-        `${column.label}: ${formatDigestCell(column, row[column.key] ?? null, section.currency)}`,
+        `${column.label}: ${formatDigestCell(column, row[column.key] ?? null, section.currency, locale)}`,
     );
     return `  ${cells.join('  |  ')}`;
   });
@@ -704,40 +711,50 @@ function renderDigestSectionText(section: ReportDigestSection): string {
 
 /**
  * Render a computed {@link ReportDigest} into the digest email's subject, HTML, and
- * plain-text bodies (T4.10). Pure — no I/O, no env beyond formatting — so the copy
- * is unit-testable in isolation and {@link EmailService.sendReportDigestEmail} is
- * just the delivery wrapper around it. Each section becomes a titled table (or an
- * empty-state line); an optional `reportsUrl` renders a "View full reports" link so
- * the owner can jump to the live console. Gym-supplied text (the gym name, report
- * row labels) is escaped by the section renderers before it reaches the markup.
+ * plain-text bodies (T4.10) in the gym's locale. Pure - no I/O, no env beyond
+ * formatting - so the copy is unit-testable in isolation and
+ * {@link EmailService.sendReportDigestEmail} is just the delivery wrapper around
+ * it. Each section becomes a titled table (or an empty-state line); an optional
+ * `reportsUrl` renders a "View full reports" button so the owner can jump to the
+ * live console. Gym-supplied text (the gym name, report row labels) is escaped by
+ * the section renderers before it reaches the markup.
  */
 export function buildReportDigestEmail(
   digest: ReportDigest,
-  options?: { reportsUrl?: string },
+  options?: { reportsUrl?: string; locale?: EmailLocale },
 ): { subject: string; html: string; text: string } {
-  const seller = digest.gymName.trim() || 'FormaCore';
-  const cadenceLabel = REPORT_DIGEST_CADENCE_LABEL[digest.cadence];
-  const subject = `${cadenceLabel} report digest - ${seller}`;
-  const windowLabel = digest.cadence === 'weekly' ? 'the past week' : 'the past 30 days';
+  const locale = options?.locale ?? DEFAULT_EMAIL_LOCALE;
+  const t = emailStrings(locale);
+  const seller = digest.gymName.trim() || PLATFORM_NAME;
+  const cadenceLabel = t.digest.cadence[digest.cadence];
+  const windowLabel = t.digest.window[digest.cadence];
+  const subject = t.digest.subject(cadenceLabel, seller);
 
-  const intro = `<p style="margin:0 0 4px;">Here's how <strong>${escapeHtml(seller)}</strong> performed over ${windowLabel}.</p>`;
-  const sectionsHtml = digest.sections.map(renderDigestSectionHtml).join('');
+  const intro = `<p style="margin:0;">${escapeHtml(t.digest.intro('\u0000', windowLabel)).replace('\u0000', strong(escapeHtml(seller)))}</p>`;
+  const sectionsHtml = digest.sections
+    .map((section) => renderDigestSectionHtml(section, locale))
+    .join('');
   const linkHtml = options?.reportsUrl
-    ? `<p style="margin:24px 0 0;"><a href="${options.reportsUrl}" style="color:${EMAIL_BRAND.brand};font-weight:600;">View full reports &rarr;</a></p>`
+    ? renderEmailButton(options.reportsUrl, escapeHtml(t.digest.button))
     : '';
 
   const html = renderBrandedEmail({
+    locale,
     senderName: escapeHtml(seller),
-    heading: `${cadenceLabel} report digest`,
+    eyebrow: escapeHtml(t.digest.eyebrow(cadenceLabel)),
+    heading: escapeHtml(t.digest.heading(cadenceLabel)),
+    preheader: t.digest.preheader(seller, windowLabel),
     contentHtml: intro + sectionsHtml + linkHtml,
-    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on FormaCore.`,
+    footerNote: escapeHtml(t.shell.manageReason(seller)),
   });
 
-  const sectionsText = digest.sections.map(renderDigestSectionText).join('\n\n');
-  const linkText = options?.reportsUrl ? `\n\nView full reports: ${options.reportsUrl}` : '';
+  const sectionsText = digest.sections
+    .map((section) => renderDigestSectionText(section, locale))
+    .join('\n\n');
+  const linkText = options?.reportsUrl ? `\n\n${t.digest.button}: ${options.reportsUrl}` : '';
   const text =
-    `${cadenceLabel} report digest for ${seller}\n` +
-    `How ${seller} performed over ${windowLabel}.\n\n` +
+    `${t.digest.textTitle(cadenceLabel, seller)}\n` +
+    `${t.digest.preheader(seller, windowLabel)}\n\n` +
     `${sectionsText}${linkText}`;
 
   return { subject, html, text };
@@ -745,70 +762,73 @@ export function buildReportDigestEmail(
 
 /**
  * Render a computed {@link LowStockDigest} into the low-stock alert email's subject,
- * HTML, and plain-text bodies (T8.8). Pure — no I/O — so the copy is unit-testable in
- * isolation and {@link EmailService.sendLowStockDigestEmail} is just the delivery
- * wrapper. Each low product becomes a table row per low variant (product name spanning
- * its variants), most-urgent product first. Gym-supplied text (product / variant
- * labels) is escaped before it reaches the markup.
+ * HTML, and plain-text bodies (T8.8) in the gym's locale. Pure - no I/O - so the
+ * copy is unit-testable in isolation and {@link EmailService.sendLowStockDigestEmail}
+ * is just the delivery wrapper. Each low product becomes a table row per low
+ * variant (product name spanning its variants), most-urgent product first.
+ * Gym-supplied text (product / variant labels) is escaped before it reaches the
+ * markup.
  */
 export function buildLowStockDigestEmail(digest: LowStockDigest): {
   subject: string;
   html: string;
   text: string;
 } {
-  const seller = digest.gymName.trim() || 'FormaCore';
+  const locale = digest.locale ?? DEFAULT_EMAIL_LOCALE;
+  const t = emailStrings(locale);
+  const seller = digest.gymName.trim() || PLATFORM_NAME;
   const lineCount = digest.products.reduce((sum, product) => sum + product.variants.length, 0);
-  const unit = lineCount === 1 ? 'item' : 'items';
-  const subject = `Low stock: ${lineCount} ${unit} to reorder - ${seller}`;
+  const subject = t.lowStock.subject(lineCount, seller);
 
-  const intro =
-    `<p style="margin:0 0 4px;">${lineCount} ${unit} at <strong>${escapeHtml(seller)}</strong> ` +
-    `${lineCount === 1 ? 'is' : 'are'} at or below your reorder threshold of ${digest.threshold}. ` +
-    `Restock before they sell out.</p>`;
-
-  const th = (label: string, align: 'left' | 'right'): string =>
-    `<th style="padding:6px 8px;text-align:${align};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:${EMAIL_BRAND.muted};border-bottom:1px solid ${EMAIL_BRAND.border};">${label}</th>`;
+  const intro = `<p style="margin:0;">${escapeHtml(t.lowStock.intro(lineCount, '\u0000', digest.threshold)).replace('\u0000', strong(escapeHtml(seller)))}</p>`;
 
   const rows = digest.products
     .flatMap((product) =>
       product.variants.map(
         (variant) =>
           `<tr>` +
-          `<td style="padding:6px 8px;text-align:left;font-size:13px;color:${EMAIL_BRAND.ink};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(product.name)}</td>` +
-          `<td style="padding:6px 8px;text-align:left;font-size:13px;color:${EMAIL_BRAND.muted};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(variant.label)}</td>` +
-          `<td style="padding:6px 8px;text-align:right;font-size:13px;font-weight:600;color:${variant.stock === 0 ? '#C2410C' : EMAIL_BRAND.ink};border-bottom:1px solid ${EMAIL_BRAND.border};">${variant.stock}</td>` +
+          renderEmailTd(escapeHtml(product.name), 'left', 'font-weight:600;') +
+          renderEmailTd(escapeHtml(variant.label), 'left', `color:${EMAIL_BRAND.muted};`) +
+          renderEmailTd(
+            String(variant.stock),
+            'right',
+            `font-weight:700;${variant.stock === 0 ? `color:${EMAIL_BRAND.danger};` : ''}`,
+          ) +
           `</tr>`,
       ),
     )
     .join('');
 
   const table =
-    `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-top:16px;">` +
-    `<thead><tr>${th('Product', 'left')}${th('Variant', 'left')}${th('On hand', 'right')}</tr></thead>` +
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;margin-top:20px;">` +
+    `<thead><tr>${renderEmailTh(escapeHtml(t.lowStock.product), 'left')}${renderEmailTh(escapeHtml(t.lowStock.variant), 'left')}${renderEmailTh(escapeHtml(t.lowStock.onHand), 'right')}</tr></thead>` +
     `<tbody>${rows}</tbody></table>`;
 
   const linkHtml = digest.productsUrl
-    ? `<p style="margin:24px 0 0;"><a href="${digest.productsUrl}" style="color:${EMAIL_BRAND.brand};font-weight:600;">Manage products &rarr;</a></p>`
+    ? renderEmailButton(digest.productsUrl, escapeHtml(t.lowStock.button))
     : '';
 
   const html = renderBrandedEmail({
+    locale,
     senderName: escapeHtml(seller),
-    heading: 'Low stock alert',
+    eyebrow: escapeHtml(t.lowStock.eyebrow),
+    heading: escapeHtml(t.lowStock.heading),
+    preheader: t.lowStock.preheader(lineCount, seller),
     contentHtml: intro + table + linkHtml,
-    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on FormaCore.`,
+    footerNote: escapeHtml(t.shell.manageReason(seller)),
   });
 
   const textRows = digest.products
     .flatMap((product) =>
       product.variants.map(
-        (variant) => `  ${product.name} - ${variant.label}: ${variant.stock} on hand`,
+        (variant) => `  ${t.lowStock.textRow(product.name, variant.label, variant.stock)}`,
       ),
     )
     .join('\n');
-  const linkText = digest.productsUrl ? `\n\nManage products: ${digest.productsUrl}` : '';
+  const linkText = digest.productsUrl ? `\n\n${t.lowStock.button}: ${digest.productsUrl}` : '';
   const text =
-    `Low stock alert for ${seller}\n` +
-    `${lineCount} ${unit} at or below your reorder threshold of ${digest.threshold}.\n\n` +
+    `${t.lowStock.textTitle(seller)}\n` +
+    `${t.lowStock.textIntro(lineCount, digest.threshold)}\n\n` +
     `${textRows}${linkText}`;
 
   return { subject, html, text };
@@ -816,58 +836,56 @@ export function buildLowStockDigestEmail(digest: LowStockDigest): {
 
 /**
  * Render a computed {@link DailySummary} into the end-of-day summary email's subject,
- * HTML, and plain-text bodies (T8.8). Pure — no I/O — so the copy is unit-testable in
- * isolation and {@link EmailService.sendDailySummaryEmail} is just the delivery
- * wrapper. Renders the day's figures as a label/value table, with revenue formatted in
- * the gym's currency. Gym-supplied text (the gym name) is escaped before it reaches the
- * markup.
+ * HTML, and plain-text bodies (T8.8) in the gym's locale. Pure - no I/O - so the
+ * copy is unit-testable in isolation and {@link EmailService.sendDailySummaryEmail}
+ * is just the delivery wrapper. Renders the day's figures as a label/value table,
+ * with revenue formatted in the gym's currency. Gym-supplied text (the gym name)
+ * is escaped before it reaches the markup.
  */
 export function buildDailySummaryEmail(summary: DailySummary): {
   subject: string;
   html: string;
   text: string;
 } {
-  const seller = summary.gymName.trim() || 'FormaCore';
-  const revenue = formatReceiptMoney(summary.revenue, summary.currency);
-  const subject = `Daily summary ${summary.date} - ${seller}`;
+  const locale = summary.locale ?? DEFAULT_EMAIL_LOCALE;
+  const t = emailStrings(locale);
+  const seller = summary.gymName.trim() || PLATFORM_NAME;
+  const revenue = formatEmailMoney(summary.revenue, summary.currency, locale);
+  const date = formatEmailDate(summary.date, locale);
+  const subject = t.daily.subject(summary.date, seller);
 
-  const metrics: Array<{ label: string; value: string }> = [
-    { label: 'Revenue', value: revenue },
-    { label: 'Paid orders', value: String(summary.orders) },
-    { label: 'Check-ins', value: String(summary.checkIns) },
-    { label: 'New members', value: String(summary.newMembers) },
-    { label: 'Low-stock products', value: String(summary.lowStockProducts) },
+  const metrics: Array<{ label: string; value: string; emphasis?: boolean; danger?: boolean }> = [
+    { label: t.daily.revenue, value: revenue, emphasis: true },
+    { label: t.daily.orders, value: String(summary.orders) },
+    { label: t.daily.checkIns, value: String(summary.checkIns) },
+    { label: t.daily.newMembers, value: String(summary.newMembers) },
+    {
+      label: t.daily.lowStock,
+      value: String(summary.lowStockProducts),
+      // The one figure to worry about, when it is not zero.
+      danger: summary.lowStockProducts > 0,
+    },
   ];
 
-  const intro = `<p style="margin:0 0 4px;">How <strong>${escapeHtml(seller)}</strong> did on ${summary.date}.</p>`;
-
-  const rows = metrics
-    .map(
-      (metric) =>
-        `<tr>` +
-        `<td style="padding:8px 8px;text-align:left;font-size:14px;color:${EMAIL_BRAND.muted};border-bottom:1px solid ${EMAIL_BRAND.border};">${metric.label}</td>` +
-        `<td style="padding:8px 8px;text-align:right;font-size:14px;font-weight:700;color:${EMAIL_BRAND.ink};border-bottom:1px solid ${EMAIL_BRAND.border};">${escapeHtml(metric.value)}</td>` +
-        `</tr>`,
-    )
-    .join('');
-  const table =
-    `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-top:16px;">` +
-    `<tbody>${rows}</tbody></table>`;
-
+  const intro = `<p style="margin:0;">${escapeHtml(t.daily.intro('\u0000', date)).replace('\u0000', strong(escapeHtml(seller)))}</p>`;
+  const table = renderEmailRows(metrics);
   const linkHtml = summary.dashboardUrl
-    ? `<p style="margin:24px 0 0;"><a href="${summary.dashboardUrl}" style="color:${EMAIL_BRAND.brand};font-weight:600;">Open dashboard &rarr;</a></p>`
+    ? renderEmailButton(summary.dashboardUrl, escapeHtml(t.daily.button))
     : '';
 
   const html = renderBrandedEmail({
+    locale,
     senderName: escapeHtml(seller),
-    heading: `Daily summary - ${summary.date}`,
+    eyebrow: escapeHtml(t.daily.eyebrow),
+    heading: escapeHtml(t.daily.heading(summary.date)),
+    preheader: t.daily.preheader(revenue, summary.orders, summary.checkIns),
     contentHtml: intro + table + linkHtml,
-    footerNote: `You're receiving this because you manage ${escapeHtml(seller)} on FormaCore.`,
+    footerNote: escapeHtml(t.shell.manageReason(seller)),
   });
 
   const textRows = metrics.map((metric) => `  ${metric.label}: ${metric.value}`).join('\n');
-  const linkText = summary.dashboardUrl ? `\n\nOpen dashboard: ${summary.dashboardUrl}` : '';
-  const text = `Daily summary for ${seller} - ${summary.date}\n\n` + `${textRows}${linkText}`;
+  const linkText = summary.dashboardUrl ? `\n\n${t.daily.button}: ${summary.dashboardUrl}` : '';
+  const text = `${t.daily.textTitle(seller, summary.date)}\n\n${textRows}${linkText}`;
 
   return { subject, html, text };
 }

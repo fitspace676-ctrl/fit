@@ -146,12 +146,18 @@ describe('OrdersService.sendReceipt', () => {
       where: { id: 'gym-1' },
       select: { name: true, settings: true },
     });
-    expect(sendReceiptEmail).toHaveBeenCalledWith('buyer@example.com', input.receipt, 'Downtown', {
-      address: null,
-      phone: null,
-      email: null,
-      website: null,
-    });
+    expect(sendReceiptEmail).toHaveBeenCalledWith(
+      'buyer@example.com',
+      input.receipt,
+      'Downtown',
+      {
+        address: null,
+        phone: null,
+        email: null,
+        website: null,
+      },
+      'en',
+    );
   });
 
   it('passes undefined for the gym name when the tenant lookup misses', async () => {
@@ -159,12 +165,18 @@ describe('OrdersService.sendReceipt', () => {
 
     await service.sendReceipt(input);
 
-    expect(sendReceiptEmail).toHaveBeenCalledWith('buyer@example.com', input.receipt, undefined, {
-      address: null,
-      phone: null,
-      email: null,
-      website: null,
-    });
+    expect(sendReceiptEmail).toHaveBeenCalledWith(
+      'buyer@example.com',
+      input.receipt,
+      undefined,
+      {
+        address: null,
+        phone: null,
+        email: null,
+        website: null,
+      },
+      'en',
+    );
   });
 
   it('forwards the gym’s business contact details so they print on the receipt', async () => {
@@ -181,12 +193,18 @@ describe('OrdersService.sendReceipt', () => {
 
     await service.sendReceipt(input);
 
-    expect(sendReceiptEmail).toHaveBeenCalledWith('buyer@example.com', input.receipt, 'Downtown', {
-      address: '12 Rustaveli Ave',
-      phone: '+995 322 00 00 00',
-      email: 'hello@downtown.example',
-      website: 'downtown.example',
-    });
+    expect(sendReceiptEmail).toHaveBeenCalledWith(
+      'buyer@example.com',
+      input.receipt,
+      'Downtown',
+      {
+        address: '12 Rustaveli Ave',
+        phone: '+995 322 00 00 00',
+        email: 'hello@downtown.example',
+        website: 'downtown.example',
+      },
+      'en',
+    );
   });
 
   it('reports delivered:false when email delivery is unconfigured', async () => {

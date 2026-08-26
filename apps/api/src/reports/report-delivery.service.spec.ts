@@ -210,6 +210,7 @@ describe('ReportDeliveryService.deliverAll', () => {
 
     expect(sendReportDigestEmail.mock.calls[0]![2]).toEqual({
       reportsUrl: 'https://admin.fit/reports',
+      locale: 'en',
     });
   });
 });

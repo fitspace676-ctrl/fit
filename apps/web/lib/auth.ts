@@ -9,6 +9,19 @@
 
 import { extractGymSlug } from '@fit/utils';
 
+/**
+ * The headers every account request carries. `Accept-Language` is the interface
+ * language the visitor is reading (the `<html lang>` the locale layout sets), so
+ * the API sends the verification / reset email in the same language as the
+ * screen that triggered it.
+ */
+function accountHeaders(): Record<string, string> {
+  const lang = typeof document !== 'undefined' ? document.documentElement.lang : '';
+  return lang
+    ? { 'Content-Type': 'application/json', 'Accept-Language': lang }
+    : { 'Content-Type': 'application/json' };
+}
+
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -103,7 +116,7 @@ export async function registerWithCredentials(input: {
 }): Promise<{ message: string }> {
   const response = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: accountHeaders(),
     body: JSON.stringify(input),
   });
 
@@ -158,7 +171,7 @@ export async function loginWithCredentials(
 export async function requestPasswordReset(email: string): Promise<{ message: string }> {
   const response = await fetch(`${API_URL}/auth/forgot-password`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: accountHeaders(),
     body: JSON.stringify({ email }),
   });
 

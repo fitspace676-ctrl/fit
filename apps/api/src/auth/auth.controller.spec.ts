@@ -90,11 +90,20 @@ describe('AuthController', () => {
 
       expect(result).toEqual({ message: 'verification email sent' });
       // Email is normalised (trim + lowercase) and name trimmed before the service.
-      expect(ctx.register).toHaveBeenCalledWith({
-        email: 'a@b.com',
-        password: 'supersecret',
-        name: 'Alice',
-      });
+      // No Accept-Language header: the service falls back to English.
+      expect(ctx.register).toHaveBeenCalledWith(
+        { email: 'a@b.com', password: 'supersecret', name: 'Alice' },
+        null,
+      );
+    });
+
+    it('passes the Accept-Language header on as the email locale', async () => {
+      await ctx.controller.register(
+        { email: 'a@b.com', password: 'supersecret', name: 'Alice' },
+        'ka-GE,ka;q=0.9,en;q=0.8',
+      );
+
+      expect(ctx.register).toHaveBeenCalledWith(expect.anything(), 'ka');
     });
 
     it('rejects a malformed body with a 400 listing each failing field', async () => {
@@ -126,13 +135,17 @@ describe('AuthController', () => {
 
       expect(result).toMatchObject({ subdomainSlug: 'downtown' });
       // gymName/subdomainSlug trimmed, slug + email lower-cased before the service sees them.
-      expect(ctx.registerGym).toHaveBeenCalledWith({
-        gymName: 'Downtown Strength',
-        subdomainSlug: 'downtown',
-        ownerEmail: 'owner@example.com',
-        ownerName: 'Olivia',
-        password: 'supersecret',
-      });
+      expect(ctx.registerGym).toHaveBeenCalledWith(
+        {
+          gymName: 'Downtown Strength',
+          subdomainSlug: 'downtown',
+          ownerEmail: 'owner@example.com',
+          ownerName: 'Olivia',
+          password: 'supersecret',
+        },
+        undefined,
+        null,
+      );
     });
 
     it('rejects an invalid subdomain with a 400', async () => {
@@ -200,7 +213,13 @@ describe('AuthController', () => {
       expect(result).toEqual({
         message: 'If an account exists for that address, a reset link has been sent',
       });
-      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' });
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, null);
+    });
+
+    it('sends the reset mail in the language the visitor was reading', async () => {
+      await ctx.controller.forgotPassword({ email: 'a@b.com' }, 'ka');
+
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, 'ka');
     });
 
     it('rejects a malformed email with a 400', async () => {

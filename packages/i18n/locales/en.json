@@ -2169,7 +2169,6 @@
         "renamed": "Renamed to {name}.",
         "renameFailed": "Couldn’t rename this location. Try again."
       },
-      "emailTemplatesLink": "Email templates",
       "reports": {
         "groupHints": {
           "sales": "Takings, plans, discounts and refunds.",
