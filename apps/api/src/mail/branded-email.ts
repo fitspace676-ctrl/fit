@@ -105,6 +105,28 @@ function renderMark(senderName: string, size: number, radius: number): string {
 }
 
 /**
+ * The FormaCore wordmark above the card, when the web app's URL is known: the
+ * light-ground logo, with its dark-ground twin hidden beside it so clients that
+ * honour the dark palette swap them (see {@link DARK_MODE_CSS}). Both are the
+ * same PNGs the portal serves. Omitted without a base URL, since a broken image
+ * is worse than none.
+ */
+function renderLogo(): string {
+  const base = env.WEB_URL?.replace(/\/+$/, '');
+  if (!base) {
+    return '';
+  }
+  const width = 168;
+  return (
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="width:100%;max-width:${CARD_WIDTH}px;margin:0 auto;border-collapse:collapse;">` +
+    `<tr><td style="padding:0 0 20px;text-align:center;">` +
+    `<img class="em-logo-light" src="${base}/logolight.png" width="${width}" alt="FormaCore" style="display:inline-block;width:${width}px;height:auto;border:0;" />` +
+    `<img class="em-logo-dark" src="${base}/logodark.png" width="${width}" alt="" style="display:none;max-height:0;width:${width}px;height:auto;border:0;mso-hide:all;" />` +
+    `</td></tr></table>`
+  );
+}
+
+/**
  * The dark-mode palette, as a `<style>` block clients that honour
  * `prefers-color-scheme` (Apple Mail, iOS Mail, Outlook) apply on top of the
  * inline light styles. It is the portal's dark theme rather than an inversion:
@@ -128,6 +150,8 @@ const DARK_MODE_CSS =
   `.em-panel{background:#131312 !important;border-color:#2E2E2A !important;color:#CFCFC9 !important;}` +
   `.em-button,.em-button a{background:#E4F26A !important;color:#131312 !important;}` +
   `td,th{border-color:#2E2E2A !important;}` +
+  `.em-logo-light{display:none !important;}` +
+  `.em-logo-dark{display:inline-block !important;max-height:none !important;}` +
   `}` +
   `[data-ogsc] .em-ink,[data-ogsc] .em-ink *{color:#F2F2EF !important;}` +
   `[data-ogsc] .em-body{color:#CFCFC9 !important;}` +
@@ -143,7 +167,8 @@ const DARK_MODE_CSS =
  * the sign-in screen leads with, above a white card on the warm-grey canvas,
  * with an optional tracked uppercase `eyebrow`, a heavy tightly-tracked heading
  * like the portal titles, and a footer below the card that signs the mail and
- * names the platform. The caller is responsible for escaping any user-supplied
+ * names the platform, with the FormaCore wordmark above the card when the web
+ * app's URL is configured. The caller is responsible for escaping any user-supplied
  * text it interpolates into `contentHtml`, `senderName`, `heading`, `eyebrow`
  * and `footerNote`.
  *
@@ -197,6 +222,7 @@ export function renderBrandedEmail(options: {
     `<body class="em-canvas" style="margin:0;padding:0;background:${B.canvas};">` +
     `<div class="em-canvas" style="margin:0;padding:32px 16px;background:${B.canvas};font-family:${B.font};-webkit-text-size-adjust:100%;">` +
     preheaderHtml +
+    renderLogo() +
     // The card.
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" class="em-card" style="width:100%;max-width:${CARD_WIDTH}px;margin:0 auto;border-collapse:separate;background:${B.card};border:1px solid ${B.border};border-radius:20px;overflow:hidden;">` +
     // Header band: lime mark + wordmark on charcoal.
