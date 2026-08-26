@@ -19,9 +19,11 @@ import type {
   UpdateStaffRoleInput,
   UpdateStaffRoleResponse,
 } from '@fit/types';
+import { gymSettingsStoredSchema } from '@fit/types';
 import { env } from '../config/env';
 import { generateVerificationToken } from '../auth/auth.service';
 import { EmailService } from '../auth/email.service';
+import { resolveEmailLocale } from '../mail/email-locale';
 import { TokenService } from '../auth/token.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -261,9 +263,16 @@ export class StaffService {
     try {
       const gym = await this.prisma.client.gym.findUnique({
         where: { id: this.tenant.gymId },
-        select: { name: true },
+        select: { name: true, settings: true },
       });
-      await this.email.sendStaffInviteEmail(email, token, gym?.name ?? 'your gym', role);
+      const language = gymSettingsStoredSchema.parse(gym?.settings ?? {}).locale.language;
+      await this.email.sendStaffInviteEmail(
+        email,
+        token,
+        gym?.name ?? 'your gym',
+        role,
+        resolveEmailLocale(language),
+      );
     } catch (error) {
       this.logger.error(
         `Failed to send staff invite email to ${email}: ${

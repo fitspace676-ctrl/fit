@@ -1,18 +1,8 @@
 import { NotificationCategory } from '@fit/db';
 import { escapeHtml, renderBrandedEmail, renderEmailButton } from '../mail/branded-email';
 
-/**
- * The transactional-email locales the notification pipeline renders in (T8.2). The
- * gym's configured interface language drives which one a member's mail uses; `ru`
- * (and anything else) falls back to English chrome — the two launch locales are
- * `en` and `ka`.
- */
-export type EmailLocale = 'en' | 'ka';
-
-/** Map a gym's stored interface `language` onto a supported email locale. */
-export function resolveEmailLocale(language: string | null | undefined): EmailLocale {
-  return language === 'ka' ? 'ka' : 'en';
-}
+export { resolveEmailLocale, type EmailLocale } from '../mail/email-locale';
+import { type EmailLocale } from '../mail/email-locale';
 
 /** The localized chrome wrapped around a notification's own (already-localized)
  * title/body: greeting, the category's call-to-action label, and the footer. */

@@ -13,11 +13,15 @@ import type {
   ListAdminInvoicesResponse,
   SendInvoiceEmailResponse,
 } from '@fit/types';
+import { gymSettingsStoredSchema } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { MailerService } from '../mail/mailer.service';
 import { InvoiceDocumentService } from './invoice-document.service';
 import { InvoiceService } from './invoice.service';
+import { escapeHtml, renderBrandedEmail, renderEmailParagraphs } from '../mail/branded-email';
+import { resolveEmailLocale } from '../mail/email-locale';
+import { emailStrings } from '../mail/email-strings';
 
 /** The columns the admin roster selects off `Invoice`, plus the billed member. */
 const ADMIN_INVOICE_SELECT = {
@@ -184,7 +188,7 @@ export class AdminInvoicesService {
   async emailInvoice(id: string): Promise<SendInvoiceEmailResponse> {
     const invoice = await this.prisma.client.invoice.findFirst({
       where: { id },
-      select: { ...ADMIN_INVOICE_SELECT, gym: { select: { name: true } } },
+      select: { ...ADMIN_INVOICE_SELECT, gym: { select: { name: true, settings: true } } },
     });
     if (!invoice) {
       throw new NotFoundException({ message: 'Invoice not found', code: 'INVOICE_NOT_FOUND' });
@@ -213,18 +217,29 @@ export class AdminInvoicesService {
     }
 
     const gymName = invoice.gym.name;
-    const recipient = invoice.member?.user.name ?? 'there';
-    const subject = `Invoice ${invoice.number} from ${gymName}`;
-    const body = `Hi ${recipient},\n\nYour invoice ${invoice.number} from ${gymName} is attached.\n\n${invoice.description}\n\nThanks,\n${gymName}`;
+    const locale = resolveEmailLocale(
+      gymSettingsStoredSchema.parse(invoice.gym.settings ?? {}).locale.language,
+    );
+    const t = emailStrings(locale).invoice;
+    const recipient = invoice.member?.user.name ?? (locale === 'ka' ? '' : 'there');
+    const subject = t.subject(invoice.number, gymName);
+    const body = t.body(recipient, invoice.number, gymName, invoice.description);
+
+    const html = renderBrandedEmail({
+      locale,
+      senderName: escapeHtml(gymName),
+      eyebrow: escapeHtml(t.eyebrow),
+      heading: escapeHtml(t.heading(invoice.number)),
+      preheader: t.preheader(invoice.number, gymName),
+      contentHtml: renderEmailParagraphs(body),
+      footerNote: escapeHtml(t.footer(gymName)),
+    });
 
     await this.mailer.send({
       to,
       subject,
       text: body,
-      html: body
-        .split('\n\n')
-        .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
-        .join(''),
+      html,
       attachments: [{ filename: `invoice-${pdf.number}.pdf`, content: pdf.buffer }],
     });
 

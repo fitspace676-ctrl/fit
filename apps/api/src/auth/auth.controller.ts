@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Post,
@@ -29,6 +30,7 @@ import {
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
 import { RateLimit, RATE_LIMITS } from '../common/rate-limit/rate-limit.decorator';
+import { parseAcceptLanguage } from '../mail/email-locale';
 import { AuthService } from './auth.service';
 
 /**
@@ -59,9 +61,12 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @RateLimit(RATE_LIMITS.authStrict)
-  async register(@Body() body: unknown): Promise<RegisterResponse> {
+  async register(
+    @Body() body: unknown,
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<RegisterResponse> {
     const input = parse(registerSchema, body);
-    return this.auth.register(input);
+    return this.auth.register(input, parseAcceptLanguage(acceptLanguage));
   }
 
   /**
@@ -78,18 +83,24 @@ export class AuthController {
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
   @RateLimit(RATE_LIMITS.authStrict)
-  async signup(@Body() body: unknown): Promise<TokenPair> {
+  async signup(
+    @Body() body: unknown,
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<TokenPair> {
     const input = parse(memberSignupSchema, body);
-    return this.auth.signupMember(input);
+    return this.auth.signupMember(input, parseAcceptLanguage(acceptLanguage));
   }
 
   /** `POST /auth/register-gym` — provision a gym tenant and onboard its owner. */
   @Post('register-gym')
   @HttpCode(HttpStatus.CREATED)
   @RateLimit(RATE_LIMITS.authStrict)
-  async registerGym(@Body() body: unknown): Promise<RegisterGymResponse> {
+  async registerGym(
+    @Body() body: unknown,
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<RegisterGymResponse> {
     const input = parse(registerGymSchema, body);
-    return this.auth.registerGym(input);
+    return this.auth.registerGym(input, undefined, parseAcceptLanguage(acceptLanguage));
   }
 
   /** `GET /auth/verify?token=…` — verify the email and issue the first session. */
@@ -126,9 +137,12 @@ export class AuthController {
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @RateLimit(RATE_LIMITS.authStrict)
-  async forgotPassword(@Body() body: unknown): Promise<ForgotPasswordResponse> {
+  async forgotPassword(
+    @Body() body: unknown,
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<ForgotPasswordResponse> {
     const input = parse(forgotPasswordSchema, body);
-    return this.auth.requestPasswordReset(input);
+    return this.auth.requestPasswordReset(input, parseAcceptLanguage(acceptLanguage));
   }
 
   /** `POST /auth/reset-password` — consume a reset token, set the new password, and issue a session. */

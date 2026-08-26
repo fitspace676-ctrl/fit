@@ -63,7 +63,9 @@ function setup(overrides?: {
   const inviteDeleteMany = vi.fn(() => Promise.resolve({ count: overrides?.deleteManyCount ?? 1 }));
   const inviteCreate = vi.fn(() => Promise.resolve({ id: 'inv-1' }));
 
-  const gymFindUnique = vi.fn(() => Promise.resolve({ name: 'Downtown Fitness' }));
+  const gymFindUnique = vi.fn(() =>
+    Promise.resolve({ name: 'Downtown Fitness', settings: { locale: { language: 'ka' } } }),
+  );
   const userUpdate = vi.fn(() => Promise.resolve({ id: 'u-1' }));
 
   // Staff ⇄ trainer link: role changes and removals keep the coach profile in step.
@@ -199,6 +201,8 @@ describe('StaffService', () => {
         expect.any(String),
         'Downtown Fitness',
         'TRAINER',
+        // The gym's interface language decides the invite's language.
+        'ka',
       );
     });
 

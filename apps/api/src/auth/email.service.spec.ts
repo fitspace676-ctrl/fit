@@ -15,6 +15,10 @@ import {
   buildReportDigestEmail,
   buildVerificationUrl,
   buildPasswordResetUrl,
+  buildVerificationEmail,
+  buildPasswordResetEmail,
+  buildOwnerOnboardingEmail,
+  buildStaffInviteEmail,
   type DailySummary,
   type LowStockDigest,
 } from './email.service';
@@ -252,6 +256,114 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
     await expect(
       service.sendOwnerOnboardingEmail('owner@example.com', 'tok123', 'Downtown'),
     ).rejects.toThrow(/429/);
+  });
+});
+
+describe('account email builders', () => {
+  const URL = 'https://app.fit/member/verify?token=tok&x=1';
+
+  it('renders the verification mail in the branded shell with a button and a copyable link', () => {
+    const { subject, html, text } = buildVerificationEmail(URL, 'Sam');
+    expect(subject).toBe('Verify your email');
+    expect(html).toContain('Hi Sam,');
+    expect(html).toContain('#E4F26A');
+    expect(html).toContain(`href="${URL}"`);
+    expect(html).toContain('Verify my email');
+    expect(html).toContain('Or copy this link');
+    expect(html).toContain('expires in 24 hours');
+    expect(text).toContain(URL);
+  });
+
+  it('greets namelessly without a dangling space', () => {
+    const { html } = buildVerificationEmail(URL);
+    expect(html).toContain('Hi,');
+    expect(html).not.toContain('Hi ,');
+  });
+
+  it('renders the reset mail with the 1 hour notice and no em-dashes', () => {
+    const { subject, html, text } = buildPasswordResetEmail(URL, 'Sam');
+    expect(subject).toBe('Reset your password');
+    expect(html).toContain('Reset my password');
+    expect(html).toContain('expires in 1 hour');
+    expect(html).not.toMatch(/—|--/);
+    expect(text).not.toMatch(/—|--/);
+  });
+
+  it('frames the owner onboarding mail around the gym and escapes its name', () => {
+    const { subject, html } = buildOwnerOnboardingEmail(URL, '<b>Downtown</b>', 'Olivia');
+    expect(subject).toBe('Welcome to FormaCore - finish setting up <b>Downtown</b>');
+    expect(html).toContain('&lt;b&gt;Downtown&lt;/b&gt; is ready');
+    expect(html).not.toContain('<b>Downtown</b>');
+    expect(html).toContain('Hi Olivia,');
+    expect(html).toContain('Verify email and get started');
+  });
+
+  it('sends the staff invite from the gym, naming the role', () => {
+    const { subject, html, text } = buildStaffInviteEmail(URL, 'Downtown', 'MANAGER');
+    expect(subject).toBe("You're invited to join Downtown on FormaCore");
+    expect(html).toContain('Join Downtown as a manager');
+    expect(html).toContain('Accept invitation');
+    expect(html).toContain('expires in 7 days');
+    expect(text).toContain('as a manager');
+  });
+});
+
+describe('account email builders in Georgian', () => {
+  const URL = 'https://app.fit/member/verify?token=tok';
+
+  it('renders the verification mail entirely in Georgian, with no English chrome left over', () => {
+    const { subject, html, text } = buildVerificationEmail(URL, 'ნინო', 'ka');
+    expect(subject).toBe('დაადასტურეთ ელფოსტა');
+    expect(html).toContain('გამარჯობა, ნინო,');
+    expect(html).toContain('ელფოსტის დადასტურება');
+    expect(html).toContain('24 საათში');
+    expect(html).toContain('დააკოპირეთ');
+    expect(html).toContain('მართვის პლატფორმა');
+    expect(html).not.toContain('Or copy this link');
+    expect(html).not.toContain('Management platform');
+    expect(text).toContain(URL);
+    expect(`${subject}${html}${text}`).not.toMatch(/—|--/);
+  });
+
+  it('renders the reset, onboarding and invite mails in Georgian', () => {
+    expect(buildPasswordResetEmail(URL, undefined, 'ka').subject).toBe('პაროლის აღდგენა');
+    expect(buildPasswordResetEmail(URL, undefined, 'ka').html).toContain('1 საათში');
+    const onboarding = buildOwnerOnboardingEmail(URL, 'Downtown', 'გიორგი', 'ka');
+    expect(onboarding.html).toContain('Downtown</strong> FormaCore-ზე მზადაა');
+    const invite = buildStaffInviteEmail(URL, 'Downtown', 'TRAINER', 'ka');
+    expect(invite.subject).toBe('მოწვევა: შემოუერთდით Downtown-ს FormaCore-ზე');
+    expect(invite.html).toContain('მწვრთნელის როლით');
+    expect(invite.text).toContain('7 დღეში');
+  });
+
+  it('renders the receipt with Georgian labels and ka-GE money formatting', () => {
+    const { subject, html, text } = buildReceiptEmail(cashReceipt, 'Downtown', undefined, 'ka');
+    expect(subject).toBe('თქვენი ჩეკი - Downtown');
+    expect(html).toContain('გადახდის მეთოდი: ნაღდი.');
+    expect(html).toContain('მიღებული ნაღდი');
+    expect(text).toContain('სულ: ');
+    expect(html).not.toContain('Paid by');
+  });
+
+  it('renders the ops digests in Georgian', () => {
+    const digest = buildReportDigestEmail(weeklyDigest, { locale: 'ka' });
+    expect(digest.subject).toBe('ყოველკვირეული ანგარიშების შეჯამება - Downtown');
+    expect(digest.html).toContain('ამ პერიოდში აქტივობა არ ყოფილა.');
+
+    const daily = buildDailySummaryEmail({
+      gymName: 'Downtown',
+      date: '2026-08-25',
+      currency: 'GEL',
+      revenue: 184500,
+      orders: 23,
+      checkIns: 141,
+      newMembers: 4,
+      lowStockProducts: 0,
+      locale: 'ka',
+    });
+    expect(daily.subject).toBe('დღის შეჯამება 2026-08-25 - Downtown');
+    expect(daily.html).toContain('25 აგვისტო');
+    expect(daily.html).toContain('შემოსავალი');
   });
 });
 

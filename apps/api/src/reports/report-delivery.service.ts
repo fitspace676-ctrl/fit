@@ -7,7 +7,9 @@ import {
   type ReportDigest,
   type ReportDigestCadence,
   type ReportDigestSection,
+  gymSettingsStoredSchema,
 } from '@fit/types';
+import { resolveEmailLocale } from '../mail/email-locale';
 import { EmailService } from '../auth/email.service';
 import { tenantStorage } from '../common/tenant/tenant.context';
 import { PrismaService } from '../prisma/prisma.service';
@@ -135,7 +137,7 @@ export class ReportDeliveryService {
   async deliverAll(cadence: ReportDigestCadence): Promise<ReportDeliverySummary> {
     const gyms = await this.prisma.client.gym.findMany({
       where: { status: GymStatus.ACTIVE },
-      select: { id: true, name: true },
+      select: { id: true, name: true, settings: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -163,6 +165,9 @@ export class ReportDeliveryService {
         try {
           const sent = await this.email.sendReportDigestEmail(recipient.email, digest, {
             reportsUrl,
+            locale: resolveEmailLocale(
+              gymSettingsStoredSchema.parse(gym.settings ?? {}).locale.language,
+            ),
           });
           if (sent) {
             summary.emailsSent += 1;

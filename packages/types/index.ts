@@ -52,7 +52,6 @@ export * from './src/service-sessions';
 export * from './src/signup';
 export * from './src/staff';
 export * from './src/staff-depth';
-export * from './src/email-templates';
 export * from './src/stock';
 export * from './src/subscriptions';
 export * from './src/subscriptions-admin';

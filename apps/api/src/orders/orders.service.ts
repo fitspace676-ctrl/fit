@@ -40,6 +40,7 @@ import {
   type SendReceiptInput,
   type SendReceiptResponse,
 } from '@fit/types';
+import { resolveEmailLocale } from '../mail/email-locale';
 import { EmailService } from '../auth/email.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -109,7 +110,7 @@ export class OrdersService {
       select: { name: true, settings: true },
     });
 
-    const { receipt } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    const { receipt, locale } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
     if (!receipt.emailEnabled) {
       throw new BadRequestException('This gym does not email receipts — check Settings → Receipts');
     }
@@ -121,6 +122,7 @@ export class OrdersService {
       // Settings → Business info: the seller's own address / phone / email / site,
       // printed under the sale so the buyer can reach the gym about it.
       gymPublicContact(gym?.settings),
+      resolveEmailLocale(locale.language),
     );
 
     return { delivered };

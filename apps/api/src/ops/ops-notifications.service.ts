@@ -10,6 +10,7 @@ import {
   Role,
 } from '@fit/db';
 import { gymSettingsStoredSchema, productVariantsSchema } from '@fit/types';
+import { resolveEmailLocale } from '../mail/email-locale';
 import {
   EmailService,
   type DailySummary,
@@ -181,7 +182,14 @@ export class OpsNotificationsService {
         if (products.length === 0) {
           return null;
         }
-        return { gymName: gym.name, threshold, products, productsUrl };
+        const { language } = gymSettingsStoredSchema.parse(gym.settings ?? {}).locale;
+        return {
+          gymName: gym.name,
+          threshold,
+          products,
+          productsUrl,
+          locale: resolveEmailLocale(language),
+        };
       },
       (email, digest) => this.email.sendLowStockDigestEmail(email, digest),
       now,
@@ -203,7 +211,7 @@ export class OpsNotificationsService {
       'daily-summary',
       async (gym): Promise<DailySummary | null> => {
         const settings = gymSettingsStoredSchema.parse(gym.settings ?? {});
-        const { timezone, currency } = settings.locale;
+        const { timezone, currency, language } = settings.locale;
         const date = zonedDateString(now, timezone);
         const { gte, lt } = utcDayRange(date, timezone);
 
@@ -211,7 +219,14 @@ export class OpsNotificationsService {
         if (isQuietDay(figures)) {
           return null;
         }
-        return { gymName: gym.name, date, currency, dashboardUrl, ...figures };
+        return {
+          gymName: gym.name,
+          date,
+          currency,
+          dashboardUrl,
+          locale: resolveEmailLocale(language),
+          ...figures,
+        };
       },
       (email, summary) => this.email.sendDailySummaryEmail(email, summary),
       now,
