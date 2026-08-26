@@ -158,6 +158,8 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).toContain('<img src="https://app.fit/logodark.png" width="150" alt="FormaCore"');
     expect(html).not.toContain('/email-marks/u0046.png" width="40"');
     expect(html).not.toContain('logolight.png');
+    // Pinned dark for the Gmail app, which never inverts a background gradient.
+    expect(html).toContain('background-image:linear-gradient(#131312,#131312);');
   });
 
   it('keeps the initial mark and name in the band for a gym sender', () => {
@@ -166,6 +168,8 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).not.toContain('logodark.png');
     expect(html).toContain('/email-marks/u0044.png" width="40"');
     expect(html).toContain('>Downtown</div>');
+    // Text in the band: left free to invert so it stays readable.
+    expect(html).not.toContain('background-image:linear-gradient');
   });
 
   it('falls back to the mark and name for the platform without a web URL', () => {

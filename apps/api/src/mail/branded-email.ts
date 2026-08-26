@@ -113,22 +113,27 @@ const PLATFORM_SENDER = 'FormaCore';
  * "Forma", green "Core", the same PNG the portal serves) when the platform
  * itself is the sender and the web app's URL is known. Without a base URL the
  * platform falls back to the mark and name too, rather than a broken image.
+ * `imageOnly` tells the shell the band carries no text, so it may pin the band
+ * dark for the Gmail app (see the gradient note in {@link renderBrandedEmail}).
  */
-function renderBandContent(senderName: string): string {
+function renderBandContent(senderName: string): { html: string; imageOnly: boolean } {
   const B = EMAIL_BRAND;
   const base = env.WEB_URL?.replace(/\/+$/, '');
   if (senderName === PLATFORM_SENDER && base) {
-    return `<img src="${base}/logodark.png" width="150" alt="${PLATFORM_SENDER}" style="display:block;width:150px;height:auto;border:0;" />`;
+    return {
+      imageOnly: true,
+      html: `<img src="${base}/logodark.png" width="150" alt="${PLATFORM_SENDER}" style="display:block;width:150px;height:auto;border:0;" />`,
+    };
   }
-  return (
+  const html =
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">` +
     `<tr>` +
     `<td style="width:40px;vertical-align:middle;">${renderMark(senderName, 40, 12)}</td>` +
     `<td style="padding-left:14px;vertical-align:middle;">` +
     `<div style="font-size:17px;line-height:22px;font-weight:800;letter-spacing:-0.01em;color:${B.card};">${senderName}</div>` +
     `</td>` +
-    `</tr></table>`
-  );
+    `</tr></table>`;
+  return { html, imageOnly: false };
 }
 
 /**
@@ -199,6 +204,12 @@ export function renderBrandedEmail(options: {
   const B = EMAIL_BRAND;
   const locale = options.locale ?? DEFAULT_EMAIL_LOCALE;
   const strings = emailStrings(locale);
+  // The Gmail app's dark mode inverts every colour except images and
+  // background-image gradients. A band that holds only the logo image is pinned
+  // charcoal with a flat gradient so the white wordmark keeps its ground; a band
+  // with the gym's name is left alone, because its text would invert to black on
+  // the pinned dark ground and vanish.
+  const band = renderBandContent(senderName);
 
   const preheaderHtml = preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;mso-hide:all;">${escapeHtml(preheader)}${'&#847;&zwnj;&nbsp;'.repeat(24)}</div>`
@@ -229,8 +240,8 @@ export function renderBrandedEmail(options: {
     // The card.
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" class="em-card" style="width:100%;max-width:${CARD_WIDTH}px;margin:0 auto;border-collapse:separate;background:${B.card};border:1px solid ${B.border};border-radius:20px;overflow:hidden;">` +
     // Header band: lime mark + wordmark on charcoal.
-    `<tr><td class="em-band" style="padding:22px 32px;background:${B.ink};border-radius:19px 19px 0 0;">` +
-    renderBandContent(senderName) +
+    `<tr><td class="em-band" style="padding:22px 32px;background:${B.ink};${band.imageOnly ? `background-image:linear-gradient(${B.ink},${B.ink});` : ''}border-radius:19px 19px 0 0;">` +
+    band.html +
     `</td></tr>` +
     // Body.
     `<tr><td style="padding:36px 32px 32px;">` +
