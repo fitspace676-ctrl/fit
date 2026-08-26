@@ -152,19 +152,26 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).toContain('src="https://app.fit/email-marks/u0046.png" width="14"');
   });
 
-  it('shows the FormaCore wordmark above the card, with a dark twin for dark-mode clients', () => {
+  it('puts the FormaCore dark-ground wordmark in the band when the platform is the sender', () => {
     mockEnv.WEB_URL = 'https://app.fit';
-    const html = renderBrandedEmail({ senderName: 'Gym', heading: 'Hi', contentHtml: 'x' });
-    expect(html).toContain('class="em-logo-light" src="https://app.fit/logolight.png"');
-    expect(html).toContain('class="em-logo-dark" src="https://app.fit/logodark.png"');
-    expect(html).toContain('.em-logo-light{display:none !important;}');
-    // The logo sits between the preheader and the card, not inside the band.
-    expect(html.indexOf('logolight.png')).toBeLessThan(html.indexOf('class="em-card"'));
+    const html = renderBrandedEmail({ senderName: 'FormaCore', heading: 'Hi', contentHtml: 'x' });
+    expect(html).toContain('<img src="https://app.fit/logodark.png" width="150" alt="FormaCore"');
+    expect(html).not.toContain('/email-marks/u0046.png" width="40"');
+    expect(html).not.toContain('logolight.png');
   });
 
-  it('omits the wordmark without a web URL rather than shipping a broken image', () => {
-    const html = renderBrandedEmail({ senderName: 'Gym', heading: 'Hi', contentHtml: 'x' });
-    expect(html).not.toContain('logolight.png');
+  it('keeps the initial mark and name in the band for a gym sender', () => {
+    mockEnv.WEB_URL = 'https://app.fit';
+    const html = renderBrandedEmail({ senderName: 'Downtown', heading: 'Hi', contentHtml: 'x' });
+    expect(html).not.toContain('logodark.png');
+    expect(html).toContain('/email-marks/u0044.png" width="40"');
+    expect(html).toContain('>Downtown</div>');
+  });
+
+  it('falls back to the mark and name for the platform without a web URL', () => {
+    const html = renderBrandedEmail({ senderName: 'FormaCore', heading: 'Hi', contentHtml: 'x' });
+    expect(html).not.toContain('logodark.png');
+    expect(html).toMatch(/background:#E4F26A;color:#131312;[^>]*>F</);
   });
 
   it('falls back to the FormaCore F image for an initial outside the glyph set', () => {

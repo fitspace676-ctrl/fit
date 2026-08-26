@@ -104,25 +104,30 @@ function renderMark(senderName: string, size: number, radius: number): string {
   return `<div style="width:${size}px;height:${size}px;border-radius:${radius}px;background:${B.brand};color:${B.ink};font-size:${Math.round(size / 2)}px;line-height:${size}px;font-weight:800;text-align:center;letter-spacing:-0.02em;">${initial}</div>`;
 }
 
+/** The platform's own name; the one sender whose band carries the logo. */
+const PLATFORM_SENDER = 'FormaCore';
+
 /**
- * The FormaCore wordmark above the card, when the web app's URL is known: the
- * light-ground logo, with its dark-ground twin hidden beside it so clients that
- * honour the dark palette swap them (see {@link DARK_MODE_CSS}). Both are the
- * same PNGs the portal serves. Omitted without a base URL, since a broken image
- * is worse than none.
+ * What the charcoal header band carries: the sender's initial on the lime block
+ * beside their name for a gym, and the FormaCore dark-ground wordmark (white
+ * "Forma", green "Core", the same PNG the portal serves) when the platform
+ * itself is the sender and the web app's URL is known. Without a base URL the
+ * platform falls back to the mark and name too, rather than a broken image.
  */
-function renderLogo(): string {
+function renderBandContent(senderName: string): string {
+  const B = EMAIL_BRAND;
   const base = env.WEB_URL?.replace(/\/+$/, '');
-  if (!base) {
-    return '';
+  if (senderName === PLATFORM_SENDER && base) {
+    return `<img src="${base}/logodark.png" width="150" alt="${PLATFORM_SENDER}" style="display:block;width:150px;height:auto;border:0;" />`;
   }
-  const width = 168;
   return (
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="width:100%;max-width:${CARD_WIDTH}px;margin:0 auto;border-collapse:collapse;">` +
-    `<tr><td style="padding:0 0 20px;text-align:center;">` +
-    `<img class="em-logo-light" src="${base}/logolight.png" width="${width}" alt="FormaCore" style="display:inline-block;width:${width}px;height:auto;border:0;" />` +
-    `<img class="em-logo-dark" src="${base}/logodark.png" width="${width}" alt="" style="display:none;max-height:0;width:${width}px;height:auto;border:0;mso-hide:all;" />` +
-    `</td></tr></table>`
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">` +
+    `<tr>` +
+    `<td style="width:40px;vertical-align:middle;">${renderMark(senderName, 40, 12)}</td>` +
+    `<td style="padding-left:14px;vertical-align:middle;">` +
+    `<div style="font-size:17px;line-height:22px;font-weight:800;letter-spacing:-0.01em;color:${B.card};">${senderName}</div>` +
+    `</td>` +
+    `</tr></table>`
   );
 }
 
@@ -150,8 +155,6 @@ const DARK_MODE_CSS =
   `.em-panel{background:#131312 !important;border-color:#2E2E2A !important;color:#CFCFC9 !important;}` +
   `.em-button,.em-button a{background:#E4F26A !important;color:#131312 !important;}` +
   `td,th{border-color:#2E2E2A !important;}` +
-  `.em-logo-light{display:none !important;}` +
-  `.em-logo-dark{display:inline-block !important;max-height:none !important;}` +
   `}` +
   `[data-ogsc] .em-ink,[data-ogsc] .em-ink *{color:#F2F2EF !important;}` +
   `[data-ogsc] .em-body{color:#CFCFC9 !important;}` +
@@ -167,8 +170,9 @@ const DARK_MODE_CSS =
  * the sign-in screen leads with, above a white card on the warm-grey canvas,
  * with an optional tracked uppercase `eyebrow`, a heavy tightly-tracked heading
  * like the portal titles, and a footer below the card that signs the mail and
- * names the platform, with the FormaCore wordmark above the card when the web
- * app's URL is configured. The caller is responsible for escaping any user-supplied
+ * names the platform. When the platform itself is the sender, the band carries
+ * the FormaCore wordmark (the dark-ground logo) instead of the initial mark and
+ * name, provided the web app's URL is configured. The caller is responsible for escaping any user-supplied
  * text it interpolates into `contentHtml`, `senderName`, `heading`, `eyebrow`
  * and `footerNote`.
  *
@@ -222,18 +226,11 @@ export function renderBrandedEmail(options: {
     `<body class="em-canvas" style="margin:0;padding:0;background:${B.canvas};">` +
     `<div class="em-canvas" style="margin:0;padding:32px 16px;background:${B.canvas};font-family:${B.font};-webkit-text-size-adjust:100%;">` +
     preheaderHtml +
-    renderLogo() +
     // The card.
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" class="em-card" style="width:100%;max-width:${CARD_WIDTH}px;margin:0 auto;border-collapse:separate;background:${B.card};border:1px solid ${B.border};border-radius:20px;overflow:hidden;">` +
     // Header band: lime mark + wordmark on charcoal.
     `<tr><td class="em-band" style="padding:22px 32px;background:${B.ink};border-radius:19px 19px 0 0;">` +
-    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">` +
-    `<tr>` +
-    `<td style="width:40px;vertical-align:middle;">${renderMark(senderName, 40, 12)}</td>` +
-    `<td style="padding-left:14px;vertical-align:middle;">` +
-    `<div style="font-size:17px;line-height:22px;font-weight:800;letter-spacing:-0.01em;color:${B.card};">${senderName}</div>` +
-    `</td>` +
-    `</tr></table>` +
+    renderBandContent(senderName) +
     `</td></tr>` +
     // Body.
     `<tr><td style="padding:36px 32px 32px;">` +
