@@ -158,8 +158,6 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).toContain('<img src="https://app.fit/logodark.png" width="150" alt="FormaCore"');
     expect(html).not.toContain('/email-marks/u0046.png" width="40"');
     expect(html).not.toContain('logolight.png');
-    // Pinned dark for the Gmail app, which never inverts a background gradient.
-    expect(html).toContain('background-image:linear-gradient(#131312,#131312);');
   });
 
   it('keeps the initial mark and name in the band for a gym sender', () => {
@@ -168,8 +166,6 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).not.toContain('logodark.png');
     expect(html).toContain('/email-marks/u0044.png" width="40"');
     expect(html).toContain('>Downtown</div>');
-    // Text in the band: left free to invert so it stays readable.
-    expect(html).not.toContain('background-image:linear-gradient');
   });
 
   it('falls back to the mark and name for the platform without a web URL', () => {
@@ -182,6 +178,32 @@ describe('renderBrandedEmail as a document', () => {
     mockEnv.WEB_URL = 'https://app.fit';
     const html = renderBrandedEmail({ senderName: 'Ünique', heading: 'Hi', contentHtml: 'x' });
     expect(html).toContain('/email-marks/u0046.png" width="40"');
+  });
+});
+
+describe('Gmail dark-mode holding', () => {
+  const html = renderBrandedEmail({ senderName: 'Gym', heading: 'Hi', contentHtml: '<p>x</p>' });
+
+  it('pins the band and the card body with flat gradients Gmail cannot invert', () => {
+    expect(html).toContain('background:#131312;background-image:linear-gradient(#131312,#131312);');
+    expect(html).toContain('background:#FFFFFF;background-image:linear-gradient(#FFFFFF,#FFFFFF);');
+  });
+
+  it('wraps the band and body in two difference layers painted in their ground colour', () => {
+    const inkLayer = 'class="em-hold" style="background:#131312;mix-blend-mode:difference;"';
+    const cardLayer = 'class="em-hold" style="background:#FFFFFF;mix-blend-mode:difference;"';
+    expect(html.split(inkLayer)).toHaveLength(3);
+    expect(html.split(cardLayer)).toHaveLength(3);
+    expect(html).toMatch(
+      new RegExp(`<div ${cardLayer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}><div [^>]*><h1`),
+    );
+  });
+
+  it('switches the holding layers off in the designed dark palette', () => {
+    expect(html).toContain(
+      '.em-hold{mix-blend-mode:normal !important;background:transparent !important;}',
+    );
+    expect(html).toContain('.em-card-body{background:#1B1B19 !important;}');
   });
 });
 
