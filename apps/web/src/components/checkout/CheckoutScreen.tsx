@@ -5,9 +5,13 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import {
+  gymStartDatePolicySchema,
+  isStartDateWithinPolicy,
   memberSignupSchemaFor,
+  startDateBounds,
   type CheckoutProductType,
   type Gender,
+  type GymStartDatePolicy,
   type PackageSummary,
   type SignupCatalogueResponse,
 } from '@fit/types';
@@ -18,6 +22,7 @@ import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { Banner, DateField, Field } from '@/src/components/ui/kit';
 import { PRODUCT_TABS, toCards } from './product-cards';
+import { startDateHintKey } from './start-date';
 
 // FormaCore redesign — the purchase flow as ONE page.
 //
@@ -643,6 +648,14 @@ export interface CheckoutScreenProps {
   /** The tenant the purchase is made on, resolved from the Host. */
   gymId: string | null;
   locale: string;
+  /**
+   * The gym's IANA zone. "Today" for a membership start date is the gym's
+   * calendar day, not the buyer's: someone signing up from Berlin at 23:00 is
+   * buying a membership that begins on the gym's tomorrow, and the API bounds
+   * the date on the gym's clock. Passing the zone rather than a resolved day
+   * keeps the value correct in a tab left open across midnight.
+   */
+  timezone: string;
 }
 
 type Status = 'loading' | 'ready' | 'error';
@@ -682,11 +695,26 @@ const STEP_TITLES = [
 ] as const;
 
 /**
+ * `YYYY-MM-DD` of "now" on the gym's clock — the calendar day its start-date
+ * window is measured from. `en-CA` renders ISO order, so there is nothing to
+ * assemble by hand. Mirrors `todayIn` on the services page rather than reaching
+ * for a date library for four lines.
+ */
+function todayIn(timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/**
  * The public purchase screen: choose a branch and a product, say who you are,
  * and reserve the membership — all on one page, with the running order kept in
  * view. Reachable signed-out; a guest is registered as part of paying.
  */
-export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
+export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps) {
   const t = useTranslations('checkout');
   const tAuth = useTranslations('auth');
   const router = useRouter();
@@ -709,6 +737,11 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  // Left EMPTY rather than seeded with today. A gym only switches this field on
+  // because the answer is not always "now" — pre-filling it would collect a
+  // default dressed up as a choice, which is the thing the toggle exists to
+  // avoid. `memberSignupSchemaFor` then holds the buyer to answering it.
+  const [startDate, setStartDate] = useState('');
   const [gender, setGender] = useState<Gender | ''>('');
   const [personalId, setPersonalId] = useState('');
 
@@ -800,6 +833,36 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
   );
 
   /**
+   * How far the chosen start date may land from today (Settings → Membership).
+   *
+   * Falls back to the schema's own defaults while the catalogue is in flight, or
+   * against an API that predates the field — which is the same window a gym that
+   * never configured one gets, so the picker offers the days the server would
+   * have accepted anyway rather than refusing to render.
+   */
+  const startDatePolicy: GymStartDatePolicy = useMemo(
+    () => catalogue?.startDatePolicy ?? gymStartDatePolicySchema.parse({}),
+    [catalogue],
+  );
+
+  // The window, on the GYM's calendar. Recomputed per render from the zone
+  // rather than pinned at mount, so a page left open past midnight does not go
+  // on offering yesterday.
+  const today = todayIn(timezone);
+  const startDateWindow = useMemo(
+    () => startDateBounds(startDatePolicy, today),
+    [startDatePolicy, today],
+  );
+
+  // The window, said in words under the field. The calendar already refuses the
+  // days outside it, but a control that silently greys out three quarters of the
+  // month tells the buyer nothing about why — see `./start-date` for which
+  // sentence each policy gets.
+  const startDateHint = t(`details.fields.${startDateHintKey(startDatePolicy)}`, {
+    days: startDatePolicy.maxDaysAhead,
+  });
+
+  /**
    * The signup body, from the fields this gym collects. A field it does not ask
    * for is OMITTED rather than sent empty — the member has no phone on file,
    * which is a different thing from a blank one.
@@ -812,15 +875,30 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
       password,
       ...(asks('phone') ? { phone } : {}),
       ...(asks('dateOfBirth') ? { dateOfBirth } : {}),
+      ...(asks('startDate') ? { startDate } : {}),
       ...(asks('gender') ? { gender } : {}),
       ...(asks('personalId') ? { personalId } : {}),
     }),
-    [gymId, name, email, password, asks, phone, dateOfBirth, gender, personalId],
+    [gymId, name, email, password, asks, phone, dateOfBirth, startDate, gender, personalId],
   );
 
-  /** Everything the details step needs before the purchase can be attempted. */
+  /**
+   * Everything the details step needs before the purchase can be attempted.
+   *
+   * The schema half is the gym's own "on means required" policy, so switching
+   * `startDate` on makes it mandatory with nothing added here. The policy half
+   * is the second check the schema cannot make — it validates the SHAPE of a
+   * date, not whether the day is inside the gym's window — and it is the same
+   * predicate the API re-runs before writing, so the button cannot enable on a
+   * date the server will refuse.
+   */
+  const startDateAcceptable =
+    !asks('startDate') || isStartDateWithinPolicy(startDate, startDatePolicy, today);
   const detailsReady =
-    signedIn || (intake !== null && memberSignupSchemaFor(intake).safeParse(signupBody).success);
+    signedIn ||
+    (intake !== null &&
+      startDateAcceptable &&
+      memberSignupSchemaFor(intake).safeParse(signupBody).success);
 
   const canPay = Boolean(gymId && (product || isFree) && terms && detailsReady) && !submitting;
 
@@ -1181,6 +1259,33 @@ export function CheckoutScreen({ gymId, locale }: CheckoutScreenProps) {
                         value={dateOfBirth}
                         onChange={setDateOfBirth}
                         locale={locale}
+                        placeholder={t('details.fields.datePlaceholder')}
+                        labels={{
+                          open: t('details.calendar.open'),
+                          previousMonth: t('details.calendar.previousMonth'),
+                          nextMonth: t('details.calendar.nextMonth'),
+                          chooseYear: t('details.calendar.chooseYear'),
+                        }}
+                        disabled={submitting}
+                      />
+                    ) : null}
+                    {/* When the membership BEGINS, when the gym asks (a gym that
+                        pre-sells January in December does; one that enrols on
+                        the spot does not, and the API defaults those to today).
+                        Sits here rather than at the end of the grid so the two
+                        dates stay side by side and the two-column rhythm holds.
+                        `min`/`max` come from the gym's own policy, so the
+                        calendar cannot offer a day the API would refuse. */}
+                    {asks('startDate') ? (
+                      <DateField
+                        label={t('details.fields.startDate')}
+                        name="startDate"
+                        value={startDate}
+                        onChange={setStartDate}
+                        locale={locale}
+                        min={startDateWindow.min}
+                        max={startDateWindow.max}
+                        hint={startDateHint}
                         placeholder={t('details.fields.datePlaceholder')}
                         labels={{
                           open: t('details.calendar.open'),

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { GymStatus } from '@fit/db';
 import {
+  gymPortalTheme,
   gymPublicBrand,
   gymPublicContact,
   gymPublicTimezone,
@@ -76,6 +77,10 @@ export class GymsService {
       brand: gymPublicBrand(gym.name, gym.settings),
       contact: gymPublicContact(gym.settings),
       timezone: gymPublicTimezone(gym.settings),
+      // The portal's skin, resolved against the brand so both colours are always
+      // renderable. It rides along here because the sign-in screen — painted
+      // before anyone has a session — has nothing else to ask.
+      portal: gymPortalTheme(gym.settings),
     };
   }
 }

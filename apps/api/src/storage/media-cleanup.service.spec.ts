@@ -12,7 +12,15 @@ interface Counts {
   products?: number;
   trainers?: number;
   locations?: number;
+  /** Gyms whose brand logo is this reference. */
   gyms?: number;
+  /** Gyms whose member-portal sign-in photograph is this reference. */
+  portalImages?: number;
+}
+
+/** The `settings` JSON path a gym reference query filters on. */
+interface GymCountArgs {
+  where: { settings: { path: string[] } };
 }
 
 function setup(counts: Counts = {}) {
@@ -26,7 +34,17 @@ function setup(counts: Counts = {}) {
       product: { count: vi.fn(() => Promise.resolve(counts.products ?? 0)) },
       trainer: { count: vi.fn(() => Promise.resolve(counts.trainers ?? 0)) },
       location: { count: vi.fn(() => Promise.resolve(counts.locations ?? 0)) },
-      gym: { count: vi.fn(() => Promise.resolve(counts.gyms ?? 0)) },
+      // Two settings paths share this one model, so the stub answers by the path
+      // asked for rather than by call order.
+      gym: {
+        count: vi.fn((args: GymCountArgs) =>
+          Promise.resolve(
+            args.where.settings.path[0] === 'memberPortal'
+              ? (counts.portalImages ?? 0)
+              : (counts.gyms ?? 0),
+          ),
+        ),
+      },
     },
   } as unknown as PrismaService;
 
@@ -46,6 +64,17 @@ describe('MediaCleanupService.discardUnreferenced', () => {
     const { service, deleteObjects } = setup({ products: 1 });
 
     await service.discardUnreferenced([IMAGE], []);
+
+    expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
+  // The portal photograph and the brand logo share the `logos` upload prefix, so
+  // a gym that used one image as both would lose it the moment either side moved
+  // on if only the logo were re-checked.
+  it('keeps an image the member portal still points at', async () => {
+    const { service, deleteObjects } = setup({ portalImages: 1 });
+
+    await service.discardUnreferenced([`${BASE}/gym-1/logos/hero.jpg`], []);
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
   });

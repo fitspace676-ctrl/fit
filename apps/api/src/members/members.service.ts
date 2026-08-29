@@ -122,6 +122,7 @@ const MEMBER_SELECT = {
   joinedAt: true,
   deletedAt: true,
   dateOfBirth: true,
+  startDate: true,
   personalId: true,
   gender: true,
   address: true,
@@ -463,6 +464,7 @@ export class MembersService {
       phone: filled(input.phone),
       gender: Boolean(input.gender),
       dateOfBirth: filled(input.dateOfBirth),
+      startDate: filled(input.startDate),
       personalId: filled(input.personalId),
       address: filled(input.address),
       emergencyContact: filled(input.emergencyContactName) && filled(input.emergencyContactPhone),
@@ -486,10 +488,13 @@ export class MembersService {
    * The `GymMember` profile columns to write from a create/update body. A field
    * that is **absent** (`undefined`) is omitted (left untouched); an **empty**
    * field arrives as `null` from the schema and clears the column. `dateOfBirth`
-   * is coerced from its ISO string to a `Date`.
+   * and `startDate` are coerced from their ISO strings to `Date`s — both are
+   * calendar days, so a bare `YYYY-MM-DD` lands at UTC midnight and reads back as
+   * the same day whatever zone the server runs in.
    */
   private profileWriteData(input: CreateMemberInput | UpdateMemberInput): {
     dateOfBirth?: Date | null;
+    startDate?: Date | null;
     personalId?: string | null;
     gender?: Gender | null;
     address?: string | null;
@@ -500,6 +505,9 @@ export class MembersService {
     const data: ReturnType<MembersService['profileWriteData']> = {};
     if (input.dateOfBirth !== undefined) {
       data.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+    }
+    if (input.startDate !== undefined) {
+      data.startDate = input.startDate ? new Date(input.startDate) : null;
     }
     if (input.personalId !== undefined) data.personalId = input.personalId;
     if (input.gender !== undefined) data.gender = input.gender;
@@ -1354,6 +1362,7 @@ export class MembersService {
       accessLog: wireAccessLog,
       // Staff-managed profile extras (real `GymMember` columns; null when unset).
       dateOfBirth: row.dateOfBirth ? row.dateOfBirth.toISOString() : null,
+      startDate: row.startDate ? row.startDate.toISOString() : null,
       personalId: row.personalId,
       gender: row.gender,
       address: row.address,

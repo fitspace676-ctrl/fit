@@ -28,6 +28,9 @@ describe('gymMemberIntakeSettingsSchema', () => {
       phone: true,
       gender: true,
       dateOfBirth: true,
+      // Asking WHEN someone starts only makes sense for a gym that pre-sells;
+      // one that enrols at the desk gets "today" without a question.
+      startDate: false,
       personalId: true,
       address: true,
       emergencyContact: true,
@@ -108,6 +111,7 @@ describe('requiredIntakeFields', () => {
       'medicalNotes',
       'personalId',
       'phone',
+      'startDate',
       'surname',
     ]);
   });

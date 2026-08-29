@@ -68,6 +68,16 @@ describe('sidebar nav ⇄ route guards', () => {
     }
   });
 
+  it('gates the Member portal behind OWNER', () => {
+    // The screen edits gym configuration, so its route guard and its nav gate
+    // must agree on OWNER — a MANAGER shown the link would land on /403.
+    expect(requiredRoleForPath('/member-portal')).toBe('OWNER');
+    expect(visibleNavItems('OWNER').map((item) => item.href)).toContain('/member-portal');
+    for (const role of ['MANAGER', 'RECEPTIONIST', 'TRAINER'] as Role[]) {
+      expect(visibleNavItems(role).map((item) => item.href)).not.toContain('/member-portal');
+    }
+  });
+
   it('shows the Growth group to an OWNER and to a MANAGER', () => {
     for (const role of ['OWNER', 'MANAGER'] as Role[]) {
       const hrefs = visibleNavItems(role).map((item) => item.href);

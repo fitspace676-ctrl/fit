@@ -108,6 +108,47 @@ export const gymBrandSettingsSchema = z.object({
 export type GymBrandSettings = z.infer<typeof gymBrandSettingsSchema>;
 
 /**
+ * The member portal's own look — what a visitor sees on the tenant's public site
+ * before and after signing in.
+ *
+ * SEPARATE from {@link gymBrandSettingsSchema} on purpose. The brand block is the
+ * gym's identity as it appears on documents it hands out — the logo on an invoice,
+ * the colour on a receipt — and changing it changes printed artefacts. This block
+ * is a skin for one surface, and a gym that wants a lime portal without a lime
+ * invoice needs to be able to say so. `null` on a colour means "follow the brand",
+ * so a gym that has never opened this screen still renders as its brand does.
+ *
+ * `loginImageUrl` is the R2 public URL of the photograph on the sign-in panel (the
+ * `AuthPhotoShell` column), or `null` for the bundled `/gym-hero.webp` — the same
+ * finalise-by-`photoKey` flow the brand logo uses, so the upload path, the
+ * ownership check and the orphan sweep are shared rather than reimplemented.
+ */
+export const gymMemberPortalSettingsSchema = z.object({
+  loginImageUrl: z.string().url().nullable().default(null),
+  primaryColor: z.string().regex(HEX_COLOR_PATTERN, HEX_COLOR_MESSAGE).nullable().default(null),
+  accentColor: z.string().regex(HEX_COLOR_PATTERN, HEX_COLOR_MESSAGE).nullable().default(null),
+});
+
+/** The member portal's look — {@link gymMemberPortalSettingsSchema}. */
+export type GymMemberPortalSettings = z.infer<typeof gymMemberPortalSettingsSchema>;
+
+/**
+ * Body for `POST /gyms/settings/portal-image` — the R2 object `photoKey` of an
+ * already-uploaded sign-in photograph, mirroring {@link uploadGymLogoSchema}.
+ */
+export const uploadGymPortalImageSchema = z.object({
+  photoKey: z.string().trim().min(1),
+});
+
+/** Validated `POST /gyms/settings/portal-image` body. */
+export type UploadGymPortalImageInput = z.infer<typeof uploadGymPortalImageSchema>;
+
+/** Successful `POST /gyms/settings/portal-image` response. */
+export interface UploadGymPortalImageResponse {
+  loginImageUrl: string;
+}
+
+/**
  * Locale settings: the default interface `language`, the `currency` member-facing
  * prices render in (ISO-4217 three-letter code), and the `timezone` every
  * displayed time is localised to. Each defaults so a never-configured gym still
@@ -299,8 +340,10 @@ export type GymFreeAccountSettings = z.infer<typeof gymFreeAccountSettingsSchema
  *
  * `name`/`email` are required by `createMemberSchema` regardless, so they default on
  * (the Settings UI warns when they are turned off). `surname` is a UI-only split
- * joined onto `name`; `startDate` is intentionally absent (removed from the drawer —
- * the API defaults enrolment to today).
+ * joined onto `name`. `startDate` is back — off by default — because the public join
+ * wizard needs to let a buyer say when their membership begins; when it is off the
+ * API still defaults enrolment to today, which is the behaviour that held while the
+ * toggle did not exist.
  *
  * The identity and contact fields default **on**: a gym that registers someone
  * without a date of birth, a national id or a next of kin generally wanted them and
@@ -320,6 +363,16 @@ export const gymMemberIntakeSettingsSchema = z.object({
   gender: z.boolean().default(true),
   dateOfBirth: z.boolean().default(true),
   /**
+   * When the membership is to BEGIN, as the member/desk chooses it.
+   *
+   * Off by default because it is the one intake field that asks a question rather
+   * than recording a fact: a gym that enrols people on the spot has no use for it,
+   * and the API's "starts today" default is the right answer for them. A gym that
+   * pre-sells January memberships in December turns it on, and then
+   * {@link gymStartDatePolicySchema} bounds how far ahead the date may land.
+   */
+  startDate: z.boolean().default(false),
+  /**
    * National identity number. Independent of the public join wizard, which always
    * requires one.
    */
@@ -330,6 +383,76 @@ export const gymMemberIntakeSettingsSchema = z.object({
   paymentMethod: z.boolean().default(false),
   medicalNotes: z.boolean().default(false),
 });
+
+/**
+ * How far ahead of today a chosen membership `startDate` may land, and whether a
+ * past one is accepted at all.
+ *
+ * A SIBLING of {@link gymMemberIntakeSettingsSchema} rather than a field in it,
+ * because that schema is all-boolean by contract (the whole console derives the
+ * required set by mapping its keys) and a window is a number. The intake toggle
+ * decides whether the date is asked for; this decides which dates are answerable.
+ *
+ * `maxDaysAhead` is inclusive and counted in whole days in the GYM's time zone,
+ * not the visitor's: `0` means today only, `14` means today through a fortnight
+ * out. It is capped at a year — past that the date is a guess, not a plan, and
+ * the membership it prices has probably changed.
+ *
+ * `allowPast` is off by default. Backdating an enrolment is a correction, and
+ * corrections belong to staff on the member record, not to a self-serve wizard
+ * where the only reason to pick last month is to argue about it later.
+ */
+export const gymStartDatePolicySchema = z.object({
+  maxDaysAhead: z.number().int().min(0).max(365).default(14),
+  allowPast: z.boolean().default(false),
+});
+
+/** The membership start-date window — {@link gymStartDatePolicySchema}. */
+export type GymStartDatePolicy = z.infer<typeof gymStartDatePolicySchema>;
+
+/**
+ * The inclusive `[min, max]` calendar days a start date may fall on, as
+ * `YYYY-MM-DD` strings in the gym's own zone, from its {@link GymStartDatePolicy}.
+ *
+ * Both ends are produced here, once, so the join wizard's `<input type="date">`
+ * bounds, the console's picker and the API's validator cannot drift apart — a
+ * date the form offers but the API rejects is the failure this exists to prevent.
+ *
+ * @param policy  the gym's configured window
+ * @param today   today in the gym's zone, `YYYY-MM-DD` (the caller resolves the
+ *                zone — this function does no time-zone maths of its own)
+ */
+export function startDateBounds(
+  policy: GymStartDatePolicy,
+  today: string,
+): { min: string; max: string } {
+  const day = 86_400_000;
+  const base = Date.parse(`${today}T00:00:00Z`);
+  const iso = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+  return {
+    // A gym that allows backdating is not thereby allowing ANY past date: the
+    // window opens as far back as it reaches forward, which keeps one number in
+    // the settings form rather than two that gyms would have to reason about.
+    min: policy.allowPast ? iso(base - policy.maxDaysAhead * day) : today,
+    max: iso(base + policy.maxDaysAhead * day),
+  };
+}
+
+/**
+ * Whether `value` (a `YYYY-MM-DD` day) is an acceptable start date under `policy`,
+ * given `today` in the gym's zone. Non-dates are rejected rather than coerced.
+ */
+export function isStartDateWithinPolicy(
+  value: string,
+  policy: GymStartDatePolicy,
+  today: string,
+): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+    return false;
+  }
+  const { min, max } = startDateBounds(policy, today);
+  return value >= min && value <= max;
+}
 
 /** The Add-Member drawer field-visibility config — {@link gymMemberIntakeSettingsSchema}. */
 export type GymMemberIntakeSettings = z.infer<typeof gymMemberIntakeSettingsSchema>;
@@ -642,6 +765,8 @@ export const gymSettingsStoredSchema = z.object({
   trial: gymTrialSettingsSchema.default({}),
   freeAccount: gymFreeAccountSettingsSchema.default({}),
   memberIntake: gymMemberIntakeSettingsSchema.default({}),
+  startDatePolicy: gymStartDatePolicySchema.default({}),
+  memberPortal: gymMemberPortalSettingsSchema.default({}),
   staffDirectory: gymStaffDirectorySettingsSchema.default({}),
   reports: gymReportsSettingsSchema.default({}),
   payments: gymPaymentMethodsSchema.default({}),
@@ -674,6 +799,8 @@ export interface GymSettings {
   trial: GymTrialSettings;
   freeAccount: GymFreeAccountSettings;
   memberIntake: GymMemberIntakeSettings;
+  startDatePolicy: GymStartDatePolicy;
+  memberPortal: GymMemberPortalSettings;
   staffDirectory: GymStaffDirectorySettings;
   reports: GymReportsSettings;
   payments: GymPaymentMethods;
@@ -723,6 +850,8 @@ export const updateGymSettingsSchema = z
     trial: gymTrialSettingsSchema.partial().strict().optional(),
     freeAccount: gymFreeAccountSettingsSchema.partial().strict().optional(),
     memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional(),
+    startDatePolicy: gymStartDatePolicySchema.partial().strict().optional(),
+    memberPortal: gymMemberPortalSettingsSchema.partial().strict().optional(),
     staffDirectory: gymStaffDirectorySettingsSchema.partial().strict().optional(),
     reports: gymReportsSettingsSchema.partial().strict().optional(),
     payments: gymPaymentMethodsSchema.partial().strict().optional(),
@@ -827,6 +956,53 @@ export function gymPublicFreeAccount(rawSettings: unknown): GymFreeAccountSettin
  */
 export function gymPublicMemberIntake(rawSettings: unknown): GymMemberIntakeSettings {
   return gymSettingsStoredSchema.parse(rawSettings ?? {}).memberIntake;
+}
+
+/**
+ * Project a gym's raw stored settings to its {@link GymMemberPortalSettings}.
+ *
+ * Public on purpose: this IS the public site's skin, and the sign-in screen has to
+ * paint it before anyone has a session. It carries a photograph URL and two hex
+ * colours — nothing a visitor cannot read off the rendered page.
+ */
+export function gymPublicMemberPortal(rawSettings: unknown): GymMemberPortalSettings {
+  return gymSettingsStoredSchema.parse(rawSettings ?? {}).memberPortal;
+}
+
+/**
+ * Project a gym's raw stored settings to its {@link GymStartDatePolicy}.
+ *
+ * Public on purpose, for the same reason {@link gymPublicMemberIntake} is: the
+ * signed-out join wizard renders the start-date picker and must bound it to the
+ * days the API will actually accept.
+ */
+export function gymPublicStartDatePolicy(rawSettings: unknown): GymStartDatePolicy {
+  return gymSettingsStoredSchema.parse(rawSettings ?? {}).startDatePolicy;
+}
+
+/**
+ * The member portal's resolved skin — {@link GymMemberPortalSettings} with each
+ * `null` colour replaced by the brand's, so a consumer renders one complete set of
+ * values and never has to know which layer answered.
+ */
+export interface GymPortalTheme {
+  loginImageUrl: string | null;
+  primaryColor: string;
+  accentColor: string;
+}
+
+/**
+ * Resolve the portal skin against the brand: a colour the gym never set on the
+ * portal falls through to the brand's, which itself defaults to the platform
+ * palette. The result is always renderable.
+ */
+export function gymPortalTheme(rawSettings: unknown): GymPortalTheme {
+  const stored = gymSettingsStoredSchema.parse(rawSettings ?? {});
+  return {
+    loginImageUrl: stored.memberPortal.loginImageUrl,
+    primaryColor: stored.memberPortal.primaryColor ?? stored.brand.primaryColor,
+    accentColor: stored.memberPortal.accentColor ?? stored.brand.secondaryColor,
+  };
 }
 
 /**

@@ -4,11 +4,11 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
-import type { GymMemberIntakeSettings } from '@fit/types';
 import { MemberForm } from '@/app/(dashboard)/members/member-form';
 import type { PosMemberRow } from '@/app/(dashboard)/pos/actions';
 import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
+import type { MemberIntakeConfig } from '@/lib/member-intake';
 
 const styles = stylex.create({
   drawer: {
@@ -81,11 +81,11 @@ const styles = stylex.create({
  *    sale continues in one step.
  */
 export function PosAddMemberDrawer({
-  intake,
+  config,
   onCreated,
   onError,
 }: {
-  intake: GymMemberIntakeSettings;
+  config: MemberIntakeConfig;
   onCreated: (member: PosMemberRow) => void;
   onError: (message: string | null) => void;
 }) {
@@ -139,7 +139,8 @@ export function PosAddMemberDrawer({
               <MemberForm
                 key={drawer.contentKey}
                 mode="create"
-                intake={intake}
+                intake={config.intake}
+                startDateWindow={config.startDateWindow}
                 enrolment={false}
                 submitLabel={t('createAndAttach')}
                 onSuccess={(member) => {

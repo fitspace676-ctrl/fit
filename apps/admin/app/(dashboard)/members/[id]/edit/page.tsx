@@ -178,6 +178,7 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
           phone: member.phone ?? '',
           // The date input needs a `YYYY-MM-DD` value, so trim the ISO instant.
           dateOfBirth: member.dateOfBirth ? member.dateOfBirth.slice(0, 10) : '',
+          startDate: member.startDate ? member.startDate.slice(0, 10) : '',
           personalId: member.personalId ?? '',
           gender: member.gender ?? '',
           address: member.address ?? '',

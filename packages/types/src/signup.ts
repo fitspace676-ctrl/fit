@@ -19,6 +19,7 @@ import { requiredIntakeFields } from './gym-settings';
 import type {
   GymFreeAccountSettings,
   GymMemberIntakeSettings,
+  GymStartDatePolicy,
   MemberIntakeField,
 } from './gym-settings';
 import type { locationSummarySchema } from './locations';
@@ -93,6 +94,13 @@ export interface SignupCatalogueResponse {
    * no other way to be told, and the step already pays for one round trip.
    */
   memberIntake: GymMemberIntakeSettings;
+  /**
+   * The window a chosen `startDate` may fall in. Travels beside `memberIntake`
+   * for the same reason and on the same round trip: the toggle says whether the
+   * wizard asks the question, and this says which answers the API will accept —
+   * a date picker bounded by anything else would offer days the server refuses.
+   */
+  startDatePolicy: GymStartDatePolicy;
 }
 
 // ── Signup (step 3) ───────────────────────────────────────────────────────
@@ -129,6 +137,18 @@ export const memberSignupSchema = z.object({
     .optional(),
   gender: genderSchema.optional(),
   personalId: z.string().trim().min(1).max(64).optional(),
+  /**
+   * When the membership is to begin — calendar date, `YYYY-MM-DD`, in the GYM's
+   * time zone. Shape only: whether the day is *allowed* is the gym's start-date
+   * policy, which this schema has no access to. The API re-checks it against
+   * `isStartDateWithinPolicy` before writing, so a body that skips the form
+   * cannot enrol someone next year.
+   */
+  startDate: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
+    .optional(),
 });
 
 /** Validated `POST /auth/signup` body — {@link memberSignupSchema}. */
@@ -164,6 +184,7 @@ export function missingSignupIntakeFields(
     phone: filled(input.phone),
     gender: Boolean(input.gender),
     dateOfBirth: filled(input.dateOfBirth),
+    startDate: filled(input.startDate),
     personalId: filled(input.personalId),
     // Not on the join form — see the docstring.
     address: true,

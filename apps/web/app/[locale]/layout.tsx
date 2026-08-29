@@ -10,6 +10,8 @@ import { routing } from '@/src/i18n/routing';
 import { ThemeProvider } from '@/src/components/theme/theme-provider';
 import { THEME_COOKIE, resolveTheme, type Theme } from '@/src/lib/theme';
 import { AstryxProvider } from '@/src/components/theme/astryx-provider';
+import { PortalThemeScope } from '@/src/components/theme/portal-theme-scope';
+import { getActiveGymPortalSkin } from '@/lib/active-gym';
 import { SentryInit } from '../sentry-init';
 import '../globals.css';
 // Astryx component styles (layer `astryx-base`) load AFTER globals.css so the
@@ -71,7 +73,16 @@ export default async function LocaleLayout({
   // Opt this layout into static rendering for the resolved locale.
   setRequestLocale(locale);
 
-  const [messages, cookieStore] = await Promise.all([getMessages(), cookies()]);
+  // The tenant's skin is resolved HERE, in the layout that renders `<html>`, so
+  // the gym's colours are in the first painted markup rather than swapped in a
+  // frame later. This layout was already per-request (it reads the theme
+  // cookie), so the lookup adds a cached round trip and no rendering mode change.
+  // A gym that has chosen no portal colour resolves to no override at all.
+  const [messages, cookieStore, portal] = await Promise.all([
+    getMessages(),
+    cookies(),
+    getActiveGymPortalSkin(),
+  ]);
 
   // Seed the theme from the cookie so the painted `<html>` class matches the
   // client provider on first render — the member portal defaults to the dark
@@ -91,7 +102,12 @@ export default async function LocaleLayout({
         <SentryInit />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider initial={theme}>
-            <AstryxProvider>{children}</AstryxProvider>
+            <AstryxProvider>
+              {/* Inside `AstryxProvider`, never outside it: the compiled theme
+                  declares its tokens on that wrapper, so an override above it
+                  would be shadowed by the palette it is replacing. */}
+              <PortalThemeScope colors={portal}>{children}</PortalThemeScope>
+            </AstryxProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

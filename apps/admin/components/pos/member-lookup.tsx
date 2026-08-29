@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, useTransition, type RefObject } from 'reac
 import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { GymMemberIntakeSettings } from '@fit/types';
 import { lookupPosMembersAction, type PosMemberRow } from '@/app/(dashboard)/pos/actions';
 import { Icon } from '@/components/ui';
+import type { MemberIntakeConfig } from '@/lib/member-intake';
 import { PosAddMemberDrawer } from './pos-add-member-drawer';
 
 /** Debounce (ms) before a keystroke fires a new member lookup. */
@@ -221,18 +221,19 @@ const styles = stylex.create({
  * State (the attached member) lives in the cart store via the `selectedMember` /
  * `onSelect` props the board threads through, so the cart and lookup never drift.
  *
- * `intake` is the gym's member-intake config, or `null` for staff who cannot create
+ * `config` is the gym's member-intake config — which fields the drawer asks for and
+ * the window its start-date picker is bounded to — or `null` for staff who cannot create
  * members — in which case the register-on-the-spot affordance is simply absent.
  */
 export function MemberLookup({
   searchRef,
   selectedMember,
-  intake,
+  config,
   onSelect,
 }: {
   searchRef: RefObject<HTMLInputElement | null>;
   selectedMember: PosMemberRow | null;
-  intake: GymMemberIntakeSettings | null;
+  config: MemberIntakeConfig | null;
   onSelect: (member: PosMemberRow | null) => void;
 }) {
   const t = useTranslations('admin.pos.member');
@@ -318,7 +319,7 @@ export function MemberLookup({
 
       <div {...stylex.props(styles.walkInRow)}>
         <p {...stylex.props(styles.walkIn)}>{t('walkIn')}</p>
-        {intake ? <PosAddMemberDrawer intake={intake} onCreated={pick} onError={setError} /> : null}
+        {config ? <PosAddMemberDrawer config={config} onCreated={pick} onError={setError} /> : null}
       </div>
 
       {error ? (
