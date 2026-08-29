@@ -15,8 +15,22 @@ function setup() {
   const getSettings = vi.fn(() => Promise.resolve(SETTINGS));
   const updateSettings = vi.fn(() => Promise.resolve(SETTINGS));
   const setLogo = vi.fn(() => Promise.resolve({ logoUrl: 'https://cdn/gym-1/logos/a.png' }));
-  const service = { getSettings, updateSettings, setLogo } as unknown as GymSettingsService;
-  return { controller: new GymSettingsController(service), getSettings, updateSettings, setLogo };
+  const setPortalImage = vi.fn(() =>
+    Promise.resolve({ loginImageUrl: 'https://cdn/gym-1/logos/hero.jpg' }),
+  );
+  const service = {
+    getSettings,
+    updateSettings,
+    setLogo,
+    setPortalImage,
+  } as unknown as GymSettingsService;
+  return {
+    controller: new GymSettingsController(service),
+    getSettings,
+    updateSettings,
+    setLogo,
+    setPortalImage,
+  };
 }
 
 describe('GymSettingsController', () => {
@@ -75,6 +89,49 @@ describe('GymSettingsController', () => {
         BadRequestException,
       );
       expect(ctx.setLogo).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /gyms/settings/portal-image', () => {
+    it('validates the body and delegates the photoKey', async () => {
+      const result = await ctx.controller.setPortalImage({ photoKey: 'gym-1/logos/hero.jpg' });
+      expect(ctx.setPortalImage).toHaveBeenCalledWith({ photoKey: 'gym-1/logos/hero.jpg' });
+      expect(result.loginImageUrl).toBe('https://cdn/gym-1/logos/hero.jpg');
+    });
+
+    it('rejects an empty photoKey with a 400', async () => {
+      await expect(ctx.controller.setPortalImage({ photoKey: '' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(ctx.setPortalImage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH /gyms/settings — new sections', () => {
+    it('accepts a start-date-policy patch', async () => {
+      await ctx.controller.update({ startDatePolicy: { maxDaysAhead: 30, allowPast: true } });
+      expect(ctx.updateSettings).toHaveBeenCalledWith({
+        startDatePolicy: { maxDaysAhead: 30, allowPast: true },
+      });
+    });
+
+    it('accepts a member-portal patch, nulls included', async () => {
+      await ctx.controller.update({ memberPortal: { primaryColor: null } });
+      expect(ctx.updateSettings).toHaveBeenCalledWith({ memberPortal: { primaryColor: null } });
+    });
+
+    it('rejects a window longer than a year with a 400 without hitting the service', async () => {
+      await expect(
+        ctx.controller.update({ startDatePolicy: { maxDaysAhead: 400 } }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.updateSettings).not.toHaveBeenCalled();
+    });
+
+    it('rejects a malformed portal colour with a 400', async () => {
+      await expect(
+        ctx.controller.update({ memberPortal: { accentColor: 'lime' } }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.updateSettings).not.toHaveBeenCalled();
     });
   });
 });

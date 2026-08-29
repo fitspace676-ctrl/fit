@@ -6,8 +6,8 @@ import { Button } from '@fit/ui-kit';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout } from '@astryxdesign/core/Layout';
 import { LayoutContent } from '@astryxdesign/core/Layout';
-import type { GymMemberIntakeSettings } from '@fit/types';
 import { Icon } from '@/components/ui';
+import type { MemberIntakeConfig } from '@/lib/member-intake';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { MemberForm } from './member-form';
 
@@ -38,7 +38,7 @@ const styles = stylex.create({
  * the slide and the staged close, so this moves exactly like the console's other
  * side sheets.
  */
-export function AddMemberDrawer({ intake }: { intake: GymMemberIntakeSettings }) {
+export function AddMemberDrawer({ config }: { config: MemberIntakeConfig }) {
   const t = useTranslations('admin.members');
   const drawer = useSlideDrawer();
   const title = t('list.addMember');
@@ -84,7 +84,8 @@ export function AddMemberDrawer({ intake }: { intake: GymMemberIntakeSettings })
               <MemberForm
                 key={drawer.contentKey}
                 mode="create"
-                intake={intake}
+                intake={config.intake}
+                startDateWindow={config.startDateWindow}
                 onSuccess={drawer.requestClose}
                 onCancel={drawer.requestClose}
               />

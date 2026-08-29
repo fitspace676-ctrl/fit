@@ -23,6 +23,7 @@ interface MemberRecord {
   joinedAt: Date;
   deletedAt: Date | null;
   dateOfBirth: Date | null;
+  startDate: Date | null;
   gender: 'MALE' | 'FEMALE' | 'OTHER' | null;
   address: string | null;
   emergencyContactName: string | null;
@@ -313,6 +314,7 @@ const row = (over?: Partial<MemberRecord>): MemberRecord => ({
   joinedAt: new Date('2026-01-15T00:00:00.000Z'),
   deletedAt: null,
   dateOfBirth: null,
+  startDate: null,
   gender: null,
   address: null,
   emergencyContactName: null,
@@ -915,6 +917,91 @@ describe('MembersService', () => {
       await service.createMember(createInput({ planId: undefined, paymentMethod: undefined }));
 
       expect(gymMemberCreate).toHaveBeenCalled();
+    });
+
+    // The newest toggle behaves like every other one: on means asked for AND
+    // required, and the exhaustive map in `assertIntakeSatisfied` is what keeps
+    // it from being rendered as mandatory and never checked.
+    it('demands a start date once the gym switches the toggle on', async () => {
+      const { service } = setup({ intake: { startDate: true } });
+
+      await expect(
+        service.createMember(createInput({ startDate: undefined })),
+      ).rejects.toMatchObject({
+        response: { code: 'MEMBER_INTAKE_REQUIRED', fields: ['startDate'] },
+      });
+    });
+  });
+
+  describe('member start date', () => {
+    const created = () =>
+      setup({
+        userFindUnique: null,
+        gymMemberCreate: { id: 'gm-new' },
+        findFirst: row({ id: 'gm-new' }),
+      });
+
+    it('records the day on the membership at UTC midnight', async () => {
+      const { service, gymMemberCreate } = created();
+
+      await service.createMember(createInput({ startDate: '2026-07-10' }));
+
+      const data = (gymMemberCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+      expect(data.startDate).toEqual(new Date('2026-07-10T00:00:00.000Z'));
+    });
+
+    it('writes no start date at all when the desk records none', async () => {
+      const { service, gymMemberCreate } = created();
+
+      await service.createMember(createInput());
+
+      // Absent, not null: an omitted profile field leaves its column alone, which
+      // is the same rule every other optional extra follows.
+      const data = (gymMemberCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+      expect(data).not.toHaveProperty('startDate');
+    });
+
+    // Backdating an enrolment is a staff correction — the start-date window bounds
+    // what a signed-out visitor may pick, and the desk is deliberately outside it.
+    it('lets the desk record a date the join wizard could never pick', async () => {
+      const { service, gymMemberCreate } = created();
+
+      await service.createMember(createInput({ startDate: '2020-01-01' }));
+
+      const data = (gymMemberCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+      expect(data.startDate).toEqual(new Date('2020-01-01T00:00:00.000Z'));
+    });
+
+    it('edits the recorded day, and clears it when the field is emptied', async () => {
+      const { service, gymMemberUpdate } = setup({ findFirst: row() });
+
+      await service.updateMember('gm-1', {
+        name: 'Nino Beridze',
+        phone: null,
+        startDate: '2026-08-01',
+      });
+      await service.updateMember('gm-1', { name: 'Nino Beridze', phone: null, startDate: null });
+
+      expect(gymMemberUpdate.mock.calls[0]?.[0]).toMatchObject({
+        data: { startDate: new Date('2026-08-01T00:00:00.000Z') },
+      });
+      expect(gymMemberUpdate.mock.calls[1]?.[0]).toMatchObject({ data: { startDate: null } });
+    });
+
+    it('reads the recorded day back onto the detail as an ISO instant', async () => {
+      const { service } = setup({
+        findFirst: row({ startDate: new Date('2026-07-10T00:00:00.000Z') }),
+      });
+
+      await expect(service.getMember('gm-1')).resolves.toMatchObject({
+        startDate: '2026-07-10T00:00:00.000Z',
+      });
+    });
+
+    it('reads back null for a membership recorded before the gym asked for one', async () => {
+      const { service } = setup({ findFirst: row() });
+
+      await expect(service.getMember('gm-1')).resolves.toMatchObject({ startDate: null });
     });
   });
 

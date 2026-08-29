@@ -66,6 +66,14 @@ const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
+ * The furthest ahead a membership start date may be allowed to land, mirroring
+ * `gymStartDatePolicySchema.maxDaysAhead`'s ceiling in `@fit/types`. Past a year
+ * the date is a guess rather than a plan, and the API rejects it anyway — stated
+ * here so the form refuses the same value without a round trip.
+ */
+const MAX_START_DATE_DAYS_AHEAD = 365;
+
+/**
  * The currencies a gym may price in — GEL (the platform default) and USD. A gym
  * already stored on some other ISO code still sees its own code in the list (via
  * {@link withCurrent}), so opening Settings can never silently re-price it.
@@ -237,6 +245,30 @@ const styles = stylex.create({
     backgroundColor: 'var(--color-background-muted)',
     paddingInline: '1rem',
     paddingBlock: '0.875rem',
+    boxShadow: 'inset 0 0 0 1px var(--color-border)',
+  },
+  // Start-date window — dimmed while the toggle it qualifies is off, so the
+  // card reads as subordinate to that switch rather than as a second, unrelated
+  // setting. The controls inside are `disabled` too; this is only the signal.
+  policyOff: {
+    opacity: 0.55,
+  },
+  // The "what this number means" line under the days input — rendered rather
+  // than left to the reader, because `0` looks like "off" and is not.
+  policyNote: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
+  // Why the controls above are inert, on the muted surface the switch rows use.
+  policyHint: {
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-background-muted)',
+    paddingInline: '1rem',
+    paddingBlock: '0.75rem',
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
     boxShadow: 'inset 0 0 0 1px var(--color-border)',
   },
   // Section rail
@@ -664,6 +696,7 @@ interface SettingsFormValues {
     phone: boolean;
     gender: boolean;
     dateOfBirth: boolean;
+    startDate: boolean;
     personalId: boolean;
     address: boolean;
     emergencyContact: boolean;
@@ -671,6 +704,13 @@ interface SettingsFormValues {
     paymentMethod: boolean;
     medicalNotes: boolean;
   };
+  /**
+   * The window the `memberIntake.startDate` picker is bounded to. A sibling
+   * section rather than part of `memberIntake`, because that block is
+   * all-boolean by contract and a window is a number — see
+   * `gymStartDatePolicySchema`.
+   */
+  startDatePolicy: { maxDaysAhead: number; allowPast: boolean };
   freeAccount: { enabled: boolean; name: string; description: string };
   staffDirectory: GymStaffDirectorySettings;
   reports: GymReportsSettings;
@@ -692,12 +732,14 @@ type BoolFieldName =
   | 'memberIntake.phone'
   | 'memberIntake.gender'
   | 'memberIntake.dateOfBirth'
+  | 'memberIntake.startDate'
   | 'memberIntake.personalId'
   | 'memberIntake.address'
   | 'memberIntake.emergencyContact'
   | 'memberIntake.membershipPlan'
   | 'memberIntake.paymentMethod'
   | 'memberIntake.medicalNotes'
+  | 'startDatePolicy.allowPast'
   | 'freeAccount.enabled'
   | 'staffDirectory.lastName'
   | 'staffDirectory.role'
@@ -741,7 +783,11 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
   if (errors.brand || errors.locale) return 'general';
   if (errors.business) return 'business';
   if (errors.hours) return 'hours';
-  if (errors.memberIntake || errors.freeAccount) return 'membership';
+  // The start-date window sits in the Membership card, under the toggle it
+  // qualifies, so its errors have to land on that tab too — an out-of-range
+  // `maxDaysAhead` reported on a tab the user is not looking at reads as a save
+  // that failed for no reason.
+  if (errors.memberIntake || errors.startDatePolicy || errors.freeAccount) return 'membership';
   if (errors.staffDirectory) return 'staff';
   if (errors.reports) return 'reports';
   if (errors.payments) return 'payments';
@@ -841,12 +887,21 @@ export function SettingsForm({
         phone: z.boolean(),
         gender: z.boolean(),
         dateOfBirth: z.boolean(),
+        startDate: z.boolean(),
         personalId: z.boolean(),
         address: z.boolean(),
         emergencyContact: z.boolean(),
         membershipPlan: z.boolean(),
         paymentMethod: z.boolean(),
         medicalNotes: z.boolean(),
+      }),
+      // The window the start-date picker is bounded to. Sent on every save
+      // whether or not the toggle above is on: the numbers are the gym's stored
+      // policy, and blanking them because the field is currently hidden would
+      // lose the setting the moment someone switched the field off and on again.
+      startDatePolicy: z.object({
+        maxDaysAhead: num({ min: 0, max: MAX_START_DATE_DAYS_AHEAD, int: true }),
+        allowPast: z.boolean(),
       }),
       // The offer's wording is the gym's own, so both strings may be blank —
       // the member portal falls back to its translated default copy. Only the
@@ -910,6 +965,7 @@ export function SettingsForm({
       locale: values.locale,
       hours: values.hours,
       memberIntake: values.memberIntake,
+      startDatePolicy: values.startDatePolicy,
       freeAccount: values.freeAccount,
       staffDirectory: values.staffDirectory,
       reports: values.reports,
@@ -1028,6 +1084,7 @@ export function SettingsForm({
                       'phone',
                       'gender',
                       'dateOfBirth',
+                      'startDate',
                       'personalId',
                       'address',
                       'emergencyContact',
@@ -1049,6 +1106,12 @@ export function SettingsForm({
                   ))}
                 </div>
               </SectionCard>
+
+              {/* The window that qualifies the start-date toggle above. Its own
+                card rather than a row inside the intake list, because the intake
+                card is a column of switches and these are a number and a switch
+                that only mean anything together. */}
+              <StartDatePolicyCard />
 
               {/* The free-account offer is the other half of "how someone becomes a
                 member here": the intake card is what the DESK collects, this is
@@ -1261,12 +1324,17 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       phone: settings.memberIntake.phone,
       gender: settings.memberIntake.gender,
       dateOfBirth: settings.memberIntake.dateOfBirth,
+      startDate: settings.memberIntake.startDate,
       personalId: settings.memberIntake.personalId,
       address: settings.memberIntake.address,
       emergencyContact: settings.memberIntake.emergencyContact,
       membershipPlan: settings.memberIntake.membershipPlan,
       paymentMethod: settings.memberIntake.paymentMethod,
       medicalNotes: settings.memberIntake.medicalNotes,
+    },
+    startDatePolicy: {
+      maxDaysAhead: settings.startDatePolicy.maxDaysAhead,
+      allowPast: settings.startDatePolicy.allowPast,
     },
     freeAccount: {
       enabled: settings.freeAccount.enabled,
@@ -1360,10 +1428,13 @@ function SwitchRow({
   name,
   label,
   description,
+  disabled = false,
 }: {
   name: BoolFieldName;
   label: string;
   description?: string;
+  /** Inert, for a switch that only means something while another one is on. */
+  disabled?: boolean;
 }) {
   const { control } = useFormContext<SettingsFormValues>();
   return (
@@ -1376,10 +1447,73 @@ function SwitchRow({
           onChange={field.onChange}
           label={label}
           description={description}
+          disabled={disabled}
           xstyle={styles.switchShell}
         />
       )}
     />
+  );
+}
+
+/**
+ * The start-date window: how far ahead a membership may be scheduled to begin,
+ * and whether a past date is accepted at all.
+ *
+ * SUBORDINATE TO THE TOGGLE ABOVE IT. The window bounds a picker that only
+ * exists while `memberIntake.startDate` is on, so with the field off these
+ * controls govern nothing — and a live input that changes nothing is worse than
+ * no input, because it invites a gym to "configure" something it has switched
+ * off. So the card dims and its controls go inert, with a line saying which
+ * switch brings them back. The VALUES survive: the form still submits them, so
+ * turning the field off and on again returns the window the gym had set.
+ *
+ * `0` gets its own sentence. Every other number in this form means "less of the
+ * thing", and a zero cutoff / zero cap does mean "no limit" elsewhere here — but
+ * zero days ahead means *today only*, which is the opposite of unlimited. Left
+ * unexplained it reads as "disabled", so the meaning is rendered under the input
+ * rather than left to the reader to guess at.
+ */
+function StartDatePolicyCard() {
+  const t = useTranslations('admin.settings');
+  const { control } = useFormContext<SettingsFormValues>();
+  const enabled = useWatch({ control, name: 'memberIntake.startDate' });
+  const maxDaysAhead = useWatch({ control, name: 'startDatePolicy.maxDaysAhead' });
+  // An in-flight edit ('' or a half-typed value) parses to NaN; fall back to the
+  // "today only" wording rather than rendering "NaN days out".
+  const days = Number.isFinite(maxDaysAhead) ? Math.trunc(maxDaysAhead) : 0;
+
+  return (
+    <div {...stylex.props(!enabled && styles.policyOff)}>
+      <SectionCard title={t('startDatePolicy.title')} description={t('startDatePolicy.subtitle')}>
+        <div {...stylex.props(styles.stack4)}>
+          {!enabled ? (
+            <p {...stylex.props(styles.policyHint)}>{t('startDatePolicy.disabledHint')}</p>
+          ) : null}
+          <div {...stylex.props(styles.maxXs, styles.stack2)}>
+            <NumberField
+              name="startDatePolicy.maxDaysAhead"
+              label={t('startDatePolicy.maxDaysAheadLabel')}
+              hint={t('startDatePolicy.maxDaysAheadHint')}
+              min={0}
+              max={MAX_START_DATE_DAYS_AHEAD}
+              step={1}
+              disabled={!enabled}
+            />
+            <p {...stylex.props(styles.policyNote)}>
+              {days <= 0
+                ? t('startDatePolicy.maxDaysAheadToday')
+                : t('startDatePolicy.maxDaysAheadDays', { days })}
+            </p>
+          </div>
+          <SwitchRow
+            name="startDatePolicy.allowPast"
+            label={t('startDatePolicy.allowPastLabel')}
+            description={t('startDatePolicy.allowPastDesc')}
+            disabled={!enabled}
+          />
+        </div>
+      </SectionCard>
+    </div>
   );
 }
 

@@ -47,6 +47,11 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   activity: 'M3 12h4l2 7 4-16 2 9h6',
   audit:
     'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  // A browser window split into two panes — the member sign-in screen's own
+  // shape (photograph on one side, form on the other), which is exactly what
+  // this destination previews. Deliberately not a paint palette or a swatch:
+  // those read as "theme editor", and the page is about ONE surface.
+  memberPortal: 'M3 4h18a1 1 0 011 1v14a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1zM2 9h20M10 9v11',
   // Sliders, not a cog — and the same glyph `@fit/ui-web`'s `settings` icon uses,
   // so the rail and every in-page Settings affordance read as one thing. The
   // twelve-notch gear this replaced turned to mush at the rail's 20px.

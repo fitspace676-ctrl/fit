@@ -123,6 +123,20 @@ describe('MediaSweepService.sweep', () => {
     expect(deleteObjects).toHaveBeenCalledWith([]);
   });
 
+  // Under the same `logos` prefix as the brand logo, so a sweep that only knew
+  // about `brand.logoUrl` would delete it out from under a live sign-in screen.
+  it("keeps the member portal's sign-in photograph, also inside the settings blob", async () => {
+    const { service, deleteObjects } = setup([object('gym-1/logos/hero.jpg')], {
+      gyms: [
+        { settings: { memberPortal: { loginImageUrl: `${PUBLIC_BASE}/gym-1/logos/hero.jpg` } } },
+      ],
+    });
+
+    await service.sweep(NOW);
+
+    expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
   it('matches references by path, so a changed public host does not orphan the library', async () => {
     // The bucket moved to a custom domain but stored URLs still carry the old host.
     const { service, deleteObjects } = setup([object('gym-1/trainers/coach.jpg')], {

@@ -5,12 +5,12 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
-  gymMemberIntakeSettingsSchema,
   gymPaymentMethodsSchema,
   gymReceiptSettingsSchema,
   roleHasPermission,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { memberIntakeConfig } from '@/lib/member-intake';
 import { fetchGymSettings } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { PosBoard } from '@/components/pos/pos-board';
@@ -168,12 +168,11 @@ export default async function PosPage() {
   const settings = await fetchGymSettings().catch(() => null);
 
   // The till's add-member drawer hosts the roster's own form, so it needs the same
-  // config-driven field visibility (Settings → Membership) — that shared config is what
-  // keeps a member registered here identical to one registered from the Members screen.
-  // `null` for staff who cannot create members: they never see the drawer.
-  const memberIntake = canAddMember
-    ? (settings?.memberIntake ?? gymMemberIntakeSettingsSchema.parse({}))
-    : null;
+  // config-driven field visibility and start-date window (Settings → Membership) — that
+  // shared config is what keeps a member registered here identical to one registered
+  // from the Members screen. `null` for staff who cannot create members: they never see
+  // the drawer.
+  const intakeConfig = canAddMember ? memberIntakeConfig(settings) : null;
 
   // Settings → Payments: which settlement buttons the payment modal offers. The API
   // enforces the same list when the sale is recorded, so a stale tab cannot outlive
@@ -204,7 +203,7 @@ export default async function PosPage() {
           ) : null}
         </div>
       </header>
-      <PosBoard memberIntake={memberIntake} payments={payments} receipt={receipt} />
+      <PosBoard intakeConfig={intakeConfig} payments={payments} receipt={receipt} />
     </div>
   );
 }

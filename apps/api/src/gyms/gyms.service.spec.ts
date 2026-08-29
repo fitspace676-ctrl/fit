@@ -122,6 +122,15 @@ describe('GymsService.resolveBySubdomain', () => {
       // answers with the platform default rather than omitting the field, so the
       // client never has to invent one.
       timezone: DEFAULT_TIMEZONE,
+      // The portal's skin. A gym that has customised neither colour falls through
+      // to the brand's, so the sign-in screen is always renderable; the sign-in
+      // photograph stays null until one is uploaded, which the client reads as
+      // "use the bundled hero image".
+      portal: {
+        loginImageUrl: null,
+        primaryColor: DEFAULT_PRIMARY_COLOR,
+        accentColor: DEFAULT_SECONDARY_COLOR,
+      },
     });
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { slug: 'downtown' } }),

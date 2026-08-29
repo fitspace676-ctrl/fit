@@ -5,12 +5,12 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
-  gymMemberIntakeSettingsSchema,
   listMembersQuerySchema,
   roleHasPermission,
   type ListMembersQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { memberIntakeConfig } from '@/lib/member-intake';
 import { ApiError, fetchGymSettings, fetchMembers } from '@/lib/api';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -129,15 +129,17 @@ export default async function MembersPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
 
-  // The Add-Member drawer's field visibility is config-driven (Settings → Membership).
-  // Only the drawer (rendered below when `canWrite`) consumes it, so skip the round-trip
-  // for read-only staff; when it does fetch, kick it off here (before `await fetchMembers`)
-  // so it overlaps with the members fetch instead of adding a serial hop. Fall back to
-  // schema defaults if the settings fetch fails so the drawer still renders.
-  const memberIntakePromise = canWrite
+  // The Add-Member drawer's field visibility is config-driven (Settings → Membership),
+  // and so is the window its start-date picker is bounded to (Settings → Membership →
+  // start-date window, resolved against today in the gym's own zone). Only the drawer
+  // (rendered below when `canWrite`) consumes them, so skip the round-trip for read-only
+  // staff; when it does fetch, kick it off here (before `await fetchMembers`) so it
+  // overlaps with the members fetch instead of adding a serial hop. Fall back to schema
+  // defaults if the settings fetch fails so the drawer still renders.
+  const intakeConfigPromise = canWrite
     ? fetchGymSettings()
-        .then((s) => s.memberIntake)
-        .catch(() => gymMemberIntakeSettingsSchema.parse({}))
+        .then(memberIntakeConfig)
+        .catch(() => memberIntakeConfig(null))
     : null;
 
   let subtitle = t('list.subtitle');
@@ -179,7 +181,7 @@ export default async function MembersPage({
     );
   }
 
-  const memberIntake = memberIntakePromise ? await memberIntakePromise : null;
+  const intakeConfig = intakeConfigPromise ? await intakeConfigPromise : null;
 
   return (
     <Stack gap={6}>
@@ -201,7 +203,7 @@ export default async function MembersPage({
             {subtitle}
           </Text>
         </Stack>
-        {canWrite && memberIntake ? <AddMemberDrawer intake={memberIntake} /> : null}
+        {canWrite && intakeConfig ? <AddMemberDrawer config={intakeConfig} /> : null}
       </HStack>
 
       {content}

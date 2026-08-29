@@ -44,6 +44,8 @@ import type {
   UpdateGymSettingsResponse,
   UploadGymLogoInput,
   UploadGymLogoResponse,
+  UploadGymPortalImageInput,
+  UploadGymPortalImageResponse,
   GetAdminLocationResponse,
   GetAdminTrainerResponse,
   GetMemberResponse,
@@ -1751,6 +1753,27 @@ export async function uploadGymLogo(input: UploadGymLogoInput): Promise<UploadGy
     cache: 'no-store',
   });
   return unwrap<UploadGymLogoResponse>(res);
+}
+
+/**
+ * `POST /gyms/settings/portal-image` — finalise the member portal's sign-in
+ * photograph by its R2 key; returns its public URL.
+ *
+ * The same finalise-by-`photoKey` shape as {@link uploadGymLogo}, deliberately:
+ * the browser has already `PUT` the bytes to a presigned URL from `POST /uploads`,
+ * so both endpoints do the one thing the client cannot — check the key belongs to
+ * this gym, turn it into a public URL, and store it.
+ */
+export async function uploadGymPortalImage(
+  input: UploadGymPortalImageInput,
+): Promise<UploadGymPortalImageResponse> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/settings/portal-image`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UploadGymPortalImageResponse>(res);
 }
 
 // ── Audit log (T4.9) ──────────────────────────────────────────────────────────

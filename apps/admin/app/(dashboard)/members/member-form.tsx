@@ -13,7 +13,7 @@ import { requiredIntakeFields } from '@fit/types';
 import type { Gender, GymMemberIntakeSettings, MemberIntakeField, MemberStatus } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
-import { composeName } from '@/lib/member-intake';
+import { composeName, type StartDateWindow } from '@/lib/member-intake';
 import {
   createMemberAction,
   listActivePlanOptionsAction,
@@ -185,6 +185,7 @@ const INTAKE_FIELD_LABEL: Record<MemberIntakeField, string> = {
   phone: 'phone',
   gender: 'gender',
   dateOfBirth: 'dateOfBirth',
+  startDate: 'startDate',
   personalId: 'personalId',
   address: 'address',
   emergencyContact: 'emergencySection',
@@ -199,6 +200,8 @@ export interface MemberFormInitial {
   email: string;
   phone: string;
   dateOfBirth: string;
+  /** `YYYY-MM-DD`, or `''` for a membership recorded before the field existed. */
+  startDate: string;
   personalId: string;
   gender: string;
   address: string;
@@ -211,6 +214,15 @@ type Props =
   | {
       mode: 'create';
       intake?: GymMemberIntakeSettings;
+      /**
+       * Bounds for the start-date picker, when `intake.startDate` is on — the
+       * gym's `startDatePolicy` already resolved against today in the gym's own
+       * time zone (see `gymStartDateWindow`). Omitted by a caller that has no
+       * settings to derive it from, in which case the input is unbounded and the
+       * API's own validator is the only check — the same position every field was
+       * in before the policy existed.
+       */
+      startDateWindow?: StartDateWindow;
       /**
        * Show the membership-plan / payment-method / status block. Defaults to on.
        * The POS drawer passes `false`: at the till the enrolment *is* the cart, so
@@ -278,6 +290,7 @@ export function MemberForm(props: Props) {
   // Enrolment is a create-only block, and the till opts out of it entirely.
   const enrolment = props.mode === 'create' ? props.enrolment !== false : false;
   const submitLabel = props.mode === 'create' ? props.submitLabel : undefined;
+  const startDateWindow = props.mode === 'create' ? props.startDateWindow : undefined;
 
   // In edit mode every field shows (config governs the create drawer only).
   const show = (field: keyof GymMemberIntakeSettings): boolean =>
@@ -307,6 +320,7 @@ export function MemberForm(props: Props) {
   const [email, setEmail] = useState(seed?.email ?? '');
   const [phone, setPhone] = useState(seed?.phone ?? '');
   const [dateOfBirth, setDateOfBirth] = useState(seed?.dateOfBirth ?? '');
+  const [startDate, setStartDate] = useState(seed?.startDate ?? '');
   const [personalId, setPersonalId] = useState(seed?.personalId ?? '');
   const [gender, setGender] = useState(seed?.gender ?? '');
   const [address, setAddress] = useState(seed?.address ?? '');
@@ -349,6 +363,7 @@ export function MemberForm(props: Props) {
       phone: filled(phone),
       gender: filled(gender),
       dateOfBirth: filled(dateOfBirth),
+      startDate: filled(startDate),
       personalId: filled(personalId),
       address: filled(address),
       emergencyContact: filled(emergencyName) && filled(emergencyPhone),
@@ -369,6 +384,10 @@ export function MemberForm(props: Props) {
     // Shared profile fields; empty strings clear on the API (see `memberProfileShape`).
     const profile = {
       dateOfBirth,
+      // Sent on every save, empty included: `editableText` turns `''` into `null`,
+      // which is what lets a start date be *removed* as well as corrected. Omitting
+      // it when blank would make the field one-way — settable, never clearable.
+      startDate,
       personalId,
       gender: gender ? (gender as Gender) : null,
       address,
@@ -540,6 +559,53 @@ export function MemberForm(props: Props) {
                 </LabeledField>
               )}
             </div>
+          ) : null}
+
+          {/*
+            When the membership begins.
+
+            Deliberately NOT inside the enrolment block below: the POS till hides
+            that block entirely (at the till the enrolment is the cart), and a
+            field the gym's settings have made required but the operator cannot
+            see would make registering a walk-in impossible. On create it asks a
+            question about the membership rather than recording a fact about the
+            person, which is why the intake toggle defaults off.
+
+            EDITABLE, not create-only. A date typed at a busy front desk is
+            exactly the field that gets mistyped, and a profile that shows a wrong
+            date with no way to fix it is worse than one that never recorded it.
+            Clearing the box clears the column — see the `profile` payload above.
+
+            `min`/`max` ARE NOT APPLIED IN EDIT MODE, and that is deliberate:
+            `startDatePolicy` bounds what a signed-out visitor may pick in the join
+            wizard, and the API does not enforce it on the staff endpoints at all.
+            Bounding the picker here would re-impose a limit the server no longer
+            applies and would block the one case this field exists to serve —
+            correcting a date that has already passed. `startDateWindow` is
+            `undefined` on the edit branch by construction; please leave it that
+            way. On create it is the gym's window resolved against today in the
+            GYM's zone (see `gymStartDateWindow`), which spares the desk a rejected
+            save on a date the join wizard would have refused anyway.
+          */}
+          {show('startDate') ? (
+            <LabeledField
+              label={t('form.startDate')}
+              htmlFor="startDate"
+              optional={optionalLabel('startDate')}
+              hint={t('form.startDateHint')}
+            >
+              <input
+                id="startDate"
+                name="startDate"
+                type="date"
+                required={required('startDate')}
+                min={startDateWindow?.min}
+                max={startDateWindow?.max}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                {...stylex.props(styles.field)}
+              />
+            </LabeledField>
           ) : null}
 
           {/*

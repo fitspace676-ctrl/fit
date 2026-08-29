@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations } from 'next-intl/server';
-import { getActiveGymName } from '@/lib/active-gym';
+import { getActiveGymName, getActiveGymPortalSkin } from '@/lib/active-gym';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
@@ -12,8 +12,9 @@ import { ThemeToggle } from '@/src/components/member/theme-toggle';
  * The signed-out door: one two-column frame shared by every member auth screen —
  * sign in, forgot password, set a new password.
  *
- * TWO SIDES, DIFFERENT JOBS. The left is a full-bleed photograph of the gym
- * carrying the brand mark, the light/dark switch, and the "not a member yet"
+ * TWO SIDES, DIFFERENT JOBS. The left is a full-bleed photograph of the gym —
+ * the tenant's own, uploaded under Settings → Member portal — carrying the brand
+ * mark, the light/dark switch, and the "not a member yet"
  * doorway. The right is whatever the visitor came to do, with the language
  * switch above it. Only the right column changes between screens, which is the
  * whole reason this is a component rather than a pattern copied per page: the
@@ -52,12 +53,15 @@ import { ThemeToggle } from '@/src/components/member/theme-toggle';
  */
 
 /**
- * The gym photograph behind the left panel. A static asset rather than tenant
- * data: the gym record carries a logo and brand colours but no cover image, so
- * every tenant shows this one until there is a field to read. Replace the file
- * to change the picture — the path is stable on purpose.
+ * The photograph shown when the tenant has none of its own.
+ *
+ * The gym's actual picture is `loginImageUrl` on its resolved portal theme —
+ * the file it uploaded under Settings → Member portal, served from R2. This
+ * bundled asset is what a gym that has never uploaded one gets, and what the
+ * apex domain and preview URLs (which belong to no gym) always get. Replace the
+ * file to change that fallback — the path is stable on purpose.
  */
-const GYM_PHOTO = '/gym-hero.webp';
+const FALLBACK_GYM_PHOTO = '/gym-hero.webp';
 
 /** The three selling points the join strip lists, in order. */
 const BENEFIT_KEYS = ['branch', 'plan', 'instant'] as const;
@@ -388,11 +392,13 @@ export interface AuthPhotoShellProps {
 }
 
 export async function AuthPhotoShell({ title, subtitle, children, footer }: AuthPhotoShellProps) {
-  const [t, tShell, gymName] = await Promise.all([
+  const [t, tShell, gymName, portal] = await Promise.all([
     getTranslations('auth'),
     getTranslations('member.shell'),
     getActiveGymName(),
+    getActiveGymPortalSkin(),
   ]);
+  const photo = portal?.loginImageUrl ?? FALLBACK_GYM_PHOTO;
 
   return (
     <main {...stylex.props(styles.page)}>
@@ -428,7 +434,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
         {/* ---------------------------- the gym side ---------------------------- */}
         <aside {...stylex.props(styles.aside)}>
           <Image
-            src={GYM_PHOTO}
+            src={photo}
             alt=""
             fill
             // The panel is the full column from `lg` and a band under the form

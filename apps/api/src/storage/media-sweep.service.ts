@@ -189,11 +189,18 @@ export class MediaSweepService {
     for (const location of locations) add(location.photoUrl);
     for (const template of classTemplates) add(template.imageUrl);
     for (const service of services) add(service.coverUrl);
-    // The gym logo lives inside the `settings` JSON blob rather than its own column;
-    // read it defensively, since a hand-edited row must not abort the sweep.
+    // The gym logo and the member portal's sign-in photograph both live inside the
+    // `settings` JSON blob rather than in their own columns; read them defensively,
+    // since a hand-edited row must not abort the sweep. Both land under the same
+    // `logos` upload prefix, so a portal image missing from this set would be
+    // deleted out from under a live sign-in screen on the next nightly run.
     for (const gym of gyms) {
-      const brand = (gym.settings as { brand?: { logoUrl?: unknown } } | null)?.brand;
-      add(brand?.logoUrl);
+      const settings = gym.settings as {
+        brand?: { logoUrl?: unknown };
+        memberPortal?: { loginImageUrl?: unknown };
+      } | null;
+      add(settings?.brand?.logoUrl);
+      add(settings?.memberPortal?.loginImageUrl);
     }
 
     return keys;

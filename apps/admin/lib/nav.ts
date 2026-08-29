@@ -52,6 +52,7 @@ export type NavIcon =
   | 'reports'
   | 'activity'
   | 'audit'
+  | 'memberPortal'
   | 'settings';
 
 /**
@@ -132,6 +133,23 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   { labelKey: 'nav.reports', href: '/reports', icon: 'reports', permission: Permission.ReportView },
   {
+    // The member portal's own look — its two colours and the sign-in photograph.
+    // A destination rather than a Settings tab: Settings is the gym's operating
+    // policy (what the desk collects, what the till accepts, how invoices are
+    // numbered) and this is a design surface with a live preview, which is a
+    // different job done by a different person on a different day.
+    //
+    // Gated exactly as Settings is — it IS gym configuration, just visual — with
+    // `minRole` stated as well as the capability so the gate here and the route
+    // guard in `ROUTE_PERMISSIONS` read the same on the page rather than agreeing
+    // only because `GymManage` happens to be OWNER-only today.
+    labelKey: 'nav.memberPortal',
+    href: '/member-portal',
+    icon: 'memberPortal',
+    permission: Permission.GymManage,
+    minRole: 'OWNER',
+  },
+  {
     labelKey: 'nav.settings',
     href: '/settings',
     icon: 'settings',
@@ -161,7 +179,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/shop', '/services', '/pos'] },
   { labelKey: 'navGroups.growth', hrefs: ['/automation', '/marketing'] },
   { labelKey: 'navGroups.insights', hrefs: ['/reports'] },
-  { labelKey: 'navGroups.system', hrefs: ['/settings'] },
+  { labelKey: 'navGroups.system', hrefs: ['/member-portal', '/settings'] },
 ];
 
 /**

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
-import type { GymMemberIntakeSettings, GymPaymentMethods, GymReceiptSettings } from '@fit/types';
+import type { GymPaymentMethods, GymReceiptSettings } from '@fit/types';
 import { usePosCart } from '@/stores/pos-cart-store';
+import type { MemberIntakeConfig } from '@/lib/member-intake';
 import {
   fetchPosLocationsAction,
   type PosLocationRow,
@@ -85,20 +86,21 @@ const styles = stylex.create({
  * stay in one place: `F1` focuses product search, `F2` the member lookup, `Esc`
  * clears the whole sale.
  *
- * `memberIntake` is threaded straight through to the lookup's add-member drawer — the
- * gym's Settings → Membership config, so registering at the till asks for exactly what
- * registering from the roster asks for. `null` for staff who cannot create members.
+ * `intakeConfig` is threaded straight through to the lookup's add-member drawer — the
+ * gym's Settings → Membership config (which fields to ask for, and the window a start
+ * date may fall in), so registering at the till asks for exactly what registering from
+ * the roster asks for. `null` for staff who cannot create members.
  *
  * `payments` is the gym's Settings → Payments config, threaded to the payment modal so
  * it offers only the settlement methods this gym accepts; `receipt` is its Settings →
  * Receipts config, deciding which hand-overs the confirmation screen then offers.
  */
 export function PosBoard({
-  memberIntake,
+  intakeConfig,
   payments,
   receipt,
 }: {
-  memberIntake: GymMemberIntakeSettings | null;
+  intakeConfig: MemberIntakeConfig | null;
   payments: GymPaymentMethods;
   receipt: GymReceiptSettings;
 }) {
@@ -240,7 +242,7 @@ export function PosBoard({
         <MemberLookup
           searchRef={memberSearchRef}
           selectedMember={selectedMember}
-          intake={memberIntake}
+          config={intakeConfig}
           onSelect={onSelectMember}
         />
         <div {...stylex.props(styles.cartArea)}>

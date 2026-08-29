@@ -14,9 +14,11 @@ import {
   Permission,
   updateGymSettingsSchema,
   uploadGymLogoSchema,
+  uploadGymPortalImageSchema,
   type GetGymSettingsResponse,
   type UpdateGymSettingsResponse,
   type UploadGymLogoResponse,
+  type UploadGymPortalImageResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -75,6 +77,20 @@ export class GymSettingsController {
   @RequirePermissions(Permission.GymManage)
   async setLogo(@Body() body: unknown): Promise<UploadGymLogoResponse> {
     return this.settings.setLogo(parse(uploadGymLogoSchema, body));
+  }
+
+  /**
+   * `POST /gyms/settings/portal-image` — finalise the member portal's sign-in
+   * photograph by its R2 `photoKey`, storing the resulting public URL under
+   * `memberPortal.loginImageUrl` and returning it. Same shape, guard and upload
+   * flow as {@link setLogo}; a separate route because the two images are separate
+   * settings — a gym may skin its portal without touching what prints on invoices.
+   */
+  @Post('settings/portal-image')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.GymManage)
+  async setPortalImage(@Body() body: unknown): Promise<UploadGymPortalImageResponse> {
+    return this.settings.setPortalImage(parse(uploadGymPortalImageSchema, body));
   }
 }
 
