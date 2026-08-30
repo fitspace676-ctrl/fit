@@ -59,11 +59,19 @@ input[type='password'] {
 }
 
 /*
- * Brand logo (logodark.png / logolight.png) — theme-aware swap, mirroring the
- * admin console's `.admin-logo` rules: the dark-ink logo on the light canvas,
- * the white-ink logo on the dark one. Global CSS rather than StyleX because the
- * swap keys off the `.dark` class the theme provider stamps on <html>, and
- * StyleX has no descendant selectors.
+ * The BUNDLED wordmark (logodark.png / logolight.png) — theme-aware swap,
+ * mirroring the admin console's `.admin-logo` rules: the dark-ink logo on the
+ * light canvas, the white-ink logo on the dark one. Global CSS rather than
+ * StyleX because the swap keys off the `.dark` class the theme provider stamps
+ * on <html>, and StyleX has no descendant selectors.
+ *
+ * FOR THE BUNDLED PAIR ONLY. A gym that uploads its own logo uploads ONE file,
+ * and feeding one file to a two-file swap renders the same image on both canvases
+ * — which is not a swap, and leaves the mark invisible on whichever ground its
+ * ink happens to match. A tenant mark therefore brings its own fixed ground
+ * instead; `src/components/member/portal-logo.tsx` is where that lives, and where
+ * the alternatives are argued. These rules are untouched so the shipped
+ * FormaCore mark keeps rendering exactly as it always has.
  */
 .member-logo {
   width: 9.25rem;

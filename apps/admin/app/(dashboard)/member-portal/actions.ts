@@ -15,6 +15,7 @@ import {
   createUpload,
   updateGymSettings,
   uploadGymPortalImage,
+  uploadGymPortalLogo,
   type SignedUploadResponse,
 } from '@/lib/api';
 
@@ -22,16 +23,17 @@ import {
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
 /**
- * The R2 key segment the sign-in photograph is filed under — the brand logo's,
- * deliberately, not one of its own.
+ * The R2 key segment this screen's uploads are filed under — the brand logo's,
+ * deliberately, not one of their own.
  *
  * `logos` is already in the API's `SWEEPABLE_ENTITIES` allow-list, and that list
  * is an allow-list on purpose: a prefix nobody taught the orphan sweep about is
  * silently *kept* forever. Filing portal images under a new `portal/` segment
  * would therefore leak every replaced photograph until someone remembered to
- * register it. Both references already live under this one prefix and both are
- * read by `MediaSweepService`, so a replaced logo and a replaced portal image are
- * collected by the same machinery and cannot delete each other's object.
+ * register it. All three references — the brand logo, the sign-in photograph and
+ * the portal wordmark — live under this one prefix and all three are read by
+ * `MediaSweepService` and `MediaCleanupService`, so a replacement on any of them
+ * is collected by the same machinery and cannot delete another's object.
  */
 const PORTAL_UPLOAD_ENTITY = 'logos';
 
@@ -141,6 +143,58 @@ export async function finalizePortalImageAction(
   try {
     const result = await uploadGymPortalImage({ photoKey });
     revalidatePath('/member-portal');
+    return { ok: true, data: result };
+  } catch (error) {
+    return { ok: false, error: await toMessage(error) };
+  }
+}
+
+/**
+ * Mint a presigned R2 upload URL for the portal's wordmark.
+ *
+ * Byte-for-byte {@link requestPortalImageUploadAction} apart from what it is
+ * called, and deliberately so: both file under {@link PORTAL_UPLOAD_ENTITY}, and
+ * the API takes the owning gym from the session rather than the request, so
+ * neither can land an object outside this gym's prefix. Kept as its own action so
+ * the logo control never has to reason about the photograph's, and so the pair of
+ * calls each control makes reads as one flow.
+ */
+export async function requestPortalLogoUploadAction(input: {
+  contentType: string;
+  contentLength: number;
+  fileName?: string;
+}): Promise<ActionResult<SignedUploadResponse>> {
+  if (!(await requireGymManage())) {
+    return notAuthorized();
+  }
+  try {
+    const signed = await createUpload({ ...input, entity: PORTAL_UPLOAD_ENTITY });
+    return { ok: true, data: signed };
+  } catch (error) {
+    return { ok: false, error: await toMessage(error) };
+  }
+}
+
+/**
+ * Finalise the portal's wordmark: hand the uploaded object's `photoKey` to the
+ * API, which checks the key belongs to this gym, persists its public URL as
+ * `memberPortal.logoUrl`, and returns that URL.
+ *
+ * Both pages are revalidated, as the colour save does: this screen shows the
+ * wordmark, and Settings → General renders the brand logo it falls back to — so a
+ * gym that departs from inheritance must not be shown a stale "from brand" state
+ * on either.
+ */
+export async function finalizePortalLogoAction(
+  photoKey: string,
+): Promise<ActionResult<{ logoUrl: string }>> {
+  if (!(await requireGymManage())) {
+    return notAuthorized();
+  }
+  try {
+    const result = await uploadGymPortalLogo({ photoKey });
+    revalidatePath('/member-portal');
+    revalidatePath('/settings');
     return { ok: true, data: result };
   } catch (error) {
     return { ok: false, error: await toMessage(error) };

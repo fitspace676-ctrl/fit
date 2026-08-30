@@ -137,6 +137,18 @@ describe('MediaSweepService.sweep', () => {
     expect(deleteObjects).toHaveBeenCalledWith([]);
   });
 
+  // Also under `logos`, and the reference a gym's portal wears on every screen.
+  // A sweep that did not know about it would delete a live tenant wordmark.
+  it("keeps the member portal's wordmark, also inside the settings blob", async () => {
+    const { service, deleteObjects } = setup([object('gym-1/logos/mark.webp')], {
+      gyms: [{ settings: { memberPortal: { logoUrl: `${PUBLIC_BASE}/gym-1/logos/mark.webp` } } }],
+    });
+
+    await service.sweep(NOW);
+
+    expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
   it('matches references by path, so a changed public host does not orphan the library', async () => {
     // The bucket moved to a custom domain but stored URLs still carry the old host.
     const { service, deleteObjects } = setup([object('gym-1/trainers/coach.jpg')], {

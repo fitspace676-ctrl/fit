@@ -15,10 +15,12 @@ import {
   updateGymSettingsSchema,
   uploadGymLogoSchema,
   uploadGymPortalImageSchema,
+  uploadGymPortalLogoSchema,
   type GetGymSettingsResponse,
   type UpdateGymSettingsResponse,
   type UploadGymLogoResponse,
   type UploadGymPortalImageResponse,
+  type UploadGymPortalLogoResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -91,6 +93,24 @@ export class GymSettingsController {
   @RequirePermissions(Permission.GymManage)
   async setPortalImage(@Body() body: unknown): Promise<UploadGymPortalImageResponse> {
     return this.settings.setPortalImage(parse(uploadGymPortalImageSchema, body));
+  }
+
+  /**
+   * `POST /gyms/settings/portal-logo` — finalise the member portal's wordmark by
+   * its R2 `photoKey`, storing the resulting public URL under
+   * `memberPortal.logoUrl` and returning it.
+   *
+   * A third route beside {@link setLogo} and {@link setPortalImage} rather than a
+   * `target` parameter on one of them: each writes a different settings field, and
+   * a route that read the destination out of the body would let a client aim an
+   * upload at a setting nobody meant it for. The guard, the ownership check and
+   * the upload flow are identical — only the field written differs.
+   */
+  @Post('settings/portal-logo')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.GymManage)
+  async setPortalLogo(@Body() body: unknown): Promise<UploadGymPortalLogoResponse> {
+    return this.settings.setPortalLogo(parse(uploadGymPortalLogoSchema, body));
   }
 }
 

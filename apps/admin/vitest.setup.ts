@@ -39,3 +39,25 @@ if (typeof HTMLDialogElement !== 'undefined') {
 if (typeof window !== 'undefined') {
   window.scrollTo = () => {};
 }
+
+// `window.matchMedia` is absent from jsdom entirely, and Astryx's `useMediaQuery`
+// calls it during render (through `useSyncExternalStore`, so there is no
+// try/catch to fall back through) — `AppShell` reads its own mobile breakpoint
+// that way, which means the console shell throws on mount without this. Stub it
+// as "nothing matches": every consumer here treats a non-match as the desktop /
+// no-preference case, so a test renders the layout a staff member actually sees.
+// Test-only infrastructure, like the two above; a spec that needs a query to
+// match should override this on the window itself.
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = (query: string): MediaQueryList =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList;
+}

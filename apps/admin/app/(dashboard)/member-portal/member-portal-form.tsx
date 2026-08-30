@@ -17,10 +17,14 @@ import {
   useWatch,
   useZodForm,
 } from '@/components/ui';
+import type { SignedUploadResponse } from '@/lib/api';
 import {
   finalizePortalImageAction,
+  finalizePortalLogoAction,
   requestPortalImageUploadAction,
+  requestPortalLogoUploadAction,
   updateMemberPortalAction,
+  type ActionResult,
 } from './actions';
 
 /**
@@ -44,6 +48,16 @@ const FALLBACK_PHOTO = `${BASE_PATH}/gym-hero.webp`;
 const WORDMARK = `${BASE_PATH}/logodark.png`;
 
 /**
+ * The DARK-inked half of that same bundled pair.
+ *
+ * The member site swaps between the two off the light/dark theme; the logo card's
+ * thumbnail cannot, because it draws every mark on the one white plate the portal
+ * gives a tenant logo (see `PortalLogo` in `apps/web`). On white, this is the
+ * correct half — and it is the file a member on the light theme actually sees.
+ */
+const WORDMARK_ON_LIGHT = `${BASE_PATH}/logolight.png`;
+
+/**
  * Accepted photograph MIME types. Wider than the brand logo's JPEG/PNG pair,
  * which is narrow because the logo is also drawn into invoice PDFs by `pdfkit`;
  * this image is only ever rendered by a browser, so WebP — the format the
@@ -53,6 +67,25 @@ const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 /** Client-side size ceiling (bytes) — a friendly guard before the signed PUT. */
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Accepted wordmark MIME types — the photograph's list, and for the same reason:
+ * the portal's chrome is painted by a browser and never embedded in a PDF.
+ *
+ * This IS the whole argument for `memberPortal.logoUrl` existing alongside
+ * `brand.logoUrl`. That one is gated to JPEG/PNG because `pdfkit` draws it onto
+ * every invoice, and a WebP accepted there would render on screen and silently
+ * vanish from the paperwork. Widening it was never an option; giving the portal
+ * its own field was.
+ */
+const ACCEPTED_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+/**
+ * Client-side size ceiling (bytes) for the wordmark — the brand logo's, not the
+ * photograph's. A logo is line art at header size; a 5 MB one is a mistake, and
+ * refusing it here says so before the upload rather than after.
+ */
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 const styles = stylex.create({
   /** Icon size inside a kit `Button`. */
@@ -228,37 +261,101 @@ const styles = stylex.create({
   },
 
   /* -------------------------------- photograph ------------------------------- */
-  photoRow: { display: 'flex', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' },
-  photoThumb: {
-    height: '5rem',
-    width: '8rem',
-    flexShrink: 0,
+  // Stacked, not side by side: the photograph is the thing being decided here, and
+  // at card width a 10rem thumbnail beside a hugging button left most of the row
+  // empty while showing the picture smaller than it deserved.
+  photoRow: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
+  // The thumbnail is a FRAME, not a bare `<img>`, so the "built-in" badge can sit
+  // on the picture it describes instead of floating in the column beside it —
+  // where it read as a heading for the upload control under it.
+  photoFrame: {
+    position: 'relative',
+    width: '100%',
+    // Ratio rather than a height, so the preview grows with the card and still
+    // frames the shot the way the member door's photo panel does.
+    aspectRatio: '8 / 5',
+    overflow: 'hidden',
     borderRadius: 'var(--radius-container)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'var(--color-border)',
-    objectFit: 'cover',
+    backgroundColor: 'var(--color-background-muted)',
   },
-  photoControls: { display: 'flex', flexDirection: 'column', gap: '0.375rem', minWidth: '14rem' },
-  fileInput: {
+  photoThumb: { height: '100%', width: '100%', objectFit: 'cover', display: 'block' },
+  // While a file hovers: the whole block answers, so the pointer is never asking
+  // a picture whether the button beside it will take the drop.
+  photoRowDragging: {
+    borderRadius: 'var(--radius-container)',
+    outlineWidth: '2px',
+    outlineStyle: 'dashed',
+    outlineColor: 'var(--color-accent)',
+    // Tight to the block: at full card width a wider offset runs into the card's
+    // own padding and reads as a second, broken border.
+    outlineOffset: '0.25rem',
+  },
+  photoFrameDragging: { borderColor: 'var(--color-accent)' },
+  dropOverlay: {
+    position: 'absolute',
+    inset: 0,
+    display: 'grid',
+    placeItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.62)',
+    paddingInline: '0.5rem',
+    textAlign: 'center',
     fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-    opacity: { default: 1, ':disabled': 0.5 },
-    '::file-selector-button': {
-      marginRight: '0.75rem',
-      borderStyle: 'none',
-      borderRadius: 'var(--radius-element)',
-      paddingInline: '0.75rem',
-      paddingBlock: '0.375rem',
-      fontSize: '0.875rem',
-      fontWeight: 500,
-      backgroundColor: {
-        default: 'var(--color-accent-muted)',
-        ':hover': 'var(--color-accent-muted)',
-      },
-      color: 'var(--color-text-accent)',
-      cursor: 'pointer',
+    fontWeight: 700,
+    lineHeight: 1.3,
+    color: '#FFFFFF',
+  },
+  photoControls: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  // The upload spans the card; "remove" sits under it as a quiet text action
+  // rather than competing for the same line.
+  photoActions: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' },
+  /**
+   * The upload control.
+   *
+   * A `<label>` wrapping a visually-hidden `<input type="file">`, NOT a styled
+   * input. `::file-selector-button` reaches the button and nothing else: the
+   * "no file selected" text beside it is the browser's, renders in the BROWSER's
+   * language rather than the console's — English sitting in a Georgian form —
+   * and carries a native tooltip that dropped over the hint below it. A label is
+   * the one way to own the whole control, and it keeps the input's own keyboard
+   * behaviour rather than simulating a click, so the ring lands via
+   * `:focus-within` on the real focused element.
+   */
+  uploadLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.375rem',
+    borderRadius: 'var(--radius-element)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: { default: 'var(--color-border)', ':hover': 'var(--color-border-strong)' },
+    backgroundColor: {
+      default: 'var(--color-background)',
+      ':hover': 'var(--fc-ghost)',
     },
+    paddingInline: '0.75rem',
+    paddingBlock: '0.4375rem',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+    cursor: 'pointer',
+    outlineWidth: { default: '0', ':focus-within': '2px' },
+    outlineStyle: 'solid',
+    outlineColor: 'var(--color-accent)',
+    outlineOffset: '2px',
+  },
+  uploadLabelBusy: { opacity: 0.55, cursor: 'progress' },
+  // Present to the pointer and to assistive tech, absent from the layout.
+  srOnly: {
+    position: 'absolute',
+    height: '1px',
+    width: '1px',
+    overflow: 'hidden',
+    clipPath: 'inset(50%)',
+    whiteSpace: 'nowrap',
   },
   photoHint: {
     margin: 0,
@@ -266,20 +363,24 @@ const styles = stylex.create({
     lineHeight: 1.5,
     color: 'var(--color-text-secondary)',
   },
+  // Over the photograph's bottom edge, carrying its own dark fill: the tag names
+  // what the picture IS, and a photo can be any colour underneath it.
   builtInTag: {
+    position: 'absolute',
+    insetBlockEnd: '0.375rem',
+    insetInlineStart: '0.375rem',
     display: 'inline-flex',
-    alignSelf: 'flex-start',
     alignItems: 'center',
     gap: '0.25rem',
     borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-background-muted)',
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
     paddingInline: '0.5rem',
-    paddingBlock: '0.125rem',
-    fontSize: '0.6875rem',
+    paddingBlock: '0.1875rem',
+    fontSize: '0.625rem',
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
-    color: 'var(--color-text-secondary)',
+    color: '#FFFFFF',
   },
   uploadError: {
     margin: 0,
@@ -289,6 +390,46 @@ const styles = stylex.create({
     paddingBlock: '0.5rem',
     fontSize: '0.875rem',
     color: 'var(--color-warning)',
+  },
+
+  /* --------------------------------- wordmark -------------------------------- */
+  /**
+   * The logo thumbnail — the plate itself, at card width.
+   *
+   * WHITE, in both console themes, because the member portal draws a tenant mark
+   * on a fixed white plate in all three of its headers (see `PortalLogo` in
+   * `apps/web` for why one uploaded file cannot use the two-file theme swap the
+   * bundled wordmark does). A preview that followed the CONSOLE's theme would be
+   * showing a ground members never see, and would hide exactly the mistake this
+   * card exists to catch: a white-inked logo, invisible where it will actually be
+   * rendered. So the thumbnail is the contract, drawn.
+   *
+   * `contain` and generous padding rather than the photograph's `cover` crop: a
+   * logo cropped to fill a frame is not a preview of anything.
+   */
+  logoFrame: {
+    position: 'relative',
+    display: 'grid',
+    placeItems: 'center',
+    width: '100%',
+    minHeight: '7rem',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: '#FFFFFF',
+    padding: '1.25rem',
+  },
+  // Bounded on both axes: a gym's mark may be a wide wordmark or a square badge,
+  // and neither may stretch the card.
+  logoMark: {
+    display: 'block',
+    width: 'auto',
+    height: 'auto',
+    maxHeight: '3.5rem',
+    maxWidth: '100%',
+    objectFit: 'contain',
   },
 
   /* --------------------------------- preview --------------------------------- */
@@ -334,6 +475,30 @@ const styles = stylex.create({
       'linear-gradient(180deg, rgba(19,19,18,0.74) 0%, rgba(19,19,18,0.26) 40%, rgba(19,19,18,0.34) 64%, rgba(19,19,18,0.68) 100%)',
   },
   previewWordmark: { position: 'relative', width: '6.5rem', height: 'auto', objectFit: 'contain' },
+  // The tenant mark's plate, as the member door actually draws it: a fixed white
+  // ground that does not follow the theme, so the one uploaded file has one
+  // background to be designed against. `relative` to clear the scrim, like every
+  // other element on this panel.
+  previewLogoPlate: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: '#FFFFFF',
+    boxShadow: 'inset 0 0 0 1px rgba(19, 19, 18, 0.10)',
+    paddingInline: '0.5rem',
+    paddingBlock: '0.3125rem',
+  },
+  previewLogoMark: {
+    display: 'block',
+    width: 'auto',
+    height: 'auto',
+    maxHeight: '1.375rem',
+    maxWidth: '6.5rem',
+    objectFit: 'contain',
+  },
   previewJoin: {
     position: 'relative',
     borderRadius: 'var(--radius-container)',
@@ -355,6 +520,9 @@ const styles = stylex.create({
     color: 'rgba(255, 255, 255, 0.88)',
   },
   previewBenefitIcon: { marginTop: '0.125rem', flexShrink: 0, height: '0.75rem', width: '0.75rem' },
+  // The portal's accent-as-type token, which the gym does not configure — the
+  // mock reads it from the theme so it cannot drift from what the portal paints.
+  previewBenefitIconAccent: { color: 'var(--color-text-accent)' },
   previewJoinCta: {
     display: 'inline-flex',
     marginTop: '0.75rem',
@@ -490,7 +658,7 @@ const styles = stylex.create({
 });
 
 /** The two colours this screen edits — the keys `ColorControl` may bind to. */
-type ColorField = 'primaryColor' | 'accentColor';
+type ColorField = 'primaryColor';
 
 /**
  * The form's value shape — the `memberPortal` section verbatim.
@@ -502,8 +670,8 @@ type ColorField = 'primaryColor' | 'accentColor';
  */
 interface MemberPortalFormValues {
   loginImageUrl: string | null;
+  logoUrl: string | null;
   primaryColor: string | null;
-  accentColor: string | null;
 }
 
 /**
@@ -529,8 +697,8 @@ function readableInk(hex: string): string {
 function toFormValues(settings: GymSettings): MemberPortalFormValues {
   return {
     loginImageUrl: settings.memberPortal.loginImageUrl,
+    logoUrl: settings.memberPortal.logoUrl,
     primaryColor: settings.memberPortal.primaryColor,
-    accentColor: settings.memberPortal.accentColor,
   };
 }
 
@@ -569,8 +737,8 @@ export function MemberPortalForm({ initial }: { initial: GymSettings }) {
   // what the API would.
   const schema = z.object({
     loginImageUrl: z.string().url().nullable(),
+    logoUrl: z.string().url().nullable(),
     primaryColor: z.string().regex(HEX_COLOR_PATTERN, t('colors.invalid')).nullable(),
-    accentColor: z.string().regex(HEX_COLOR_PATTERN, t('colors.invalid')).nullable(),
   });
 
   const form = useZodForm(schema, { defaultValues: toFormValues(initial) });
@@ -616,13 +784,15 @@ export function MemberPortalForm({ initial }: { initial: GymSettings }) {
                 description={t('colors.primaryDesc')}
                 inherited={initial.brand.primaryColor}
               />
-              <ColorControl
-                name="accentColor"
-                label={t('colors.accentLabel')}
-                description={t('colors.accentDesc')}
-                inherited={initial.brand.secondaryColor}
-              />
             </div>
+          </Card>
+
+          {/* Before the photograph, because the mark is on every screen of the
+              portal while the photograph is on one. */}
+          <Card padding="none" xstyle={styles.card}>
+            <h2 {...stylex.props(styles.cardTitle)}>{t('logo.title')}</h2>
+            <p {...stylex.props(styles.cardDesc)}>{t('logo.subtitle')}</p>
+            <LogoField brandLogoUrl={initial.brand.logoUrl} />
           </Card>
 
           <Card padding="none" xstyle={styles.card}>
@@ -639,7 +809,7 @@ export function MemberPortalForm({ initial }: { initial: GymSettings }) {
             <PortalPreview
               gymName={initial.brand.name}
               brandPrimary={initial.brand.primaryColor}
-              brandAccent={initial.brand.secondaryColor}
+              brandLogoUrl={initial.brand.logoUrl}
             />
             <p {...stylex.props(styles.previewNote)}>{t('preview.note')}</p>
           </Card>
@@ -770,48 +940,95 @@ function ColorControl({
   );
 }
 
+/** The translated strings {@link useImageUpload} needs to report a rejected file. */
+interface ImageUploadMessages {
+  /** The file is not one of the accepted MIME types. */
+  errorType: string;
+  /** The file is over the ceiling. */
+  errorSize: string;
+  /** The signed `PUT` came back non-2xx — takes the HTTP status. */
+  errorUpload: (status: number) => string;
+  /** Anything threw: offline, DNS, a blocked request. */
+  errorNetwork: string;
+}
+
 /**
- * The sign-in photograph: current image, upload, and remove.
+ * The presign → `PUT` → finalise flow, plus the drag-and-drop that feeds it.
  *
- * The upload path is the brand logo's, step for step — presign, `PUT` to R2 from
- * the browser, finalise the key server-side — so the ownership check, the orphan
- * sweep and the storage config are shared rather than reimplemented. Only the
- * accepted formats differ, and only because this image is never drawn into a PDF.
+ * SHARED BY BOTH UPLOADS ON THIS SCREEN, not duplicated per control. The two are
+ * the same machine pointed at different settings fields: same three steps, same
+ * two gates, same drop behaviour, same error surface — and the parts that are
+ * genuinely fiddly (the `relatedTarget` containment below, resetting the input so
+ * re-picking the same file re-fires `change`) are exactly the parts that rot when
+ * they exist twice. What differs is the accepted formats, the ceiling and which
+ * field the resulting URL lands in, so those are the arguments.
  *
- * There is no "no photo" state to render: `null` means the member site shows its
- * bundled photograph, so the thumbnail shows that file and the tag says so.
+ * The three steps are unchanged from the brand logo's: mint a presigned R2 URL
+ * (`POST /uploads`), `PUT` the bytes straight there from the browser, then hand
+ * the object key to a server action that checks it belongs to this gym and turns
+ * it into a public URL (`POST /gyms/settings/portal-image` or `.../portal-logo`).
+ * Only that last step needs a server, which is why it is the only one that is an
+ * action rather than a `fetch`.
  */
-function PhotoField() {
-  const t = useTranslations('admin.memberPortal.image');
-  const { control, setValue, formState } = useFormContext<MemberPortalFormValues>();
-  const loginImageUrl = useWatch({ control, name: 'loginImageUrl' });
+function useImageUpload({
+  accept,
+  maxBytes,
+  messages,
+  presign,
+  finalize,
+  onUploaded,
+}: {
+  /** Accepted MIME types — both the `accept` attribute and the client-side gate. */
+  accept: readonly string[];
+  /** Client-side size ceiling in bytes, checked before anything is signed. */
+  maxBytes: number;
+  messages: ImageUploadMessages;
+  presign: (input: {
+    contentType: string;
+    contentLength: number;
+    fileName?: string;
+  }) => Promise<ActionResult<SignedUploadResponse>>;
+  /** Finalise the uploaded key, resolving to the stored public URL. */
+  finalize: (photoKey: string) => Promise<ActionResult<string>>;
+  /** Write the finalised URL into the form. */
+  onUploaded: (url: string) => void;
+}) {
+  const { formState } = useFormContext<MemberPortalFormValues>();
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  const disabled = uploading || formState.isSubmitting;
+
+  // Clearing the input is what lets the same file be picked twice: without it the
+  // second pick sets an identical value and `change` never fires.
   function resetFileInput(): void {
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (inputRef.current) inputRef.current.value = '';
   }
 
-  async function onPhotoChange(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  /**
+   * Validate one file and put it on R2. Shared by the picker and the drop zone so
+   * a dropped file cannot take a shorter route than a chosen one — same type and
+   * size gates, same presign/PUT/finalise, same error surface.
+   */
+  async function upload(file: File): Promise<void> {
     setUploadError(null);
 
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setUploadError(t('errorType'));
+    if (!accept.includes(file.type)) {
+      setUploadError(messages.errorType);
       resetFileInput();
       return;
     }
-    if (file.size > MAX_PHOTO_BYTES) {
-      setUploadError(t('errorSize'));
+    if (file.size > maxBytes) {
+      setUploadError(messages.errorSize);
       resetFileInput();
       return;
     }
 
     setUploading(true);
     try {
-      const signed = await requestPortalImageUploadAction({
+      const signed = await presign({
         contentType: file.type,
         contentLength: file.size,
         fileName: file.name,
@@ -826,56 +1043,281 @@ function PhotoField() {
         body: file,
       });
       if (!put.ok) {
-        setUploadError(t('errorUpload', { status: put.status }));
+        setUploadError(messages.errorUpload(put.status));
         return;
       }
-      const finalized = await finalizePortalImageAction(signed.data.key);
+      const finalized = await finalize(signed.data.key);
       if (!finalized.ok) {
         setUploadError(finalized.error);
         return;
       }
-      setValue('loginImageUrl', finalized.data.loginImageUrl, { shouldDirty: true });
+      onUploaded(finalized.data);
     } catch {
-      setUploadError(t('errorNetwork'));
+      setUploadError(messages.errorNetwork);
     } finally {
       setUploading(false);
       resetFileInput();
     }
   }
 
-  const disabled = uploading || formState.isSubmitting;
+  function onInputChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    const file = event.target.files?.[0];
+    if (file) void upload(file);
+  }
+
+  /** Spread onto the block that answers a drop — the whole control, not the thumbnail. */
+  const dropHandlers = {
+    onDragEnter(event: React.DragEvent<HTMLDivElement>): void {
+      if (disabled || !event.dataTransfer.types.includes('Files')) return;
+      event.preventDefault();
+      setDragging(true);
+    },
+    onDragOver(event: React.DragEvent<HTMLDivElement>): void {
+      if (disabled || !event.dataTransfer.types.includes('Files')) return;
+      // Without this the browser navigates to the dropped file and the drop event
+      // never reaches React at all.
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    },
+    /**
+     * `dragleave` also fires each time the pointer crosses onto a CHILD of the
+     * zone — the thumbnail, the button, the hint — so it cannot be taken at face
+     * value or the highlight flickers off while the file is still over the block.
+     *
+     * `relatedTarget` is what it is entering. Inside the zone → ignore; outside,
+     * or `null` because the drag left the window entirely, → clear. Counting
+     * enter/leave pairs instead would be one dropped event away from a highlight
+     * that never goes out.
+     */
+    onDragLeave(event: React.DragEvent<HTMLDivElement>): void {
+      const entering = event.relatedTarget;
+      if (entering instanceof Node && event.currentTarget.contains(entering)) return;
+      setDragging(false);
+    },
+    onDrop(event: React.DragEvent<HTMLDivElement>): void {
+      event.preventDefault();
+      setDragging(false);
+      if (disabled) return;
+      // Only the first file: this is one image, and silently uploading the last
+      // of five dropped ones would be a coin toss the user did not call.
+      const file = event.dataTransfer.files?.[0];
+      if (file) void upload(file);
+    },
+  };
+
+  return { uploading, uploadError, dragging, disabled, inputRef, onInputChange, dropHandlers };
+}
+
+/**
+ * The sign-in photograph: current image, upload, and remove.
+ *
+ * The upload path is the brand logo's, step for step — presign, `PUT` to R2 from
+ * the browser, finalise the key server-side — so the ownership check, the orphan
+ * sweep and the storage config are shared rather than reimplemented. Only the
+ * accepted formats differ, and only because this image is never drawn into a PDF.
+ *
+ * There is no "no photo" state to render: `null` means the member site shows its
+ * bundled photograph, so the thumbnail shows that file and the tag says so.
+ */
+function PhotoField() {
+  const t = useTranslations('admin.memberPortal.image');
+  const { control, setValue } = useFormContext<MemberPortalFormValues>();
+  const loginImageUrl = useWatch({ control, name: 'loginImageUrl' });
+
+  const { uploading, uploadError, dragging, disabled, inputRef, onInputChange, dropHandlers } =
+    useImageUpload({
+      accept: ACCEPTED_IMAGE_TYPES,
+      maxBytes: MAX_PHOTO_BYTES,
+      messages: {
+        errorType: t('errorType'),
+        errorSize: t('errorSize'),
+        errorUpload: (status) => t('errorUpload', { status }),
+        errorNetwork: t('errorNetwork'),
+      },
+      presign: requestPortalImageUploadAction,
+      finalize: async (photoKey) => {
+        const result = await finalizePortalImageAction(photoKey);
+        return result.ok ? { ok: true, data: result.data.loginImageUrl } : result;
+      },
+      onUploaded: (url) => setValue('loginImageUrl', url, { shouldDirty: true }),
+    });
 
   return (
     <div {...stylex.props(styles.stack2)}>
-      <div {...stylex.props(styles.photoRow)}>
-        <img
-          src={loginImageUrl ?? FALLBACK_PHOTO}
-          alt={t('alt')}
-          {...stylex.props(styles.photoThumb)}
-        />
-        <div {...stylex.props(styles.photoControls)}>
-          {loginImageUrl === null ? (
+      {/* The whole row is the drop target, not just the thumbnail: a file aimed at
+          a 10rem picture is easy to miss, and the block reads as one control. */}
+      <div
+        {...dropHandlers}
+        {...stylex.props(styles.photoRow, dragging && styles.photoRowDragging)}
+      >
+        <div {...stylex.props(styles.photoFrame, dragging && styles.photoFrameDragging)}>
+          <img
+            src={loginImageUrl ?? FALLBACK_PHOTO}
+            alt={t('alt')}
+            {...stylex.props(styles.photoThumb)}
+          />
+          {/* On the picture, because it describes the picture. Beside the upload
+              control it read as that control's heading. */}
+          {loginImageUrl === null && !dragging ? (
             <span {...stylex.props(styles.builtInTag)}>{t('none')}</span>
           ) : null}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPTED_IMAGE_TYPES.join(',')}
-            aria-label={t('label')}
-            onChange={(event) => void onPhotoChange(event)}
-            disabled={disabled}
-            {...stylex.props(styles.fileInput)}
-          />
-          <p {...stylex.props(styles.photoHint)}>{uploading ? t('uploading') : t('hint')}</p>
-          {loginImageUrl && !uploading ? (
-            <button
-              type="button"
-              onClick={() => setValue('loginImageUrl', null, { shouldDirty: true })}
-              {...stylex.props(styles.linkBtn)}
-            >
-              {t('remove')}
-            </button>
+          {/* Over the picture while a file is in flight above it — the answer to
+              "will it land here?" belongs on the target, not beside it. */}
+          {dragging ? (
+            <span aria-hidden {...stylex.props(styles.dropOverlay)}>
+              {t('drop')}
+            </span>
           ) : null}
+        </div>
+        <div {...stylex.props(styles.photoControls)}>
+          <div {...stylex.props(styles.photoActions)}>
+            {/* The label IS the button; the input inside it is hidden from the
+                layout but still the focused, clicked, keyboard-operable control. */}
+            <label {...stylex.props(styles.uploadLabel, disabled && styles.uploadLabelBusy)}>
+              <Icon name="camera" sw={2.2} width={14} height={14} />
+              {uploading ? t('uploading') : loginImageUrl ? t('replace') : t('choose')}
+              <input
+                ref={inputRef}
+                type="file"
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                aria-label={t('label')}
+                onChange={onInputChange}
+                disabled={disabled}
+                {...stylex.props(styles.srOnly)}
+              />
+            </label>
+            {loginImageUrl && !uploading ? (
+              <button
+                type="button"
+                onClick={() => setValue('loginImageUrl', null, { shouldDirty: true })}
+                {...stylex.props(styles.linkBtn)}
+              >
+                {t('remove')}
+              </button>
+            ) : null}
+          </div>
+          <p {...stylex.props(styles.photoHint)}>{t('hint')}</p>
+        </div>
+      </div>
+      {uploadError ? (
+        <p role="alert" {...stylex.props(styles.uploadError)}>
+          {uploadError}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The portal's wordmark: current mark, upload, and the way back to inheriting one.
+ *
+ * WHY THIS IS NOT JUST `brand.logoUrl`. It is, until a gym says otherwise —
+ * `null` means "inherit", the API resolves `memberPortal.logoUrl ?? brand.logoUrl`
+ * before the value reaches the member site, and a gym with one logo needs to do
+ * nothing here at all. The field exists so a gym CAN differ, and the reason it
+ * would is format: the brand logo is embedded in invoice PDFs and gated to
+ * JPEG/PNG for it, while this one is only painted by a browser and may be a WebP.
+ *
+ * THREE STATES, EXPRESSED AS STATES — the shape {@link ColorControl} uses, because
+ * "inherit" is a real, returnable value here too and an empty box would have said
+ * "no logo", which this contract cannot store:
+ *
+ *   inheriting, with a brand logo  → that logo, badged "From brand"
+ *   inheriting, with none          → the bundled FormaCore mark, badged "Built-in"
+ *   chosen                         → the gym's own upload, and a way back
+ *
+ * THE THUMBNAIL IS WHITE ON PURPOSE, in both console themes — see `logoFrame`. A
+ * gym uploads ONE file where the bundled wordmark is a light/dark PAIR, so the
+ * member portal gives a tenant mark a fixed white plate rather than a swap it
+ * cannot participate in (`PortalLogo` in `apps/web` argues that out in full). The
+ * hint states that contract in words; this frame states it in pixels, which is
+ * what makes a white-inked upload fail here — visibly, next to the sentence
+ * explaining it — instead of on a member's phone.
+ */
+function LogoField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
+  const t = useTranslations('admin.memberPortal.logo');
+  const { control, setValue } = useFormContext<MemberPortalFormValues>();
+  const logoUrl = useWatch({ control, name: 'logoUrl' });
+
+  const { uploading, uploadError, dragging, disabled, inputRef, onInputChange, dropHandlers } =
+    useImageUpload({
+      accept: ACCEPTED_LOGO_TYPES,
+      maxBytes: MAX_LOGO_BYTES,
+      messages: {
+        errorType: t('errorType'),
+        errorSize: t('errorSize'),
+        errorUpload: (status) => t('errorUpload', { status }),
+        errorNetwork: t('errorNetwork'),
+      },
+      presign: requestPortalLogoUploadAction,
+      finalize: async (photoKey) => {
+        const result = await finalizePortalLogoAction(photoKey);
+        return result.ok ? { ok: true, data: result.data.logoUrl } : result;
+      },
+      onUploaded: (url) => setValue('logoUrl', url, { shouldDirty: true }),
+    });
+
+  const inheriting = logoUrl === null;
+  // The same chain the API resolves, one link longer: the portal's own mark, then
+  // the brand's, then the bundled file — which is where the contract's `null`
+  // stops and the member app's own asset takes over.
+  const shown = logoUrl ?? brandLogoUrl ?? WORDMARK_ON_LIGHT;
+
+  return (
+    <div {...stylex.props(styles.stack2)}>
+      <div
+        {...dropHandlers}
+        {...stylex.props(styles.photoRow, dragging && styles.photoRowDragging)}
+      >
+        <div {...stylex.props(styles.logoFrame, dragging && styles.photoFrameDragging)}>
+          <img src={shown} alt={t('alt')} {...stylex.props(styles.logoMark)} />
+          {/* Names what the mark IS while it is not the gym's own choice — the
+              badge half of the same two-part statement `ColorControl` makes. */}
+          {inheriting && !dragging ? (
+            <span {...stylex.props(styles.builtInTag)}>
+              {brandLogoUrl ? t('fromBrandBadge') : t('builtInBadge')}
+            </span>
+          ) : null}
+          {dragging ? (
+            <span aria-hidden {...stylex.props(styles.dropOverlay)}>
+              {t('drop')}
+            </span>
+          ) : null}
+        </div>
+        <div {...stylex.props(styles.photoControls)}>
+          <div {...stylex.props(styles.photoActions)}>
+            <label {...stylex.props(styles.uploadLabel, disabled && styles.uploadLabelBusy)}>
+              <Icon name="camera" sw={2.2} width={14} height={14} />
+              {uploading ? t('uploading') : inheriting ? t('choose') : t('replace')}
+              <input
+                ref={inputRef}
+                type="file"
+                accept={ACCEPTED_LOGO_TYPES.join(',')}
+                aria-label={t('label')}
+                onChange={onInputChange}
+                disabled={disabled}
+                {...stylex.props(styles.srOnly)}
+              />
+            </label>
+            {/* Uploading IS the way out of inheriting, so there is no second
+                "customise" button here — only the way back, which mirrors the
+                colour cards' `reset` and reads the same in both directions. */}
+            {!inheriting && !uploading ? (
+              <button
+                type="button"
+                onClick={() => setValue('logoUrl', null, { shouldDirty: true })}
+                {...stylex.props(styles.linkBtn)}
+              >
+                {brandLogoUrl ? t('resetToBrand') : t('resetToBuiltIn')}
+              </button>
+            ) : null}
+          </div>
+          {inheriting ? (
+            <p {...stylex.props(styles.photoHint)}>
+              {brandLogoUrl ? t('inheritedBrand') : t('inheritedNone')}
+            </p>
+          ) : null}
+          <p {...stylex.props(styles.photoHint)}>{t('hint')}</p>
         </div>
       </div>
       {uploadError ? (
@@ -891,9 +1333,9 @@ function PhotoField() {
  * A mock of the member sign-in screen, painted in the values currently in the form.
  *
  * WHAT IT COVERS: the two-column frame `AuthPhotoShell` renders — the photograph
- * panel with its legibility scrim, the white-inked wordmark and the join strip on
- * one side, the sign-in form on the other — plus the four places the gym's own
- * colours actually land: the submit button's fill (and legible ink over it), the
+ * panel with its legibility scrim, the wordmark and the join strip on one side,
+ * the sign-in form on the other — plus the four places the gym's own colours
+ * actually land: the submit button's fill (and legible ink over it), the
  * focused field's border, the "forgot?" link, and the join strip's benefit tick.
  * It also reproduces the real shell's stacking order below `lg`, where the form
  * leads and the photo band follows.
@@ -909,18 +1351,19 @@ function PhotoField() {
 function PortalPreview({
   gymName,
   brandPrimary,
-  brandAccent,
+  brandLogoUrl,
 }: {
   gymName: string;
   /** The brand colours the portal's `null`s fall through to. */
   brandPrimary: string;
-  brandAccent: string;
+  /** The brand logo the portal's `null` wordmark falls through to. */
+  brandLogoUrl: string | null;
 }) {
   const t = useTranslations('admin.memberPortal.preview');
   const { control } = useFormContext<MemberPortalFormValues>();
   const primaryColor = useWatch({ control, name: 'primaryColor' });
-  const accentColor = useWatch({ control, name: 'accentColor' });
   const loginImageUrl = useWatch({ control, name: 'loginImageUrl' });
+  const logoUrl = useWatch({ control, name: 'logoUrl' });
 
   // The same resolution `gymPortalTheme` does server-side: a portal colour the
   // gym has not set falls through to the brand's. An in-flight, not-yet-valid hex
@@ -928,8 +1371,11 @@ function PortalPreview({
   const usable = (value: string | null, fallback: string): string =>
     value !== null && HEX_COLOR_PATTERN.test(value) ? value : fallback;
   const primary = usable(primaryColor, brandPrimary);
-  const accent = usable(accentColor, brandAccent);
   const photo = loginImageUrl ?? FALLBACK_PHOTO;
+  // The same `memberPortal.logoUrl ?? brand.logoUrl` the API resolves. `null`
+  // past both is the bundled mark, which over this dark panel is the white-inked
+  // half of the pair and needs no plate — the tenant case is what needs one.
+  const tenantLogo = logoUrl ?? brandLogoUrl;
 
   return (
     <div {...stylex.props(styles.previewFrame)}>
@@ -937,14 +1383,23 @@ function PortalPreview({
       <div {...stylex.props(styles.previewAside)}>
         <img src={photo} alt="" {...stylex.props(styles.previewPhoto)} />
         <span aria-hidden {...stylex.props(styles.previewScrim)} />
-        <img src={WORDMARK} alt="" {...stylex.props(styles.previewWordmark)} />
+        {tenantLogo ? (
+          <span {...stylex.props(styles.previewLogoPlate)}>
+            <img src={tenantLogo} alt="" {...stylex.props(styles.previewLogoMark)} />
+          </span>
+        ) : (
+          <img src={WORDMARK} alt="" {...stylex.props(styles.previewWordmark)} />
+        )}
         <div {...stylex.props(styles.previewJoin)}>
           <p {...stylex.props(styles.previewJoinTitle)}>{t('joinTitle', { gym: gymName })}</p>
           <p {...stylex.props(styles.previewBenefit)}>
+            {/* The lime, not the gym's colour: the accent as TYPE is not a brand
+                slot in the portal either, so the mock must not imply it is — see
+                `portal-theme.ts` in @fit/web. */}
             <Icon
               name="check"
               sw={2.6}
-              {...stylex.props(styles.previewBenefitIcon, styles.tintText(accent))}
+              {...stylex.props(styles.previewBenefitIcon, styles.previewBenefitIconAccent)}
             />
             {t('joinBenefit')}
           </p>

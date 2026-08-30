@@ -26,8 +26,6 @@ const COLOR_KEYS = [
   'subtitle',
   'primaryLabel',
   'primaryDesc',
-  'accentLabel',
-  'accentDesc',
   'hexLabel',
   'pickerLabel',
   'inheritedBadge',
@@ -41,11 +39,40 @@ const IMAGE_KEYS = [
   'title',
   'subtitle',
   'label',
+  'choose',
+  'replace',
+  'drop',
   'none',
   'alt',
   'uploading',
   'hint',
   'remove',
+  'errorType',
+  'errorSize',
+  'errorUpload',
+  'errorNetwork',
+] as const;
+
+// The wordmark card. Its three-state shape (from brand / built-in / chosen) means
+// four of these keys are the ONLY thing that tells a gym where the mark it is
+// looking at came from — a missing one leaves a dotted path where the provenance
+// should be, which is worse than no badge at all.
+const LOGO_KEYS = [
+  'title',
+  'subtitle',
+  'label',
+  'choose',
+  'replace',
+  'drop',
+  'alt',
+  'uploading',
+  'fromBrandBadge',
+  'builtInBadge',
+  'inheritedBrand',
+  'inheritedNone',
+  'resetToBrand',
+  'resetToBuiltIn',
+  'hint',
   'errorType',
   'errorSize',
   'errorUpload',
@@ -97,6 +124,7 @@ describe('member-portal screen i18n', () => {
         ['breadcrumb', BREADCRUMB_KEYS, portal.breadcrumb],
         ['colors', COLOR_KEYS, portal.colors],
         ['image', IMAGE_KEYS, portal.image],
+        ['logo', LOGO_KEYS, portal.logo],
         ['preview', PREVIEW_KEYS, portal.preview],
         ['saveBar', SAVE_BAR_KEYS, portal.saveBar],
         ['errors', ERROR_KEYS, portal.errors],
@@ -112,6 +140,7 @@ describe('member-portal screen i18n', () => {
         expect(portal.colors.hexLabel).toContain('{label}');
         expect(portal.colors.pickerLabel).toContain('{label}');
         expect(portal.image.errorUpload).toContain('{status}');
+        expect(portal.logo.errorUpload).toContain('{status}');
         expect(portal.preview.joinTitle).toContain('{gym}');
         expect(portal.errors.loadSettings).toContain('{status}');
         expect(portal.errors.loadSettings).toContain('{message}');

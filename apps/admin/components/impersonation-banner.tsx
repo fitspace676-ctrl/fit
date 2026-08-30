@@ -21,7 +21,10 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     fontWeight: 600,
     // Above the shell's own sticky chrome: the one thing on screen that must
-    // never be scrolled past is the fact that this is not your account.
+    // never be scrolled past is the fact that this is not your account. The bar
+    // now rides in AppShell's pinned banner slot, where nothing scrolls and
+    // `sticky` therefore behaves as `relative` — kept anyway, so the guarantee
+    // survives being rendered anywhere else.
     position: 'sticky',
     insetBlockStart: 0,
     zIndex: 60,

@@ -18,11 +18,15 @@ function setup() {
   const setPortalImage = vi.fn(() =>
     Promise.resolve({ loginImageUrl: 'https://cdn/gym-1/logos/hero.jpg' }),
   );
+  const setPortalLogo = vi.fn(() =>
+    Promise.resolve({ logoUrl: 'https://cdn/gym-1/logos/mark.webp' }),
+  );
   const service = {
     getSettings,
     updateSettings,
     setLogo,
     setPortalImage,
+    setPortalLogo,
   } as unknown as GymSettingsService;
   return {
     controller: new GymSettingsController(service),
@@ -30,6 +34,7 @@ function setup() {
     updateSettings,
     setLogo,
     setPortalImage,
+    setPortalLogo,
   };
 }
 
@@ -107,6 +112,21 @@ describe('GymSettingsController', () => {
     });
   });
 
+  describe('POST /gyms/settings/portal-logo', () => {
+    it('validates the body and delegates the photoKey', async () => {
+      const result = await ctx.controller.setPortalLogo({ photoKey: 'gym-1/logos/mark.webp' });
+      expect(ctx.setPortalLogo).toHaveBeenCalledWith({ photoKey: 'gym-1/logos/mark.webp' });
+      expect(result.logoUrl).toBe('https://cdn/gym-1/logos/mark.webp');
+    });
+
+    it('rejects an empty photoKey with a 400', async () => {
+      await expect(ctx.controller.setPortalLogo({ photoKey: '' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(ctx.setPortalLogo).not.toHaveBeenCalled();
+    });
+  });
+
   describe('PATCH /gyms/settings — new sections', () => {
     it('accepts a start-date-policy patch', async () => {
       await ctx.controller.update({ startDatePolicy: { maxDaysAhead: 30, allowPast: true } });
@@ -129,7 +149,7 @@ describe('GymSettingsController', () => {
 
     it('rejects a malformed portal colour with a 400', async () => {
       await expect(
-        ctx.controller.update({ memberPortal: { accentColor: 'lime' } }),
+        ctx.controller.update({ memberPortal: { primaryColor: 'lime' } }),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(ctx.updateSettings).not.toHaveBeenCalled();
     });
