@@ -555,6 +555,28 @@ export class OrdersService {
         });
       }
 
+      // Claim the headroom before writing anything that depends on holding it.
+      // The addition is resolved by the database against the live row and the
+      // bound rides in the same statement, so a concurrent refund cannot land
+      // between the two: Postgres re-evaluates the predicate against the row as
+      // it stands once that refund commits, and the second claimant is measured
+      // against the total it actually left behind. Reading `payment.amount` off
+      // the snapshot is safe — a capture's amount never moves, only what has been
+      // refunded against it does.
+      const claimed = await tx.payment.updateMany({
+        where: { id: payment.id, refundedAmount: { lte: payment.amount - input.amount } },
+        data: { refundedAmount: { increment: input.amount } },
+      });
+      if (claimed.count === 0) {
+        // Another refund spent the remaining net between the check above and this
+        // write. That is the same situation the pre-check reports, so it gets the
+        // same answer — the caller simply learned of it a moment later.
+        throw new UnprocessableEntityException({
+          message: 'Refund amount exceeds the order’s net paid amount',
+          code: REFUND_EXCEEDS_PAID_CODE,
+        });
+      }
+
       const refund = await tx.refund.create({
         data: {
           gymId,
@@ -571,15 +593,21 @@ export class OrdersService {
         select: { id: true },
       });
 
-      const nextRefunded = payment.refundedAmount + input.amount;
-      const fullyRefunded = nextRefunded >= payment.amount;
-      await tx.payment.update({
+      // Read the settled figure rather than compute it: the claim advanced the
+      // column from whatever it actually held, which is not necessarily what this
+      // transaction read a moment ago. The claim holds the row lock until commit,
+      // so what comes back here is final.
+      const settled = await tx.payment.findFirst({
         where: { id: payment.id },
-        data: {
-          refundedAmount: nextRefunded,
-          ...(fullyRefunded ? { status: PaymentStatus.REFUNDED } : {}),
-        },
+        select: { refundedAmount: true },
       });
+      const fullyRefunded = (settled?.refundedAmount ?? 0) >= payment.amount;
+      if (fullyRefunded) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.REFUNDED },
+        });
+      }
 
       // A full refund retires the order and logs the transition; a partial one
       // leaves it `PAID` (the refund itself is the record), so the timeline only

@@ -732,6 +732,29 @@ function adminSetup(over?: {
   const orderUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'order-1' }));
   const refundCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'refund-1' }));
   const paymentUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'pay-1' }));
+  // The refund claim, modelled the way the database performs it: the conditional
+  // `updateMany` admits the refund only while the capture still has room, and the
+  // read that follows reports what the column actually holds afterwards. Modelling
+  // it — rather than answering a flat `{ count: 1 }` — keeps this spec honest about
+  // which branch the service takes. Only the integration spec can prove the claim
+  // is *atomic*; this one proves the service asks for it correctly.
+  const capture = (over?.orderFindFirst as { payment?: { refundedAmount?: number } } | undefined)
+    ?.payment;
+  let refunded = capture?.refundedAmount ?? 0;
+  const paymentUpdateMany = vi.fn(
+    (args: {
+      where: { refundedAmount?: { lte: number } };
+      data: { refundedAmount: { increment: number } };
+    }) => {
+      const ceiling = args.where.refundedAmount?.lte;
+      if (ceiling !== undefined && refunded > ceiling) {
+        return Promise.resolve({ count: 0 });
+      }
+      refunded += args.data.refundedAmount.increment;
+      return Promise.resolve({ count: 1 });
+    },
+  );
+  const paymentFindFirst = vi.fn((_args: unknown) => Promise.resolve({ refundedAmount: refunded }));
   const statusEventCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'evt-1' }));
   const productFindMany = vi.fn((_args: unknown) => Promise.resolve(over?.productFindMany ?? []));
   const productUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'p1' }));
@@ -740,7 +763,11 @@ function adminSetup(over?: {
   const tx = {
     order: { findFirst: orderFindFirst, update: orderUpdate },
     refund: { create: refundCreate },
-    payment: { update: paymentUpdate },
+    payment: {
+      update: paymentUpdate,
+      updateMany: paymentUpdateMany,
+      findFirst: paymentFindFirst,
+    },
     orderStatusEvent: { create: statusEventCreate },
     product: { findMany: productFindMany, update: productUpdate },
     stockMovement: { createMany: movementCreateMany },
@@ -778,6 +805,7 @@ function adminSetup(over?: {
     orderUpdate,
     refundCreate,
     paymentUpdate,
+    paymentUpdateMany,
     statusEventCreate,
     productFindMany,
     productUpdate,
@@ -1005,7 +1033,14 @@ describe('OrdersService.refundOrder', () => {
   });
 
   it('records a full refund, flips the payment + order to REFUNDED, and logs the transition', async () => {
-    const { service, refundCreate, paymentUpdate, orderUpdate, statusEventCreate } = adminSetup({
+    const {
+      service,
+      refundCreate,
+      paymentUpdate,
+      paymentUpdateMany,
+      orderUpdate,
+      statusEventCreate,
+    } = adminSetup({
       orderFindFirst: {
         id: 'order-1',
         status: 'PAID',
@@ -1024,9 +1059,13 @@ describe('OrdersService.refundOrder', () => {
     expect(refundCreate.mock.calls[0]![0]).toMatchObject({
       data: { gymId: 'gym-1', orderId: 'order-1', paymentId: 'pay-1', amount: 1000 },
     });
-    expect(paymentUpdate.mock.calls[0]![0]).toMatchObject({
-      data: { refundedAmount: 1000, status: 'REFUNDED' },
+    // The money moves by claim, bounded by the room the capture had left …
+    expect(paymentUpdateMany.mock.calls[0]![0]).toMatchObject({
+      where: { id: 'pay-1', refundedAmount: { lte: 0 } },
+      data: { refundedAmount: { increment: 1000 } },
     });
+    // … and the status flip is a separate decision, taken on the settled figure.
+    expect(paymentUpdate.mock.calls[0]![0]).toMatchObject({ data: { status: 'REFUNDED' } });
     expect(orderUpdate.mock.calls[0]![0]).toMatchObject({ data: { status: 'REFUNDED' } });
     expect(statusEventCreate.mock.calls[0]![0]).toMatchObject({
       data: { status: 'REFUNDED', actor: 'user-1' },
@@ -1087,7 +1126,30 @@ describe('OrdersService.refundOrder', () => {
   });
 
   it('leaves a partial refund PAID without a status event', async () => {
-    const { service, paymentUpdate, orderUpdate, statusEventCreate } = adminSetup({
+    const { service, paymentUpdate, paymentUpdateMany, orderUpdate, statusEventCreate } =
+      adminSetup({
+        orderFindFirst: {
+          id: 'order-1',
+          status: 'PAID',
+          payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+          items: [],
+        },
+      });
+
+    await service.refundOrder('order-1', { amount: 400, reason: 'Partial', restockItems: false });
+
+    expect(paymentUpdateMany.mock.calls[0]![0]).toMatchObject({
+      where: { id: 'pay-1', refundedAmount: { lte: 600 } },
+      data: { refundedAmount: { increment: 400 } },
+    });
+    // Settling below the capture flips nothing: no status write, no transition.
+    expect(paymentUpdate).not.toHaveBeenCalled();
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(statusEventCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses the refund when another took the remaining headroom first', async () => {
+    const { service, paymentUpdateMany, refundCreate } = adminSetup({
       orderFindFirst: {
         id: 'order-1',
         status: 'PAID',
@@ -1095,15 +1157,15 @@ describe('OrdersService.refundOrder', () => {
         items: [],
       },
     });
+    // The pre-check passes on the figure this request read; the claim is then
+    // measured against the row as it stands and finds the room already spent.
+    paymentUpdateMany.mockResolvedValueOnce({ count: 0 });
 
-    await service.refundOrder('order-1', { amount: 400, reason: 'Partial', restockItems: false });
-
-    expect(paymentUpdate.mock.calls[0]![0]).toMatchObject({ data: { refundedAmount: 400 } });
-    expect((paymentUpdate.mock.calls[0]![0] as { data: Record<string, unknown> }).data.status).toBe(
-      undefined,
-    );
-    expect(orderUpdate).not.toHaveBeenCalled();
-    expect(statusEventCreate).not.toHaveBeenCalled();
+    await expect(
+      service.refundOrder('order-1', { amount: 1000, reason: 'Returned', restockItems: false }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    // Nothing is written on the losing path — no orphan refund row to reconcile.
+    expect(refundCreate).not.toHaveBeenCalled();
   });
 
   it('restocks the sold variants when restockItems is set', async () => {

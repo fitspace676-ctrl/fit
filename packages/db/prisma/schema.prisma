@@ -500,6 +500,7 @@ model User {
   /// `tokenVersion` claim at issuance; bumping it (e.g. on a forced global
   /// logout / credential change) lets all outstanding sessions be invalidated
   /// at the next refresh without tracking each access token individually.
+  /// @counter
   tokenVersion    Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -887,6 +888,7 @@ model Trainer {
   /// review, so trainer cards / the detail page can render the live rating without
   /// a COUNT/AVG join — the same denormalisation `ClassInstance.bookedCount` uses.
   rating       Float         @default(0)
+  /// @counter
   reviewCount  Int           @default(0)
   /// The gym-staff membership this coach *is*. Unique, so the link is strictly
   /// one-to-one: one person is one roster entry and one coach profile. `null` only
@@ -996,6 +998,7 @@ model Product {
   /// never counts its towels is not nagged about them. Products that DO carry
   /// variants keep their counts per variant inside `variants`, and this stays
   /// null — the two are alternatives, never summed.
+  /// @counter
   stock             Int?
   /// Per-product reorder cushion. `null` falls back to the shared default, so a
   /// gym only sets this for the few lines whose turnover differs from the rest.
@@ -1213,6 +1216,7 @@ model CreditPack {
   orderId          String?          @unique
   name             String
   totalCredits     Int
+  /// @counter
   remainingCredits Int
   expiresAt        DateTime?
   status           CreditPackStatus @default(ACTIVE)
@@ -1355,6 +1359,7 @@ model ClassInstance {
   startsAt         DateTime
   endsAt           DateTime
   capacityOverride Int?
+  /// @counter
   bookedCount      Int            @default(0)
   status           InstanceStatus @default(SCHEDULED)
   detachedAt       DateTime?
@@ -1421,6 +1426,7 @@ model Booking {
   classInstanceId  String
   memberId         String
   status           BookingStatus @default(BOOKED)
+  /// @counter
   waitlistPosition Int?
   /// The {@link CreditPack} a class credit was drawn from to hold this seat (T8.5),
   /// or `null` when the seat was covered by an entitling subscription (no credit
@@ -1734,10 +1740,12 @@ model Payment {
   /// refunds; null for the stub (no upstream record).
   providerRef    String?
   /// Running total already refunded against this capture (T7.9), in the currency's
-  /// MINOR units. Starts at `0`; each admin refund adds its amount and flips `status`
-  /// to `REFUNDED` once it reaches `amount` (a full refund). The next refund is
-  /// validated against `amount - refundedAmount`, so a partial-then-partial sequence
-  /// can never over-refund.
+  /// MINOR units. Starts at `0`; each admin refund claims its amount with a bounded
+  /// `increment` and flips `status` to `REFUNDED` once the column reaches `amount`
+  /// (a full refund). The bound rides inside the claiming statement rather than in a
+  /// preceding read, so two concurrent refunds cannot both spend the same remaining
+  /// net — see `docs/adr/atomic-counters.md`.
+  /// @counter
   refundedAmount Int           @default(0)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -1940,6 +1948,7 @@ model Subscription {
   /// `freezeDaysPerPeriod` allowance; it resets when the period renews.
   frozenAt           DateTime?
   frozenUntil        DateTime?
+  /// @counter
   freezeDaysUsed     Int                  @default(0)
   /// Dunning retry ladder (T5.5). The number of *scheduled retry charges* that
   /// have failed in the current past-due episode, driving the +2/+5/+7-day retry
@@ -1948,6 +1957,7 @@ model Subscription {
   /// subscription expires. The initial (period-end) charge failure that flips a
   /// subscription `ACTIVE → PAST_DUE` is retry 0; it increments on each further
   /// failed retry and resets to 0 whenever a charge succeeds and the period renews.
+  /// @counter
   paymentRetries     Int                  @default(0)
   /// Payment provider key — `"stub"` for the MVP, a concrete provider once T8.8
   /// lands the real recurring-billing integration.
@@ -2059,6 +2069,7 @@ model Invoice {
 model InvoiceSequence {
   gymId      String
   year       Int
+  /// @counter
   lastNumber Int      @default(0)
   updatedAt  DateTime @updatedAt
 
@@ -2563,6 +2574,7 @@ model PromoCode {
   discountValue Int
   minPurchase   Int?
   usageLimit    Int?
+  /// @counter
   usedCount     Int               @default(0)
   /// What this code may be spent on; `all` honours it across the catalogue.
   appliesTo     PromoScope        @default(all)
@@ -2767,6 +2779,7 @@ model LoyaltyReward {
   pointsCost  Int
   type        LoyaltyRewardType @default(other)
   active      Boolean           @default(true)
+  /// @counter
   stock       Int?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt

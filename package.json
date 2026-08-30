@@ -16,6 +16,7 @@
     "fit": "tsx tools/cli/src/index.ts",
     "check:env-example": "tsx scripts/check-env-example.ts",
     "check:controller-guards": "tsx scripts/check-controller-guards.ts",
+    "check:atomic-counters": "tsx scripts/check-atomic-counters.ts",
     "check:tailwind-guardrail": "tsx scripts/check-tailwind-guardrail.ts",
     "db:generate": "pnpm --filter @fit/db db:generate",
     "db:migrate": "pnpm --filter @fit/db db:migrate",
