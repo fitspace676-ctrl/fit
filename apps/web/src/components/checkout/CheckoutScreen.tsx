@@ -1194,6 +1194,44 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
                   ) : null}
 
                   <div {...stylex.props(styles.fieldGrid)}>
+                    {/* When the membership BEGINS, when the gym asks (a gym that
+                        pre-sells January in December does; one that enrols on
+                        the spot does not, and the API defaults those to today).
+
+                        FIRST, and spanning both columns. It is the only question
+                        on this step that is a DECISION rather than a fact about
+                        the buyer — everything below it they already know by
+                        heart, while this one they have to think about, and a
+                        choice buried between a national id and a gender chip is
+                        one a buyer scrolls past and answers by accident. Full
+                        width because taking a single cell would pair it with the
+                        first name and push every later field onto the wrong side
+                        of the grid.
+
+                        `min`/`max` come from the gym's own policy, so the
+                        calendar cannot offer a day the API would refuse. */}
+                    {asks('startDate') ? (
+                      <div {...stylex.props(styles.fieldWide)}>
+                        <DateField
+                          label={t('details.fields.startDate')}
+                          name="startDate"
+                          value={startDate}
+                          onChange={setStartDate}
+                          locale={locale}
+                          min={startDateWindow.min}
+                          max={startDateWindow.max}
+                          hint={startDateHint}
+                          placeholder={t('details.fields.datePlaceholder')}
+                          labels={{
+                            open: t('details.calendar.open'),
+                            previousMonth: t('details.calendar.previousMonth'),
+                            nextMonth: t('details.calendar.nextMonth'),
+                            chooseYear: t('details.calendar.chooseYear'),
+                          }}
+                          disabled={submitting}
+                        />
+                      </div>
+                    ) : null}
                     <Field
                       label={t('details.fields.firstName')}
                       name="given-name"
@@ -1259,33 +1297,6 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
                         value={dateOfBirth}
                         onChange={setDateOfBirth}
                         locale={locale}
-                        placeholder={t('details.fields.datePlaceholder')}
-                        labels={{
-                          open: t('details.calendar.open'),
-                          previousMonth: t('details.calendar.previousMonth'),
-                          nextMonth: t('details.calendar.nextMonth'),
-                          chooseYear: t('details.calendar.chooseYear'),
-                        }}
-                        disabled={submitting}
-                      />
-                    ) : null}
-                    {/* When the membership BEGINS, when the gym asks (a gym that
-                        pre-sells January in December does; one that enrols on
-                        the spot does not, and the API defaults those to today).
-                        Sits here rather than at the end of the grid so the two
-                        dates stay side by side and the two-column rhythm holds.
-                        `min`/`max` come from the gym's own policy, so the
-                        calendar cannot offer a day the API would refuse. */}
-                    {asks('startDate') ? (
-                      <DateField
-                        label={t('details.fields.startDate')}
-                        name="startDate"
-                        value={startDate}
-                        onChange={setStartDate}
-                        locale={locale}
-                        min={startDateWindow.min}
-                        max={startDateWindow.max}
-                        hint={startDateHint}
                         placeholder={t('details.fields.datePlaceholder')}
                         labels={{
                           open: t('details.calendar.open'),

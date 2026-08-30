@@ -154,6 +154,21 @@ const styles = stylex.create({
     color: 'var(--color-text-disabled)',
     fontWeight: 500,
   },
+  // A day the caller's `min`/`max` puts out of reach. It has always been
+  // unclickable; until now it looked exactly like a day that was not, so a
+  // bounded calendar read as a broken one — the pointer changed and nothing
+  // else did, which is a worse answer than saying no.
+  //
+  // Dimmed like `outside` but NOT identically: an out-of-range day is still a
+  // day of the month being read, so it keeps its weight and loses only its ink.
+  // `not-allowed` names the refusal at the pointer, and hover is flattened
+  // because a cell that lights up under the cursor promises a click it will
+  // not honour.
+  unavailable: {
+    color: 'var(--color-text-disabled)',
+    backgroundColor: { default: 'transparent', ':hover': 'transparent' },
+    cursor: 'not-allowed',
+  },
   // Today is marked with a rule, the selection with the block fill: two states
   // that can be true at once have to be legible at once.
   today: {
@@ -467,6 +482,10 @@ export function DateField({
                           styles.day,
                           focus.ring,
                           cell.outside && styles.outside,
+                          // After `outside`, so a neighbouring-month day that is
+                          // ALSO out of range picks up the refusal cursor rather
+                          // than keeping a pointer it cannot act on.
+                          cell.disabled && styles.unavailable,
                           isToday && !isSelected && styles.today,
                           isSelected && styles.selected,
                         )}
