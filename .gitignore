@@ -16,6 +16,12 @@ out/
 # Turborepo
 .turbo/
 
+# Wrangler's local state — the simulated R2/KV/D1 it keeps for `--local` runs,
+# written into whichever directory the CLI was invoked from. Regenerable, and a
+# quiet trap: `wrangler r2 object get` reads THIS by default rather than the real
+# bucket, so a committed copy would have people debugging against stale fixtures.
+.wrangler/
+
 # Next.js
 .next/
 next-env.d.ts
