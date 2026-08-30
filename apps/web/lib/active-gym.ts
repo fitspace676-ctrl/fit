@@ -11,10 +11,24 @@ import { env } from './env';
 
 /**
  * The active tenant's portal skin as this app consumes it — the sign-in
- * photograph plus the colours the gym chose, unresolved.
+ * photograph, the gym's mark, and the colours it chose, unresolved.
  */
 export interface ActiveGymPortalSkin extends PortalColorChoice {
   loginImageUrl: string | null;
+  /**
+   * The gym's own wordmark, already resolved API-side through
+   * `memberPortal.logoUrl ?? brand.logoUrl`, or `null` when it has uploaded none
+   * — which `PortalLogo` renders as the bundled FormaCore mark.
+   *
+   * Handed over RESOLVED, unlike the two colours beside it, and the asymmetry is
+   * deliberate. The colours have to be un-resolved here because the brand's own
+   * colour DEFAULTS were written for invoices, so honouring them would repaint
+   * every existing tenant's portal on deploy (see `chosenPortalColors`).
+   * `brand.logoUrl` has no such default: it is `null` until a gym uploads a file.
+   * So a brand logo arriving here is always one the gym deliberately supplied,
+   * and there is nothing to undo.
+   */
+  logoUrl: string | null;
 }
 
 /**
@@ -184,8 +198,9 @@ export async function getActiveGymTimezone(): Promise<string> {
 }
 
 /**
- * The active tenant's member-portal skin: the sign-in photograph, plus the two
- * colours **the gym actually chose** (`null` on either meaning "never chosen").
+ * The active tenant's member-portal skin: the sign-in photograph and the gym's
+ * own wordmark, plus the two colours **the gym actually chose** (`null` on either
+ * meaning "never chosen").
  * `null` overall when there is no tenant in scope, the slug names no active gym,
  * or the lookup fails. Server-only, from the same cached
  * `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}.
@@ -228,15 +243,15 @@ export async function getActiveGymPortalSkin(): Promise<ActiveGymPortalSkin | nu
     // Guard the shape rather than trusting it: this is the one lookup rendered
     // before anyone is authenticated, and a malformed colour would reach an
     // inline `style` attribute.
-    if (
-      !portal ||
-      typeof portal.primaryColor !== 'string' ||
-      typeof portal.accentColor !== 'string'
-    ) {
+    if (!portal || typeof portal.primaryColor !== 'string') {
       return null;
     }
     return {
       loginImageUrl: typeof portal.loginImageUrl === 'string' ? portal.loginImageUrl : null,
+      // Guarded the same way, and for the same reason: this value reaches an
+      // `<img src>` on the one screen rendered before anyone is authenticated,
+      // and an API old enough to predate the field simply has no such key.
+      logoUrl: typeof portal.logoUrl === 'string' ? portal.logoUrl : null,
       ...chosenPortalColors(portal, body.brand ?? null),
     };
   } catch {

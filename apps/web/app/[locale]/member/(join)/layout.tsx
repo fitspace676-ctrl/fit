@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { getActiveGymPortalSkin } from '@/lib/active-gym';
 import { Link } from '@/src/i18n/navigation';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
+import { PortalLogo } from '@/src/components/member/portal-logo';
 import { ThemeToggle } from '@/src/components/member/theme-toggle';
 import { SkipLink, ToastProvider } from '@/src/components/ui';
 
@@ -78,7 +80,14 @@ export default async function JoinLayout({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const t = await getTranslations('member.shell');
+  // The tenant's own mark for the header, from the same cached lookup the sign-in
+  // screen reads. `null` — no tenant in scope, or a gym that has uploaded nothing
+  // — is the bundled FormaCore wordmark, which is what this header showed before
+  // a gym could supply one.
+  const [t, portal] = await Promise.all([
+    getTranslations('member.shell'),
+    getActiveGymPortalSkin(),
+  ]);
 
   return (
     <ToastProvider>
@@ -87,13 +96,8 @@ export default async function JoinLayout({
         <header {...stylex.props(styles.header)}>
           <div {...stylex.props(styles.bar)}>
             {/* Home, not `/member/home`: a signed-out visitor has no member home to land on. */}
-            <Link href="/" {...stylex.props(styles.logo)}>
-              <img src="/logodark.png" alt={t('brand')} className="member-logo member-logo-dark" />
-              <img
-                src="/logolight.png"
-                alt={t('brand')}
-                className="member-logo member-logo-light"
-              />
+            <Link href="/" aria-label={t('brand')} {...stylex.props(styles.logo)}>
+              <PortalLogo logoUrl={portal?.logoUrl ?? null} />
             </Link>
             <div {...stylex.props(styles.switches)}>
               <ThemeToggle />

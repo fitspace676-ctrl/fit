@@ -124,12 +124,13 @@ describe('GymsService.resolveBySubdomain', () => {
       timezone: DEFAULT_TIMEZONE,
       // The portal's skin. A gym that has customised neither colour falls through
       // to the brand's, so the sign-in screen is always renderable; the sign-in
-      // photograph stays null until one is uploaded, which the client reads as
-      // "use the bundled hero image".
+      // photograph and the wordmark stay null until one is uploaded, which the
+      // client reads as "use the bundled hero image" and "use the bundled
+      // FormaCore mark" respectively.
       portal: {
         loginImageUrl: null,
+        logoUrl: null,
         primaryColor: DEFAULT_PRIMARY_COLOR,
-        accentColor: DEFAULT_SECONDARY_COLOR,
       },
     });
     expect(findUnique).toHaveBeenCalledWith(
@@ -158,6 +159,39 @@ describe('GymsService.resolveBySubdomain', () => {
         primaryColor: '#ff0000',
         secondaryColor: '#00ff00',
       },
+    });
+  });
+
+  // The portal's chrome carries a wordmark, and it is the ONE public field with a
+  // three-link chain: the portal's own mark, then the brand's, then nothing —
+  // which the member app answers with its bundled FormaCore file. Both live links
+  // are pinned here, because a gym that only ever uploaded a brand logo would
+  // otherwise silently wear FormaCore's mark on its own sign-in screen.
+  it('lets the portal wordmark fall through to the brand logo, and prefers its own', async () => {
+    const brandOnly = setupBySubdomain({
+      id: 'gym-1',
+      name: 'Downtown Strength',
+      status: GymStatus.ACTIVE,
+      settings: { brand: { logoUrl: 'https://cdn.example.com/gym-1/logos/invoice.png' } },
+    });
+    await expect(brandOnly.service.resolveBySubdomain('downtown')).resolves.toMatchObject({
+      portal: { logoUrl: 'https://cdn.example.com/gym-1/logos/invoice.png' },
+    });
+
+    const both = setupBySubdomain({
+      id: 'gym-1',
+      name: 'Downtown Strength',
+      status: GymStatus.ACTIVE,
+      settings: {
+        brand: { logoUrl: 'https://cdn.example.com/gym-1/logos/invoice.png' },
+        memberPortal: { logoUrl: 'https://cdn.example.com/gym-1/logos/mark.webp' },
+      },
+    });
+    await expect(both.service.resolveBySubdomain('downtown')).resolves.toMatchObject({
+      portal: { logoUrl: 'https://cdn.example.com/gym-1/logos/mark.webp' },
+      // Untouched: the mark invoices print is a different setting with a
+      // different format gate.
+      brand: { logoUrl: 'https://cdn.example.com/gym-1/logos/invoice.png' },
     });
   });
 

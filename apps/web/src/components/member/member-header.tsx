@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/src/i18n/navigation';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
+import { PortalLogo } from './portal-logo';
 import { ThemeToggle } from './theme-toggle';
 
 // FormaCore redesign (T11.10) — the member shell, off Tailwind and onto compiled
@@ -81,24 +82,42 @@ const styles = stylex.create({
   },
 });
 
-/** Brand mark — the FormaCore logo image, theme-swapped, linking home. */
-function Logo({ label }: { label: string }) {
+/**
+ * Brand mark — the gym's own logo, or the theme-swapped FormaCore wordmark when it
+ * has uploaded none — linking home. See `PortalLogo` for why one uploaded file
+ * cannot use the swap the bundled pair does.
+ */
+function Logo({ label, logoUrl }: { label: string; logoUrl: string | null }) {
   return (
     <Link href="/member/home" aria-label={label} {...stylex.props(styles.logo)}>
-      <img src="/logodark.png" alt="" className="member-logo member-logo-dark" />
-      <img src="/logolight.png" alt="" className="member-logo member-logo-light" />
+      <PortalLogo logoUrl={logoUrl} />
     </Link>
   );
 }
 
+export interface MemberHeaderProps {
+  /**
+   * The tenant's mark, resolved API-side through `memberPortal.logoUrl ??
+   * brand.logoUrl`, or `null` for the bundled wordmark.
+   *
+   * Passed IN rather than fetched here: this is a client component (the two
+   * switches need it), and the tenant lookup is server-only — it reads the
+   * request `Host` to work out which gym is being served. The layout that renders
+   * this header is a Server Component and already has the answer, so the value
+   * travels as a prop instead of turning the header into a second network call
+   * that would also flash the wrong mark on first paint.
+   */
+  logoUrl?: string | null;
+}
+
 /** Persistent member-portal header: the brand mark, and the theme and language switches. */
-export function MemberHeader() {
+export function MemberHeader({ logoUrl = null }: MemberHeaderProps) {
   const t = useTranslations('member');
 
   return (
     <header {...stylex.props(styles.header)}>
       <div {...stylex.props(styles.bar)}>
-        <Logo label={t('shell.brand')} />
+        <Logo label={t('shell.brand')} logoUrl={logoUrl} />
 
         <div {...stylex.props(styles.actions)}>
           <ThemeToggle />

@@ -27,19 +27,19 @@
 //   the honest shape for it; what has to move per theme is the ink ON it and the
 //   tints beside it.
 //
-//   `accentColor` drives the accent as INK — `--color-text-accent` and
-//   `--color-icon-accent`, the accent used as type on the page surface. That is
-//   the one place the pair can genuinely differ without inventing a parallel
-//   token system: a primary block with a secondary highlight is what "primary +
-//   accent" means, and the theme already keeps these as separate tokens (lime
-//   fill, darkened lime type) precisely because a fill colour and a text colour
-//   have different jobs. A second colour too close to body copy to READ as an
-//   accent hands that job back to the primary — see {@link accentTypeSource}.
+//   The accent as INK — `--color-text-accent` and `--color-icon-accent`, the
+//   accent used as type on the page surface — is NOT a brand slot and is left
+//   exactly as `formacore.css` ships it: the product's lime, already carried as
+//   a light/dark pair. It marks what to notice (a link, a tick, an accented
+//   figure) rather than what the gym owns, and a single configurable hex could
+//   not have replaced that pair without losing one theme or the other. The field
+//   that used to set it inherited `brand.secondaryColor` — a near-black picked
+//   for documents, which is not an accent at all.
 //
 // LEGIBILITY WINS OVER FIDELITY. The portal ships a light and a dark skin and a
-// working toggle between them, so a single hex has to survive both. Two of the
-// three failure modes are silent: a dark brand as accent TYPE vanishes on the
-// dark canvas, and a light brand as accent type vanishes on the light one. Every
+// working toggle between them, so a single hex has to survive both. The failure
+// mode is silent: a fill whose ink is not corrected per theme vanishes on one of
+// the two canvases. Every
 // value below that lands on a surface is therefore contrast-corrected per theme
 // — its LIGHTNESS moved, in HSL, until it clears WCAG AA against that theme's
 // canvas — and emitted as `light-dark(<light>, <dark>)` rather than as one
@@ -88,23 +88,6 @@ const TEXT_CONTRAST = 4.5;
 
 /** WCAG AA for large text and UI boundaries — borders, glyphs, outlines. */
 const EDGE_CONTRAST = 3;
-
-/**
- * What `--color-text-primary` resolves to per canvas: the theme writes body copy
- * in its ink on the light skin and in its paper on the dark one.
- */
-const LIGHT_BODY_TEXT: Rgb = INK;
-const DARK_BODY_TEXT: Rgb = PAPER;
-
-/**
- * How far accent type has to sit from body copy before it reads as an accent.
- *
- * Low on purpose — this is not a legibility bar, it is a "did the colour survive
- * at all" bar. Anything under it and the accent is body copy wearing a token
- * name, which is a real regression rather than a subtle one: the sign-in screen's
- * "forgot your password?" link stops looking like a link.
- */
-const ACCENT_DISTINCTION = 1.6;
 
 /** How far one correction step moves a colour toward the pole it is heading to. */
 const CORRECTION_STEP = 0.04;
@@ -255,7 +238,6 @@ function lightDark(light: string, dark: string): string {
  */
 export interface PortalColorChoice {
   primaryColor: string | null;
-  accentColor: string | null;
 }
 
 /**
@@ -295,23 +277,17 @@ export function chosenPortalColors(
 ): PortalColorChoice {
   const inherited = (value: string, from: string | undefined): string | null =>
     from === undefined || value.trim().toLowerCase() === from.trim().toLowerCase() ? null : value;
-  return {
-    primaryColor: brand ? inherited(portal.primaryColor, brand.primaryColor) : null,
-    // `accentColor` falls through to the brand's SECONDARY colour — see
-    // `gymPortalTheme`, which is the resolution this undoes.
-    accentColor: brand ? inherited(portal.accentColor, brand.secondaryColor) : null,
-  };
+  return { primaryColor: brand ? inherited(portal.primaryColor, brand.primaryColor) : null };
 }
 
 /**
- * The custom-property overrides for the colours a gym actually chose.
+ * The custom-property overrides for the colour a gym actually chose.
  *
- * PER COLOUR, not all-or-nothing. A gym that set only `primaryColor` gets the
- * fill ramp repainted and keeps the shipped accent type; one that set only
- * `accentColor` gets the reverse. What you change is what changes, and what you
- * left alone still looks like the product you bought — which is the whole point
- * of gating this, and the reason an unconfigured gym gets an empty map and the
- * Lime Block palette `formacore.css` already renders.
+ * Only the FILL ramp is ever written. A gym that chose a primary gets its blocks
+ * and buttons repainted and keeps the shipped accent type, and an unconfigured
+ * gym gets an empty map and the Lime Block palette `formacore.css` already
+ * renders. What you change is what changes, and what you left alone still looks
+ * like the product you bought — which is the whole point of gating this.
  *
  * A colour that is not a six-digit hex is treated as unchosen for the same
  * reason: the stored schema guarantees the shape, so that only happens against
@@ -320,7 +296,6 @@ export function chosenPortalColors(
  */
 export function portalThemeVars(choice: PortalColorChoice): PortalThemeVars {
   const primary = choice.primaryColor === null ? null : parseHex(choice.primaryColor);
-  const accent = choice.accentColor === null ? null : parseHex(choice.accentColor);
   const vars: PortalThemeVars = {};
 
   if (primary) {
@@ -356,43 +331,12 @@ export function portalThemeVars(choice: PortalColorChoice): PortalThemeVars {
     // it from `var(--color-accent)`, so it follows this override on its own.
   }
 
-  const typeSource = accentTypeSource(accent, primary);
-  if (typeSource) {
-    // Accent as TYPE, corrected per canvas — see the module docstring.
-    const typeAccent = lightDark(
-      toHex(readableOn(typeSource, LIGHT_SURFACE, TEXT_CONTRAST)),
-      toHex(readableOn(typeSource, DARK_SURFACE, TEXT_CONTRAST)),
-    );
-    vars['--color-text-accent'] = typeAccent;
-    vars['--color-icon-accent'] = typeAccent;
-  }
-
+  // `--color-text-accent` / `--color-icon-accent` are deliberately NOT written.
+  // The accent as TYPE — links, ticks, accented figures — stays the product's
+  // lime, which `formacore.css` already ships as a light/dark pair. A gym paints
+  // the fill; the mark that says "this is the thing to notice" is not a brand
+  // slot, and one hex could not have replaced that pair without losing a theme.
   return vars;
-}
-
-/**
- * Which colour the accent TYPE ramp is corrected from, or `null` to leave the
- * shipped one alone.
- *
- * An unchosen `accentColor` yields `null` even when a primary was chosen: the
- * gym changed the fill and said nothing about the type, so the type stays as
- * shipped. A chosen one is used — unless it cannot function as an accent at all,
- * meaning that once made legible it is indistinguishable from body copy (a
- * near-black, most often). Then every link and accented figure would render as
- * plain dark text, which looks less like a themed portal than like a broken one,
- * so the job passes to `primaryColor` if the gym chose one — the accent behaving
- * as the shipped lime does, one hue as both fill and type — and otherwise back
- * to the theme's own. The check runs against BOTH canvases and both must pass,
- * so an accent cannot be a link on one skin and body copy on the other.
- */
-function accentTypeSource(accent: Rgb | null, primary: Rgb | null): Rgb | null {
-  if (!accent) return null;
-  const readsAsAccent =
-    contrastRatio(readableOn(accent, LIGHT_SURFACE, TEXT_CONTRAST), LIGHT_BODY_TEXT) >=
-      ACCENT_DISTINCTION &&
-    contrastRatio(readableOn(accent, DARK_SURFACE, TEXT_CONTRAST), DARK_BODY_TEXT) >=
-      ACCENT_DISTINCTION;
-  return readsAsAccent ? accent : primary;
 }
 
 /**

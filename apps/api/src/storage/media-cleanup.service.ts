@@ -73,7 +73,7 @@ export class MediaCleanupService {
    * looser rule because it compares a *bucket key* against a stored URL.)
    */
   private async isStillReferenced(reference: string): Promise<boolean> {
-    const [products, trainers, locations, logos, portalImages] = await Promise.all([
+    const [products, trainers, locations, logos, portalImages, portalLogos] = await Promise.all([
       this.prisma.client.product.count({ where: { images: { has: reference } } }),
       this.prisma.client.trainer.count({ where: { photoUrl: reference } }),
       this.prisma.client.location.count({ where: { photoUrl: reference } }),
@@ -86,9 +86,23 @@ export class MediaCleanupService {
       this.prisma.client.gym.count({
         where: { settings: { path: ['memberPortal', 'loginImageUrl'], equals: reference } },
       }),
+      // The portal WORDMARK, on that same prefix, and the sharpest version of the
+      // same case: a gym whose portal inherits `brand.logoUrl` holds one file
+      // under two settings paths, so replacing either would drop the other's
+      // image if only one path were counted.
+      this.prisma.client.gym.count({
+        where: { settings: { path: ['memberPortal', 'logoUrl'], equals: reference } },
+      }),
     ]);
 
-    return products > 0 || trainers > 0 || locations > 0 || logos > 0 || portalImages > 0;
+    return (
+      products > 0 ||
+      trainers > 0 ||
+      locations > 0 ||
+      logos > 0 ||
+      portalImages > 0 ||
+      portalLogos > 0
+    );
   }
 }
 
