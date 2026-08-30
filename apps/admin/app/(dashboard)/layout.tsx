@@ -76,12 +76,15 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <GymCurrencyProvider currency={currency}>
-      {impersonation ? <ImpersonationBanner meta={impersonation} /> : null}
       <AdminShell
         gymSlug={gymSlug}
         system={system}
         locations={locations}
         sidebarCollapsed={sidebarCollapsed}
+        // Into the shell's own banner slot, not above it: the shell is exactly
+        // one viewport tall, so a bar stacked on top of it is a bar's worth of
+        // document scroll. See the `banner` prop's note in `admin-shell.tsx`.
+        banner={impersonation ? <ImpersonationBanner meta={impersonation} /> : null}
       >
         {children}
       </AdminShell>
